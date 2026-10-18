@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import { randomUUID } from "expo-crypto";
 import { useI18n } from "../../../i18n";
 import { api } from "../../../platform/api";
 import { bookingOptions, openPayment, usable as offered, type BookingOption, type PayWith } from "../../../platform/payments";
 import { saveBooking } from "../../../platform/tickets";
-import { Button, Card, CarrierName, Chip, Choice, ErrorText, Field, Loading, Notice, Screen, s } from "../../../ui/kit";
+import { BottomBar, Button, Card, CarrierName, Chip, Choice, ErrorText, Field, Loading, Notice, Pill, Screen, Steps, s } from "../../../ui/kit";
 import { Icon, TripLine } from "../../../ui/brand";
 import { SeatMap, type SeatMapData } from "../../../ui/SeatMap";
 import { color, font, radius } from "../../../ui/theme";
@@ -59,7 +59,6 @@ const fromMember = (m: Member): Names => ({
 
 export default function Trip() {
   const { t, money, time } = useI18n();
-  const insets = useSafeAreaInsets();
   const p = useLocalSearchParams<{ uid: string; from_seq: string; to_seq: string; passengers: string; laps?: string; brand?: string; points?: string }>();
   const brand = p.brand || "STANDARD";               // the class chosen on the booking card
   const max = Number(p.passengers) || 1;
@@ -181,8 +180,7 @@ export default function Trip() {
   const named = keys.every((k) => complete(names[k]));
   const step = !hold ? 0 : named ? 2 : 1;
   const between = Math.max(0, d.to_seq - d.from_seq - 1);
-  const pill = (on: boolean) => [ts.pill, on && ts.pillOn];
-  return (
+    return (
     <SafeAreaView style={{ flex: 1, backgroundColor: color.background }} edges={["top", "left", "right"]}>
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={ts.page}>
         <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel={t("common.back")} hitSlop={12} style={{ alignSelf: "flex-start" }}>
@@ -211,7 +209,7 @@ export default function Trip() {
           </View>
         </View>
 
-        <Steps current={step} />
+        <Steps current={step} items={[t("trip.step.seats"), t("trip.step.names"), t("trip.step.pay")]} />
 
         {bands.length ? (
           <View style={{ gap: 6 }}>
@@ -273,10 +271,7 @@ export default function Trip() {
                   <Text style={s.small}>{t("pax.category")}: {cat ? t(`pax.cat.${cat}`) : t("pax.categoryUnknown")}{quote?.lines[i] ? ` · ${money(quote.lines[i].fare)}` : ""}</Text>
                   <View style={s.row}>
                     {[true, false].map((sy) => (
-                      <Pressable key={String(sy)} onPress={() => set({ syrian: sy })} accessibilityRole="radio" accessibilityState={{ checked: x.syrian === sy }}
-                                 style={pill(x.syrian === sy)}>
-                        <Text style={[ts.pillText, x.syrian === sy && ts.pillTextOn]}>{t(sy ? "trip.syrian" : "trip.otherNationality")}</Text>
-                      </Pressable>
+                      <Pill key={String(sy)} on={x.syrian === sy} label={t(sy ? "trip.syrian" : "trip.otherNationality")} onPress={() => set({ syrian: sy })} />
                     ))}
                   </View>
                   {!x.syrian ? <Field label={t("trip.nationality")} value={x.country} placeholder="LB" maxLength={2} autoCapitalize="characters"
@@ -294,9 +289,7 @@ export default function Trip() {
                                                            : t("trip.passportNeeded", { days: d.passport_min_days })}{d.notes.length ? ` ${d.notes.join(" ")}` : ""}</Text>
                         {d.docs.length > 1 ? (
                           <View style={ts.wrap}>{d.docs.map((k) => (
-                            <Pressable key={k} onPress={() => set({ id_type: k })} accessibilityRole="radio" accessibilityState={{ checked: type === k }} style={pill(type === k)}>
-                              <Text style={[ts.pillText, type === k && ts.pillTextOn]}>{t(`trip.docTypes.${k}`)}</Text>
-                            </Pressable>
+                            <Pill key={k} on={type === k} label={t(`trip.docTypes.${k}`)} onPress={() => set({ id_type: k })} />
                           ))}</View>
                         ) : null}
                         <Field label={t("trip.docNumber")} value={x.id_no} onChangeText={(v) => set({ id_no: v, id_type: type })} autoComplete="off" autoCapitalize="characters" />
@@ -346,7 +339,7 @@ export default function Trip() {
         )}
       </ScrollView>
 
-      <View style={[ts.bar, { paddingBottom: 12 + insets.bottom }]}>
+      <BottomBar>
         <View style={s.between}>
           {!hold ? (
             <View style={{ flex: 1, gap: 2, alignItems: "flex-start" }}>
@@ -360,28 +353,8 @@ export default function Trip() {
           ? <Button label={t("trip.hold")} busy={busy} disabled={selected.length !== max} onPress={doHold} />
           : <Button label={familyPays ? t("trip.pay", { amount: money(total) }) : payLabel} busy={busy}
                     disabled={left === 0 || !quote || !named || (!!opts.data && !chosen)} onPress={pay} />}
-      </View>
+      </BottomBar>
     </SafeAreaView>
-  );
-}
-
-/** Where the passenger is in the booking: seats, then the passengers' names, then paying. */
-function Steps({ current }: { current: number }) {
-  const { t } = useI18n();
-  const items = [t("trip.step.seats"), t("trip.step.names"), t("trip.step.pay")];
-  return (
-    <View style={ts.steps}>
-      {items.map((label, i) => (
-        <View key={i} style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 6 }}
-              accessibilityState={{ selected: i === current }} accessibilityLabel={`${i + 1}. ${label}`}>
-          <View style={[ts.stepDot, i < current && { backgroundColor: color.green }, i === current && { backgroundColor: color.primary }]}>
-            {i < current ? <Icon name="check" size={14} tint="#fff" /> : <Text style={[ts.stepNum, i <= current && { color: "#fff" }]}>{i + 1}</Text>}
-          </View>
-          <Text style={[ts.stepLabel, i === current && { color: color.navy, fontFamily: font.display }]} numberOfLines={1}>{label}</Text>
-          {i < items.length - 1 ? <View style={[ts.stepLine, i < current && { backgroundColor: color.green }]} /> : null}
-        </View>
-      ))}
-    </View>
   );
 }
 
@@ -398,11 +371,6 @@ const ts = StyleSheet.create({
   per: { fontFamily: font.display, fontSize: 15, color: "#fff" },
   h: { fontFamily: font.display, fontSize: 18, color: color.navy },
   wrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  steps: { flexDirection: "row", alignItems: "center", backgroundColor: color.surface, borderRadius: radius.md, paddingHorizontal: 12, paddingVertical: 12, gap: 6 },
-  stepDot: { width: 24, height: 24, borderRadius: 12, backgroundColor: color.outline, alignItems: "center", justifyContent: "center" },
-  stepNum: { fontFamily: font.display, fontSize: 12, color: color.muted },
-  stepLabel: { fontFamily: font.medium, fontSize: 13, color: color.muted, flexShrink: 1 },
-  stepLine: { flex: 1, height: 2, borderRadius: 1, backgroundColor: color.outline, minWidth: 8 },
   timer: { flexDirection: "row", alignItems: "center", gap: 8, alignSelf: "flex-start", backgroundColor: color.amberSoft, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999 },
   timerText: { fontFamily: font.semibold, fontSize: 14, color: color.amber },
   num: { width: 28, height: 28, borderRadius: 14, backgroundColor: color.primarySoft, alignItems: "center", justifyContent: "center" },
@@ -410,18 +378,12 @@ const ts = StyleSheet.create({
   seatTag: { flexDirection: "row", alignItems: "baseline", gap: 6, backgroundColor: color.greenSoft, paddingHorizontal: 12, paddingVertical: 4, borderRadius: radius.sm },
   seatTagLabel: { fontFamily: font.body, fontSize: 12, color: color.green },
   seatTagValue: { fontFamily: font.displayBold, fontSize: 18, color: "#00391F" },
-  pill: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 999, borderWidth: 1, borderColor: color.outline, backgroundColor: color.surface },
-  pillOn: { borderColor: color.primary, backgroundColor: color.primarySoft },
-  pillText: { fontFamily: font.body, fontSize: 14, color: color.text },
-  pillTextOn: { fontFamily: font.semibold, color: color.primary },
   option: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: radius.md, borderWidth: 1.5, borderColor: color.outline, backgroundColor: color.surface },
   optionOn: { borderColor: color.primary, backgroundColor: "#F3F7FE" },
   optionName: { fontFamily: font.display, fontSize: 16, color: color.text },
   radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: color.outline, alignItems: "center", justifyContent: "center" },
   radioOn: { borderColor: color.primary },
   radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: color.primary },
-  bar: { backgroundColor: color.surface, paddingHorizontal: 16, paddingTop: 12, gap: 10, borderTopWidth: 1, borderColor: color.outline,
-         shadowColor: "#0F1B2D", shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: -4 }, elevation: 8 },
   barSeats: { fontFamily: font.display, fontSize: 17, color: color.green },
   barTotal: { fontFamily: font.displayBold, fontSize: 22, color: color.navy },
 });

@@ -68,7 +68,7 @@ const en = {
           passenger: "Passenger {n}", first: "First name", father: "Father's name", grandfather: "Grandfather's name",
           last: "Family name", nationality: "Nationality", syrian: "Syrian citizen", otherNationality: "Other nationality",
           namesHint: "As on the identity document. Syrian citizens: all four names.", pay: "Pay {amount} from wallet",
-          balance: "Wallet balance: {amount}", step: { seats: "Seats", names: "Passengers", pay: "Payment" },
+          balance: "Wallet balance: {amount}", step: { trips: "Trips", seats: "Seats", names: "Passengers", pay: "Payment" },
           legend: { free: "Available", mine: "Your choice", taken: "Taken", accessible: "Accessible" }, door: "Door", wc: "WC",
           perSeat: "{amount} per seat", fares: "Fares by age", chosen: "Your seats", none: "Tap a free seat", payWith: "How to pay" },
   ticket: { board: "Boarding pass", passenger: "Passenger", date: "Date", carrier: "Carrier", trip: "Trip", fare: "Class", seat: "Seat",

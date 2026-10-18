@@ -1,10 +1,11 @@
 import type { ReactNode } from "react";
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type TextInputProps, type TextStyle, type ViewStyle } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { color, font, radius, space } from "./theme";
 import { useI18n } from "../i18n";
 import { ApiError } from "../platform/api";
 import { API_URL } from "../platform/config";
+import { Icon } from "./brand";
 
 export function Screen({ children, scroll = true, padded = true }: { children: ReactNode; scroll?: boolean; padded?: boolean }) {
   const body = <View style={[{ gap: space(4) }, padded && { padding: space(4) }]}>{children}</View>;
@@ -164,3 +165,50 @@ export function Tabs<T extends string>({ items, value, onChange }: { items: { ke
     </View>
   );
 }
+
+/** Where the passenger is in a booking (seats, passengers, payment): done steps turn green, the current one blue. */
+export function Steps({ current, items }: { current: number; items: string[] }) {
+  return (
+    <View style={k.steps}>
+      {items.map((label, i) => (
+        <View key={i} style={{ flexGrow: i < items.length - 1 ? 1 : 0, flexShrink: 1, flexDirection: "row", alignItems: "center", gap: 6 }}
+              accessibilityState={{ selected: i === current }} accessibilityLabel={`${i + 1}. ${label}`}>
+          <View style={[k.stepDot, i < current && { backgroundColor: color.green }, i === current && { backgroundColor: color.primary }]}>
+            {i < current ? <Icon name="check" size={14} tint="#fff" /> : <Text style={[k.stepNum, i <= current && { color: "#fff" }]}>{i + 1}</Text>}
+          </View>
+          <Text style={[k.stepLabel, i === current && { color: color.navy, fontFamily: font.display }]}>{label}</Text>
+          {i < items.length - 1 ? <View style={[k.stepLine, i < current && { backgroundColor: color.green }]} /> : null}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/** One choice as a rounded pill (nationality, document type, how to pay). */
+export function Pill({ label, on, onPress }: { label: string; on: boolean; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} accessibilityRole="radio" accessibilityState={{ checked: on }} style={[k.pill, on && k.pillOn]}>
+      <Text style={[k.pillText, on && k.pillTextOn]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+/** The bar fixed at the bottom of a checkout: what is chosen, the total and the next action. */
+export function BottomBar({ children }: { children: ReactNode }) {
+  const insets = useSafeAreaInsets();
+  return <View style={[k.bar, { paddingBottom: 12 + insets.bottom }]}>{children}</View>;
+}
+
+const k = StyleSheet.create({
+  steps: { flexDirection: "row", alignItems: "center", backgroundColor: color.surface, borderRadius: radius.md, paddingHorizontal: 12, paddingVertical: 12, gap: 4 },
+  stepDot: { width: 24, height: 24, borderRadius: 12, backgroundColor: color.outline, alignItems: "center", justifyContent: "center" },
+  stepNum: { fontFamily: font.display, fontSize: 12, color: color.muted },
+  stepLabel: { fontFamily: font.medium, fontSize: 13, color: color.muted, flexShrink: 0 },
+  stepLine: { flexGrow: 1, height: 2, borderRadius: 1, backgroundColor: color.outline, minWidth: 8 },
+  pill: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 999, borderWidth: 1, borderColor: color.outline, backgroundColor: color.surface },
+  pillOn: { borderColor: color.primary, backgroundColor: color.primarySoft },
+  pillText: { fontFamily: font.body, fontSize: 14, color: color.text },
+  pillTextOn: { fontFamily: font.semibold, color: color.primary },
+  bar: { backgroundColor: color.surface, paddingHorizontal: 16, paddingTop: 12, gap: 10, borderTopWidth: 1, borderColor: color.outline,
+         shadowColor: "#0F1B2D", shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: -4 }, elevation: 8 },
+});

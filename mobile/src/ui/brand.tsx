@@ -55,6 +55,7 @@ const PATHS = {
   calendar: "M5 6.5h14v13H5zM5 10.5h14M9 4v4M15 4v4",
   chevron: "M7 10l5 5 5-5",
   back: "M15 5l-7 7 7 7",
+  forward: "M9 5l7 7-7 7",
   close: "M6 6l12 12M18 6L6 18",
   minus: "M6 12h12",
   plus: "M6 12h12M12 6v12",

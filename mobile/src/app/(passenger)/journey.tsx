@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import { randomUUID } from "expo-crypto";
 import { useI18n } from "../../i18n";
 import { api } from "../../platform/api";
 import { bookingOptions } from "../../platform/payments";
 import { saveBooking } from "../../platform/tickets";
-import { Button, Card, CarrierName, Choice, ErrorText, Field, Loading, Notice, Row, Screen, Title, s } from "../../ui/kit";
-import { color } from "../../ui/theme";
+import { BottomBar, Button, Card, CarrierName, Chip, ErrorText, Field, Loading, Notice, Pill, Screen, Steps, Title, s } from "../../ui/kit";
+import { Icon, TripLine } from "../../ui/brand";
+import { color, font } from "../../ui/theme";
 import { useLoad } from "../../ui/useLoad";
 import { parseLegs, parsePicked, type JourneyKind } from "../../core/journey";
 import { PolicyText, RiskNotice, type Policy } from "../../ui/connections";
@@ -99,98 +101,177 @@ export default function Journey() {
 
   if (done) return (
     <Screen>
-      <Title sub={t(`jrn.kindDone.${kind}`, { n: done.bookings.length })}>{t(done.status === "CONFIRMED" ? "jrn.booked" : "jrn.reserved")}</Title>
-      <Card>
-        {done.bookings.map((b) => (
-          <Row key={b.booking_ref} title={`${t("jrn.legN", { n: b.leg })} · ${b.booking_ref}`} sub={money(b.total)}
-               onPress={() => router.push({ pathname: "/booking/[ref]", params: { ref: b.booking_ref } })} />
-        ))}
-        {done.totals.map((x) => <Text key={x.currency} style={s.h2}>{t("common.total")}: {money(x.total)}</Text>)}
-      </Card>
-      <Button kind="text" label={t("tabs.trips")} onPress={() => router.replace("/trips")} />
+      <View style={js.doneHead}>
+        <View style={[js.doneIcon, done.status !== "CONFIRMED" && { backgroundColor: color.amberSoft }]}>
+          <Icon name={done.status === "CONFIRMED" ? "check" : "clock"} size={34} tint={done.status === "CONFIRMED" ? color.green : color.amber} />
+        </View>
+        <Text style={s.title} accessibilityRole="header">{t(done.status === "CONFIRMED" ? "jrn.booked" : "jrn.reserved")}</Text>
+        <Text style={s.muted}>{t(`jrn.kindDone.${kind}`, { n: done.bookings.length })}</Text>
+      </View>
+      {done.bookings.map((b) => (
+        <Pressable key={b.booking_ref} onPress={() => router.push({ pathname: "/booking/[ref]", params: { ref: b.booking_ref } })}
+                   accessibilityRole="button" style={({ pressed }) => [s.card, js.doneRow, pressed && { opacity: 0.85 }]}>
+          <View style={{ flex: 1, gap: 4, alignItems: "flex-start" }}>
+            <Chip tone="blue" label={t("jrn.legN", { n: b.leg })} />
+            <Text style={js.ref}>{b.booking_ref}</Text>
+          </View>
+          <Text style={js.price}>{money(b.total)}</Text>
+          <Icon name="forward" size={20} tint={color.muted} mirror />
+        </Pressable>
+      ))}
+      {done.totals.map((x) => (
+        <View key={x.currency} style={s.between}><Text style={s.label}>{t("common.total")}</Text><Text style={js.total}>{money(x.total)}</Text></View>
+      ))}
+      <Button label={t("tabs.trips")} onPress={() => router.replace("/trips")} />
     </Screen>
   );
 
   if (trips.loading) return <Screen><Loading /></Screen>;
   if (!trips.data) return <Screen><ErrorText error={trips.error} /></Screen>;
   const total = trips.data.reduce((sum, d) => sum + d.price * pax, 0);
+  const named = people.every(complete);
   return (
-    <Screen>
-      <Title sub={t("jrn.sub", { n: legs.length, pax })}>{t(`jrn.title.${kind}`)}</Title>
-      {trips.data.map((d, i) => {
-        const a = d.stops.find((x) => x.seq === d.from_seq), b = d.stops.find((x) => x.seq === d.to_seq);
-        const prev = i > 0 ? trips.data![i - 1] : null;
-        const prevArr = prev?.stops.find((x) => x.seq === prev.to_seq)?.sched_arr;
-        return (
-          <Card key={i}>
-            {connection && prevArr && a?.sched_dep ? (
-              <Text style={[s.small, { color: color.amber }]}>⇄ {t("conn.changeMinutes", { n: Math.round((Date.parse(a.sched_dep) - Date.parse(prevArr)) / 60000) })}</Text>
-            ) : null}
-            <Text style={s.h2}>{t("jrn.legN", { n: i + 1 })} · {a?.station_name} → {b?.station_name}</Text>
-            <Text style={s.muted}>{a?.sched_dep ? `${date(a.sched_dep)} · ${time(a.sched_dep)}` : ""} → {b?.sched_arr ? time(b.sched_arr) : ""} · {d.trip.trip_code ?? d.trip.trip_no}</Text>
-            <CarrierName name={d.trip.carrier_name} uid={d.trip.carrier_uid} logo={d.trip.carrier_logo} />
-            <Text style={s.small}>{money(d.price)} × {pax}</Text>
-            {connection && d.connection_policy ? <PolicyText p={d.connection_policy} /> : null}
-            {connection ? (
-              <Choice label={t("conn.fare")} value={brandFor(i, d)} onChange={(v) => setBrandOf((all) => ({ ...all, [i]: v }))}
-                      options={["SAVER", "STANDARD", "FLEX"].map((c) => ({ value: c, label: t(`conn.brand.${c}`) }))} />
-            ) : null}
-          </Card>
-        );
-      })}
-      <Text style={s.small}>{t("jrn.travellersHint")}</Text>
-      {people.map((x, i) => {
-        const set = (patch: Partial<Person>) => setPeople((all) => all.map((y, j) => (j === i ? { ...y, ...patch } : y)));
-        const d = docs[nat(x)];
-        const type = d?.docs.includes(x.id_type) ? x.id_type : d?.docs[0] ?? "PASSPORT";
-        return (
-          <Card key={i}>
-            <Text style={s.h2}>{t("trip.passenger", { n: i + 1 })}</Text>
-            <View style={s.row}>
-              {[true, false].map((sy) => (
-                <Pressable key={String(sy)} onPress={() => set({ syrian: sy })} accessibilityRole="radio" accessibilityState={{ checked: x.syrian === sy }}
-                           style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1,
-                                    borderColor: x.syrian === sy ? color.primary : color.outline, backgroundColor: x.syrian === sy ? color.primarySoft : color.surface }}>
-                  <Text>{t(sy ? "trip.syrian" : "trip.otherNationality")}</Text>
-                </Pressable>
-              ))}
+    <SafeAreaView style={{ flex: 1, backgroundColor: color.background }} edges={["top", "left", "right"]}>
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={js.page}>
+        <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel={t("common.back")} hitSlop={12} style={{ alignSelf: "flex-start" }}>
+          <Icon name="back" size={26} tint={color.primary} mirror />
+        </Pressable>
+        <Title sub={t("jrn.sub", { n: legs.length, pax })}>{t(`jrn.title.${kind}`)}</Title>
+        <Steps current={named ? 2 : 1} items={[t("trip.step.trips"), t("trip.step.names"), t("trip.step.pay")]} />
+
+        {trips.data.map((d, i) => {
+          const a = d.stops.find((x) => x.seq === d.from_seq), b = d.stops.find((x) => x.seq === d.to_seq);
+          const prev = i > 0 ? trips.data![i - 1] : null;
+          const prevArr = prev?.stops.find((x) => x.seq === prev.to_seq)?.sched_arr;
+          return (
+            <View key={i} style={{ gap: 10 }}>
+              {connection && prevArr && a?.sched_dep ? (
+                <View style={js.change}>
+                  <Icon name="clock" size={16} tint={color.amber} />
+                  <Text style={js.changeText}>{t("conn.changeMinutes", { n: Math.round((Date.parse(a.sched_dep) - Date.parse(prevArr)) / 60000) })}</Text>
+                </View>
+              ) : null}
+              <Card>
+                <View style={s.between}>
+                  <Chip tone="blue" label={t("jrn.legN", { n: i + 1 })} />
+                  <Text style={s.small}>{a?.sched_dep ? date(a.sched_dep) : ""}</Text>
+                </View>
+                <View style={js.route}>
+                  <View style={js.end}>
+                    <Text style={js.time}>{a?.sched_dep ? time(a.sched_dep) : "—"}</Text>
+                    <Text style={js.station} numberOfLines={2}>{a?.station_name}</Text>
+                  </View>
+                  <TripLine width={80} height={16} stops={Math.min(Math.max(0, d.to_seq - d.from_seq - 1), 3)} />
+                  <View style={js.end}>
+                    <Text style={js.time}>{b?.sched_arr ? time(b.sched_arr) : "—"}</Text>
+                    <Text style={js.station} numberOfLines={2}>{b?.station_name}</Text>
+                  </View>
+                </View>
+                <View style={[s.between, js.foot]}>
+                  <View style={{ flexShrink: 1, gap: 2, alignItems: "flex-start" }}>
+                    <CarrierName name={d.trip.carrier_name} uid={d.trip.carrier_uid} logo={d.trip.carrier_logo} />
+                    <Text style={js.code}>{d.trip.trip_code ?? d.trip.trip_no}</Text>
+                  </View>
+                  <Text style={js.price}>{money(d.price)} × {pax}</Text>
+                </View>
+                {connection && d.connection_policy ? <PolicyText p={d.connection_policy} /> : null}
+                {connection ? (
+                  <View style={{ gap: 6 }}>
+                    <Text style={s.label}>{t("conn.fare")}</Text>
+                    <View style={js.wrap}>{["SAVER", "STANDARD", "FLEX"].map((c) => (
+                      <Pill key={c} on={brandFor(i, d) === c} label={t(`conn.brand.${c}`)} onPress={() => setBrandOf((all) => ({ ...all, [i]: c }))} />
+                    ))}</View>
+                  </View>
+                ) : null}
+              </Card>
             </View>
-            {!x.syrian ? <Field label={t("trip.nationality")} value={x.country} placeholder="LB" maxLength={2} autoCapitalize="characters"
-                                onChangeText={(v) => set({ country: v.toUpperCase().replace(/[^A-Z]/g, "") })} /> : null}
-            <Field label={t("trip.first")} value={x.first_name} onChangeText={(v) => set({ first_name: v })} autoComplete="off" />
-            {x.syrian ? <Field label={t("trip.father")} value={x.father_name} onChangeText={(v) => set({ father_name: v })} autoComplete="off" /> : null}
-            {x.syrian ? <Field label={t("trip.grandfather")} value={x.grandfather_name} onChangeText={(v) => set({ grandfather_name: v })} autoComplete="off" /> : null}
-            <Field label={t("trip.last")} value={x.last_name} onChangeText={(v) => set({ last_name: v })} autoComplete="off" />
-            {d?.international ? (
-              <View style={{ gap: 8 }}>
-                <Text style={s.small}>{d.exception ? t("trip.docException", { docs: d.docs.map((k) => t(`trip.docTypes.${k}`)).join(" / ") })
-                                                   : t("trip.passportNeeded", { days: d.passport_min_days })}</Text>
-                <Field label={t("trip.docNumber")} value={x.id_no} onChangeText={(v) => set({ id_no: v, id_type: type })} autoComplete="off" autoCapitalize="characters" />
-                {type === "PASSPORT" ? <Field label={t("trip.passportExpiry", { date: minExpiry(d) })} value={x.passport_expiry} placeholder="YYYY-MM-DD" maxLength={10}
-                                              onChangeText={(v) => set({ passport_expiry: v.trim(), id_type: type })} /> : null}
+          );
+        })}
+
+        <Text style={s.small}>{t("jrn.travellersHint")}</Text>
+        {people.map((x, i) => {
+          const set = (patch: Partial<Person>) => setPeople((all) => all.map((y, j) => (j === i ? { ...y, ...patch } : y)));
+          const d = docs[nat(x)];
+          const type = d?.docs.includes(x.id_type) ? x.id_type : d?.docs[0] ?? "PASSPORT";
+          const ok = complete(x);
+          return (
+            <Card key={i}>
+              <View style={s.row}>
+                <View style={[js.num, ok && { backgroundColor: color.greenSoft }]}>
+                  {ok ? <Icon name="check" size={16} tint={color.green} /> : <Text style={js.numText}>{i + 1}</Text>}
+                </View>
+                <Text style={js.h}>{t("trip.passenger", { n: i + 1 })}</Text>
               </View>
-            ) : null}
-          </Card>
-        );
-      })}
-      <View style={s.between}><Text style={s.h2}>{t("common.total")}</Text><Text style={s.h2}>{money(total)}</Text></View>
-      <Text style={s.small}>{t("jrn.fareNote")}</Text>
-      {payLater ? (
-        <View style={s.row} accessibilityRole="radiogroup">
-          {(["WALLET", "PAY_LATER"] as const).map((o) => (
-            <Pressable key={o} onPress={() => setPayWith(o)} accessibilityRole="radio" accessibilityState={{ checked: payWith === o }}
-                       style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1,
-                                borderColor: payWith === o ? color.primary : color.outline, backgroundColor: payWith === o ? color.primarySoft : color.surface }}>
-              <Text>{t(`opt.name.${o}`)}</Text>
-            </Pressable>
-          ))}
+              <View style={js.wrap}>
+                {[true, false].map((sy) => (
+                  <Pill key={String(sy)} on={x.syrian === sy} label={t(sy ? "trip.syrian" : "trip.otherNationality")} onPress={() => set({ syrian: sy })} />
+                ))}
+              </View>
+              {!x.syrian ? <Field label={t("trip.nationality")} value={x.country} placeholder="LB" maxLength={2} autoCapitalize="characters"
+                                  onChangeText={(v) => set({ country: v.toUpperCase().replace(/[^A-Z]/g, "") })} /> : null}
+              <Field label={t("trip.first")} value={x.first_name} onChangeText={(v) => set({ first_name: v })} autoComplete="off" />
+              {x.syrian ? <Field label={t("trip.father")} value={x.father_name} onChangeText={(v) => set({ father_name: v })} autoComplete="off" /> : null}
+              {x.syrian ? <Field label={t("trip.grandfather")} value={x.grandfather_name} onChangeText={(v) => set({ grandfather_name: v })} autoComplete="off" /> : null}
+              <Field label={t("trip.last")} value={x.last_name} onChangeText={(v) => set({ last_name: v })} autoComplete="off" />
+              {d?.international ? (
+                <View style={{ gap: 8 }}>
+                  <Text style={s.small}>{d.exception ? t("trip.docException", { docs: d.docs.map((k) => t(`trip.docTypes.${k}`)).join(" / ") })
+                                                     : t("trip.passportNeeded", { days: d.passport_min_days })}</Text>
+                  <Field label={t("trip.docNumber")} value={x.id_no} onChangeText={(v) => set({ id_no: v, id_type: type })} autoComplete="off" autoCapitalize="characters" />
+                  {type === "PASSPORT" ? <Field label={t("trip.passportExpiry", { date: minExpiry(d) })} value={x.passport_expiry} placeholder="YYYY-MM-DD" maxLength={10}
+                                                onChangeText={(v) => set({ passport_expiry: v.trim(), id_type: type })} /> : null}
+                </View>
+              ) : null}
+            </Card>
+          );
+        })}
+
+        {payLater ? (
+          <View style={{ gap: 6 }} accessibilityRole="radiogroup">
+            <Text style={js.h}>{t("trip.payWith")}</Text>
+            <View style={js.wrap}>
+              {(["WALLET", "PAY_LATER"] as const).map((o) => <Pill key={o} on={payWith === o} label={t(`opt.name.${o}`)} onPress={() => setPayWith(o)} />)}
+            </View>
+          </View>
+        ) : null}
+        {connection ? <RiskNotice accepted={accepted} onChange={setAccepted}
+                                  flexible={trips.data.some((d, i) => i > 0 && d.connection_policy?.missed_connection !== "FREE_CHANGE")} /> : null}
+        <Notice text={t("jrn.allOrNothing")} />
+        <ErrorText error={error} />
+      </ScrollView>
+
+      <BottomBar>
+        <View style={s.between}>
+          <View style={{ flex: 1, gap: 2, alignItems: "flex-start" }}>
+            <Text style={s.label}>{t("common.total")}</Text>
+            <Text style={s.small} numberOfLines={2}>{t("jrn.fareNote")}</Text>
+          </View>
+          <Text style={js.total}>{money(total)}</Text>
         </View>
-      ) : null}
-      {connection ? <RiskNotice accepted={accepted} onChange={setAccepted}
-                                flexible={trips.data.some((d, i) => i > 0 && d.connection_policy?.missed_connection !== "FREE_CHANGE")} /> : null}
-      <Notice text={t("jrn.allOrNothing")} />
-      <ErrorText error={error} />
-      <Button label={t("jrn.book", { n: legs.length })} busy={busy} disabled={!people.every(complete) || (connection && !accepted)} onPress={book} />
-    </Screen>
+        <Button label={t("jrn.book", { n: legs.length })} busy={busy} disabled={!named || (connection && !accepted)} onPress={book} />
+      </BottomBar>
+    </SafeAreaView>
   );
 }
+
+const js = StyleSheet.create({
+  page: { padding: 16, gap: 16, paddingBottom: 28 },
+  h: { fontFamily: font.display, fontSize: 18, color: color.navy },
+  wrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  route: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  end: { flex: 1, alignItems: "center", gap: 2 },
+  time: { fontFamily: font.displayBold, fontSize: 24, color: color.navy },
+  station: { fontFamily: font.body, fontSize: 12.5, color: color.muted, textAlign: "center" },
+  foot: { borderTopWidth: 1, borderColor: color.outline, paddingTop: 10 },
+  code: { fontFamily: font.mono, fontSize: 13, color: color.text, letterSpacing: 0.5 },
+  price: { fontFamily: font.display, fontSize: 16, color: color.primary },
+  total: { fontFamily: font.displayBold, fontSize: 22, color: color.navy },
+  change: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "center", backgroundColor: color.amberSoft, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999 },
+  changeText: { fontFamily: font.semibold, fontSize: 13, color: color.amber },
+  num: { width: 28, height: 28, borderRadius: 14, backgroundColor: color.primarySoft, alignItems: "center", justifyContent: "center" },
+  numText: { fontFamily: font.display, fontSize: 14, color: color.primary },
+  doneHead: { alignItems: "center", gap: 8, paddingVertical: 16 },
+  doneIcon: { width: 72, height: 72, borderRadius: 36, backgroundColor: color.greenSoft, alignItems: "center", justifyContent: "center" },
+  doneRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  ref: { fontFamily: font.mono, fontSize: 16, color: color.navy, letterSpacing: 1 },
+});

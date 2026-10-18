@@ -70,7 +70,7 @@ const ar: Messages = {
           passenger: "الراكب {n}", first: "الاسم الأول", father: "اسم الأب", grandfather: "اسم الجد",
           last: "الكنية", nationality: "الجنسية", syrian: "مواطن سوري", otherNationality: "جنسية أخرى",
           namesHint: "كما في وثيقة الهوية. للسوريين: الأسماء الأربعة.", pay: "ادفع {amount} من المحفظة",
-          balance: "رصيد المحفظة: {amount}", step: { seats: "المقاعد", names: "الركاب", pay: "الدفع" },
+          balance: "رصيد المحفظة: {amount}", step: { trips: "الرحلات", seats: "المقاعد", names: "الركاب", pay: "الدفع" },
           legend: { free: "متاح", mine: "اختيارك", taken: "محجوز", accessible: "لذوي الإعاقة" }, door: "باب", wc: "حمّام",
           perSeat: "{amount} للمقعد", fares: "الأسعار حسب العمر", chosen: "مقاعدك", none: "اضغط على مقعد متاح", payWith: "طريقة الدفع" },
   ticket: { board: "بطاقة صعود", passenger: "الراكب", date: "التاريخ", carrier: "الناقل", trip: "الرحلة", fare: "الدرجة", seat: "المقعد",
