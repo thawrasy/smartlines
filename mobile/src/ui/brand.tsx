@@ -21,7 +21,7 @@ export function Lockup({ height = 30, white = false }: { height?: number; white?
 
 /** The trip line: the logo drawn straight, a blue origin, a straight route and a green arrival. The origin sits where
  * reading starts, so the line follows the layout direction; stops between are white rings. */
-export function TripLine({ width = 120, height = 18, stops = 0, mono = false }: { width?: number; height?: number; stops?: number; mono?: boolean }) {
+export function TripLine({ width = 120, height = 18, stops = 0, mono = false, dark = false }: { width?: number; height?: number; stops?: number; mono?: boolean; dark?: boolean }) {
   // drawn in the layout's direction (the one the cities beside it are laid out in), not the language's
   const r = height * 0.3, y = height / 2;
   const [a, b] = I18nManager.isRTL ? [width - r - 2, r + 2] : [r + 2, width - r - 2];
@@ -34,8 +34,8 @@ export function TripLine({ width = 120, height = 18, stops = 0, mono = false }: 
       ))}
       {mono
         ? <><Circle cx={a} cy={y} r={r} fill="#fff" stroke="#000" strokeWidth={height * 0.12} /><Circle cx={b} cy={y} r={r * 1.05} fill="#000" /></>
-        : <><Circle cx={a} cy={y} r={r} fill={color.route} stroke="#fff" strokeWidth={height * 0.08} />
-            <Circle cx={b} cy={y} r={r} fill={color.arrival} stroke="#fff" strokeWidth={height * 0.08} /></>}
+        : <><Circle cx={a} cy={y} r={r} fill={dark ? color.origin : color.route} stroke={dark ? color.navy : "#fff"} strokeWidth={height * 0.08} />
+            <Circle cx={b} cy={y} r={r} fill={color.arrival} stroke={dark ? color.navy : "#fff"} strokeWidth={height * 0.08} /></>}
     </Svg>
   );
 }
@@ -58,6 +58,14 @@ const PATHS = {
   close: "M6 6l12 12M18 6L6 18",
   minus: "M6 12h12",
   plus: "M6 12h12M12 6v12",
+  pass: "M4 6.5h16v11H4zM4 10h16M7.5 14h4",
+  parcel: "M4 8l8-4 8 4v8l-8 4-8-4zM4 8l8 4 8-4M12 12v8M8 6l8 4",
+  car: "M5 16.5V12l2-4.5h10l2 4.5v4.5M4 16.5h16M7.5 19v-2.5M16.5 19v-2.5M7 13h1.5M15.5 13H17",
+  key: "M14.5 9.5a4 4 0 1 1-1.2 2.9L5 20.7V17h2.5v-2.5H10l1.6-1.6",
+  pin: "M12 20.5s-6-5.5-6-10a6 6 0 0 1 12 0c0 4.5-6 10-6 10zM12 8.5a2 2 0 1 1 0 4a2 2 0 0 1 0-4z",
+  people: "M9 4.5a3 3 0 1 1 0 6a3 3 0 0 1 0-6zM3.5 19a5.5 5.5 0 0 1 11 0M16 5a3 3 0 0 1 0 5.8M17.5 13.5A5 5 0 0 1 21 19",
+  chat: "M5 5.5h14v10H10l-4 3.5v-3.5H5z",
+  bus: "M6 4.5h12a1.5 1.5 0 0 1 1.5 1.5v11H4.5V6A1.5 1.5 0 0 1 6 4.5zM4.5 11.5h15M8 17v2.5M16 17v2.5M7.5 14.5h1M15.5 14.5h1",
 } as const;
 export type IconName = keyof typeof PATHS;
 

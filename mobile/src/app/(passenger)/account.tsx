@@ -6,7 +6,10 @@ import { useI18n, type Locale } from "../../i18n";
 import { api, authHeaders } from "../../platform/api";
 import { API_URL } from "../../platform/config";
 import { useAuth } from "../../platform/auth";
-import { Button, Card, Chip, ErrorText, Field, Loading, Screen, Title, s } from "../../ui/kit";
+import { Button, Card, Chip, ErrorText, Field, Loading, Screen, Tabs, s } from "../../ui/kit";
+import { color, font } from "../../ui/theme";
+
+const initials = (name?: string | null) => (name ?? "").trim().split(/\s+/).slice(0, 2).map((w) => w[0] ?? "").join("").toUpperCase() || "·";
 import { useLoad } from "../../ui/useLoad";
 
 interface Device { id: number; platform: string; app_version: string | null; last_seen_at: string | null; revoked_at: string | null; current: boolean }
@@ -108,14 +111,21 @@ export function AccountBody() {
   ]);
   return (
     <>
-      <Title sub={me?.email ?? undefined}>{me?.name ?? t("tabs.account")}</Title>
+      {/* who is signed in: initials in the brand's circle, the name in the display face */}
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+        <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: color.navy, alignItems: "center", justifyContent: "center" }}>
+          <Text style={{ color: "#fff", fontFamily: font.displayBold, fontSize: 20 }}>{initials(me?.name)}</Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={s.title} numberOfLines={1}>{me?.name ?? t("tabs.account")}</Text>
+          {me?.email ? <Text style={s.muted} numberOfLines={1}>{me.email}</Text> : null}
+        </View>
+      </View>
       <ErrorText error={error ?? devices.error} />
       <Card>
         <Text style={s.h2}>{t("account.language")}</Text>
-        <View style={s.row}>
-          <Button kind={locale === "en" ? "primary" : "tonal"} label={t("account.english")} onPress={() => choose("en")} />
-          <Button kind={locale === "ar" ? "primary" : "tonal"} label={t("account.arabic")} onPress={() => choose("ar")} />
-        </View>
+        <Tabs items={[{ key: "ar", label: t("account.arabic") }, { key: "en", label: t("account.english") }]} value={locale}
+              onChange={(l) => { if (l !== locale) void choose(l as Locale); }} />
       </Card>
       {me?.portal === "PASSENGER" ? <BoardingPhotoCard /> : null}
       <Card>

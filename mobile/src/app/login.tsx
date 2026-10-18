@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { Text } from "react-native";
+import { Text, View } from "react-native";
 import { router } from "expo-router";
 import { useI18n } from "../i18n";
 import { useAuth } from "../platform/auth";
 import { ApiError, reactivate } from "../platform/api";
 import { VARIANT } from "../platform/config";
 import { Button, ErrorText, Field, Screen, Title, s } from "../ui/kit";
+import { Lockup, TripLine } from "../ui/brand";
 
 export default function Login() {
   const { t } = useI18n();
@@ -32,6 +33,11 @@ export default function Login() {
   const closed = error instanceof ApiError && error.code === "ACCOUNT_DEACTIVATED";
   return (
     <Screen>
+      {/* the lockup in the interface's language and the trip line, then the form: the first screen is the brand's */}
+      <View style={{ alignItems: "center", gap: 18, paddingTop: 36, paddingBottom: 12 }}>
+        <Lockup height={48} />
+        <TripLine width={180} height={18} />
+      </View>
       <Title sub={t(`app.${VARIANT}`)}>{t("auth.title")}</Title>
       {enrol ? <Text style={s.muted}>{t("auth.enrollOnWeb")}</Text> : <ErrorText error={error} />}
       <Field label={t("common.email")} value={identifier} onChangeText={setIdentifier} autoCapitalize="none" autoCorrect={false}

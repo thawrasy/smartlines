@@ -149,3 +149,18 @@ export function Notice({ text, tone = "blue" }: { text: string; tone?: "blue" | 
   const fg = tone === "amber" ? color.amber : tone === "green" ? color.green : color.primary;
   return <Text style={[s.small, { backgroundColor: bg, color: fg, padding: 12, borderRadius: radius.sm, overflow: "hidden" }]}>{text}</Text>;
 }
+
+/** Underlined tabs across the width (the booking card's trip types, upcoming and past trips). */
+export function Tabs<T extends string>({ items, value, onChange }: { items: { key: T; label: string }[]; value: T; onChange: (k: T) => void }) {
+  return (
+    <View style={{ flexDirection: "row", borderBottomWidth: 1, borderColor: color.outline }} accessibilityRole="tablist">
+      {items.map((i) => (
+        <Pressable key={i.key} onPress={() => onChange(i.key)} accessibilityRole="tab" accessibilityState={{ selected: value === i.key }}
+                   style={{ flex: 1, alignItems: "center", paddingVertical: 12, borderBottomWidth: 3, marginBottom: -1,
+                            borderColor: value === i.key ? color.primary : "transparent" }}>
+          <Text style={{ fontFamily: value === i.key ? font.display : font.medium, fontSize: 16, color: value === i.key ? color.navy : color.muted }}>{i.label}</Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}

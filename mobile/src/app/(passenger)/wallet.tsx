@@ -7,7 +7,8 @@ import { api, ApiError } from "../../platform/api";
 import { API_URL } from "../../platform/config";
 import { getJSON, putJSON } from "../../platform/secure";
 import { Button, Card, Choice, ErrorText, Field, Loading, Notice, Screen, Title, s } from "../../ui/kit";
-import { color } from "../../ui/theme";
+import { color, font, radius } from "../../ui/theme";
+import { Lockup } from "../../ui/brand";
 import { useLoad } from "../../ui/useLoad";
 
 interface Wallet { balance: number; sandbox: boolean; entries: { direction: "DR" | "CR"; amount: number; created_at: string; txn_type: string }[] }
@@ -104,10 +105,14 @@ export default function WalletScreen() {
       <Title>{t("tabs.wallet")}</Title>
       {w.loading && !w.data ? <Loading /> : <ErrorText error={w.error} />}
       {w.data ? (
-        <Card style={{ backgroundColor: color.navy, borderColor: color.navy }}>
-          <Text style={{ color: "#C9D6EA" }}>{t("wallet.balance")}</Text>
-          <Text style={{ color: "#fff", fontSize: 32, fontWeight: "700" }}>{money(w.data.balance)}</Text>
-        </Card>
+        // the wallet card (identity: cards and wallet): navy, the lockup, the balance in the display face
+        <View style={{ backgroundColor: color.navy, borderRadius: radius.lg, padding: 20, gap: 18, minHeight: 170, justifyContent: "space-between" }}>
+          <Lockup height={24} white />
+          <View style={{ gap: 2 }}>
+            <Text style={{ color: "#B8C2CF", fontFamily: font.body, fontSize: 14 }}>{t("wallet.balance")}</Text>
+            <Text style={{ color: "#fff", fontSize: 34, fontFamily: font.displayBold }}>{money(w.data.balance)}</Text>
+          </View>
+        </View>
       ) : null}
       {w.data?.offline ? <Notice tone="amber" text={t("wallet.offline", { time: `${date(w.data.checkedAt)} · ${time(w.data.checkedAt)}` })} /> : null}
       {done ? <Notice tone="green" text={done} /> : null}
@@ -176,7 +181,7 @@ export default function WalletScreen() {
           {w.data.entries.map((e, i) => (
             <View key={i} style={[s.between, { paddingVertical: 8, borderBottomWidth: 1, borderColor: color.outline }]}>
               <View><Text style={s.label}>{t(`txn.${e.txn_type}`) === `txn.${e.txn_type}` ? e.txn_type : t(`txn.${e.txn_type}`)}</Text><Text style={s.small}>{date(e.created_at)} · {time(e.created_at)}</Text></View>
-              <Text style={{ fontWeight: "600", color: e.direction === "CR" ? color.green : color.text }}>
+              <Text style={{ fontFamily: font.display, fontSize: 16, color: e.direction === "CR" ? color.green : color.text }}>
                 {e.direction === "CR" ? "+" : "−"}{money(e.amount)}
               </Text>
             </View>
@@ -217,7 +222,7 @@ function Points({ onRedeemed }: { onRedeemed: (text: string) => void }) {
   return (
     <Card>
       <View style={s.between}><Text style={s.h2}>{p.name}</Text>{a?.tier_name ? <Text style={s.small}>{a.tier_name}</Text> : null}</View>
-      <Text style={{ fontSize: 26, fontWeight: "700", color: color.text }}>{a?.balance ?? 0} · {t("points.balance")}</Text>
+      <Text style={{ fontSize: 26, fontFamily: font.displayBold, color: color.navy }}>{a?.balance ?? 0} · {t("points.balance")}</Text>
       <Text style={s.muted}>{t("points.worth", { amount: money(a?.value ?? 0) })}</Text>
       <Text style={s.small}>{t("points.how", { months: p.expiry_months })}</Text>
       {p.redeem && a && a.balance >= p.redeem.min_points ? (
@@ -232,7 +237,7 @@ function Points({ onRedeemed }: { onRedeemed: (text: string) => void }) {
       {(v.data?.vouchers ?? []).filter((x) => x.status === "ISSUED").map((x) => (
         <View key={x.voucher} style={{ gap: 2, paddingTop: 8, borderTopWidth: 1, borderColor: color.outline }}>
           <Text style={s.label}>{x.partner} · {money(x.value)}</Text>
-          <Text selectable style={{ fontFamily: "monospace", fontSize: 18, fontWeight: "700", color: color.navy, writingDirection: "ltr" }}>{x.code}</Text>
+          <Text selectable style={{ fontFamily: font.mono, fontSize: 18, color: color.navy, writingDirection: "ltr" }}>{x.code}</Text>
           {x.expires_at ? <Text style={s.small}>{t("points.until", { date: x.expires_at.slice(0, 10) })}</Text> : null}
         </View>
       ))}
@@ -274,7 +279,7 @@ function Kv({ label, value, mono, big }: { label: string; value?: string | null;
   return (
     <View style={{ gap: 2 }}>
       <Text style={s.small}>{label}</Text>
-      <Text selectable style={[s.label, mono && { fontFamily: "monospace", writingDirection: "ltr" }, big && { fontSize: 22, fontWeight: "700", color: color.navy }]}>{value || "—"}</Text>
+      <Text selectable style={[s.label, mono && { fontFamily: font.mono, writingDirection: "ltr" }, big && { fontSize: 22, fontFamily: font.displayBold, color: color.navy }]}>{value || "—"}</Text>
     </View>
   );
 }

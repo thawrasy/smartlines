@@ -1,17 +1,19 @@
 import { useEffect, useRef, useState } from "react";
-import { Alert, AppState, Pressable, Text, View } from "react-native";
+import { Alert, AppState, Pressable, StyleSheet, Text, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { randomUUID } from "expo-crypto";
 import { useI18n } from "../../../i18n";
 import { api } from "../../../platform/api";
 import { saveBooking } from "../../../platform/tickets";
-import { Button, Card, CarrierName, Chip, ErrorText, Loading, Notice, Screen, Title, s } from "../../../ui/kit";
+import { Button, Card, CarrierName, Chip, ErrorText, Loading, Notice, Screen, s } from "../../../ui/kit";
+import { Icon, TripLine } from "../../../ui/brand";
+import { color, font, radius } from "../../../ui/theme";
 import { bookingOptions, openPayment } from "../../../platform/payments";
 import { useLoad } from "../../../ui/useLoad";
 import { ChangeTripCard } from "../../../ui/connections";
 
 interface Ticket { uid: string; ticket_no: string; seat_label: string | null; seat_no: number; status: string; ticket_name: string;
-  from_station: string; to_station: string; departs_at: string }
+  from_station: string; to_station: string; departs_at: string; from_city?: string; to_city?: string; arrives_at?: string | null }
 interface Detail {
   booking: { booking_ref: string; status: string; total_amount: number; carrier_name: string; carrier_uid?: string | null; carrier_logo?: string | null; trip_no: string; trip_code?: string | null;
              pay_option?: string | null; pay_by?: string | null; return_trip?: Return | null;
@@ -25,7 +27,7 @@ interface Return { uid: string; trip_code: string | null; trip_no: string; from_
   from_station: string; to_station: string; on_sale: boolean; same_vehicle: boolean | null }
 
 export default function Booking() {
-  const { t, money, time, date } = useI18n();
+  const { t, money, time, date, city } = useI18n();
   const { ref } = useLocalSearchParams<{ ref: string }>();
   const b = useLoad(() => api.get<Detail>(`/api/bookings/${ref}`), [ref]);
   const opts = useLoad(bookingOptions);
@@ -71,11 +73,32 @@ export default function Booking() {
       b.reload();
     }) },
   ]);
+  const first = tickets[0];
   const ticketTone = (st: string) => (st === "ISSUED" ? "green" : st === "BOARDED" ? "blue" : st === "HOLD" ? "amber" : "red");
 
   return (
     <Screen>
-      <Title sub={`${booking.trip_code ?? booking.trip_no} · ${money(booking.total_amount)}`}>{t("extra.booked", { ref: booking.booking_ref })}</Title>
+      <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel={t("common.back")} hitSlop={12} style={{ alignSelf: "flex-start" }}>
+        <Icon name="back" size={26} tint={color.primary} mirror />
+      </Pressable>
+      {/* the booking at a glance, in the pass's colours: the reference, the route on the trip line, the date and the total */}
+      <View style={bs.head}>
+        <View style={s.between}>
+          <Text style={bs.ref}>{booking.booking_ref}</Text>
+          <Chip tone={booking.status === "CONFIRMED" ? "green" : booking.status === "PENDING_PAYMENT" ? "amber" : "neutral"} label={t(`status.${booking.status}`)} />
+        </View>
+        {first?.from_city && first.to_city ? (
+          <View style={s.between}>
+            <View style={bs.end}><Text style={bs.city}>{city(first.from_city)}</Text><Text style={bs.time}>{time(first.departs_at)}</Text></View>
+            <TripLine width={90} height={18} dark />
+            <View style={bs.end}><Text style={bs.city}>{city(first.to_city)}</Text>{first.arrives_at ? <Text style={bs.time}>{time(first.arrives_at)}</Text> : null}</View>
+          </View>
+        ) : null}
+        <View style={[s.between, bs.foot]}>
+          <Text style={bs.meta}>{first ? date(first.departs_at) : ""} · {booking.trip_code ?? booking.trip_no}</Text>
+          <Text style={bs.total}>{money(booking.total_amount)}</Text>
+        </View>
+      </View>
       <CarrierName name={booking.carrier_name} uid={booking.carrier_uid} logo={booking.carrier_logo} style={s.muted} />
       {notice ? <Notice tone="green" text={notice} /> : null}
       <ErrorText error={error} />
@@ -99,13 +122,15 @@ export default function Booking() {
       {tickets.map((k) => (
         <Pressable key={k.uid} accessibilityRole="button" disabled={k.status === "HOLD"}
                    onPress={() => router.push({ pathname: "/ticket/[uid]", params: { uid: k.uid } })}>
-          <Card>
-            <View style={s.between}><Text style={s.h2}>{k.ticket_name}</Text>
-              <Chip tone={ticketTone(k.status)} label={t(`extra.ticketStatus.${k.status}`)} /></View>
-            <Text style={s.muted}>{k.from_station} → {k.to_station}</Text>
-            <Text style={s.small}>{date(k.departs_at)} · {time(k.departs_at)} · {t("common.seat")} {k.seat_label ?? k.seat_no}</Text>
-            {k.status === "HOLD" ? <Text style={s.small}>{t("opt.notBoardable")}</Text>
-                                 : <Text style={[s.small, { color: "#0A5BD3" }]}>{t("extra.openTicket")} ›</Text>}
+          <Card style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+            <View style={bs.seat}><Text style={bs.seatText}>{k.seat_label ?? k.seat_no ?? "—"}</Text></View>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={s.h2} numberOfLines={1}>{k.ticket_name}</Text>
+              <Text style={s.small} numberOfLines={1}>{k.from_station} · {k.to_station}</Text>
+              {k.status === "HOLD" ? <Text style={s.small}>{t("opt.notBoardable")}</Text>
+                                   : <Text style={[s.small, { color: color.primary, fontFamily: font.semibold }]}>{t("extra.openTicket")}</Text>}
+            </View>
+            <Chip tone={ticketTone(k.status)} label={t(`extra.ticketStatus.${k.status}`)} />
           </Card>
         </Pressable>
       ))}
@@ -137,3 +162,16 @@ export default function Booking() {
     </Screen>
   );
 }
+
+const bs = StyleSheet.create({
+  head: { backgroundColor: color.navy, borderRadius: radius.lg, padding: 18, gap: 14 },
+  ref: { fontFamily: font.mono, fontSize: 18, color: "#fff", letterSpacing: 1.5 },
+  end: { alignItems: "center", flexShrink: 1 },
+  city: { fontFamily: font.displayBold, fontSize: 24, color: "#fff" },
+  time: { fontFamily: font.display, fontSize: 15, color: "#B8C2CF" },
+  foot: { borderTopWidth: 1, borderColor: "#1E3A5F", paddingTop: 12 },
+  meta: { fontFamily: font.body, fontSize: 14, color: "#B8C2CF" },
+  total: { fontFamily: font.displayBold, fontSize: 20, color: "#fff" },
+  seat: { width: 52, height: 52, borderRadius: radius.sm, backgroundColor: color.greenSoft, alignItems: "center", justifyContent: "center" },
+  seatText: { fontFamily: font.displayBold, fontSize: 18, color: "#00391F" },
+});
