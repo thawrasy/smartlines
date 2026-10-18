@@ -50,6 +50,7 @@ const en = {
     continue: "I saved them, continue",
   },
   tabs: { search: "Book", services: "Services", trips: "My trips", wallet: "Wallet", account: "Account", today: "Today" },
+  brand: { name: "masslak" },
   book: {
     title: "Book a trip", mode: { ROUND_TRIP: "Round trip", ONE_WAY: "One way", MULTI_CITY: "Multi-city" },
     swap: "Swap the cities", choose: "Choose", chooseCity: "Choose a city", dates: "Travel dates", departure: "Departure",

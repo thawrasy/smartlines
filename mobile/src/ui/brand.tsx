@@ -8,12 +8,12 @@ import { color } from "./theme";
 
 /** The lockup: Arabic only in the Arabic interface, English only in the English one. */
 export function Lockup({ height = 30, white = false }: { height?: number; white?: boolean }) {
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
   const ar = locale === "ar";
   const xml = ar ? (white ? LOCKUP_AR_WHITE : LOCKUP_AR) : LOCKUP_EN;
   const ratio = ar ? LOCKUP_AR_RATIO : LOCKUP_EN_RATIO;
   return (
-    <View accessible accessibilityRole="image" accessibilityLabel={ar ? "مسلك" : "masslak"}>
+    <View accessible accessibilityRole="image" accessibilityLabel={t("brand.name")}>
       <SvgXml xml={xml} width={height * ratio} height={height} />
     </View>
   );

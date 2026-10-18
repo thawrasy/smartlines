@@ -52,6 +52,7 @@ const ar: Messages = {
     continue: "حفظتها، متابعة",
   },
   tabs: { search: "احجز", services: "الخدمات", trips: "رحلاتي", wallet: "المحفظة", account: "الحساب", today: "اليوم" },
+  brand: { name: "مسلك" },
   book: {
     title: "احجز رحلتك", mode: { ROUND_TRIP: "ذهاب وعودة", ONE_WAY: "ذهاب فقط", MULTI_CITY: "متعددة الوجهات" },
     swap: "بدّل المدينتين", choose: "اختر", chooseCity: "اختر مدينة", dates: "تواريخ السفر", departure: "الذهاب",
