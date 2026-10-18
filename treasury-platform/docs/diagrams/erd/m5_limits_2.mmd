@@ -8,6 +8,8 @@ erDiagram
     bigint CompanyId FK
     int CurrencyId FK
     bigint SourceRequestId FK
+    bigint TransferredToFacilityId FK
+    bigint TransferredToId FK
   }
   fac_LimitReservation["fac.LimitReservation"] {
     bigint LimitReservationId PK
@@ -29,3 +31,4 @@ erDiagram
   fac_LimitReservation |o--o{ fac_LimitMovement : "LimitReservationId"
   fac_Utilization |o--o{ fac_LimitMovement : "UtilizationId"
   fac_Utilization |o--o{ fac_LimitReservation : "ConvertedUtilizationId"
+  fac_Utilization |o--o{ fac_Utilization : "TransferredToId"

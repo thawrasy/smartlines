@@ -1,4 +1,4 @@
-%% م5 · الالتزامات والتعهدات (1/2) — Obligations, covenants & reporting
+%% م5 · الالتزامات والتعهدات (1/3) — Obligations, covenants & reporting
 erDiagram
   obl_Covenant["obl.Covenant"] {
     bigint CovenantId PK
@@ -20,14 +20,11 @@ erDiagram
     bigint EvidenceDocumentId FK
     bigint ReviewedBy FK
   }
-  obl_Obligation["obl.Obligation"] {
-    bigint ObligationId PK
-    bigint FacilityId FK
-    int ObligationTypeId FK
-    bigint ScopeLimitId FK
-    bigint ScopeProductLineId FK
-    int ParamCurrencyId FK
+  obl_CovenantTestStatement["obl.CovenantTestStatement"] {
+    int TenantId PK
+    bigint CovenantTestId PK, FK
+    bigint StatementId PK, FK
   }
   obl_Covenant ||--o{ obl_CovenantAccount : "CovenantId"
   obl_Covenant ||--o{ obl_CovenantTest : "CovenantId"
-  obl_Obligation ||--o{ obl_Covenant : "ObligationId"
+  obl_CovenantTest ||--o{ obl_CovenantTestStatement : "CovenantTestId"

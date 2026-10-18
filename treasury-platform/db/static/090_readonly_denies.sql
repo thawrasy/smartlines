@@ -12,7 +12,7 @@
    predicate does not need the reader's permission on its function. The procedures that use these functions are not
    affected, since an ownership chain skips the check. The reporting views (plat.v_CurrentTenant, plat.v_TenantModule,
    org.v_CompanyTaxIdentity, wfl.RequestCopyDrift, lc.ProformaTotalsDrift) stay readable.
-   A function added later to these schemas is denied the next time the script runs; RF35 checks the list.
+   A function added later to these schemas is denied the next time the script runs; SR7 checks the list.
    ============================================================================ */
 SET NOCOUNT ON;
 SET ANSI_NULLS ON; SET QUOTED_IDENTIFIER ON; SET ANSI_PADDING ON; SET ANSI_WARNINGS ON; SET ARITHABORT ON; SET CONCAT_NULL_YIELDS_NULL ON; SET NUMERIC_ROUNDABORT OFF;

@@ -1,0 +1,7 @@
+%% م5 · الالتزامات والتعهدات (3/3) — Obligations, covenants & reporting
+erDiagram
+  obl_ReportingObligation["obl.ReportingObligation"] {
+    bigint ReportingObligationId PK
+    bigint ObligationId FK
+    int SubmissionChannelId FK
+  }

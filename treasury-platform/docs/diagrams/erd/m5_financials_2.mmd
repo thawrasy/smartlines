@@ -1,5 +1,8 @@
-%% م5 · البيانات المالية والأرصدة (2/2) — Financial statements & balances
+%% م5 · البيانات المالية والأرصدة (2/3) — Financial statements & balances
 erDiagram
+  fin_LineCatalogItem["fin.LineCatalogItem"] {
+    int LineCatalogItemId PK
+  }
   fin_LineCatalogItemAlias["fin.LineCatalogItemAlias"] {
     int LineCatalogItemAliasId PK
     int LineCatalogItemId FK
@@ -10,9 +13,13 @@ erDiagram
     bigint BaseTemplateId FK
     bigint ApprovedBy FK
   }
-  fin_StatementLine["fin.StatementLine"] {
-    bigint StatementLineId PK
-    bigint StatementId FK
-    int LineCatalogItemId FK
+  fin_RevenueEstimate["fin.RevenueEstimate"] {
+    bigint RevenueEstimateId PK
+    bigint CompanyId FK
+    int CurrencyId FK
+    bigint DocumentId FK
+    bigint PreparedBy FK
+    bigint ApprovedBy FK
   }
+  fin_LineCatalogItem ||--o{ fin_LineCatalogItemAlias : "LineCatalogItemId"
   fin_MeasureFormula |o--o{ fin_MeasureFormula : "BaseTemplateId"

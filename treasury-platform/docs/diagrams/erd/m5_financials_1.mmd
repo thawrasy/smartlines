@@ -1,4 +1,4 @@
-%% م5 · البيانات المالية والأرصدة (1/2) — Financial statements & balances
+%% م5 · البيانات المالية والأرصدة (1/3) — Financial statements & balances
 erDiagram
   fin_AccountMonthlyStat["fin.AccountMonthlyStat"] {
     bigint AccountMonthlyStatId PK
@@ -10,9 +10,18 @@ erDiagram
     bigint CompanyId FK
     bigint InstitutionId FK
     bigint FacilityId FK
+    int FlowKindListId FK
     int FlowKindId FK
     int CurrencyId FK
     bigint DocumentId FK
+    bigint EnteredBy FK
+    bigint ConfirmedBy FK
+  }
+  fin_ConsolidationMember["fin.ConsolidationMember"] {
+    bigint ConsolidationMemberId PK
+    bigint StatementId FK
+    bigint MemberCompanyId FK
+    bigint MemberStatementId FK
   }
   fin_FinancialStatement["fin.FinancialStatement"] {
     bigint FinancialStatementId PK
@@ -21,6 +30,5 @@ erDiagram
     bigint PreparedBy FK
     bigint ApprovedBy FK
   }
-  fin_LineCatalogItem["fin.LineCatalogItem"] {
-    int LineCatalogItemId PK
-  }
+  fin_FinancialStatement |o--o{ fin_ConsolidationMember : "MemberStatementId"
+  fin_FinancialStatement ||--o{ fin_ConsolidationMember : "StatementId"

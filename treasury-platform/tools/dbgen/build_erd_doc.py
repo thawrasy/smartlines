@@ -8,7 +8,7 @@
 import glob, os, re, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-import dbgen, erd_pro, ddl_keys, erd_manifest
+import dbgen, erd_pro, ddl_keys, erd_manifest, ddl_metrics
 
 ROOT = os.path.join(HERE, '..', '..')
 DOCS = os.path.join(ROOT, 'docs')
@@ -135,7 +135,7 @@ def review_section():
     out += ['', '### 18.3 القرار', '',
             '1. **الحرجة (10): مُعتمدة ومُطبَّقة** في النموذج والـDDL بالتغيير C-12، ويتحقق منها `tools/dbgen/check_review_fixes.py` آليًا على DDL المولَّد.',
             '2. **الرئيسية (36) والطفيفة (4): قرّرها المالك في 2026-10-13** بسجل `docs/32-review-findings-decisions.md` (O-15). الدفعة (أ) مُطبَّقة في 33 نتيجة (`docs/adr/0011-design-review-fixes.md`، الاختبارات RF1 إلى RF18)، والدفعة (ب)، شروط دخول الشرائح S1 إلى S4، مُطبَّقة كلها في اليوم نفسه (`db/static/044_entry_guards.sql`، الاختبارات RF19 إلى RF34)، وDR-20 محلولة بـ DR-02. المؤجَّل: مرساة البصمة الخارجية (مع O-13) وفحص المفاتيح المتقاعدة.',
-            '3. **بعد أي تغيير** في النموذج: `dbgen check` و`dbgen build` و`pg_validate.sh` و`check_grants.py` و`check_review_fixes.py`، ثم `erd_mermaid.py` لتحديث المخططات، ثم إعادة بناء هذه الوثيقة.', '']
+            '3. **بعد أي تغيير** في النموذج: `dbgen check` و`dbgen build` و`pg_validate.sh` و`check_grants.py` و`check_review_fixes.py` و`ddl_metrics.py`، ثم `erd_mermaid.py` لتحديث المخططات، ثم إعادة بناء هذه الوثيقة.', '']
     return out
 
 
@@ -148,6 +148,7 @@ def main():
     tables, errs, _ = dbgen.load(sorted(glob.glob(os.path.join(ROOT, 'db', 'model', '*.model'))), False)
     if errs: raise SystemExit('model errors: ' + '; '.join(errs[:3]))
     plan = erd_pro.plan_members(tables)
+    m = ddl_metrics.metrics()   # الأرقام من DDL المولَّد لا من رقم مكتوب هنا (المراجعة الذاتية D1)
     old = open(OLD, encoding='utf-8').read()
     parts = split_sections(old)
     head_and_sections = {}
@@ -167,11 +168,11 @@ def main():
     # §3.7 و§9 و§11 تبقى بصورها القديمة كما هي
     front = ['# DATABASE DESIGN AND ERD — BankFas', '',
              '| البند | القيمة |', '|---|---|',
-             '| الحالة | **مسودة للتقييم (الإصدار 0.3)** — تصميم قاعدة البيانات مع مخططات ERD مهنية (تدوين Crow\'s Foot) ومواصفات الجداول والعلاقات، مُولَّدة من النموذج |',
-             '| التاريخ | 2026-10-11 |',
+             '| الحالة | **مسودة للتقييم (الإصدار 0.4)** — تصميم قاعدة البيانات مع مخططات ERD مهنية (تدوين Crow\'s Foot) ومواصفات الجداول والعلاقات، مُولَّدة من النموذج |',
+             '| التاريخ | 2026-10-18 |',
              '| المحرك المعتمد | **SQL Server 2025** |',
-             '| المرجع | `db/model/*.model` (194 جدولًا في 20 مخططًا) — الملفات المولَّدة لا تُعدَّل يدويًا |',
-             '| الدعم | `tools/dbgen/erd_mermaid.py` (المخططات) · `tools/dbgen/build_erd_doc.py` · `tools/dbgen/check_grants.py` · `tools/dbgen/check_review_fixes.py` |', '']
+             f'| المرجع | `db/model/*.model` (الجداول {m["tables"]} · المخططات {m["schemas"]}، من `tools/dbgen/ddl_metrics.py`) — الملفات المولَّدة لا تُعدَّل يدويًا |',
+             '| الدعم | `tools/dbgen/erd_mermaid.py` (المخططات) · `tools/dbgen/build_erd_doc.py` · `tools/dbgen/check_grants.py` · `tools/dbgen/check_review_fixes.py` · `tools/dbgen/ddl_metrics.py` (الأرقام) |', '']
     changelog_row = '| C-11 | إعادة بناء الوثيقة كـ **DATABASE DESIGN AND ERD**: مخططات Crow\'s Foot مهنية، ومواصفة لكل جدول ولكل علاقة، مُولَّدة من النموذج بدل الصور البسيطة السابقة | طُلب ERD بمستوى مهني ومواصفات كاملة لكل جدول ومودول وعلاقة |'
     lines = body.split('\n')
     for i, ln in enumerate(lines):

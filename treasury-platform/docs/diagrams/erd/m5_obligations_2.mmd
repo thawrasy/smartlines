@@ -1,5 +1,13 @@
-%% م5 · الالتزامات والتعهدات (2/2) — Obligations, covenants & reporting
+%% م5 · الالتزامات والتعهدات (2/3) — Obligations, covenants & reporting
 erDiagram
+  obl_Obligation["obl.Obligation"] {
+    bigint ObligationId PK
+    bigint FacilityId FK
+    int ObligationTypeId FK
+    bigint ScopeLimitId FK
+    bigint ScopeProductLineId FK
+    int ParamCurrencyId FK
+  }
   obl_ObligationBreach["obl.ObligationBreach"] {
     bigint ObligationBreachId PK
     bigint ObligationId FK
@@ -7,6 +15,7 @@ erDiagram
     bigint ReportingInstanceId FK
     bigint WaiverBankContactId FK
     bigint WaiverDocumentId FK
+    bigint WaiverApprovedBy FK
   }
   obl_ObligationCompany["obl.ObligationCompany"] {
     int TenantId PK
@@ -20,10 +29,6 @@ erDiagram
     bigint EvidenceDocumentId FK
     int CurrencyId FK
   }
-  obl_ReportingObligation["obl.ReportingObligation"] {
-    bigint ReportingObligationId PK
-    bigint ObligationId FK
-    int SubmissionChannelId FK
-  }
+  obl_Obligation ||--o{ obl_ObligationBreach : "ObligationId"
+  obl_Obligation ||--o{ obl_ObligationCompany : "ObligationId"
   obl_ReportingInstance |o--o{ obl_ObligationBreach : "ReportingInstanceId"
-  obl_ReportingObligation ||--o{ obl_ReportingInstance : "ReportingObligationId"
