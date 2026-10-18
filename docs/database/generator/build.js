@@ -14,7 +14,7 @@ const PNG = path.join(HERE, "..", "erd", "png");
 // numbers of the verification run that built this document (verification.py), never typed by hand (audit T3-17)
 const V = JSON.parse(fs.readFileSync(path.join(HERE, "..", "build", "verification.json"), "utf8"));
 const lastFile = V.last_schema_file.split("_")[0];
-const VERSION = "3.18";
+const VERSION = "3.19";
 const DATE = "18 October 2026";
 const FONT = "Arial";
 const C = { navy: "1F3A5F", blue: "2E74B5", blue2: "1F4D78", grid: "B7C3D0", alt: "F2F6FA", grey: "595959" };
@@ -110,9 +110,9 @@ front.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 16
 front.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 1200 },
   children: [run(`Complete relational model of the Analysis and Design Study v3.0: ${tableCount} tables, ${fkCount} relationships`, { color: "7F7F7F" })] }));
 front.push(table(["Item", "Details"], [
-  ["Version", `${VERSION} (the database after schema file ${lastFile}, the same as version 3.17; its figures and verification come from the commit of the second delivery to the independent reviewer, the same run as the evidence pack that goes with it; replaces version 3.17)`],
+  ["Version", `${VERSION} (the database after schema file ${lastFile}; the assistant's tool guard hardened after the independent reviewer's detailed reply; its figures and verification come from the commit of the third delivery to the independent reviewer, the commit CI built the evidence pack from; replaces version 3.18)`],
   ["Date", DATE],
-  ["Basis", "Analysis and Design Study v3.0 (English), the Use Case and Data Flow Diagrams v1.0, the Database Architecture Review v1.0, the Strategic Database Review and its relationship audit register, the Third-Party Technical Audit, the Technical Audit of design document 3.7, its re-audit of 3.8 and follow-up of 3.9, the architecture review of 3.9, the expert review and code review of October 2026, and the three reviews of release 1.47.0 with the owner's five decisions, the use case review of October 2026 and the owner's decisions that followed it, and the owner's requests of October 2026 up to truck transport (study 3.8), and the systems review of study 3.8 of October 2026, and the four evaluation reports of October 2026 (TEM, GP, GIMI, MANU) with the owner's decisions on them, and the independent review of the first delivery (18 October 2026)"],
+  ["Basis", "Analysis and Design Study v3.0 (English), the Use Case and Data Flow Diagrams v1.0, the Database Architecture Review v1.0, the Strategic Database Review and its relationship audit register, the Third-Party Technical Audit, the Technical Audit of design document 3.7, its re-audit of 3.8 and follow-up of 3.9, the architecture review of 3.9, the expert review and code review of October 2026, and the three reviews of release 1.47.0 with the owner's five decisions, the use case review of October 2026 and the owner's decisions that followed it, and the owner's requests of October 2026 up to truck transport (study 3.8), and the systems review of study 3.8 of October 2026, and the four evaluation reports of October 2026 (TEM, GP, GIMI, MANU) with the owner's decisions on them, and the independent review of the first two deliveries (18 October 2026)"],
   ["Scope", `${schemas.length} schemas, ${tableCount} tables, ${colCount} columns, ${fkCount} foreign keys; all phases 1 to 15`],
   ["Application", "Python 3.12 with FastAPI, asyncpg and Pydantic (backend/app); the website in React 19 with TypeScript and Vite (frontend); the apps in React Native with Expo (mobile); all in the same repository as this schema"],
   ["Engine", `PostgreSQL ${V.postgres} with row-level security on every table; PostGIS ${V.postgis} in schema gis; ${V.schema_files} schema files, db/schema/000 to ${lastFile}`],
@@ -121,7 +121,7 @@ front.push(table(["Item", "Details"], [
 ], [2800, 6946]));
 
 const toc = [H(HeadingLevel.HEADING_1, "Contents", { pageBreak: true })];
-const tocLines = ["Changes in version 3.18", "Changes in version 3.17", "Changes in version 3.16", "Changes in version 3.15", "Changes in version 3.14", "Changes in version 3.13", "Changes in version 3.12", "Changes in version 3.11", "Changes in version 3.10", "Changes in version 3.9", "Changes in version 3.8", "Changes in version 3.7", "Changes in version 3.6", "Changes in version 3.5", "Changes in version 3.4", "Changes in version 3.3", "Changes in version 3.2", "Changes in version 3.1", "Changes in version 3.0", "1. Introduction", "2. Database architecture", "3. Design rules", "4. Security model in the database",
+const tocLines = ["Changes in version 3.19", "Changes in version 3.18", "Changes in version 3.17", "Changes in version 3.16", "Changes in version 3.15", "Changes in version 3.14", "Changes in version 3.13", "Changes in version 3.12", "Changes in version 3.11", "Changes in version 3.10", "Changes in version 3.9", "Changes in version 3.8", "Changes in version 3.7", "Changes in version 3.6", "Changes in version 3.5", "Changes in version 3.4", "Changes in version 3.3", "Changes in version 3.2", "Changes in version 3.1", "Changes in version 3.0", "1. Introduction", "2. Database architecture", "3. Design rules", "4. Security model in the database",
   "5. Data stores of the data flow diagrams", "6. Entity-relationship diagrams by module",
   ...model.groups.map((g, i) => `      6.${i + 1} ${g[0]} ${g[1]}`), `      6.${model.groups.length + 1} Focus diagrams: rules that span modules`,
   "7. Table definitions", "8. Traceability to the study", "9. Verification",
@@ -165,15 +165,40 @@ const changes38 = [H(HeadingLevel.HEADING_2, "b. Hardening after the third-party
     + "the earlier wording is clarified accordingly. db/tools/audit_pack.sh builds the evidence pack for the second phase of the audit."),
 ];
 
+// ------------------------------ changes in 3.19 (the independent reviewer's detailed reply) ------------------------------
+const changes3_19 = [H(HeadingLevel.HEADING_1, "Changes in version 3.19", { pageBreak: true }),
+  P(`Version 3.19 describes the database after schema file ${lastFile}. The independent reviewer asked for a wider prompt-injection `
+    + "set for the AI assistant (40 checks or more). Widening it to tool arguments, units, tool names, chained tools and the policy "
+    + "itself found four gaps in file 1134, closed by file 1137. No table was added, so the diagrams are unchanged."),
+  H(HeadingLevel.HEADING_2, "a. Schema file 1137"),
+  table(["Gap in 1134", "What 1137 does"], [
+    ["A limit written as text (\"max_amount\": \"100\") was not a number, so it was silently not applied", "Check constraint crm.ai_policy.ai_policy_limits_ck: max_amount a number above zero, max_calls_per_conversation a whole number of zero or more, currency an ISO code of three capital letters"],
+    ["An amount of zero or less passed the amount limit", "crm.ai_tool_refusal refuses it with AMOUNT_LIMIT"],
+    ["An amount in another currency than the policy's passed it", "When the policy names a currency, an amount in another one, or with none, is refused with AMOUNT_LIMIT"],
+    ["A closed conversation could be opened again by clearing ended_at", "Trigger b_ai_conversation_ended on crm.ai_conversation: a conversation once ended stays ended (AI_CONVERSATION_ENDED)"],
+    ["A request with no conversation, or one that does not exist, failed on a constraint", "crm.ai_authorize_tool refuses it first with AI_CONVERSATION_UNKNOWN, before anything is recorded"],
+  ], [4200, 5546], { boldFirst: true }),
+  P("The database checks \"AI tools (1137)\" add 38 cases to the 13 of file 1134, 51 in all; each assumes a model that obeys the "
+    + "injected instruction and expects the database to refuse it (critical control C-06)."),
+  H(HeadingLevel.HEADING_2, "b. Counts"),
+  table(["Measure", "Version 3.18", "Version 3.19"], [
+    ["Schema files", "149 (000 to 1136)", `${V.schema_files} (000 to ${lastFile})`],
+    ["Tables", "560", String(tableCount)],
+    ["Database checks", "924", String(V.db_checks)],
+    ["API tests", "773", String(V.api_tests)],
+    ["Commit", "921369d", V.source_commit.slice(0, 7)],
+  ], [3200, 3273, 3273], { boldFirst: true }),
+];
+
 // ------------------------------ changes in 3.18 (the independent review of the first delivery) ------------------------------
 const changes3_18 = [H(HeadingLevel.HEADING_1, "Changes in version 3.18", { pageBreak: true }),
-  P(`Version 3.18 describes the same database as version 3.17 (schema file ${lastFile}); no schema file was added. The independent `
+  P("Version 3.18 describes the same database as version 3.17 (schema file 1136); no schema file was added. The independent "
     + "reviewer of the first delivery (commit e6dbeb8) found the evidence pack's verification file left by an earlier build (commit "
     + "840b3dc, schema file 1132) beside documents of commit e6dbeb8. The pack now makes that file from its own database and logs, and "
     + "db/tools/check_delivery.py refuses a delivery whose documents do not name the pack's commit and figures "
     + "(docs/operations/INDEPENDENT_REVIEW.md)."),
-  P(`The figures of this document and its verification (chapter 9) come from commit ${V.source_commit}, the commit of the second `
-    + `delivery: ${V.db_checks} database checks and ${V.api_tests} API tests passing, ${V.schema_files} schema files. Between 3.17 and `
+  P("The figures of version 3.18 and its verification came from commit 921369d, the commit of the second "
+    + "delivery: 924 database checks and 773 API tests passing, 149 schema files. Between 3.17 and "
     + "3.18 only the evidence tools, a CI step and documents changed; the database and the server code are the same."),
 ];
 
@@ -1158,7 +1183,7 @@ const doc = new Document({
   numbering: { config: [{ reference: "bullets", levels: [{ level: 0, format: LevelFormat.BULLET, text: "•", alignment: AlignmentType.LEFT,
     style: { paragraph: { indent: { left: 540, hanging: 270 } } } }] }] },
   sections: [
-    section(PORTRAIT, [...front, ...toc, ...changes3_18, ...changes3_17, ...changes3_16, ...changes3_15, ...changes3_14, ...changes3_13, ...changes3_12, ...changes3_11, ...changes3_10, ...changes3_9, ...changes3_8, ...changes37, ...changes38, ...changes39, ...changes36, ...changes35, ...changes34, ...changes33, ...changes32, ...changes31, ...changes, ...intro, ...arch, ...rules, ...security, ...stores]),
+    section(PORTRAIT, [...front, ...toc, ...changes3_19, ...changes3_18, ...changes3_17, ...changes3_16, ...changes3_15, ...changes3_14, ...changes3_13, ...changes3_12, ...changes3_11, ...changes3_10, ...changes3_9, ...changes3_8, ...changes37, ...changes38, ...changes39, ...changes36, ...changes35, ...changes34, ...changes33, ...changes32, ...changes31, ...changes, ...intro, ...arch, ...rules, ...security, ...stores]),
     ...erdSections,
     section(PORTRAIT, [...defs, ...trace, ...verify, ...flags, ...gens, ...appC]),
   ],

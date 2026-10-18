@@ -8,10 +8,10 @@ document pack built from one commit, and a follow-up report answers the reviewer
 
 | Item | Source |
 |---|---|
-| Analysis and design study 3.9 (English and Arabic) | `docs/Masslak_Analysis_and_Design_EN_v3.9.docx` and its Arabic edition |
-| Database design and ERD 3.16 | `docs/database/` |
+| Analysis and design study 3.10 (English and Arabic) | `docs/Masslak_Analysis_and_Design_EN_v3.10.docx` and its Arabic edition |
+| Database design and ERD 3.19 | `docs/database/` |
 | Readiness document register | the latest register edition |
-| The consolidated reply to the four reports | delivered with the pack |
+| The follow-up reports on the reviewer's reports | delivered with the pack |
 | Evidence pack, reviewer edition | `evidence-pack-reviewer` artifact of the CI run of the delivered commit; attached to every release as `masslak-<tag>-evidence.tar.gz`, inside the signed checksums |
 
 The reviewer edition (`db/tools/evidence_pack.sh --reviewer`) holds:
@@ -45,7 +45,8 @@ The reviewer edition (`db/tools/evidence_pack.sh --reviewer`) holds:
 3. The reviewer's questions are answered from the pack, or with a further excerpt added to `critical_controls.json`, so
    the next pack carries it with its tests.
 4. The reviewer's report is answered point by point in a follow-up report, against the same commit or a later one that
-   names what changed.
+   names what changed. Its figures, like those of the study, the database design and the register, come from
+   `db/tools/doc_figures.py` of the delivered commit, never typed by hand (reviewer's plan item A1).
 
 ## Delivery record
 
@@ -71,3 +72,14 @@ Delivery 2 also exists as a complete edition, `Masslak_Independent_Review_Comple
 the reply to the four evaluations 1.1 in `earlier_documents/`, which keep the figures of the commits they were measured at.
 
 The reviewer may study delivery 2 again and compare the two reviews.
+
+The reviewer's detailed reply on delivery 2 (18 October 2026, round 7, 89.1 of 100) asked for a pack whose commit is the tested
+one with a link to its CI run (A2), no figure unless generated (A1) and a wider prompt-injection set of 40 checks or more (B2).
+The owner approved the three proposals that followed, and the repository stays closed. Widening the set found four gaps in
+schema file 1134, closed by 1137. The reply named three critical controls wrongly (C-05 is step-up, C-07 the definer EXECUTE
+revoke, C-09 production TLS and the key service) and listed as open four plan items that already existed (B1, B3, B4, A3);
+follow-up report 2 answers it.
+
+| Delivery | Date | Commit | Contents |
+|---|---|---|---|
+| 3 | 18 October 2026 | `6857d7a740bdb4063f79ebc43f9a661e1667e0e7` (tested and packed: the same commit; CI run https://github.com/thawrasy/smartlines/actions/runs/39135414851) | Follow-up report 2 on the independent review 1.0, study 3.10 (English and Arabic), database design and ERD 3.19, readiness register 2.5 (each Word and PDF), the evidence pack reviewer edition CI built for that commit (artifact `evidence-pack-reviewer` of the run, id 12139762093, zip digest `sha256:b773aef5ad294c8f6b423f5d60fe393a85c7e8c69c69ece9b337ffb4b944661f`), and `CHECK_DELIVERY.txt` (run against a pack built locally at the same commit, `SAME CODE`). Tests of that commit: 962 database checks passed, 773 API tests passed and 11 skipped, the live event contract check 5 of 5; critical controls 180 of 180 passed, none skipped (C-06: 51). `check_delivery.py`: 0 problems |
