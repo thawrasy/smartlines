@@ -139,7 +139,7 @@ def test_a_claim_is_approved_by_one_person_and_paid_once_by_another(admin):
 # ------------------------------------------------------------------ trip templates and ratings
 def _fresh_vehicle(carrier):
     layout = next(x for x in carrier.get("/api/carrier/seat-layouts").json()["layouts"] if x["total_seats"] == 44)
-    plate = str(100000 + secrets.randbelow(900000))
+    plate = str(1_000_000_000 + secrets.randbelow(9_000_000_000))   # wide enough that two runs never share one
     r = carrier.post("/api/carrier/vehicles", json={
         "plate_no": plate, "chassis_no": f"CHS-G{plate}", "vehicle_type": "COACH", "seat_layout_uid": layout["uid"],
         "insurance_no": f"POL-G{plate}", "insurer": "Test", "insurance_issue": "2026-01-01", "insurance_expiry": "2030-01-01"})

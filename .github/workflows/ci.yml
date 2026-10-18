@@ -32,7 +32,9 @@ jobs:
           for i in $(seq 1 60); do pg_isready -q -h localhost && break; sleep 1; done
           test "$(psql -h localhost -U postgres -Atc "SELECT count(*) FROM pg_settings WHERE name LIKE 'app.%' AND context = 'superuser'")" = 9
       - name: Build a fresh database and run the checks
-        run: db/tests/run.sh -h localhost -U postgres | tee db_tests.log
+        # pipefail: without it the step takes tee's status and a failed check passes (no shell is named, so bash runs
+        # without it)
+        run: set -o pipefail; db/tests/run.sh -h localhost -U postgres | tee db_tests.log
       - name: Keep the checks' output for the evidence pack
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with: { name: db-tests, path: db_tests.log, retention-days: 30 }
@@ -40,6 +42,7 @@ jobs:
         run: |
           createdb -h localhost -U postgres upgrade_check
           db/build.sh upgrade_check -h localhost -U postgres > /dev/null
+          set -o pipefail
           db/upgrade.sh upgrade_check -h localhost -U postgres | tee upgrade.log
           ! grep -q '^>>' upgrade.log
       - name: An applied schema file that changed stops the upgrade before anything is applied (review stage A5)
@@ -188,7 +191,7 @@ jobs:
           cat ../api.log; exit 1
       - name: Unit and end-to-end tests
         working-directory: backend
-        run: python -m coverage run -m pytest tests -q --junitxml=../junit.xml 2>&1 | tee ../api_tests.log
+        run: set -o pipefail; python -m coverage run -m pytest tests -q --junitxml=../junit.xml 2>&1 | tee ../api_tests.log   # a failed test fails the step
       - name: Every event the suite produced matches its published contract (docs/integration/events, systems review of study 3.8)
         working-directory: backend
         env: { MASSLAK_EVENT_CONTRACTS_LIVE: "1" }

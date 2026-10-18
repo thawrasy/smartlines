@@ -37,7 +37,7 @@ def _fresh_trip(o) -> dict:
     """A trip of the carrier nobody has booked yet, on sale the day after tomorrow."""
     route = next(r for r in o.get("/api/carrier/routes").json()["routes"] if r["code"] == "DAM-ALP")
     layout = next(x for x in o.get("/api/carrier/seat-layouts").json()["layouts"] if x["total_seats"] == 44)
-    plate = str(100000 + secrets.randbelow(900000))
+    plate = str(1_000_000_000 + secrets.randbelow(9_000_000_000))   # wide enough that two runs never share one
     r = o.post("/api/carrier/vehicles", json={
         "plate_no": plate, "chassis_no": f"CHS-C{plate}", "vehicle_type": "COACH", "seat_layout_uid": layout["uid"],
         "insurance_no": f"POL-C{plate}", "insurer": "Test", "insurance_issue": "2026-01-01", "insurance_expiry": "2030-01-01"})
@@ -289,7 +289,7 @@ def test_the_travellers_named_on_a_block_are_ticketed_and_on_the_manifest():
 
 def _new_vehicle(o) -> dict:
     layout = next(x for x in o.get("/api/carrier/seat-layouts").json()["layouts"] if x["total_seats"] == 44)
-    plate = str(100000 + secrets.randbelow(900000))
+    plate = str(1_000_000_000 + secrets.randbelow(9_000_000_000))   # wide enough that two runs never share one
     r = o.post("/api/carrier/vehicles", json={
         "plate_no": plate, "chassis_no": f"CHS-V{plate}", "vehicle_type": "COACH", "seat_layout_uid": layout["uid"],
         "insurance_no": f"POL-V{plate}", "insurer": "Test", "insurance_issue": "2026-01-01", "insurance_expiry": "2030-01-01"})

@@ -55,7 +55,7 @@ def international_trip(owner) -> dict:
     assert r.status_code == 201, r.text
     route = next(x for x in owner.get("/api/carrier/routes").json()["routes"] if x["code"] == code)
     layout = next(x for x in owner.get("/api/carrier/seat-layouts").json()["layouts"] if x["total_seats"] == 44)
-    plate = str(100000 + secrets.randbelow(900000))
+    plate = str(1_000_000_000 + secrets.randbelow(9_000_000_000))   # wide enough that two runs never share one
     r = owner.post("/api/carrier/vehicles", json={
         "plate_no": plate, "chassis_no": f"CHS-I{plate}", "vehicle_type": "COACH", "seat_layout_uid": layout["uid"],
         "insurance_no": f"POL-I{plate}", "insurer": "Test", "insurance_issue": "2026-01-01", "insurance_expiry": "2030-01-01"})
