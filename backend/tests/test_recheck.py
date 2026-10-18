@@ -109,7 +109,7 @@ def test_resending_a_cancellation_waits_for_a_platform_approval():
     hook = owner.post(f"/api/integrations/clients/{uid}/webhooks", json={"url": "https://partner-t3.example/hook", "events": ["booking.cancelled"]})
     assert hook.status_code == 201, hook.text
     duid = owner_sql("""WITH ev AS (INSERT INTO sys.outbox_event (event_type, aggregate_type, aggregate_id, payload, status)
-                                     VALUES ('booking.cancelled', 'booking', 1, '{}', 'PUBLISHED') RETURNING id)
+                                     VALUES ('booking.cancelled', 'booking', 1, '{"test_fixture": true}', 'PUBLISHED') RETURNING id)
                         INSERT INTO sys.webhook_delivery (endpoint_id, outbox_event_id, event_type, status, attempts)
                         SELECT e.id, ev.id, 'booking.cancelled', 'DEAD', 8 FROM sys.webhook_endpoint e, ev WHERE e.uid = $1::uuid
                         RETURNING delivery_uid::text""", hook.json()["uid"])

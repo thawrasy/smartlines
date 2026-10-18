@@ -4,7 +4,8 @@ has a JSON Schema in docs/integration/events, one file per type and version, and
 * Every subscribable type (integration/scopes.py EVENTS) has a schema, and every schema is a subscribable type.
 * Within a published version a field is never removed or retyped and a required field never dropped (baseline.json).
 * With MASSLAK_EVENT_CONTRACTS_LIVE=1 (a CI step after the whole suite), every event the tests left in the outbox is
-  wrapped in its envelope as a receiver gets it and checked against the envelope and its type's schema.
+  wrapped in its envelope as a receiver gets it and checked against the envelope and its type's schema. Rows a test
+  writes by hand to exercise a failure carry "test_fixture": true and are left out.
 """
 import json
 import os
@@ -74,7 +75,8 @@ def test_every_event_the_suite_produced_matches_its_contract():
         try:
             return await conn.fetch(
                 """SELECT event_uid, event_type, created_at, payload, schema_version, correlation_id, aggregate_type, aggregate_seq
-                     FROM sys.outbox_event WHERE event_type = ANY($1::text[])""", list(EVENTS))
+                     FROM sys.outbox_event WHERE event_type = ANY($1::text[])
+                      AND NOT coalesce(payload @> '{"test_fixture": true}', false)""", list(EVENTS))
         finally:
             await conn.close()
     known, failures, seen = schemas(), [], set()
