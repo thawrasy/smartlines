@@ -2,7 +2,7 @@
 export const color = {
   navy: "#0B1F3F", primary: "#0A5BD3", primarySoft: "#DCE7FD", green: "#0D7650", greenSoft: "#D3F1E1",
   amber: "#8A5A00", amberSoft: "#FDE7C0", error: "#B3261E", errorSoft: "#F9DEDC",
-  surface: "#FFFFFF", background: "#F1F3F6", outline: "#D5DBE3", text: "#0F1B2D", muted: "#4B5565",
+  surface: "#FFFFFF", background: "#F6F7F9", outline: "#D5DBE3", text: "#0F1B2D", muted: "#4B5565",
   // the logo's own colours: the route, the origin stop and the arrival stop (the trip line, the city boxes)
   route: "#2F7BFF", origin: "#7FB0FF", arrival: "#12A06A",
 };
