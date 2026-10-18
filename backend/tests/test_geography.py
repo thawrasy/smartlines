@@ -2,6 +2,7 @@
 governorates, districts, sub-districts, communities and neighbourhoods is checked and loaded by the platform; a newer
 file updates and retires; places are found by name or code with their way up; a community is opened for routes."""
 import io
+import random
 import uuid
 
 import openpyxl
@@ -11,6 +12,8 @@ from test_e2e import OWNER_URL, client, login, owner_sql
 
 pytestmark = pytest.mark.skipif(not OWNER_URL, reason="needs MASSLAK_OWNER_URL")
 
+# the village codes the tests load, distinct within a run: two tests drawing the same code would find it already open
+_VILLAGES = iter(random.sample(range(8000, 9999), 20))
 AR = "\u0645\u0643\u0627\u0646"          # an Arabic word, written with escapes so the source stays in English
 COLUMNS = {
     "admin1": ["admin0Name_ar", "admin0Name_en", "admin0Pcode", "admin1Name_ar", "admin1Name_en", "admin1Pcode", "admin1RefName",
@@ -68,7 +71,7 @@ def _upload(admin, data: bytes, name: str = "syr_locations.xlsx"):
 
 def test_the_platform_loads_the_united_nations_geography_and_opens_a_place_for_routes():
     admin = login("admin@masslak.test", "PLATFORM")
-    village = f"C{8000 + uuid.uuid4().int % 1999}"
+    village = f"C{next(_VILLAGES)}"
     # a workbook with mistakes loads nothing, and says what is wrong
     r = _upload(admin, workbook([(village, "Test Village", 36.1, 37.2)], bad=True))
     assert r.status_code == 422 and r.json()["error"]["code"] == "GEO_FILE_INVALID", r.text
@@ -129,7 +132,7 @@ def test_boundaries_field_surveys_and_stations_in_their_places():
     """1125: the areas' boundaries are loaded from the same publisher; a point is located in its sub-district; places
     found in the field are proposed and used once a second person accepts them; a station stands in its place."""
     admin = login("admin@masslak.test", "PLATFORM")
-    village = f"C{8000 + uuid.uuid4().int % 1999}"
+    village = f"C{next(_VILLAGES)}"
     assert _upload(admin, workbook([(village, "Survey Base", 36.15, 37.25)]), "syr_locations_survey.xlsx").status_code == 200
 
     # boundaries: a wrong file loads nothing; a good one puts each shape on its area
@@ -206,7 +209,7 @@ def test_the_platform_corrects_published_names_and_they_survive_a_newer_file():
     """1127: a word of the published names written as it is known, in one place or an area; the published name is kept
     and found, the correction holds after a newer file, and removing it gives the published name back."""
     admin = login("admin@masslak.test", "PLATFORM")
-    village = f"C{8000 + uuid.uuid4().int % 1999}"
+    village = f"C{next(_VILLAGES)}"
     data = workbook([(village, "Tal Hmeis Quamishli", 36.12, 37.22), ("C1999", "Kfar Quamishli", 36.13, 37.23)])
     assert _upload(admin, data, "syr_names.xlsx").status_code == 200
     # the owner's corrections hold in their areas only: this test file puts the villages in Aleppo, not in Qamishli's district
@@ -236,7 +239,7 @@ def test_the_platform_draws_an_area_with_its_boundary_places_and_stations():
     """1129: the map of an area: its boundary, the areas under it, its places (the communities of a sub-district; the
     cities of the network above it) and its stations; for the platform's geography staff only."""
     admin = login("admin@masslak.test", "PLATFORM")
-    village = f"C{8000 + uuid.uuid4().int % 1999}"
+    village = f"C{next(_VILLAGES)}"
     assert _upload(admin, workbook([(village, "Map Village", 36.2, 37.3)]), "syr_locations_map.xlsx").status_code == 200
     aleppo = _box(35.9, 36.6, 36.8, 37.7)
     assert _upload_boundaries(admin, _boundaries([
