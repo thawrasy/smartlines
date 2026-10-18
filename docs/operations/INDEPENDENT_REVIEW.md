@@ -93,3 +93,16 @@ follow-up report 2 answers it.
 | Delivery | Date | Commit | Contents |
 |---|---|---|---|
 | 3 | 18 October 2026 | `6857d7a740bdb4063f79ebc43f9a661e1667e0e7` (tested and packed: the same commit; CI run https://github.com/thawrasy/smartlines/actions/runs/39135414851) | Follow-up report 2 on the independent review 1.0, study 3.10 (English and Arabic), database design and ERD 3.19, readiness register 2.5 (each Word and PDF), the evidence pack reviewer edition CI built for that commit (artifact `evidence-pack-reviewer` of the run, id 12139762093, zip digest `sha256:b773aef5ad294c8f6b423f5d60fe393a85c7e8c69c69ece9b337ffb4b944661f`), and `CHECK_DELIVERY.txt` (run against a pack built locally at the same commit, `SAME CODE`). Tests of that commit: 962 database checks passed, 773 API tests passed and 11 skipped, the live event contract check 5 of 5; critical controls 180 of 180 passed, none skipped (C-06: 51). `check_delivery.py`: 0 problems |
+
+The reviewer's report on delivery 3 (18 October 2026, round 8, 90.5 of 100) read two figures of the database design's chapter
+on version 3.3 (445 tables under row-level security, 188 database checks) as the present database, asked for coverage of the
+report scheduler, the notification worker and e-invoices, a map of threats to controls, more critical controls, proof that the
+settings guard is loaded, an owner for dead deliveries and row-level security measured at scale. The owner approved the six
+proposals that followed, and the repository stays closed. The report also counted 12 critical controls (there were 9), showed
+no test count for C-03, C-04 and C-08 (48, 8 and 5) and 77 alert rules (73). The scheduler's new test found that a company's
+scheduled report was never sent (the SYSTEM context could not see company schedules), fixed by schema file 1139. Follow-up
+report 3 answers the report.
+
+| Delivery | Date | Commit | Contents |
+|---|---|---|---|
+| 4 | 18 October 2026 | `fdac07b927375adc0a37aa7408d95c314aab1956` (tested and packed: the same commit; CI run https://github.com/thawrasy/smartlines/actions/runs/39142983908) | Follow-up report 3 on the independent review 1.0, study 3.11 (English and Arabic), database design and ERD 3.20, readiness register 2.6 (each Word and PDF), the evidence pack reviewer edition CI built for that commit (artifact `evidence-pack-reviewer` of the run, id 12142499131, zip digest `sha256:1de4f8d3ddb19afd712213179328242840e20ba4ea47735e359fc260381f3d29`), and `CHECK_DELIVERY.txt` (run against a pack built locally at the same commit, `SAME CODE`); archive `Masslak_Independent_Review_Delivery4_fdac07b.zip`, `b20090eda1d1018a8df6aa8440e9434974a56d2fdb5bb8caae92552146c33cee`. Tests of that commit: 969 database checks passed, 774 API tests passed and 11 skipped, the live event contract check 5 of 5; 16 critical controls, none skipped, every threat of the map with a control or a gate; line coverage 90.2 %. `check_delivery.py`, with the rule on current figures: 0 problems |
