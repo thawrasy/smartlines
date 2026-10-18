@@ -418,7 +418,7 @@ table pty.KycProfile public  # KYC completeness checklist per bank and role (FR-
   IsBaseline         bool       req =0
   OwnerThresholdPct  rate       # عتبة الملكية التي يُطلب عندها KYC للمالك: 25 أو 5 (G-8)
   SourceDocumentId   ->doc.Document   # نموذج KYC الممسوح
-  SeedKey            ascii(80)  # KYC-CORP-BASE / EXIM / SAB / RIYAD / PERSON-SIGNATORY / PERSON-OWNER / GUARANTOR (05 قسم 3)
+  SeedKey            ascii(80)  # KYC-CORP-BASE / BANK-A / BANK-B / BANK-C / PERSON-SIGNATORY / PERSON-OWNER / GUARANTOR (05 قسم 3)
   unique InstitutionId,AppliesToRole,AppliesToKind,Version   # المواصفة (InstitutionId, AppliesToRole, Version) مع AppliesToKind لتمييز الفرد من الجهة
   unique InstitutionId,AppliesToRole,AppliesToKind where Status = 'ACTIVE'   # نسخة فعّالة واحدة
   unique SeedKey where SeedKey IS NOT NULL

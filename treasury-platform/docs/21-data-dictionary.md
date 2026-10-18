@@ -1665,7 +1665,7 @@
 | IsBaseline | BIT | لا | 0 |  |  |
 | OwnerThresholdPct | DECIMAL(9,6) | نعم |  |  | عتبة الملكية التي يُطلب عندها KYC للمالك: 25 أو 5 (G-8) |
 | SourceDocumentId | BIGINT | نعم |  | doc.Document | نموذج KYC الممسوح |
-| SeedKey | VARCHAR(80) | نعم |  |  | KYC-CORP-BASE / EXIM / SAB / RIYAD / PERSON-SIGNATORY / PERSON-OWNER / GUARANTOR (05 قسم 3) |
+| SeedKey | VARCHAR(80) | نعم |  |  | KYC-CORP-BASE / BANK-A / BANK-B / BANK-C / PERSON-SIGNATORY / PERSON-OWNER / GUARANTOR (05 قسم 3) |
 | PublicId | UNIQUEIDENTIFIER | لا | NEWSEQUENTIALID() |  |  |
 | CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
 | CreatedBy | BIGINT | نعم |  |  |  |

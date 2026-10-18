@@ -924,12 +924,12 @@ DECLARE @t1 INT, @f BIGINT, @l BIGINT, @e1 INT, @e2 INT, @e3 INT, @e4 INT, @ok I
 BEGIN TRANSACTION;
 EXEC #S2;
 SELECT @t1 = v FROM #F WHERE k = 't1'; SELECT @f = v FROM #F WHERE k = 'f'; SELECT @l = v FROM #F WHERE k = 'l';
-BEGIN TRY UPDATE fac.Limit SET OriginalText = N'Proceeds to IBAN SA0380000000608010167519' WHERE LimitId = @l; END TRY BEGIN CATCH SET @e1 = ERROR_NUMBER(); END CATCH;
-BEGIN TRY UPDATE fac.Limit SET OriginalText = N'Proceeds to IBAN SA03 8000 0000 6080 1016 7519' WHERE LimitId = @l; END TRY BEGIN CATCH SET @e2 = ERROR_NUMBER(); END CATCH;
+BEGIN TRY UPDATE fac.Limit SET OriginalText = N'Proceeds to IBAN SA5099000000000000123456' WHERE LimitId = @l; END TRY BEGIN CATCH SET @e1 = ERROR_NUMBER(); END CATCH;
+BEGIN TRY UPDATE fac.Limit SET OriginalText = N'Proceeds to IBAN SA50 9900 0000 0000 0012 3456' WHERE LimitId = @l; END TRY BEGIN CATCH SET @e2 = ERROR_NUMBER(); END CATCH;
 BEGIN TRY UPDATE fac.Limit SET OriginalText = N'Account no. 6080101675 with the bank' WHERE LimitId = @l; END TRY BEGIN CATCH SET @e3 = ERROR_NUMBER(); END CATCH;
 BEGIN TRY INSERT fac.ValueConflict (TenantId, FacilityId, TargetEntity, TargetId, FieldName, CandidateAValue, CandidateBValue, CandidateAOriginalText)
-          VALUES (@t1, @f, 'fac.Limit', @l, 'Amount', N'1', N'2', N'paid to SA0380000000608010167519'); END TRY BEGIN CATCH SET @e4 = ERROR_NUMBER(); END CATCH;
-BEGIN TRY UPDATE fac.Limit SET OriginalText = N'Proceeds to IBAN SA** **** **** **** **** 7519, amount SAR 1,000,000' WHERE LimitId = @l; SET @ok = @@ROWCOUNT; END TRY
+          VALUES (@t1, @f, 'fac.Limit', @l, 'Amount', N'1', N'2', N'paid to SA5099000000000000123456'); END TRY BEGIN CATCH SET @e4 = ERROR_NUMBER(); END CATCH;
+BEGIN TRY UPDATE fac.Limit SET OriginalText = N'Proceeds to IBAN SA** **** **** **** **** 3456, amount SAR 1,000,000' WHERE LimitId = @l; SET @ok = @@ROWCOUNT; END TRY
 BEGIN CATCH SET @ok = -ERROR_NUMBER(); END CATCH;
 WHILE @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
 IF @e1 = 547 AND @e2 = 547 AND @e3 = 547 AND @e4 = 547 AND @ok = 1
@@ -1457,11 +1457,11 @@ BEGIN
            (@t1, 'amount', 'AMOUNT', N'Amount', N'Amount', 'DECIMAL', N'{}', 'NORMAL');
     INSERT lc.LcTerms (TenantId, OwnerType, OwnerId, Purpose, LcClass, Scope, BeneficiaryAccountIbanEnc, BeneficiaryAccountIbanMask,
                        BeneficiaryAccountIbanHash, EncKeyId, HashKeyId)
-    VALUES (@t1, 'PROFORMA', NULL, 'PROFORMA', 'SALES', 'DOMESTIC', CRYPT_GEN_RANDOM(64), N'SA** **** 7519', 0xAA, 1, 1);
+    VALUES (@t1, 'PROFORMA', NULL, 'PROFORMA', 'SALES', 'DOMESTIC', CRYPT_GEN_RANDOM(64), N'SA** **** 3456', 0xAA, 1, 1);
     SET @a = SCOPE_IDENTITY();
     INSERT lc.LcTerms (TenantId, OwnerType, OwnerId, Purpose, LcClass, Scope, BeneficiaryAccountIbanEnc, BeneficiaryAccountIbanMask,
                        BeneficiaryAccountIbanHash, EncKeyId, HashKeyId)
-    VALUES (@t1, 'PROFORMA', NULL, 'PROFORMA', 'SALES', 'DOMESTIC', CRYPT_GEN_RANDOM(64), N'SA** **** 7519', CASE WHEN @Case = 5 THEN 0xBB ELSE 0xAA END, 1,
+    VALUES (@t1, 'PROFORMA', NULL, 'PROFORMA', 'SALES', 'DOMESTIC', CRYPT_GEN_RANDOM(64), N'SA** **** 3456', CASE WHEN @Case = 5 THEN 0xBB ELSE 0xAA END, 1,
             CASE WHEN @Case = 6 THEN 2 ELSE 1 END);
     SET @b = SCOPE_IDENTITY();
     INSERT lc.LcTermsComparison (TenantId, BaselineTermsId, ReceivedTermsId, RunAt) VALUES (@t1, @a, @b, SYSUTCDATETIME());
@@ -1476,15 +1476,15 @@ BEGIN
         VALUES (@t1, @co, 1, 'OUR_REQUEST', 'CHANGE_TERMS', @c, N'{"amount":{"old":"100000","new":"120000"},"beneficiaryAccountIban":"CHANGED"}', @cur, 0);
     END;
     IF @Case = 3 INSERT lc.LcTermsComparisonLine (TenantId, ComparisonId, FieldKey, BaselineValue, ReceivedValue, Verdict)
-                 VALUES (@t1, @cmp, 'collectionAccount', N'SA** 7519', N'SA** 7520', 'REVIEW');
+                 VALUES (@t1, @cmp, 'collectionAccount', N'SA** 3456', N'SA** 3457', 'REVIEW');
     IF @Case IN (4, 7, 8)
     BEGIN
         INSERT lc.LcTerms (TenantId, OwnerType, Purpose, LcClass, Scope, CurrencyId) VALUES (@t1, 'AMENDMENT', 'AMENDMENT', 'PURCHASE', 'DOMESTIC', @cur);
         SET @c = SCOPE_IDENTITY();
         INSERT lc.LcAmendment (TenantId, CompanyId, LcId, Origin, ChangeKinds, TermsId, ChangedFieldsJson, CurrencyId, AmountDelta)
         VALUES (@t1, @co, 1, 'OUR_REQUEST', 'CHANGE_TERMS', @c,
-                CASE @Case WHEN 4 THEN N'{"beneficiaryAccountIban":{"old":"SA0380000000608010167519","new":"SA0380000000608010167520"}}'
-                           WHEN 7 THEN N'{"collectionAccount":"SA0380000000608010167519"}'
+                CASE @Case WHEN 4 THEN N'{"beneficiaryAccountIban":{"old":"SA5099000000000000123456","new":"SA5099000000000000123457"}}'
+                           WHEN 7 THEN N'{"collectionAccount":"SA5099000000000000123456"}'
                            ELSE N'["amount","beneficiaryAccountIban"]' END, @cur, 0);
     END;
     IF @Case IN (5, 6, 9)
