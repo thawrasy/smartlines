@@ -51,7 +51,15 @@ The follow-up report answers the reviewer against the commit of the delivery it 
 |---|---|---|---|
 | 1 | 18 October 2026 | `e6dbeb8b00e1ce35b5a6c3c6c123a74bcb1bd5a4` | Study 3.9 (English and Arabic, Word and PDF), database design and ERD 3.17 and readiness register 2.3 (built from the same commit; they replaced 3.16 and 2.2 before the hand-over, so the documents and the pack state the same schema files and figures), reply to the four evaluations 1.1 (Word and PDF), evidence pack reviewer edition without `audit_pack/` (`masslak-evidence-reviewer-e6dbeb8.tar.gz`, `ef011b645c708db6d970590fd3799ac72ae6270a6a6dc68508bfb2ec49fdba03`); tests of that commit: 924 database checks passed, 773 API tests passed and 11 skipped, coverage 87.5 % |
 
-Delivery 1 was handed to the reviewer by the owner on 18 October 2026 (archive `Masslak_Independent_Review_Pack_e6dbeb8.zip`,
-SHA-256 `c078a8dfe2e264d4dbc5e9158636d10c46be1cf78ab1788dc7200fd25fd9bb9d`) and is under review. When the reviewer's report
-arrives, the follow-up report answers it point by point against commit `e6dbeb8`, and names every change made since, so the
-owner can have the platform reviewed again and compare the two reviews.
+Delivery 1 reached the reviewer as its first archive (SHA-256 `974152db9c86a2f77dc9a1b665f4355b3e1bc3865612ddfbb6beb5fb09ae114a`):
+design 3.16 and register 2.2, issued before 3.17 and 2.3, with the same evidence pack. The reviewer's report on it (18 October
+2026, 87.1 of 100: not ready for a public launch, ready to be built for operation) found the pack's `verification.json` left by
+an earlier build (commit `840b3dc`, schema file 1132) and the event contract check of C-08 shown as skipped. Both were defects of
+the evidence tools, fixed in commit `921369d` (the pack makes its own verification; skipped tests of a critical control fail the
+pack; `check_delivery.py`). The follow-up report answers the review point by point.
+
+| Delivery | Date | Commit | Contents |
+|---|---|---|---|
+| 2 | 18 October 2026 | `921369d872757ecae2d659b54ad28de6b36df73b` (tested; the documents are of `71def24`, documentation only since) | Follow-up report on the independent review 1.0 (Word and PDF), database design and ERD 3.18, readiness register 2.4 (Word and PDF), evidence pack reviewer edition (`masslak-evidence-reviewer-921369d.tar.gz`, `cba0e3dd10eaf93cd96bb2790d93af2c637b0ab3d362b0c63d04916753fb9aa4`); archive `Masslak_Independent_Review_Delivery2_921369d.zip`, `05c55c7ff4c4c22c682b797c419023077bdf7bdab9c76b8dea108832a473602a`. Tests of that commit: 924 database checks passed, 773 API tests passed and 11 skipped, the live event contract check 5 of 5; critical controls 142 of 142 passed, none skipped. `check_delivery.py`: 0 problems |
+
+The reviewer may study delivery 2 again and compare the two reviews.
