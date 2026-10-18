@@ -14,9 +14,9 @@ supporting index, except references to lookup lists and to the staff member who 
 |---|---|
 | Engine | PostgreSQL 16 with PostGIS 3 (extensions: pgcrypto, citext, btree_gist, pg_trgm, postgis in schema `gis`; Docker and CI image `postgis/postgis:16-3.4`, Ubuntu package `postgresql-16-postgis-3`) |
 | Schemas | 26 separate schemas, each with its own privileges |
-| Tables | 560 tables (8 partitioned), 5,921 columns, 1,667 foreign keys |
+| Tables | 560 tables (8 partitioned), 5,922 columns, 1,667 foreign keys |
 | Security | row-level security on 560 of 560 tables, 1,023 policies; 487 triggers, 499 functions |
-| Tests | 894 automated checks against a freshly built database (`db/tests/run.sh`) |
+| Tests | 898 automated checks against a freshly built database (`db/tests/run.sh`) |
 | Design | [Database design and ERD document](../docs/database/) with diagrams in the study's colors |
 | Docs | [Data dictionary](DATA_DICTIONARY.md) · [ERD diagrams](ERD.md) (both generated from the database) |
 <!-- stats:end -->
@@ -191,6 +191,8 @@ PostGIS in `gis`. Until 9 October 2026 a first start of the Docker stack stopped
 | `1132_connection_holds.sql` | A connection's missed booking kept open after its trip is completed (owner's decision): its escrow held, its tickets issued, until the carrier's change window ends (`sales.connection_hold`, `sales.hold_missed_connections`); released by the worker when the window ends, or ended by a change (`docs/design/CONNECTIONS.md`) |
 | `1133_outbox_review_point.sql` | The outbox's review point (systems review of study 3.8): the outbox is partitioned by day since 1053, so its rows are summed over its partitions (`masslak_outbox_rows_estimate`; the metric of 1051 had read 0 since); the partitioning point of 1051 becomes a review point of 8 million rows (`capacity.outbox_review_rows`, alert `OutboxReviewDue`) |
 | `1134_ai_tool_guard.sql` | The AI assistant's tools authorised by the database (systems review of study 3.8, launch gate 9): `crm.ai_authorize_tool` records each request and allows it only with the assistant switched on (kill switch), the tool enabled, the traveller's confirmation where required, an open conversation and the tool's limits (`max_calls_per_conversation`, `max_amount`); a refusal is kept with its reason (`crm.ai_tool_call.refusal`); a row written as allowed by another path is checked the same way |
+| `1135_definer_execute.sql` | No SECURITY DEFINER function executable by PUBLIC (evaluation reports of October 2026, MANU; owner's approval): each callable one is granted to the roles that use its schema, then `EXECUTE` is revoked from `PUBLIC`; trigger functions need no grant. A later file that forgets `REVOKE ... FROM PUBLIC` fails the check "Definer functions (1135)" |
+| `1136_step_up.sql` | Step-up authentication (evaluation reports of October 2026, GP): `iam.user_session.mfa_at` records when the session last passed its second factor; `auth.mfa.step_up_minutes` (10 by default, 5 to 60) is how recent it must be before money out, wider access, data out or API keys (`require_step_up`, `POST /api/auth/mfa/step-up`) |
 
 ## Design rules (study 29.1)
 

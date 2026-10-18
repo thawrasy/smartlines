@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field
 
 from ... import db
-from ...deps import Principal, context_for, require_portal
+from ...deps import Principal, context_for, require_portal, require_step_up
 from . import service
 
 company = APIRouter(prefix="/api/finance", tags=["payouts"])
@@ -57,6 +57,7 @@ async def bank_accounts(request: Request, pr: Principal = Depends(owner)):
 
 @company.post("/bank-accounts", status_code=201)
 async def add_bank_account(body: BankAccountIn, request: Request, pr: Principal = Depends(owner)):
+    require_step_up(pr)                 # a sensitive operation: a recent second factor (1136)
     ctx = context_for(request, pr)
     async with db.transaction(ctx) as conn:
         account_id, uid = await service.add_bank_account(conn, ctx, pr, body.bank_name, body.holder_name, body.iban)
@@ -72,6 +73,7 @@ async def withdrawals(request: Request, pr: Principal = Depends(owner)):
 
 @company.post("/withdrawals", status_code=201)
 async def request_withdrawal(body: WithdrawalIn, request: Request, pr: Principal = Depends(owner)):
+    require_step_up(pr)                 # a sensitive operation: a recent second factor (1136)
     ctx = context_for(request, pr)
     async with db.transaction(ctx) as conn:
         out = await service.request_withdrawal(conn, pr, body.bank_account_uid, body.amount, body.idempotency_key, ctx)
@@ -102,6 +104,7 @@ async def pending_accounts(request: Request, pr: Principal = Depends(staff)):
 
 @platform.post("/bank-accounts/{account_uid}/verify")
 async def verify(account_uid: uuid.UUID, request: Request, pr: Principal = Depends(staff)):
+    require_step_up(pr)                 # a sensitive operation: a recent second factor (1136)
     async with db.transaction(context_for(request, pr)) as conn:
         account_id = await service.verify_account(conn, pr, account_uid)
     request.state.audit = {"action": "bank_account.verify", "object_type": "bank_account", "object_id": account_id}
@@ -118,6 +121,7 @@ async def all_withdrawals(request: Request, pr: Principal = Depends(staff),
 
 @platform.post("/withdrawals/{withdrawal_uid}/approve")
 async def approve(withdrawal_uid: uuid.UUID, request: Request, pr: Principal = Depends(staff)):
+    require_step_up(pr)                 # a sensitive operation: a recent second factor (1136)
     async with db.transaction(context_for(request, pr)) as conn:
         out = await service.approve(conn, pr, withdrawal_uid)
     request.state.audit = {"action": "withdrawal.approve", "object_type": "withdrawal", "object_id": out.pop("id")}
@@ -141,6 +145,7 @@ async def transfer_details(withdrawal_uid: uuid.UUID, request: Request, pr: Prin
 
 @platform.post("/withdrawals/{withdrawal_uid}/paid")
 async def paid(withdrawal_uid: uuid.UUID, body: PaidIn, request: Request, pr: Principal = Depends(staff)):
+    require_step_up(pr)                 # a sensitive operation: a recent second factor (1136)
     ctx = context_for(request, pr)
     async with db.transaction(ctx) as conn:
         wid = await service.mark_paid(conn, ctx, pr, withdrawal_uid, body.bank_ref)
@@ -172,6 +177,7 @@ async def settlement_detail(batch_uid: uuid.UUID, request: Request, pr: Principa
 
 @platform.post("/settlements/{batch_uid}/approve")
 async def approve_settlement(batch_uid: uuid.UUID, request: Request, pr: Principal = Depends(staff)):
+    require_step_up(pr)                 # a sensitive operation: a recent second factor (1136)
     async with db.transaction(context_for(request, pr)) as conn:
         batch_id = await service.approve_settlement(conn, pr, batch_uid)
     request.state.audit = {"action": "settlement.approve", "object_type": "settlement", "object_id": batch_id}

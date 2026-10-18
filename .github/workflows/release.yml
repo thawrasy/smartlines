@@ -109,6 +109,10 @@ jobs:
           tar --append -f "dist/$name.tar" -C "$RUNNER_TEMP" --transform "s#^#$name/#" RELEASE IMAGES
           gzip -n "dist/$name.tar"
           cp "$RUNNER_TEMP/IMAGES" "dist/$name.IMAGES"
+      - name: The evidence pack of the tagged commit, reviewer edition (no source file; CI job "Evidence pack")
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with: { name: evidence-pack-reviewer, path: "${{ runner.temp }}/evidence" }
+      - run: cp "$RUNNER_TEMP"/evidence/masslak-evidence-reviewer-*.tar.gz "dist/masslak-$GITHUB_REF_NAME-evidence.tar.gz"
       - name: Software bill of materials of the source (SPDX)
         uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
         with:

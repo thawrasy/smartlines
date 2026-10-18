@@ -4204,4 +4204,21 @@ SELECT pg_temp.ok(crm.ai_authorize_tool(:aic, 'test_trip_status', '{}', false) -
 ROLLBACK;
 SET ROLE masslak_app;
 
+-- No SECURITY DEFINER function open to PUBLIC (1135): a later schema file that forgets REVOKE ... FROM PUBLIC fails here
+SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+                               WHERE p.prosecdef AND n.nspname NOT IN ('pg_catalog', 'information_schema', 'public', 'gis')
+                                 AND has_function_privilege('public', p.oid, 'EXECUTE')),
+  'Definer functions (1135): none is executable by PUBLIC');
+SELECT pg_temp.ok(has_function_privilege('masslak_app', 'sys.feature_on(text[])', 'EXECUTE')
+                  AND has_function_privilege('masslak_readonly', 'sys.feature_on(text[])', 'EXECUTE')
+                  AND has_function_privilege('masslak_auditor', 'sys.phase_on(text)', 'EXECUTE'),
+  'Definer functions (1135): the roles that use a schema keep its row-level security predicates');
+
+-- Step-up (1136): each session records when its second factor was last passed; the window is a platform setting
+SELECT pg_temp.ok(EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'iam' AND table_name = 'user_session'
+                           AND column_name = 'mfa_at' AND data_type = 'timestamp with time zone'),
+  'Step-up (1136): a session records when its second factor was passed');
+SELECT pg_temp.ok((SELECT (value ->> 'step_up_minutes')::int FROM sys.setting WHERE key = 'auth.mfa') BETWEEN 5 AND 60,
+  'Step-up (1136): the window of a recent second factor is a setting, 10 minutes by default');
+
 \echo '=== ALL TESTS PASSED ==='

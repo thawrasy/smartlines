@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field
 
 from .. import db, mfa_policy
-from ..deps import Principal, context_for, require_permission
+from ..deps import Principal, context_for, require_permission, require_step_up
 from ..errors import ApiError, not_found
 from ..util import row_dict, rows
 
@@ -136,6 +136,7 @@ class MfaPolicyIn(BaseModel):
     code_minutes: int = Field(default=5, ge=2, le=10)
     resend_seconds: int = Field(default=60, ge=30, le=300)
     sends_per_hour: int = Field(default=5, ge=3, le=20)
+    step_up_minutes: int = Field(default=10, ge=5, le=60)
 
 
 async def _mfa_policy_view(conn) -> dict:
@@ -173,6 +174,7 @@ async def set_mfa_policy(body: MfaPolicyIn, request: Request, pr: Principal = De
     """Which methods are open and which portals must use one. A portal added here asks its staff for a second factor
     at their next sign-in (enrolment first, for those without one); the other API processes follow within half a
     minute. Platform staff keep theirs outside the sandbox whatever is chosen."""
+    require_step_up(pr)                 # a sensitive operation: a recent second factor (1136)
     value = mfa_policy.Policy.of(body.model_dump()).public()
     async with db.transaction(context_for(request, pr)) as conn:
         before = await conn.fetchval("SELECT value::text FROM sys.setting WHERE key = 'auth.mfa'")

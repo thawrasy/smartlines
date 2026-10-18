@@ -18,7 +18,7 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 
 from ... import db
-from ...deps import Principal, context_for, require_permission
+from ...deps import Principal, context_for, require_permission, require_step_up
 from ...errors import ApiError, not_found
 from ...modular import features
 from ...util import rows
@@ -101,6 +101,7 @@ class PayIn(BaseModel):
 
 @router.post("/settlements/{settlement}/pay")
 async def pay_settlement(settlement: uuid.UUID, body: PayIn, request: Request, pr: Principal = Depends(require_permission("payout.run"))):
+    require_step_up(pr)                 # a sensitive operation: a recent second factor (1136)
     ctx = context_for(request, pr)
     async with db.transaction(ctx) as conn:
         out = await partners.pay_settlement(conn, ctx, settlement, body.bank_ref.strip(), pr.user_id)

@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 
 from ... import db
 from ...config import get_settings
-from ...deps import Principal, context_for, require_portal, require_user
+from ...deps import Principal, context_for, require_portal, require_user, require_step_up
 from ...errors import ApiError
 from ..photo import service as photo
 from . import service
@@ -150,6 +150,7 @@ async def set_consent(body: ConsentIn, request: Request, pr: Principal = Depends
 
 @router.get("/export")
 async def export(request: Request, pr: Principal = Depends(require_user)):
+    require_step_up(pr)                 # a sensitive operation: a recent second factor (1136)
     ctx = context_for(request, pr)
     async with db.transaction(ctx) as conn:
         data = await service.export(conn, ctx, pr)

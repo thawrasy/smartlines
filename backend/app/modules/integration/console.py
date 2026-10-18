@@ -22,7 +22,7 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 
 from ... import db
-from ...deps import Principal, context_for, require_user
+from ...deps import Principal, context_for, require_user, require_step_up
 from ...errors import forbidden
 from . import service
 from .scopes import EVENTS, KIND_SCOPES, SCOPES
@@ -113,6 +113,7 @@ async def list_clients(request: Request, c: Console = Depends(console)):
 
 @router.post("/clients", status_code=201)
 async def create_client(body: ClientIn, request: Request, c: Console = Depends(console)):
+    require_step_up(c.pr)                 # a sensitive operation: a recent second factor (1136)
     async with db.transaction(context_for(request, c.pr)) as conn:
         out = await service.create(conn, c.pr, platform=c.platform, name=body.name, kind=body.kind, scopes=body.scopes,
                                    environment=body.environment, description=body.description, contact_email=body.contact_email,
@@ -139,6 +140,7 @@ async def update_client(uid: uuid.UUID, body: ClientUpdate, request: Request, c:
 
 @router.post("/clients/{uid}/keys", status_code=201)
 async def issue_key(uid: uuid.UUID, request: Request, c: Console = Depends(console)):
+    require_step_up(c.pr)                 # a sensitive operation: a recent second factor (1136)
     async with db.transaction(context_for(request, c.pr)) as conn:
         out = await service.issue_key(conn, c.pr, uid, c.company_id)
     request.state.audit = {"action": "api_key.issue", "object_type": "iam.api_key", "object_id": out["id"]}
@@ -159,6 +161,7 @@ async def _client(conn, c: Console, uid: uuid.UUID):
 
 @router.post("/clients/{uid}/webhooks", status_code=201)
 async def add_webhook(uid: uuid.UUID, body: EndpointIn, request: Request, c: Console = Depends(console)):
+    require_step_up(c.pr)                 # a sensitive operation: a recent second factor (1136)
     async with db.transaction(context_for(request, c.pr)) as conn:
         cl = await _client(conn, c, uid)
         out = await service.add_endpoint(conn, cl["id"], cl["kind"], body.url, body.events, body.include_pii)

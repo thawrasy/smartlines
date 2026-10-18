@@ -1,0 +1,129 @@
+"""Quotes the code and the tests of the critical controls for an evidence pack (evaluation reports of October 2026, TEM
+R-15): every claim that a control is closed comes with the code that enforces it and the result of the tests that prove
+it, from the same commit, instead of a file path alone.
+
+    python3 db/tools/critical_excerpts.py --out <dir> [--junit junit.xml] [--db-log db_tests.log]
+
+The controls are listed in docs/operations/evidence/critical_controls.json. A Python function is quoted from its file
+(ast); a SQL function from the last schema file that defines it. A test reference is either "<file>::" (every test of a
+backend test file, results from the JUnit report) or "db:<prefix>" (every database check whose name starts so, results
+from the db/tests output). Writes CRITICAL_CONTROLS.md and critical_controls.json; exits 1 when a quoted symbol is
+missing or a listed test failed.
+"""
+from __future__ import annotations
+
+import argparse
+import ast
+import json
+import re
+import subprocess
+import sys
+import xml.etree.ElementTree as ET  # noqa: S405 - the JUnit report of this run, not outside input
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+CONTROLS = ROOT / "docs" / "operations" / "evidence" / "critical_controls.json"
+
+
+def python_excerpt(rel: str, symbol: str) -> tuple[str, int, int]:
+    src = (ROOT / rel).read_text(encoding="utf-8")
+    for node in ast.walk(ast.parse(src)):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == symbol:
+            start = node.decorator_list[0].lineno if node.decorator_list else node.lineno
+            lines = src.splitlines()[start - 1:node.end_lineno]
+            return "\n".join(lines), start, node.end_lineno
+    raise LookupError(f"{rel}: no function {symbol}")
+
+
+def sql_excerpt(name: str) -> tuple[str, str]:
+    schema, fn = name.split(".")
+    pattern = re.compile(r"^CREATE (?:OR REPLACE )?FUNCTION " + re.escape(schema) + r"\." + re.escape(fn) + r"\(", re.M)
+    found = None
+    for f in sorted((ROOT / "db" / "schema").glob("[0-9]*_*.sql"), key=lambda p: int(p.name.split("_")[0])):
+        text = f.read_text(encoding="utf-8")
+        for m in pattern.finditer(text):
+            end = re.search(r"^\$\$;|^END \$\$;", text[m.start():], re.M)
+            body = text[m.start():m.start() + end.end()] if end else text[m.start():m.start() + 4000]
+            found = (f.name, body)
+    if not found:
+        raise LookupError(f"no SQL function {name}")
+    return found
+
+
+def junit_results(path: Path | None) -> dict[str, str]:
+    if not path or not path.exists():
+        return {}
+    out = {}
+    for case in ET.parse(path).getroot().iter("testcase"):  # noqa: S314
+        file = (case.get("file") or case.get("classname", "").replace(".", "/") + ".py").split("/")[-1]
+        status = "failed" if case.find("failure") is not None or case.find("error") is not None else \
+            "skipped" if case.find("skipped") is not None else "passed"
+        out[f"{file}::{case.get('name')}"] = status
+    return out
+
+
+def db_results(path: Path | None) -> dict[str, str]:
+    if not path or not path.exists():
+        return {}
+    out = {}
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        m = re.match(r"^(PASS|FAIL)\s+(.*)$", line.strip())
+        if m:
+            out[m.group(2).split(" — ")[0].strip()] = "passed" if m.group(1) == "PASS" else "failed"
+    return out
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--out", required=True)
+    ap.add_argument("--junit")
+    ap.add_argument("--db-log")
+    a = ap.parse_args()
+    out = Path(a.out)
+    out.mkdir(parents=True, exist_ok=True)
+    junit = junit_results(Path(a.junit) if a.junit else None)
+    dbr = db_results(Path(a.db_log) if a.db_log else None)
+    commit = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+    spec = json.loads(CONTROLS.read_text(encoding="utf-8"))
+    md = [f"# Critical controls: code and tests at commit {commit}", "",
+          "Each control is quoted from the code of this commit, with the tests that prove it and their result in this run.", ""]
+    summary, problems = [], []
+    for c in spec["controls"]:
+        md += [f"## {c['id']} {c['control']}", ""]
+        for ref in c["code"]:
+            try:
+                if "python" in ref:
+                    code, s, e = python_excerpt(ref["python"], ref["symbol"])
+                    md += [f"`{ref['python']}` lines {s}-{e}, `{ref['symbol']}`:", "", "```python", code, "```", ""]
+                else:
+                    file, code = sql_excerpt(ref["sql"])
+                    md += [f"`db/schema/{file}`, `{ref['sql']}`:", "", "```sql", code, "```", ""]
+            except LookupError as e:
+                problems.append(f"{c['id']}: {e}")
+                md += [f"**Missing:** {e}", ""]
+        tests = {}
+        for t in c["tests"]:
+            if t.startswith("db:"):
+                tests.update({k: v for k, v in dbr.items() if k.startswith(t[3:])})
+            else:
+                tests.update({k: v for k, v in junit.items() if k.startswith(t)})
+        failed = [k for k, v in tests.items() if v == "failed"]
+        if junit and dbr and not tests:
+            problems.append(f"{c['id']}: no test result in this run for {', '.join(c['tests'])}")
+        problems += [f"{c['id']}: test failed: {k}" for k in failed]
+        md += [f"Tests ({len(tests)}, {sum(v == 'passed' for v in tests.values())} passed"
+               + (f", {len(failed)} failed" if failed else "") + "):", ""]
+        md += [f"- {'PASS' if v == 'passed' else v.upper()} `{k}`" for k, v in sorted(tests.items())] or ["- (no result in this run)"]
+        md.append("")
+        summary.append({"id": c["id"], "control": c["control"], "tests": len(tests), "failed": failed})
+    (out / "CRITICAL_CONTROLS.md").write_text("\n".join(md) + "\n", encoding="utf-8")
+    (out / "critical_controls.json").write_text(json.dumps({"commit": commit, "controls": summary, "problems": problems},
+                                                           indent=1) + "\n", encoding="utf-8")
+    for p in problems:
+        print(p, file=sys.stderr)
+    print(f"critical controls: {len(summary)} quoted in {out}, {len(problems)} problem(s)")
+    return 1 if problems else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

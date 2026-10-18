@@ -108,6 +108,20 @@ The database counters come from `pg_stat_database` and `pg_stat_activity`, sampl
 - Throughput levels off at about 46 bookings per second plus their refunds. As in the first run, that is the limit of
   one API process sharing four cores with the load generator and the database (host load 4.3 at 50 users).
 
+## Concurrent users (evaluation reports of October 2026, GIMI)
+
+`python -m loadtest.users --users 10000 --workers 8 --ramp 300 --seconds 900 --json users.json` simulates people
+using the platform at the same time. A concurrent user is a person with the site or the app open who acts, then
+reads: between actions each waits a random think time (exponential, mean 10 seconds). The journeys are 70 % browse
+(search, seat map), 20 % hold a seat and release it, 7 % book, pay from the wallet and cancel for a refund, 3 % list
+one's bookings. So 10,000 concurrent users make about 1,000 requests a second. Users are added over the ramp; only the
+held period is measured. The verdict is PASS when search p95 is at most 300 ms, booking p95 at most 800 ms and p99 at
+most 1.5 s, and 5xx with timeouts at most 0.1 % (`SLO.md`). A share of 429 above 1 % fails the run as a generator
+fault (too few source addresses), not a platform result.
+
+The 10,000-user run belongs on staging with production-sized data (gate 3); on the development container it is a
+smoke test of the tool, not capacity evidence.
+
 ## Next measurements (staging)
 
 1. Load staging with one year of projected data: trips, bookings, tickets, positions, ledger.

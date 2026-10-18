@@ -1,0 +1,33 @@
+{
+ "_note": "The controls whose code and tests every evidence pack quotes (evaluation reports of October 2026, TEM R-15; db/tools/critical_excerpts.py). Each names the code that enforces it (a Python function or a SQL function, quoted as it is in the commit) and the tests that prove it, with their result in the pack's test run.",
+ "controls": [
+  {"id": "C-01", "control": "A production declaration cannot be lowered by the sandbox or a test environment (R-05)",
+   "code": [{"python": "backend/app/config.py", "symbol": "declaration_conflicts"}, {"python": "backend/app/config.py", "symbol": "is_test_server"},
+            {"python": "backend/app/profile.py", "symbol": "require_in_production"}],
+   "tests": ["test_production_declaration.py::"]},
+  {"id": "C-02", "control": "A production server does not start on a schema that differs from its release manifest",
+   "code": [{"python": "backend/app/release.py", "symbol": "check"}],
+   "tests": ["test_release_check.py::"]},
+  {"id": "C-03", "control": "The request context is accepted only with a signed ticket; the context settings are protected",
+   "code": [{"sql": "sys.set_context"}],
+   "tests": ["test_verified_context.py::", "db:Context (", "db:Guard ("]},
+  {"id": "C-04", "control": "Row-level security isolates companies, for reads and for writes",
+   "code": [{"sql": "sys.tenant_visible"}],
+   "tests": ["test_isolation.py::", "db:Isolation"]},
+  {"id": "C-05", "control": "Sensitive operations need a recent second factor (step-up, 1136)",
+   "code": [{"python": "backend/app/deps.py", "symbol": "require_step_up"}],
+   "tests": ["test_step_up.py::"]},
+  {"id": "C-06", "control": "The AI assistant's tools are authorised by the database, whatever the model asks (1134)",
+   "code": [{"sql": "crm.ai_tool_refusal"}, {"sql": "crm.ai_authorize_tool"}],
+   "tests": ["db:AI tools (1134)"]},
+  {"id": "C-07", "control": "No SECURITY DEFINER function is executable by PUBLIC (1135)",
+   "code": [],
+   "tests": ["db:Definer functions (1135)"]},
+  {"id": "C-08", "control": "Published event contracts: every event matches its schema, versions only grow",
+   "code": [{"python": "backend/app/modules/integration/webhooks.py", "symbol": "envelope"}],
+   "tests": ["test_event_contracts.py::"]},
+  {"id": "C-09", "control": "A production server requires TLS to the database, the key service and no owner secret",
+   "code": [{"python": "backend/app/profile.py", "symbol": "problems"}],
+   "tests": ["test_production_profile.py::"]}
+ ]
+}

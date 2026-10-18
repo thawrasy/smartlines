@@ -23,7 +23,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from ... import db
-from ...deps import Principal, context_for, require_portal
+from ...deps import Principal, context_for, require_portal, require_step_up
 from ...errors import ApiError, forbidden, not_found
 from ...modular import features
 from . import service
@@ -148,6 +148,7 @@ async def manifest_verify(uid: uuid.UUID, request: Request, pr: Principal = Depe
 
 @carrier.get("/manifests/{uid}/export")
 async def manifest_export(uid: uuid.UUID, request: Request, pr: Principal = Depends(operator)):
+    require_step_up(pr)                 # a sensitive operation: a recent second factor (1136)
     await _on()
     _need(pr, "manifest.issue", "manifest.view", "trip.publish")
     async with db.transaction(context_for(request, pr)) as conn:

@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, File, Request, UploadFile
 from pydantic import BaseModel, EmailStr, Field
 
 from .. import company_logo, db, markets
-from ..deps import Principal, context_for, require_permission, require_portal
+from ..deps import Principal, context_for, require_permission, require_portal, require_step_up
 from ..errors import ApiError, not_found
 from ..ledger import company_wallet, platform_wallet, post_txn
 from ..security import hash_password, password_problem
@@ -548,6 +548,7 @@ async def grant_external_access(body: ExternalAccessIn, request: Request,
                                 pr: Principal = Depends(require_permission("external_access.grant"))):
     """Read-only access for an auditor or tester: their own platform account, a named engagement, a second person granting
     it, and an end date (at most security.external_access_max_days). The role EXTERNAL_AUDITOR cannot be given otherwise."""
+    require_step_up(pr)                 # a sensitive operation: a recent second factor (1136)
     async with db.transaction(context_for(request, pr)) as conn:
         user = await conn.fetchval("SELECT id FROM iam.app_user WHERE lower(email) = lower($1)", str(body.email).strip())
         if user is None:

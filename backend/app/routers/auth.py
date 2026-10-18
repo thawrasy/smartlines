@@ -634,7 +634,7 @@ async def mfa_confirm(body: CodeIn, request: Request, pr: Principal = Depends(re
                                             "AND factor_type = 'RECOVERY_CODES' AND disabled_at IS NULL)", pr.user_id)
             if method == "TOTP" or not has_codes:
                 codes = await _issue_recovery_codes(conn, fc, pr.user_id)
-            await conn.execute("UPDATE iam.user_session SET mfa_passed = true, mfa_failures = 0 WHERE id = $1", pr.session_id)
+            await conn.execute("UPDATE iam.user_session SET mfa_passed = true, mfa_at = now(), mfa_failures = 0 WHERE id = $1", pr.session_id)
         await _auth_event(conn, request, "MFA_SUCCESS" if ok else "MFA_FAILED", "SUCCESS" if ok else "FAILURE",
                           user_id=pr.user_id, portal=pr.portal, session_id=pr.session_id,
                           reason=f"enrolled_{method.lower()}" if ok else "enrol_wrong_code")
@@ -656,7 +656,7 @@ async def mfa_verify(body: CodeIn, request: Request, response: Response, pr: Pri
         if body.method is None or body.method in (await mfa_policy.current(conn)).available():
             how = await _second_factor_ok(conn, fc, pr.user_id, body.method, body.code, recovery=True)
         if how:
-            await conn.execute("UPDATE iam.user_session SET mfa_passed = true, mfa_failures = 0 WHERE id = $1",
+            await conn.execute("UPDATE iam.user_session SET mfa_passed = true, mfa_at = now(), mfa_failures = 0 WHERE id = $1",
                                pr.session_id)
             await _auth_event(conn, request, "MFA_SUCCESS", "SUCCESS", user_id=pr.user_id, portal=pr.portal,
                               session_id=pr.session_id, reason=how)
@@ -676,6 +676,38 @@ async def mfa_verify(body: CodeIn, request: Request, response: Response, pr: Pri
             raise ApiError(401, "MFA_TOO_MANY_ATTEMPTS", "too many wrong codes; sign in again")
         raise ApiError(422, "MFA_CODE_INVALID", "the code is not valid", attempts_left=MFA_MAX_FAILURES - fails)
     return {"ok": True, "method": how, "recovery_code_used": how == "recovery_code"}
+
+
+@router.post("/mfa/step-up")
+async def mfa_step_up(body: CodeIn, request: Request, response: Response, pr: Principal = Depends(require_user)):
+    """Confirms a sensitive operation (1136): a current code from the person's authenticator app or text or WhatsApp
+    message (no recovery code) renews the second factor of this session for auth.mfa.step_up_minutes. Wrong codes count
+    with the sign-in ones; five revoke the session."""
+    async with db.transaction(_system(request)) as conn:
+        fc = await crypto.cipher(conn)
+        how = None
+        if body.method is None or body.method in (await mfa_policy.current(conn)).available():
+            how = await _second_factor_ok(conn, fc, pr.user_id, body.method, body.code, recovery=False)
+        if how:
+            await conn.execute("UPDATE iam.user_session SET mfa_at = now(), mfa_failures = 0 WHERE id = $1", pr.session_id)
+            await _auth_event(conn, request, "MFA_SUCCESS", "SUCCESS", user_id=pr.user_id, portal=pr.portal,
+                              session_id=pr.session_id, reason=f"step_up_{how}")
+        else:
+            fails = await conn.fetchval("UPDATE iam.user_session SET mfa_failures = mfa_failures + 1 WHERE id = $1 "
+                                        "RETURNING mfa_failures", pr.session_id)
+            await _auth_event(conn, request, "MFA_FAILED", "FAILURE", user_id=pr.user_id, portal=pr.portal,
+                              session_id=pr.session_id, reason="step_up_wrong_code")
+            if fails >= MFA_MAX_FAILURES:
+                await conn.execute("UPDATE iam.user_session SET revoked_at = now(), revoke_reason = 'mfa_failures' "
+                                   "WHERE id = $1", pr.session_id)
+                await _auth_event(conn, request, "SESSION_REVOKED", "BLOCKED", user_id=pr.user_id, portal=pr.portal,
+                                  session_id=pr.session_id, reason="mfa_failures")
+    if not how:
+        if fails >= MFA_MAX_FAILURES:
+            response.delete_cookie(SESSION_COOKIE, path="/")
+            raise ApiError(401, "MFA_TOO_MANY_ATTEMPTS", "too many wrong codes; sign in again")
+        raise ApiError(422, "MFA_CODE_INVALID", "the code is not valid", attempts_left=MFA_MAX_FAILURES - fails)
+    return {"ok": True, "method": how, "valid_minutes": pr.step_up_minutes}
 
 
 @router.post("/mfa/recovery-codes")

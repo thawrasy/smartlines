@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**560 tables, 5921 columns, in 26 schemas.**
+**560 tables, 5922 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -832,6 +832,7 @@ Active sessions; revoking one ends the login immediately
 | `access_expires_at` | `timestamp with time zone` |  |  |
 | `prev_refresh_hash` | `bytea` |  |  |
 | `client` | `text` | ✱ | `'web'::text` |
+| `mfa_at` | `timestamp with time zone` |  |  |
 
 ### `iam.user_station_scope` 🛡️
 

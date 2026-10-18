@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel, EmailStr, Field
 
 from .. import db, markets
-from ..deps import Principal, context_for, require_portal
+from ..deps import Principal, context_for, require_portal, require_step_up
 from ..errors import ApiError, forbidden, not_found
 from ..ledger import platform_wallet, post_txn
 from ..modules.cash import service as cash
@@ -163,6 +163,7 @@ async def crew(request: Request, pr: Principal = Depends(operator)):
 
 @router.post("/crew", status_code=201)
 async def add_driver(body: DriverIn, request: Request, pr: Principal = Depends(operator)):
+    require_step_up(pr)                 # a sensitive operation: a recent second factor (1136)
     _need(pr, "company.staff", "trip.assign_crew")
     problem = password_problem(body.password, body.email, body.full_name, body.mobile)
     if problem:

@@ -7846,6 +7846,39 @@
     "200": {}
    }
   },
+  "POST /api/auth/mfa/step-up": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "code": {
+        "maxLength": 20,
+        "minLength": 6,
+        "type": "string"
+       },
+       "method": {
+        "enum": [
+         "TOTP",
+         "SMS",
+         "WHATSAPP"
+        ],
+        "nullable": true,
+        "type": "string"
+       }
+      },
+      "required": [
+       "code"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
   "POST /api/auth/mfa/verify": {
    "body": {
     "content": {
@@ -17927,6 +17960,12 @@
         "default": 5,
         "maximum": 20.0,
         "minimum": 3.0,
+        "type": "integer"
+       },
+       "step_up_minutes": {
+        "default": 10,
+        "maximum": 60.0,
+        "minimum": 5.0,
         "type": "integer"
        }
       },

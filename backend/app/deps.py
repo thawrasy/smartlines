@@ -1,5 +1,6 @@
 """Request context and authentication dependencies."""
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 from typing import AsyncIterator, Optional
 
 import asyncpg
@@ -42,6 +43,8 @@ class Principal:
     mfa_enrolled: bool = False      # holds a second factor of a method open on this server
     mfa_required: bool = False
     mfa_factors: list[str] = field(default_factory=list)
+    mfa_at: Optional[datetime] = None     # when this session last passed its second factor (1136)
+    step_up_minutes: int = 10
 
 
 def base_context(request: Request) -> db.Context:
@@ -52,7 +55,7 @@ async def load_principal(conn: asyncpg.Connection, token: str) -> Optional[Princ
     row = await conn.fetchrow(
         """
         SELECT s.id AS session_id, s.portal, s.company_id, u.id AS user_id, u.uid, u.party_id, u.email,
-               u.preferred_locale, p.legal_name, s.mfa_passed, u.mfa_required, 
+               u.preferred_locale, p.legal_name, s.mfa_passed, s.mfa_at, u.mfa_required, 
                ARRAY(SELECT f.factor_type FROM iam.mfa_factor f WHERE f.user_id = u.id AND f.verified_at IS NOT NULL
                         AND f.disabled_at IS NULL AND f.factor_type IN ('TOTP','SMS','WHATSAPP')) AS mfa_factors
           FROM iam.user_session s
@@ -75,6 +78,7 @@ async def load_principal(conn: asyncpg.Connection, token: str) -> Optional[Princ
     pr.mfa_enrolled = mfa_policy.enrolled(pr.mfa_factors, policy)
     pr.mfa_required = mfa_required_for(pr.portal, row["mfa_required"], bool(pr.mfa_factors), policy)
     pr.mfa_pending = pr.mfa_required and not row["mfa_passed"]
+    pr.mfa_at, pr.step_up_minutes = row["mfa_at"], policy.step_up_minutes
     await load_permissions(conn, pr)
     return pr
 
@@ -168,6 +172,22 @@ async def require_user(principal: Principal = Depends(require_session)) -> Princ
     if principal.mfa_pending:
         raise ApiError(401, "MFA_REQUIRED", "enter the code from your authenticator app",
                        next="VERIFY" if principal.mfa_enrolled else "ENROLL")
+    return principal
+
+
+def require_step_up(principal: Principal) -> None:
+    """A sensitive operation (1136): someone who uses a second factor must have passed it on this session within the
+    last auth.mfa.step_up_minutes; otherwise 403 STEP_UP_REQUIRED, and POST /api/auth/mfa/step-up with a code."""
+    if not principal.mfa_required:
+        return
+    recent = principal.mfa_at is not None and datetime.now(timezone.utc) - principal.mfa_at < timedelta(minutes=principal.step_up_minutes)
+    if not recent:
+        raise ApiError(403, "STEP_UP_REQUIRED", "confirm with a code from your second factor to continue",
+                       next="STEP_UP", minutes=principal.step_up_minutes)
+
+
+async def step_up_user(principal: Principal = Depends(require_user)) -> Principal:
+    require_step_up(principal)
     return principal
 
 

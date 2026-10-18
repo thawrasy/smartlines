@@ -33,7 +33,7 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field, field_validator
 
 from ... import db
-from ...deps import Principal, context_for, require_portal
+from ...deps import Principal, context_for, require_portal, require_step_up
 from ...errors import ApiError, forbidden, not_found
 from ...util import row_dict
 from . import service
@@ -457,6 +457,7 @@ async def _authority(conn, code: str) -> int:
 @platform.post("/authorities/{code}/members", status_code=201)
 async def add_member(code: str, body: MemberIn, request: Request, pr: Principal = Depends(staff)):
     """A platform staff account decides for a government authority at the stages that name it."""
+    require_step_up(pr)                 # a sensitive operation: a recent second factor (1136)
     _need(pr, "schedule.settings")
     async with db.transaction(context_for(request, pr)) as conn:
         aid = await _authority(conn, code)

@@ -32,7 +32,10 @@ jobs:
           for i in $(seq 1 60); do pg_isready -q -h localhost && break; sleep 1; done
           test "$(psql -h localhost -U postgres -Atc "SELECT count(*) FROM pg_settings WHERE name LIKE 'app.%' AND context = 'superuser'")" = 9
       - name: Build a fresh database and run the checks
-        run: db/tests/run.sh -h localhost -U postgres
+        run: db/tests/run.sh -h localhost -U postgres | tee db_tests.log
+      - name: Keep the checks' output for the evidence pack
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with: { name: db-tests, path: db_tests.log, retention-days: 30 }
       - name: Upgrading an existing database applies nothing twice
         run: |
           createdb -h localhost -U postgres upgrade_check
@@ -185,7 +188,7 @@ jobs:
           cat ../api.log; exit 1
       - name: Unit and end-to-end tests
         working-directory: backend
-        run: python -m coverage run -m pytest tests -q
+        run: python -m coverage run -m pytest tests -q --junitxml=../junit.xml 2>&1 | tee ../api_tests.log
       - name: Every event the suite produced matches its published contract (docs/integration/events, systems review of study 3.8)
         working-directory: backend
         env: { MASSLAK_EVENT_CONTRACTS_LIVE: "1" }
@@ -271,9 +274,55 @@ jobs:
           cat gate.txt
           { echo "### Test coverage (R-52)"; echo '```'; cat gate.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           exit $rc
+      - name: Keep the test output, the JUnit report and the coverage for the evidence pack
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: api-tests
+          path: |
+            api_tests.log
+            junit.xml
+            backend/coverage.json
+          retention-days: 30
       - name: API log on failure
         if: failure()
         run: tail -200 api.log; tail -100 api_tel.log 2>/dev/null || true; tail -100 api_s3.log 2>/dev/null || true
+
+  evidence:
+    # Evaluation reports of October 2026 (TEM R-15; owner's approval): every commit gets its evidence pack, built from
+    # this run's own test output: the critical controls quoted from the code with the result of the tests that prove
+    # them, every test with its result, the coverage, the database's structure and grants, the measurements. The
+    # reviewer edition holds no source file (owner's decision: documents for the independent reviewer, no access to
+    # the repository). The release workflow attaches the reviewer edition to the signed release.
+    name: Evidence pack
+    needs: [database, api]
+    runs-on: ubuntu-latest
+    env: { PGPASSWORD: postgres }
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with: { name: db-tests, path: "${{ runner.temp }}/logs" }
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with: { name: api-tests, path: "${{ runner.temp }}/logs" }
+      - name: The database of this commit (structure and grants for the pack)
+        run: |
+          docker build -q -t masslak-postgres:ci db/guard
+          docker run -d --name postgres -e POSTGRES_PASSWORD=postgres -p 5432:5432 masslak-postgres:ci
+          for i in $(seq 1 60); do pg_isready -q -h localhost && break; sleep 1; done
+          createdb -h localhost -U postgres evidence
+          db/build.sh evidence -h localhost -U postgres > /dev/null
+      - name: Build the full and the reviewer editions
+        run: |
+          L="$RUNNER_TEMP/logs"; sha="$(git rev-parse --short=12 HEAD)"
+          for edition in full reviewer; do
+            flag=""; [ "$edition" = reviewer ] && flag="--reviewer"
+            db/tools/evidence_pack.sh evidence "$RUNNER_TEMP/masslak-evidence-$edition-$sha" --db-log "$L/db_tests.log" \
+              --api-log "$L/api_tests.log" --junit "$L/junit.xml" --coverage "$L/backend/coverage.json" $flag -h localhost -U postgres
+          done
+          cat "$RUNNER_TEMP/masslak-evidence-full-$sha/critical/CRITICAL_CONTROLS.md" | grep -E '^## |^Tests' >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with: { name: evidence-pack-reviewer, path: "${{ runner.temp }}/masslak-evidence-reviewer-*.tar.gz", retention-days: 90 }
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with: { name: evidence-pack-full, path: "${{ runner.temp }}/masslak-evidence-full-*.tar.gz", retention-days: 90 }
 
   web:
     name: Web build

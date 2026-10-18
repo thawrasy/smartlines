@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Query, Request, Response
 from pydantic import BaseModel, EmailStr, Field
 
 from ... import db
-from ...deps import Principal, context_for, require_portal
+from ...deps import Principal, context_for, require_portal, require_step_up
 from ...errors import ApiError, not_found
 from ...routers.bookings import qr_response
 from ...security import password_problem
@@ -130,6 +130,7 @@ class StaffIn(BaseModel):
 
 @router.post("/staff", status_code=201)
 async def add_staff(body: StaffIn, request: Request, pr: Principal = Depends(agency)):
+    require_step_up(pr)                 # a sensitive operation: a recent second factor (1136)
     problem = password_problem(body.password, body.email, body.full_name, body.mobile)
     if problem:
         raise ApiError(422, problem, "password does not meet the policy")
