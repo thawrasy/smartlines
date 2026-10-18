@@ -16,8 +16,9 @@
 #   docs/         the audit responses, runbooks, SLOs, migration plans, release map, event contract, threat model
 # plus SHA256SUMS over every file and a .tar.gz of the whole directory. No business rows, secrets or key material.
 # --reviewer builds the edition handed to an independent reviewer without access to the repository (owner's decision,
-# October 2026): no source files (test sources and the database checks' script are left out); the quoted excerpts of
-# the critical controls, the test names and results, the logs and the measurements stay.
+# October 2026): no source files (test sources and the database checks' script are left out) and no audit_pack/ (the
+# schema, grants, policies and function bodies of the built database); the quoted excerpts of the critical controls, the
+# test names and results, the logs and the measurements stay.
 set -euo pipefail
 DB="${1:?database}"; OUT="${2:?output directory}"; shift 2
 DB_LOG=""; API_LOG=""; TESTED=""; JUNIT=""; COVERAGE=""; REVIEWER=0; ARGS=()
@@ -62,8 +63,10 @@ NOT_DOCS="$(printf '%s\n' "$CHANGED" | grep -v '^$' | grep -Ev '^docs/|\.md$' ||
 } > "$OUT/source/TESTED.txt"
 if [ -n "$NOT_DOCS" ]; then cat "$OUT/source/TESTED.txt" >&2; echo "refusing: run the tests on this commit" >&2; exit 3; fi
 
-# structure and security of the built database (and the API's OpenAPI when it runs)
-"$ROOT/db/tools/audit_pack.sh" "$DB" "$OUT/audit_pack" "${ARGS[@]}" > /dev/null
+# structure and security of the built database (and the API's OpenAPI when it runs); not in the reviewer edition
+if [ "$REVIEWER" = 0 ]; then
+  "$ROOT/db/tools/audit_pack.sh" "$DB" "$OUT/audit_pack" "${ARGS[@]}" > /dev/null
+fi
 
 # tests: the raw output of this build, and the sources that produced it
 cp "$DB_LOG" "$OUT/tests/db_tests.log"; cp "$API_LOG" "$OUT/tests/api_tests.log"

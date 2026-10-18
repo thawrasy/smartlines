@@ -21,8 +21,8 @@ The reviewer edition (`db/tools/evidence_pack.sh --reviewer`) holds:
   defines them), with the names of the tests that prove it and their result in the same run
   (`db/tools/critical_excerpts.py`). The pack fails to build if a quoted function is missing or one of its tests failed.
 - `tests/`: the console output of the database checks and the API tests, every API test with its result
-  (`api_results.csv`) and the coverage summary. The test sources and the database checks' script are left out.
-- `audit_pack/`: schema, roles, grants, policies, functions and inventories of the built database, and the OpenAPI.
+  (`api_results.csv`) and the coverage summary. The test sources and the database checks' script are left out, and so
+  is `audit_pack/` (the schema, grants, policies and function bodies of the built database), by the owner's decision.
 - `evidence/`, `monitoring/`, `docs/`: measurements, alert rules with their tests, runbooks, SLOs and audit responses.
 - `SHA256SUMS` over every file, and the commit and tree hash it was built from.
 
