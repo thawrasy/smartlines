@@ -51,7 +51,14 @@ def test_a_trip_made_by_hand_keeps_its_number_on_the_same_route_and_time_and_a_d
     assert int(number) >= 1 and trip["trip_no"] != trip["trip_code"]            # the long number stays the reference
     route = next(r for r in carrier.get("/api/carrier/routes").json()["routes"] if r["code"] == "DAM-ALP")
     vehicle = str(owner_sql("SELECT v.uid FROM fleet.vehicle v JOIN ops.trip t ON t.vehicle_id = v.id WHERE t.id = $1", trip["id"]))
-    hhmm = f"{4 + secrets.randbelow(2):02d}:{secrets.randbelow(60):02d}"       # far days, early: no other trip of the route then
+    # a trip's reference names its route, minute and day, and stays taken when the trip is cancelled: pick minutes no
+    # trip of the route has on these days, whichever test or earlier run made it
+    taken = owner_sql("""SELECT coalesce(string_agg(DISTINCT substr(split_part(trip_no, '/', 1), length(split_part(trip_no, '/', 1)) - 3), ','), '')
+                           FROM ops.trip WHERE trip_no LIKE '%-DAM-ALP-%' AND service_date BETWEEN $1::date AND $2::date""",
+                      datetime.fromisoformat(day(40)).date(), datetime.fromisoformat(day(42)).date()).split(",")
+    free = [f"{h:02d}:{m:02d}" for h in range(4, 6) for m in range(60) if f"{h:02d}{m:02d}" not in taken]
+    hhmm = free[secrets.randbelow(len(free))]                                  # far days, early: no other trip of the route then
+    late = next(t for t in (f"{h:02d}:{m:02d}" for h in range(20, 23) for m in range(0, 60, 5)) if t.replace(":", "") not in taken)
     made = []
 
     def make(on: str, at: str, **extra):
@@ -67,7 +74,7 @@ def test_a_trip_made_by_hand_keeps_its_number_on_the_same_route_and_time_and_a_d
         nxt = make(day(41), hhmm)
         assert nxt.status_code == 201 and nxt.json()["trip_code"] == first.json()["trip_code"], nxt.text
         # another trip of the same day takes another number
-        other = make(day(40), "20:15")
+        other = make(day(40), late)
         assert other.status_code == 201 and other.json()["trip_code"] != first.json()["trip_code"], other.text
         # a service number the carrier has not defined is refused
         bad = make(day(42), hhmm, service_number=9991)
