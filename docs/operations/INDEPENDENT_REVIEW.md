@@ -35,3 +35,11 @@ The reviewer edition (`db/tools/evidence_pack.sh --reviewer`) holds:
    the next pack carries it with its tests.
 4. The reviewer's report is answered point by point in a follow-up report, against the same commit or a later one that
    names what changed.
+
+## Delivery record
+
+The follow-up report answers the reviewer against the commit of the delivery it names.
+
+| Delivery | Date | Commit | Contents (SHA-256 of each file in the delivery's `SHA256SUMS`) |
+|---|---|---|---|
+| 1 | 18 October 2026 | `e6dbeb8b00e1ce35b5a6c3c6c123a74bcb1bd5a4` | Study 3.9 (English and Arabic, Word and PDF), database design and ERD 3.16, readiness register 2.2, reply to the four evaluations 1.1 (Word and PDF), evidence pack reviewer edition without `audit_pack/` (`masslak-evidence-reviewer-e6dbeb8.tar.gz`, `ef011b645c708db6d970590fd3799ac72ae6270a6a6dc68508bfb2ec49fdba03`); tests of that commit: 924 database checks passed, 773 API tests passed and 11 skipped, coverage 87.5 % |
