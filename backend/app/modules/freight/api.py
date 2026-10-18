@@ -34,7 +34,7 @@ from typing import Literal, Optional
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field, field_validator
 
-from ... import db
+from ... import db, markets
 from ...deps import Principal, base_context, context_for, require_portal
 from ...errors import ApiError, forbidden, not_found
 
@@ -317,7 +317,7 @@ class MovementIn(BaseModel):
     container_nos: list[str] = Field(default_factory=list, max_length=3)
     rate_uid: Optional[uuid.UUID] = None
     price: Optional[int] = Field(default=None, ge=0)
-    currency: str = Field(default="SYP", pattern=r"^[A-Z]{3}$")
+    currency: Optional[str] = Field(default=None, pattern=r"^[A-Z]{3}$")     # the truck owner's market currency when left out
 
 
 class StatusIn(BaseModel):
@@ -443,7 +443,7 @@ async def _price(conn, rate: Optional[dict], boxes: list, cons: dict, body: Move
     if rate is None:
         if body.price is None:
             raise ApiError(422, "PRICE_REQUIRED", "give the price or a rate of yours")
-        return body.price, body.currency, None
+        return body.price, body.currency or (await markets.of_party(conn, cons["company_id"])).currency, None
     unit = rate["unit"]
     if unit.startswith("CONTAINER_"):
         feet = int(unit.split("_")[1])
@@ -464,7 +464,7 @@ async def add_movement(uid: uuid.UUID, body: MovementIn, request: Request, pr: P
     company = _company(pr, *WRITE)
     async with db.transaction(context_for(request, pr)) as conn:
         cid = await _id(conn, "frt.consignment", uid, "consignment")
-        cons = await conn.fetchrow("SELECT id, gross_weight_kg FROM frt.consignment WHERE id = $1", cid)
+        cons = await conn.fetchrow("SELECT id, gross_weight_kg, $2::bigint AS company_id FROM frt.consignment WHERE id = $1", cid, company)
         v = await conn.fetchrow("SELECT id, plate_no, plate_country FROM fleet.vehicle WHERE uid = $1 AND company_id = $2", body.vehicle_uid, company)
         if v is None:
             raise not_found("truck")
@@ -532,7 +532,7 @@ class RateIn(BaseModel):
     to_country: Optional[str] = Field(default=None, pattern=COUNTRY)
     unit: Literal["CONTAINER_20", "CONTAINER_40", "CONTAINER_45", "TRUCK", "TON", "BL"]
     price: int = Field(gt=0)
-    currency: str = Field(default="SYP", pattern=r"^[A-Z]{3}$")
+    currency: Optional[str] = Field(default=None, pattern=r"^[A-Z]{3}$")     # the truck owner's market currency when left out
     includes_empty_return: bool = False
     free_waiting_hours: int = Field(default=24, ge=0, le=240)
     waiting_per_day: Optional[int] = Field(default=None, ge=0)
@@ -568,7 +568,8 @@ async def create_rate(body: RateIn, request: Request, pr: Principal = Depends(re
                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, daterange(coalesce($15, current_date), $16)) RETURNING id""",
             company, body.route_kind, await _city(conn, body.from_city), await _station(conn, body.from_station_uid),
             await _city(conn, body.to_city), await _station(conn, body.to_station_uid), body.to_country, body.unit, body.price,
-            body.currency, body.includes_empty_return, body.free_waiting_hours, body.waiting_per_day, body.note, body.valid_from, body.valid_to)
+            body.currency or (await markets.of_party(conn, company)).currency, body.includes_empty_return, body.free_waiting_hours,
+            body.waiting_per_day, body.note, body.valid_from, body.valid_to)
         row = await conn.fetchrow(RATE_SQL + " WHERE r.id = $1", rid)
     request.state.audit = {"action": "freight.rate", "object_type": "rate_card", "object_id": rid, "reason": f"{body.unit} {body.price} {body.currency}"}
     return dict(row)

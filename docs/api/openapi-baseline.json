@@ -9918,7 +9918,7 @@
         "type": "array"
        },
        "currency": {
-        "default": "SYP",
+        "nullable": true,
         "pattern": "^[A-Z]{3}$",
         "type": "string"
        },
@@ -10213,7 +10213,7 @@
      "application/json": {
       "properties": {
        "currency": {
-        "default": "SYP",
+        "nullable": true,
         "pattern": "^[A-Z]{3}$",
         "type": "string"
        },
