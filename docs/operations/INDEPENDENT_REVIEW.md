@@ -32,8 +32,12 @@ The reviewer edition (`db/tools/evidence_pack.sh --reviewer`) holds:
 
 ## Procedure
 
-1. Build the pack from the commit being delivered: the `evidence` job of `ci.yml` does it on every push; a release adds
-   it to its signed assets.
+1. Deliver the reviewer edition that the `evidence` job of `ci.yml` built for the delivered commit (artifact
+   `evidence-pack-reviewer` of that run; `source/CI_RUN.txt` names the run, so the reviewer can open its log). The pack's
+   commit and the tested commit are then the same: CI tested exactly that commit (second review of 18 October 2026). The
+   documents of the delivery are generated afterwards from that run's figures and name that commit; they are kept in the
+   repository by a later, documentation-only commit, which is a record and not the delivered code. A release adds the pack
+   to its signed assets.
 2. Check `SHA256SUMS`, then run `python3 db/tools/check_delivery.py <unpacked pack> <each .docx of the delivery>`: every
    document must name the pack's commit and its database check, API test and schema file counts, and the pack's
    verification and critical controls must be of the same commit (independent review of 18 October 2026). Hand the

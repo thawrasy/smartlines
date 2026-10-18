@@ -45,6 +45,14 @@ rm -rf "$OUT"; mkdir -p "$OUT"/{source,tests,evidence,monitoring,docs,critical}
   if [ -z "$(git -C "$ROOT" status --porcelain)" ]; then echo "working tree: clean"; else echo "working tree: CHANGED (pack is not of a commit)"; fi
   echo "schema files: $(ls "$ROOT"/db/schema/[0-9]*_*.sql | wc -l), last: $(ls "$ROOT"/db/schema/[0-9]*_*.sql | awk -F/ '{n=$NF; sub(/_.*/,"",n); print n" "$NF}' | sort -n | tail -1 | cut -d' ' -f2)"
 } > "$OUT/source/SOURCE.txt"
+# a pack built by CI names its run, so a reviewer can open the run's log (independent review of 18 October 2026)
+if [ -n "${GITHUB_RUN_ID:-}" ]; then
+  {
+    echo "run:     ${GITHUB_SERVER_URL:-https://github.com}/${GITHUB_REPOSITORY:-}/actions/runs/${GITHUB_RUN_ID} (attempt ${GITHUB_RUN_ATTEMPT:-1})"
+    echo "workflow: ${GITHUB_WORKFLOW:-}  event: ${GITHUB_EVENT_NAME:-}  ref: ${GITHUB_REF:-}"
+    echo "commit:  ${GITHUB_SHA:-}"
+  } > "$OUT/source/CI_RUN.txt"
+fi
 
 # an evidence pack is of a commit, never of uncommitted files
 [ -z "$(git -C "$ROOT" status --porcelain --untracked-files=no)" ] || { echo "refusing: commit or stash the changes first" >&2; exit 4; }
