@@ -14,7 +14,7 @@ const PNG = path.join(HERE, "..", "erd", "png");
 // numbers of the verification run that built this document (verification.py), never typed by hand (audit T3-17)
 const V = JSON.parse(fs.readFileSync(path.join(HERE, "..", "build", "verification.json"), "utf8"));
 const lastFile = V.last_schema_file.split("_")[0];
-const VERSION = "3.15";
+const VERSION = "3.16";
 const DATE = "18 October 2026";
 const FONT = "Arial";
 const C = { navy: "1F3A5F", blue: "2E74B5", blue2: "1F4D78", grid: "B7C3D0", alt: "F2F6FA", grey: "595959" };
@@ -110,17 +110,18 @@ front.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 16
 front.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 1200 },
   children: [run(`Complete relational model of the Analysis and Design Study v3.0: ${tableCount} tables, ${fkCount} relationships`, { color: "7F7F7F" })] }));
 front.push(table(["Item", "Details"], [
-  ["Version", `${VERSION} (the database after schema file ${lastFile}: station screens, bays and logos, regular trips with their approval stages, company know-your-customer files, four-digit trip numbers and vehicle rotations, journeys, charter, the country's administrative geography, connections across carriers with the money of a missed trip held until the change window ends, and truck transport of goods and containers with bills of lading, consignments, transport invoices, consignment notes and TCNs; replaces version 3.14)`],
+  ["Version", `${VERSION} (the database after schema file ${lastFile}: station screens, bays and logos, regular trips with their approval stages, company know-your-customer files, four-digit trip numbers and vehicle rotations, journeys, charter, the country's administrative geography, connections across carriers with the money of a missed trip held until the change window ends, and truck transport of goods and containers with bills of lading, consignments, transport invoices, consignment notes and TCNs; the schema table of chapter 2.1 lists all 26 schemas with a total; replaces version 3.15)`],
   ["Date", DATE],
-  ["Basis", "Analysis and Design Study v3.0 (English), the Use Case and Data Flow Diagrams v1.0, the Database Architecture Review v1.0, the Strategic Database Review and its relationship audit register, the Third-Party Technical Audit, the Technical Audit of design document 3.7, its re-audit of 3.8 and follow-up of 3.9, the architecture review of 3.9, the expert review and code review of October 2026, and the three reviews of release 1.47.0 with the owner's five decisions, the use case review of October 2026 and the owner's decisions that followed it, and the owner's requests of October 2026 up to truck transport (study 3.8)"],
+  ["Basis", "Analysis and Design Study v3.0 (English), the Use Case and Data Flow Diagrams v1.0, the Database Architecture Review v1.0, the Strategic Database Review and its relationship audit register, the Third-Party Technical Audit, the Technical Audit of design document 3.7, its re-audit of 3.8 and follow-up of 3.9, the architecture review of 3.9, the expert review and code review of October 2026, and the three reviews of release 1.47.0 with the owner's five decisions, the use case review of October 2026 and the owner's decisions that followed it, and the owner's requests of October 2026 up to truck transport (study 3.8), and the systems review of study 3.8 of October 2026"],
   ["Scope", `${schemas.length} schemas, ${tableCount} tables, ${colCount} columns, ${fkCount} foreign keys; all phases 1 to 15`],
+  ["Application", "Python 3.12 with FastAPI, asyncpg and Pydantic (backend/app); the website in React 19 with TypeScript and Vite (frontend); the apps in React Native with Expo (mobile); all in the same repository as this schema"],
   ["Engine", `PostgreSQL ${V.postgres} with row-level security on every table; PostGIS ${V.postgis} in schema gis; ${V.schema_files} schema files, db/schema/000 to ${lastFile}`],
   ["Status", `Built and verified at commit ${V.source_commit} (migration ${V.migration}, schema SHA-256 ${V.schema_sha256.slice(0, 16)}): fresh build and upgrade identical, ${V.db_checks} database checks and ${V.api_tests} API tests passing, every foreign key indexed or exempt by rule`],
   ["Website", "masslak.com"],
 ], [2800, 6946]));
 
 const toc = [H(HeadingLevel.HEADING_1, "Contents", { pageBreak: true })];
-const tocLines = ["Changes in version 3.15", "Changes in version 3.14", "Changes in version 3.13", "Changes in version 3.12", "Changes in version 3.11", "Changes in version 3.10", "Changes in version 3.9", "Changes in version 3.8", "Changes in version 3.7", "Changes in version 3.6", "Changes in version 3.5", "Changes in version 3.4", "Changes in version 3.3", "Changes in version 3.2", "Changes in version 3.1", "Changes in version 3.0", "1. Introduction", "2. Database architecture", "3. Design rules", "4. Security model in the database",
+const tocLines = ["Changes in version 3.16", "Changes in version 3.15", "Changes in version 3.14", "Changes in version 3.13", "Changes in version 3.12", "Changes in version 3.11", "Changes in version 3.10", "Changes in version 3.9", "Changes in version 3.8", "Changes in version 3.7", "Changes in version 3.6", "Changes in version 3.5", "Changes in version 3.4", "Changes in version 3.3", "Changes in version 3.2", "Changes in version 3.1", "Changes in version 3.0", "1. Introduction", "2. Database architecture", "3. Design rules", "4. Security model in the database",
   "5. Data stores of the data flow diagrams", "6. Entity-relationship diagrams by module",
   ...model.groups.map((g, i) => `      6.${i + 1} ${g[0]} ${g[1]}`), `      6.${model.groups.length + 1} Focus diagrams: rules that span modules`,
   "7. Table definitions", "8. Traceability to the study", "9. Verification",
@@ -162,6 +163,19 @@ const changes38 = [H(HeadingLevel.HEADING_2, "b. Hardening after the third-party
     + "infrastructure and moves to Phase 5.", "Owner decisions"),
   P("Schema-level two-way dependencies (21, frozen by test H-07) differ from phase-level dependencies, of which there are none backwards: "
     + "the earlier wording is clarified accordingly. db/tools/audit_pack.sh builds the evidence pack for the second phase of the audit."),
+];
+
+// ------------------------------ changes in 3.16 (the systems review of study 3.8) ------------------------------
+const changes3_16 = [H(HeadingLevel.HEADING_1, "Changes in version 3.16", { pageBreak: true }),
+  P(`Version 3.16 describes the same database as version 3.15 (schema file ${lastFile}); no schema file was added. It corrects the `
+    + "document after the systems review of study 3.8 (October 2026)."),
+  bullet(`The table of chapter 2.1 listed 23 of the ${schemas.length} schemas: sch (school transport, 11 tables), rpt (reports, 4) and gis `
+    + `(PostGIS reference, 1) were missing, so its rows summed to 544 tables against the ${tableCount} the document states. It now lists `
+    + "every schema of the built database with a total row, and the generator stops if a schema has no description.", "1. Schema table"),
+  bullet("The cover names the application layer that uses this database: Python 3.12 with FastAPI in the same repository, the website in "
+    + "React and the apps in React Native. The study (version 3.9, section 2.9) describes it.", "2. Application layer"),
+  bullet("The figures of this document (schemas, tables, columns, foreign keys, checks and tests) are read from the built database and the "
+    + "test run (generator/verification.py); none is typed by hand. The readiness register 2.1 quotes them from here.", "3. One source for the figures"),
 ];
 
 // ------------------------------ changes in 3.15 (the owner's requests of October 2026, up to truck transport) ------------------------------
@@ -807,9 +821,15 @@ const schemaInfo = {
   ship: ["Shipments, parcels, network, delivery and partner integration", "3"], frt: ["Freight, containers and transit trucking", "8, 15"],
   brd: ["Border manifest gateway", "4, 6"], ctr: ["Contracted transport for schools, universities and staff", "14"], rail: ["Rail extension", "10"],
   taxi: ["Taxis within and between cities", "11"], rent: ["Car rental platform", "12"],
+  sch: ["School transport: operators, schools, contracts, routes, runs, pupils, guardians and attendance", "SCH"], rpt: ["Report definitions, runs, schedules and deliveries", "1B"],
+  gis: ["PostGIS spatial reference systems", "1A"],
 };
 const order = ["iam", "ref", "sys", "net", "fleet", "ops", "sales", "pricing", "fin", "acct", "bill", "crm", "gov", "sec", "audit", "ptn", "ship",
-  "frt", "brd", "ctr", "rail", "taxi", "rent"];
+  "frt", "brd", "ctr", "sch", "rail", "taxi", "rent", "rpt", "gis"];
+{
+  const missing = schemas.filter((s) => !order.includes(s) || !schemaInfo[s]);
+  if (missing.length) throw new Error(`schemas without a row in table 2.1: ${missing.join(", ")}`);
+}
 const perSchema = (s) => model.tables.filter((t) => t.schema === s);
 const arch = [H(HeadingLevel.HEADING_1, "2. Database architecture", { pageBreak: true }),
   P(`The database has ${schemas.length} schemas, one per module, each with its own privileges. The overview groups them into the seven families of the `
@@ -817,7 +837,8 @@ const arch = [H(HeadingLevel.HEADING_1, "2. Database architecture", { pageBreak:
   image(path.join(PNG, "E00_overview.png"), 640, 440),
   H(HeadingLevel.HEADING_2, "2.1 Schemas"),
   table(["Schema", "Contents", "Tables", "Foreign keys", "Phase"],
-    order.map((s) => [s, schemaInfo[s][0], String(perSchema(s).length), String(perSchema(s).reduce((n, t) => n + (t.fks || []).length, 0)), schemaInfo[s][1]]),
+    [...order.map((s) => [s, schemaInfo[s][0], String(perSchema(s).length), String(perSchema(s).reduce((n, t) => n + (t.fks || []).length, 0)), schemaInfo[s][1]]),
+      ["Total", `${order.length} schemas`, String(tableCount), fkCount.toLocaleString("en-US"), ""]],
     [1100, 4846, 1100, 1300, 1400], { boldFirst: true }),
   gap(),
   H(HeadingLevel.HEADING_2, "2.2 Relationships between modules"),
@@ -1100,7 +1121,7 @@ const doc = new Document({
   numbering: { config: [{ reference: "bullets", levels: [{ level: 0, format: LevelFormat.BULLET, text: "•", alignment: AlignmentType.LEFT,
     style: { paragraph: { indent: { left: 540, hanging: 270 } } } }] }] },
   sections: [
-    section(PORTRAIT, [...front, ...toc, ...changes3_15, ...changes3_14, ...changes3_13, ...changes3_12, ...changes3_11, ...changes3_10, ...changes3_9, ...changes3_8, ...changes37, ...changes38, ...changes39, ...changes36, ...changes35, ...changes34, ...changes33, ...changes32, ...changes31, ...changes, ...intro, ...arch, ...rules, ...security, ...stores]),
+    section(PORTRAIT, [...front, ...toc, ...changes3_16, ...changes3_15, ...changes3_14, ...changes3_13, ...changes3_12, ...changes3_11, ...changes3_10, ...changes3_9, ...changes3_8, ...changes37, ...changes38, ...changes39, ...changes36, ...changes35, ...changes34, ...changes33, ...changes32, ...changes31, ...changes, ...intro, ...arch, ...rules, ...security, ...stores]),
     ...erdSections,
     section(PORTRAIT, [...defs, ...trace, ...verify, ...flags, ...gens, ...appC]),
   ],
