@@ -2996,7 +2996,12 @@ const en = {
   rules: {
     nav: "Booking rules", title: "Booking rules and charter",
     sub: "The seats a traveller books at once, a family's and a tourism company's group, and the carriers' charters.",
-    tab: { limits: "Seats booked at once", connections: "Connections", charter: "Charter" },
+    tab: { limits: "Seats booked at once", connections: "Connections", charter: "Charter", language: "Visitor language" },
+    lang: {
+      hint: "The language a visitor sees first, by the country they visit from. A visitor's own choice always wins; accounts keep their own language.",
+      default: "Countries not listed", country: "Country code", language: "Language", add: "Add a country", remove: "Remove",
+      countryHint: "Two letters, as the edge proxy names it (SY, LB, JO).",
+    },
     limitsHint: "Four seats a booking by default; change it when a regulator or the platform decides, naming the decision. A family head books up to the family's size within the family ceiling.",
     maxSeats: "Seats per booking", maxSeatsHint: "A traveller books this many at once.",
     familyMax: "Family ceiling", familyMaxHint: "A family head books up to the family's size, at most this.",

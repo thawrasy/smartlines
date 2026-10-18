@@ -216,6 +216,11 @@ MASSLAK_API_URL=https://masslak.com MASSLAK_API_PINS=<pin1>,<pin2> npx eas build
 - `MASSLAK_TRUSTED_PROXIES` is the Caddy subnet. IP rules, automatic blocking and the logs all use the client
   address. The app takes that address from `X-Forwarded-For` only when the request comes from this subnet. It
   reads the header from the right, so a client cannot choose its own address.
+- The first interface language follows the visitor's country (1141): Arabic in Syria, English elsewhere, and the
+  platform changes it per country under Booking rules → Visitor language. The country comes from the header named by
+  `MASSLAK_COUNTRY_HEADER` (default `CF-IPCountry`, which Cloudflare sends; a GeoIP module in front of Caddy can set
+  the same header). Without that header the browser's first language decides, then the default. A visitor's own
+  choice always wins, and nothing but the first language depends on the header.
 - `MASSLAK_SIGNING_SECRET` signs ticket QR codes and verification links, and `MASSLAK_TICKET_SIGNING_KEY` signs
   offline ticket credentials. Changing either invalidates everything already issued. Outside the sandbox the API
   and the worker refuse to start when the signing secret is missing, a placeholder, shorter than 32 bytes or not

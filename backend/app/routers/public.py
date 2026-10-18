@@ -11,6 +11,7 @@ from .. import db, markets
 from ..config import get_settings
 from ..deps import base_context
 from ..errors import ApiError, not_found
+from ..middleware import visitor_country
 from ..modules.fares import categories as cat
 from ..modules.sales import connections, documents
 from ..modules.sales import service as sales
@@ -93,9 +94,17 @@ async def reference(request: Request):
 
 @router.get("/markets")
 async def market_list(request: Request):
-    """The default market and every open one (1061): the screens show times and money in a market's time zone and currency."""
+    """The default market and every open one (1061): the screens show times and money in a market's time zone and currency.
+    visitor names the language a visitor sees first (1141): their country's, from the edge proxy's header; without a country
+    (no proxy names it), the browser's first language when the platform has it, else the default. Their own choice wins."""
+    country = visitor_country(request)
+    browser = (request.headers.get("accept-language") or "").split(",")[0].split(";")[0].split("-")[0].strip().lower()
     async with db.transaction(_ctx(request)) as conn:
-        return {"default": (await markets.default(conn)).public(), "markets": [m.public() for m in await markets.active(conn)]}
+        locale = await conn.fetchval("SELECT sys.visitor_locale($1)", country)
+        if country is None and browser and await conn.fetchval("SELECT true FROM ref.locale WHERE code = $1 AND is_enabled", browser):
+            locale = browser
+        return {"default": (await markets.default(conn)).public(), "markets": [m.public() for m in await markets.active(conn)],
+                "visitor": {"country": country, "locale": locale}}
 
 
 @router.get("/stations")

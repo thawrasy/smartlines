@@ -4,6 +4,7 @@ import logging
 import re
 import time
 import uuid
+from typing import Optional
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
@@ -68,6 +69,14 @@ def client_ip(request: Request) -> str:
         if not _is_trusted(hop, nets):
             return hop
     return hops[0] if hops else peer
+
+
+def visitor_country(request: Request) -> Optional[str]:
+    """The visitor's country as the edge proxy names it (1141), or None; anything but a two-letter code (XX, T1 for Tor)
+    counts as unknown. The proxy sets the header on every request, replacing what a client sent. It only chooses the
+    first language a visitor sees, so a forged value costs nothing: no right, price or limit depends on it."""
+    value = (request.headers.get(get_settings().country_header) or "").strip().upper()
+    return value if re.fullmatch(r"[A-Z]{2}", value) and value != "XX" else None
 
 
 ACCESS = logging.getLogger("masslak.access")

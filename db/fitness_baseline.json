@@ -1418,6 +1418,10 @@
    "masslak_auditor",
    "masslak_readonly"
   ],
+  "sys.set_visitor_locale(jsonb,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
   "sys.statement_metrics()": [
    "masslak_api",
    "masslak_app",
@@ -1452,6 +1456,10 @@
    "masslak_audit",
    "masslak_auditor",
    "masslak_readonly"
+  ],
+  "sys.visitor_locale(text)": [
+   "masslak_api",
+   "masslak_app"
   ],
   "taxi.can_see_shift(bigint)": [
    "masslak_api",

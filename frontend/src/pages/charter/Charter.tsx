@@ -742,7 +742,8 @@ interface Limits { max_seats: number; family_max_seats: number; agency_group: nu
 export function AdminBookingRules() {
   const { t } = useI18n();
   const { can } = useAuth();
-  const tabs = [...(can("policy.matrix") ? ["limits", "connections"] : []), ...(can("report.platform", "policy.matrix") ? ["charter"] : [])] as ("limits" | "connections" | "charter")[];
+  const tabs = [...(can("policy.matrix") ? ["limits", "connections"] : []), ...(can("report.platform", "policy.matrix") ? ["charter"] : []),
+                ...(can("policy.matrix") ? ["language"] : [])] as ("limits" | "connections" | "charter" | "language")[];
   const asked = new URLSearchParams(location.search).get("tab") as (typeof tabs)[number] | null;
   const [tab, setTab] = useState(asked && tabs.includes(asked) ? asked : tabs[0] ?? "charter");
   return (
@@ -751,7 +752,60 @@ export function AdminBookingRules() {
       <div className="segmented" role="tablist" style={{ alignSelf: "flex-start" }}>
         {tabs.map((v) => <button key={v} role="tab" aria-selected={tab === v} className={tab === v ? "on" : ""} onClick={() => setTab(v)}>{t(`rules.tab.${v}`)}</button>)}
       </div>
-      {tab === "limits" ? <SeatLimits /> : tab === "connections" ? <ConnectionSettings /> : <PlatformCharter />}
+      {tab === "limits" ? <SeatLimits /> : tab === "connections" ? <ConnectionSettings /> : tab === "language" ? <VisitorLanguage /> : <PlatformCharter />}
+    </div>
+  );
+}
+
+interface VisitorLocale { default: string; countries: Record<string, string>; languages: { code: string; name: string; native_name: string | null }[] }
+
+/** The first interface language by the visitor's country (1141): Arabic in Syria and English elsewhere unless set here. */
+function VisitorLanguage() {
+  const { t } = useI18n();
+  const toast = useToast();
+  const state = useLoad((signal) => api.get<VisitorLocale>("/api/admin/ui/visitor-locale", undefined, { signal }));
+  const [f, setF] = useState<{ default: string; rows: [string, string][]; basis: string } | null>(null);
+  const [error, setError] = useState<unknown>(null);
+  const v = f ?? (state.data ? { default: state.data.default, rows: Object.entries(state.data.countries), basis: "" } : null);
+  const set = (patch: Partial<NonNullable<typeof v>>) => v && setF({ ...v, ...patch });
+  const setRow = (i: number, row: [string, string]) => v && set({ rows: v.rows.map((r, j) => (j === i ? row : r)) });
+  const save = async () => {
+    if (!v) return;
+    setError(null);
+    try {
+      await api.put("/api/admin/ui/visitor-locale", { default: v.default, countries: Object.fromEntries(v.rows.filter(([c]) => c.trim())), basis: v.basis });
+      toast(t("common.saved")); setF(null); state.reload();
+    } catch (e) { setError(e); }
+  };
+  return (
+    <div className="card stack">
+      <p className="small muted" style={{ margin: 0 }}>{t("rules.lang.hint")}</p>
+      <ErrorBox error={error} />
+      <Loaded state={state}>{(d) => v && (
+        <div className="stack">
+          <Field label={t("rules.lang.default")}>
+            <select className="input" value={v.default} onChange={(e) => set({ default: e.target.value })}>
+              {d.languages.map((l) => <option key={l.code} value={l.code}>{l.native_name ?? l.name}</option>)}
+            </select>
+          </Field>
+          {v.rows.map(([country, lang], i) => (
+            <div key={i} className="grid cols-3" style={{ alignItems: "end" }}>
+              <Field label={t("rules.lang.country")} hint={t("rules.lang.countryHint")}>
+                <input className="input" maxLength={2} value={country} onChange={(e) => setRow(i, [e.target.value.toUpperCase(), lang])} />
+              </Field>
+              <Field label={t("rules.lang.language")}>
+                <select className="input" value={lang} onChange={(e) => setRow(i, [country, e.target.value])}>
+                  {d.languages.map((l) => <option key={l.code} value={l.code}>{l.native_name ?? l.name}</option>)}
+                </select>
+              </Field>
+              <button className="btn text" style={{ alignSelf: "flex-end" }} onClick={() => set({ rows: v.rows.filter((_, j) => j !== i) })}>{t("rules.lang.remove")}</button>
+            </div>
+          ))}
+          <button className="btn outlined" style={{ alignSelf: "flex-start" }} onClick={() => set({ rows: [...v.rows, ["", d.languages[0]?.code ?? "en"]] })}><Icon name="add" /> {t("rules.lang.add")}</button>
+          <Field label={t("rules.basis")} hint={t("rules.basisHint")}><input className="input" maxLength={160} value={v.basis} onChange={(e) => set({ basis: e.target.value })} /></Field>
+          <button className="btn" style={{ alignSelf: "flex-start" }} disabled={!f || v.basis.trim().length < 3} onClick={save}>{t("common.save")}</button>
+        </div>
+      )}</Loaded>
     </div>
   );
 }

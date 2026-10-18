@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     cookie_secure: bool = True
     # Comma-separated proxy addresses or CIDR ranges whose X-Forwarded-For header is trusted
     trusted_proxies: str = "127.0.0.1,::1"
+    # Header in which the edge proxy names the visitor's country (ISO code); it decides only the first interface
+    # language (sys.setting ui.visitor_locale, 1141). Cloudflare sends CF-IPCountry; nginx GeoIP can set the same header.
+    country_header: str = "cf-ipcountry"
     # Directory of the built web interface served by the API (frontend/dist)
     static_dir: str = "../frontend/dist"
     # Public address of the site, used in canonical links, the sitemap and share cards (no trailing slash)

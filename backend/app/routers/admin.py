@@ -627,3 +627,29 @@ async def set_seat_limits(body: SeatLimitsIn, request: Request, pr: Principal = 
     request.state.audit = {"action": "booking.seat_limits", "object_type": "setting",
                            "reason": f"{body.max_seats}/{body.family_max_seats}/{body.agency_group}: {body.basis}"[:120]}
     return json.loads(out)
+
+
+# ------------------------------------------------------------------ first interface language by country (1141)
+class VisitorLocaleIn(BaseModel):
+    """Visitors in Syria see Arabic first and visitors from elsewhere English, unless the platform decides otherwise per
+    country; a visitor's own choice always wins."""
+    default: str = Field(min_length=2, max_length=5)
+    countries: dict[str, str] = Field(default_factory=dict, max_length=250)
+    basis: str = Field(min_length=3, max_length=160)
+
+
+@router.get("/ui/visitor-locale")
+async def get_visitor_locale(request: Request, pr: Principal = Depends(require_permission("policy.matrix"))):
+    async with db.transaction(context_for(request, pr)) as conn:
+        value = await conn.fetchval("SELECT value::text FROM sys.setting WHERE key = 'ui.visitor_locale'")
+        langs = await conn.fetch("SELECT code, name, native_name FROM ref.locale WHERE is_enabled ORDER BY code")
+    return {**json.loads(value or '{"default": "en", "countries": {}}'), "languages": [dict(r) for r in langs]}
+
+
+@router.put("/ui/visitor-locale")
+async def set_visitor_locale(body: VisitorLocaleIn, request: Request, pr: Principal = Depends(require_permission("policy.matrix"))):
+    doc = {"default": body.default, "countries": {k.strip().upper(): v for k, v in body.countries.items()}}
+    async with db.transaction(context_for(request, pr)) as conn:
+        out = await conn.fetchval("SELECT sys.set_visitor_locale($1::jsonb, $2)::text", json.dumps(doc), body.basis)
+    request.state.audit = {"action": "ui.visitor_locale", "object_type": "setting", "reason": body.basis[:120]}
+    return json.loads(out)

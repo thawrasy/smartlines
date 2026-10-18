@@ -107,12 +107,23 @@ function initialLocale(): Locale {
   return DEFAULT_LOCALE;
 }
 
+/** Whether the visitor has chosen a language (a link's ?lang or a saved choice); without one the server's language for
+ * the visitor's country applies (1141: Arabic in Syria, English elsewhere, set per country by the platform). */
+function hasChoice(): boolean {
+  try {
+    const wanted = new URLSearchParams(window.location.search).get("lang");
+    const saved = localStorage.getItem("masslak.locale");
+    return Boolean((wanted && wanted in LOCALES) || (saved && saved in LOCALES));
+  } catch { return false; }
+}
+
 export function I18nProvider({ children }: { children: ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>(initialLocale);
   const [market, setMarketState] = useState<Market>(FIRST_MARKET);
   const [known, setKnown] = useState<Record<string, number>>({ [FIRST_MARKET.currency]: FIRST_MARKET.minor_unit });
   const [namesVersion, setNamesVersion] = useState(0);
   const userMarket = useRef(false);                 // the signed-in user's market wins over the default
+  const chosen = useRef(hasChoice());               // the visitor's own language wins over their country's
   const cfg = LOCALES[locale];
   const apply = useCallback((m: Market) => {
     currentZone = m.time_zone;
@@ -127,6 +138,8 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       if (!live || !d) return;
       setKnown((k) => ({ ...k, ...Object.fromEntries((d.markets as Market[]).map((x) => [x.currency, x.minor_unit])) }));
       if (!userMarket.current) apply(d.default as Market);
+      const first = d.visitor?.locale as string | undefined;
+      if (!chosen.current && first && first in LOCALES) setLocaleState(first as Locale);
     }).catch(() => {});
     return () => { live = false; };
   }, [apply]);
@@ -148,6 +161,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   }, [locale, cfg]);
 
   const setLocale = useCallback((l: Locale) => {
+    chosen.current = true;
     setLocaleState(l);
     try { localStorage.setItem("masslak.locale", l); } catch { /* storage unavailable */ }
   }, []);
