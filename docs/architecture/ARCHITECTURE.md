@@ -155,7 +155,7 @@ State as of release 1.50.0, checked against the code (reviews of release 1.49.0 
 
 ## 3. Database integration map
 
-The schema has 26 schemas and 560 tables in the files `db/schema/000` to `1132` (later-phase modules are disabled behind feature flags and phase gates). The full design, with an ERD per module in the study's colours, is `docs/database/Masslak_Database_Design_and_ERD_v3.16.docx`; file 1033 enforces its relationship rules (primary keys, declared and indexed foreign keys), checked by db/tests. The diagram shows the relationships that the Phase 1 flows use.
+The schema has 26 schemas and 560 tables in the files `db/schema/000` to `1136` (later-phase modules are disabled behind feature flags and phase gates). The full design, with an ERD per module in the study's colours, is `docs/database/Masslak_Database_Design_and_ERD_v3.17.docx`; file 1033 enforces its relationship rules (primary keys, declared and indexed foreign keys), checked by db/tests. The diagram shows the relationships that the Phase 1 flows use.
 
 ```mermaid
 erDiagram

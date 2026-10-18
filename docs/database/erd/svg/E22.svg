@@ -557,7 +557,7 @@
 <polygon fill="#ffffff" stroke="transparent" points="119,-217.5 119,-234.5 149,-234.5 149,-217.5 119,-217.5"/>
 <text text-anchor="start" x="122" y="-224.1" font-family="DejaVu Sans" font-size="8.00" fill="#7f7f7f">text</text>
 <polygon fill="#ffffff" stroke="transparent" points="1,-202.5 1,-217.5 149,-217.5 149,-202.5 1,-202.5"/>
-<text text-anchor="start" x="4" y="-209.1" font-family="DejaVu Sans" font-style="italic" font-size="8.00" fill="#7f7f7f">+ 5 more columns</text>
+<text text-anchor="start" x="4" y="-209.1" font-family="DejaVu Sans" font-style="italic" font-size="8.00" fill="#7f7f7f">+ 6 more columns</text>
 <path fill="none" stroke="#404040" d="M12,-202C12,-202 138,-202 138,-202 144,-202 150,-208 150,-214 150,-214 150,-291 150,-291 150,-297 144,-303 138,-303 138,-303 12,-303 12,-303 6,-303 0,-297 0,-291 0,-291 0,-214 0,-214 0,-208 6,-202 12,-202"/>
 </g>
 <!-- crm__ai_tool_call&#45;&gt;crm__ai_conversation -->

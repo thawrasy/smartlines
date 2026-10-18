@@ -14,7 +14,7 @@ const PNG = path.join(HERE, "..", "erd", "png");
 // numbers of the verification run that built this document (verification.py), never typed by hand (audit T3-17)
 const V = JSON.parse(fs.readFileSync(path.join(HERE, "..", "build", "verification.json"), "utf8"));
 const lastFile = V.last_schema_file.split("_")[0];
-const VERSION = "3.16";
+const VERSION = "3.17";
 const DATE = "18 October 2026";
 const FONT = "Arial";
 const C = { navy: "1F3A5F", blue: "2E74B5", blue2: "1F4D78", grid: "B7C3D0", alt: "F2F6FA", grey: "595959" };
@@ -110,9 +110,9 @@ front.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 16
 front.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 1200 },
   children: [run(`Complete relational model of the Analysis and Design Study v3.0: ${tableCount} tables, ${fkCount} relationships`, { color: "7F7F7F" })] }));
 front.push(table(["Item", "Details"], [
-  ["Version", `${VERSION} (the database after schema file ${lastFile}: station screens, bays and logos, regular trips with their approval stages, company know-your-customer files, four-digit trip numbers and vehicle rotations, journeys, charter, the country's administrative geography, connections across carriers with the money of a missed trip held until the change window ends, and truck transport of goods and containers with bills of lading, consignments, transport invoices, consignment notes and TCNs; the schema table of chapter 2.1 lists all 26 schemas with a total; replaces version 3.15)`],
+  ["Version", `${VERSION} (the database after schema file ${lastFile}: since version 3.16, the outbox review point, the AI assistant's tools authorised by the database, no SECURITY DEFINER function executable by PUBLIC, and step-up authentication; the figures and the verification from the commit delivered to the independent reviewer; replaces version 3.16)`],
   ["Date", DATE],
-  ["Basis", "Analysis and Design Study v3.0 (English), the Use Case and Data Flow Diagrams v1.0, the Database Architecture Review v1.0, the Strategic Database Review and its relationship audit register, the Third-Party Technical Audit, the Technical Audit of design document 3.7, its re-audit of 3.8 and follow-up of 3.9, the architecture review of 3.9, the expert review and code review of October 2026, and the three reviews of release 1.47.0 with the owner's five decisions, the use case review of October 2026 and the owner's decisions that followed it, and the owner's requests of October 2026 up to truck transport (study 3.8), and the systems review of study 3.8 of October 2026"],
+  ["Basis", "Analysis and Design Study v3.0 (English), the Use Case and Data Flow Diagrams v1.0, the Database Architecture Review v1.0, the Strategic Database Review and its relationship audit register, the Third-Party Technical Audit, the Technical Audit of design document 3.7, its re-audit of 3.8 and follow-up of 3.9, the architecture review of 3.9, the expert review and code review of October 2026, and the three reviews of release 1.47.0 with the owner's five decisions, the use case review of October 2026 and the owner's decisions that followed it, and the owner's requests of October 2026 up to truck transport (study 3.8), and the systems review of study 3.8 of October 2026, and the four evaluation reports of October 2026 (TEM, GP, GIMI, MANU) with the owner's decisions on them"],
   ["Scope", `${schemas.length} schemas, ${tableCount} tables, ${colCount} columns, ${fkCount} foreign keys; all phases 1 to 15`],
   ["Application", "Python 3.12 with FastAPI, asyncpg and Pydantic (backend/app); the website in React 19 with TypeScript and Vite (frontend); the apps in React Native with Expo (mobile); all in the same repository as this schema"],
   ["Engine", `PostgreSQL ${V.postgres} with row-level security on every table; PostGIS ${V.postgis} in schema gis; ${V.schema_files} schema files, db/schema/000 to ${lastFile}`],
@@ -121,7 +121,7 @@ front.push(table(["Item", "Details"], [
 ], [2800, 6946]));
 
 const toc = [H(HeadingLevel.HEADING_1, "Contents", { pageBreak: true })];
-const tocLines = ["Changes in version 3.16", "Changes in version 3.15", "Changes in version 3.14", "Changes in version 3.13", "Changes in version 3.12", "Changes in version 3.11", "Changes in version 3.10", "Changes in version 3.9", "Changes in version 3.8", "Changes in version 3.7", "Changes in version 3.6", "Changes in version 3.5", "Changes in version 3.4", "Changes in version 3.3", "Changes in version 3.2", "Changes in version 3.1", "Changes in version 3.0", "1. Introduction", "2. Database architecture", "3. Design rules", "4. Security model in the database",
+const tocLines = ["Changes in version 3.17", "Changes in version 3.16", "Changes in version 3.15", "Changes in version 3.14", "Changes in version 3.13", "Changes in version 3.12", "Changes in version 3.11", "Changes in version 3.10", "Changes in version 3.9", "Changes in version 3.8", "Changes in version 3.7", "Changes in version 3.6", "Changes in version 3.5", "Changes in version 3.4", "Changes in version 3.3", "Changes in version 3.2", "Changes in version 3.1", "Changes in version 3.0", "1. Introduction", "2. Database architecture", "3. Design rules", "4. Security model in the database",
   "5. Data stores of the data flow diagrams", "6. Entity-relationship diagrams by module",
   ...model.groups.map((g, i) => `      6.${i + 1} ${g[0]} ${g[1]}`), `      6.${model.groups.length + 1} Focus diagrams: rules that span modules`,
   "7. Table definitions", "8. Traceability to the study", "9. Verification",
@@ -165,9 +165,34 @@ const changes38 = [H(HeadingLevel.HEADING_2, "b. Hardening after the third-party
     + "the earlier wording is clarified accordingly. db/tools/audit_pack.sh builds the evidence pack for the second phase of the audit."),
 ];
 
+// ------------------------------ changes in 3.17 (the four evaluation reports of October 2026) ------------------------------
+const changes3_17 = [H(HeadingLevel.HEADING_1, "Changes in version 3.17", { pageBreak: true }),
+  P(`Version 3.17 describes the database after schema file ${lastFile}. Since version 3.16 (schema file 1132), four schema files were `
+    + "added, 1133 to 1136: two after the systems review of study 3.8 and two the owner approved after the four evaluation reports of "
+    + "October 2026 (TEM, GP, GIMI and MANU). The four relationship rules of chapter 3.2 hold; no table was added, so the diagrams are "
+    + `unchanged. The figures and the verification of chapter 9 come from commit ${V.source_commit}, the commit delivered to the `
+    + "independent reviewer with the evidence pack (docs/operations/INDEPENDENT_REVIEW.md)."),
+  H(HeadingLevel.HEADING_2, "a. Schema files 1133 to 1136"),
+  table(["Schema file", "What it adds"], [
+    ["1133_outbox_review_point.sql", "The outbox is partitioned by day since file 1053, so its row estimate is now summed over its partitions (the metric of file 1051 had read zero since); the partitioning point becomes a review point of 8 million rows (setting capacity.outbox_review_rows, alert OutboxReviewDue). No table changes."],
+    ["1134_ai_tool_guard.sql", "The AI assistant's tools are authorised by the database whatever the model asks: crm.ai_authorize_tool records each request and allows it only with the assistant switched on, the tool enabled, the traveller's confirmation where required, an open conversation and the tool's limits; a refusal is kept with its reason (new column crm.ai_tool_call.refusal); a row written as allowed by another path is checked the same way by a trigger."],
+    ["1135_definer_execute.sql", "No SECURITY DEFINER function is executable by PUBLIC (report MANU): each callable one is granted to the roles that use its schema, then EXECUTE is revoked from PUBLIC; trigger functions need no grant. A later schema file that forgets the revoke fails the database check \"Definer functions (1135)\"."],
+    ["1136_step_up.sql", "Step-up authentication (report GP): iam.user_session.mfa_at records when the session last passed its second factor; the setting auth.mfa.step_up_minutes (10 by default, 5 to 60) is how recent it must be before money leaves the platform, access widens, data is exported or API keys are issued (POST /api/auth/mfa/step-up confirms it)."],
+  ], [3000, 6746], { boldFirst: true }),
+  H(HeadingLevel.HEADING_2, "b. Counts"),
+  table(["Measure", "Version 3.16", "Version 3.17"], [
+    ["Schema files", "145 (000 to 1132)", `${V.schema_files} (000 to ${lastFile})`],
+    ["Tables", "560", `${tableCount}`],
+    ["Columns", "5,920", `${colCount.toLocaleString("en-US")}`],
+    ["Foreign keys", "1,667", `${fkCount.toLocaleString("en-US")}`],
+    ["Database checks", "904", `${V.db_checks}`],
+    ["API tests passed", "758", `${V.api_tests}`],
+  ], [2700, 2400, 4646], { boldFirst: true }),
+];
+
 // ------------------------------ changes in 3.16 (the systems review of study 3.8) ------------------------------
 const changes3_16 = [H(HeadingLevel.HEADING_1, "Changes in version 3.16", { pageBreak: true }),
-  P(`Version 3.16 describes the same database as version 3.15 (schema file ${lastFile}); no schema file was added. It corrects the `
+  P(`Version 3.16 describes the same database as version 3.15 (schema file 1132); no schema file was added. It corrects the `
     + "document after the systems review of study 3.8 (October 2026)."),
   bullet(`The table of chapter 2.1 listed 23 of the ${schemas.length} schemas: sch (school transport, 11 tables), rpt (reports, 4) and gis `
     + `(PostGIS reference, 1) were missing, so its rows summed to 544 tables against the ${tableCount} the document states. It now lists `
@@ -180,7 +205,7 @@ const changes3_16 = [H(HeadingLevel.HEADING_1, "Changes in version 3.16", { page
 
 // ------------------------------ changes in 3.15 (the owner's requests of October 2026, up to truck transport) ------------------------------
 const changes3_15 = [H(HeadingLevel.HEADING_1, "Changes in version 3.15", { pageBreak: true }),
-  P(`Version 3.15 describes the database after schema file ${lastFile}. Since version 3.14 (schema file 1112), 20 schema files were added, `
+  P(`Version 3.15 describes the database after schema file 1132. Since version 3.14 (schema file 1112), 20 schema files were added, `
     + "1113 to 1132, each for a request or a decision of the owner in October 2026: the station screens and bays, logos, regular trips, "
     + "company know-your-customer files, trip numbers, journeys, charter, the administrative geography, connections across carriers and "
     + "truck transport of goods and containers. They carry no migration version of their own yet; the next release records them. The four "
@@ -221,11 +246,11 @@ const changes3_15 = [H(HeadingLevel.HEADING_1, "Changes in version 3.15", { page
     + "E46 regular trips, connections and changed bookings, E47 charter, E48 administrative geography and E49 truck transport; the logo in "
     + "E01 and the station's bays, screens and pairing in E44. The earlier freight tables of phase 8 (requests, bids, contracts) stay in E33."),
   table(["Measure", "Version 3.14", "Version 3.15"], [
-    ["Schema files", "125 (000 to 1112)", `${V.schema_files} (000 to ${lastFile})`],
-    ["Tables", "522", `${tableCount}`],
-    ["Columns", "5,392", `${colCount.toLocaleString("en-US")}`],
-    ["Foreign keys", "1,514", `${fkCount.toLocaleString("en-US")}`],
-    ["Module diagrams", "44", `${model.groups.length}`],
+    ["Schema files", "125 (000 to 1112)", "145 (000 to 1132)"],
+    ["Tables", "522", "560"],
+    ["Columns", "5,392", "5,920"],
+    ["Foreign keys", "1,514", "1,667"],
+    ["Module diagrams", "44", "49"],
     ["Data stores", "D1 to D23", "D1 to D23"],
   ], [2700, 2400, 4646], { boldFirst: true }),
 ];
@@ -1121,7 +1146,7 @@ const doc = new Document({
   numbering: { config: [{ reference: "bullets", levels: [{ level: 0, format: LevelFormat.BULLET, text: "•", alignment: AlignmentType.LEFT,
     style: { paragraph: { indent: { left: 540, hanging: 270 } } } }] }] },
   sections: [
-    section(PORTRAIT, [...front, ...toc, ...changes3_16, ...changes3_15, ...changes3_14, ...changes3_13, ...changes3_12, ...changes3_11, ...changes3_10, ...changes3_9, ...changes3_8, ...changes37, ...changes38, ...changes39, ...changes36, ...changes35, ...changes34, ...changes33, ...changes32, ...changes31, ...changes, ...intro, ...arch, ...rules, ...security, ...stores]),
+    section(PORTRAIT, [...front, ...toc, ...changes3_17, ...changes3_16, ...changes3_15, ...changes3_14, ...changes3_13, ...changes3_12, ...changes3_11, ...changes3_10, ...changes3_9, ...changes3_8, ...changes37, ...changes38, ...changes39, ...changes36, ...changes35, ...changes34, ...changes33, ...changes32, ...changes31, ...changes, ...intro, ...arch, ...rules, ...security, ...stores]),
     ...erdSections,
     section(PORTRAIT, [...defs, ...trace, ...verify, ...flags, ...gens, ...appC]),
   ],

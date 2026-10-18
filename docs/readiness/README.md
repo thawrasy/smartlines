@@ -10,7 +10,7 @@ of the use cases carries. The register, at 1.7, also records the design review o
 
 | File | What it is |
 |---|---|
-| `Masslak_Readiness_Document_Register_AR_v2.2.docx` | The register: the 42 documents an implementation needs, the state of each (complete, prepared in this set, draft awaiting approval, partial, needs an update, missing, owner input), where it is, and what completes it |
+| `Masslak_Readiness_Document_Register_AR_v2.3.docx` | The register: the 43 documents an implementation needs, the state of each (complete, prepared in this set, draft awaiting approval, partial, needs an update, missing, owner input), where it is, and what completes it |
 | `Masslak_Use_Case_and_Data_Flow_Diagrams_AR_v2.1.docx` | Use cases and data flows, edition 2.1: the v1.0 model (study 2.5) reviewed case by case against the code, 18 use case diagrams with 220 cases, each with its build status and evidence (route, table, test); context, three level-1 and 13 level-2 data flow diagrams; stores D1 to D23 as database tables; specifications of the main cases as built, the station counter, sale and departure board among them; the list of what is not built or only partly built and what became of the gaps edition 2.0 named. Replaces edition 2.0, `../Masslak_Use_Case_and_Data_Flow_Diagrams_v1.0.docx` and the addendum |
 | `Masslak_Behaviour_Models_AR_v1.1.docx` | State diagrams of 19 entities with where each transition is enforced, 10 sequence diagrams, 9 activity diagrams of daily operations (the station counter, SOS and incidents and a carrier's trip cancellation among them) |
 | `Masslak_Software_Requirements_Specification_AR_v1.1.docx` | Requirements baseline as built: 220 functional requirements (FR-xx.yy = UC-x.y), 32 non-functional requirements with their measure and verification, external interfaces, data requirements |
@@ -23,7 +23,7 @@ of the use cases carries. The register, at 1.7, also records the design review o
 | `Masslak_Initial_Data_Load_Plan_AR_v0.2.docx` | Draft plan for loading reference data, carriers, stations, fleet, network, tax schemes and loyalty partners before the pilot, with the bulk import tool |
 | `Masslak_Training_Plan_AR_v0.2.docx` | Draft training plan: ten role paths with pass criteria |
 
-The current database design document is `../database/Masslak_Database_Design_and_ERD_v3.16.docx` (schema file 1132); the requirements, rules and test documents above describe schema file 1112.
+The current database design document is `../database/Masslak_Database_Design_and_ERD_v3.17.docx` (schema file 1136); the requirements, rules and test documents above describe schema file 1112.
 
 ## Diagrams and extracted data
 
