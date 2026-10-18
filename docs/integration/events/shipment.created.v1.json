@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://masslak.com/schemas/events/shipment.created.v1.json",
+  "title": "shipment.created",
+  "description": "A parcel or shipment was booked. The data of the envelope (EVENTS.md); fields are only added within a version.",
+  "x-event-type": "shipment.created",
+  "x-schema-version": 1,
+  "type": "object",
+  "properties": {
+    "tracking_no": {
+      "type": "string"
+    },
+    "price": {
+      "type": "integer"
+    },
+    "trip_no": {
+      "type": "string"
+    },
+    "guaranteed": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "tracking_no",
+    "price"
+  ],
+  "additionalProperties": true
+}

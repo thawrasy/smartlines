@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://masslak.com/schemas/events/incident.reported.v1.json",
+  "title": "incident.reported",
+  "description": "An incident was reported on a trip. The data of the envelope (EVENTS.md); fields are only added within a version.",
+  "x-event-type": "incident.reported",
+  "x-schema-version": 1,
+  "type": "object",
+  "properties": {
+    "incident_id": {
+      "type": "integer"
+    },
+    "trip_no": {
+      "type": "string"
+    },
+    "plate_no": {
+      "type": "string"
+    },
+    "incident_type": {
+      "type": "string"
+    },
+    "severity": {
+      "type": "string"
+    },
+    "injuries": {
+      "type": "boolean"
+    },
+    "out_of_service": {
+      "type": "boolean"
+    },
+    "platform": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "incident_id",
+    "trip_no",
+    "incident_type",
+    "severity"
+  ],
+  "additionalProperties": true
+}

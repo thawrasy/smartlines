@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://masslak.com/schemas/events/screen.unseen.v1.json",
+  "title": "screen.unseen",
+  "description": "A station screen has not been seen for longer than the setting allows. The data of the envelope (EVENTS.md); fields are only added within a version.",
+  "x-event-type": "screen.unseen",
+  "x-schema-version": 1,
+  "type": "object",
+  "properties": {
+    "label": {
+      "type": "string"
+    },
+    "kind": {
+      "type": "string"
+    },
+    "station": {
+      "type": "string"
+    },
+    "station_name": {
+      "type": "string"
+    },
+    "minutes": {
+      "type": "integer"
+    }
+  },
+  "required": [
+    "label",
+    "kind",
+    "station",
+    "minutes"
+  ],
+  "additionalProperties": true
+}

@@ -14,9 +14,9 @@ supporting index, except references to lookup lists and to the staff member who 
 |---|---|
 | Engine | PostgreSQL 16 with PostGIS 3 (extensions: pgcrypto, citext, btree_gist, pg_trgm, postgis in schema `gis`; Docker and CI image `postgis/postgis:16-3.4`, Ubuntu package `postgresql-16-postgis-3`) |
 | Schemas | 26 separate schemas, each with its own privileges |
-| Tables | 560 tables (8 partitioned), 5,920 columns, 1,667 foreign keys |
-| Security | row-level security on 560 of 560 tables, 1,023 policies; 486 triggers, 496 functions |
-| Tests | 878 automated checks against a freshly built database (`db/tests/run.sh`) |
+| Tables | 560 tables (8 partitioned), 5,921 columns, 1,667 foreign keys |
+| Security | row-level security on 560 of 560 tables, 1,023 policies; 487 triggers, 499 functions |
+| Tests | 894 automated checks against a freshly built database (`db/tests/run.sh`) |
 | Design | [Database design and ERD document](../docs/database/) with diagrams in the study's colors |
 | Docs | [Data dictionary](DATA_DICTIONARY.md) · [ERD diagrams](ERD.md) (both generated from the database) |
 <!-- stats:end -->
@@ -189,6 +189,8 @@ PostGIS in `gis`. Until 9 October 2026 a first start of the Docker stack stopped
 | `1130_connections.sql` | Connections across carriers (owner's request): the platform's change times and flexible later trips (`journey.connections.*`, `sales.connection_settings`, `sales.set_connection_settings`); each carrier's policy for a missed trip (`ops.carrier_connection_policy`, `ops.connection_policy`: FREE_CHANGE, FARE_RULES, NONE, change window); the risks accepted on a connection's bookings (`sales.booking.risk_ack_at`, `booking_connection_ack_ck`, journey kind `CONNECTION`); a booking changed to another trip (`sales.booking.changed_from_id`, `sales.booking_change`, `sales.missed_connection`) (`docs/design/CONNECTIONS.md`) |
 | `1131_freight_transport.sql` | Truck transport of goods and containers (owner's request, phase 8, module E33, switch `features.freight`): shipping lines, bills of lading with house bills and containers (ISO 6346 check digit, the declared count, the customs release), consignments by route kind (domestic, port, export, import, transit) with seller, buyer, papers and goods, the truck owner's rates, truck movements with trailer and driver copied and the trailer's length checked, transport invoices per bill, container or consignment (never twice, frozen), and consignment notes and TCNs issued as frozen snapshots with a hash and a verification code (`docs/design/FREIGHT_TRANSPORT.md`) |
 | `1132_connection_holds.sql` | A connection's missed booking kept open after its trip is completed (owner's decision): its escrow held, its tickets issued, until the carrier's change window ends (`sales.connection_hold`, `sales.hold_missed_connections`); released by the worker when the window ends, or ended by a change (`docs/design/CONNECTIONS.md`) |
+| `1133_outbox_review_point.sql` | The outbox's review point (systems review of study 3.8): the outbox is partitioned by day since 1053, so its rows are summed over its partitions (`masslak_outbox_rows_estimate`; the metric of 1051 had read 0 since); the partitioning point of 1051 becomes a review point of 8 million rows (`capacity.outbox_review_rows`, alert `OutboxReviewDue`) |
+| `1134_ai_tool_guard.sql` | The AI assistant's tools authorised by the database (systems review of study 3.8, launch gate 9): `crm.ai_authorize_tool` records each request and allows it only with the assistant switched on (kill switch), the tool enabled, the traveller's confirmation where required, an open conversation and the tool's limits (`max_calls_per_conversation`, `max_amount`); a refusal is kept with its reason (`crm.ai_tool_call.refusal`); a row written as allowed by another path is checked the same way |
 
 ## Design rules (study 29.1)
 

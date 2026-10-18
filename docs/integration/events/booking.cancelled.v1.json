@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://masslak.com/schemas/events/booking.cancelled.v1.json",
+  "title": "booking.cancelled",
+  "description": "The booker cancelled a booking; refund_amount goes back to the payer. The data of the envelope (EVENTS.md); fields are only added within a version.",
+  "x-event-type": "booking.cancelled",
+  "x-schema-version": 1,
+  "type": "object",
+  "properties": {
+    "booking_ref": {
+      "type": "string"
+    },
+    "refund_amount": {
+      "type": "integer"
+    },
+    "booker_user_id": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "agency_id": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "contact_mobile": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "booking_ref",
+    "refund_amount"
+  ],
+  "additionalProperties": true
+}

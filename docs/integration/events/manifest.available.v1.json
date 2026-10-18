@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://masslak.com/schemas/events/manifest.available.v1.json",
+  "title": "manifest.available",
+  "description": "A manifest routed to this authority is ready to fetch. The data of the envelope (EVENTS.md); fields are only added within a version.",
+  "x-event-type": "manifest.available",
+  "x-schema-version": 1,
+  "type": "object",
+  "properties": {
+    "delivery_uid": {
+      "type": "string"
+    },
+    "manifest_uid": {
+      "type": "string"
+    },
+    "trip_no": {
+      "type": "string"
+    },
+    "scope": {
+      "type": "string"
+    },
+    "type": {
+      "type": "string"
+    },
+    "version": {
+      "type": "integer"
+    }
+  },
+  "required": [
+    "delivery_uid",
+    "manifest_uid",
+    "trip_no",
+    "scope",
+    "type",
+    "version"
+  ],
+  "additionalProperties": true
+}

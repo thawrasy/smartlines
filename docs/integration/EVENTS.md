@@ -27,6 +27,15 @@ X-Masslak-Signature: t=<unix seconds>,v1=<hex HMAC-SHA256(secret, "<t>." + body)
 
 Personal fields are removed from `data` unless the endpoint was registered with personal data enabled.
 
+## Schemas
+
+Each event type has a JSON Schema (draft 2020-12) for its `data`, one file per type and version, in
+[`docs/integration/events`](events/): `<type>.v<schema_version>.json`, with `envelope.v1.json` for the envelope.
+Within a version, fields are only added: none is removed or retyped and no required field is dropped
+(`events/baseline.json`, checked by `backend/tests/test_event_contracts.py`). CI checks every event the test suite
+produces against its envelope and its schema. `border.manifest_submitted` is reserved for the border manifest gateway
+and not sent yet.
+
 ## Guarantees
 
 - **At least once.** A delivery is retried after 1, 2, 4 … 64 minutes, eight times at most, then marked DEAD and shown in
@@ -59,7 +68,8 @@ Personal fields are removed from `data` unless the endpoint was registered with 
 - **Watched:**
   - the age of the oldest pending event (alert `OutboxBacklog`);
   - the purge backlog (`OutboxPurgeBehind`);
-  - the table size (`masslak_table_rows_estimate`).
+  - the table size (`masslak_table_rows_estimate`), and the rows over all daily partitions against the review point of
+    8 million rows (`masslak_outbox_rows_estimate`, `capacity.outbox_review_rows`, alert `OutboxReviewDue`, 1133).
 - **Partitioning.** At the full-platform volume (about 8 million events a day, `docs/operations/CAPACITY_MODEL.md`)
   the table would pass the partitioning point of 1051 within three days. It was therefore partitioned in 1053, while
   still small. The event's `id` and `event_uid` are unchanged for receivers.

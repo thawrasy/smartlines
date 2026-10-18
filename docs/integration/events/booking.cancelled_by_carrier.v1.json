@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://masslak.com/schemas/events/booking.cancelled_by_carrier.v1.json",
+  "title": "booking.cancelled_by_carrier",
+  "description": "The carrier cancelled the trip; the booking is refunded in full. The data of the envelope (EVENTS.md); fields are only added within a version.",
+  "x-event-type": "booking.cancelled_by_carrier",
+  "x-schema-version": 1,
+  "type": "object",
+  "properties": {
+    "booking_ref": {
+      "type": "string"
+    },
+    "trip_no": {
+      "type": "string"
+    },
+    "trip_code": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "refund_amount": {
+      "type": "integer"
+    },
+    "refund_to": {
+      "type": "string"
+    },
+    "booker_user_id": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "agency_id": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "counter": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "contact_mobile": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "booking_ref",
+    "trip_no",
+    "refund_amount",
+    "refund_to"
+  ],
+  "additionalProperties": true
+}

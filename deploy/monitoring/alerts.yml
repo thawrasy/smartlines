@@ -314,11 +314,11 @@ groups:
   # Growth and cost (architecture review of design 3.9): act before a table or a trigger becomes the bottleneck
   - name: masslak-capacity
     rules:
-      - alert: OutboxPartitioningDue
-        expr: masslak_outbox_partitioning_due > 0
+      - alert: OutboxReviewDue
+        expr: masslak_outbox_review_due > 0
         for: 1h
         labels: { severity: ticket }
-        annotations: { summary: "The outbox passed capacity.outbox_partition_rows: partition it by day in the next release", runbook: "RUNBOOKS.md#10-load-and-capacity-r-12" }
+        annotations: { summary: "The outbox holds more rows than capacity.outbox_review_rows: review its retention and the capacity (finished days not dropped, or volume past plan)", runbook: "RUNBOOKS.md#10-load-and-capacity-r-12" }
       - alert: OutboxPurgeBehind
         expr: masslak_outbox_purge_backlog > 100000
         for: 6h
@@ -377,7 +377,7 @@ groups:
           or label_replace(absent(masslak_audit_unarchived_seconds), "metric", "masslak_audit_unarchived_seconds", "", "")
           or label_replace(absent(masslak_outbox_oldest_pending_seconds), "metric", "masslak_outbox_oldest_pending_seconds", "", "")
           or label_replace(absent(masslak_outbox_dead), "metric", "masslak_outbox_dead", "", "")
-          or label_replace(absent(masslak_outbox_partitioning_due), "metric", "masslak_outbox_partitioning_due", "", "")
+          or label_replace(absent(masslak_outbox_review_due), "metric", "masslak_outbox_review_due", "", "")
           or label_replace(absent(masslak_outbox_purge_backlog), "metric", "masslak_outbox_purge_backlog", "", "")
           or label_replace(absent(masslak_files_oldest_pending_scan_seconds), "metric", "masslak_files_oldest_pending_scan_seconds", "", "")
           or label_replace(absent(masslak_geo_partitions_missing), "metric", "masslak_geo_partitions_missing", "", "")

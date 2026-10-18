@@ -150,6 +150,8 @@ async def main(once: bool) -> None:
         if not providers.enabled(channel):
             log.warning("%s delivery is off on this server: only in-app notifications are kept", channel.lower())
     await db.open_pools()
+    from ... import release
+    await release.require_match_in_production()   # the schema its last build or upgrade recorded, as for the API
     await db.require_reports_replica()       # scheduled reports read the replica, never the booking database
     last_reports = 0.0
     last_rollup = 0.0

@@ -73,7 +73,7 @@ async def lifespan(_: FastAPI):
         async with db.raw_connection() as conn:
             await crypto.cipher(conn)
     from . import release
-    rel = await release.current()
+    rel = await release.require_match_in_production()    # no start on a schema changed by hand (recommendation 17)
     app.version = rel["version"] if rel else "unknown"    # the release the database is at, not a number kept by hand
     logs.set_version(app.version)
     # the durability the owner chose (decision 1): compared by the monitoring with what the database does

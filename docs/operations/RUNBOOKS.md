@@ -351,8 +351,11 @@ section.
 - **Growth:**
   - **Which tables:** `masslak_table_rows_estimate` and `masslak_table_bytes` cover the tables that grow with
     traffic.
-  - **The outbox:** past `capacity.outbox_partition_rows`, partition it by day in the next release (alert
-    `OutboxPartitioningDue`, `docs/integration/EVENTS.md`).
+  - **The outbox:** it is partitioned by day (1053) and `masslak_outbox_rows_estimate` sums its partitions. Past
+    `capacity.outbox_review_rows` (8 million rows, 1133; alert `OutboxReviewDue`), check that finished days are being
+    dropped (`OutboxPurgeBehind`, `sys.drop_outbox_days`) and, if the volume itself has grown, review the retention and the
+    capacity model (`docs/operations/CAPACITY_MODEL.md`); raise the point with the owner's approval
+    (`docs/integration/EVENTS.md`).
 - **Connections (code review of October 2026):** a request waits at most `MASSLAK_DB_ACQUIRE_TIMEOUT` (5 s) for a
   connection of its process and is then answered 503 with `Retry-After`; each one counts in
   `masslak_db_pool_timeouts_total` (alert `PoolTimeouts`). PgBouncer's own pools come from the staging exporter:

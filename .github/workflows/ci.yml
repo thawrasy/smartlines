@@ -186,6 +186,10 @@ jobs:
       - name: Unit and end-to-end tests
         working-directory: backend
         run: python -m coverage run -m pytest tests -q
+      - name: Every event the suite produced matches its published contract (docs/integration/events, systems review of study 3.8)
+        working-directory: backend
+        env: { MASSLAK_EVENT_CONTRACTS_LIVE: "1" }
+        run: python -m pytest tests/test_event_contracts.py -q
       - name: A station counter for the browser checks, boarding stations switched on at one station (design review of the station screens)
         working-directory: backend
         run: python tests/ui_station_setup.py ../station-ui.json

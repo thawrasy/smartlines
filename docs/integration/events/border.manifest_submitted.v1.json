@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://masslak.com/schemas/events/border.manifest_submitted.v1.json",
+  "title": "border.manifest_submitted",
+  "description": "Reserved for the border manifest gateway (phases 4 and 6): not sent yet. The data of the envelope (EVENTS.md); fields are only added within a version.",
+  "x-event-type": "border.manifest_submitted",
+  "x-schema-version": 1,
+  "type": "object",
+  "properties": {
+    "manifest_uid": {
+      "type": "string"
+    }
+  },
+  "required": [],
+  "additionalProperties": true
+}

@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**560 tables, 5920 columns, in 26 schemas.**
+**560 tables, 5921 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -5991,6 +5991,7 @@ Every tool executed by the assistant with the customer's permissions and confirm
 | `confirmed_by_user` | `boolean` | ✱ | `false` |
 | `result_status` | `text` | ✱ |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `refusal` | `text` |  |  |
 
 ### `crm.call` 🛡️
 

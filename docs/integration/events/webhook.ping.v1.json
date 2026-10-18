@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://masslak.com/schemas/events/webhook.ping.v1.json",
+  "title": "webhook.ping",
+  "description": "A test delivery asked for from the integration console. The data of the envelope (EVENTS.md); fields are only added within a version.",
+  "x-event-type": "webhook.ping",
+  "x-schema-version": 1,
+  "type": "object",
+  "properties": {
+    "endpoint": {
+      "type": "string"
+    },
+    "message": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "endpoint",
+    "message"
+  ],
+  "additionalProperties": true
+}
