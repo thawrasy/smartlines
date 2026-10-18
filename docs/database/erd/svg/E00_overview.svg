@@ -17,7 +17,7 @@
 <path fill="none" stroke="#404040" d="M22,-758.5C22,-758.5 188,-758.5 188,-758.5 194,-758.5 200,-764.5 200,-770.5 200,-770.5 200,-808.5 200,-808.5 200,-814.5 194,-820.5 188,-820.5 188,-820.5 22,-820.5 22,-820.5 16,-820.5 10,-814.5 10,-808.5 10,-808.5 10,-770.5 10,-770.5 10,-764.5 16,-758.5 22,-758.5"/>
 <text text-anchor="start" x="62" y="-791.3" font-family="DejaVu Sans" font-weight="bold" font-size="13.00">iam</text>
 <text text-anchor="start" x="90" y="-791.3" font-family="DejaVu Sans" font-size="14.00"> </text>
-<text text-anchor="start" x="95" y="-791.3" font-family="DejaVu Sans" font-size="10.00">(40 tables)</text>
+<text text-anchor="start" x="95" y="-791.3" font-family="DejaVu Sans" font-size="10.00">(44 tables)</text>
 <text text-anchor="start" x="57" y="-780.5" font-family="DejaVu Sans" font-size="10.00">Parties, users, roles</text>
 <path fill="#dce6f2" stroke="transparent" d="M222,-758.5C222,-758.5 388,-758.5 388,-758.5 394,-758.5 400,-764.5 400,-770.5 400,-770.5 400,-808.5 400,-808.5 400,-814.5 394,-820.5 388,-820.5 388,-820.5 222,-820.5 222,-820.5 216,-820.5 210,-814.5 210,-808.5 210,-808.5 210,-770.5 210,-770.5 210,-764.5 216,-758.5 222,-758.5"/>
 <path fill="none" stroke="#404040" d="M222,-758.5C222,-758.5 388,-758.5 388,-758.5 394,-758.5 400,-764.5 400,-770.5 400,-770.5 400,-808.5 400,-808.5 400,-814.5 394,-820.5 388,-820.5 388,-820.5 222,-820.5 222,-820.5 216,-820.5 210,-814.5 210,-808.5 210,-808.5 210,-770.5 210,-770.5 210,-764.5 216,-758.5 222,-758.5"/>
@@ -29,7 +29,7 @@
 <path fill="none" stroke="#404040" d="M422,-758.5C422,-758.5 596,-758.5 596,-758.5 602,-758.5 608,-764.5 608,-770.5 608,-770.5 608,-808.5 608,-808.5 608,-814.5 602,-820.5 596,-820.5 596,-820.5 422,-820.5 422,-820.5 416,-820.5 410,-814.5 410,-808.5 410,-808.5 410,-770.5 410,-770.5 410,-764.5 416,-758.5 422,-758.5"/>
 <text text-anchor="start" x="469" y="-791.3" font-family="DejaVu Sans" font-weight="bold" font-size="13.00">ref</text>
 <text text-anchor="start" x="491" y="-791.3" font-family="DejaVu Sans" font-size="14.00"> </text>
-<text text-anchor="start" x="496" y="-791.3" font-family="DejaVu Sans" font-size="10.00">(14 tables)</text>
+<text text-anchor="start" x="496" y="-791.3" font-family="DejaVu Sans" font-size="10.00">(18 tables)</text>
 <text text-anchor="start" x="472.5" y="-780.5" font-family="DejaVu Sans" font-size="10.00">Reference lists</text>
 <path fill="#dce6f2" stroke="transparent" d="M630,-758.5C630,-758.5 796,-758.5 796,-758.5 802,-758.5 808,-764.5 808,-770.5 808,-770.5 808,-808.5 808,-808.5 808,-814.5 802,-820.5 796,-820.5 796,-820.5 630,-820.5 630,-820.5 624,-820.5 618,-814.5 618,-808.5 618,-808.5 618,-770.5 618,-770.5 618,-764.5 624,-758.5 630,-758.5"/>
 <path fill="none" stroke="#404040" d="M630,-758.5C630,-758.5 796,-758.5 796,-758.5 802,-758.5 808,-764.5 808,-770.5 808,-770.5 808,-808.5 808,-808.5 808,-814.5 802,-820.5 796,-820.5 796,-820.5 630,-820.5 630,-820.5 624,-820.5 618,-814.5 618,-808.5 618,-808.5 618,-770.5 618,-770.5 618,-764.5 624,-758.5 630,-758.5"/>
@@ -54,7 +54,7 @@
 <path fill="none" stroke="#404040" d="M222,-650.5C222,-650.5 388,-650.5 388,-650.5 394,-650.5 400,-656.5 400,-662.5 400,-662.5 400,-700.5 400,-700.5 400,-706.5 394,-712.5 388,-712.5 388,-712.5 222,-712.5 222,-712.5 216,-712.5 210,-706.5 210,-700.5 210,-700.5 210,-662.5 210,-662.5 210,-656.5 216,-650.5 222,-650.5"/>
 <text text-anchor="start" x="263.5" y="-683.3" font-family="DejaVu Sans" font-weight="bold" font-size="13.00">net</text>
 <text text-anchor="start" x="288.5" y="-683.3" font-family="DejaVu Sans" font-size="14.00"> </text>
-<text text-anchor="start" x="293.5" y="-683.3" font-family="DejaVu Sans" font-size="10.00">(25 tables)</text>
+<text text-anchor="start" x="293.5" y="-683.3" font-family="DejaVu Sans" font-size="10.00">(28 tables)</text>
 <text text-anchor="start" x="252" y="-672.5" font-family="DejaVu Sans" font-size="10.00">Stations, routes, lines</text>
 <path fill="#e2efda" stroke="transparent" d="M422,-650.5C422,-650.5 596,-650.5 596,-650.5 602,-650.5 608,-656.5 608,-662.5 608,-662.5 608,-700.5 608,-700.5 608,-706.5 602,-712.5 596,-712.5 596,-712.5 422,-712.5 422,-712.5 416,-712.5 410,-706.5 410,-700.5 410,-700.5 410,-662.5 410,-662.5 410,-656.5 416,-650.5 422,-650.5"/>
 <path fill="none" stroke="#404040" d="M422,-650.5C422,-650.5 596,-650.5 596,-650.5 602,-650.5 608,-656.5 608,-662.5 608,-662.5 608,-700.5 608,-700.5 608,-706.5 602,-712.5 596,-712.5 596,-712.5 422,-712.5 422,-712.5 416,-712.5 410,-706.5 410,-700.5 410,-700.5 410,-662.5 410,-662.5 410,-656.5 416,-650.5 422,-650.5"/>
@@ -67,20 +67,20 @@
 <path fill="none" stroke="#404040" d="M22,-542.5C22,-542.5 188,-542.5 188,-542.5 194,-542.5 200,-548.5 200,-554.5 200,-554.5 200,-592.5 200,-592.5 200,-598.5 194,-604.5 188,-604.5 188,-604.5 22,-604.5 22,-604.5 16,-604.5 10,-598.5 10,-592.5 10,-592.5 10,-554.5 10,-554.5 10,-548.5 16,-542.5 22,-542.5"/>
 <text text-anchor="start" x="63" y="-575.3" font-family="DejaVu Sans" font-weight="bold" font-size="13.00">ops</text>
 <text text-anchor="start" x="89" y="-575.3" font-family="DejaVu Sans" font-size="14.00"> </text>
-<text text-anchor="start" x="94" y="-575.3" font-family="DejaVu Sans" font-size="10.00">(36 tables)</text>
+<text text-anchor="start" x="94" y="-575.3" font-family="DejaVu Sans" font-size="10.00">(39 tables)</text>
 <text text-anchor="start" x="50.5" y="-564.5" font-family="DejaVu Sans" font-size="10.00">Trips, tracking, shuttle</text>
 <path fill="#fff2cc" stroke="transparent" d="M222,-542.5C222,-542.5 388,-542.5 388,-542.5 394,-542.5 400,-548.5 400,-554.5 400,-554.5 400,-592.5 400,-592.5 400,-598.5 394,-604.5 388,-604.5 388,-604.5 222,-604.5 222,-604.5 216,-604.5 210,-598.5 210,-592.5 210,-592.5 210,-554.5 210,-554.5 210,-548.5 216,-542.5 222,-542.5"/>
 <path fill="none" stroke="#404040" d="M222,-542.5C222,-542.5 388,-542.5 388,-542.5 394,-542.5 400,-548.5 400,-554.5 400,-554.5 400,-592.5 400,-592.5 400,-598.5 394,-604.5 388,-604.5 388,-604.5 222,-604.5 222,-604.5 216,-604.5 210,-598.5 210,-592.5 210,-592.5 210,-554.5 210,-554.5 210,-548.5 216,-542.5 222,-542.5"/>
-<text text-anchor="start" x="260.5" y="-575.3" font-family="DejaVu Sans" font-weight="bold" font-size="13.00">rent</text>
-<text text-anchor="start" x="291.5" y="-575.3" font-family="DejaVu Sans" font-size="14.00"> </text>
-<text text-anchor="start" x="296.5" y="-575.3" font-family="DejaVu Sans" font-size="10.00">(15 tables)</text>
-<text text-anchor="start" x="280.5" y="-564.5" font-family="DejaVu Sans" font-size="10.00">Car rental</text>
+<text text-anchor="start" x="266.5" y="-575.3" font-family="DejaVu Sans" font-weight="bold" font-size="13.00">frt</text>
+<text text-anchor="start" x="285.5" y="-575.3" font-family="DejaVu Sans" font-size="14.00"> </text>
+<text text-anchor="start" x="290.5" y="-575.3" font-family="DejaVu Sans" font-size="10.00">(31 tables)</text>
+<text text-anchor="start" x="269" y="-564.5" font-family="DejaVu Sans" font-size="10.00">Freight, transit</text>
 <path fill="#fff2cc" stroke="transparent" d="M422,-542.5C422,-542.5 596,-542.5 596,-542.5 602,-542.5 608,-548.5 608,-554.5 608,-554.5 608,-592.5 608,-592.5 608,-598.5 602,-604.5 596,-604.5 596,-604.5 422,-604.5 422,-604.5 416,-604.5 410,-598.5 410,-592.5 410,-592.5 410,-554.5 410,-554.5 410,-548.5 416,-542.5 422,-542.5"/>
 <path fill="none" stroke="#404040" d="M422,-542.5C422,-542.5 596,-542.5 596,-542.5 602,-542.5 608,-548.5 608,-554.5 608,-554.5 608,-592.5 608,-592.5 608,-598.5 602,-604.5 596,-604.5 596,-604.5 422,-604.5 422,-604.5 416,-604.5 410,-598.5 410,-592.5 410,-592.5 410,-554.5 410,-554.5 410,-548.5 416,-542.5 422,-542.5"/>
-<text text-anchor="start" x="470.5" y="-575.3" font-family="DejaVu Sans" font-weight="bold" font-size="13.00">frt</text>
-<text text-anchor="start" x="489.5" y="-575.3" font-family="DejaVu Sans" font-size="14.00"> </text>
-<text text-anchor="start" x="494.5" y="-575.3" font-family="DejaVu Sans" font-size="10.00">(14 tables)</text>
-<text text-anchor="start" x="473" y="-564.5" font-family="DejaVu Sans" font-size="10.00">Freight, transit</text>
+<text text-anchor="start" x="464.5" y="-575.3" font-family="DejaVu Sans" font-weight="bold" font-size="13.00">rent</text>
+<text text-anchor="start" x="495.5" y="-575.3" font-family="DejaVu Sans" font-size="14.00"> </text>
+<text text-anchor="start" x="500.5" y="-575.3" font-family="DejaVu Sans" font-size="10.00">(15 tables)</text>
+<text text-anchor="start" x="484.5" y="-564.5" font-family="DejaVu Sans" font-size="10.00">Car rental</text>
 <path fill="#fff2cc" stroke="transparent" d="M630,-542.5C630,-542.5 796,-542.5 796,-542.5 802,-542.5 808,-548.5 808,-554.5 808,-554.5 808,-592.5 808,-592.5 808,-598.5 802,-604.5 796,-604.5 796,-604.5 630,-604.5 630,-604.5 624,-604.5 618,-598.5 618,-592.5 618,-592.5 618,-554.5 618,-554.5 618,-548.5 624,-542.5 630,-542.5"/>
 <path fill="none" stroke="#404040" d="M630,-542.5C630,-542.5 796,-542.5 796,-542.5 802,-542.5 808,-548.5 808,-554.5 808,-554.5 808,-592.5 808,-592.5 808,-598.5 802,-604.5 796,-604.5 796,-604.5 630,-604.5 630,-604.5 624,-604.5 618,-598.5 618,-592.5 618,-592.5 618,-554.5 618,-554.5 618,-548.5 624,-542.5 630,-542.5"/>
 <text text-anchor="start" x="671.5" y="-575.3" font-family="DejaVu Sans" font-weight="bold" font-size="13.00">sch</text>
@@ -110,7 +110,7 @@
 <path fill="none" stroke="#404040" d="M22,-362.5C22,-362.5 188,-362.5 188,-362.5 194,-362.5 200,-368.5 200,-374.5 200,-374.5 200,-412.5 200,-412.5 200,-418.5 194,-424.5 188,-424.5 188,-424.5 22,-424.5 22,-424.5 16,-424.5 10,-418.5 10,-412.5 10,-412.5 10,-374.5 10,-374.5 10,-368.5 16,-362.5 22,-362.5"/>
 <text text-anchor="start" x="57" y="-395.3" font-family="DejaVu Sans" font-weight="bold" font-size="13.00">sales</text>
 <text text-anchor="start" x="95" y="-395.3" font-family="DejaVu Sans" font-size="14.00"> </text>
-<text text-anchor="start" x="100" y="-395.3" font-family="DejaVu Sans" font-size="10.00">(28 tables)</text>
+<text text-anchor="start" x="100" y="-395.3" font-family="DejaVu Sans" font-size="10.00">(34 tables)</text>
 <text text-anchor="start" x="38.5" y="-384.5" font-family="DejaVu Sans" font-size="10.00">Bookings, tickets, channels</text>
 <text text-anchor="start" x="16" y="-337.1" font-family="DejaVu Sans" font-weight="bold" font-size="13.00" fill="#333333">5. PRICING, MONEY AND ACCOUNTING</text>
 <path fill="#e4dfec" stroke="transparent" d="M22,-254.5C22,-254.5 188,-254.5 188,-254.5 194,-254.5 200,-260.5 200,-266.5 200,-266.5 200,-304.5 200,-304.5 200,-310.5 194,-316.5 188,-316.5 188,-316.5 22,-316.5 22,-316.5 16,-316.5 10,-310.5 10,-304.5 10,-304.5 10,-266.5 10,-266.5 10,-260.5 16,-254.5 22,-254.5"/>
@@ -155,7 +155,7 @@
 <path fill="none" stroke="#404040" d="M22,-38.5C22,-38.5 188,-38.5 188,-38.5 194,-38.5 200,-44.5 200,-50.5 200,-50.5 200,-88.5 200,-88.5 200,-94.5 194,-100.5 188,-100.5 188,-100.5 22,-100.5 22,-100.5 16,-100.5 10,-94.5 10,-88.5 10,-88.5 10,-50.5 10,-50.5 10,-44.5 16,-38.5 22,-38.5"/>
 <text text-anchor="start" x="63.5" y="-71.3" font-family="DejaVu Sans" font-weight="bold" font-size="13.00">sec</text>
 <text text-anchor="start" x="88.5" y="-71.3" font-family="DejaVu Sans" font-size="14.00"> </text>
-<text text-anchor="start" x="93.5" y="-71.3" font-family="DejaVu Sans" font-size="10.00">(26 tables)</text>
+<text text-anchor="start" x="93.5" y="-71.3" font-family="DejaVu Sans" font-size="10.00">(27 tables)</text>
 <text text-anchor="start" x="74.5" y="-60.5" font-family="DejaVu Sans" font-size="10.00">Security hub</text>
 <path fill="#f8cbad" stroke="transparent" d="M222,-38.5C222,-38.5 388,-38.5 388,-38.5 394,-38.5 400,-44.5 400,-50.5 400,-50.5 400,-88.5 400,-88.5 400,-94.5 394,-100.5 388,-100.5 388,-100.5 222,-100.5 222,-100.5 216,-100.5 210,-94.5 210,-88.5 210,-88.5 210,-50.5 210,-50.5 210,-44.5 216,-38.5 222,-38.5"/>
 <path fill="none" stroke="#404040" d="M222,-38.5C222,-38.5 388,-38.5 388,-38.5 394,-38.5 400,-44.5 400,-50.5 400,-50.5 400,-88.5 400,-88.5 400,-94.5 394,-100.5 388,-100.5 388,-100.5 222,-100.5 222,-100.5 216,-100.5 210,-94.5 210,-88.5 210,-88.5 210,-50.5 210,-50.5 210,-44.5 216,-38.5 222,-38.5"/>
@@ -175,7 +175,7 @@
 <text text-anchor="start" x="706" y="-71.3" font-family="DejaVu Sans" font-size="14.00"> </text>
 <text text-anchor="start" x="711" y="-71.3" font-family="DejaVu Sans" font-size="10.00">(7 tables)</text>
 <text text-anchor="start" x="688.5" y="-60.5" font-family="DejaVu Sans" font-size="10.00">Audit logs</text>
-<text text-anchor="start" x="1088" y="-16.5" font-family="DejaVu Sans" font-size="10.00" fill="#595959">26 schemas, 522 tables</text>
+<text text-anchor="start" x="1088" y="-16.5" font-family="DejaVu Sans" font-size="10.00" fill="#595959">26 schemas, 560 tables</text>
 </g>
 </g>
 </svg>

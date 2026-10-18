@@ -52,7 +52,7 @@
 <polygon fill="#f2f6fa" stroke="transparent" points="785.5,-724 785.5,-741 815.5,-741 815.5,-724 785.5,-724"/>
 <text text-anchor="start" x="788.5" y="-730.6" font-family="DejaVu Sans" font-size="8.00" fill="#7f7f7f">text</text>
 <polygon fill="#ffffff" stroke="transparent" points="664.5,-709 664.5,-724 815.5,-724 815.5,-709 664.5,-709"/>
-<text text-anchor="start" x="667.5" y="-715.6" font-family="DejaVu Sans" font-style="italic" font-size="8.00" fill="#7f7f7f">+ 8 more columns</text>
+<text text-anchor="start" x="667.5" y="-715.6" font-family="DejaVu Sans" font-style="italic" font-size="8.00" fill="#7f7f7f">+ 18 more columns</text>
 <path fill="none" stroke="#404040" d="M675,-708C675,-708 804,-708 804,-708 810,-708 816,-714 816,-720 816,-720 816,-848 816,-848 816,-854 810,-860 804,-860 804,-860 675,-860 675,-860 669,-860 663,-854 663,-848 663,-848 663,-720 663,-720 663,-714 669,-708 675,-708"/>
 </g>
 <!-- fleet__vehicle -->
@@ -200,7 +200,7 @@
 <polygon fill="#f2f6fa" stroke="transparent" points="553,-654 553,-671 583,-671 583,-654 553,-654"/>
 <text text-anchor="start" x="556" y="-660.6" font-family="DejaVu Sans" font-size="8.00" fill="#7f7f7f">text</text>
 <polygon fill="#ffffff" stroke="transparent" points="431,-639 431,-654 583,-654 583,-639 431,-639"/>
-<text text-anchor="start" x="434" y="-645.6" font-family="DejaVu Sans" font-style="italic" font-size="8.00" fill="#7f7f7f">+ 36 more columns</text>
+<text text-anchor="start" x="434" y="-645.6" font-family="DejaVu Sans" font-style="italic" font-size="8.00" fill="#7f7f7f">+ 39 more columns</text>
 <path fill="none" stroke="#404040" d="M442,-638C442,-638 572,-638 572,-638 578,-638 584,-644 584,-650 584,-650 584,-880 584,-880 584,-886 578,-892 572,-892 572,-892 442,-892 442,-892 436,-892 430,-886 430,-880 430,-880 430,-650 430,-650 430,-644 436,-638 442,-638"/>
 </g>
 <!-- ops__trip&#45;&gt;ops__trip_template -->

@@ -14,8 +14,8 @@ const PNG = path.join(HERE, "..", "erd", "png");
 // numbers of the verification run that built this document (verification.py), never typed by hand (audit T3-17)
 const V = JSON.parse(fs.readFileSync(path.join(HERE, "..", "build", "verification.json"), "utf8"));
 const lastFile = V.last_schema_file.split("_")[0];
-const VERSION = "3.14";
-const DATE = "13 October 2026";
+const VERSION = "3.15";
+const DATE = "18 October 2026";
 const FONT = "Arial";
 const C = { navy: "1F3A5F", blue: "2E74B5", blue2: "1F4D78", grid: "B7C3D0", alt: "F2F6FA", grey: "595959" };
 
@@ -110,9 +110,9 @@ front.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 16
 front.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 1200 },
   children: [run(`Complete relational model of the Analysis and Design Study v3.0: ${tableCount} tables, ${fkCount} relationships`, { color: "7F7F7F" })] }));
 front.push(table(["Item", "Details"], [
-  ["Version", `${VERSION} (the database after schema file 1112: tracking alerts the platform opens, SOS and incident reports, a carrier's trip cancellation with full refunds and a penalty only where the regulators impose one, loyalty points earned and redeemed at partners under agreements, e-invoices issued with their taxes and signing keys, the counter check-in, sales and departure board of boarding stations, and the counter photo kept off until a legal approval; replaces version 3.13)`],
+  ["Version", `${VERSION} (the database after schema file ${lastFile}: station screens, bays and logos, regular trips with their approval stages, company know-your-customer files, four-digit trip numbers and vehicle rotations, journeys, charter, the country's administrative geography, connections across carriers with the money of a missed trip held until the change window ends, and truck transport of goods and containers with bills of lading, consignments, transport invoices, consignment notes and TCNs; replaces version 3.14)`],
   ["Date", DATE],
-  ["Basis", "Analysis and Design Study v3.0 (English), the Use Case and Data Flow Diagrams v1.0, the Database Architecture Review v1.0, the Strategic Database Review and its relationship audit register, the Third-Party Technical Audit, the Technical Audit of design document 3.7, its re-audit of 3.8 and follow-up of 3.9, the architecture review of 3.9, the expert review and code review of October 2026, and the three reviews of release 1.47.0 with the owner's five decisions, the use case review of October 2026 and the owner's decisions that followed it"],
+  ["Basis", "Analysis and Design Study v3.0 (English), the Use Case and Data Flow Diagrams v1.0, the Database Architecture Review v1.0, the Strategic Database Review and its relationship audit register, the Third-Party Technical Audit, the Technical Audit of design document 3.7, its re-audit of 3.8 and follow-up of 3.9, the architecture review of 3.9, the expert review and code review of October 2026, and the three reviews of release 1.47.0 with the owner's five decisions, the use case review of October 2026 and the owner's decisions that followed it, and the owner's requests of October 2026 up to truck transport (study 3.8)"],
   ["Scope", `${schemas.length} schemas, ${tableCount} tables, ${colCount} columns, ${fkCount} foreign keys; all phases 1 to 15`],
   ["Engine", `PostgreSQL ${V.postgres} with row-level security on every table; PostGIS ${V.postgis} in schema gis; ${V.schema_files} schema files, db/schema/000 to ${lastFile}`],
   ["Status", `Built and verified at commit ${V.source_commit} (migration ${V.migration}, schema SHA-256 ${V.schema_sha256.slice(0, 16)}): fresh build and upgrade identical, ${V.db_checks} database checks and ${V.api_tests} API tests passing, every foreign key indexed or exempt by rule`],
@@ -120,7 +120,7 @@ front.push(table(["Item", "Details"], [
 ], [2800, 6946]));
 
 const toc = [H(HeadingLevel.HEADING_1, "Contents", { pageBreak: true })];
-const tocLines = ["Changes in version 3.14", "Changes in version 3.13", "Changes in version 3.12", "Changes in version 3.11", "Changes in version 3.10", "Changes in version 3.9", "Changes in version 3.8", "Changes in version 3.7", "Changes in version 3.6", "Changes in version 3.5", "Changes in version 3.4", "Changes in version 3.3", "Changes in version 3.2", "Changes in version 3.1", "Changes in version 3.0", "1. Introduction", "2. Database architecture", "3. Design rules", "4. Security model in the database",
+const tocLines = ["Changes in version 3.15", "Changes in version 3.14", "Changes in version 3.13", "Changes in version 3.12", "Changes in version 3.11", "Changes in version 3.10", "Changes in version 3.9", "Changes in version 3.8", "Changes in version 3.7", "Changes in version 3.6", "Changes in version 3.5", "Changes in version 3.4", "Changes in version 3.3", "Changes in version 3.2", "Changes in version 3.1", "Changes in version 3.0", "1. Introduction", "2. Database architecture", "3. Design rules", "4. Security model in the database",
   "5. Data stores of the data flow diagrams", "6. Entity-relationship diagrams by module",
   ...model.groups.map((g, i) => `      6.${i + 1} ${g[0]} ${g[1]}`), `      6.${model.groups.length + 1} Focus diagrams: rules that span modules`,
   "7. Table definitions", "8. Traceability to the study", "9. Verification",
@@ -162,6 +162,58 @@ const changes38 = [H(HeadingLevel.HEADING_2, "b. Hardening after the third-party
     + "infrastructure and moves to Phase 5.", "Owner decisions"),
   P("Schema-level two-way dependencies (21, frozen by test H-07) differ from phase-level dependencies, of which there are none backwards: "
     + "the earlier wording is clarified accordingly. db/tools/audit_pack.sh builds the evidence pack for the second phase of the audit."),
+];
+
+// ------------------------------ changes in 3.15 (the owner's requests of October 2026, up to truck transport) ------------------------------
+const changes3_15 = [H(HeadingLevel.HEADING_1, "Changes in version 3.15", { pageBreak: true }),
+  P(`Version 3.15 describes the database after schema file ${lastFile}. Since version 3.14 (schema file 1112), 20 schema files were added, `
+    + "1113 to 1132, each for a request or a decision of the owner in October 2026: the station screens and bays, logos, regular trips, "
+    + "company know-your-customer files, trip numbers, journeys, charter, the administrative geography, connections across carriers and "
+    + "truck transport of goods and containers. They carry no migration version of their own yet; the next release records them. The four "
+    + "relationship rules of chapter 3.2 hold for every new table and column; every new table has row-level security, a project phase "
+    + "and a lifecycle, and is in exactly one diagram."),
+  H(HeadingLevel.HEADING_2, "a. Schema files 1113 to 1132"),
+  table(["Schema file", "What it adds"], [
+    ["1113_station_screens_review.sql", "Fixes from the design review of the station screens: the boarding pass and printed ticket carry a fixed signed code, the counter's trip list names the destination and check-in state. No table changes."],
+    ["1114_trip_numbers.sql", "The short trip number passengers read (carrier designator and service number, repeated daily) beside the trip reference staff use. No new table."],
+    ["1115_station_bays_logos_board.sql", "A company's logo to a specification, set by the platform (iam.company_logo, diagram E01); a carrier's permanent bay at a station, set by its administration (net.station_carrier_bay, diagram E44); the board turns a cancelled trip red."],
+    ["1116_carrier_logo_everywhere.sql", "The carrier's logo beside its name wherever it is shown. No table changes."],
+    ["1117_trip_schedules.sql", "Regular trips the carrier defines (every day, on days of the week or of the month) under one number: requests with the approval stages in force (ops.schedule_request), each stage's decision (ops.schedule_approval) and the authority staff who decide (sec.authority_member). Diagram E46."],
+    ["1118_company_kyc.sql", "The know-your-customer file of each company: the form in versions (iam.kyc_form), the file in versions with its risk and next review (iam.company_kyc), and each review stage's decision (iam.kyc_decision), with encrypted values. Diagram E45."],
+    ["1119_trip_rotations.sql", "Four-digit number blocks as a setting, odd outbound and even return, and a regular trip that continues its vehicle's previous leg. No new table."],
+    ["1120_station_screens.sql", "Separate departures and arrivals screens, the kinds the platform allows and the screens the station's administration registers (net.station_screen). Diagram E44."],
+    ["1121_journeys.sql", "One way, round trip and several places booked together as one journey, direct or with stops, and tourism groups booked by agencies. New columns on sales.booking; no new table."],
+    ["1122_seat_limits.sql", "The seats one booking may take as a platform setting (4 by default), raised for a family head. No new table."],
+    ["1123_charter.sql", "Carriers hire out a vehicle or a whole scheduled trip, to tourism companies and by special request to travellers: offers (sales.charter_offer), requests priced, paid into escrow and held (sales.charter_request) and the seats taken off sale (sales.charter_seat). Diagram E47."],
+    ["1124_admin_geography.sql", "Syria's administrative geography from the United Nations P-code file: each load (ref.geo_source), governorates, districts and sub-districts (ref.admin_area), communities and neighbourhoods with their positions (ref.place). Diagram E48."],
+    ["1125_geography_in_use.sql", "Stations record their place by search; a field-survey place proposed by the platform is reviewed by another person; area boundaries. No new table."],
+    ["1126_charter_passengers.sql", "The requester names the travellers of blocked seats, who appear on the trip's manifest. No new table."],
+    ["1127_place_name_corrections.sql", "Words of the published names the platform writes otherwise (ref.name_correction). Diagram E48."],
+    ["1128_charter_deposit_vehicles.sql", "A charter paid as a deposit then the balance, and the vehicles named one by one (sales.charter_vehicle). Diagram E47."],
+    ["1129_station_screen_pairing.sql", "A display pairs with a station screen by a short code it shows and a secret only it holds (net.screen_pairing); an alert for a screen no longer seen. Diagram E44."],
+    ["1130_connections.sql", "Connections across carriers where no trip runs direct: the platform's change times, each carrier's policy for a missed trip (ops.carrier_connection_policy), the risks accepted on a connection's bookings, and a booking changed to another trip (sales.booking_change). Diagram E46."],
+    ["1131_freight_transport.sql", "Truck transport of goods and containers inside Syria, to and from the port, in transit and across borders: shipping lines, bills of lading with house bills and containers (ISO 6346 check digit, declared count, customs release), consignments by route kind with seller, buyer, papers and goods, the truck owners' rates, truck movements with the trailer's length checked, transport invoices per bill, container or consignment, and consignment notes and TCNs issued as frozen snapshots with a hash and a verification code. Diagram E49."],
+    ["1132_connection_holds.sql", "A connection's booking missed by all its travellers stays open after its trip is completed, its escrow held, until the carrier's change window ends (sales.connection_hold); released by the worker or ended by a change. Diagram E46."],
+  ], [3000, 6746], { boldFirst: true }),
+  H(HeadingLevel.HEADING_2, "b. The owner's requests and decisions in the database"),
+  bullet("Stations register their screens, bays and displays themselves; carriers keep a permanent bay or take one per trip (files 1115, 1120, 1129).", "1. Station screens"),
+  bullet("A regular trip passes the approval stages in force when it was asked, including a government authority where one is named (file 1117).", "2. Regular trips"),
+  bullet("Every company on the platform has a versioned KYC file, reviewed in stages and reviewed again by its risk (file 1118).", "3. Know your customer"),
+  bullet("Charter is paid into escrow, by deposit and balance, and the carrier is paid when the hire is done (files 1123, 1128).", "4. Charter"),
+  bullet("A connection's missed trip stays changeable until the carrier's change window ends, its money held meanwhile (files 1130, 1132).", "5. Connections"),
+  bullet("Truck transport keeps its rules in the database: valid container numbers, the bill's count, one active movement per truck and trailer, documents complete before issue and frozen after, a container never invoiced twice (file 1131). Opened by the freight switch.", "6. Truck transport"),
+  H(HeadingLevel.HEADING_2, "c. Diagrams and counts"),
+  P("The 38 tables added since version 3.14 are placed in five new diagrams and three existing ones: E45 company know-your-customer file, "
+    + "E46 regular trips, connections and changed bookings, E47 charter, E48 administrative geography and E49 truck transport; the logo in "
+    + "E01 and the station's bays, screens and pairing in E44. The earlier freight tables of phase 8 (requests, bids, contracts) stay in E33."),
+  table(["Measure", "Version 3.14", "Version 3.15"], [
+    ["Schema files", "125 (000 to 1112)", `${V.schema_files} (000 to ${lastFile})`],
+    ["Tables", "522", `${tableCount}`],
+    ["Columns", "5,392", `${colCount.toLocaleString("en-US")}`],
+    ["Foreign keys", "1,514", `${fkCount.toLocaleString("en-US")}`],
+    ["Module diagrams", "44", `${model.groups.length}`],
+    ["Data stores", "D1 to D23", "D1 to D23"],
+  ], [2700, 2400, 4646], { boldFirst: true }),
 ];
 
 // ------------------------------ changes in 3.14 (the use case review, the owner's decisions, boarding stations at work) ------------------------------
@@ -227,11 +279,11 @@ const changes3_14 = [H(HeadingLevel.HEADING_1, "Changes in version 3.14", { page
     + "showed 1,547 foreign keys, 76 of them such copies; counted the same way as now, 3.13 had 1,471. The data dictionary always "
     + "counted each foreign key once."),
   table(["Measure", "Version 3.13", "Version 3.14"], [
-    ["Schema files", "112 (000 to 1099)", `${V.schema_files} (000 to ${lastFile})`],
-    ["Tables", "514", `${tableCount}`],
-    ["Columns", "5,279", `${colCount.toLocaleString("en-US")}`],
-    ["Foreign keys", "1,471 (1,547 with the partition copies)", `${fkCount.toLocaleString("en-US")}`],
-    ["Module diagrams", "44", `${model.groups.length}`],
+    ["Schema files", "112 (000 to 1099)", "125 (000 to 1112)"],
+    ["Tables", "514", "522"],
+    ["Columns", "5,279", "5,392"],
+    ["Foreign keys", "1,471 (1,547 with the partition copies)", "1,514"],
+    ["Module diagrams", "44", "44"],
     ["Data stores", "D1 to D22", "D1 to D23"],
   ], [2700, 2400, 4646], { boldFirst: true }),
 ];
@@ -1048,7 +1100,7 @@ const doc = new Document({
   numbering: { config: [{ reference: "bullets", levels: [{ level: 0, format: LevelFormat.BULLET, text: "•", alignment: AlignmentType.LEFT,
     style: { paragraph: { indent: { left: 540, hanging: 270 } } } }] }] },
   sections: [
-    section(PORTRAIT, [...front, ...toc, ...changes3_14, ...changes3_13, ...changes3_12, ...changes3_11, ...changes3_10, ...changes3_9, ...changes3_8, ...changes37, ...changes38, ...changes39, ...changes36, ...changes35, ...changes34, ...changes33, ...changes32, ...changes31, ...changes, ...intro, ...arch, ...rules, ...security, ...stores]),
+    section(PORTRAIT, [...front, ...toc, ...changes3_15, ...changes3_14, ...changes3_13, ...changes3_12, ...changes3_11, ...changes3_10, ...changes3_9, ...changes3_8, ...changes37, ...changes38, ...changes39, ...changes36, ...changes35, ...changes34, ...changes33, ...changes32, ...changes31, ...changes, ...intro, ...arch, ...rules, ...security, ...stores]),
     ...erdSections,
     section(PORTRAIT, [...defs, ...trace, ...verify, ...flags, ...gens, ...appC]),
   ],

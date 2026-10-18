@@ -38,7 +38,7 @@ GROUPS = [
      "bank accounts, documents and verifications all hang off the party.",
      ["iam.party", "iam.party_role", "iam.company", "iam.company_member", "iam.app_user", "iam.role", "iam.role_permission",
       "iam.permission", "iam.user_role", "iam.role_scope", "iam.user_station_scope", "iam.beneficial_owner", "iam.bank_account", "iam.document", "iam.verification",
-      "ref.party_role_type"]),
+      "ref.party_role_type", "iam.company_logo"]),
     ("E02", "Sessions, devices and API access", "16.8, 16.9, 14.2", "core",
      "Sign-in sessions and tokens, second factors and the one-time codes sent by text message or WhatsApp, bound devices with their permission state, push tokens, integration API clients "
      "with their keys and daily usage, identity providers and government identity links.",
@@ -289,7 +289,35 @@ GROUPS = [
      "station, given by a carrier for its trips or by the platform for a state-mandated operator, revoked and never changed; "
      "the carrier's agreement and licence reference numbers, retired and never changed; the counter check-ins with their "
      "boarding passes (1105) and the tickets sold at a station counter under the carrier's BOOKING right (1110), never edited.",
-     ["net.station_boarding", "net.station_operator_grant", "net.operation_reference", "brd.station_checkin", "brd.station_sale"]),
+     ["net.station_boarding", "net.station_operator_grant", "net.operation_reference", "brd.station_checkin", "brd.station_sale",
+      "net.station_carrier_bay", "net.station_screen", "net.screen_pairing"]),
+    ("E45", "Company know-your-customer file", "Owner's request (1118)", "security",
+     "The KYC form in versions, with its sections, fields and documents; each company's file in versions with its answers, risk "
+     "and next review; and every review stage's decision, never changed.",
+     ["iam.kyc_form", "iam.company_kyc", "iam.kyc_decision"]),
+    ("E46", "Regular trips, connections and changed bookings", "Owner's requests (1117, 1130, 1132)", "trip",
+     "A carrier's requests for regular trips with the approval stages in force, each stage's decision and the authority staff "
+     "who decide; each carrier's policy for connections; a booking changed to another trip; and a connection's missed booking "
+     "held until the change window ends.",
+     ["ops.schedule_request", "ops.schedule_approval", "sec.authority_member", "ops.carrier_connection_policy",
+      "sales.booking_change", "sales.connection_hold"]),
+    ("E47", "Charter", "Owner's request (1123, 1126, 1128)", "booking",
+     "Carriers' offers of a vehicle or a whole trip, the requests of tourism companies and travellers with their quotes and "
+     "payments, the seats of a scheduled trip taken off sale for a request, and the vehicles named on a hire.",
+     ["sales.charter_offer", "sales.charter_request", "sales.charter_seat", "sales.charter_vehicle"]),
+    ("E48", "Administrative geography", "Owner's request (1124, 1127)", "core",
+     "Each load of the United Nations P-code file; governorates, districts and sub-districts; communities and neighbourhoods "
+     "with their positions; and the words of published names the platform writes otherwise.",
+     ["ref.geo_source", "ref.admin_area", "ref.place", "ref.name_correction"]),
+    ("E49", "Truck transport: bills of lading, consignments and documents", "7.25 (since v3.8)", "trip",
+     "Shipping lines and bills of lading with the forwarders' house bills and their containers; consignments with their "
+     "commercial invoices and containers; the truck owners' rates; truck movements with their containers and steps; transport "
+     "invoices with their lines; and the consignment notes and TCNs the platform issues, with the consignments and vehicles "
+     "each lists, numbered from their series.",
+     ["frt.shipping_line", "frt.bill_of_lading", "frt.house_bill", "frt.bl_container", "frt.consignment",
+      "frt.consignment_invoice", "frt.consignment_container", "frt.rate_card", "frt.truck_movement", "frt.movement_container",
+      "frt.movement_event", "frt.transport_invoice", "frt.transport_invoice_line", "frt.transport_document",
+      "frt.document_consignment", "frt.document_vehicle", "frt.number_series"]),
 ]
 
 # Focus diagrams: one business rule across modules; tables keep their own module colour (family None)
