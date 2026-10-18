@@ -32,10 +32,13 @@
   "app/modules/sales/service.py": 90,
   "app/modules/reports/scheduler.py": 70,
   "app/modules/notify/worker.py": 70,
-  "app/modules/einvoice/service.py": 70
+  "app/modules/einvoice/service.py": 70,
+  "app/attestation.py": 75,
+  "app/telemetry.py": 75,
+  "app/modules/notify/providers.py": 75,
+  "app/modules/documents/scanner.py": 75,
+  "app/modules/documents/storage.py": 75,
+  "app/modules/payments/adapters.py": 75
  },
- "exceptions": [
-  {"file": "app/modules/payments/adapters.py", "minimum": 66, "owner": "Payments lead", "until": "2027-01-31",
-   "reason": "the provider adapters answer only a provider's test environment, which CI cannot reach before a contract is signed; they are tested against it at signature"}
- ]
+ "exceptions": []
 }

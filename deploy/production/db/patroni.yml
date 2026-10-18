@@ -102,6 +102,11 @@ postgresql:
     shared_preload_libraries: pg_stat_statements,masslak_guard
   basebackup:
     - checkpoint: fast
+  # a member that rejoins (after pg_rewind) or falls behind takes the WAL it lacks from the archive as well as from the
+  # primary: without it the old primary of a failover could wait on WAL the new primary no longer streams to it
+  # (CI of 17 October 2026: "consistent recovery state has not been yet reached" for 180 s)
+  recovery_conf:
+    restore_command: pgbackrest --stanza=masslak archive-get %f "%p"
 
 # a member whose Patroni hangs is restarted before its leader key expires, so two primaries never take writes; with
 # /dev/watchdog passed to the container Patroni uses it, otherwise it runs without (deploy/production/ha/db-host.yml)

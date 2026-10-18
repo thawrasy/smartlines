@@ -35,9 +35,19 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     uses: ./.github/workflows/ci.yml
 
+  identity:
+    name: The tag is the release VERSION names
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      # independent review, round 9: a tag that is not v<VERSION> would publish a release under another name than the
+      # one the database, the API and the evidence pack carry
+      - run: python3 scripts/check_release.py --tag "$GITHUB_REF_NAME"
+
   images:
     name: Images built once, pushed and signed
-    needs: ci
+    needs: [ci, identity]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -113,6 +123,12 @@ jobs:
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with: { name: evidence-pack-reviewer, path: "${{ runner.temp }}/evidence" }
       - run: cp "$RUNNER_TEMP"/evidence/masslak-evidence-reviewer-*.tar.gz "dist/masslak-$GITHUB_REF_NAME-evidence.tar.gz"
+      - name: The verdict of the job that checked the pack apart from its build (CI job "Evidence pack verified apart from its build")
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with: { name: evidence-pack-verified, path: "${{ runner.temp }}/verified" }
+      - run: |
+          grep -q '^verdict: VERIFIED' "$RUNNER_TEMP/verified/VERIFIED.txt"
+          cp "$RUNNER_TEMP/verified/VERIFIED.txt" "dist/masslak-$GITHUB_REF_NAME-evidence.VERIFIED.txt"
       - name: Software bill of materials of the source (SPDX)
         uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
         with:
@@ -125,8 +141,8 @@ jobs:
       - name: Checksums and keyless signatures
         working-directory: dist
         run: |
-          sha256sum ./*.tar.gz ./*.spdx.json ./*.IMAGES | sed 's# \./# #' > SHA256SUMS
-          for f in ./*.tar.gz ./*.spdx.json ./*.IMAGES SHA256SUMS; do cosign sign-blob --yes --bundle "$f.sigstore.json" "$f"; done
+          sha256sum ./*.tar.gz ./*.spdx.json ./*.IMAGES ./*.VERIFIED.txt | sed 's# \./# #' > SHA256SUMS
+          for f in ./*.tar.gz ./*.spdx.json ./*.IMAGES ./*.VERIFIED.txt SHA256SUMS; do cosign sign-blob --yes --bundle "$f.sigstore.json" "$f"; done
       - name: Publish the release, or add the signed files to the one published from the GitHub page
         env:
           GH_TOKEN: ${{ github.token }}

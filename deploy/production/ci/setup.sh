@@ -12,6 +12,9 @@ set -euo pipefail
 cd "$(dirname "$0")/../../.."
 env=deploy/.env
 [ -f "$env" ] || { echo "run deploy/init-env.sh first" >&2; exit 1; }
+# the release workflow tags what it publishes; this checkout gets the same tag, locally only (preflight.sh refuses a
+# production installation from a commit that is not the release VERSION names)
+git -c safe.directory="$PWD" tag -f "v$(cat VERSION)" >/dev/null
 put() { if grep -q "^$1=" "$env"; then sed -i "s|^$1=.*|$1=$2|" "$env"; else echo "$1=$2" >> "$env"; fi; }
 rand() { openssl rand -hex 16; }
 offsite="${MASSLAK_CI_OFFSITE:-/tmp/masslak-offsite}"; mkdir -p "$offsite"

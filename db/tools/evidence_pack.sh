@@ -125,7 +125,13 @@ python3 "$ROOT/docs/database/generator/verification.py" "$DB" --db-log "$DB_LOG"
   echo "protected settings (superuser only): $(psql "${ARGS[@]}" -d "$DB" -Atc "SELECT string_agg(name || '=' || context, ', ' ORDER BY name) FROM pg_settings WHERE name = ANY (sys.guarded_settings())")"
   echo "source files (SHA-256):"
   (cd "$ROOT" && sha256sum db/guard/masslak_guard.c db/guard/Makefile db/guard/Dockerfile)
+  # the two parts that do the work, quoted with their line numbers like the critical controls (round 9, Team, recommendation 5): the
+  # list of protected names, and the definition that gives each one the superuser context (PGC_SUSET)
+  echo "excerpt: db/guard/masslak_guard.c, the protected names and their definition"
+  awk '/^static const char \*const guarded\[\]/,/^};/ { printf "%4d  %s\n", NR, $0 } /^_PG_init\(void\)/,/^}/ { printf "%4d  %s\n", NR, $0 }' \
+    "$ROOT/db/guard/masslak_guard.c"
 } > "$OUT/evidence/settings_guard.txt"
+grep -q 'PGC_SUSET' "$OUT/evidence/settings_guard.txt" || { echo "the guard excerpt lost its PGC_SUSET definition" >&2; exit 1; }
 grep -q '^sys.guard_status(): t$' "$OUT/evidence/settings_guard.txt" || { echo "the settings guard is not loaded in $DB" >&2; exit 1; }
 
 # monitoring: rules, their unit tests, and promtool's verdict when promtool is installed

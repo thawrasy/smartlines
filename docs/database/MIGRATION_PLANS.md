@@ -260,6 +260,36 @@ whole copy. It is therefore never applied to a live database as a routine upgrad
 Dated reports at 1x, 2x and 5x the expected volume (`generate_volume.py`) are the evidence the gate asks for
 (`evidence/migration_rehearsal_staging_1064_<scale>_<date>.json`).
 
+**Measured (18 October 2026, independent review round 9, MAN P1; 4 cores, 15 GB, PostgreSQL 16 with 128 MB shared
+buffers, local disk).** A database built to 1063 with 1,000,000 bookings (477 MB with indexes; the child tables empty,
+so the foreign-key validation of the children is not in the figure), 1064 applied alone in one transaction:
+
+| Bookings | Lock held (whole file) | WAL written | Result |
+|---|---|---|---|
+| 1,000,000 | 33.5 s | 1.18 GB | 3 partitions of 10 million ids, every booking in `booking_p0000` |
+
+So the budget is about **35 s per million bookings, plus the validation of each child table** (tickets, passengers,
+payments: a scan of each), and about 1.2 GB of WAL per million that the standby and the archive must take. A
+database still before its first sale applies it in under a second. With bookings held, 1064 is above the 2 s stop
+criterion from the first tens of thousands of rows, so it always runs in the maintenance window below.
+
+### The maintenance window for 1064 (and any file that rewrites a large table)
+
+| When | Step | Who | Done when |
+|---|---|---|---|
+| T-7 days | Rehearse on a restored copy of production (`migration_rehearsal.py --base 1063`, or the steps above on the copy) and size the window: measured time x 1.5, at least 30 minutes | Database lead | Report filed under `evidence/`, window approved by the owner |
+| T-3 days | Announce the window to carriers, stations and agencies (no sales, boarding by offline lists) | Operations | Notice sent; offline manifests downloadable |
+| T-60 min | Fresh pgBackRest full backup, archive check (`deploy/pitr/check-archive.sh`), disk free for 2x the table and its WAL | On-call engineer | Backup label and free space recorded |
+| T-15 min | Stop selling: API servers out of HAProxy, maintenance page on; wait for holds to expire | On-call engineer | No session of `masslak_api` in `pg_stat_activity` |
+| T-5 min | Record counts: bookings, tickets, ledger transactions; `fin.reconcile_wallets()` with zero mismatches | Database lead | Counts in the change record |
+| T0 | `MASSLAK_STATEMENT_TIMEOUT=<window> db/upgrade.sh masslak` | Database lead | Exit 0 |
+| T+ | Same counts, reconciliation zero, partitioned-bookings checks of `db/tests/run_tests.sql`, one booking end to end on staging credentials | Database lead + QA | All equal; booking confirmed and boarded |
+| T+ | API servers back in HAProxy, maintenance page off, notice of reopening | Operations | `/api/ready` true on every server |
+
+**No-go** (stop before T0 and move the window): the backup or the archive check fails, the rehearsal is older than the
+data it was sized on by more than 20 %, or the standby is not streaming. **Abort during T0**: cancel the statement; the
+file runs in one transaction, so the table is as it was and sales reopen on the previous release.
+
 ## 1070: late partitions moved out of the default partition (R-06)
 
 `sys.create_partition` detaches the default partition, copies one period's rows into the new partition and deletes them
@@ -271,5 +301,8 @@ the rows that piled up in the default partition, which is why the monitoring pag
 - **After an outage of the upkeep** (rows in the default partition): run the upkeep by hand outside peak hours. Above
   about 200,000 rows in one period, move them in batches first (`INSERT ... SELECT ... LIMIT 10000` into a staging table
   and `DELETE` the same keys, repeated), then let `sys.create_partition` attach the period with few rows left.
-- **Measure** the move time per 100,000 rows on staging with a filled default partition (the database checks of 1070
-  build one) and record it here before the first production upkeep after an outage.
+- **Measured** (18 October 2026, same machine as the 1064 figures): `sys.create_partition` on `ops.geo_event` moved
+  100,000 rows in 0.6 s and 500,000 rows in 3.2 s, about **0.65 s per 100,000 narrow rows** while the parent's lock is
+  held. Wider rows (ledger entries, audit rows) cost more; rehearse on staging with that table filled before the first
+  production upkeep after an outage, and use the batches above whenever the estimate passes the 2 s stop criterion
+  (about 300,000 rows).

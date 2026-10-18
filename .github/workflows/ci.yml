@@ -80,6 +80,8 @@ jobs:
         run: python3 db/tools/gen_docs.py --check upgrade_check -h localhost -U postgres
       - name: No new two-way module dependency or table cycle without a recorded reason
         run: python3 db/tools/schema_dependencies.py upgrade_check -h localhost -U postgres
+      - name: Architecture fitness (no new foreign key without an index, no privilege change outside the baseline, nothing granted to PUBLIC, every table classified)
+        run: python3 db/tools/fitness.py upgrade_check -h localhost -U postgres
 
   warehouse:
     # Review stage D3: a primary with logical WAL streams facts and dimensions to a separate warehouse, without
@@ -328,6 +330,30 @@ jobs:
         with: { name: evidence-pack-reviewer, path: "${{ runner.temp }}/masslak-evidence-reviewer-*.tar.gz", retention-days: 90 }
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with: { name: evidence-pack-full, path: "${{ runner.temp }}/masslak-evidence-full-*.tar.gz", retention-days: 90 }
+
+  evidence-verify:
+    # Independent review, round 9 (Team R-24): the pack must not be the only witness of itself. Another job, on another
+    # runner, with no database and nothing from the build but the published archive, recomputes what the pack claims
+    # from its raw files (db/tools/verify_pack.py) and publishes the verdict next to it. A release signs that verdict.
+    name: Evidence pack verified apart from its build
+    needs: evidence
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with: { sparse-checkout: db/tools/verify_pack.py, sparse-checkout-cone-mode: false }
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with: { name: evidence-pack-reviewer, path: "${{ runner.temp }}/pack" }
+      - name: Recompute the pack's claims from its raw files
+        run: |
+          cd "$RUNNER_TEMP/pack"
+          tarball="$(ls masslak-evidence-reviewer-*.tar.gz)"
+          mkdir unpacked && tar -xzf "$tarball" -C unpacked
+          dir="$(ls -d unpacked/*/)"
+          python3 "$GITHUB_WORKSPACE/db/tools/verify_pack.py" "$dir" --out VERIFIED.txt
+          { echo "archive: $tarball"; echo "sha256: $(sha256sum "$tarball" | cut -d' ' -f1)"; echo "run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"; } >> VERIFIED.txt
+          cat VERIFIED.txt >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with: { name: evidence-pack-verified, path: "${{ runner.temp }}/pack/VERIFIED.txt", retention-days: 90 }
 
   web:
     name: Web build
@@ -795,7 +821,17 @@ jobs:
           dc="sudo docker compose --env-file deploy/.env"
           test "$(cat /tmp/masslak-killed)" = "$PRIMARY_BEFORE"
           sudo docker start "masslak-$PRIMARY_BEFORE-patroni-1"
-          roles="$(./deploy/production/ci/roles.sh 180)"; eval "$roles"
+          # the old primary rewinds, then replays to a consistent point: wait while its replay moves (up to 10 minutes),
+          # not a fixed time, and say what it was doing when it stopped
+          last="" still=0
+          for i in $(seq 300); do
+            roles="$(./deploy/production/ci/roles.sh 0 2>/dev/null)" && break
+            now="$(curl -s --max-time 3 --cacert deploy/production/tls/ca.crt "https://$(test "$PRIMARY_BEFORE" = db1 && echo 10.77.0.11 || echo 10.77.0.12):8008/patroni" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("state"), d.get("xlog", {}).get("replayed_location"), d.get("xlog", {}).get("received_location"))' 2>/dev/null || echo unreachable)"
+            if [ "$now" = "$last" ]; then still=$((still + 1)); else still=0; last="$now"; echo "old primary: $now"; fi
+            [ "$still" -lt 60 ] || { echo "the old primary made no progress for 120 s: $now"; exit 1; }
+            sleep 2
+          done
+          roles="$(./deploy/production/ci/roles.sh 0)"; eval "$roles"
           test "$STANDBY" = "$PRIMARY_BEFORE"
           $dc exec -T db masslak-patroni cluster
           $dc exec -T db masslak-patroni durability on | grep -q 'synchronous_mode_strict=True'
@@ -825,6 +861,16 @@ jobs:
         run: |
           sudo docker compose --env-file deploy/.env logs --tail 150
           for i in 1 2; do sudo docker logs --tail 150 "masslak-db$i-patroni-1"; sudo docker logs --tail 40 "masslak-db$i-etcd-1"; done
+          # the whole log of each member, and its PostgreSQL log, as an artifact: the tail above can miss the rewind
+          mkdir -p ha-logs
+          for i in 1 2; do
+            sudo docker logs "masslak-db$i-patroni-1" > "ha-logs/db$i-patroni.log" 2>&1 || true
+            sudo docker exec "masslak-db$i-patroni-1" sh -c 'cat /var/lib/postgresql/data/log/* /var/log/pgbackrest/* 2>/dev/null' > "ha-logs/db$i-postgres.log" 2>&1 || true
+          done
+      - name: The members' whole logs
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with: { name: ha-member-logs, path: ha-logs, if-no-files-found: ignore }
 
   security:
     name: Security and policy checks
@@ -847,6 +893,10 @@ jobs:
         run: python scripts/pin_images.py
       - name: Language policy (English code, data and docs; Arabic only in locale files)
         run: python scripts/check_language.py
+      - name: One version for the release (VERSION and the versions the schema files record, independent review round 9)
+        run: python scripts/check_release.py
+      - name: Visual identity (contrast of the promised colour pairs in both themes; web and mobile themes use the tokens)
+        run: python scripts/check_design_tokens.py
       - name: Lint the API and its tests (ruff)
         run: ruff check backend/app backend/tests
       - name: Static analysis of the API (bandit)

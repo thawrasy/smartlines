@@ -34,6 +34,16 @@ esac
 [ -n "$(value MASSLAK_BACKUP_OFFSITE)" ] || gap "MASSLAK_BACKUP_OFFSITE is missing: every backup is copied off this server before an update"
 case "$(value MASSLAK_BACKUP_AGE_RECIPIENT)" in age1*) ;; *) gap "MASSLAK_BACKUP_AGE_RECIPIENT is missing: backups are written encrypted" ;; esac
 
+# the code is a release (independent review, round 9): a checkout stands on the tag VERSION names, never on a work
+# branch; a signed archive records the same version in RELEASE
+want="v$(cat ../../VERSION 2>/dev/null)"
+if [ -d ../../.git ]; then
+  git -c safe.directory="$(cd ../.. && pwd)" -C ../.. tag --points-at HEAD 2>/dev/null | grep -qx "$want" \
+    || gap "this checkout is not the release $want: a production server runs a release tag, never a work branch (git checkout $want)"
+elif [ -s ../../RELEASE ]; then
+  grep -qx "version=$want" ../../RELEASE || gap "the archive's RELEASE does not record version=$want (VERSION)"
+fi
+
 # the release's signed images (H-08): IMAGES names them by digest, cosign checks their signatures before they run
 command -v cosign >/dev/null || gap "cosign is not installed: a production server checks the signature of every image it runs (https://docs.sigstore.dev/cosign/system_config/installation/)"
 images="${MASSLAK_IMAGES:-IMAGES}"; case "$images" in /*) ;; *) images="../../$images" ;; esac

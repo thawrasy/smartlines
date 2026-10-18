@@ -39,7 +39,8 @@ minutes.
 - **Patroni** (in the production database image; `deploy/production/db/patroni.yml`) holds the leader key in etcd.
   When the primary stops renewing it (ttl 30 s), the synchronous standby is promoted. `synchronous_mode` makes it
   confirm every commit, so the promoted host has every booking and payment the clients were told about.
-  `use_pg_rewind` lets the old primary rejoin as the standby without a full copy. What happens while the standby is
+  `use_pg_rewind` lets the old primary rejoin as the standby without a full copy; its `restore_command`
+  (pgBackRest `archive-get`) lets it take WAL the new primary no longer holds from the archive. What happens while the standby is
   down is the owner's setting (decision 1, `MASSLAK_ZERO_DATA_LOSS`, applied by `deploy/durability.sh` through
   Patroni's REST API): `on` sets `synchronous_mode_strict`, and commits wait rather than be confirmed without a copy
   (`CommitsWaitingForStandby`); `off` lets Patroni drop to asynchronous so bookings continue (`NoSynchronousStandby`).
