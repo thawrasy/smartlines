@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useI18n } from "../../i18n";
 import { api } from "../../platform/api";
-import { Button, Card, CarrierName, Chip, ErrorText, Loading, Screen, Title, s } from "../../ui/kit";
-import { color } from "../../ui/theme";
+import { Button, Card, CarrierName, Chip, ErrorText, Loading, Screen, s } from "../../ui/kit";
+import { color, font } from "../../ui/theme";
+import { Icon, TripLine } from "../../ui/brand";
 import { useLoad } from "../../ui/useLoad";
 import { Connections } from "../../ui/connections";
 import { canFollow, parseLegs, parsePicked, pickedParam, rememberTrip, rememberedTrip, type JourneyKind } from "../../core/journey";
@@ -20,8 +21,11 @@ type Stops = "all" | "direct" | "stops";
 // leaves before the one chosen before it arrives cannot be chosen. Every list shows all trips, direct ones or ones with stops;
 // below them the connections through a city on the way (1130), at once where no trip runs, on request otherwise.
 export default function Results() {
-  const { t, money, time, date } = useI18n();
-  const p = useLocalSearchParams<{ origin?: string; destination?: string; on?: string; passengers: string; kind?: string; legs?: string; picked?: string }>();
+  const { t, money, time, date, city } = useI18n();
+  const p = useLocalSearchParams<{ origin?: string; destination?: string; on?: string; passengers: string; kind?: string; legs?: string; picked?: string;
+                                   laps?: string; brand?: string; points?: string }>();
+  // the booking card's choices travel on to the checkout: lap infants, the class (fare brand) and paying with points
+  const carry = { ...(p.laps ? { laps: p.laps } : {}), ...(p.brand ? { brand: p.brand } : {}), ...(p.points ? { points: p.points } : {}) };
   const legs = parseLegs(p.legs);
   const journey = legs.length > 0;
   const kind = (p.kind ?? "MULTI_CITY") as JourneyKind;
@@ -35,23 +39,28 @@ export default function Results() {
   const previous = picked.length ? rememberedTrip(picked[picked.length - 1].uid) : undefined;
   const choose = (x: Result) => {
     if (!journey) {
-      router.push({ pathname: "/trip/[uid]", params: { uid: x.uid, from_seq: String(x.from_seq), to_seq: String(x.to_seq), passengers: p.passengers } });
+      router.push({ pathname: "/trip/[uid]", params: { uid: x.uid, from_seq: String(x.from_seq), to_seq: String(x.to_seq), passengers: p.passengers, ...carry } });
       return;
     }
     rememberTrip({ uid: x.uid, code: x.trip_code ?? x.trip_no, departs_at: x.departs_at, arrives_at: x.arrives_at });
     const next = [...picked, { uid: x.uid, from: x.from_seq, to: x.to_seq }];
     if (next.length >= legs.length) {
-      router.push({ pathname: "/journey", params: { kind, legs: p.legs!, picked: pickedParam(next), passengers: p.passengers } });
+      router.push({ pathname: "/journey", params: { kind, legs: p.legs!, picked: pickedParam(next), passengers: p.passengers, ...carry } });
     } else {
       router.setParams({ picked: pickedParam(next) });
     }
   };
   return (
     <Screen>
-      <Title sub={`${date(`${on}T12:00:00Z`)} · ${p.passengers} × ${t("common.passengers")}`}>
-        {t(`city.${origin}`)} → {t(`city.${destination}`)}
-      </Title>
-      <Button kind="text" label={t("common.back")} onPress={() => router.back()} />
+      <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel={t("common.back")} hitSlop={12} style={{ alignSelf: "flex-start" }}>
+        <Icon name="back" size={26} tint={color.primary} mirror />
+      </Pressable>
+      <View style={s.between} accessibilityRole="header">
+        <Text style={rs.city}>{city(origin)}</Text>
+        <TripLine width={90} height={16} />
+        <Text style={rs.city}>{city(destination)}</Text>
+      </View>
+      <Text style={s.muted}>{date(`${on}T12:00:00Z`)} · {p.passengers} × {t("common.passengers")}</Text>
       {journey ? (
         <Card>
           <Text style={s.h2}>{t(`jrn.mode.${kind}`)} · {t("jrn.legOf", { n: picked.length + 1, of: legs.length })}</Text>
@@ -74,7 +83,7 @@ export default function Results() {
           <Pressable key={k} onPress={() => setStops(k)} accessibilityRole="radio" accessibilityState={{ checked: stops === k }}
                      style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1,
                               borderColor: stops === k ? color.primary : color.outline, backgroundColor: stops === k ? color.primarySoft : color.surface }}>
-            <Text>{t(`jrn.filter.${k}`)}</Text>
+            <Text style={{ fontFamily: stops === k ? font.semibold : font.body, color: stops === k ? color.primary : color.text }}>{t(`jrn.filter.${k}`)}</Text>
           </Pressable>
         ))}
       </View>
@@ -86,11 +95,24 @@ export default function Results() {
         return (
           <Pressable key={`${x.uid}:${x.from_seq}`} disabled={!can} accessibilityRole="button" onPress={() => choose(x)}>
             <Card style={{ opacity: can ? 1 : 0.5 }}>
+              {/* departure and arrival joined by the trip line (identity 1.2): blue origin, straight route, green arrival */}
               <View style={s.between}>
-                <Text style={s.h2}>{time(x.departs_at)} → {time(x.arrives_at)}</Text>
-                <Text style={[s.h2, { color: "#0A5BD3" }]}>{money(x.price)}</Text>
+                <View style={{ alignItems: "center" }}>
+                  <Text style={rs.time}>{time(x.departs_at)}</Text>
+                  <Text style={s.small} numberOfLines={1}>{city(origin)}</Text>
+                </View>
+                <View style={{ flex: 1, alignItems: "center", paddingHorizontal: 8 }}>
+                  <TripLine width={110} height={16} stops={x.stops_between ? Math.min(x.stops_between, 3) : 0} />
+                </View>
+                <View style={{ alignItems: "center" }}>
+                  <Text style={rs.time}>{time(x.arrives_at)}</Text>
+                  <Text style={s.small} numberOfLines={1}>{city(destination)}</Text>
+                </View>
               </View>
-              <Text style={s.muted}>{x.from_station} → {x.to_station}</Text>
+              <View style={s.between}>
+                <Text style={s.small} numberOfLines={1}>{x.from_station} · {x.to_station}</Text>
+                <Text style={rs.price}>{money(x.price)}</Text>
+              </View>
               <View style={s.row}>
                 <CarrierName name={x.carrier_name} uid={x.carrier_uid} logo={x.carrier_logo} />
                 <Chip tone="blue" label={x.trip_code ?? x.trip_no} />
@@ -110,3 +132,9 @@ export default function Results() {
     </Screen>
   );
 }
+
+const rs = StyleSheet.create({
+  time: { fontFamily: font.displayBold, fontSize: 24, color: color.navy },
+  city: { fontFamily: font.displayBold, fontSize: 26, color: color.navy },
+  price: { fontFamily: font.displayBold, fontSize: 20, color: color.primary },
+});

@@ -33,7 +33,7 @@ const minExpiry = (d: Docs) => { const x = new Date(`${d.departs}T12:00:00Z`); x
 
 export default function Journey() {
   const { t, money, time, date } = useI18n();
-  const p = useLocalSearchParams<{ kind: string; legs: string; picked: string; passengers: string }>();
+  const p = useLocalSearchParams<{ kind: string; legs: string; picked: string; passengers: string; brand?: string }>();
   const kind = (p.kind ?? "ROUND_TRIP") as JourneyKind;
   const legs = parseLegs(p.legs);
   const picked = parsePicked(p.picked);
@@ -52,7 +52,7 @@ export default function Journey() {
   const [accepted, setAccepted] = useState(false);
   const [brandOf, setBrandOf] = useState<Record<number, string>>({});
   // a later trip of a connection takes a changeable fare unless its carrier changes a missed trip free
-  const brandFor = (i: number, d?: Detail) => brandOf[i] ?? (i > 0 && d?.connection_policy?.missed_connection !== "FREE_CHANGE" ? "FLEX" : "STANDARD");
+  const brandFor = (i: number, d?: Detail) => brandOf[i] ?? (i > 0 && d?.connection_policy?.missed_connection !== "FREE_CHANGE" ? "FLEX" : p.brand ?? "STANDARD");
   const nat = (x: Person) => (x.syrian ? "SY" : x.country);
   const nats = useMemo(() => [...new Set(["SY", ...people.map(nat)])].filter((c) => /^[A-Z]{2}$/.test(c)), [people]);
   // the documents a nationality needs: those of the first international trip of the journey, where there is one
@@ -84,7 +84,7 @@ export default function Journey() {
     try {
       const out = await api.post<Out>("/api/journeys", {
         kind, legs: picked.map((x, i) => ({ trip_uid: x.uid, from_seq: x.from, to_seq: x.to, ...(connection ? { fare_brand: brandFor(i, trips.data?.[i]) } : {}) })),
-        idempotency_key: key.current, pay_with: payWith, ...(connection ? { accept_risks: accepted } : {}),
+        idempotency_key: key.current, pay_with: payWith, ...(p.brand ? { fare_brand: p.brand } : {}), ...(connection ? { accept_risks: accepted } : {}),
         passengers: people.map((x) => {
           const d = docs[nat(x)];
           return { nationality: nat(x), first_name: x.first_name.trim(), last_name: x.last_name.trim(),

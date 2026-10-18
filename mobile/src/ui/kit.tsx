@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type TextInputProps, type TextStyle, type ViewStyle } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { color, radius, space } from "./theme";
+import { color, font, radius, space } from "./theme";
 import { useI18n } from "../i18n";
 import { ApiError } from "../platform/api";
 import { API_URL } from "../platform/config";
@@ -28,15 +28,15 @@ export function Card({ children, style }: { children: ReactNode; style?: ViewSty
   return <View style={[s.card, style]}>{children}</View>;
 }
 
-export function Button({ label, onPress, kind = "primary", disabled, busy }: {
-  label: string; onPress: () => void; kind?: "primary" | "tonal" | "text" | "danger"; disabled?: boolean; busy?: boolean;
+export function Button({ label, onPress, kind = "primary", disabled, busy, icon }: {
+  label: string; onPress: () => void; kind?: "primary" | "tonal" | "text" | "danger"; disabled?: boolean; busy?: boolean; icon?: ReactNode;
 }) {
   const bg = kind === "primary" ? color.primary : kind === "tonal" ? color.primarySoft : kind === "danger" ? color.errorSoft : "transparent";
   const fg = kind === "primary" ? "#fff" : kind === "danger" ? color.error : color.primary;
   return (
     <Pressable accessibilityRole="button" accessibilityState={{ disabled: !!disabled || !!busy }} disabled={disabled || busy}
                onPress={onPress} style={({ pressed }) => [s.button, { backgroundColor: bg, opacity: disabled ? 0.5 : pressed ? 0.85 : 1 }]}>
-      {busy ? <ActivityIndicator color={fg} /> : <Text style={[s.buttonText, { color: fg }]}>{label}</Text>}
+      {busy ? <ActivityIndicator color={fg} /> : <>{icon}<Text style={[s.buttonText, { color: fg }]}>{label}</Text></>}
     </Pressable>
   );
 }
@@ -89,18 +89,20 @@ export function Loading() {
   return <View style={{ padding: 40, alignItems: "center" }}><ActivityIndicator color={color.primary} /></View>;
 }
 
+// Type follows the identity: Readex Pro for titles and figures, IBM Plex Sans Arabic for text and labels (theme.font).
 export const s = StyleSheet.create({
-  title: { fontSize: 26, fontWeight: "700", color: color.navy },
-  h2: { fontSize: 18, fontWeight: "600", color: color.text },
-  muted: { color: color.muted, fontSize: 15 },
-  small: { color: color.muted, fontSize: 13 },
-  label: { color: color.text, fontSize: 14, fontWeight: "500" },
-  card: { backgroundColor: color.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: color.outline, padding: space(4), gap: space(3) },
-  button: { minHeight: 52, borderRadius: radius.md, alignItems: "center", justifyContent: "center", paddingHorizontal: space(4) },
-  buttonText: { fontSize: 16, fontWeight: "600" },
-  input: { minHeight: 52, borderRadius: radius.md, borderWidth: 1, borderColor: color.outline, backgroundColor: color.surface,
-           paddingHorizontal: space(4), fontSize: 16, color: color.text, textAlign: "auto" },
-  chip: { alignSelf: "flex-start", flexShrink: 0, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, fontSize: 13, fontWeight: "600", overflow: "hidden" },
+  title: { fontSize: 28, fontFamily: font.displayBold, color: color.navy },
+  h2: { fontSize: 18, fontFamily: font.display, color: color.text },
+  muted: { color: color.muted, fontSize: 15, fontFamily: font.body },
+  small: { color: color.muted, fontSize: 13, fontFamily: font.body },
+  label: { color: color.text, fontSize: 14, fontFamily: font.medium },
+  card: { backgroundColor: color.surface, borderRadius: radius.md, padding: space(4), gap: space(3),
+          shadowColor: "#0F1B2D", shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 1 },
+  button: { minHeight: 52, borderRadius: radius.sm, alignItems: "center", justifyContent: "center", paddingHorizontal: space(4), flexDirection: "row", gap: 10 },
+  buttonText: { fontSize: 17, fontFamily: font.display },
+  input: { minHeight: 52, borderRadius: radius.sm, borderWidth: 1, borderColor: color.outline, backgroundColor: color.surface,
+           paddingHorizontal: space(4), fontSize: 16, fontFamily: font.body, color: color.text, textAlign: "auto" },
+  chip: { alignSelf: "flex-start", flexShrink: 0, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, fontSize: 13, fontFamily: font.semibold, overflow: "hidden" },
   row: { flexDirection: "row", alignItems: "center", gap: space(2) },
   between: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: space(2) },
 });
@@ -119,7 +121,7 @@ export function Choice<T extends string | number>({ label, options, value, onCha
             <Pressable key={String(o.value)} accessibilityRole="button" accessibilityState={{ selected: on }} onPress={() => onChange(o.value)}
                        style={{ paddingHorizontal: 14, paddingVertical: 9, borderRadius: 999, borderWidth: 1,
                                 borderColor: on ? color.primary : color.outline, backgroundColor: on ? color.primary : color.surface }}>
-              <Text style={{ color: on ? "#fff" : color.text, fontWeight: on ? "600" : "400" }}>{o.label}</Text>
+              <Text style={{ color: on ? "#fff" : color.text, fontFamily: on ? font.semibold : font.body }}>{o.label}</Text>
             </Pressable>
           );
         })}

@@ -57,7 +57,8 @@ const fromMember = (m: Member): Names => ({
 
 export default function Trip() {
   const { t, money, time } = useI18n();
-  const p = useLocalSearchParams<{ uid: string; from_seq: string; to_seq: string; passengers: string }>();
+  const p = useLocalSearchParams<{ uid: string; from_seq: string; to_seq: string; passengers: string; laps?: string; brand?: string; points?: string }>();
+  const brand = p.brand || "STANDARD";               // the class chosen on the booking card
   const max = Number(p.passengers) || 1;
   const detail = useLoad(() => api.get<Detail>(`/api/trips/${p.uid}?from_seq=${p.from_seq}&to_seq=${p.to_seq}`), [p.uid, p.from_seq, p.to_seq]);
   const wallet = useLoad(() => api.get<{ balance: number }>("/api/wallet"));
@@ -67,7 +68,7 @@ export default function Trip() {
   const [selected, setSelected] = useState<number[]>([]);
   const [hold, setHold] = useState<{ hold_token: string; expires_at: string } | null>(null);
   const [names, setNames] = useState<Record<string, Names>>({});
-  const [laps, setLaps] = useState(0);                 // infants on an adult's lap: no seat
+  const [laps, setLaps] = useState(Math.min(Number(p.laps) || 0, max));   // infants on an adult's lap: no seat
   const [payFrom, setPayFrom] = useState<"WALLET" | "FAMILY_ACCOUNT">("WALLET");
   const [quote, setQuote] = useState<Quote | null>(null);
   const [quoteError, setQuoteError] = useState<unknown>(null);
@@ -124,7 +125,7 @@ export default function Trip() {
     const id = setTimeout(() => {
       const ps = keys.map((k) => { const x = names[k] ?? blank;
         return { seat_no: k.startsWith("s") ? Number(k.slice(1)) : null, nationality: x.syrian ? "SY" : x.country || "SY", birth_date: x.birth_date || null, family_member_uid: x.member_uid }; });
-      api.post<Quote>("/api/bookings/quote", { trip_uid: p.uid, from_seq: Number(p.from_seq), to_seq: Number(p.to_seq), passengers: ps, pay_from: payFrom })
+      api.post<Quote>("/api/bookings/quote", { trip_uid: p.uid, from_seq: Number(p.from_seq), to_seq: Number(p.to_seq), fare_brand: brand, passengers: ps, pay_from: payFrom })
         .then((q) => { setQuote(q); setQuoteError(null); }).catch((e) => { setQuote(null); setQuoteError(e); });
     }, 400);
     return () => clearTimeout(id);
@@ -143,7 +144,7 @@ export default function Trip() {
     setBusy(true); setError(null);
     try {
       const out = await api.post<{ booking_ref: string; status: string }>("/api/bookings", {
-        hold_token: hold.hold_token, trip_uid: p.uid, from_seq: Number(p.from_seq), to_seq: Number(p.to_seq), idempotency_key: idem.current,
+        hold_token: hold.hold_token, trip_uid: p.uid, from_seq: Number(p.from_seq), to_seq: Number(p.to_seq), fare_brand: brand, idempotency_key: idem.current,
         passengers: travellers(), pay_from: payFrom, pay_with: payFrom === "FAMILY_ACCOUNT" ? "WALLET" : chosen?.code ?? "WALLET",
       });
       if (out.status === "PENDING_PAYMENT") {
@@ -290,10 +291,46 @@ export default function Trip() {
           ) : null}
           {wallet.data && payFrom === "WALLET" && (familyPays || (chosen?.code ?? "WALLET") === "WALLET")
             ? <Text style={s.small}>{t("trip.balance", { amount: money(wallet.data.balance) })}</Text> : null}
+          {p.points === "1" && payFrom === "WALLET" && wallet.data ? (
+            <PointsToWallet need={Math.max(0, total - wallet.data.balance)} onDone={wallet.reload} />
+          ) : null}
           <Button label={familyPays ? t("trip.pay", { amount: money(total) }) : payLabel} busy={busy}
                   disabled={left === 0 || !quote || !keys.every((k) => complete(names[k])) || (!!opts.data && !chosen)} onPress={pay} />
         </>
       )}
     </Screen>
+  );
+}
+
+interface PointsView { program: { point_value: number; redeem: { min_points: number; step: number } | null } | null; account: { balance: number } | null }
+
+/** Booking with points (booking card, identity 1.2): the points the payment needs, within the balance and the programme's
+ * steps, are turned into wallet credit (1103) just before the wallet pays the booking. */
+function PointsToWallet({ need, onDone }: { need: number; onDone: () => void }) {
+  const { t, money } = useI18n();
+  const v = useLoad(() => api.get<PointsView>("/api/loyalty").catch(() => ({ program: null, account: null }) as PointsView));
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState<number | null>(null);
+  const [error, setError] = useState<unknown>(null);
+  const prog = v.data?.program, acc = v.data?.account;
+  if (!prog?.redeem || !acc || prog.point_value <= 0) return null;
+  const { min_points: min, step } = prog.redeem;
+  const wanted = Math.ceil(need / prog.point_value / step) * step;          // the points that cover what the wallet lacks
+  const n = Math.min(Math.floor(acc.balance / step) * step, Math.max(wanted, min));
+  const redeem = async () => {
+    setBusy(true); setError(null);
+    try {
+      const r = await api.post<{ value: number }>("/api/loyalty/redeem", { points: n, idempotency_key: randomUUID() });
+      setDone(r.value); v.reload(); onDone();
+    } catch (e) { setError(e); } finally { setBusy(false); }
+  };
+  return (
+    <Card>
+      <Text style={s.h2}>{t("book.pointsTitle")}</Text>
+      <Text style={s.small}>{t("book.pointsBalance", { points: acc.balance, amount: money(acc.balance * prog.point_value) })}</Text>
+      {done !== null ? <Notice tone="green" text={t("book.pointsUsed", { amount: money(done) })} />
+        : need > 0 && n >= min ? <Button kind="tonal" label={t("book.pointsUse", { points: n })} busy={busy} onPress={redeem} /> : null}
+      <ErrorText error={error} />
+    </Card>
   );
 }
