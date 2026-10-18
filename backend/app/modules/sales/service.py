@@ -755,10 +755,19 @@ async def offline_credential(conn: asyncpg.Connection, ctx: db.Context, ticket_u
     async with db.system_scope(conn, ctx):
         k = await conn.fetchrow(
             """SELECT k.uid, k.status, k.seat_no, k.from_seq, k.to_seq, t.uid AS trip_uid, t.arrival_at, t.trip_no, t.trip_code,
-                      t.departure_at, p.first_name, p.last_name, p.full_name,
+                      t.departure_at, p.first_name, p.last_name, p.full_name, k.fare_brand_code, b.booking_ref,
                       (SELECT s ->> 'label' FROM jsonb_array_elements(t.seat_map -> 'seats') s
-                        WHERE (s ->> 'n')::int = k.seat_no) AS seat_label
+                        WHERE (s ->> 'n')::int = k.seat_no) AS seat_label,
+                      a.sched_dep AS departs_at, sa.code AS from_station, ca.code AS from_city, sa.lead_min,
+                      z.sched_arr AS arrives_at, sb.code AS to_station, cb.code AS to_city,
+                      cp.legal_name AS carrier_name, cp.uid AS carrier_uid, iam.logo_version(cp.id) AS carrier_logo,
+                      (SELECT g.code FROM net.station_gate g WHERE g.id = brd.stop_bay_id(k.trip_id, k.from_seq)) AS bay
                  FROM sales.ticket k JOIN ops.trip t ON t.id = k.trip_id JOIN sales.passenger p ON p.id = k.passenger_id
+                 JOIN sales.booking b ON b.id = k.booking_id JOIN iam.party cp ON cp.id = b.company_id
+                 JOIN ops.trip_stop a ON a.trip_id = k.trip_id AND a.seq = k.from_seq
+                 JOIN net.station sa ON sa.id = a.station_id JOIN ref.city ca ON ca.id = sa.city_id
+                 JOIN ops.trip_stop z ON z.trip_id = k.trip_id AND z.seq = k.to_seq
+                 JOIN net.station sb ON sb.id = z.station_id JOIN ref.city cb ON cb.id = sb.city_id
                 WHERE k.uid = $1""", ticket_uid)
     if k is None:
         raise not_found("ticket")
@@ -768,7 +777,14 @@ async def offline_credential(conn: asyncpg.Connection, ctx: db.Context, ticket_u
     token = ticket_credential({"k": str(k["uid"]), "t": str(k["trip_uid"]), "s": k["seat_label"] or str(k["seat_no"]),
                                "n": ticket_name(k["first_name"], k["last_name"], k["full_name"]),
                                "a": k["from_seq"], "b": k["to_seq"], "x": expires})
-    return {"credential": token, "valid_until": expires, "trip_no": k["trip_no"], "trip_code": k["trip_code"]}
+    # what the ticket shows besides the code (the boarding pass design, identity 1.2); kept with the credential on the
+    # phone so the ticket reads the same offline. Only the credential is signed; these are for display.
+    shown = {f: k[f] for f in ("booking_ref", "from_city", "to_city", "from_station", "to_station", "carrier_name",
+                               "carrier_logo", "bay", "lead_min")}
+    shown.update(departs_at=k["departs_at"].isoformat() if k["departs_at"] else None,
+                 arrives_at=k["arrives_at"].isoformat() if k["arrives_at"] else None,
+                 carrier_uid=str(k["carrier_uid"]), fare_brand=k["fare_brand_code"], seat=k["seat_label"] or str(k["seat_no"]))
+    return {"credential": token, "valid_until": expires, "trip_no": k["trip_no"], "trip_code": k["trip_code"], "display": shown}
 
 
 async def cancel_booking(conn: asyncpg.Connection, ctx: db.Context, b: asyncpg.Record, buyer: Buyer,

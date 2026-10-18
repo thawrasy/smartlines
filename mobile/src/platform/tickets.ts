@@ -5,7 +5,14 @@ import { getJSON, putJSON } from "./secure";
 import { isFresh } from "../core/credentialFreshness";
 
 // verified_at: when the server last issued it, in epoch seconds (set here, not by the server)
-export interface SavedCredential { credential: string; valid_until: number; trip_no: string; trip_code?: string | null; verified_at?: number }
+export interface SavedCredential { credential: string; valid_until: number; trip_no: string; trip_code?: string | null; verified_at?: number;
+  display?: TicketDisplay }
+/** What the ticket shows besides the code, kept with it so the ticket reads the same offline (only the credential is signed). */
+export interface TicketDisplay {
+  booking_ref: string; from_city: string; to_city: string; from_station: string; to_station: string;
+  departs_at: string | null; arrives_at: string | null; carrier_name: string; carrier_uid: string; carrier_logo: string | null;
+  fare_brand: string; seat: string; bay: string | null; lead_min: number | null;
+}
 
 export async function saveCredential(ticketUid: string): Promise<SavedCredential> {
   const c = await api.get<Omit<SavedCredential, "verified_at">>(`/api/tickets/${ticketUid}/offline`);

@@ -3,14 +3,14 @@
 import { I18nManager, View } from "react-native";
 import Svg, { Circle, Line, Path, SvgXml } from "react-native-svg";
 import { useI18n } from "../i18n";
-import { LOCKUP_AR, LOCKUP_AR_RATIO, LOCKUP_AR_WHITE, LOCKUP_EN, LOCKUP_EN_RATIO } from "./logos";
+import { LOCKUP_AR, LOCKUP_AR_RATIO, LOCKUP_AR_WHITE, LOCKUP_EN, LOCKUP_EN_RATIO, LOCKUP_EN_WHITE } from "./logos";
 import { color } from "./theme";
 
 /** The lockup: Arabic only in the Arabic interface, English only in the English one. */
 export function Lockup({ height = 30, white = false }: { height?: number; white?: boolean }) {
   const { locale, t } = useI18n();
   const ar = locale === "ar";
-  const xml = ar ? (white ? LOCKUP_AR_WHITE : LOCKUP_AR) : LOCKUP_EN;
+  const xml = ar ? (white ? LOCKUP_AR_WHITE : LOCKUP_AR) : (white ? LOCKUP_EN_WHITE : LOCKUP_EN);
   const ratio = ar ? LOCKUP_AR_RATIO : LOCKUP_EN_RATIO;
   return (
     <View accessible accessibilityRole="image" accessibilityLabel={t("brand.name")}>
