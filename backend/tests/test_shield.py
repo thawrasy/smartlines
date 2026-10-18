@@ -12,8 +12,10 @@ from test_e2e import BASE, OWNER_URL, client, login, new_passenger, owner_sql
 
 # ------------------------------------------------------------------ firewall rules (no database)
 def test_ordinary_requests_pass_untouched():
-    for query in ("origin=DAM&destination=ALP&on=2026-10-19&passengers=2", "q=محطة دمشق المركزية", "name=O'Brien",
-                  "note=see you at 7:30; bring the ticket", "ref=TB7GXH-019&lang=ar"):
+    # the second query is an Arabic place-name search percent-encoded, which is how non-ASCII text arrives on the wire
+    for query in ("origin=DAM&destination=ALP&on=2026-10-19&passengers=2",
+                  "q=%D9%85%D8%AD%D8%B7%D8%A9%20%D8%AF%D9%85%D8%B4%D9%82%20%D8%A7%D9%84%D9%85%D8%B1%D9%83%D8%B2%D9%8A%D8%A9",
+                  "name=O'Brien", "note=see you at 7:30; bring the ticket", "ref=TB7GXH-019&lang=ar"):
         assert shield.inspect_line("GET", "/api/trips/search", query, {"user-agent": "Mozilla/5.0"}) is None, query
     body = b'{"first_name": "\xd8\xa3\xd8\xad\xd9\x85\xd8\xaf", "message": "The bus left at 07:30 & arrived late; please refund."}'
     assert shield.inspect_body("/api/support/cases", "application/json", body) is None
