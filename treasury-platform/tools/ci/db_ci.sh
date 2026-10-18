@@ -162,8 +162,8 @@ sq -d BankFas -i db/seed/101_iso_reference.sql >/dev/null
 sq -d BankFas -i db/seed/102_permissions.sql >/dev/null
 sq -d BankFas -i db/seed/103_lc_reference.sql >/dev/null
 seed_after="$(seed_state)"
-if [ "$seed_before" != "$seed_after" ] || [ "$seed_before" != "9/32/1/9/23/249/157/139/16/39/0" ]; then
-    echo "platform seed is not safe to run again, or incomplete: settings/jobs/plans/plan modules/reserved/countries/currencies/permissions/Incoterms/unverified UCP articles/updated before $seed_before, after $seed_after (expected 9/32/1/9/23/249/157/139/16/39/0)"
+if [ "$seed_before" != "$seed_after" ] || [ "$seed_before" != "9/32/1/9/23/249/157/140/16/39/0" ]; then
+    echo "platform seed is not safe to run again, or incomplete: settings/jobs/plans/plan modules/reserved/countries/currencies/permissions/Incoterms/unverified UCP articles/updated before $seed_before, after $seed_after (expected 9/32/1/9/23/249/157/140/16/39/0)"
     exit 1
 fi
 echo "platform seed unchanged on a second run ($seed_after)"
@@ -449,6 +449,26 @@ if [ "$rf_pass" -ne 43 ]; then
     exit 1
 fi
 echo "review fixes tests: $rf_pass passed"
+echo "== 19b. the financial statements module (db/tests/financial_statements_tests.sql, 045, ADR 0016)"
+sq -i db/tests/financial_statements_tests.sql > "$TMP/fin.out" 2>&1 || {
+    cat "$TMP/fin.out"
+    echo "financial statements test run failed"
+    exit 1
+}
+cat "$TMP/fin.out"
+if grep -qaE "$FAIL_RE" "$TMP/fin.out"; then
+    echo "a financial statements test failed"
+    exit 1
+fi
+fs_pass=$(grep -oaE "$PASS_RE" "$TMP/fin.out" | sort -u | wc -l)
+# 11 cases: FS1-FS3 consolidated and standalone statements and their life, FS4-FS5 the statements a test read and the
+# breach report, FS6-FS8 liquidity routed to the bank and its performance, FS9-FS10 analysis measures and revenue
+# estimates, FS11 the units of a consolidated statement (owner request of 2026-10-18).
+if [ "$fs_pass" -ne 11 ]; then
+    echo "expected 11 PASS, found $fs_pass"
+    exit 1
+fi
+echo "financial statements tests: $fs_pass passed"
 echo "== 20. SQL Server Audit and its AL-18 alerts (tools/deploy/server_audit.sh, tools/ci/server_audit_check.sh, ADR 0012)"
 SQL_SERVER="$SQL_SERVER" SQLCMD="$SQLCMD" AUDIT_SINCE="$audit_since" MIGRATOR_SECRET="$TMP/migrator/bankfas_migrator.secret" \
     bash tools/ci/server_audit_check.sh > "$TMP/server_audit.out" 2>&1 || {

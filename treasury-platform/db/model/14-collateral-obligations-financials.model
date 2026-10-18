@@ -366,6 +366,13 @@ table obl.CovenantTest public  # Covenant test for a period and test version; an
   check  Result NOT IN ('MANUAL_COMPLIANT','MANUAL_NON_COMPLIANT','UNDER_REVIEW') OR Method = 'MANUAL_STATUS'   # الوصفي (BR-OBL-008)
   check  Method <> 'MANUAL_STATUS' OR Result IS NULL OR Result IN ('MANUAL_COMPLIANT','MANUAL_NON_COMPLIANT','UNDER_REVIEW')
 
+table obl.CovenantTestStatement pk=CovenantTestId,StatementId norv append  # The statements an automatic evaluation read: written by the database from the test's snapshot, never by the application, so the breach report and a restatement find them by key (FR-FIN-017, BR-FIN-015)
+  CovenantTestId      ->obl.CovenantTest req
+  StatementId         ->fin.FinancialStatement req
+  StatementVersionNo  int        req   # الإصدار كما في اللقطة
+  Basis               enum{STANDALONE,CONSOLIDATED} req
+  index  StatementId include CovenantTestId   # الاختبارات التي قرأت قائمة: إعادة التقييم بعد إعادة العرض (FR-FIN-014)
+
 table obl.ObligationBreach public  # Breach record, its remedy and any waiver (FR-OBL-012, BR-OBL-009/011, section 8)
   ObligationRootId      bigint     req   # RootId of the obligation: the breach register follows it across revisions (DR-28, self-review B1)
   ObligationId          ->obl.Obligation req via=ObligationRootId>RootId
@@ -441,6 +448,8 @@ table fin.FinancialStatement public  # Financial statement header; highly confid
   CurrencyId        ->ref.Currency req
   UnitScale         int        req =1   # المدخل بوحدة 1/1000/1000000 والمخزَّن مضروب فيها (BR-FIN-002)
   AccountingStandard str(100)
+  AuditorName       str(200)         # مراجع الحسابات للقائمة المدققة أو المراجَعة (وحدة الميزانية، 2026-10-18)
+  AuditOpinion      enum{UNQUALIFIED,QUALIFIED,ADVERSE,DISCLAIMER}   # رأي المراجع للقائمة المدققة
   VersionNo         int        req =1
   VersionReason     enum{ORIGINAL,RESTATED,CORRECTION} req =ORIGINAL   # سبب الإصدار إلزامي (BR-FIN-004)
   SupersedesId      ->fin.FinancialStatement via=CompanyId,Basis,Assurance,PeriodType,PeriodEnd   # الإصدار السابق للشركة والسلسلة نفسها؛ المدققة لا تحل محل الإدارية (قرار المالك 2026-10-13، DR-34)
@@ -467,6 +476,9 @@ table fin.FinancialStatement public  # Financial statement header; highly confid
   check  SupersedesId IS NULL OR (VersionNo > 1 AND VersionReason <> 'ORIGINAL' AND SupersedesId <> FinancialStatementId)
   check  Status NOT IN ('SUBMITTED','APPROVED','SUPERSEDED') OR (PreparedBy IS NOT NULL AND PreparedOn IS NOT NULL)
   check  Status NOT IN ('APPROVED','SUPERSEDED') OR (ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)   # §8
+  check  ApprovedBy IS NULL OR PreparedBy IS NULL OR ApprovedBy <> PreparedBy   # المُعِدّ ≠ المعتمِد (FR-FIN-006)
+  check  Status = 'DRAFT' OR Assurance <> 'AUDITED' OR (AuditorName IS NOT NULL AND AuditOpinion IS NOT NULL)   # المدققة تُقدَّم بمراجعها ورأيه (BR-FIN-012)
+  check  AuditOpinion IS NULL OR Assurance = 'AUDITED'
 
 table fin.StatementLine  # Statement line in the header currency; stored value = input x UnitScale; Variance is derived; highly confidential (BR-FIN-001/002)
   StatementId        ->fin.FinancialStatement req
@@ -474,6 +486,60 @@ table fin.StatementLine  # Statement line in the header currency; stored value =
   EnteredAmount      money      sens=confidential   # الخانة الفارغة لغير الإلزامي تُحفظ صفرًا صريحًا عند التقديم (BR-FIN-002)
   ComputedAmount     money      sens=confidential   # للإجماليات
   unique StatementId,LineCatalogItemId
+
+table fin.ConsolidationMember  # A unit of a holding's consolidated statement: the parent, each subsidiary, associate and joint venture, with its method and ownership (FR-FIN-015, BR-FIN-013; owner request 2026-10-18)
+  StatementBasis    enum{CONSOLIDATED} req =CONSOLIDATED   # ثابت: الوحدات للقائمة الموحدة وحدها
+  StatementId       ->fin.FinancialStatement req via=StatementBasis>Basis
+  MemberCompanyId   ->org.Company req   # الوحدة شركة من شركات المشترك؛ القابضة نفسها PARENT
+  Role              enum{PARENT,SUBSIDIARY,ASSOCIATE,JOINT_VENTURE} req
+  Method            enum{FULL,EQUITY,PROPORTIONATE,NOT_CONSOLIDATED} req
+  OwnershipPct      rate             # نسبة الملكية الفعلية في نهاية الفترة؛ فارغة للقابضة
+  IncludedFrom      date             # دخول الوحدة خلال الفترة (استحواذ)
+  IncludedTo        date             # خروجها خلال الفترة (تخارج)
+  MemberStatementId ->fin.FinancialStatement via=MemberCompanyId>CompanyId   # القائمة المنفردة للوحدة للفترة نفسها، إن أُدخلت
+  Note              str(500)
+  unique StatementId,MemberCompanyId
+  unique StatementId where Role = 'PARENT'   # قابضة واحدة لكل قائمة موحدة
+  index  MemberCompanyId include StatementId,Role,Method   # القوائم الموحدة التي تدخلها الشركة
+  check  OwnershipPct IS NULL OR (OwnershipPct > 0 AND OwnershipPct <= 100)
+  check  (Role = 'PARENT' AND Method = 'FULL' AND OwnershipPct IS NULL) OR (Role <> 'PARENT' AND OwnershipPct IS NOT NULL)
+  check  Role <> 'SUBSIDIARY' OR Method IN ('FULL','NOT_CONSOLIDATED')
+  check  Role <> 'ASSOCIATE' OR Method IN ('EQUITY','NOT_CONSOLIDATED')
+  check  Role <> 'JOINT_VENTURE' OR Method IN ('EQUITY','PROPORTIONATE','NOT_CONSOLIDATED')
+  check  IncludedTo IS NULL OR IncludedFrom IS NULL OR IncludedTo >= IncludedFrom
+  check  MemberStatementId IS NULL OR Role <> 'PARENT'   # قائمة القابضة المنفردة لا تحل محل الموحدة
+
+table fin.StatementRatio  # An analysis measure computed on an approved statement, for the study of the balance sheet; written by the engine (FR-FIN-016, BR-FIN-014)
+  StatementId     ->fin.FinancialStatement req
+  FormulaId       ->fin.MeasureFormula req
+  ResultUnit      enum{RATIO,AMOUNT,PERCENT,DAYS} req   # وحدة الصيغة وقت الحساب
+  Status          enum{COMPUTED,NOT_COMPUTABLE} req
+  Value           dec(19,6)        # فارغ إن لم تُحسب (قسمة على صفر، بند ناقص)
+  Reason          str(300)         # سبب NOT_COMPUTABLE
+  InputsSnapshot  json       req   # البنود والإصدار المستعمَلان (على غرار BR-FIN-010)
+  ComputedAt      ts         req =SYSUTCDATETIME()
+  unique StatementId,FormulaId
+  index  FormulaId include StatementId,Value,Status   # مقارنة المقياس بين الشركات والفترات (R-FIN-05)
+  check  (Status = 'COMPUTED' AND Value IS NOT NULL AND Reason IS NULL) OR (Status = 'NOT_COMPUTABLE' AND Value IS NULL AND Reason IS NOT NULL)
+
+table fin.RevenueEstimate public  # Manual revenue estimate for a fiscal year, used by a revenue-share covenant with RevenueBasisRule MANUAL_ESTIMATE (Q-FIN-05, BR-FIN-008, self-review B4)
+  CompanyId     ->org.Company req
+  FiscalYear    int        req
+  Basis         enum{STANDALONE,CONSOLIDATED} req
+  Amount        money      req
+  CurrencyId    ->ref.Currency req
+  BasisNote     str(500)   req   # مصدر التقدير (موازنة معتمدة، توقع الإدارة...)
+  DocumentId    ->doc.Document
+  Status        enum{DRAFT,APPROVED,SUPERSEDED} req =DRAFT
+  PreparedBy    ->sec.AppUser
+  ApprovedBy    ->sec.AppUser
+  ApprovedOn    ts
+  unique PublicId
+  unique CompanyId,FiscalYear,Basis where Status = 'APPROVED'   # تقدير معتمد واحد لكل سنة وأساس
+  check  Amount > 0
+  check  FiscalYear BETWEEN 1900 AND 2200
+  check  Status = 'DRAFT' OR (ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)
+  check  ApprovedBy IS NULL OR PreparedBy IS NULL OR ApprovedBy <> PreparedBy
 
 table fin.AccountMonthlyStat public  # Monthly balance of an account in the account currency (FR-FIN-008, BR-FIN-005/006, V-FIN-02)
   BankAccountId     ->acc.BankAccount req
@@ -496,27 +562,36 @@ table fin.BankFlowEntry public  # Amount transferred to the bank in a month; ann
   InstitutionId ->ins.Institution req
   FacilityId    ->fac.Facility
   MonthEnd      date       req
-  FlowKindId    ->cat.LookupItem req   # قائمة FLOW_KIND؛ الافتراضي التطبيقي TRANSFERRED_TO_BANK
+  FlowKindListCode ascii(80) req =FLOW_KIND   # ثابت: البند من قائمة FLOW_KIND وحدها (المراجعة الذاتية B7f)
+  FlowKindListId ->cat.LookupList req via=FlowKindListCode>Code noidx
+  FlowKindId    ->cat.LookupItem req via=FlowKindListId>LookupListId   # الافتراضي التطبيقي TRANSFERRED_TO_BANK
   Amount        money      req
   CurrencyId    ->ref.Currency req
   BasisNote     str(500)         # أساس الاحتساب بنص حر (03 §3.3)
   DocumentId    ->doc.Document
+  Status        enum{DRAFT,CONFIRMED} req =DRAFT   # المؤكَّد وحده يقيس الأداء (FR-FIN-018)
+  EnteredBy     ->sec.AppUser
+  ConfirmedBy   ->sec.AppUser
+  ConfirmedOn   ts
   unique PublicId
   unique CompanyId,InstitutionId,FacilityId,MonthEnd,FlowKindId   # تكرار (شركة، بنك، تسهيل، شهر) مرفوض (FR-FIN-009)
   check  DAY(DATEADD(DAY, 1, MonthEnd)) = 1   # نهاية الشهر فعلًا (DR-37)
   index  CompanyId,MonthEnd include InstitutionId,FacilityId,Amount,CurrencyId   # التجميع السنوي والإنجاز (R-FIN-03)
   check  Amount >= 0
+  check  FlowKindListCode = 'FLOW_KIND'
+  check  (Status = 'DRAFT' AND ConfirmedBy IS NULL AND ConfirmedOn IS NULL) OR (Status = 'CONFIRMED' AND ConfirmedBy IS NOT NULL AND ConfirmedOn IS NOT NULL)
+  check  ConfirmedBy IS NULL OR EnteredBy IS NULL OR ConfirmedBy <> EnteredBy   # المُدخِل ≠ المؤكِّد
 
 table fin.MeasureFormula src  # Measure formula: a template or a facility-agreement version with revisions; never executed as text (FR-FIN-011, BR-FIN-009, section 12)
   Code            ascii(60)  req
   NameAr          str(200)   req
   NameEn          str(200)
-  Scope           enum{TEMPLATE,FACILITY_COPY} req
+  Scope           enum{TEMPLATE,FACILITY_COPY,ANALYSIS} req   # ANALYSIS: مقياس لدراسة الميزانية لا لتعهد (FR-FIN-016)
   FacilityId      ->fac.Facility          # لنسخة الاتفاقية فقط؛ فارغ للقالب
   BaseTemplateId  ->fin.MeasureFormula    # القالب المنسوخ منه؛ كونه TEMPLATE يتحقق منه التطبيق
   Expression      str(2000)  req          # نحو مقيَّد يُحلَّل إلى شجرة (BR-FIN-009)
   InputKinds      set{STATEMENT,ACCOUNT_STATS,BANK_FLOWS} req
-  ResultUnit      enum{RATIO,AMOUNT,PERCENT} req   # على غرار Covenant.ThresholdUnit (المواصفة لا تعدّد القيم)؛ وحدة صيغة مستعملة لا تتغير (DR-38)
+  ResultUnit      enum{RATIO,AMOUNT,PERCENT,DAYS} req   # على غرار Covenant.ThresholdUnit (المواصفة لا تعدّد القيم)؛ وحدة صيغة مستعملة لا تتغير (DR-38)
   calc UsesStatements bool =CAST(CASE WHEN InputKinds LIKE '%STATEMENT%' THEN 1 ELSE 0 END AS BIT)   # تقرأ القوائم المالية (DR-38)
   DefinitionNote  str(1000)               # مثل: هل يشمل الدين التزامات الإيجار
   VersionNo       int        req =1
@@ -526,7 +601,8 @@ table fin.MeasureFormula src  # Measure formula: a template or a facility-agreem
   unique Code,FacilityId,VersionNo                         # فريد (Tenant,Code,Facility,VersionNo)
   unique Code,FacilityId where Status = 'APPROVED'         # معتمد واحد لكل (رمز، اتفاقية)؛ التعديل إصدار جديد
   index  FacilityId,Status include Code,VersionNo          # نسخ اتفاقية في مكتبة الصيغ (SCR-FIN-03)
-  check  Scope <> 'TEMPLATE' OR FacilityId IS NULL
+  check  Scope = 'FACILITY_COPY' OR FacilityId IS NULL
+  check  ResultUnit <> 'DAYS' OR Scope = 'ANALYSIS'   # أيام الدوران للتحليل وحده
   check  Scope <> 'FACILITY_COPY' OR FacilityId IS NOT NULL
   check  Scope = 'FACILITY_COPY' OR BaseTemplateId IS NULL
   check  BaseTemplateId IS NULL OR BaseTemplateId <> MeasureFormulaId

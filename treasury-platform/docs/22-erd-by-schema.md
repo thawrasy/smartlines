@@ -465,12 +465,13 @@ erDiagram
 | PromissoryNoteSigner | PartyId | pty.Party |
 | ValuationSchedule | CurrencyId | ref.Currency |
 
-## مخطط `obl` (8 جدولًا)
+## مخطط `obl` (9 جدولًا)
 
 ```mermaid
 erDiagram
   Covenant ||--o{ CovenantAccount : "CovenantId"
   Covenant ||--o{ CovenantTest : "CovenantId"
+  CovenantTest ||--o{ CovenantTestStatement : "CovenantTestId"
   CovenantTest ||--o{ ObligationBreach : "CovenantTestId"
   Obligation ||--o{ Covenant : "ObligationId"
   Obligation ||--o{ ObligationBreach : "ObligationId"
@@ -490,6 +491,7 @@ erDiagram
 | CovenantTest | EvidenceDocumentId | doc.Document |
 | CovenantTest | FormulaId | fin.MeasureFormula |
 | CovenantTest | ReviewedBy | sec.AppUser |
+| CovenantTestStatement | StatementId | fin.FinancialStatement |
 | Obligation | ConflictId | fac.ValueConflict |
 | Obligation | FacilityId | fac.Facility |
 | Obligation | ObligationTypeId | cat.ObligationType |
@@ -507,13 +509,17 @@ erDiagram
 | ReportingInstance | SubmissionChannelUsedId | cat.LookupItem |
 | ReportingObligation | SubmissionChannelId | cat.LookupItem |
 
-## مخطط `fin` (7 جدولًا)
+## مخطط `fin` (10 جدولًا)
 
 ```mermaid
 erDiagram
+  FinancialStatement ||--o{ ConsolidationMember : "MemberStatementId"
+  FinancialStatement ||--o{ ConsolidationMember : "StatementId"
   FinancialStatement ||--o{ StatementLine : "StatementId"
+  FinancialStatement ||--o{ StatementRatio : "StatementId"
   LineCatalogItem ||--o{ LineCatalogItemAlias : "LineCatalogItemId"
   LineCatalogItem ||--o{ StatementLine : "LineCatalogItemId"
+  MeasureFormula ||--o{ StatementRatio : "FormulaId"
 ```
 
 | الجدول | العمود | يشير إلى |
@@ -521,11 +527,15 @@ erDiagram
 | AccountMonthlyStat | BankAccountId | acc.BankAccount |
 | AccountMonthlyStat | DocumentId | doc.Document |
 | BankFlowEntry | CompanyId | org.Company |
+| BankFlowEntry | ConfirmedBy | sec.AppUser |
 | BankFlowEntry | CurrencyId | ref.Currency |
 | BankFlowEntry | DocumentId | doc.Document |
+| BankFlowEntry | EnteredBy | sec.AppUser |
 | BankFlowEntry | FacilityId | fac.Facility |
 | BankFlowEntry | FlowKindId | cat.LookupItem |
+| BankFlowEntry | FlowKindListId | cat.LookupList |
 | BankFlowEntry | InstitutionId | ins.Institution |
+| ConsolidationMember | MemberCompanyId | org.Company |
 | FinancialStatement | ApprovedBy | sec.AppUser |
 | FinancialStatement | CompanyId | org.Company |
 | FinancialStatement | CurrencyId | ref.Currency |
@@ -536,6 +546,11 @@ erDiagram
 | MeasureFormula | FacilityId | fac.Facility |
 | MeasureFormula | SourceDocumentId | doc.Document |
 | MeasureFormula | VerifiedBy | sec.AppUser |
+| RevenueEstimate | ApprovedBy | sec.AppUser |
+| RevenueEstimate | CompanyId | org.Company |
+| RevenueEstimate | CurrencyId | ref.Currency |
+| RevenueEstimate | DocumentId | doc.Document |
+| RevenueEstimate | PreparedBy | sec.AppUser |
 
 ## مخطط `wfl` (19 جدولًا)
 

@@ -67,6 +67,7 @@
 | عرض البيانات المالية والنتائج | `fin.view` | — | — | R | R | R* | R | — | R |
 | إدخال القوائم المالية · اعتمادها | `fin.stmt.enter` · `fin.stmt.approve` | — | — | —/✔ | ✔/— | — | ✔/— | — | — |
 | إدخال أرصدة الحسابات الشهرية والمبالغ المحوَّلة | `fin.stats.enter` | — | — | ✔ | ✔ | ✔ | — | — | — |
+| تأكيد الأرصدة والمبالغ المحوَّلة للبنك (المُدخِل ≠ المؤكِّد) | `fin.stats.confirm` | — | — | ✔ | — | — | — | — | — |
 | إدارة مكتبة الصيغ · اعتمادها | `fin.formula.manage` · `fin.formula.approve` | — | — | ✔/✔ | ✔/— | — | R | — | R |
 | تشغيل التحقق وإعادة التقييم | `fin.verify.run` | — | — | ✔ | ✔ | — | ✔ | — | — |
 | عرض مكتبة الشروط والمقارنات · إدارة كتالوج TermType | `cmp.view` · `cmp.manage` | — | R/✔ | R/✔ | R/— | — | — | — | R/— |
@@ -215,6 +216,11 @@
 | FR-FIN-012 | محرك التحقق: يجمع المدخلات، يحسب، يحكم، يحفظ لقطة؛ يُشغَّل عند اعتماد قائمة/حفظ رصيد أو تحويل/موعد/يدويًا | Must | S2-ب | 🟢 03 §5 | BR-FIN-003 وBR-FIN-005 وBR-FIN-010؛ إعادة التشغيل تنتج EvaluationNo جديدًا |
 | FR-FIN-013 | لقطة المدخلات (قائمة وإصدار وأشهر وأرصدة وصيغة) مع كل تقييم، ومعالجة النقص: PENDING_DATA قبل الموعد، MISSING_DATA بعده، NOT_COMPARABLE عند اختلاف العملة | Must | S2-ب | 🟢 03 §5.3–5.4 | تعديل رصيد لاحق لا يغيّر نتيجة قديمة؛ شاشة التفسير تعرض المدخلات؛ BR-FIN-010 |
 | FR-FIN-014 | إعادة التقييم بعد إعادة العرض: تحديث الاختبارات المتأثرة وتسجيل الفرق وتعليم الخروقات المرتبطة «تحتاج مراجعة» | Must | S2-ب | 🟢 03 §5.6 | AC-FAC-7؛ لا إغلاق آلي للخرق |
+| FR-FIN-015 | **القوائم الموحدة للقابضة بوحداتها.** القابضة وحدها تُدخل قوائم موحدة إلى جانب قوائمها المنفردة، والشركة غير القابضة منفردة فقط. لكل قائمة موحدة وحداتها: القابضة نفسها (PARENT)، وكل تابعة وزميلة ومشروع مشترك بطريقة التوحيد ونسبة الملكية في نهاية الفترة وتاريخي الدخول والخروج خلالها وقائمتها المنفردة إن أُدخلت؛ وتُعرض الوحدات بقوائمها المنفردة المعتمدة والملكية المسجلة في `org.Shareholding` | Must | S2-ب | 🟢 طلب المالك 2026-10-18 | BR-FIN-013؛ `fin.ConsolidationMember` و`fin.v_ConsolidationUnits`؛ FS1 وFS2 وFS11 |
+| FR-FIN-016 | **دراسة الميزانية.** مقاييس تحليل من مكتبة الصيغ (Scope ANALYSIS، بوحدات RATIO وAMOUNT وPERCENT وDAYS) تُحسب على القائمة المعتمدة منفردةً كانت أو موحدة، وتُحفظ بلقطة مدخلاتها، وتُقارن بين الفترات والشركات ووحدات المجموعة | Must | S2-ب | 🟢 طلب المالك 2026-10-18 | BR-FIN-014؛ `fin.StatementRatio`؛ R-FIN-07؛ FS9 |
+| FR-FIN-017 | **تقرير الخروقات الناشئة عن القوائم في ظل التعهدات.** كل خرق وإنذار مبكر وجده آخر تقييم لتعهد يقيس على القوائم: القائمة وإصدارها وأساسها وتدقيقها، والتعهد وبنده في الاتفاقية، والتسهيل وبنكه، والقيمة والحد والهامش، وسجل الخرق وحالته؛ وتُعلَّم القائمة التي أسقطها إصدار أحدث بعد الاختبار | Must | S2-ب | 🟢 طلب المالك 2026-10-18 | R-FIN-05؛ `fin.v_StatementBreachReport`؛ BR-FIN-015؛ FS4 وFS5 |
+| FR-FIN-018 | **أداء الشركة في تحويل السيولة إلى البنك.** لكل تعهد تحويلات أو نسبة من الإيراد سارٍ على مراجعة معتمدة: نافذته في تاريخ، والمحوَّل المؤكَّد فيها إلى بنوك التسهيل، والمنتظر تأكيده، والمتبقي والمعدل الشهري اللازم له، ونسبة الإنجاز، والحالة (MET · ON_TRACK · BEHIND · NO_DATA · NO_REVENUE). ويُدخَل التحويل مسودة ويؤكده غير مُدخِله، والمؤكَّد وحده يقيس الأداء | Must | S2-ب | 🟢 طلب المالك 2026-10-18 | BR-FIN-016 وBR-FIN-017؛ R-FIN-06؛ `fin.fn_BankFlowPerformance(@AsOf)`؛ FS6 إلى FS8 |
+| FR-FIN-019 | **تقدير الإيراد اليدوي** لتعهد نسبة الإيراد حين يقول RevenueBasisRule = MANUAL_ESTIMATE: تقدير معتمد واحد لكل شركة وسنة مالية وأساس، بمصدره، يعتمده غير مُعِدّه | Must | S2-ب | 🟢 Q-FIN-05 | `fin.RevenueEstimate`؛ FS10 |
 
 ### 4.6 مكتبة الشروط القابلة للمقارنة (CMP)
 | المعرّف | المتطلب | الأولوية | الشريحة | المصدر | معيار القبول |
@@ -321,6 +327,12 @@
 | BR-FIN-009 | نحو الصيغة مقيَّد: أرقام، رموز الكتالوج، AVG_BAL وMIN_BAL وEND_BAL وFLOW_TO_BANK، `+ − × ÷` وأقواس، ودوال `SUM/AVG/MIN/MAX(x,n)` و`PRIOR(x,k)` و`ABS`؛ يُحلَّل إلى شجرة ويُتحقق (رموز معروفة، أنواع، عمق ≤ 10) ولا يُنفَّذ نصًا؛ القسمة على صفر ← UNDEFINED = MISSING_DATA بسبب | `TOTAL_CA ÷ TOTAL_CL` |
 | BR-FIN-010 | الاختبار PENDING_DATA حتى DueDate؛ بعده نقص أي مدخل مطلوب ← MISSING_DATA وتنبيه؛ إدخال المدخل لاحقًا يعيد التقييم آليًا؛ عملة مختلفة ← NOT_COMPARABLE. و`InputsSnapshot` = القوائم (المعرّف، الإصدار، الأساس) + (الحساب، الشهر، القيمة) + التحويلات + نسخة الصيغة + العتبة والمشغّل المطبَّقان؛ ثابتة بعد الحفظ | |
 | BR-FIN-011 | تُخزَّن النسب بست خانات وتُعرض بخانتين، وبأربع إن كان الفرق عن العتبة أقل من 0.005؛ الحكم بالدقة الكاملة | 1.1996 ≥ 1.20؟ لا ← BREACH ويُعرض 1.1996 |
+| BR-FIN-012 | القائمة المدققة تُقدَّم باسم مراجع الحسابات ورأيه (UNQUALIFIED · QUALIFIED · ADVERSE · DISCLAIMER)، والرأي للمدققة وحدها؛ والمعتمِد غير المُعِدّ | تقديم مدققة بلا مراجع ← E (قيد) |
+| BR-FIN-013 | الموحّدة للقابضة وحدها (`Company.IsHolding`). وحداتها للموحّدة وحدها؛ القابضة وحدة PARENT واحدة بطريقة FULL بلا نسبة ولا تكون وحدة أخرى؛ التابعة FULL أو NOT_CONSOLIDATED، والزميلة EQUITY أو NOT_CONSOLIDATED، والمشروع المشترك EQUITY أو PROPORTIONATE أو NOT_CONSOLIDATED. تُقدَّم بقابضتها ووحدة أخرى على الأقل، ولا تتغير القائمة ولا أسطرها ولا وحداتها بعد المسودة (045) | موحدة لشركة غير قابضة ← 50061؛ تعديل بعد التقديم ← 50060 |
+| BR-FIN-014 | مقياس التحليل صيغة ANALYSIS، ووحدة DAYS لصيغ التحليل وحدها فلا يقيس بها تعهد؛ نتيجة واحدة لكل (قائمة، صيغة)، وما تعذّر حسابه يحمل سببه | DSO = AR ÷ REVENUE × 365 |
+| BR-FIN-015 | القوائم التي قرأها تقييم آلي تُكتب في `obl.CovenantTestStatement` من لقطته حين يصير EVALUATED، تكتبها القاعدة لا التطبيق؛ وتقرير الخروقات يقرأ آخر تقييم لكل (جذر التعهد، الفترة) | |
+| BR-FIN-016 | التحويل لشهر وبنك ونوع يُدخَل على مستوى البنك أو لكل تسهيل، لا الاثنين (50062)؛ ونوعه من قائمة FLOW_KIND وحدها. أداء تعهد التحويلات يعدّ المؤكَّد بعملة التعهد إلى بنوك التسهيل في المراجعة المعتمدة، على مستوى البنك أو لهذا التسهيل، من الشركة المختبَرة أو الشركات التي يسري عليها الالتزام (`ObligationCompany`)؛ والمنسوب إلى تسهيل آخر يُعدّ له وحده 🟡 | |
+| BR-FIN-017 | نافذة الأداء في تاريخ: الشهر أو الربع أو النصف للدوريات المقابلة، و12 شهرًا تنتهي بالتاريخ لـ ROLLING_12M، وإلا السنة بحسب AnnualWindowBasis. المتبقي `max(Threshold − Σ, 0)`، ومعدله على الأشهر الباقية من النافذة؛ ON_TRACK إن بلغ المحوَّل نسبة الأشهر المنقضية من الحد. نسبة الإيراد تقرأ REVENUE من القائمة السنوية المعتمدة لسنة النافذة المالية أو التي قبلها، أو التقدير المعتمد، بحسب RevenueBasisRule، والمدققة أولًا ثم المراجَعة ثم الإدارية | حد 12 مليونًا سنويًا، والمحوَّل حتى 15 أبريل 3 ملايين ← BEHIND، المتبقي 9 ملايين، 1.125 مليون شهريًا |
 
 ### 5.6 مكتبة الشروط (CMP)
 | المعرّف | القاعدة | مثال |
@@ -391,6 +403,12 @@
 | **AccountMonthlyStat** | رصيد شهري لحساب (`BankAccount` من `11`) | BankAccountId ★ · MonthEnd ★ · AvgDailyBalance ★ · MinBalance ○ · EndBalance ○ · SourceKind ★ enum{BANK_STATEMENT,BANK_NOTICE,INTERNAL_CALC} · SourceRef ○ · DocumentId ○ · Note ○ · Status ★ enum{DRAFT,CONFIRMED} | فريد (BankAccount,MonthEnd). سري مالي |
 | **BankFlowEntry** | مبلغ محوَّل للبنك في شهر | CompanyId ★ · InstitutionId ★ · FacilityId ○ · MonthEnd ★ · FlowKind ★ (LookupItem)=TRANSFERRED_TO_BANK · Amount ★ · CurrencyId ★ · BasisNote ○ · DocumentId ○ | فريد (Company,Institution,Facility,MonthEnd,FlowKind) |
 | **MeasureFormula** *(جديد)* | صيغة مقياس: قالب أو نسخة اتفاقية | Code ★ · NameAr ★ · NameEn ○ · Scope ★ enum{TEMPLATE,FACILITY_COPY} · FacilityId ○ · BaseTemplateId ○ · Expression ★ · InputKinds ★ set{STATEMENT,ACCOUNT_STATS,BANK_FLOWS} + UsesStatements محسوب · ResultUnit ★ (لا تتغير وحدة صيغة مستعملة: المفتاح المركّب من Covenant يمنعه؛ DR-38) · DefinitionNote ○ · VersionNo ★ · Status ★ enum{DRAFT,APPROVED,SUPERSEDED} · ApprovedBy/On ○ · SourceStamp [S] | فريد (Tenant,Code,Facility,VersionNo) |
+| **ConsolidationMember** *(جديد، 2026-10-18)* | وحدة في قائمة موحدة لقابضة | StatementId ★ (موحّدة فقط بمفتاح مركّب) · MemberCompanyId ★ · Role ★ enum{PARENT,SUBSIDIARY,ASSOCIATE,JOINT_VENTURE} · Method ★ enum{FULL,EQUITY,PROPORTIONATE,NOT_CONSOLIDATED} · OwnershipPct ○ · IncludedFrom ○ · IncludedTo ○ · MemberStatementId ○ (قائمة الوحدة المنفردة) · Note ○ | فريد (Statement,MemberCompany)؛ PARENT واحدة. سري مالي |
+| **StatementRatio** *(جديد، 2026-10-18)* | مقياس تحليل محسوب على قائمة | StatementId ★ · FormulaId ★ · ResultUnit ★ enum{RATIO,AMOUNT,PERCENT,DAYS} · Status ★ enum{COMPUTED,NOT_COMPUTABLE} · Value ○ · Reason ○ · InputsSnapshot ★ · ComputedAt ★ | فريد (Statement,Formula) |
+| **RevenueEstimate** *(جديد، 2026-10-18)* | تقدير إيراد يدوي لسنة (Q-FIN-05) | CompanyId ★ · FiscalYear ★ · Basis ★ · Amount ★ · CurrencyId ★ · BasisNote ★ · DocumentId ○ · Status ★ enum{DRAFT,APPROVED,SUPERSEDED} · PreparedBy ○ · ApprovedBy/On ○ | معتمد واحد لكل (Company,FiscalYear,Basis) |
+| **CovenantTestStatement** *(جديد، 2026-10-18)* | القوائم التي قرأها تقييم آلي، تكتبها القاعدة من اللقطة | CovenantTestId ★ · StatementId ★ · StatementVersionNo ★ · Basis ★ | مفتاح (Test,Statement)؛ لا يكتبها التطبيق |
+
+إضافات 2026-10-18 إلى الكيانات القائمة: **FinancialStatement** ← AuditorName ○ · AuditOpinion ○ (BR-FIN-012). **BankFlowEntry** ← FlowKindListCode ★ =FLOW_KIND · FlowKindListId ★ (يضمنان أن النوع من قائمة FLOW_KIND) · Status ★ enum{DRAFT,CONFIRMED} · EnteredBy ○ · ConfirmedBy/On ○. **MeasureFormula** ← Scope يضيف ANALYSIS، وResultUnit يضيف DAYS (لصيغ التحليل وحدها).
 
 ### 6.6 CMP — الكيانات
 | الكيان | الغرض والعلاقات | السمات الرئيسية | الفرادة والحساسية |
@@ -422,6 +440,8 @@
 | SCR-FIN-01 القوائم المالية | قائمة بالإصدارات؛ شبكة الإدخال بالأقسام؛ اللصق مع معاينة المطابقة؛ التوازن؛ تقديم/اعتماد/إصدار جديد |
 | SCR-FIN-02 الأرصدة والمبالغ المحوَّلة | شبكة حسابات × أشهر بنقاط النقص والمصدر لكل خلية؛ شبكة شهرية للمبالغ المحوَّلة (شركة/بنك/تسهيل) والتجميع السنوي والإنجاز والمتبقي |
 | SCR-FIN-03 مكتبة الصيغ | القوالب ونسخ الاتفاقيات؛ محرر الصيغة بالتحقق الفوري ومعاينة على بيانات حقيقية |
+| SCR-FIN-04 القوائم الموحدة ووحداتها | قائمة القابضة الموحدة بوحداتها: الدور والطريقة والملكية وقائمة كل وحدة؛ مقارنة الملكية بالمسجلة؛ مقاييس التحليل لكل قائمة ووحدة بين الفترات | قابضة، فترة، أساس |
+| SCR-FIN-05 الخروقات وأداء التحويلات | تقرير الخروقات الناشئة عن القوائم مع الانتقال إلى القائمة والتعهد والخرق؛ ولوحة أداء التحويلات لكل تعهد: النافذة والمحوَّل والمتبقي والمعدل والحالة | شركة، بنك، تسهيل، فترة، تاريخ |
 | SCR-CMP-01 كتالوج الشروط وورقة شروط التسهيل | TermType بالفئات والاتجاه والوحدة، واقتراح مفتاح وترقية OTHER؛ كل TermValue في التسهيل مجمّعة بالفئة (تسعير ← مدد ← ضمانات ← تعهدات) مع المصدر والثقة والتعارض؛ إضافة «شرط آخر» |
 
 ### 7.2 التدفقات الرئيسية
@@ -459,7 +479,8 @@ flowchart LR
 | ReportingInstance | SCHEDULED · SUBMITTED · WAIVED · NOT_APPLICABLE · CANCELLED (+ مشتقتان DUE_SOON/OVERDUE) | SCHEDULED→SUBMITTED بتسجيل التقديم؛ →WAIVED بتنازل يضعه TM بـ `obl.waiver.approve` بسبب ووثيقة إلزاميين (✅ DQ-F15-12)؛ →NOT_APPLICABLE/CANCELLED بسبب |
 | CovenantTest | State: SCHEDULED→PENDING_DATA→EVALUATED→REVIEWED؛ SCHEDULED/PENDING_DATA→CANCELLED بسبب؛ ثم Result مستقلة | تقييم جديد يضيف EvaluationNo ولا يعدّل القديم؛ REVIEWED لخرق أو وصفي بمراجِع؛ CANCELLED لاختبار خرج من الجدول، ونهائية (DQ-F15-2) |
 | ObligationBreach | OPEN → IN_CURE → CURED / WAIVED / CLOSED_NO_ACTION | التنازل يُسجَّل في OPEN أو IN_CURE ثم WAIVED باعتماد TM (WaiverApprovedBy/On، ✅ DQ-F15-9)؛ BREACH جديد للتعهد والفترة نفسيهما لا يفتح خرقًا ثانيًا بل يضع NeedsReview على القائم (✅ DQ-F15-11)؛ NeedsReview لا يغيّر الحالة بل يطلب قرارًا |
-| FinancialStatement | DRAFT → SUBMITTED → APPROVED → SUPERSEDED؛ SUBMITTED → REJECTED → DRAFT | الاعتماد من غير المُعِدّ؛ الإصدار الأحدث المعتمد يُسقط السابق |
+| FinancialStatement | DRAFT → SUBMITTED → APPROVED → SUPERSEDED؛ SUBMITTED → REJECTED → DRAFT | الاعتماد من غير المُعِدّ؛ الإصدار الأحدث المعتمد يُسقط السابق؛ تفرضها القاعدة وتجمّد المحتوى والأسطر والوحدات بعد المسودة (045، 50060) |
+| BankFlowEntry | DRAFT → CONFIRMED | التأكيد بـ `fin.stats.confirm` من غير المُدخِل؛ المؤكَّد وحده يقيس الأداء (FR-FIN-018) |
 
 ```mermaid
 stateDiagram-v2
@@ -545,6 +566,9 @@ stateDiagram-v2
 | R-FIN-02 | مصفوفة الأرصدة الشهرية والنقص | حساب، سنة | `fin.view` |
 | R-FIN-03 | التجميع السنوي للمبالغ المحوَّلة والإنجاز | شركة، بنك، سنة | `fin.view` |
 | R-FIN-04 | البيانات الناقصة؛ أثر إعادة العرض على النتائج | فترة، قائمة | `fin.view` |
+| R-FIN-05 | الخروقات والإنذارات الناشئة عن القوائم في ظل التعهدات: القائمة، والتعهد وبنده، والتسهيل وبنكه، والقيمة والحد والهامش، وسجل الخرق (`fin.v_StatementBreachReport`) | شركة، تسهيل، بنك، فترة، خطورة | `fin.view` · `obl.view` |
+| R-FIN-06 | أداء الشركة في تحويل السيولة إلى البنك لكل تعهد في تاريخ (`fin.fn_BankFlowPerformance`) | شركة، بنك، تسهيل، تاريخ | `fin.view` |
+| R-FIN-07 | وحدات القوائم الموحدة ومقاييس التحليل (`fin.v_ConsolidationUnits`، `fin.StatementRatio`) | قابضة، فترة، مقياس | `fin.view` |
 | R-CMP-00 | جودة بيانات المقارنة (اكتمال شروط الأولوية بحسب التسهيل) | — | `cmp.view` |
 
 ### 10.2 خدمات داخلية (عقود تستهلكها `13` و`14` و`10`؛ API موثّق ومتكررة الأمان حيث تكتب)
@@ -582,6 +606,7 @@ stateDiagram-v2
 | API أولًا | REST موثّق (OpenAPI): `/facilities` و`/facilities/{id}/revisions` و`/limits` و`/limits/{id}/lines` و`/utilizations` و`/reservations` (SVC-FAC-04) و`/availability` و`/tariff-schedules` و`/pricing-rules` و`/pricing/resolve` و`/collaterals` و`/obligations` و`/reporting-instances` و`/covenant-tests` و`/financial-statements` و`/account-stats` و`/bank-flows` و`/terms` و`/terms/compare` | تستهلكها محوّلات خارجية |
 | الأحداث (Outbox، أسماء نقطية بأحرف صغيرة كسائر المنصة) | `facility.revision.approved` · `facility.validity.changed` · `limit.availability.changed` · `reservation.created/adjusted/converted/released` · `fac.reservation.expired/released_externally` (إلى محرك `13`) · `utilization.created/adjusted/released` · `pricing.rule.changed` · `tariff.approved` · `collateral.changed/released` · `obligation.instance.due/overdue/submitted` · `covenant.test.evaluated` · `breach.opened/waived` · `statement.approved` · `term.value.changed`. الحمولة معرّفات وحقول متغيّرة بلا أرقام هوية ولا نصوص بنود | مشتركون عبر طابور الإرسال |
 | محوّلات مستقبلية | بوابة البنك ← Utilization وOutstandingSnapshot بمصدر FEED · كشوف الحسابات ← AccountMonthlyStat · خلاصة SAIBOR ← BaseRateValue (`11`) · القوائم من ERP أو منصة تنظيمية ← FinancialStatement بـ EntryMethod=IMPORT · قنوات التقديم ← ReportingInstance.SubmissionChannel · ERP لمطابقة المراجع | تُضاف دون مساس بالنواة |
+| التقييم الائتماني (مرحلة لاحقة، طلب المالك 2026-10-18) | لا ربط؛ القوائم المعتمدة بوحداتها ومقاييس التحليل وتقرير الخروقات وأداء التحويلات محفوظة بمفاتيح ثابتة (PublicId للقائمة والتقدير) ولقطات | يقرأ نظام التقييم الائتماني هذه البيانات عبر API للقراءة فقط ليقيّم الشركة ويقيس أداءها؛ لا يُبنى الآن |
 | مفاتيح طبيعية وتصميم الآن | BankReferenceNo · BankStructureNo · BankProductCode · SourceRequestId · IdempotencyKey لأوامر الحجز؛ وحقل Source/Origin/EntryMethod على القيم (MANUAL الآن) وRowVersion لكل صف وإصدار للأحداث؛ لا استدعاء خارجي من الوحدة | مطابقة مع البنوك وERP؛ يُفتح مع أول محوّل |
 
 ---

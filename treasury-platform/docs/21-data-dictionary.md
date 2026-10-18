@@ -2,7 +2,7 @@
 
 > مُولَّد آليًا من نموذج البيانات بـ `tools/dbgen` — لا يُعدَّل يدويًا. الأعمدة المشتركة التي تضيفها اصطلاحات التوليد (TenantId، المعرّف، التدقيق) تظهر في كل جدول.
 
-**عدد الجداول: 199**
+**عدد الجداول: 203**
 
 | الوحدة | عدد الجداول |
 |---|---|
@@ -21,8 +21,8 @@
 | PRC | 5 |
 | CMP | 2 |
 | COL | 7 |
-| OBL | 8 |
-| FIN | 7 |
+| OBL | 9 |
+| FIN | 10 |
 | REQ | 8 |
 | WFL | 11 |
 | NTF | 7 |
@@ -4096,6 +4096,22 @@
 
 **قيود:** `EvaluationNo >= 1` · `PeriodEnd >= PeriodStart` · `DueDate >= PeriodEnd` · `State NOT IN ('SCHEDULED','CANCELLED') OR (Result IS NULL AND EvaluatedAt IS NULL)` · `State <> 'CANCELLED' OR CancelReason IS NOT NULL` · `CancelReason IS NULL OR State = 'CANCELLED'` · `State NOT IN ('EVALUATED','REVIEWED') OR (Result IS NOT NULL AND EvaluatedAt IS NOT NULL AND InputsSnapshot IS NOT NULL)` · `State <> 'REVIEWED' OR (ReviewedBy IS NOT NULL AND ReviewedOn IS NOT NULL)` · `Result NOT IN ('COMPLIANT','WARNING','BREACH') OR (ActualValue IS NOT NULL AND ThresholdApplied IS NOT NULL AND OperatorApplied IS NOT NULL)` · `Result <> 'NOT_ASSESSED_NO_THRESHOLD' OR ThresholdApplied IS NULL` · `ThresholdApplied IS NULL OR OperatorApplied IS NOT NULL` · `Headroom IS NULL OR (ActualValue IS NOT NULL AND ThresholdApplied IS NOT NULL)` · `HeadroomPct IS NULL OR Headroom IS NOT NULL` · `Result NOT IN ('MANUAL_COMPLIANT','MANUAL_NON_COMPLIANT','UNDER_REVIEW') OR Method = 'MANUAL_STATUS'` · `Method <> 'MANUAL_STATUS' OR Result IS NULL OR Result IN ('MANUAL_COMPLIANT','MANUAL_NON_COMPLIANT','UNDER_REVIEW')`
 
+### `obl.CovenantTestStatement` — The statements an automatic evaluation read: written by the database from the test's snapshot, never by the application, so the breach report and a restatement find them by key (FR-FIN-017, BR-FIN-015)
+
+*مملوك للمشترك*
+
+| العمود | النوع | NULL | الافتراضي | المرجع | ملاحظة |
+|---|---|---|---|---|---|
+| TenantId | INT | لا | | plat.Tenant | عزل المشترك |
+| CovenantTestId | BIGINT | لا |  | obl.CovenantTest |  |
+| StatementId | BIGINT | لا |  | fin.FinancialStatement |  |
+| StatementVersionNo | INT | لا |  |  | الإصدار كما في اللقطة |
+| Basis | VARCHAR(12) | لا |  |  | enum: STANDALONE, CONSOLIDATED |
+| CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
+| CreatedBy | BIGINT | نعم |  |  |  |
+
+**المفاتيح:** PK(TenantId, CovenantTestId, StatementId)
+
 ### `obl.ObligationBreach` — Breach record, its remedy and any waiver (FR-OBL-012, BR-OBL-009/011, section 8)
 
 *مملوك للمشترك*
@@ -4207,6 +4223,8 @@
 | CurrencyId | INT | لا |  | ref.Currency |  |
 | UnitScale | INT | لا | 1 |  | المدخل بوحدة 1/1000/1000000 والمخزَّن مضروب فيها (BR-FIN-002) |
 | AccountingStandard | NVARCHAR(100) | نعم |  |  |  |
+| AuditorName | NVARCHAR(200) | نعم |  |  | مراجع الحسابات للقائمة المدققة أو المراجَعة (وحدة الميزانية، 2026-10-18) |
+| AuditOpinion | VARCHAR(11) | نعم |  |  | رأي المراجع للقائمة المدققة enum: UNQUALIFIED, QUALIFIED, ADVERSE, DISCLAIMER |
 | VersionNo | INT | لا | 1 |  |  |
 | VersionReason | VARCHAR(10) | لا | ORIGINAL |  | سبب الإصدار إلزامي (BR-FIN-004) enum: ORIGINAL, RESTATED, CORRECTION |
 | SupersedesId | BIGINT | نعم |  | fin.FinancialStatement (via CompanyId,Basis,Assurance,PeriodType,PeriodEnd) | الإصدار السابق للشركة والسلسلة نفسها؛ المدققة لا تحل محل الإدارية (قرار المالك 2026-10-13، DR-34) |
@@ -4226,7 +4244,7 @@
 
 **المفاتيح:** PK(FinancialStatementId) · UQ(PublicId) · UQ(TenantId, CompanyId, PeriodType, PeriodEnd, Basis, Assurance, VersionNo) · UQ(TenantId, CompanyId, Basis, Assurance, PeriodType, PeriodEnd) WHERE Status = 'APPROVED' · UQ(TenantId, SupersedesId) WHERE SupersedesId IS NOT NULL AND Status <> 'REJECTED'
 
-**قيود:** `UnitScale IN (1,1000,1000000)` · `PeriodStart IS NULL OR PeriodEnd >= PeriodStart` · `FiscalYear BETWEEN 1900 AND 2200` · `VersionNo >= 1` · `VersionReason <> 'ORIGINAL' OR SupersedesId IS NULL` · `SupersedesId IS NULL OR (VersionNo > 1 AND VersionReason <> 'ORIGINAL' AND SupersedesId <> FinancialStatementId)` · `Status NOT IN ('SUBMITTED','APPROVED','SUPERSEDED') OR (PreparedBy IS NOT NULL AND PreparedOn IS NOT NULL)` · `Status NOT IN ('APPROVED','SUPERSEDED') OR (ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)`
+**قيود:** `UnitScale IN (1,1000,1000000)` · `PeriodStart IS NULL OR PeriodEnd >= PeriodStart` · `FiscalYear BETWEEN 1900 AND 2200` · `VersionNo >= 1` · `VersionReason <> 'ORIGINAL' OR SupersedesId IS NULL` · `SupersedesId IS NULL OR (VersionNo > 1 AND VersionReason <> 'ORIGINAL' AND SupersedesId <> FinancialStatementId)` · `Status NOT IN ('SUBMITTED','APPROVED','SUPERSEDED') OR (PreparedBy IS NOT NULL AND PreparedOn IS NOT NULL)` · `Status NOT IN ('APPROVED','SUPERSEDED') OR (ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)` · `ApprovedBy IS NULL OR PreparedBy IS NULL OR ApprovedBy <> PreparedBy` · `Status = 'DRAFT' OR Assurance <> 'AUDITED' OR (AuditorName IS NOT NULL AND AuditOpinion IS NOT NULL)` · `AuditOpinion IS NULL OR Assurance = 'AUDITED'`
 
 ### `fin.StatementLine` — Statement line in the header currency; stored value = input x UnitScale; Variance is derived; highly confidential (BR-FIN-001/002)
 
@@ -4246,6 +4264,87 @@
 | UpdatedBy | BIGINT | نعم |  |  |  |
 
 **المفاتيح:** PK(StatementLineId) · UQ(TenantId, StatementId, LineCatalogItemId)
+
+### `fin.ConsolidationMember` — A unit of a holding's consolidated statement: the parent, each subsidiary, associate and joint venture, with its method and ownership (FR-FIN-015, BR-FIN-013; owner request 2026-10-18)
+
+*مملوك للمشترك*
+
+| العمود | النوع | NULL | الافتراضي | المرجع | ملاحظة |
+|---|---|---|---|---|---|
+| TenantId | INT | لا | | plat.Tenant | عزل المشترك |
+| **ConsolidationMemberId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
+| StatementBasis | VARCHAR(12) | لا | CONSOLIDATED |  | ثابت: الوحدات للقائمة الموحدة وحدها enum: CONSOLIDATED |
+| StatementId | BIGINT | لا |  | fin.FinancialStatement (via StatementBasis) |  |
+| MemberCompanyId | BIGINT | لا |  | org.Company | الوحدة شركة من شركات المشترك؛ القابضة نفسها PARENT |
+| Role | VARCHAR(13) | لا |  |  | enum: PARENT, SUBSIDIARY, ASSOCIATE, JOINT_VENTURE |
+| Method | VARCHAR(16) | لا |  |  | enum: FULL, EQUITY, PROPORTIONATE, NOT_CONSOLIDATED |
+| OwnershipPct | DECIMAL(9,6) | نعم |  |  | نسبة الملكية الفعلية في نهاية الفترة؛ فارغة للقابضة |
+| IncludedFrom | DATE | نعم |  |  | دخول الوحدة خلال الفترة (استحواذ) |
+| IncludedTo | DATE | نعم |  |  | خروجها خلال الفترة (تخارج) |
+| MemberStatementId | BIGINT | نعم |  | fin.FinancialStatement (via MemberCompanyId) | القائمة المنفردة للوحدة للفترة نفسها، إن أُدخلت |
+| Note | NVARCHAR(500) | نعم |  |  |  |
+| CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
+| CreatedBy | BIGINT | نعم |  |  |  |
+| UpdatedAt | DATETIME2(3) | نعم |  |  |  |
+| UpdatedBy | BIGINT | نعم |  |  |  |
+
+**المفاتيح:** PK(ConsolidationMemberId) · UQ(TenantId, StatementId, MemberCompanyId) · UQ(TenantId, StatementId) WHERE Role = 'PARENT'
+
+**قيود:** `OwnershipPct IS NULL OR (OwnershipPct > 0 AND OwnershipPct <= 100)` · `(Role = 'PARENT' AND Method = 'FULL' AND OwnershipPct IS NULL) OR (Role <> 'PARENT' AND OwnershipPct IS NOT NULL)` · `Role <> 'SUBSIDIARY' OR Method IN ('FULL','NOT_CONSOLIDATED')` · `Role <> 'ASSOCIATE' OR Method IN ('EQUITY','NOT_CONSOLIDATED')` · `Role <> 'JOINT_VENTURE' OR Method IN ('EQUITY','PROPORTIONATE','NOT_CONSOLIDATED')` · `IncludedTo IS NULL OR IncludedFrom IS NULL OR IncludedTo >= IncludedFrom` · `MemberStatementId IS NULL OR Role <> 'PARENT'`
+
+### `fin.StatementRatio` — An analysis measure computed on an approved statement, for the study of the balance sheet; written by the engine (FR-FIN-016, BR-FIN-014)
+
+*مملوك للمشترك*
+
+| العمود | النوع | NULL | الافتراضي | المرجع | ملاحظة |
+|---|---|---|---|---|---|
+| TenantId | INT | لا | | plat.Tenant | عزل المشترك |
+| **StatementRatioId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
+| StatementId | BIGINT | لا |  | fin.FinancialStatement |  |
+| FormulaId | BIGINT | لا |  | fin.MeasureFormula |  |
+| ResultUnit | VARCHAR(10) | لا |  |  | وحدة الصيغة وقت الحساب enum: RATIO, AMOUNT, PERCENT, DAYS |
+| Status | VARCHAR(14) | لا |  |  | enum: COMPUTED, NOT_COMPUTABLE |
+| Value | DECIMAL(19,6) | نعم |  |  | فارغ إن لم تُحسب (قسمة على صفر، بند ناقص) |
+| Reason | NVARCHAR(300) | نعم |  |  | سبب NOT_COMPUTABLE |
+| InputsSnapshot | NVARCHAR(MAX) | لا |  |  | البنود والإصدار المستعمَلان (على غرار BR-FIN-010) |
+| ComputedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
+| CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
+| CreatedBy | BIGINT | نعم |  |  |  |
+| UpdatedAt | DATETIME2(3) | نعم |  |  |  |
+| UpdatedBy | BIGINT | نعم |  |  |  |
+
+**المفاتيح:** PK(StatementRatioId) · UQ(TenantId, StatementId, FormulaId)
+
+**قيود:** `(Status = 'COMPUTED' AND Value IS NOT NULL AND Reason IS NULL) OR (Status = 'NOT_COMPUTABLE' AND Value IS NULL AND Reason IS NOT NULL)`
+
+### `fin.RevenueEstimate` — Manual revenue estimate for a fiscal year, used by a revenue-share covenant with RevenueBasisRule MANUAL_ESTIMATE (Q-FIN-05, BR-FIN-008, self-review B4)
+
+*مملوك للمشترك*
+
+| العمود | النوع | NULL | الافتراضي | المرجع | ملاحظة |
+|---|---|---|---|---|---|
+| TenantId | INT | لا | | plat.Tenant | عزل المشترك |
+| **RevenueEstimateId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
+| CompanyId | BIGINT | لا |  | org.Company |  |
+| FiscalYear | INT | لا |  |  |  |
+| Basis | VARCHAR(12) | لا |  |  | enum: STANDALONE, CONSOLIDATED |
+| Amount | DECIMAL(19,4) | لا |  |  |  |
+| CurrencyId | INT | لا |  | ref.Currency |  |
+| BasisNote | NVARCHAR(500) | لا |  |  | مصدر التقدير (موازنة معتمدة، توقع الإدارة...) |
+| DocumentId | BIGINT | نعم |  | doc.Document |  |
+| Status | VARCHAR(10) | لا | DRAFT |  | enum: DRAFT, APPROVED, SUPERSEDED |
+| PreparedBy | BIGINT | نعم |  | sec.AppUser |  |
+| ApprovedBy | BIGINT | نعم |  | sec.AppUser |  |
+| ApprovedOn | DATETIME2(3) | نعم |  |  |  |
+| PublicId | UNIQUEIDENTIFIER | لا | NEWSEQUENTIALID() |  |  |
+| CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
+| CreatedBy | BIGINT | نعم |  |  |  |
+| UpdatedAt | DATETIME2(3) | نعم |  |  |  |
+| UpdatedBy | BIGINT | نعم |  |  |  |
+
+**المفاتيح:** PK(RevenueEstimateId) · UQ(PublicId) · UQ(TenantId, CompanyId, FiscalYear, Basis) WHERE Status = 'APPROVED'
+
+**قيود:** `Amount > 0` · `FiscalYear BETWEEN 1900 AND 2200` · `Status = 'DRAFT' OR (ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)` · `ApprovedBy IS NULL OR PreparedBy IS NULL OR ApprovedBy <> PreparedBy`
 
 ### `fin.AccountMonthlyStat` — Monthly balance of an account in the account currency (FR-FIN-008, BR-FIN-005/006, V-FIN-02)
 
@@ -4287,11 +4386,17 @@
 | InstitutionId | BIGINT | لا |  | ins.Institution |  |
 | FacilityId | BIGINT | نعم |  | fac.Facility |  |
 | MonthEnd | DATE | لا |  |  |  |
-| FlowKindId | INT | لا |  | cat.LookupItem | قائمة FLOW_KIND؛ الافتراضي التطبيقي TRANSFERRED_TO_BANK |
+| FlowKindListCode | VARCHAR(80) | لا | FLOW_KIND |  | ثابت: البند من قائمة FLOW_KIND وحدها (المراجعة الذاتية B7f) |
+| FlowKindListId | INT | لا |  | cat.LookupList (via FlowKindListCode) |  |
+| FlowKindId | INT | لا |  | cat.LookupItem (via FlowKindListId) | الافتراضي التطبيقي TRANSFERRED_TO_BANK |
 | Amount | DECIMAL(19,4) | لا |  |  |  |
 | CurrencyId | INT | لا |  | ref.Currency |  |
 | BasisNote | NVARCHAR(500) | نعم |  |  | أساس الاحتساب بنص حر (03 §3.3) |
 | DocumentId | BIGINT | نعم |  | doc.Document |  |
+| Status | VARCHAR(10) | لا | DRAFT |  | المؤكَّد وحده يقيس الأداء (FR-FIN-018) enum: DRAFT, CONFIRMED |
+| EnteredBy | BIGINT | نعم |  | sec.AppUser |  |
+| ConfirmedBy | BIGINT | نعم |  | sec.AppUser |  |
+| ConfirmedOn | DATETIME2(3) | نعم |  |  |  |
 | PublicId | UNIQUEIDENTIFIER | لا | NEWSEQUENTIALID() |  |  |
 | CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
 | CreatedBy | BIGINT | نعم |  |  |  |
@@ -4300,7 +4405,7 @@
 
 **المفاتيح:** PK(BankFlowEntryId) · UQ(PublicId) · UQ(TenantId, CompanyId, InstitutionId, FacilityId, MonthEnd, FlowKindId)
 
-**قيود:** `DAY(DATEADD(DAY, 1, MonthEnd)) = 1` · `Amount >= 0`
+**قيود:** `DAY(DATEADD(DAY, 1, MonthEnd)) = 1` · `Amount >= 0` · `FlowKindListCode = 'FLOW_KIND'` · `(Status = 'DRAFT' AND ConfirmedBy IS NULL AND ConfirmedOn IS NULL) OR (Status = 'CONFIRMED' AND ConfirmedBy IS NOT NULL AND ConfirmedOn IS NOT NULL)` · `ConfirmedBy IS NULL OR EnteredBy IS NULL OR ConfirmedBy <> EnteredBy`
 
 ### `fin.MeasureFormula` — Measure formula: a template or a facility-agreement version with revisions; never executed as text (FR-FIN-011, BR-FIN-009, section 12)
 
@@ -4313,12 +4418,12 @@
 | Code | VARCHAR(60) | لا |  |  |  |
 | NameAr | NVARCHAR(200) | لا |  |  |  |
 | NameEn | NVARCHAR(200) | نعم |  |  |  |
-| Scope | VARCHAR(13) | لا |  |  | enum: TEMPLATE, FACILITY_COPY |
+| Scope | VARCHAR(13) | لا |  |  | ANALYSIS: مقياس لدراسة الميزانية لا لتعهد (FR-FIN-016) enum: TEMPLATE, FACILITY_COPY, ANALYSIS |
 | FacilityId | BIGINT | نعم |  | fac.Facility | لنسخة الاتفاقية فقط؛ فارغ للقالب |
 | BaseTemplateId | BIGINT | نعم |  | fin.MeasureFormula | القالب المنسوخ منه؛ كونه TEMPLATE يتحقق منه التطبيق |
 | Expression | NVARCHAR(2000) | لا |  |  | نحو مقيَّد يُحلَّل إلى شجرة (BR-FIN-009) |
 | InputKinds | VARCHAR(40) | لا |  |  |  |
-| ResultUnit | VARCHAR(10) | لا |  |  | على غرار Covenant.ThresholdUnit (المواصفة لا تعدّد القيم)؛ وحدة صيغة مستعملة لا تتغير (DR-38) enum: RATIO, AMOUNT, PERCENT |
+| ResultUnit | VARCHAR(10) | لا |  |  | على غرار Covenant.ThresholdUnit (المواصفة لا تعدّد القيم)؛ وحدة صيغة مستعملة لا تتغير (DR-38) enum: RATIO, AMOUNT, PERCENT, DAYS |
 | UsesStatements | BIT | نعم |  |  | تقرأ القوائم المالية (DR-38) محسوب: `CAST(CASE WHEN InputKinds LIKE '%STATEMENT%' THEN 1 ELSE 0 END AS BIT)` |
 | DefinitionNote | NVARCHAR(1000) | نعم |  |  | مثل: هل يشمل الدين التزامات الإيجار |
 | VersionNo | INT | لا | 1 |  |  |
@@ -4341,7 +4446,7 @@
 
 **المفاتيح:** PK(MeasureFormulaId) · UQ(TenantId, Code, FacilityId, VersionNo) · UQ(TenantId, Code, FacilityId) WHERE Status = 'APPROVED'
 
-**قيود:** `Scope <> 'TEMPLATE' OR FacilityId IS NULL` · `Scope <> 'FACILITY_COPY' OR FacilityId IS NOT NULL` · `Scope = 'FACILITY_COPY' OR BaseTemplateId IS NULL` · `BaseTemplateId IS NULL OR BaseTemplateId <> MeasureFormulaId` · `InputKinds <> ''` · `VersionNo >= 1` · `Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%'` · `Status NOT IN ('APPROVED','SUPERSEDED') OR (ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)` · `SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')` · `Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)` · `OriginalText IS NULL OR (OriginalText COLLATE Arabic_100_BIN2 NOT LIKE '%[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]%' AND OriginalText COLLATE Arabic_100_BIN2 NOT LIKE '%[A-Za-z][A-Za-z][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9]%')` · `SourceDocumentId IS NOT NULL OR (NoSourceReason IS NOT NULL AND LEN(LTRIM(RTRIM(NoSourceReason))) > 0)`
+**قيود:** `Scope = 'FACILITY_COPY' OR FacilityId IS NULL` · `ResultUnit <> 'DAYS' OR Scope = 'ANALYSIS'` · `Scope <> 'FACILITY_COPY' OR FacilityId IS NOT NULL` · `Scope = 'FACILITY_COPY' OR BaseTemplateId IS NULL` · `BaseTemplateId IS NULL OR BaseTemplateId <> MeasureFormulaId` · `InputKinds <> ''` · `VersionNo >= 1` · `Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%'` · `Status NOT IN ('APPROVED','SUPERSEDED') OR (ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)` · `SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')` · `Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)` · `OriginalText IS NULL OR (OriginalText COLLATE Arabic_100_BIN2 NOT LIKE '%[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]%' AND OriginalText COLLATE Arabic_100_BIN2 NOT LIKE '%[A-Za-z][A-Za-z][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9]%')` · `SourceDocumentId IS NOT NULL OR (NoSourceReason IS NOT NULL AND LEN(LTRIM(RTRIM(NoSourceReason))) > 0)`
 
 ## REQ
 

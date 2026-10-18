@@ -293,6 +293,8 @@ GRANT SELECT, INSERT, UPDATE ON [obl].[Covenant] TO [tp_app];
 GRANT SELECT, INSERT, UPDATE ON [obl].[CovenantAccount] TO [tp_app];
 -- obl.CovenantTest
 GRANT SELECT, INSERT, UPDATE ON [obl].[CovenantTest] TO [tp_app];
+-- obl.CovenantTestStatement
+GRANT SELECT, INSERT ON [obl].[CovenantTestStatement] TO [tp_app];
 -- obl.ObligationBreach
 GRANT SELECT, INSERT, UPDATE ON [obl].[ObligationBreach] TO [tp_app];
 -- fin.LineCatalogItem
@@ -303,6 +305,12 @@ GRANT SELECT, INSERT, UPDATE ON [fin].[LineCatalogItemAlias] TO [tp_app];
 GRANT SELECT, INSERT, UPDATE ON [fin].[FinancialStatement] TO [tp_app];
 -- fin.StatementLine
 GRANT SELECT, INSERT, UPDATE ON [fin].[StatementLine] TO [tp_app];
+-- fin.ConsolidationMember
+GRANT SELECT, INSERT, UPDATE ON [fin].[ConsolidationMember] TO [tp_app];
+-- fin.StatementRatio
+GRANT SELECT, INSERT, UPDATE ON [fin].[StatementRatio] TO [tp_app];
+-- fin.RevenueEstimate
+GRANT SELECT, INSERT, UPDATE ON [fin].[RevenueEstimate] TO [tp_app];
 -- fin.AccountMonthlyStat
 GRANT SELECT, INSERT, UPDATE ON [fin].[AccountMonthlyStat] TO [tp_app];
 -- fin.BankFlowEntry

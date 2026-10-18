@@ -2538,6 +2538,7 @@ CREATE TABLE [cat].[LookupList] (
     [RowVersion] ROWVERSION NOT NULL,
     CONSTRAINT [PK_LookupList] PRIMARY KEY CLUSTERED ([LookupListId]),
     CONSTRAINT [UQ_LookupList_Tenant] UNIQUE ([TenantId], [LookupListId]),
+    CONSTRAINT [UQ_LookupList_Scope_Code] UNIQUE ([TenantId], [Code], [LookupListId]),
     CONSTRAINT [UQ_LookupList_Code] UNIQUE ([TenantId], [Code]),
     CONSTRAINT [CK_LookupList_1] CHECK ((Scope = 'SYSTEM' AND IsSystem = 1) OR (Scope = 'TENANT' AND IsSystem = 0)),
     CONSTRAINT [CK_LookupList_2] CHECK (Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'),
@@ -2570,6 +2571,7 @@ CREATE TABLE [cat].[LookupItem] (
     [RowVersion] ROWVERSION NOT NULL,
     CONSTRAINT [PK_LookupItem] PRIMARY KEY CLUSTERED ([LookupItemId]),
     CONSTRAINT [UQ_LookupItem_Tenant] UNIQUE ([TenantId], [LookupItemId]),
+    CONSTRAINT [UQ_LookupItem_Scope_LookupListId] UNIQUE ([TenantId], [LookupListId], [LookupItemId]),
     CONSTRAINT [UQ_LookupItem_LookupListId_Code] UNIQUE ([TenantId], [LookupListId], [Code]),
     CONSTRAINT [CK_LookupItem_1] CHECK (Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'),
     CONSTRAINT [CK_LookupItem_2] CHECK ((IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)),
@@ -4504,6 +4506,19 @@ CREATE TABLE [obl].[CovenantTest] (
     CONSTRAINT [CK_CovenantTest_InputsSnapshot_json] CHECK ([InputsSnapshot] IS NULL OR ISJSON([InputsSnapshot], VALUE) = 1)
 );
 GO
+-- The statements an automatic evaluation read: written by the database from the test's snapshot, never by the application, so the breach report and a restatement find them by key (FR-FIN-017, BR-FIN-015)
+CREATE TABLE [obl].[CovenantTestStatement] (
+    [TenantId] INT NOT NULL,
+    [CovenantTestId] BIGINT NOT NULL,
+    [StatementId] BIGINT NOT NULL,
+    [StatementVersionNo] INT NOT NULL,
+    [Basis] VARCHAR(12) NOT NULL,
+    [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_CovenantTestStatement_CreatedAt] DEFAULT SYSUTCDATETIME(),
+    [CreatedBy] BIGINT NULL,
+    CONSTRAINT [PK_CovenantTestStatement] PRIMARY KEY CLUSTERED ([TenantId], [CovenantTestId], [StatementId]),
+    CONSTRAINT [CK_CovenantTestStatement_Basis] CHECK ([Basis] IS NULL OR [Basis] IN ('STANDALONE', 'CONSOLIDATED'))
+);
+GO
 -- Breach record, its remedy and any waiver (FR-OBL-012, BR-OBL-009/011, section 8)
 CREATE TABLE [obl].[ObligationBreach] (
     [TenantId] INT NOT NULL,
@@ -4623,6 +4638,8 @@ CREATE TABLE [fin].[FinancialStatement] (
     [CurrencyId] INT NOT NULL,
     [UnitScale] INT NOT NULL CONSTRAINT [DF_FinancialStatement_UnitScale] DEFAULT 1,
     [AccountingStandard] NVARCHAR(100) NULL,
+    [AuditorName] NVARCHAR(200) NULL,
+    [AuditOpinion] VARCHAR(11) NULL,
     [VersionNo] INT NOT NULL CONSTRAINT [DF_FinancialStatement_VersionNo] DEFAULT 1,
     [VersionReason] VARCHAR(10) NOT NULL CONSTRAINT [DF_FinancialStatement_VersionReason] DEFAULT 'ORIGINAL',
     [SupersedesId] BIGINT NULL,
@@ -4642,6 +4659,8 @@ CREATE TABLE [fin].[FinancialStatement] (
     [RowVersion] ROWVERSION NOT NULL,
     CONSTRAINT [PK_FinancialStatement] PRIMARY KEY CLUSTERED ([FinancialStatementId]),
     CONSTRAINT [UQ_FinancialStatement_Tenant] UNIQUE ([TenantId], [FinancialStatementId]),
+    CONSTRAINT [UQ_FinancialStatement_Scope_Basis] UNIQUE ([TenantId], [Basis], [FinancialStatementId]),
+    CONSTRAINT [UQ_FinancialStatement_Scope_CompanyId] UNIQUE ([TenantId], [CompanyId], [FinancialStatementId]),
     CONSTRAINT [UQ_FinancialStatement_Scope_CompanyId_Basis_Assurance_PeriodType_PeriodEnd] UNIQUE ([TenantId], [CompanyId], [Basis], [Assurance], [PeriodType], [PeriodEnd], [FinancialStatementId]),
     CONSTRAINT [UQ_FinancialStatement_PublicId] UNIQUE ([PublicId]),
     CONSTRAINT [UQ_FinancialStatement_CompanyId_PeriodType_PeriodEnd_Basis_Assurance_VersionNo] UNIQUE ([TenantId], [CompanyId], [PeriodType], [PeriodEnd], [Basis], [Assurance], [VersionNo]),
@@ -4653,9 +4672,13 @@ CREATE TABLE [fin].[FinancialStatement] (
     CONSTRAINT [CK_FinancialStatement_6] CHECK (SupersedesId IS NULL OR (VersionNo > 1 AND VersionReason <> 'ORIGINAL' AND SupersedesId <> FinancialStatementId)),
     CONSTRAINT [CK_FinancialStatement_7] CHECK (Status NOT IN ('SUBMITTED','APPROVED','SUPERSEDED') OR (PreparedBy IS NOT NULL AND PreparedOn IS NOT NULL)),
     CONSTRAINT [CK_FinancialStatement_8] CHECK (Status NOT IN ('APPROVED','SUPERSEDED') OR (ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)),
+    CONSTRAINT [CK_FinancialStatement_9] CHECK (ApprovedBy IS NULL OR PreparedBy IS NULL OR ApprovedBy <> PreparedBy),
+    CONSTRAINT [CK_FinancialStatement_10] CHECK (Status = 'DRAFT' OR Assurance <> 'AUDITED' OR (AuditorName IS NOT NULL AND AuditOpinion IS NOT NULL)),
+    CONSTRAINT [CK_FinancialStatement_11] CHECK (AuditOpinion IS NULL OR Assurance = 'AUDITED'),
     CONSTRAINT [CK_FinancialStatement_PeriodType] CHECK ([PeriodType] IS NULL OR [PeriodType] IN ('ANNUAL', 'SEMIANNUAL', 'QUARTERLY', 'MONTHLY')),
     CONSTRAINT [CK_FinancialStatement_Basis] CHECK ([Basis] IS NULL OR [Basis] IN ('STANDALONE', 'CONSOLIDATED')),
     CONSTRAINT [CK_FinancialStatement_Assurance] CHECK ([Assurance] IS NULL OR [Assurance] IN ('AUDITED', 'REVIEWED', 'MANAGEMENT')),
+    CONSTRAINT [CK_FinancialStatement_AuditOpinion] CHECK ([AuditOpinion] IS NULL OR [AuditOpinion] IN ('UNQUALIFIED', 'QUALIFIED', 'ADVERSE', 'DISCLAIMER')),
     CONSTRAINT [CK_FinancialStatement_VersionReason] CHECK ([VersionReason] IS NULL OR [VersionReason] IN ('ORIGINAL', 'RESTATED', 'CORRECTION')),
     CONSTRAINT [CK_FinancialStatement_Status] CHECK ([Status] IS NULL OR [Status] IN ('DRAFT', 'SUBMITTED', 'APPROVED', 'SUPERSEDED', 'REJECTED')),
     CONSTRAINT [CK_FinancialStatement_EntryMethod] CHECK ([EntryMethod] IS NULL OR [EntryMethod] IN ('MANUAL', 'PASTE'))
@@ -4677,6 +4700,98 @@ CREATE TABLE [fin].[StatementLine] (
     CONSTRAINT [PK_StatementLine] PRIMARY KEY CLUSTERED ([StatementLineId]),
     CONSTRAINT [UQ_StatementLine_Tenant] UNIQUE ([TenantId], [StatementLineId]),
     CONSTRAINT [UQ_StatementLine_StatementId_LineCatalogItemId] UNIQUE ([TenantId], [StatementId], [LineCatalogItemId])
+);
+GO
+-- A unit of a holding's consolidated statement: the parent, each subsidiary, associate and joint venture, with its method and ownership (FR-FIN-015, BR-FIN-013; owner request 2026-10-18)
+CREATE TABLE [fin].[ConsolidationMember] (
+    [TenantId] INT NOT NULL,
+    [ConsolidationMemberId] BIGINT IDENTITY(1,1) NOT NULL,
+    [StatementBasis] VARCHAR(12) NOT NULL CONSTRAINT [DF_ConsolidationMember_StatementBasis] DEFAULT 'CONSOLIDATED',
+    [StatementId] BIGINT NOT NULL,
+    [MemberCompanyId] BIGINT NOT NULL,
+    [Role] VARCHAR(13) NOT NULL,
+    [Method] VARCHAR(16) NOT NULL,
+    [OwnershipPct] DECIMAL(9,6) NULL,
+    [IncludedFrom] DATE NULL,
+    [IncludedTo] DATE NULL,
+    [MemberStatementId] BIGINT NULL,
+    [Note] NVARCHAR(500) NULL,
+    [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_ConsolidationMember_CreatedAt] DEFAULT SYSUTCDATETIME(),
+    [CreatedBy] BIGINT NULL,
+    [UpdatedAt] DATETIME2(3) NULL,
+    [UpdatedBy] BIGINT NULL,
+    [RowVersion] ROWVERSION NOT NULL,
+    CONSTRAINT [PK_ConsolidationMember] PRIMARY KEY CLUSTERED ([ConsolidationMemberId]),
+    CONSTRAINT [UQ_ConsolidationMember_Tenant] UNIQUE ([TenantId], [ConsolidationMemberId]),
+    CONSTRAINT [UQ_ConsolidationMember_StatementId_MemberCompanyId] UNIQUE ([TenantId], [StatementId], [MemberCompanyId]),
+    CONSTRAINT [CK_ConsolidationMember_1] CHECK (OwnershipPct IS NULL OR (OwnershipPct > 0 AND OwnershipPct <= 100)),
+    CONSTRAINT [CK_ConsolidationMember_2] CHECK ((Role = 'PARENT' AND Method = 'FULL' AND OwnershipPct IS NULL) OR (Role <> 'PARENT' AND OwnershipPct IS NOT NULL)),
+    CONSTRAINT [CK_ConsolidationMember_3] CHECK (Role <> 'SUBSIDIARY' OR Method IN ('FULL','NOT_CONSOLIDATED')),
+    CONSTRAINT [CK_ConsolidationMember_4] CHECK (Role <> 'ASSOCIATE' OR Method IN ('EQUITY','NOT_CONSOLIDATED')),
+    CONSTRAINT [CK_ConsolidationMember_5] CHECK (Role <> 'JOINT_VENTURE' OR Method IN ('EQUITY','PROPORTIONATE','NOT_CONSOLIDATED')),
+    CONSTRAINT [CK_ConsolidationMember_6] CHECK (IncludedTo IS NULL OR IncludedFrom IS NULL OR IncludedTo >= IncludedFrom),
+    CONSTRAINT [CK_ConsolidationMember_7] CHECK (MemberStatementId IS NULL OR Role <> 'PARENT'),
+    CONSTRAINT [CK_ConsolidationMember_StatementBasis] CHECK ([StatementBasis] IS NULL OR [StatementBasis] IN ('CONSOLIDATED')),
+    CONSTRAINT [CK_ConsolidationMember_Role] CHECK ([Role] IS NULL OR [Role] IN ('PARENT', 'SUBSIDIARY', 'ASSOCIATE', 'JOINT_VENTURE')),
+    CONSTRAINT [CK_ConsolidationMember_Method] CHECK ([Method] IS NULL OR [Method] IN ('FULL', 'EQUITY', 'PROPORTIONATE', 'NOT_CONSOLIDATED'))
+);
+GO
+-- An analysis measure computed on an approved statement, for the study of the balance sheet; written by the engine (FR-FIN-016, BR-FIN-014)
+CREATE TABLE [fin].[StatementRatio] (
+    [TenantId] INT NOT NULL,
+    [StatementRatioId] BIGINT IDENTITY(1,1) NOT NULL,
+    [StatementId] BIGINT NOT NULL,
+    [FormulaId] BIGINT NOT NULL,
+    [ResultUnit] VARCHAR(10) NOT NULL,
+    [Status] VARCHAR(14) NOT NULL,
+    [Value] DECIMAL(19,6) NULL,
+    [Reason] NVARCHAR(300) NULL,
+    [InputsSnapshot] NVARCHAR(MAX) NOT NULL,
+    [ComputedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_StatementRatio_ComputedAt] DEFAULT SYSUTCDATETIME(),
+    [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_StatementRatio_CreatedAt] DEFAULT SYSUTCDATETIME(),
+    [CreatedBy] BIGINT NULL,
+    [UpdatedAt] DATETIME2(3) NULL,
+    [UpdatedBy] BIGINT NULL,
+    [RowVersion] ROWVERSION NOT NULL,
+    CONSTRAINT [PK_StatementRatio] PRIMARY KEY CLUSTERED ([StatementRatioId]),
+    CONSTRAINT [UQ_StatementRatio_Tenant] UNIQUE ([TenantId], [StatementRatioId]),
+    CONSTRAINT [UQ_StatementRatio_StatementId_FormulaId] UNIQUE ([TenantId], [StatementId], [FormulaId]),
+    CONSTRAINT [CK_StatementRatio_1] CHECK ((Status = 'COMPUTED' AND Value IS NOT NULL AND Reason IS NULL) OR (Status = 'NOT_COMPUTABLE' AND Value IS NULL AND Reason IS NOT NULL)),
+    CONSTRAINT [CK_StatementRatio_ResultUnit] CHECK ([ResultUnit] IS NULL OR [ResultUnit] IN ('RATIO', 'AMOUNT', 'PERCENT', 'DAYS')),
+    CONSTRAINT [CK_StatementRatio_Status] CHECK ([Status] IS NULL OR [Status] IN ('COMPUTED', 'NOT_COMPUTABLE')),
+    CONSTRAINT [CK_StatementRatio_InputsSnapshot_json] CHECK ([InputsSnapshot] IS NULL OR ISJSON([InputsSnapshot], VALUE) = 1)
+);
+GO
+-- Manual revenue estimate for a fiscal year, used by a revenue-share covenant with RevenueBasisRule MANUAL_ESTIMATE (Q-FIN-05, BR-FIN-008, self-review B4)
+CREATE TABLE [fin].[RevenueEstimate] (
+    [TenantId] INT NOT NULL,
+    [RevenueEstimateId] BIGINT IDENTITY(1,1) NOT NULL,
+    [CompanyId] BIGINT NOT NULL,
+    [FiscalYear] INT NOT NULL,
+    [Basis] VARCHAR(12) NOT NULL,
+    [Amount] DECIMAL(19,4) NOT NULL,
+    [CurrencyId] INT NOT NULL,
+    [BasisNote] NVARCHAR(500) NOT NULL,
+    [DocumentId] BIGINT NULL,
+    [Status] VARCHAR(10) NOT NULL CONSTRAINT [DF_RevenueEstimate_Status] DEFAULT 'DRAFT',
+    [PreparedBy] BIGINT NULL,
+    [ApprovedBy] BIGINT NULL,
+    [ApprovedOn] DATETIME2(3) NULL,
+    [PublicId] UNIQUEIDENTIFIER NOT NULL CONSTRAINT [DF_RevenueEstimate_PublicId] DEFAULT NEWSEQUENTIALID(),
+    [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_RevenueEstimate_CreatedAt] DEFAULT SYSUTCDATETIME(),
+    [CreatedBy] BIGINT NULL,
+    [UpdatedAt] DATETIME2(3) NULL,
+    [UpdatedBy] BIGINT NULL,
+    [RowVersion] ROWVERSION NOT NULL,
+    CONSTRAINT [PK_RevenueEstimate] PRIMARY KEY CLUSTERED ([RevenueEstimateId]),
+    CONSTRAINT [UQ_RevenueEstimate_Tenant] UNIQUE ([TenantId], [RevenueEstimateId]),
+    CONSTRAINT [UQ_RevenueEstimate_PublicId] UNIQUE ([PublicId]),
+    CONSTRAINT [CK_RevenueEstimate_1] CHECK (Amount > 0),
+    CONSTRAINT [CK_RevenueEstimate_2] CHECK (FiscalYear BETWEEN 1900 AND 2200),
+    CONSTRAINT [CK_RevenueEstimate_3] CHECK (Status = 'DRAFT' OR (ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)),
+    CONSTRAINT [CK_RevenueEstimate_4] CHECK (ApprovedBy IS NULL OR PreparedBy IS NULL OR ApprovedBy <> PreparedBy),
+    CONSTRAINT [CK_RevenueEstimate_Basis] CHECK ([Basis] IS NULL OR [Basis] IN ('STANDALONE', 'CONSOLIDATED')),
+    CONSTRAINT [CK_RevenueEstimate_Status] CHECK ([Status] IS NULL OR [Status] IN ('DRAFT', 'APPROVED', 'SUPERSEDED'))
 );
 GO
 -- Monthly balance of an account in the account currency (FR-FIN-008, BR-FIN-005/006, V-FIN-02)
@@ -4716,11 +4831,17 @@ CREATE TABLE [fin].[BankFlowEntry] (
     [InstitutionId] BIGINT NOT NULL,
     [FacilityId] BIGINT NULL,
     [MonthEnd] DATE NOT NULL,
+    [FlowKindListCode] VARCHAR(80) NOT NULL CONSTRAINT [DF_BankFlowEntry_FlowKindListCode] DEFAULT 'FLOW_KIND',
+    [FlowKindListId] INT NOT NULL,
     [FlowKindId] INT NOT NULL,
     [Amount] DECIMAL(19,4) NOT NULL,
     [CurrencyId] INT NOT NULL,
     [BasisNote] NVARCHAR(500) NULL,
     [DocumentId] BIGINT NULL,
+    [Status] VARCHAR(10) NOT NULL CONSTRAINT [DF_BankFlowEntry_Status] DEFAULT 'DRAFT',
+    [EnteredBy] BIGINT NULL,
+    [ConfirmedBy] BIGINT NULL,
+    [ConfirmedOn] DATETIME2(3) NULL,
     [PublicId] UNIQUEIDENTIFIER NOT NULL CONSTRAINT [DF_BankFlowEntry_PublicId] DEFAULT NEWSEQUENTIALID(),
     [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_BankFlowEntry_CreatedAt] DEFAULT SYSUTCDATETIME(),
     [CreatedBy] BIGINT NULL,
@@ -4732,7 +4853,11 @@ CREATE TABLE [fin].[BankFlowEntry] (
     CONSTRAINT [UQ_BankFlowEntry_PublicId] UNIQUE ([PublicId]),
     CONSTRAINT [UQ_BankFlowEntry_CompanyId_InstitutionId_FacilityId_MonthEnd_FlowKindId] UNIQUE ([TenantId], [CompanyId], [InstitutionId], [FacilityId], [MonthEnd], [FlowKindId]),
     CONSTRAINT [CK_BankFlowEntry_1] CHECK (DAY(DATEADD(DAY, 1, MonthEnd)) = 1),
-    CONSTRAINT [CK_BankFlowEntry_2] CHECK (Amount >= 0)
+    CONSTRAINT [CK_BankFlowEntry_2] CHECK (Amount >= 0),
+    CONSTRAINT [CK_BankFlowEntry_3] CHECK (FlowKindListCode = 'FLOW_KIND'),
+    CONSTRAINT [CK_BankFlowEntry_4] CHECK ((Status = 'DRAFT' AND ConfirmedBy IS NULL AND ConfirmedOn IS NULL) OR (Status = 'CONFIRMED' AND ConfirmedBy IS NOT NULL AND ConfirmedOn IS NOT NULL)),
+    CONSTRAINT [CK_BankFlowEntry_5] CHECK (ConfirmedBy IS NULL OR EnteredBy IS NULL OR ConfirmedBy <> EnteredBy),
+    CONSTRAINT [CK_BankFlowEntry_Status] CHECK ([Status] IS NULL OR [Status] IN ('DRAFT', 'CONFIRMED'))
 );
 GO
 -- Measure formula: a template or a facility-agreement version with revisions; never executed as text (FR-FIN-011, BR-FIN-009, section 12)
@@ -4772,21 +4897,22 @@ CREATE TABLE [fin].[MeasureFormula] (
     CONSTRAINT [UQ_MeasureFormula_Tenant] UNIQUE ([TenantId], [MeasureFormulaId]),
     CONSTRAINT [UQ_MeasureFormula_Scope_ResultUnit_UsesStatements] UNIQUE ([TenantId], [ResultUnit], [UsesStatements], [MeasureFormulaId]),
     CONSTRAINT [UQ_MeasureFormula_Code_FacilityId_VersionNo] UNIQUE ([TenantId], [Code], [FacilityId], [VersionNo]),
-    CONSTRAINT [CK_MeasureFormula_1] CHECK (Scope <> 'TEMPLATE' OR FacilityId IS NULL),
-    CONSTRAINT [CK_MeasureFormula_2] CHECK (Scope <> 'FACILITY_COPY' OR FacilityId IS NOT NULL),
-    CONSTRAINT [CK_MeasureFormula_3] CHECK (Scope = 'FACILITY_COPY' OR BaseTemplateId IS NULL),
-    CONSTRAINT [CK_MeasureFormula_4] CHECK (BaseTemplateId IS NULL OR BaseTemplateId <> MeasureFormulaId),
-    CONSTRAINT [CK_MeasureFormula_5] CHECK (InputKinds <> ''),
-    CONSTRAINT [CK_MeasureFormula_6] CHECK (VersionNo >= 1),
-    CONSTRAINT [CK_MeasureFormula_7] CHECK (Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%'),
-    CONSTRAINT [CK_MeasureFormula_8] CHECK (Status NOT IN ('APPROVED','SUPERSEDED') OR (ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)),
-    CONSTRAINT [CK_MeasureFormula_9] CHECK (SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')),
-    CONSTRAINT [CK_MeasureFormula_10] CHECK (Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)),
-    CONSTRAINT [CK_MeasureFormula_11] CHECK (OriginalText IS NULL OR (OriginalText COLLATE Arabic_100_BIN2 NOT LIKE '%[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]%' AND OriginalText COLLATE Arabic_100_BIN2 NOT LIKE '%[A-Za-z][A-Za-z][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9]%')),
-    CONSTRAINT [CK_MeasureFormula_12] CHECK (SourceDocumentId IS NOT NULL OR (NoSourceReason IS NOT NULL AND LEN(LTRIM(RTRIM(NoSourceReason))) > 0)),
-    CONSTRAINT [CK_MeasureFormula_Scope] CHECK ([Scope] IS NULL OR [Scope] IN ('TEMPLATE', 'FACILITY_COPY')),
+    CONSTRAINT [CK_MeasureFormula_1] CHECK (Scope = 'FACILITY_COPY' OR FacilityId IS NULL),
+    CONSTRAINT [CK_MeasureFormula_2] CHECK (ResultUnit <> 'DAYS' OR Scope = 'ANALYSIS'),
+    CONSTRAINT [CK_MeasureFormula_3] CHECK (Scope <> 'FACILITY_COPY' OR FacilityId IS NOT NULL),
+    CONSTRAINT [CK_MeasureFormula_4] CHECK (Scope = 'FACILITY_COPY' OR BaseTemplateId IS NULL),
+    CONSTRAINT [CK_MeasureFormula_5] CHECK (BaseTemplateId IS NULL OR BaseTemplateId <> MeasureFormulaId),
+    CONSTRAINT [CK_MeasureFormula_6] CHECK (InputKinds <> ''),
+    CONSTRAINT [CK_MeasureFormula_7] CHECK (VersionNo >= 1),
+    CONSTRAINT [CK_MeasureFormula_8] CHECK (Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%'),
+    CONSTRAINT [CK_MeasureFormula_9] CHECK (Status NOT IN ('APPROVED','SUPERSEDED') OR (ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)),
+    CONSTRAINT [CK_MeasureFormula_10] CHECK (SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')),
+    CONSTRAINT [CK_MeasureFormula_11] CHECK (Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)),
+    CONSTRAINT [CK_MeasureFormula_12] CHECK (OriginalText IS NULL OR (OriginalText COLLATE Arabic_100_BIN2 NOT LIKE '%[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]%' AND OriginalText COLLATE Arabic_100_BIN2 NOT LIKE '%[A-Za-z][A-Za-z][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9]%')),
+    CONSTRAINT [CK_MeasureFormula_13] CHECK (SourceDocumentId IS NOT NULL OR (NoSourceReason IS NOT NULL AND LEN(LTRIM(RTRIM(NoSourceReason))) > 0)),
+    CONSTRAINT [CK_MeasureFormula_Scope] CHECK ([Scope] IS NULL OR [Scope] IN ('TEMPLATE', 'FACILITY_COPY', 'ANALYSIS')),
     CONSTRAINT [CK_MeasureFormula_InputKinds] CHECK ([InputKinds] IS NULL OR LEN([InputKinds]) + 1 = CASE WHEN CHARINDEX(',STATEMENT,', (',' + [InputKinds] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 10 ELSE 0 END + CASE WHEN CHARINDEX(',ACCOUNT_STATS,', (',' + [InputKinds] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 14 ELSE 0 END + CASE WHEN CHARINDEX(',BANK_FLOWS,', (',' + [InputKinds] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 11 ELSE 0 END),
-    CONSTRAINT [CK_MeasureFormula_ResultUnit] CHECK ([ResultUnit] IS NULL OR [ResultUnit] IN ('RATIO', 'AMOUNT', 'PERCENT')),
+    CONSTRAINT [CK_MeasureFormula_ResultUnit] CHECK ([ResultUnit] IS NULL OR [ResultUnit] IN ('RATIO', 'AMOUNT', 'PERCENT', 'DAYS')),
     CONSTRAINT [CK_MeasureFormula_Status] CHECK ([Status] IS NULL OR [Status] IN ('DRAFT', 'APPROVED', 'SUPERSEDED')),
     CONSTRAINT [CK_MeasureFormula_Confidence] CHECK ([Confidence] IS NULL OR [Confidence] IN ('CONFIRMED_AGAINST_ORIGINAL', 'READ_FROM_SCAN_UNVERIFIED', 'ENTERED_NO_DOCUMENT'))
 );

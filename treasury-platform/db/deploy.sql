@@ -48,6 +48,7 @@ GO
 :r static/042_data_export.sql
 :r static/043_review_guards.sql
 :r static/044_entry_guards.sql
+:r static/045_financial_statements.sql
 :r static/050_fac_share_rule.sql
 :r static/090_readonly_denies.sql
 :r seed/100_platform_global.sql

@@ -1131,7 +1131,8 @@ BEGIN
 END;
 GO
 /* RF28 (DR-39, S2-b): an evaluated covenant test changes only by its review: once reviewed, only NextReviewOn changes
-   (50053 for the note, the result, the snapshot, a deletion, a return to PENDING_DATA and another covenant). An
+   (50053 for the note, the result, the snapshot, a return to PENDING_DATA and another covenant; a deletion is refused
+   first by the key of the statements the evaluation read, 547, written by 045). An
    automatic evaluation names a version of the covenant's formula that is not a draft, and its snapshot holds the
    formula version, the covenant's threshold and every statement it read with its version and basis (50054); a
    MISSING_DATA result may hold no statement. Each case has its own transaction. */
@@ -1148,9 +1149,9 @@ BEGIN
     SET @i += 1;
 END;
 SET @got = (SELECT STRING_AGG(CONCAT(CaseNo, ':', Err), ' ') WITHIN GROUP (ORDER BY CaseNo) FROM @r);
-IF @got = '1:0 2:50053 3:50053 4:50053 5:50053 6:50053 7:50053 8:50054 9:50054 10:50054 11:50054 12:50054 13:0'
+IF @got = '1:0 2:50053 3:50053 4:50053 5:547 6:50053 7:50053 8:50054 9:50054 10:50054 11:50054 12:50054 13:0'
     PRINT 'PASS RF28: an evaluated covenant test changes only by its review, and an automatic evaluation names its formula version and stores all it read';
-ELSE PRINT CONCAT('FAIL RF28: case:error ', @got, ' (expected 1:0 2-7:50053 8-12:50054 13:0)');
+ELSE PRINT CONCAT('FAIL RF28: case:error ', @got, ' (expected 1:0 2-4:50053 5:547 6-7:50053 8-12:50054 13:0)');
 GO
 /* RF29 (DR-39, S2-b): an agenda item that left SCHEDULED keeps its status, obligation and period and is not deleted
    (50055); a submission's reference may be corrected, and a waived item keeps the reason and document it was waived
