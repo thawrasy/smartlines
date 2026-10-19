@@ -112,6 +112,7 @@ INSERT #rls_tables VALUES (N'fac', N'ProductLineTerm', 0);
 INSERT #rls_tables VALUES (N'fac', N'Utilization', 0);
 INSERT #rls_tables VALUES (N'fac', N'LimitReservation', 0);
 INSERT #rls_tables VALUES (N'fac', N'LimitMovement', 0);
+INSERT #rls_tables VALUES (N'fac', N'FacilityLenderDecision', 0);
 INSERT #rls_tables VALUES (N'fac', N'ValueConflict', 0);
 INSERT #rls_tables VALUES (N'prc', N'TariffSchedule', 0);
 INSERT #rls_tables VALUES (N'prc', N'TariffItem', 0);

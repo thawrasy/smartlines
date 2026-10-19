@@ -220,7 +220,7 @@ def groups_plan():
         ('m4_reference', 'م4 · الكتالوجات المرجعية', 'Reference catalogues', ['cat.TenantCurrency', 'cat.InstitutionType', 'cat.AccountType', 'cat.LegalEntityType', 'cat.DocumentType', 'cat.Position', 'cat.PowerType']),
         ('m4_rates_lookups', 'م4 · الأسعار المرجعية والقوائم', 'Base rates & lookup lists', ['cat.OperationType', 'cat.OperationTypePowerType', 'cat.BaseRate', 'cat.BaseRateAlias', 'cat.BaseRateValue', 'cat.LookupList', 'cat.LookupItem']),
         ('m4_global_ref', 'م4 · المراجع العامة (ref)', 'Global references (shared, read-only)', ['ref']),
-        ('m5_facility_core', 'م5 · التسهيلات والمراجعات', 'Facilities & revisions', ['fac.Facility', 'fac.FacilityRevision', 'fac.FacilityDocument', 'fac.FacilityLender', 'fac.OutstandingSnapshot', 'fac.ValueConflict']),
+        ('m5_facility_core', 'م5 · التسهيلات والمراجعات', 'Facilities & revisions', ['fac.Facility', 'fac.FacilityRevision', 'fac.FacilityDocument', 'fac.FacilityLender', 'fac.OutstandingSnapshot', 'fac.FacilityLenderDecision', 'fac.ValueConflict']),
         ('m5_limits', 'م5 · الحدود والاستخدام والحجوزات', 'Limits, utilisation & reservations', ['fac.Limit', 'fac.LimitProductLine', 'fac.LimitCompanyRule', 'fac.ProductLineTerm', 'fac.Utilization', 'fac.LimitReservation', 'fac.LimitMovement']),
         ('m5_pricing', 'م5 · التسعير وشروط المقارنة', 'Pricing, tariffs & comparable terms', ['prc', 'cmp']),
         ('m5_collateral', 'م5 · الضمانات', 'Collateral & guarantees', ['col']),

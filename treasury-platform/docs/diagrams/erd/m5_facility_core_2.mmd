@@ -7,6 +7,11 @@ erDiagram
     int ProductId FK
     int CurrencyId FK
   }
+  fac_FacilityLenderDecision["fac.FacilityLenderDecision"] {
+    bigint FacilityLenderDecisionId PK
+    bigint FacilityId FK
+    bigint LenderInstitutionId FK
+  }
   fac_ValueConflict["fac.ValueConflict"] {
     bigint ValueConflictId PK
     bigint FacilityId FK

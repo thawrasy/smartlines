@@ -1158,6 +1158,10 @@ table fin.CreditAssessmentFacility norv  # A facility of the company read from t
   ExpiryDate        date       req
   IsIncluded        bool       req      # يُستبعد التسهيل بعملة لا سعر لها
   ExclusionReason   str(300)
+  LenderDecisionId  ->fac.FacilityLenderDecision noidx   # قرار البنك الفعلي النافذ في تاريخ التقييم، إن وُجد
+  LimitAction       enum{MAINTAINED,UNDRAWN_STOPPED,LIMIT_REDUCED,NOT_RENEWED}
+  DecidedLimitAmount money               # الحد بعد قرار البنك، بعملة التسهيل
+  LenderCostChangeBp int                 # تغيّر الهامش والرسوم معًا
   unique AssessmentId,FacilityId
   check  IsIncluded = 1 OR ExclusionReason IS NOT NULL
 

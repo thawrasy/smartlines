@@ -7,7 +7,7 @@ erDiagram
     int tables "7"
   }
   fac {
-    int tables "13"
+    int tables "14"
   }
   fin {
     int tables "50"
@@ -24,5 +24,6 @@ erDiagram
   wfl {
     int tables "19"
   }
+  fac ||--o{ fin : "5 FK"
   fac ||--o{ prc : "7 FK"
   wfl ||--o{ lc : "5 FK"

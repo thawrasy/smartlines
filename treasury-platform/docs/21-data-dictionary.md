@@ -2,7 +2,7 @@
 
 > مُولَّد آليًا من نموذج البيانات بـ `tools/dbgen` — لا يُعدَّل يدويًا. الأعمدة المشتركة التي تضيفها اصطلاحات التوليد (TenantId، المعرّف، التدقيق) تظهر في كل جدول.
 
-**عدد الجداول: 244**
+**عدد الجداول: 245**
 
 | الوحدة | عدد الجداول |
 |---|---|
@@ -17,7 +17,7 @@
 | CAT | 27 |
 | INS | 6 |
 | ACC | 6 |
-| FAC | 13 |
+| FAC | 14 |
 | PRC | 5 |
 | CMP | 2 |
 | COL | 7 |
@@ -3331,6 +3331,41 @@
 
 **قيود:** `(TargetKind = 'RESERVATION' AND LimitReservationId IS NOT NULL AND UtilizationId IS NULL) OR (TargetKind = 'UTILIZATION' AND UtilizationId IS NOT NULL AND LimitReservationId IS NULL)` · `AmountAfter IS NULL OR AmountAfter >= 0` · `AppliedDelta IS NULL OR RequestedDelta IS NULL OR ABS(AppliedDelta) <= ABS(RequestedDelta)` · `OpKind <> 'ADJUST' OR AmountBefore IS NULL OR AmountAfter IS NULL OR AppliedDelta IS NULL OR AmountAfter = AmountBefore + AppliedDelta` · `OpKind <> 'TRANSFER' OR (TargetKind = 'UTILIZATION' AND Reason IS NOT NULL)`
 
+### `fac.FacilityLenderDecision` — The lender's actual decision on a facility in a time of risk: keep it, stop its undrawn limit, reduce it, not renew it, and any change of margin or fees; the latest decision effective on a date is the lender's stance then, and the credit assessment uses it in place of its estimate (docs/35 section 14, ADR 0021)
+
+*مملوك للمشترك · بمصدر*
+
+| العمود | النوع | NULL | الافتراضي | المرجع | ملاحظة |
+|---|---|---|---|---|---|
+| TenantId | INT | لا | | plat.Tenant | عزل المشترك |
+| **FacilityLenderDecisionId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
+| FacilityId | BIGINT | لا |  | fac.Facility |  |
+| LenderInstitutionId | BIGINT | نعم |  | ins.Institution | البنك صاحب القرار (فارغ: كل المقرضين) |
+| DecisionDate | DATE | لا |  |  |  |
+| EffectiveDate | DATE | لا |  |  |  |
+| LimitAction | VARCHAR(15) | لا |  |  | enum: MAINTAINED, UNDRAWN_STOPPED, LIMIT_REDUCED, NOT_RENEWED |
+| NewLimitAmount | DECIMAL(19,4) | نعم |  |  | الحد الجديد بعملة التسهيل، للتخفيض وحده |
+| MarginChangeBp | INT | لا | 0 |  | تغيّر الهامش بنقاط الأساس على المستعمل |
+| FeesChangeBp | INT | لا | 0 |  | تغيّر الرسوم الإدارية بنقاط الأساس سنويًا |
+| Note | NVARCHAR(1000) | نعم |  |  |  |
+| SourceDocumentId | BIGINT | نعم |  | doc.Document |  |
+| SourcePage | VARCHAR(40) | نعم |  |  |  |
+| ReadFromScan | BIT | لا | 0 |  |  |
+| OriginalText | NVARCHAR(2000) | نعم |  |  | 🔒 confidential |
+| NoSourceReason | NVARCHAR(300) | نعم |  |  |  |
+| Confidence | VARCHAR(26) | لا | ENTERED_NO_DOCUMENT |  | enum: CONFIRMED_AGAINST_ORIGINAL, READ_FROM_SCAN_UNVERIFIED, ENTERED_NO_DOCUMENT |
+| VerifiedBy | BIGINT | نعم |  | sec.AppUser |  |
+| VerifiedOn | DATETIME2(3) | نعم |  |  |  |
+| ConflictId | BIGINT | نعم |  | fac.ValueConflict |  |
+| CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
+| CreatedBy | BIGINT | نعم |  |  |  |
+| UpdatedAt | DATETIME2(3) | نعم |  |  |  |
+| UpdatedBy | BIGINT | نعم |  |  |  |
+
+**المفاتيح:** PK(FacilityLenderDecisionId) · UQ(TenantId, FacilityId, EffectiveDate)
+
+**قيود:** `EffectiveDate >= DecisionDate` · `(LimitAction = 'LIMIT_REDUCED' AND NewLimitAmount IS NOT NULL AND NewLimitAmount >= 0) OR (LimitAction <> 'LIMIT_REDUCED' AND NewLimitAmount IS NULL)` · `MarginChangeBp BETWEEN -1000 AND 2000 AND FeesChangeBp BETWEEN -1000 AND 2000` · `SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')` · `Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)` · `OriginalText IS NULL OR (OriginalText COLLATE Arabic_100_BIN2 NOT LIKE '%[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]%' AND OriginalText COLLATE Arabic_100_BIN2 NOT LIKE '%[A-Za-z][A-Za-z][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9]%')` · `SourceDocumentId IS NOT NULL OR (NoSourceReason IS NOT NULL AND LEN(LTRIM(RTRIM(NoSourceReason))) > 0)`
+
 ### `fac.ValueConflict` — Conflict between two values of one field, and its resolution (FR-FAC-026, BR-FAC-019, BR-FAC-008)
 
 *مملوك للمشترك*
@@ -5339,6 +5374,10 @@
 | ExpiryDate | DATE | لا |  |  |  |
 | IsIncluded | BIT | لا |  |  | يُستبعد التسهيل بعملة لا سعر لها |
 | ExclusionReason | NVARCHAR(300) | نعم |  |  |  |
+| LenderDecisionId | BIGINT | نعم |  | fac.FacilityLenderDecision | قرار البنك الفعلي النافذ في تاريخ التقييم، إن وُجد |
+| LimitAction | VARCHAR(15) | نعم |  |  | enum: MAINTAINED, UNDRAWN_STOPPED, LIMIT_REDUCED, NOT_RENEWED |
+| DecidedLimitAmount | DECIMAL(19,4) | نعم |  |  | الحد بعد قرار البنك، بعملة التسهيل |
+| LenderCostChangeBp | INT | نعم |  |  | تغيّر الهامش والرسوم معًا |
 | CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
 | CreatedBy | BIGINT | نعم |  |  |  |
 | UpdatedAt | DATETIME2(3) | نعم |  |  |  |

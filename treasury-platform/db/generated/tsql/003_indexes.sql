@@ -394,6 +394,9 @@ CREATE NONCLUSTERED INDEX [IX_LimitMovement_LimitReservationId] ON [fac].[LimitM
 CREATE NONCLUSTERED INDEX [IX_LimitMovement_UtilizationId] ON [fac].[LimitMovement] ([TenantId], [FacilityId], [UtilizationId]);
 CREATE NONCLUSTERED INDEX [IX_LimitMovement_CurrencyId] ON [fac].[LimitMovement] ([TenantId], [CurrencyId]);
 CREATE NONCLUSTERED INDEX [IX_LimitMovement_ActorUserId] ON [fac].[LimitMovement] ([TenantId], [ActorUserId]);
+CREATE NONCLUSTERED INDEX [IX_FacilityLenderDecision_SourceDocumentId] ON [fac].[FacilityLenderDecision] ([TenantId], [SourceDocumentId]);
+CREATE NONCLUSTERED INDEX [IX_FacilityLenderDecision_VerifiedBy] ON [fac].[FacilityLenderDecision] ([TenantId], [VerifiedBy]);
+CREATE NONCLUSTERED INDEX [IX_FacilityLenderDecision_ConflictId] ON [fac].[FacilityLenderDecision] ([TenantId], [ConflictId]);
 CREATE UNIQUE NONCLUSTERED INDEX [UQ_ValueConflict_TargetEntity_TargetId_FieldName] ON [fac].[ValueConflict] ([TenantId], [TargetEntity], [TargetId], [FieldName]) WHERE Status = 'OPEN';
 CREATE NONCLUSTERED INDEX [IX_ValueConflict_FacilityId_Status] ON [fac].[ValueConflict] ([TenantId], [FacilityId], [Status]);
 CREATE NONCLUSTERED INDEX [IX_ValueConflict_CandidateASourceDocumentId] ON [fac].[ValueConflict] ([TenantId], [CandidateASourceDocumentId]);

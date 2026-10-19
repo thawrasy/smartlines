@@ -591,7 +591,7 @@ IF @e1 = 547 AND @e2 = 547 AND @ok = 1 AND @e3 = 547
 ELSE PRINT CONCAT('FAIL RF17: collateral of another structure ', @e1, ', guarantee on property ', @e2, ', guarantee on guarantee ', @ok, ', type change ', @e3);
 GO
 /* RF18 (DR-31, DR-41): the reporting role reads a limit's code but not its source text, nor an obligation's clause
-   or a conflict's candidate text (14 denied columns); the application may update an issued proforma's status but
+   or a conflict's candidate text (15 denied columns); the application may update an issued proforma's status but
    not its total, and may add proforma lines but not change them. */
 DECLARE @a INT, @b INT, @c INT, @d INT, @e INT, @f INT, @g INT, @h INT, @n INT;
 EXECUTE AS USER = N'tp_test_rfread';
@@ -611,7 +611,7 @@ FROM sys.database_permissions AS p
 JOIN sys.columns AS c ON c.object_id = p.major_id AND c.column_id = p.minor_id
 WHERE p.grantee_principal_id = DATABASE_PRINCIPAL_ID(N'tp_readonly') AND p.state = 'D' AND p.permission_name = 'SELECT'
   AND c.name IN (N'OriginalText', N'CandidateAOriginalText', N'CandidateBOriginalText', N'ClauseText');
-IF @a = 0 AND @b = 1 AND @c = 0 AND @d = 0 AND @e = 0 AND @f = 1 AND @g = 0 AND @h = 1 AND @n = 14
+IF @a = 0 AND @b = 1 AND @c = 0 AND @d = 0 AND @e = 0 AND @f = 1 AND @g = 0 AND @h = 1 AND @n = 15
     PRINT 'PASS RF18: the reporting role reads no agreement text, and an issued proforma''s content and lines do not change';
 ELSE PRINT CONCAT('FAIL RF18: read source text ', @a, ', read code ', @b, ', clause ', @c, ', candidate ', @d, ', proforma total ', @e,
                   ', status ', @f, ', line update ', @g, ', line insert ', @h, ', denied columns ', @n);

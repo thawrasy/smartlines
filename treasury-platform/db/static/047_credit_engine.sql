@@ -113,7 +113,7 @@ BEGIN
     DECLARE @card INT, @pt VARCHAR(10), @ppt VARCHAR(10), @hasPrior BIT, @fx FLOAT, @assurance VARCHAR(10), @opinion VARCHAR(11), @goingConcern BIT,
             @holdco BIT, @breach VARCHAR(16), @breachAtPe BIT, @flowShortfall BIT, @ageMonths INT, @restatedPct FLOAT, @industry INT, @country INT, @marketSize FLOAT,
             @rollFactor FLOAT, @resilienceNotch BIT, @proforma BIT, @evSub BIT, @evCap BIT,
-            @pfLimits FLOAT, @pfOut FLOAT, @pfUndrawn FLOAT, @pfLargest FLOAT, @pfExpiring FLOAT, @pfLenders INT,
+            @pfLimits FLOAT, @pfOut FLOAT, @pfUndrawn FLOAT, @pfLargest FLOAT, @pfExpiring FLOAT, @pfLenders INT, @pfRepay FLOAT,
             @bu BIT, @buOut FLOAT, @buLimits FLOAT, @buLenders INT, @buDpd12 INT, @buDefault BIT, @buDefaults24 INT, @buBouncedN INT, @buBouncedAmt FLOAT,
             @buJudg FLOAT, @buRestructured BIT, @buInquiries INT, @buMonthsAfterPe INT,
             @qualBp FLOAT, @qualFp FLOAT, @docBp BIT, @docFp BIT, @prodCfq FLOAT, @prodConc FLOAT, @invCrisis FLOAT, @invDays FLOAT,
@@ -123,7 +123,7 @@ BEGIN
            @ageMonths = StatementAgeMonths, @restatedPct = RestatedPct, @industry = IndustryId, @country = CountryId, @marketSize = MarketSize, @rollFactor = RolloverFactor,
            @resilienceNotch = ResilienceNotch, @proforma = Proforma, @evSub = EvSub, @evCap = EvCap,
            @pfLimits = PfLimits, @pfOut = PfOutstanding, @pfUndrawn = PfCommittedUndrawn, @pfLargest = PfLargestLenderShare,
-           @pfExpiring = PfExpiring12mShare, @pfLenders = PfLenders,
+           @pfExpiring = PfExpiring12mShare, @pfLenders = PfLenders, @pfRepay = PfLenderRepayment,
            @bu = BuPresent, @buOut = BuOutstanding, @buLimits = BuLimits, @buLenders = BuLenders, @buDpd12 = BuDpd12m, @buDefault = BuCurrentDefault,
            @buDefaults24 = BuDefaults24m, @buBouncedN = BuBouncedCount, @buBouncedAmt = BuBouncedAmount, @buJudg = BuJudgments,
            @buRestructured = BuRestructured, @buInquiries = BuInquiries6m, @buMonthsAfterPe = BuMonthsAfterPeriodEnd,
@@ -430,7 +430,8 @@ BEGIN
     DECLARE @pdiv FLOAT = CASE WHEN @hasPrior = 1 AND @P_DIVIDENDS <> 0 THEN @P_DIVIDENDS ELSE @DIVIDENDS END,
             @pdraw FLOAT = CASE WHEN @hasPrior = 1 AND @P_PARTNER_DRAWINGS <> 0 THEN @P_PARTNER_DRAWINGS ELSE @PARTNER_DRAWINGS END;
     DECLARE @sources FLOAT = @cashAdj + @stiLiq / 100 * @SHORT_TERM_INVESTMENTS + GREATEST(@ffo, 0.0) + ISNULL(@pfUndrawn, 0),
-            @uses FLOAT = @lqSt - @roll + @DEPR_AMORT * @maintCapex + @pdiv + @pdraw + GREATEST(-@ffo, 0.0);
+            -- a lender that reduced or did not renew a facility asks for what is drawn above the new limit (ADR 0021)
+            @uses FLOAT = @lqSt - @roll + @DEPR_AMORT * @maintCapex + @pdiv + @pdraw + GREATEST(-@ffo, 0.0) + ISNULL(@pfRepay, 0);
 
     -- Fixed costs and the breakeven (the card's fixed_cost_rule).
     DECLARE @fixed FLOAT = CASE WHEN @GENERAL_ADMIN IS NULL AND @SELLING_DISTRIBUTION IS NULL
@@ -899,8 +900,9 @@ CREATE OR ALTER PROCEDURE fin.usp_CreditStressLines @Scenario VARCHAR(30), @With
 AS
 BEGIN
     SET NOCOUNT ON;
-    DECLARE @card INT, @industry INT, @country INT, @region VARCHAR(10);
-    SELECT @card = ScorecardId, @industry = IndustryId, @country = CountryId, @region = RegionCode FROM #crX;
+    DECLARE @card INT, @industry INT, @country INT, @region VARCHAR(10), @undecided FLOAT, @decidedCost FLOAT;
+    SELECT @card = ScorecardId, @industry = IndustryId, @country = CountryId, @region = RegionCode, @undecided = 1 - ISNULL(PfDecidedShare, 0) / 100,
+           @decidedCost = ISNULL(PfDecidedCost, 0) FROM #crX;
     -- the stress of the macro scenario (credit_reference.scenario_params): per driver the scenario intensity × the
     -- activity sensitivity ÷ 5 × the country exposure × the region multiplier (real estate and conflict) × the scenario's
     -- multiplier for the country; the product mix replaces the activity's demand sensitivity and gives the inventory
@@ -951,10 +953,11 @@ BEGIN
     DECLARE @lender FLOAT = @creditSens / @creditRef * @expCredit * @cMult;
     SET @Withdrawn = @stShare * @lender;
     SET @UndrawnPctOut = GREATEST(0.0, @UndrawnPctOut - @undCut * @lender);
-    SET @LenderBpOut = @lenderMarginFees * @lender;
+    SET @LenderBpOut = @lenderMarginFees * @lender * @undecided;   -- the estimate covers only the facilities whose lender has not decided (ADR 0021)
     DECLARE @ipWdPct FLOAT = @ipFall * (SELECT X FROM @x WHERE Driver = 'REAL_ESTATE');
     IF @ipWdPct > @ipFallMax SET @ipWdPct = @ipFallMax;
     IF @Withdrawn > @stMax SET @Withdrawn = @stMax;
+    SET @Withdrawn = @Withdrawn * @undecided;
     SET @privLoss = @privBase * (1 + @privDemand * @xd);
     IF @privLoss > 100 SET @privLoss = 100;
     IF EXISTS (SELECT 1 FROM #crMix)
@@ -1023,7 +1026,7 @@ BEGIN
     DECLARE @floating FLOAT = CASE WHEN @FLOAT IS NOT NULL THEN @FLOAT ELSE 0.6 * (@ST + @BA + @CPLTD + @LT) END;
     -- market rates on floating debt; the lender's margin and fees on the short-term facilities it reprices at renewal (a
     -- term loan keeps its contract price)
-    SET @Dfin = @floating * @rateBp / 10000 + (@ST + @BA) * @LenderBpOut / 10000;
+    SET @Dfin = @floating * @rateBp / 10000 + (@ST + @BA) * @LenderBpOut / 10000 + @decidedCost;
     SET @Stretch = @dso * @rev2 / 365 + (@AR / @REVENUE) * (@rev2 - @REVENUE);
     DECLARE @priv180 FLOAT = CASE WHEN @A181 IS NOT NULL AND @A365 IS NOT NULL THEN GREATEST(0.0, @A181 + @A365 - ISNULL(@A365G, 0) - ISNULL(@ECL, 0))
                                   ELSE 0.10 * GREATEST(0.0, @AR - ISNULL(@ARGOV, 0)) END;
@@ -1246,8 +1249,10 @@ BEGIN
             EXEC fin.usp_CreditStressLines @sc, @wd OUTPUT, @arLoss OUTPUT, @invWd OUTPUT, @dfin OUTPUT, @stretch OUTPUT, @pRev OUTPUT, @pGm OUTPUT,
                                            @pDso OUTPUT, @pRate OUTPUT, @pPriv OUTPUT, @pInv OUTPUT, @pUnd OUTPUT, @pCm OUTPUT,
                                            @pLb OUTPUT;
-            -- the committed undrawn limits the banks keep open in the scenario (ADR 0020)
-            UPDATE #crX SET RolloverFactor = 1 - @wd / 100, Proforma = 1, ResilienceNotch = 0, PfCommittedUndrawn = PfCommittedUndrawn * @pUnd / 100;
+            -- the committed undrawn limits the banks keep open in the scenario (ADR 0020); a facility whose lender has decided
+            -- keeps its decided limit (ADR 0021)
+            UPDATE #crX SET RolloverFactor = 1 - @wd / 100, Proforma = 1, ResilienceNotch = 0,
+                            PfCommittedUndrawn = ISNULL(PfUndrawnDecided, 0) + (PfCommittedUndrawn - ISNULL(PfUndrawnDecided, 0)) * @pUnd / 100;
             EXEC fin.usp_CreditCore;
             INSERT #evScen (Scenario, State, FinalNotch, WeightedScore, Liquidity, NotchesLost, Revenue, Ebitda, Inventory, ArLoss, InventoryWritedown,
                             ExtraFinanceCost, ReceivablesStretch, BalanceGap, RevenuePct, GrossMarginPp, DsoDays, StLinesWithdrawnPct, RateBp,
@@ -1474,7 +1479,8 @@ BEGIN
         BuLenders INT, BuDpd12m INT, BuCurrentDefault BIT, BuDefaults24m INT, BuBouncedCount INT, BuBouncedAmount FLOAT, BuJudgments FLOAT, BuRestructured BIT,
         BuInquiries6m INT, BuMonthsAfterPeriodEnd INT, QualBp FLOAT, QualFp FLOAT, DocBp BIT, DocFp BIT, ProdCashFlowQuality FLOAT, ProdConcentration FLOAT,
         InvCrisisValue FLOAT, InvDaysStagnant FLOAT, Support INT, ParentNotch INT, Override INT, GuLiquid FLOAT, GuNetWorth FLOAT, GuGiven FLOAT,
-        GuGuaranteed FLOAT, GuMaxLeverage FLOAT, CountryId INT, RegionCode VARCHAR(10) COLLATE DATABASE_DEFAULT);
+        GuGuaranteed FLOAT, GuMaxLeverage FLOAT, CountryId INT, RegionCode VARCHAR(10) COLLATE DATABASE_DEFAULT,
+        PfUndrawnDecided FLOAT, PfLenderRepayment FLOAT, PfDecidedShare FLOAT, PfDecidedCost FLOAT);
     CREATE TABLE #crL (Code VARCHAR(40) COLLATE DATABASE_DEFAULT PRIMARY KEY, Amount FLOAT NULL);
     CREATE TABLE #crP (Code VARCHAR(40) COLLATE DATABASE_DEFAULT PRIMARY KEY, Amount FLOAT NULL);
     CREATE TABLE #crColl (Kind VARCHAR(40) COLLATE DATABASE_DEFAULT NOT NULL, Cover FLOAT NOT NULL);
@@ -1605,11 +1611,19 @@ BEGIN
     -- currency: limit, outstanding, the main lender, commitment, expiry, and the collateral linked to them by kind
     -- (a personal guarantee when the guarantor is an individual) (docs/35 section 10).
     DECLARE @fac TABLE (FacilityId BIGINT PRIMARY KEY, CurrencyId INT, Rate FLOAT, LimitAmount FLOAT, Outstanding FLOAT, Lender INT, LenderShare FLOAT,
-                        IsCommitted BIT, ExpiryDate DATE, Secured FLOAT, Recoverable FLOAT, IsIncluded BIT, Reason NVARCHAR(300));
-    INSERT @fac (FacilityId, CurrencyId, Rate, LimitAmount, Outstanding, Lender, LenderShare, IsCommitted, ExpiryDate, Secured, Recoverable, IsIncluded, Reason)
+                        IsCommitted BIT, ExpiryDate DATE, Secured FLOAT, Recoverable FLOAT, IsIncluded BIT, Reason NVARCHAR(300),
+                        DecisionId BIGINT, LimitAction VARCHAR(16), DecidedLimit FLOAT, CostBp INT);
+    INSERT @fac (FacilityId, CurrencyId, Rate, LimitAmount, Outstanding, Lender, LenderShare, IsCommitted, ExpiryDate, Secured, Recoverable, IsIncluded, Reason,
+                 DecisionId, LimitAction, DecidedLimit, CostBp)
     SELECT f.FacilityId, f.CurrencyId, r.Rate, f.TotalAmount, ISNULL(u.Amount, 0), l.InstitutionId, l.SharePct, ISNULL(cm.IsCommitted, 0), f.ExpiryDate,
            ISNULL(cv.Secured, 0), ISNULL(cv.Recoverable, 0), CASE WHEN r.Rate IS NULL THEN 0 ELSE 1 END,
-           CASE WHEN r.Rate IS NULL THEN N'لا سعر لعملة التسهيل بعملة القائمة في مدخلات التقييم' END
+           CASE WHEN r.Rate IS NULL THEN N'لا سعر لعملة التسهيل بعملة القائمة في مدخلات التقييم' END,
+           -- the lender's actual decision effective on the assessment date (ADR 0021): the limit it leaves and its change of
+           -- margin and fees
+           ld.FacilityLenderDecisionId, ld.LimitAction,
+           CASE ld.LimitAction WHEN 'MAINTAINED' THEN f.TotalAmount WHEN 'UNDRAWN_STOPPED' THEN LEAST(f.TotalAmount, ISNULL(u.Amount, 0))
+                               WHEN 'LIMIT_REDUCED' THEN ld.NewLimitAmount WHEN 'NOT_RENEWED' THEN 0 END,
+           ld.MarginChangeBp + ld.FeesChangeBp
     FROM fac.Facility AS f
     OUTER APPLY (SELECT CASE WHEN f.CurrencyId = @cur THEN 1.0
                              ELSE (SELECT CAST(i.Rate AS FLOAT) FROM fin.CreditAssessmentInput AS i
@@ -1636,6 +1650,10 @@ BEGIN
                  WHERE k.TenantId = f.TenantId AND k.FacilityId = f.FacilityId AND k.CoverageAmount IS NOT NULL AND k.LinkedOn <= @asOf
                    AND (k.UnlinkedOn IS NULL OR k.UnlinkedOn > @asOf) AND k.FromRevision <= f.ApprovedRevisionNo
                    AND (k.ToRevision IS NULL OR k.ToRevision >= f.ApprovedRevisionNo)) AS cv
+    OUTER APPLY (SELECT TOP (1) x.FacilityLenderDecisionId, x.LimitAction, x.NewLimitAmount, x.MarginChangeBp, x.FeesChangeBp
+                 FROM fac.FacilityLenderDecision AS x
+                 WHERE x.TenantId = f.TenantId AND x.FacilityId = f.FacilityId AND x.EffectiveDate <= @asOf
+                 ORDER BY x.EffectiveDate DESC) AS ld
     WHERE f.TenantId = @tenant AND f.BorrowerCompanyId = @company AND f.LifecycleStatus IN ('ACTIVE','SUSPENDED')
       AND f.EffectiveFrom <= @asOf AND f.ExpiryDate >= @asOf;
     INSERT #crColl (Kind, Cover)
@@ -1651,9 +1669,17 @@ BEGIN
     WHERE fa.IsIncluded = 1 AND k.CoverageAmount IS NOT NULL AND k.LinkedOn <= @asOf AND (k.UnlinkedOn IS NULL OR k.UnlinkedOn > @asOf)
       AND k.FromRevision <= f.ApprovedRevisionNo AND (k.ToRevision IS NULL OR k.ToRevision >= f.ApprovedRevisionNo)
     GROUP BY kd.Kind;
-    DECLARE @pfLimits FLOAT, @pfOut FLOAT, @pfUndrawn FLOAT, @pfLargest FLOAT, @pfExpiring FLOAT, @pfLenders INT;
-    SELECT @pfLimits = SUM(LimitAmount * Rate), @pfOut = SUM(Outstanding * Rate),
-           @pfUndrawn = SUM(CASE WHEN IsCommitted = 1 AND LimitAmount > Outstanding THEN (LimitAmount - Outstanding) * Rate ELSE 0 END),
+    DECLARE @pfLimits FLOAT, @pfOut FLOAT, @pfUndrawn FLOAT, @pfLargest FLOAT, @pfExpiring FLOAT, @pfLenders INT, @pfUndDec FLOAT, @pfRepay FLOAT,
+            @pfDecShare FLOAT, @pfDecCost FLOAT;
+    -- a decided facility counts by the limit its lender left; the estimate of the scenarios covers the other facilities
+    SELECT @pfLimits = SUM(ISNULL(DecidedLimit, LimitAmount) * Rate), @pfOut = SUM(Outstanding * Rate),
+           @pfUndrawn = SUM(CASE WHEN IsCommitted = 1 AND ISNULL(DecidedLimit, LimitAmount) > Outstanding THEN (ISNULL(DecidedLimit, LimitAmount) - Outstanding) * Rate ELSE 0 END),
+           @pfUndDec = SUM(CASE WHEN DecisionId IS NOT NULL AND IsCommitted = 1 AND DecidedLimit > Outstanding THEN (DecidedLimit - Outstanding) * Rate ELSE 0 END),
+           @pfRepay = SUM(CASE WHEN DecisionId IS NOT NULL AND Outstanding > DecidedLimit THEN (Outstanding - DecidedLimit) * Rate ELSE 0 END),
+           @pfDecShare = CASE WHEN SUM(Outstanding * Rate) > 0
+                              THEN SUM(CASE WHEN DecisionId IS NOT NULL THEN Outstanding * Rate ELSE 0 END) * 100 / SUM(Outstanding * Rate)
+                              ELSE SUM(CASE WHEN DecisionId IS NOT NULL THEN LimitAmount * Rate ELSE 0 END) * 100 / NULLIF(SUM(LimitAmount * Rate), 0) END,
+           @pfDecCost = SUM(CASE WHEN DecisionId IS NOT NULL THEN Outstanding * Rate * CostBp / 10000.0 ELSE 0 END),
            @pfExpiring = SUM(CASE WHEN ExpiryDate <= DATEADD(MONTH, 12, @asOf) THEN LimitAmount * Rate ELSE 0 END) * 100 / NULLIF(SUM(LimitAmount * Rate), 0),
            @pfLenders = COUNT(DISTINCT Lender)
     FROM @fac WHERE IsIncluded = 1;
@@ -1685,7 +1711,7 @@ BEGIN
                  PfOutstanding, PfCommittedUndrawn, PfLargestLenderShare, PfExpiring12mShare, PfLenders, BuPresent, BuOutstanding, BuLimits, BuLenders, BuDpd12m,
                  BuCurrentDefault, BuDefaults24m, BuBouncedCount, BuBouncedAmount, BuJudgments, BuRestructured, BuInquiries6m, BuMonthsAfterPeriodEnd, QualBp,
                  QualFp, DocBp, DocFp, ProdCashFlowQuality, ProdConcentration, InvCrisisValue, InvDaysStagnant, Support, ParentNotch, Override, GuLiquid,
-                 GuNetWorth, GuGiven, GuGuaranteed, GuMaxLeverage, CountryId, RegionCode)
+                 GuNetWorth, GuGiven, GuGuaranteed, GuMaxLeverage, CountryId, RegionCode, PfUndrawnDecided, PfLenderRepayment, PfDecidedShare, PfDecidedCost)
     SELECT @card, @pt, ISNULL(@ppt, 'ANNUAL'), CASE WHEN @prior IS NULL THEN 0 ELSE 1 END, @fx, @assurance, ISNULL(@opinion, 'UNQUALIFIED'), @goingConcern,
            CASE WHEN @isHolding = 1 AND @basis = 'STANDALONE' THEN 1 ELSE 0 END, @breach, @bape, @flowShort, DATEDIFF(MONTH, @pe, @asOf), @restated, @industry,
            @market, 1, 0, 0, @evSub, @evCap, @pfLimits, @pfOut, @pfUndrawn, @pfLargest, @pfExpiring, @pfLenders,
@@ -1694,7 +1720,8 @@ BEGIN
            DATEDIFF(MONTH, @pe, b.ReportDate),
            (SELECT Score FROM @q WHERE Code = 'BUSINESS_PROFILE'), (SELECT Score FROM @q WHERE Code = 'FINANCIAL_POLICY'),
            ISNULL((SELECT Documented FROM @q WHERE Code = 'BUSINESS_PROFILE'), 0), ISNULL((SELECT Documented FROM @q WHERE Code = 'FINANCIAL_POLICY'), 0),
-           @cfq, @conc, @crisis, @days, @support, @parentNotch, ISNULL(@override, 0), @guLiquid, @guNw, @guGiven, @guGtd, @guLev, @country, @region
+           @cfq, @conc, @crisis, @days, @support, @parentNotch, ISNULL(@override, 0), @guLiquid, @guNw, @guGiven, @guGtd, @guLev, @country, @region,
+           @pfUndDec, @pfRepay, @pfDecShare, @pfDecCost
     FROM (SELECT 1 AS one) AS d
     LEFT JOIN fin.CreditAssessmentBureau AS b ON b.TenantId = @tenant AND b.AssessmentId = @AssessmentId;
 
@@ -1917,8 +1944,10 @@ BEGIN
     LEFT JOIN fin.StandardLine AS sl ON sl.Code = r.LineCode
     LEFT JOIN fin.CreditText AS t ON t.Domain = 'RECLASS' AND t.Code = r.AdjCode;
     INSERT fin.CreditAssessmentFacility (TenantId, AssessmentId, FacilityId, LenderInstitutionId, CurrencyId, RateToStatement, LimitAmount, OutstandingAmount,
-                                         SecuredCover, RecoverableCover, IsCommitted, ExpiryDate, IsIncluded, ExclusionReason, CreatedBy)
-    SELECT @tenant, @AssessmentId, FacilityId, Lender, CurrencyId, Rate, LimitAmount, Outstanding, Secured, Recoverable, IsCommitted, ExpiryDate, IsIncluded, Reason, @user
+                                         SecuredCover, RecoverableCover, IsCommitted, ExpiryDate, IsIncluded, ExclusionReason, LenderDecisionId, LimitAction,
+                                         DecidedLimitAmount, LenderCostChangeBp, CreatedBy)
+    SELECT @tenant, @AssessmentId, FacilityId, Lender, CurrencyId, Rate, LimitAmount, Outstanding, Secured, Recoverable, IsCommitted, ExpiryDate, IsIncluded, Reason,
+           DecisionId, LimitAction, DecidedLimit, CostBp, @user
     FROM @fac;
     INSERT fin.CreditAssessmentRemedy (TenantId, AssessmentId, SeqNo, RemedyId, TriggerCode, TriggerLevel, MovedAmount, ProFormaScore, ProFormaGradeId, NotchesGained, CreatedBy)
     SELECT @tenant, @AssessmentId, r.SeqNo, r.RemedyId, r.TriggerCode, r.TriggerLevel, CAST(r.Moved AS DECIMAL(19,4)), CAST(r.WeightedScore AS DECIMAL(9,4)), g.RatingGradeId,
@@ -2123,7 +2152,8 @@ GO
 CREATE OR ALTER VIEW fin.v_CreditAssessmentFacilities
 AS
 SELECT f.TenantId, f.AssessmentId, f.FacilityId, fa.FacilityNo, f.LenderInstitutionId, f.CurrencyId, f.RateToStatement, f.LimitAmount, f.OutstandingAmount,
-       f.SecuredCover, f.RecoverableCover, f.IsCommitted, f.ExpiryDate, f.IsIncluded, f.ExclusionReason
+       f.SecuredCover, f.RecoverableCover, f.IsCommitted, f.ExpiryDate, f.IsIncluded, f.ExclusionReason, f.LenderDecisionId, f.LimitAction,
+       f.DecidedLimitAmount, f.LenderCostChangeBp
 FROM fin.CreditAssessmentFacility AS f
 JOIN fac.Facility AS fa ON fa.TenantId = f.TenantId AND fa.FacilityId = f.FacilityId;
 GO

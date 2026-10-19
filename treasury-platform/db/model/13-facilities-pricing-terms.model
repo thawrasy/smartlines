@@ -330,6 +330,23 @@ table fac.LimitMovement append  # Movement record on a reservation or usage; no 
   check  OpKind <> 'ADJUST' OR AmountBefore IS NULL OR AmountAfter IS NULL OR AppliedDelta IS NULL OR AmountAfter = AmountBefore + AppliedDelta
   check  OpKind <> 'TRANSFER' OR (TargetKind = 'UTILIZATION' AND Reason IS NOT NULL)   # حركة مدققة بسبب (DQ-F14-5)
 
+table fac.FacilityLenderDecision src  # The lender's actual decision on a facility in a time of risk: keep it, stop its undrawn limit, reduce it, not renew it, and any change of margin or fees; the latest decision effective on a date is the lender's stance then, and the credit assessment uses it in place of its estimate (docs/35 section 14, ADR 0021)
+  FacilityId          ->fac.Facility req
+  LenderInstitutionId ->ins.Institution noidx   # البنك صاحب القرار (فارغ: كل المقرضين)
+  DecisionDate        date       req
+  EffectiveDate       date       req
+  LimitAction         enum{MAINTAINED,UNDRAWN_STOPPED,LIMIT_REDUCED,NOT_RENEWED} req
+  NewLimitAmount      money            # الحد الجديد بعملة التسهيل، للتخفيض وحده
+  MarginChangeBp      int        req =0   # تغيّر الهامش بنقاط الأساس على المستعمل
+  FeesChangeBp        int        req =0   # تغيّر الرسوم الإدارية بنقاط الأساس سنويًا
+  Note                str(1000)
+  unique FacilityId,EffectiveDate
+  check  EffectiveDate >= DecisionDate
+  check  (LimitAction = 'LIMIT_REDUCED' AND NewLimitAmount IS NOT NULL AND NewLimitAmount >= 0) OR (LimitAction <> 'LIMIT_REDUCED' AND NewLimitAmount IS NULL)
+  check  MarginChangeBp BETWEEN -1000 AND 2000 AND FeesChangeBp BETWEEN -1000 AND 2000
+  check  SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')   # ختم المصدر (BR-FAC-018)
+  check  Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)
+
 table fac.ValueConflict  # Conflict between two values of one field, and its resolution (FR-FAC-026, BR-FAC-019, BR-FAC-008)
   FacilityId                  ->fac.Facility   # مفتاح النطاق؛ إلزامي إلا لهدف بلا تسهيل: ضمان أو بند تعرفة أو قالب معادلة (قرار المالك 2026-10-13، DR-27)
   TargetEntity                ascii(60)  req   # الكيان المستهدف من جداول المصدر وحدها (القيد أدناه)؛ وجوده وتسهيله يتحقق منهما قبل S2

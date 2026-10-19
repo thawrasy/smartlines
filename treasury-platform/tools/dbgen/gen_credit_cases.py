@@ -55,6 +55,12 @@ VARIANTS = [
      dict(country='KW', industry='G463002', platform=dict(limits=400, outstanding=260, committed_undrawn=120, largest_lender_share_pct=60,
                                                           expiring_12m_share_pct=50)),
      'a staple food importer in a country the Gulf conflict hits hardest, with committed undrawn limits the banks stop in it'),
+    ('V20_LENDER_DECIDED', 'S01_FOOD_DISTRIBUTOR',
+     dict(country='KW', industry='G463002', platform=dict(limits=340, outstanding=260, committed_undrawn=60, largest_lender_share_pct=60,
+                                                          expiring_12m_share_pct=50, undrawn_decided=20, lender_repayment=30,
+                                                          decided_share_pct=55, decided_cost=2.6)),
+     'the actual decisions of the lenders on part of the facilities: one stopped its undrawn limit, one reduced its limit below the drawn amount '
+     'and repriced; the estimate covers the other facilities only'),
 ]
 
 
@@ -110,7 +116,8 @@ def cases():
         if 'market_size' in ch:
             ch['market_size'] = ch['market_size'] * SCALE
         if 'platform' in ch:
-            ch['platform'] = {k: v * SCALE if k in ('limits', 'outstanding', 'committed_undrawn') else v for k, v in ch['platform'].items()}
+            ch['platform'] = {k: v * SCALE if k in ('limits', 'outstanding', 'committed_undrawn', 'undrawn_decided', 'lender_repayment', 'decided_cost') else v
+                              for k, v in ch['platform'].items()}
         kw.update(ch)
         out.append((key, title, card, lines, kw))
     return out
@@ -167,6 +174,8 @@ def context(card, lines, kw):
         GuGiven=None if not gu else sum(g['given'] for g in gu), GuGuaranteed=None if not gu else sum(g['guaranteed'] for g in gu),
         GuMaxLeverage=None if not gu else max((g['given'] / g['net_worth'] * 100 if g['net_worth'] > 0 else 999.0) for g in gu),
         Country=country, RegionCode=kw.get('region'),
+        PfUndrawnDecided=plat.get('undrawn_decided'), PfLenderRepayment=plat.get('lender_repayment'), PfDecidedShare=plat.get('decided_share_pct'),
+        PfDecidedCost=plat.get('decided_cost'),
     )
 
 
@@ -176,7 +185,7 @@ X_COLS = ['ScorecardId', 'PeriodType', 'PriorPeriodType', 'HasPrior', 'Fx', 'Ass
           'BuPresent', 'BuOutstanding', 'BuLimits', 'BuLenders', 'BuDpd12m', 'BuCurrentDefault', 'BuDefaults24m', 'BuBouncedCount', 'BuBouncedAmount',
           'BuJudgments', 'BuRestructured', 'BuInquiries6m', 'BuMonthsAfterPeriodEnd', 'QualBp', 'QualFp', 'DocBp', 'DocFp', 'ProdCashFlowQuality',
           'ProdConcentration', 'InvCrisisValue', 'InvDaysStagnant', 'Support', 'ParentNotch', 'Override', 'GuLiquid', 'GuNetWorth', 'GuGiven',
-          'GuGuaranteed', 'GuMaxLeverage', 'CountryId', 'RegionCode']
+          'GuGuaranteed', 'GuMaxLeverage', 'CountryId', 'RegionCode', 'PfUndrawnDecided', 'PfLenderRepayment', 'PfDecidedShare', 'PfDecidedCost']
 STR_X = {'PeriodType', 'PriorPeriodType', 'Assurance', 'Opinion', 'Breach', 'RegionCode'}
 
 
@@ -323,7 +332,8 @@ TABLES = """CREATE TABLE #crX (ScorecardId INT, PeriodType VARCHAR(10) COLLATE D
     BuLenders INT, BuDpd12m INT, BuCurrentDefault BIT, BuDefaults24m INT, BuBouncedCount INT, BuBouncedAmount FLOAT, BuJudgments FLOAT, BuRestructured BIT,
     BuInquiries6m INT, BuMonthsAfterPeriodEnd INT, QualBp FLOAT, QualFp FLOAT, DocBp BIT, DocFp BIT, ProdCashFlowQuality FLOAT, ProdConcentration FLOAT,
     InvCrisisValue FLOAT, InvDaysStagnant FLOAT, Support INT, ParentNotch INT, Override INT, GuLiquid FLOAT, GuNetWorth FLOAT, GuGiven FLOAT,
-    GuGuaranteed FLOAT, GuMaxLeverage FLOAT, CountryId INT, RegionCode VARCHAR(10) COLLATE DATABASE_DEFAULT);
+    GuGuaranteed FLOAT, GuMaxLeverage FLOAT, CountryId INT, RegionCode VARCHAR(10) COLLATE DATABASE_DEFAULT,
+    PfUndrawnDecided FLOAT, PfLenderRepayment FLOAT, PfDecidedShare FLOAT, PfDecidedCost FLOAT);
 CREATE TABLE #crL (Code VARCHAR(40) COLLATE DATABASE_DEFAULT PRIMARY KEY, Amount FLOAT NULL);
 CREATE TABLE #crP (Code VARCHAR(40) COLLATE DATABASE_DEFAULT PRIMARY KEY, Amount FLOAT NULL);
 CREATE TABLE #crColl (Kind VARCHAR(40) COLLATE DATABASE_DEFAULT NOT NULL, Cover FLOAT NOT NULL);

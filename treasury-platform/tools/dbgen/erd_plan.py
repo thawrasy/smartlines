@@ -51,7 +51,7 @@ GROUPS = [
     ('m4_global_ref', 'Global references (shared, read-only)', 'ref schema: shared reference data owned by the platform',
      ['ref']),
     ('m5_facility_core', 'Facilities and revisions', 'fac schema: facilities, revisions, documents, lenders, outstanding snapshots, value conflicts',
-     ['fac.Facility', 'fac.FacilityRevision', 'fac.FacilityDocument', 'fac.FacilityLender', 'fac.OutstandingSnapshot', 'fac.ValueConflict']),
+     ['fac.Facility', 'fac.FacilityRevision', 'fac.FacilityDocument', 'fac.FacilityLender', 'fac.OutstandingSnapshot', 'fac.FacilityLenderDecision', 'fac.ValueConflict']),
     ('m5_limits', 'Limits, utilisation and reservations', 'fac schema: limits, product lines, company rules, terms, utilisation, reservations, movements',
      ['fac.Limit', 'fac.LimitProductLine', 'fac.LimitCompanyRule', 'fac.ProductLineTerm', 'fac.Utilization', 'fac.LimitReservation', 'fac.LimitMovement']),
     ('m5_pricing', 'Pricing, tariffs and comparable terms', 'prc and cmp schemas: pricing, tariffs, comparable terms',

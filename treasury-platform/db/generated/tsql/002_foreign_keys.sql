@@ -393,6 +393,12 @@ ALTER TABLE [fac].[LimitMovement] ADD CONSTRAINT [FK_LimitMovement_LimitReservat
 ALTER TABLE [fac].[LimitMovement] ADD CONSTRAINT [FK_LimitMovement_UtilizationId] FOREIGN KEY ([TenantId], [FacilityId], [UtilizationId]) REFERENCES [fac].[Utilization] ([TenantId], [FacilityId], [UtilizationId]);
 ALTER TABLE [fac].[LimitMovement] ADD CONSTRAINT [FK_LimitMovement_CurrencyId] FOREIGN KEY ([CurrencyId]) REFERENCES [ref].[Currency] ([CurrencyId]);
 ALTER TABLE [fac].[LimitMovement] ADD CONSTRAINT [FK_LimitMovement_ActorUserId] FOREIGN KEY ([TenantId], [ActorUserId]) REFERENCES [sec].[AppUser] ([TenantId], [AppUserId]);
+ALTER TABLE [fac].[FacilityLenderDecision] ADD CONSTRAINT [FK_FacilityLenderDecision_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
+ALTER TABLE [fac].[FacilityLenderDecision] ADD CONSTRAINT [FK_FacilityLenderDecision_FacilityId] FOREIGN KEY ([TenantId], [FacilityId]) REFERENCES [fac].[Facility] ([TenantId], [FacilityId]);
+ALTER TABLE [fac].[FacilityLenderDecision] ADD CONSTRAINT [FK_FacilityLenderDecision_LenderInstitutionId] FOREIGN KEY ([TenantId], [LenderInstitutionId]) REFERENCES [ins].[Institution] ([TenantId], [InstitutionId]);
+ALTER TABLE [fac].[FacilityLenderDecision] ADD CONSTRAINT [FK_FacilityLenderDecision_SourceDocumentId] FOREIGN KEY ([TenantId], [SourceDocumentId]) REFERENCES [doc].[Document] ([TenantId], [DocumentId]);
+ALTER TABLE [fac].[FacilityLenderDecision] ADD CONSTRAINT [FK_FacilityLenderDecision_VerifiedBy] FOREIGN KEY ([TenantId], [VerifiedBy]) REFERENCES [sec].[AppUser] ([TenantId], [AppUserId]);
+ALTER TABLE [fac].[FacilityLenderDecision] ADD CONSTRAINT [FK_FacilityLenderDecision_ConflictId] FOREIGN KEY ([TenantId], [ConflictId]) REFERENCES [fac].[ValueConflict] ([TenantId], [ValueConflictId]);
 ALTER TABLE [fac].[ValueConflict] ADD CONSTRAINT [FK_ValueConflict_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
 ALTER TABLE [fac].[ValueConflict] ADD CONSTRAINT [FK_ValueConflict_FacilityId] FOREIGN KEY ([TenantId], [FacilityId]) REFERENCES [fac].[Facility] ([TenantId], [FacilityId]);
 ALTER TABLE [fac].[ValueConflict] ADD CONSTRAINT [FK_ValueConflict_CandidateASourceDocumentId] FOREIGN KEY ([TenantId], [CandidateASourceDocumentId]) REFERENCES [doc].[Document] ([TenantId], [DocumentId]);
@@ -644,6 +650,7 @@ ALTER TABLE [fin].[CreditAssessmentFacility] ADD CONSTRAINT [FK_CreditAssessment
 ALTER TABLE [fin].[CreditAssessmentFacility] ADD CONSTRAINT [FK_CreditAssessmentFacility_FacilityId] FOREIGN KEY ([TenantId], [FacilityId]) REFERENCES [fac].[Facility] ([TenantId], [FacilityId]);
 ALTER TABLE [fin].[CreditAssessmentFacility] ADD CONSTRAINT [FK_CreditAssessmentFacility_LenderInstitutionId] FOREIGN KEY ([TenantId], [LenderInstitutionId]) REFERENCES [ins].[Institution] ([TenantId], [InstitutionId]);
 ALTER TABLE [fin].[CreditAssessmentFacility] ADD CONSTRAINT [FK_CreditAssessmentFacility_CurrencyId] FOREIGN KEY ([CurrencyId]) REFERENCES [ref].[Currency] ([CurrencyId]);
+ALTER TABLE [fin].[CreditAssessmentFacility] ADD CONSTRAINT [FK_CreditAssessmentFacility_LenderDecisionId] FOREIGN KEY ([TenantId], [LenderDecisionId]) REFERENCES [fac].[FacilityLenderDecision] ([TenantId], [FacilityLenderDecisionId]);
 ALTER TABLE [fin].[CreditAssessmentRemedy] ADD CONSTRAINT [FK_CreditAssessmentRemedy_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
 ALTER TABLE [fin].[CreditAssessmentRemedy] ADD CONSTRAINT [FK_CreditAssessmentRemedy_AssessmentId] FOREIGN KEY ([TenantId], [AssessmentId]) REFERENCES [fin].[CreditAssessment] ([TenantId], [CreditAssessmentId]);
 ALTER TABLE [fin].[CreditAssessmentRemedy] ADD CONSTRAINT [FK_CreditAssessmentRemedy_RemedyId] FOREIGN KEY ([RemedyId]) REFERENCES [fin].[CreditRemedy] ([CreditRemedyId]);

@@ -252,6 +252,8 @@ GRANT SELECT, INSERT, UPDATE ON [fac].[Utilization] TO [tp_app];
 GRANT SELECT, INSERT, UPDATE ON [fac].[LimitReservation] TO [tp_app];
 -- fac.LimitMovement
 GRANT SELECT, INSERT ON [fac].[LimitMovement] TO [tp_app];
+-- fac.FacilityLenderDecision
+GRANT SELECT, INSERT, UPDATE ON [fac].[FacilityLenderDecision] TO [tp_app];
 -- fac.ValueConflict
 GRANT SELECT, INSERT, UPDATE ON [fac].[ValueConflict] TO [tp_app];
 -- prc.TariffSchedule

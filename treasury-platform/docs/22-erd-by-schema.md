@@ -303,12 +303,13 @@ erDiagram
 | SignatoryAuthority | SourceDocumentId | doc.Document |
 | SignatoryAuthorityJointClass | SignatureClassId | cat.LookupItem |
 
-## مخطط `fac` (13 جدولًا)
+## مخطط `fac` (14 جدولًا)
 
 ```mermaid
 erDiagram
   Facility ||--o{ FacilityDocument : "FacilityId"
   Facility ||--o{ FacilityLender : "FacilityId"
+  Facility ||--o{ FacilityLenderDecision : "FacilityId"
   Facility ||--o{ FacilityRevision : "FacilityId"
   Facility ||--o{ Limit : "FacilityId"
   Facility ||--o{ LimitCompanyRule : "FacilityId"
@@ -331,6 +332,7 @@ erDiagram
   LimitReservation ||--o{ LimitMovement : "LimitReservationId"
   Utilization ||--o{ LimitMovement : "UtilizationId"
   Utilization ||--o{ LimitReservation : "ConvertedUtilizationId"
+  ValueConflict ||--o{ FacilityLenderDecision : "ConflictId"
   ValueConflict ||--o{ Limit : "ConflictId"
   ValueConflict ||--o{ LimitCompanyRule : "ConflictId"
   ValueConflict ||--o{ LimitProductLine : "ConflictId"
@@ -346,6 +348,9 @@ erDiagram
 | FacilityDocument | DocumentId | doc.Document |
 | FacilityLender | ContactId | ins.Contact |
 | FacilityLender | InstitutionId | ins.Institution |
+| FacilityLenderDecision | LenderInstitutionId | ins.Institution |
+| FacilityLenderDecision | SourceDocumentId | doc.Document |
+| FacilityLenderDecision | VerifiedBy | sec.AppUser |
 | FacilityRevision | ApprovedBy | sec.AppUser |
 | FacilityRevision | SubmittedBy | sec.AppUser |
 | Limit | LimitTypeId | cat.LimitType |
@@ -539,6 +544,7 @@ erDiagram
 | CreditAssessmentBureau | DocumentId | doc.Document |
 | CreditAssessmentFacility | CurrencyId | ref.Currency |
 | CreditAssessmentFacility | FacilityId | fac.Facility |
+| CreditAssessmentFacility | LenderDecisionId | fac.FacilityLenderDecision |
 | CreditAssessmentFacility | LenderInstitutionId | ins.Institution |
 | CreditAssessmentGuarantor | DocumentId | doc.Document |
 | CreditAssessmentGuarantor | PartyId | pty.Party |

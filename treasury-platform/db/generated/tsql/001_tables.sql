@@ -3512,6 +3512,47 @@ CREATE TABLE [fac].[LimitMovement] (
     CONSTRAINT [CK_LimitMovement_OpKind] CHECK ([OpKind] IS NULL OR [OpKind] IN ('CREATE', 'ADJUST', 'CONVERT', 'RELEASE', 'TRANSFER'))
 );
 GO
+-- The lender's actual decision on a facility in a time of risk: keep it, stop its undrawn limit, reduce it, not renew it, and any change of margin or fees; the latest decision effective on a date is the lender's stance then, and the credit assessment uses it in place of its estimate (docs/35 section 14, ADR 0021)
+CREATE TABLE [fac].[FacilityLenderDecision] (
+    [TenantId] INT NOT NULL,
+    [FacilityLenderDecisionId] BIGINT IDENTITY(1,1) NOT NULL,
+    [FacilityId] BIGINT NOT NULL,
+    [LenderInstitutionId] BIGINT NULL,
+    [DecisionDate] DATE NOT NULL,
+    [EffectiveDate] DATE NOT NULL,
+    [LimitAction] VARCHAR(15) NOT NULL,
+    [NewLimitAmount] DECIMAL(19,4) NULL,
+    [MarginChangeBp] INT NOT NULL CONSTRAINT [DF_FacilityLenderDecision_MarginChangeBp] DEFAULT 0,
+    [FeesChangeBp] INT NOT NULL CONSTRAINT [DF_FacilityLenderDecision_FeesChangeBp] DEFAULT 0,
+    [Note] NVARCHAR(1000) NULL,
+    [SourceDocumentId] BIGINT NULL,
+    [SourcePage] VARCHAR(40) NULL,
+    [ReadFromScan] BIT NOT NULL CONSTRAINT [DF_FacilityLenderDecision_ReadFromScan] DEFAULT 0,
+    [OriginalText] NVARCHAR(2000) NULL,
+    [NoSourceReason] NVARCHAR(300) NULL,
+    [Confidence] VARCHAR(26) NOT NULL CONSTRAINT [DF_FacilityLenderDecision_Confidence] DEFAULT 'ENTERED_NO_DOCUMENT',
+    [VerifiedBy] BIGINT NULL,
+    [VerifiedOn] DATETIME2(3) NULL,
+    [ConflictId] BIGINT NULL,
+    [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_FacilityLenderDecision_CreatedAt] DEFAULT SYSUTCDATETIME(),
+    [CreatedBy] BIGINT NULL,
+    [UpdatedAt] DATETIME2(3) NULL,
+    [UpdatedBy] BIGINT NULL,
+    [RowVersion] ROWVERSION NOT NULL,
+    CONSTRAINT [PK_FacilityLenderDecision] PRIMARY KEY CLUSTERED ([FacilityLenderDecisionId]),
+    CONSTRAINT [UQ_FacilityLenderDecision_Tenant] UNIQUE ([TenantId], [FacilityLenderDecisionId]),
+    CONSTRAINT [UQ_FacilityLenderDecision_FacilityId_EffectiveDate] UNIQUE ([TenantId], [FacilityId], [EffectiveDate]),
+    CONSTRAINT [CK_FacilityLenderDecision_1] CHECK (EffectiveDate >= DecisionDate),
+    CONSTRAINT [CK_FacilityLenderDecision_2] CHECK ((LimitAction = 'LIMIT_REDUCED' AND NewLimitAmount IS NOT NULL AND NewLimitAmount >= 0) OR (LimitAction <> 'LIMIT_REDUCED' AND NewLimitAmount IS NULL)),
+    CONSTRAINT [CK_FacilityLenderDecision_3] CHECK (MarginChangeBp BETWEEN -1000 AND 2000 AND FeesChangeBp BETWEEN -1000 AND 2000),
+    CONSTRAINT [CK_FacilityLenderDecision_4] CHECK (SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')),
+    CONSTRAINT [CK_FacilityLenderDecision_5] CHECK (Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)),
+    CONSTRAINT [CK_FacilityLenderDecision_6] CHECK (OriginalText IS NULL OR (OriginalText COLLATE Arabic_100_BIN2 NOT LIKE '%[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]%' AND OriginalText COLLATE Arabic_100_BIN2 NOT LIKE '%[A-Za-z][A-Za-z][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9]%')),
+    CONSTRAINT [CK_FacilityLenderDecision_7] CHECK (SourceDocumentId IS NOT NULL OR (NoSourceReason IS NOT NULL AND LEN(LTRIM(RTRIM(NoSourceReason))) > 0)),
+    CONSTRAINT [CK_FacilityLenderDecision_LimitAction] CHECK ([LimitAction] IS NULL OR [LimitAction] IN ('MAINTAINED', 'UNDRAWN_STOPPED', 'LIMIT_REDUCED', 'NOT_RENEWED')),
+    CONSTRAINT [CK_FacilityLenderDecision_Confidence] CHECK ([Confidence] IS NULL OR [Confidence] IN ('CONFIRMED_AGAINST_ORIGINAL', 'READ_FROM_SCAN_UNVERIFIED', 'ENTERED_NO_DOCUMENT'))
+);
+GO
 -- Conflict between two values of one field, and its resolution (FR-FAC-026, BR-FAC-019, BR-FAC-008)
 CREATE TABLE [fac].[ValueConflict] (
     [TenantId] INT NOT NULL,
@@ -5783,6 +5824,10 @@ CREATE TABLE [fin].[CreditAssessmentFacility] (
     [ExpiryDate] DATE NOT NULL,
     [IsIncluded] BIT NOT NULL,
     [ExclusionReason] NVARCHAR(300) NULL,
+    [LenderDecisionId] BIGINT NULL,
+    [LimitAction] VARCHAR(15) NULL,
+    [DecidedLimitAmount] DECIMAL(19,4) NULL,
+    [LenderCostChangeBp] INT NULL,
     [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_CreditAssessmentFacility_CreatedAt] DEFAULT SYSUTCDATETIME(),
     [CreatedBy] BIGINT NULL,
     [UpdatedAt] DATETIME2(3) NULL,
@@ -5790,7 +5835,8 @@ CREATE TABLE [fin].[CreditAssessmentFacility] (
     CONSTRAINT [PK_CreditAssessmentFacility] PRIMARY KEY CLUSTERED ([CreditAssessmentFacilityId]),
     CONSTRAINT [UQ_CreditAssessmentFacility_Tenant] UNIQUE ([TenantId], [CreditAssessmentFacilityId]),
     CONSTRAINT [UQ_CreditAssessmentFacility_AssessmentId_FacilityId] UNIQUE ([TenantId], [AssessmentId], [FacilityId]),
-    CONSTRAINT [CK_CreditAssessmentFacility_1] CHECK (IsIncluded = 1 OR ExclusionReason IS NOT NULL)
+    CONSTRAINT [CK_CreditAssessmentFacility_1] CHECK (IsIncluded = 1 OR ExclusionReason IS NOT NULL),
+    CONSTRAINT [CK_CreditAssessmentFacility_LimitAction] CHECK ([LimitAction] IS NULL OR [LimitAction] IN ('MAINTAINED', 'UNDRAWN_STOPPED', 'LIMIT_REDUCED', 'NOT_RENEWED'))
 );
 GO
 -- A remedy the report proposes, with the finding it answers and the grade the pro-forma statement would get; written by fin.usp_ComputeCreditAssessment only (docs/35 section 12)

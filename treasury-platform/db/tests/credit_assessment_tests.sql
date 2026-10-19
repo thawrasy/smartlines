@@ -997,7 +997,48 @@ IF @got = '1:0=2 4 B1 Aa2 Ba3 INDUSTRY_DETAIL,MARKET_REGION -29.63 2:0=2 4 B1 Aa
     PRINT 'PASS CA16: the market country and city and the detailed activity give the country risk, the anchor, the country ceiling, the requests and the stress of the scenarios, as the reference computes them';
 ELSE PRINT CONCAT('FAIL CA16: ', @got, ' (expected 1:0=2 4 B1 Aa2 Ba3 INDUSTRY_DETAIL,MARKET_REGION -29.63 2:0=2 4 B1 Aa2 Ba3 - -42.55 3:0=4 4 B3 Ba2 Ba3 COUNTRY_PROFILE -26.30 4:0=4 2 Ba1 B2 B2 - -4.24)');
 GO
-DROP PROCEDURE #CountryCase, #HashCase, #PlatformCase, #CPlatform, #CardCase, #CovCase, #CCov, #LifeCase, #SupportCase, #HoldAssessment, #AdjustCase, #DataCase,
+/* CA17 (FR-FIN-034, BR-FIN-035, ADR 0021): the lender's actual decision on a facility replaces the estimate of the
+   scenarios for that facility. IND imports staple food; its facility of 300 million SAR, committed, has 250 million
+   drawn: (1) no decision; (2) the lender stopped the undrawn limit; (3) it reduced the limit to 200 million, so the
+   50 million drawn above it are due; (4) it kept the facility and raised the margin by 150 and the fees by 25 basis
+   points; (5) a decision effective after the assessment date is not read. Each gives the final grade, the liquidity,
+   the facility as the assessment read it, and the financial crisis: the cut of the short-term lines, the lender's
+   estimated margin and fees, the share of the undrawn limits kept, and the grade. */
+CREATE PROCEDURE #LenderCase @Case INT, @Out NVARCHAR(1000) OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @s BIGINT, @a BIGINT, @f BIGINT, @t INT = (SELECT v FROM #C WHERE k = 't'), @ind BIGINT = (SELECT v FROM #C WHERE k = 'ind');
+    UPDATE org.Company SET IndustryId = (SELECT IndustryId FROM ref.Industry WHERE Code = 'G463002') WHERE CompanyId = @ind;
+    EXEC #CStmt @ind, '2025-12-31';
+    SELECT @s = v FROM #C WHERE k = 's';
+    EXEC #CAssess @s;
+    SELECT @a = v FROM #C WHERE k = 'a';
+    EXEC #CPlatform;
+    SET @f = (SELECT FacilityId FROM fac.Facility WHERE TenantId = @t AND FacilityNo = 'FAC-26-301');
+    IF @Case > 1
+        INSERT fac.FacilityLenderDecision (TenantId, FacilityId, LenderInstitutionId, DecisionDate, EffectiveDate, LimitAction, NewLimitAmount, MarginChangeBp,
+                                           FeesChangeBp, NoSourceReason)
+        VALUES (@t, @f, NULL, '2026-03-01', CASE @Case WHEN 5 THEN '2026-06-01' ELSE '2026-03-15' END,
+                CASE @Case WHEN 2 THEN 'UNDRAWN_STOPPED' WHEN 3 THEN 'LIMIT_REDUCED' WHEN 4 THEN 'MAINTAINED' ELSE 'NOT_RENEWED' END,
+                CASE WHEN @Case = 3 THEN 200000000 END, CASE WHEN @Case = 4 THEN 150 ELSE 0 END, CASE WHEN @Case = 4 THEN 25 ELSE 0 END, N'test fixture');
+    EXEC fin.usp_ComputeCreditAssessment @a;
+    SELECT @Out = CONCAT(r.FinalGrade, ' ', r.LiquidityLabel, ' | ',
+                         (SELECT STRING_AGG(CONCAT(ISNULL(LimitAction, '-'), '/', ISNULL(CAST(CAST(DecidedLimitAmount / 1000000 AS INT) AS VARCHAR(10)), '-'), '/',
+                                                   ISNULL(CAST(LenderCostChangeBp AS VARCHAR(10)), '-')), ',') FROM fin.v_CreditAssessmentFacilities WHERE AssessmentId = @a),
+                         ' | ', (SELECT CONCAT(FORMAT(StLinesWithdrawnPct, 'N2', 'en-US'), ' ', FORMAT(LenderCostBp, 'N2', 'en-US'), ' ',
+                                               FORMAT(UndrawnAvailablePct, 'N2', 'en-US'), ' ', Grade)
+                                 FROM fin.v_CreditAssessmentScenarios WHERE AssessmentId = @a AND Scenario = 'FINANCIAL_CRISIS'))
+    FROM fin.v_CreditAssessmentReport AS r WHERE r.CreditAssessmentId = @a;
+END;
+GO
+DECLARE @got NVARCHAR(2000);
+EXEC #CCases '#LenderCase', 1, 5, @got OUTPUT;
+IF @got = '1:0=Ba2 SGL-2 | -/-/- | 60.00 262.50 25.00 Caa2 2:0=Ba2 SGL-3 | UNDRAWN_STOPPED/250/0 | 0.00 0.00 25.00 Caa2 3:0=Ba3 SGL-4 | LIMIT_REDUCED/200/0 | 0.00 0.00 25.00 Caa2 4:0=Ba2 SGL-2 | MAINTAINED/300/175 | 0.00 0.00 25.00 Caa1 5:0=Ba2 SGL-2 | -/-/- | 60.00 262.50 25.00 Caa2'
+    PRINT 'PASS CA17: the actual decision of the lender on a facility replaces the estimate of the scenarios for it: a stopped or reduced limit, a repayment due, a new margin and fees';
+ELSE PRINT CONCAT('FAIL CA17: ', @got, ' (expected 1:0=Ba2 SGL-2 | -/-/- | 60.00 262.50 25.00 Caa2 2:0=Ba2 SGL-3 | UNDRAWN_STOPPED/250/0 | 0.00 0.00 25.00 Caa2 3:0=Ba3 SGL-4 | LIMIT_REDUCED/200/0 | 0.00 0.00 25.00 Caa2 4:0=Ba2 SGL-2 | MAINTAINED/300/175 | 0.00 0.00 25.00 Caa1 5:0=Ba2 SGL-2 | -/-/- | 60.00 262.50 25.00 Caa2)');
+GO
+DROP PROCEDURE #LenderCase, #CountryCase, #HashCase, #PlatformCase, #CPlatform, #CardCase, #CovCase, #CCov, #LifeCase, #SupportCase, #HoldAssessment, #AdjustCase, #DataCase,
                #CoverageCase, #CHead, #CGrade, #CCases, #CAssess, #Crd, #CStmt, #CBase, #CBind;
 DROP TABLE #C;
 DROP USER [tp_test_crdapp];

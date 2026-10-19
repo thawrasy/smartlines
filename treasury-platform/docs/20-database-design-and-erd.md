@@ -5,7 +5,7 @@
 | الحالة | **مسودة للتقييم (الإصدار 0.4)** — تصميم قاعدة البيانات مع مخططات ERD مهنية (تدوين Crow's Foot) ومواصفات الجداول والعلاقات، مُولَّدة من النموذج |
 | التاريخ | 2026-10-18 |
 | المحرك المعتمد | **SQL Server 2025** |
-| المرجع | `db/model/*.model` (الجداول 244 · المخططات 20، من `tools/dbgen/ddl_metrics.py`) — الملفات المولَّدة لا تُعدَّل يدويًا |
+| المرجع | `db/model/*.model` (الجداول 245 · المخططات 20، من `tools/dbgen/ddl_metrics.py`) — الملفات المولَّدة لا تُعدَّل يدويًا |
 | الدعم | `tools/dbgen/erd_mermaid.py` (المخططات) · `tools/dbgen/build_erd_doc.py` · `tools/dbgen/check_grants.py` · `tools/dbgen/check_review_fixes.py` · `tools/dbgen/ddl_metrics.py` (الأرقام) |
 
 ## 0. سجل التعديلات (الإصداران 0.2 و0.3)
@@ -32,6 +32,7 @@
 | C-16 | النسخة الثانية من التقييم (ADR 0018، `047_credit_engine.sql`، `docs/35` الإصدار 2.0): 157 بندًا معياريًا تُدرس بندًا بندًا، و112 مقياسًا، والربط بتسهيلات المنصة وضماناتها، والنشاط ومنتجاته وسيناريو السوق الراكد والأزمة، وعلاجات وخطط تقوية بقوائم متوازنة عند طلب العميل، والنظرة المستقبلية ومحفّزاتها (§11.5) | طلبات المالك الثلاثة 2026-10-19؛ المحتوى صاغه وراجعه وكلاء ذكاء اصطناعي لا محللون بشريون |
 | C-17 | الإصدار 2.1 من التقييم (ADR 0019): 16 عائلة قطاعية ببطاقاتها، و282 نشاطًا تفصيليًا بحساسيتها لسبعة محركات ضغط، و22 بلدًا عربيًا بمخاطرها وتصنيفها السيادي وسقفها ومدنها، ومرتكز من مخاطر البلد والنشاط، وستة سيناريوهات اقتصادية، وسلّم حجم من 10 ملايين إلى 10 مليارات (§11.5) | إجابات المالك 2026-10-19: الممارسة المعيارية لوكالات التصنيف؛ وتتحقق إدارة الخزينة من المعايرة |
 | C-18 | الإصدار 2.2 من التقييم (ADR 0020): سيناريو سابع للحدث الجاري (نزاع الخليج وممرات الملاحة) بمضاعف لكل بلد (`fin.MacroScenarioCountry`)، وموقف البنك في كل سيناريو (ما يُوقف من الحدود غير المسحوبة، وهامشه ورسومه على التسهيلات التي تتجدد، بعامل من مخاطر القطاع والبلد) ومدة الأثر على `fin.MacroScenario` ونتيجة كل سيناريو؛ 244 جدولًا (§11.5) | قرار المالك 31 (2026-10-19): اعتماد الأسئلة المفتوحة وتفاصيل الحدث الجاري، وتوقف الحدود غير المسحوبة؛ والقرار 32: موقف البنك |
+| C-19 | قرار البنك الفعلي على التسهيل (ADR 0021): `fac.FacilityLenderDecision` بتاريخه ونفاذه ومستنده، ويقرؤه التقييم مع التسهيل فيحل محل تقدير موقف البنك لذلك التسهيل؛ أربعة أعمدة في لقطة التسهيل؛ 245 جدولًا (§11.5) | قرار المالك 33 (2026-10-19) |
 
 **مرفوض:** اقتراح تقرير Technical Evaluation بـ.NET 9، لأن قرار المشروع `.NET 10 LTS` (`01` §13) ويبقى كما هو. **مؤجَّل:** أدوات الترحيل (O-2)، ومرساة سلسلة التدقيق (O-13)، وRPO/RTO (O-14)، ومكدّس الواجهات (خارج نطاق وثيقة القاعدة). **لم يُعتمد** الادعاء بأن القيود وحدها تضمن سلامة الحجز؛ الحجز يبقى ذريًا بالقفل في طبقة التطبيق (§7.1).
 
@@ -45,13 +46,13 @@
 
 | المؤشر | القيمة |
 |---|---|
-| جداول | **244** في 20 مخططًا |
-| أعمدة | 4,034 مُعرَّفة في النماذج + الأعمدة الآلية = **4,631** في DDL |
-| مفاتيح أجنبية | **894** = 204 إلى `plat.Tenant` (`TenantId`) + **564 مركّبة** `(TenantId, …)` بين جداول المشترك + 126 بسيطة نحو جداول عالمية/مختلطة؛ حذف متتالٍ واحد (§7) |
-| فهارس | 785 غير مجمّع (232 مصفّاة · 51 بأعمدة `INCLUDE`) |
-| قيود | 1,438 `CHECK` (قوائم قيم وتناسق حقول وتواريخ وأطوال الأغلفة المشفّرة) · 491 قيد `UNIQUE` + 151 فهرسًا فريدًا |
+| جداول | **245** في 20 مخططًا |
+| أعمدة | 4,064 مُعرَّفة في النماذج + الأعمدة الآلية = **4,664** في DDL |
+| مفاتيح أجنبية | **901** = 205 إلى `plat.Tenant` (`TenantId`) + **570 مركّبة** `(TenantId, …)` بين جداول المشترك + 126 بسيطة نحو جداول عالمية/مختلطة؛ حذف متتالٍ واحد (§7) |
+| فهارس | 788 غير مجمّع (232 مصفّاة · 51 بأعمدة `INCLUDE`) |
+| قيود | 1,449 `CHECK` (قوائم قيم وتناسق حقول وتواريخ وأطوال الأغلفة المشفّرة) · 493 قيد `UNIQUE` + 151 فهرسًا فريدًا |
 | جداول بمعرّف عام `PublicId` | 41 (جذور التجميعات المعرَّضة عبر API) |
-| جداول خاضعة لعزل الصفوف RLS | 202 (199 مملوكة للمشترك + 3 مختلطة، منها `aud.AuditLog` بسياسة خاصة؛ الـ42 العالمية خارجها) |
+| جداول خاضعة لعزل الصفوف RLS | 203 (200 مملوكة للمشترك + 3 مختلطة، منها `aud.AuditLog` بسياسة خاصة؛ الـ42 العالمية خارجها) |
 | أعمدة محجوبة عن دور التقارير | 31 |
 | جداول محجوبة كليًا عن تطبيق المشترك (`noapp`) | 8: العالمية المحجوبة الخمسة والداخلية الثلاثة (§3.3)؛ يقرأ التطبيق صف مشتركه ووحداته عبر `plat.v_CurrentTenant` و`plat.v_TenantModule` |
 
@@ -1233,7 +1234,7 @@
 
 #### م5 · التسهيلات والمراجعات (2/2)
 
-*Facilities & revisions* — 2 جدولًا
+*Facilities & revisions* — 3 جدولًا
 
 ![م5 · التسهيلات والمراجعات (2/2)](diagrams/erd/m5_facility_core_2.png)
 
@@ -1242,6 +1243,7 @@
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
 | `fac.OutstandingSnapshot` | Snapshot of the recognised outstanding balance (FR-FAC-009, BR-FAC-017); PctOfLimit is derived and not stored | OutstandingSnapshotId | 7 | 2 | 6 | 13 |
+| `fac.FacilityLenderDecision` | The lender's actual decision on a facility in a time of risk: keep it, stop its undrawn limit, reduce it, not renew it, and any change of margin or fees; the latest decision effective on a date is the lender's stance then, and the credit assessment uses it in place of its estimate (docs/35 section 14, ADR 0021) | FacilityLenderDecisionId | 5 | 2 | 7 | 16 |
 | `fac.ValueConflict` | Conflict between two values of one field, and its resolution (FR-FAC-026, BR-FAC-019, BR-FAC-008) | ValueConflictId | 4 | 2 | 9 | 21 |
 
 **العلاقات (المفاتيح الأجنبية)**
@@ -1255,6 +1257,11 @@
 | `fac.OutstandingSnapshot.SourceDocumentId` | `doc.Document` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `fac.OutstandingSnapshot.VerifiedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `fac.OutstandingSnapshot.ConflictId` | `fac.ValueConflict` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `fac.FacilityLenderDecision.FacilityId` | `fac.Facility` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
+| `fac.FacilityLenderDecision.LenderInstitutionId` | `ins.Institution` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `fac.FacilityLenderDecision.SourceDocumentId` | `doc.Document` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `fac.FacilityLenderDecision.VerifiedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `fac.FacilityLenderDecision.ConflictId` | `fac.ValueConflict` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `fac.ValueConflict.FacilityId` | `fac.Facility` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `fac.ValueConflict.CandidateASourceDocumentId` | `doc.Document` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `fac.ValueConflict.CandidateBSourceDocumentId` | `doc.Document` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
@@ -1677,7 +1684,7 @@
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `fin.CreditAssessmentFacility` | A facility of the company read from the platform on the assessment date: its limit, outstanding, lender, commitment, expiry and collateral cover, in the statement currency; written by fin.usp_ComputeCreditAssessment only (docs/35 section 10) | CreditAssessmentFacilityId | 4 | 2 | 1 | 12 |
+| `fin.CreditAssessmentFacility` | A facility of the company read from the platform on the assessment date: its limit, outstanding, lender, commitment, expiry and collateral cover, in the statement currency; written by fin.usp_ComputeCreditAssessment only (docs/35 section 10) | CreditAssessmentFacilityId | 5 | 2 | 1 | 15 |
 | `fin.CreditAssessmentFactor` | A scorecard metric of an assessment: its value, its score on the linear continuum, its grade, weight and contribution; written by fin.usp_ComputeCreditAssessment only (BR-FIN-018, BR-FIN-019) | CreditAssessmentFactorId | 3 | 2 | 3 | 11 |
 | `fin.CreditAssessmentFinding` | A finding of an assessment, with its text: a strength, a point to note or watch, a weakness, a critical risk or an adjustment, from the scorecard, an item rule, the covenants or the bank flows; written by fin.usp_ComputeCreditAssessment only (BR-FIN-020) | CreditAssessmentFindingId | 1 | 2 | 3 | 15 |
 | `fin.CreditAssessmentGuarantor` | A guarantor of the company's facilities with the net worth statement the analyst read: partners' solvency for the facility grade (docs/35 section 10); changes only while the assessment is a draft | CreditAssessmentGuarantorId | 3 | 2 | 2 | 8 |
@@ -1690,6 +1697,7 @@
 | `fin.CreditAssessmentFacility.FacilityId` | `fac.Facility` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `fin.CreditAssessmentFacility.LenderInstitutionId` | `ins.Institution` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `fin.CreditAssessmentFacility.CurrencyId` | `ref.Currency` | 1 : N | إلزامي | مرجع عام | قيد | — |
+| `fin.CreditAssessmentFacility.LenderDecisionId` | `fac.FacilityLenderDecision` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `fin.CreditAssessmentFactor.AssessmentId` | `fin.CreditAssessment` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `fin.CreditAssessmentFactor.MetricId` | `fin.CreditMetric` | 1 : N | إلزامي | مرجع عام | قيد | — |
 | `fin.CreditAssessmentFactor.GradeId` | `fin.RatingGrade` | 1 : N | اختياري | مرجع عام | قيد | — |
@@ -2575,9 +2583,9 @@ SQL_USER=bankfas_monitor tools/dbgen/check_deployed.py --server <server>   # the
 
 | الفحص | النتيجة | ملاحظة |
 |---|---|---|
-| فحص النموذج (`dbgen check`) | **OK** — 244 جدولًا / 4,034 عمودًا؛ لا مراجع معلّقة؛ لا مخالفة لقواعد النطاق | التسمية والمراجع والمفاتيح المركّبة والأعمدة المطلوبة |
+| فحص النموذج (`dbgen check`) | **OK** — 245 جدولًا / 4,064 عمودًا؛ لا مراجع معلّقة؛ لا مخالفة لقواعد النطاق | التسمية والمراجع والمفاتيح المركّبة والأعمدة المطلوبة |
 | تنفيذ PostgreSQL 16 | **تشغيل سابق** — 194 جدولًا / 763 مفتاحًا أجنبيًا / 691 قيد فريد أو أساسي، قبل إضافة `sec.SessionBinding`؛ لم يُعَد على النموذج الحالي، ولا يدخل CI | يثبت **البنية المنطقية** فقط. **لا** يثبت صحة T-SQL |
-| التحقق الثابت من الصلاحيات (`check_grants.py`) | **OK** — 244 جدولًا، 328 منحة مولّدة، 122 منحة ثابتة، 31 عمودًا مقيّدًا، القواعد R1–R11؛ يعمل في الخطوة 3 من `db_ci.sh` | حُقنت ثلاث مخالفات متعمدة فاكتُشفت كلها (§9.3). **لا يثبت** أن المحرك ينفّذ المنح كما هي |
+| التحقق الثابت من الصلاحيات (`check_grants.py`) | **OK** — 245 جدولًا، 329 منحة مولّدة، 122 منحة ثابتة، 31 عمودًا مقيّدًا، القواعد R1–R11؛ يعمل في الخطوة 3 من `db_ci.sh` | حُقنت ثلاث مخالفات متعمدة فاكتُشفت كلها (§9.3). **لا يثبت** أن المحرك ينفّذ المنح كما هي |
 | التحقق من الإصلاحات (`check_review_fixes.py`) | **OK** — 75 من 75، في الخطوة 3 من `db_ci.sh` | يفحص أن كل إصلاح من DR-01 إلى DR-50 موجود في DDL المولَّد أو في الحارس الثابت (043، 044)، لا في الوثيقة وحدها |
 | فهرسة المفاتيح الأجنبية (`check_fk_indexes.py`) | **OK** — 578 مفهرسًا، 111 `noidx`، صفر بلا فهرس؛ الخطوة 3 | §8 |
 | تحليل T-SQL بـ `sqlglot` | الملفات `000–004`، `007`، `010`، `025`، `030`، `040`: **بلا أخطاء**؛ `005` و`006` و`020`: خطأ واحد لكل ملف عند عبارة `DENY` | المحلّل لا يدعم عبارة `DENY` بصيغتها الكاملة؛ الصيغة صحيحة في T-SQL. التحليل نحوي جزئي |

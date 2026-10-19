@@ -277,7 +277,8 @@ def analytical(card, s, p, ctx):
     pdiv = p('DIVIDENDS') if p is not None and p('DIVIDENDS') else s('DIVIDENDS')
     pdraw = p('PARTNER_DRAWINGS') if p is not None and p('PARTNER_DRAWINGS') else s('PARTNER_DRAWINGS')
     sources = cash_adj + P['sti_liquidity_pct'] / 100 * s('SHORT_TERM_INVESTMENTS') + max(ffo, 0.0) + (plat.get('committed_undrawn') or 0)
-    uses = lq_st - roll + da * P['maint_capex_factor'] + pdiv + pdraw + max(-ffo, 0.0)
+    # a lender that reduced or did not renew a facility asks for what is drawn above the new limit (ADR 0021)
+    uses = lq_st - roll + da * P['maint_capex_factor'] + pdiv + pdraw + max(-ffo, 0.0) + (plat.get('lender_repayment') or 0)
     # comparison statement
     pta = p('TOTAL_ASSETS') if p is not None else None
     prev = p('REVENUE') if p is not None else None
@@ -857,11 +858,15 @@ def assess(card, cur, *, prior=None, period_type='ANNUAL', prior_period_type='AN
     if with_scenarios and not proforma and industry:
         sc = {}
         for name in [x['code'] for x in SCENARIOS]:
-            prm = scenario_params(industry, name, product_mix, country, region)
+            prm = scenario_params(industry, name, product_mix, country, region, platform)
             lines2, extra = stress_lines(card, cur, prm)
-            # the committed undrawn limits the banks keep open in the scenario (ADR 0020)
-            plat2 = dict(platform, committed_undrawn=platform['committed_undrawn'] * prm['undrawn_available_pct'] / 100) \
-                if platform and platform.get('committed_undrawn') is not None else platform
+            # the committed undrawn limits the banks keep open in the scenario (ADR 0020); a facility whose lender has
+            # decided keeps its decided limit (ADR 0021)
+            if platform and platform.get('committed_undrawn') is not None:
+                dec = platform.get('undrawn_decided') or 0.0
+                plat2 = dict(platform, committed_undrawn=dec + (platform['committed_undrawn'] - dec) * prm['undrawn_available_pct'] / 100)
+            else:
+                plat2 = platform
             r2 = assess(card, lines2, **dict(kw, rollover_factor=1 - prm['st_lines_withdrawn_pct'] / 100, platform=plat2), proforma=True,
                         with_remedies=False, with_scenarios=False)
             sc[name] = dict(final=r2.get('final'), notch=r2.get('final_notch'), liquidity=r2['liquidity'], aggregate=r2.get('aggregate'),
@@ -1131,11 +1136,12 @@ def rebuild_totals(out, original):
     return d
 
 
-def scenario_params(industry, scen, mix, country=None, region=None):
+def scenario_params(industry, scen, mix, country=None, region=None, platform=None):
     """The stress of a macro scenario on the company (docs/35 section 14): per driver, the scenario intensity × the
     activity sensitivity ÷ 5 × the country exposure × the region multiplier (real estate and conflict) × the scenario's
     multiplier for the country; the product mix replaces the activity's demand sensitivity and gives the inventory
-    write-down."""
+    write-down. The lender's estimated stance covers only the share of the facilities whose lender has not decided; the
+    decided ones bring their own margin and fees (ADR 0021)."""
     sd = next(x for x in SCENARIOS if x['code'] == scen)
     R = M['scenario_rules']
     sens = dict(INDUSTRIES[industry]['sens'])
@@ -1149,6 +1155,7 @@ def scenario_params(industry, scen, mix, country=None, region=None):
     # the lender's stance follows the sector's risk: it cuts short-term lines at renewal, stops undrawn limits and raises
     # its margin and fees rather than withdrawing drawn lines (ADR 0020)
     lender = sens['CREDIT'] / R['credit_sensitivity_reference'] * cp['exposure']['CREDIT'] * cmult
+    undecided = 1 - ((platform or {}).get('decided_share_pct') or 0.0) / 100
     x = {}
     for d in DRIVERS:
         v = sd['intensity'][d] * sens[d] / 5 * cp['exposure'][d]
@@ -1158,12 +1165,13 @@ def scenario_params(industry, scen, mix, country=None, region=None):
     p = dict(revenue_pct=max(-R['max_revenue_fall_pct'], -sum(x[d] * DRV[d]['rev_pct'] for d in DRIVERS)),
              gross_margin_pp=-sum(x[d] * DRV[d]['gm_pp'] for d in DRIVERS),
              dso_days=sd['base_dso_days'] + sum(x[d] * DRV[d]['dso_days'] for d in DRIVERS),
-             st_lines_withdrawn_pct=min(R['st_lines_max_pct'], sd['st_lines_withdrawn_pct'] * lender),
+             st_lines_withdrawn_pct=min(R['st_lines_max_pct'], sd['st_lines_withdrawn_pct'] * lender) * undecided,
              rate_bp=sd['rate_bp'],
              private_ar_loss_pct=min(100.0, sd['private_ar_loss_pct'] * (1 + R['private_ar_loss_demand_factor'] * x['DEMAND'])),
              property_writedown_pct=min(R['investment_property_fall_max_pct'], R['investment_property_fall_pct'] * x['REAL_ESTATE']),
              undrawn_available_pct=max(0.0, sd['undrawn_available_pct'] - sd['undrawn_cut_pct'] * lender),
-             lender_cost_bp=(sd['lender_margin_bp'] + sd['lender_fees_bp']) * lender, country_mult=cmult)
+             lender_cost_bp=(sd['lender_margin_bp'] + sd['lender_fees_bp']) * lender * undecided,
+             decided_lender_cost=(platform or {}).get('decided_cost') or 0.0, country_mult=cmult)
     if mix:
         iw = sum(m.get('inventory_share_pct', 0) for m in mix) or 1
         p['inventory_writedown_pct'] = sum((PCAT[m['category']]['inventory_value_pct']['NORMAL'] - PCAT[m['category']]['inventory_value_pct'][sev])
@@ -1199,7 +1207,7 @@ def stress_lines(card, d, prm):
     # market rates on floating debt; the lender's margin and fees on the short-term facilities it reprices at renewal (a
     # term loan keeps its contract price)
     renewing = a('ST_LOANS') + a('BANK_ACCEPTANCES')
-    dfin = floating * prm['rate_bp'] / 10000 + renewing * prm['lender_cost_bp'] / 10000
+    dfin = floating * prm['rate_bp'] / 10000 + renewing * prm['lender_cost_bp'] / 10000 + prm['decided_lender_cost']
     stretch = prm['dso_days'] * rev2 / 365 + (a('AR') / rev) * (rev2 - rev)
     if a.known('AR_AGE_181_365') and a.known('AR_AGE_OVER_365'):
         priv180 = max(0.0, a('AR_AGE_181_365') + a('AR_AGE_OVER_365') - a.z('AR_AGE_OVER_365_GOV') - a.z('AR_ECL_ALLOWANCE'))
@@ -1252,7 +1260,7 @@ def case_args(c, scale=1.0):
     plat = copy.deepcopy(c.get('platform')) if c.get('platform') else None
     guarantors = None
     if plat:
-        for k in ('limits', 'outstanding', 'committed_undrawn', 'secured_coverage'):
+        for k in ('limits', 'outstanding', 'committed_undrawn', 'secured_coverage', 'undrawn_decided', 'lender_repayment', 'decided_cost'):
             if plat.get(k) is not None: plat[k] *= scale
         if plat.get('collateral'):
             plat['collateral'] = [(k, v * scale) for k, v in plat['collateral']]
