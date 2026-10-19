@@ -1,26 +1,40 @@
-%% م5 · البيانات المالية والأرصدة (2/5) — Financial statements & balances
+%% م5 · البيانات المالية والأرصدة (2/11) — Financial statements & balances
 erDiagram
+  fin_CreditAssessment["fin.CreditAssessment"] {
+    bigint CreditAssessmentId PK
+    bigint CompanyId FK
+    bigint StatementId FK
+    bigint PriorStatementId FK
+    int ScorecardId FK
+    bigint UsedPriorStatementId FK
+    int FinancialGradeId FK
+    int IndicatedGradeId FK
+    int CapGradeId FK
+    int StandaloneGradeId FK
+    int FinalGradeId FK
+    int FacilityGradeId FK
+    bigint PreparedBy FK
+    bigint ApprovedBy FK
+    int IndustryId FK
+  }
+  fin_CreditAssessmentBureau["fin.CreditAssessmentBureau"] {
+    bigint CreditAssessmentBureauId PK
+    bigint AssessmentId FK
+    bigint DocumentId FK
+  }
+  fin_CreditAssessmentFacility["fin.CreditAssessmentFacility"] {
+    bigint CreditAssessmentFacilityId PK
+    bigint AssessmentId FK
+    bigint FacilityId FK
+    bigint LenderInstitutionId FK
+    int CurrencyId FK
+  }
   fin_CreditAssessmentFactor["fin.CreditAssessmentFactor"] {
     bigint CreditAssessmentFactorId PK
     bigint AssessmentId FK
     int MetricId FK
     int GradeId FK
   }
-  fin_CreditAssessmentFinding["fin.CreditAssessmentFinding"] {
-    bigint CreditAssessmentFindingId PK
-    bigint AssessmentId FK
-  }
-  fin_CreditAssessmentInput["fin.CreditAssessmentInput"] {
-    bigint CreditAssessmentInputId PK
-    bigint AssessmentId FK
-    int MetricId FK
-    int GradeId FK
-    bigint ParentAssessmentId FK
-    bigint DocumentId FK
-    bigint EnteredBy FK
-  }
-  fin_CreditMetric["fin.CreditMetric"] {
-    int CreditMetricId PK
-  }
-  fin_CreditMetric ||--o{ fin_CreditAssessmentFactor : "MetricId"
-  fin_CreditMetric |o--o{ fin_CreditAssessmentInput : "MetricId"
+  fin_CreditAssessment ||--o{ fin_CreditAssessmentBureau : "AssessmentId"
+  fin_CreditAssessment ||--o{ fin_CreditAssessmentFacility : "AssessmentId"
+  fin_CreditAssessment ||--o{ fin_CreditAssessmentFactor : "AssessmentId"

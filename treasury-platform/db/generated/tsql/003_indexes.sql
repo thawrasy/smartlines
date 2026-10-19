@@ -95,6 +95,7 @@ CREATE NONCLUSTERED INDEX [IX_Company_Status_CountryId] ON [org].[Company] ([Ten
 CREATE NONCLUSTERED INDEX [IX_Company_ParentCompanyId] ON [org].[Company] ([TenantId], [ParentCompanyId]);
 CREATE NONCLUSTERED INDEX [IX_Company_LegalEntityTypeId] ON [org].[Company] ([TenantId], [LegalEntityTypeId]);
 CREATE NONCLUSTERED INDEX [IX_Company_PartyId] ON [org].[Company] ([TenantId], [PartyKind], [PartyId]);
+CREATE NONCLUSTERED INDEX [IX_Company_IndustryId] ON [org].[Company] ([TenantId], [IndustryId]);
 CREATE NONCLUSTERED INDEX [IX_Company_BaseCurrencyId] ON [org].[Company] ([TenantId], [BaseCurrencyId]);
 CREATE UNIQUE NONCLUSTERED INDEX [UQ_CompanyTaxRate_CompanyId_TaxCode] ON [org].[CompanyTaxRate] ([TenantId], [CompanyId], [TaxCode]) WHERE EffectiveTo IS NULL;
 CREATE UNIQUE NONCLUSTERED INDEX [UQ_Department_SeedKey] ON [org].[Department] ([TenantId], [SeedKey]) WHERE SeedKey IS NOT NULL;
@@ -200,6 +201,7 @@ CREATE NONCLUSTERED INDEX [IX_TaxIdentity_CountryId] ON [pty].[TaxIdentity] ([Te
 CREATE NONCLUSTERED INDEX [IX_TaxIdentity_FatcaClassificationId] ON [pty].[TaxIdentity] ([TenantId], [FatcaClassificationId]);
 CREATE NONCLUSTERED INDEX [IX_TaxIdentity_CrsClassificationId] ON [pty].[TaxIdentity] ([TenantId], [CrsClassificationId]);
 CREATE NONCLUSTERED INDEX [IX_TaxIdentity_SourceDocumentId] ON [pty].[TaxIdentity] ([TenantId], [SourceDocumentId]);
+CREATE NONCLUSTERED INDEX [IX_Industry_ParentId] ON [ref].[Industry] ([ParentId]);
 CREATE UNIQUE NONCLUSTERED INDEX [UQ_InstitutionType_SeedKey] ON [cat].[InstitutionType] ([TenantId], [SeedKey]) WHERE SeedKey IS NOT NULL;
 CREATE UNIQUE NONCLUSTERED INDEX [UQ_AccountType_SeedKey] ON [cat].[AccountType] ([TenantId], [SeedKey]) WHERE SeedKey IS NOT NULL;
 CREATE UNIQUE NONCLUSTERED INDEX [UQ_LegalEntityType_SeedKey_CountryId] ON [cat].[LegalEntityType] ([TenantId], [SeedKey], [CountryId]) WHERE SeedKey IS NOT NULL;
@@ -583,6 +585,7 @@ CREATE UNIQUE NONCLUSTERED INDEX [UQ_Scorecard_Code] ON [fin].[Scorecard] ([Code
 CREATE NONCLUSTERED INDEX [IX_Scorecard_CurrencyId] ON [fin].[Scorecard] ([CurrencyId]);
 CREATE NONCLUSTERED INDEX [IX_ScorecardMetric_MetricId] ON [fin].[ScorecardMetric] ([MetricId]);
 CREATE NONCLUSTERED INDEX [IX_ScorecardItemRule_MetricId] ON [fin].[ScorecardItemRule] ([MetricId]);
+CREATE NONCLUSTERED INDEX [IX_CreditRemedyTrigger_TriggerCode] ON [fin].[CreditRemedyTrigger] ([TriggerCode]);
 CREATE UNIQUE NONCLUSTERED INDEX [UQ_CreditAssessment_StatementId] ON [fin].[CreditAssessment] ([TenantId], [StatementId]) WHERE Status = 'APPROVED';
 CREATE NONCLUSTERED INDEX [IX_CreditAssessment_CompanyId_AssessmentDate] ON [fin].[CreditAssessment] ([TenantId], [CompanyId], [AssessmentDate]) INCLUDE ([Status], [FinalGradeId]);
 CREATE NONCLUSTERED INDEX [IX_CreditAssessment_StatementId] ON [fin].[CreditAssessment] ([TenantId], [CompanyId], [StatementId]);
@@ -592,6 +595,10 @@ CREATE NONCLUSTERED INDEX [IX_CreditAssessment_ApprovedBy] ON [fin].[CreditAsses
 CREATE NONCLUSTERED INDEX [IX_CreditAssessmentInput_ParentAssessmentId] ON [fin].[CreditAssessmentInput] ([TenantId], [ParentAssessmentId]);
 CREATE NONCLUSTERED INDEX [IX_CreditAssessmentInput_DocumentId] ON [fin].[CreditAssessmentInput] ([TenantId], [DocumentId]);
 CREATE NONCLUSTERED INDEX [IX_CreditAssessmentInput_EnteredBy] ON [fin].[CreditAssessmentInput] ([TenantId], [EnteredBy]);
+CREATE NONCLUSTERED INDEX [IX_CreditAssessmentGuarantor_PartyId] ON [fin].[CreditAssessmentGuarantor] ([TenantId], [PartyId]);
+CREATE NONCLUSTERED INDEX [IX_CreditAssessmentGuarantor_DocumentId] ON [fin].[CreditAssessmentGuarantor] ([TenantId], [DocumentId]);
+CREATE NONCLUSTERED INDEX [IX_CompanyProductLine_CompanyId_FiscalYear] ON [fin].[CompanyProductLine] ([TenantId], [CompanyId], [FiscalYear]);
+CREATE NONCLUSTERED INDEX [IX_CreditAssessmentBureau_DocumentId] ON [fin].[CreditAssessmentBureau] ([TenantId], [DocumentId]);
 CREATE UNIQUE NONCLUSTERED INDEX [UQ_RequestType_SeedKey] ON [wfl].[RequestType] ([TenantId], [SeedKey]) WHERE SeedKey IS NOT NULL;
 CREATE NONCLUSTERED INDEX [IX_RequestType_Category_IsActive] ON [wfl].[RequestType] ([TenantId], [Category], [IsActive]);
 CREATE UNIQUE NONCLUSTERED INDEX [UQ_RequestTypeAudience_RequestTypeId_RoleId] ON [wfl].[RequestTypeAudience] ([TenantId], [RequestTypeId], [RoleId]) WHERE RoleId IS NOT NULL;

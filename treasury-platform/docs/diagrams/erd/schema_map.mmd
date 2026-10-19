@@ -25,7 +25,7 @@ erDiagram
     int tables "13"
   }
   fin {
-    int tables "20"
+    int tables "43"
   }
   ins {
     int tables "6"
@@ -52,7 +52,7 @@ erDiagram
     int tables "11"
   }
   ref {
-    int tables "4"
+    int tables "5"
   }
   sec {
     int tables "15"
@@ -66,19 +66,20 @@ erDiagram
   cat ||--o{ prc : "6 FK"
   doc ||--o{ col : "5 FK"
   doc ||--o{ fac : "8 FK"
-  doc ||--o{ fin : "6 FK"
+  doc ||--o{ fin : "8 FK"
   doc ||--o{ lc : "5 FK"
   doc ||--o{ org : "5 FK"
   fac ||--o{ prc : "7 FK"
   ins ||--o{ acc : "5 FK"
   ins ||--o{ pty : "8 FK"
-  org ||--o{ fin : "5 FK"
+  org ||--o{ fin : "6 FK"
   org ||--o{ lc : "8 FK"
   org ||--o{ wfl : "5 FK"
   pty ||--o{ org : "6 FK"
   ref ||--o{ fac : "5 FK"
+  ref ||--o{ fin : "9 FK"
   ref ||--o{ lc : "13 FK"
-  ref ||--o{ org : "8 FK"
+  ref ||--o{ org : "9 FK"
   ref ||--o{ pty : "6 FK"
   sec ||--o{ fac : "9 FK"
   sec ||--o{ fin : "11 FK"

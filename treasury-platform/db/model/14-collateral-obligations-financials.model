@@ -626,6 +626,7 @@ table fin.RatingGrade int global  # The 21 grades of the Moody's long-term scale
   ScoreTo           dec(5,2)
   RiskBand          enum{LOW,MODERATE,SUBSTANTIAL,HIGH,VERY_HIGH} req
   IsInvestmentGrade bool      req =0   # Baa3 فما فوق
+  FitchEquivalent   ascii(4)  req      # المقابل في سلّم فيتش طويل الأجل (AAA ... C)
   DescriptionAr     str(300)  req
   DescriptionEn     str(300)  req
   unique Code
@@ -639,10 +640,23 @@ table fin.CreditMetric int global  # The metric dictionary of the credit assessm
   NameAr            str(200)  req
   NameEn            str(200)  req
   Kind              enum{QUANTITATIVE,QUALITATIVE} req   # النوعي يدخله المحلل بدرجة ومبرّر
-  Unit              enum{RATIO,PERCENT,DAYS,AMOUNT,GRADE} req
+  Unit              enum{RATIO,PERCENT,DAYS,AMOUNT,MONTHS,YEARS,GRADE} req
   Direction         enum{HIGHER_BETTER,LOWER_BETTER,NONE} req
-  DefinitionAr      str(1000) req   # الصيغة من رموز البنود والحالات الحدية؛ يحسبها 046 بالرمز، لا نصًا منفَّذًا
+  DefinitionAr      str(1000) req   # الصيغة من رموز البنود والحالات الحدية؛ يحسبها 046 بالكميات المسمّاة، لا نصًا منفَّذًا
   InputsText        str(500)
+  Pattern           enum{RATIO,AMOUNT,DIFF,GROWTH,VALUE}   # طريقة الحساب من البسط والمقام (docs/35 §4)؛ VALUE تحسبها خطوة القيم الخاصة؛ فارغ للنوعي
+  NumQty            ascii(40)        # الكمية المسمّاة في البسط
+  DenQty            ascii(40)        # وفي المقام
+  Scale             dec(9,2)         # 100 للنسبة المئوية، 365 للأيام، 12 للأشهر، 1 للمرات
+  IfNumZero         enum{NONE,VALUE0,BEST,BEST_IF_DEN_POS,WORST}   # بسط صفري
+  IfDenZero         enum{NA,BEST,WORST,BEST_IF_NUM_POS,BEST_IF_NUM_NONNEG} # مقام صفري
+  IfDenNeg          enum{COMPUTE,WORST,NA}                    # مقام سالب
+  IfNumNeg          enum{COMPUTE,WORST,NA,BEST_IF_DEN_POS} # بسط سالب (وللمبلغ: غير موجب)
+  ThemeCode         ascii(30)        # محور التقرير: الحجم والسوق، نوع المبيعات، النقد، السيولة، الذمم، المخزون...
+  CashEffectAr      str(500)         # أثره على النقد
+  CashEffectEn      str(500)
+  SolvencyEffectAr  str(500)         # أثره على الملاءة
+  SolvencyEffectEn  str(500)
   StrengthTextAr    str(500)  req   # {v} القيمة و{g} الدرجة
   StrengthTextEn    str(500)  req
   WeaknessTextAr    str(500)  req
@@ -650,6 +664,8 @@ table fin.CreditMetric int global  # The metric dictionary of the credit assessm
   unique Code
   check  (Kind = 'QUALITATIVE' AND Unit = 'GRADE' AND Direction = 'NONE') OR (Kind = 'QUANTITATIVE' AND Unit <> 'GRADE' AND Direction <> 'NONE')
   check  Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%'
+  check  (Kind = 'QUALITATIVE' AND Pattern IS NULL AND NumQty IS NULL) OR (Kind = 'QUANTITATIVE' AND Pattern = 'VALUE' AND NumQty IS NULL AND DenQty IS NULL) OR (Kind = 'QUANTITATIVE' AND Pattern <> 'VALUE' AND NumQty IS NOT NULL AND (Pattern = 'AMOUNT' OR DenQty IS NOT NULL))
+  check  Pattern IS NULL OR Pattern <> 'RATIO' OR (Scale IS NOT NULL AND IfNumZero IS NOT NULL AND IfDenZero IS NOT NULL AND IfDenNeg IS NOT NULL AND IfNumNeg IS NOT NULL)
 
 table fin.Scorecard int global  # A sector scorecard of the credit assessment and its version; approved, it never changes and a change is a new version (docs/35 section 5, BR-FIN-023)
   Code              ascii(40) req
@@ -679,7 +695,7 @@ table fin.Scorecard int global  # A sector scorecard of the credit assessment an
 table fin.ScorecardMetric int global  # A metric of a scorecard: its factor, its weight and the nine boundaries of its grid (best cap, Aaa|Aa, Aa|A, A|Baa, Baa|Ba, Ba|B, B|Caa, Caa|Ca, worst cap); a qualitative metric has no grid (docs/35 section 5)
   ScorecardId       ->fin.Scorecard req
   MetricId          ->fin.CreditMetric req
-  FactorCode        enum{SCALE,PROFITABILITY,LEVERAGE,COVERAGE,CASH_FLOW,LIQUIDITY,QUALITATIVE} req
+  FactorCode        enum{SCALE,BUSINESS_PROFILE,PROFITABILITY_EFFICIENCY,LEVERAGE_COVERAGE,CAPITAL_SOLVENCY,LIQUIDITY_FUNDING,BALANCE_SHEET_QUALITY,FINANCIAL_POLICY} req   # عوامل موديز الثمانية (docs/35 §5)
   Weight            dec(5,2)  req
   B0                dec(19,6)   # القيمة التي تساوي 0.5 أو أفضل منها
   B1                dec(19,6)   # 1.5: حد Aaa|Aa
@@ -705,12 +721,12 @@ table fin.ScorecardItemRule int global  # A balance-sheet item rule of a scoreca
   T4                dec(19,6) req
   ReportStrength    bool      req =0   # LOW يُذكر نقطة قوة
   SortOrder         int       req =0
-  unique ScorecardId,MetricId
+  unique ScorecardId,MetricId,LineCode   # مقياس واحد قد يُقرأ على أكثر من بند
   check  (T1 < T2 AND T2 < T3 AND T3 < T4) OR (T1 > T2 AND T2 > T3 AND T3 > T4)
 
 table fin.ScorecardAdjustment int global  # An adjustment of a scorecard: notches down, a standalone cap or an absolute cap on the best grade, applied in that order around group support and the override (docs/35 section 7)
   ScorecardId       ->fin.Scorecard req
-  RuleCode          enum{AUDIT_QUALIFIED,UNAUDITED_ANNUAL,STALE_STATEMENT,INCOMPLETE_STATEMENT,RESTATEMENT,HALF_CAPITAL_LOST_CURED,RELATED_PARTY_EXPOSURE,HOLDCO_STANDALONE,OPEN_BREACH,BREACH_WAIVER_REQUESTED,FLOW_SHORTFALL,GOING_CONCERN,NEGATIVE_EQUITY,HALF_CAPITAL_LOST,SIZE_CEILING,SECTOR_CEILING,AUDIT_ADVERSE,SOVEREIGN_CEILING} req   # منطق كل قاعدة في 046 برمزها
+  RuleCode          ascii(40) req   # منطق كل قاعدة في 047 برمزها؛ الرمز غير المعروف لا يُطبق (docs/35 §8)
   Stage             enum{NOTCH,STANDALONE,ABSOLUTE} req   # تنزيل، ثم سقف منفرد قبل الدعم، ثم سقف مطلق بعد التجاوز
   Notches           int       req =0   # درجات التنزيل، سالبة؛ صفر للسقف
   CapGradeId        ->fin.RatingGrade noidx   # أفضل درجة مسموحة بعد القاعدة
@@ -722,8 +738,170 @@ table fin.ScorecardAdjustment int global  # An adjustment of a scorecard: notche
   TextEn            str(500)  req
   unique ScorecardId,RuleCode
   check  Notches BETWEEN -3 AND 0
-  check  (Stage = 'NOTCH' AND CapGradeId IS NULL AND Notches < 0) OR (Stage <> 'NOTCH' AND CapGradeId IS NOT NULL AND Notches = 0)
+  check  (Stage = 'NOTCH' AND CapGradeId IS NULL AND Notches <= 0) OR (Stage <> 'NOTCH' AND CapGradeId IS NOT NULL AND Notches = 0)   # التنزيل الصفري نقطة مراقبة تُذكر ولا تغيّر الدرجة
+  check  RuleCode COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%'
   check  RuleCode NOT IN ('STALE_STATEMENT','RESTATEMENT','HALF_CAPITAL_LOST','HALF_CAPITAL_LOST_CURED','RELATED_PARTY_EXPOSURE','FLOW_SHORTFALL','SIZE_CEILING') OR ParamValue IS NOT NULL
+
+# ---------- التقييم الائتماني v2: البنود والتبويب التحليلي والحلول (طلب المالك 2026-10-19، docs/35 v2، ADR 0018) ----------
+
+table fin.IndustryProfile int global  # The credit profile of an activity: its default scorecard, sector risk, cyclicality, the grade range expected of a typical mid-size Saudi company in it, its ceiling, and the extra data it must give (docs/35 section 5)
+  IndustryId        ->ref.Industry req
+  DefaultScorecardCode ascii(40) req   # GENERAL_CORPORATE أو TRADING_DISTRIBUTION أو CONTRACTING
+  SectorRisk        tinyint   req      # 1 منخفضة جدًا ... 5 مرتفعة جدًا
+  Cyclicality       enum{LOW,MEDIUM,HIGH} req
+  ExpectedBestGradeId    ->fin.RatingGrade req noidx
+  ExpectedTypicalGradeId ->fin.RatingGrade req noidx
+  ExpectedWorstGradeId   ->fin.RatingGrade req noidx
+  CeilingGradeId    ->fin.RatingGrade noidx   # سقف القطاع إن وُجد
+  ExtraDisclosures  ascii(400)          # رموز الإفصاحات الإضافية للقطاع مفصولة بفواصل
+  ProductCategories ascii(400) req      # فئات المنتجات المعتادة للنشاط مفصولة بفواصل؛ تُقرأ حين لا تُدخل الشركة خطوط منتجاتها
+  NoteAr            str(1000)
+  unique IndustryId
+  check  SectorRisk BETWEEN 1 AND 5
+
+table fin.IndustryScenario int global  # A stress scenario of an activity: the stagnant market or the financial crisis, as changes the assessment applies to the statement (docs/35 section 13)
+  IndustryId        ->ref.Industry req
+  Scenario          enum{STAGNANT_MARKET,FINANCIAL_CRISIS} req
+  RevenuePct        dec(9,4)  req      # تغيّر الإيرادات، سالب
+  GrossMarginPp     dec(9,4)  req      # تغيّر هامش مجمل الربح بالنقاط
+  DsoDays           dec(9,2)  req      # أيام تحصيل إضافية
+  StLinesWithdrawnPct dec(9,4) req     # من الخطوط قصيرة الأجل غير الملتزمة
+  RateBp            int       req      # ارتفاع سعر الفائدة على الدين المتغير
+  PrivateArLossPct  dec(9,4)  req      # خسارة الذمم الخاصة فوق 180 يومًا
+  unique IndustryId,Scenario
+
+table fin.ProductCategory int global  # A category of products or services and its credit behaviour: cash-flow quality, revenue sensitivity, inventory sale value and time to sell in normal, stagnant and crisis markets (docs/35 section 5)
+  Code              ascii(40) req
+  NameAr            str(200)  req
+  NameEn            str(200)  req
+  CashFlowQuality   tinyint   req      # 1 الأفضل ... 5 الأضعف
+  RevStagnantPct    dec(9,4)  req
+  RevCrisisPct      dec(9,4)  req
+  InvValueNormalPct dec(9,4)  req      # قيمة بيع المخزون من الدفترية
+  InvValueStagnantPct dec(9,4) req
+  InvValueCrisisPct dec(9,4)  req
+  DaysToSellNormal  int       req
+  DaysToSellStagnant int      req
+  DaysToSellCrisis  int       req
+  CrisisExtraDso    int       req
+  unique Code
+  check  CashFlowQuality BETWEEN 1 AND 5
+  check  InvValueNormalPct BETWEEN 0 AND 100 AND InvValueStagnantPct BETWEEN 0 AND 100 AND InvValueCrisisPct BETWEEN 0 AND 100
+
+table fin.StandardLine int global  # The standard statement line catalogue of the platform: every point of the statements the credit assessment reads, its kind and the line it breaks down; installed into a tenant's catalogue by fin.usp_InstallStandardLines (docs/35 section 4, FR-FIN-001)
+  Code              ascii(40) req
+  Section           enum{BS_ASSET,BS_LIABILITY,BS_EQUITY,IS,CF,MEMO} req
+  LineKind          enum{LINE,TOTAL,OF_WHICH,DETAIL,MEMO} req   # LINE يدخل الإجماليات؛ OF_WHICH «منه» لا يزيد على أصله؛ DETAIL تفصيل بلا هذا الحد (الإجمالي قبل المخصص)؛ MEMO إفصاح
+  ParentCode        ascii(40)        # البند الذي يفصّله OF_WHICH أو DETAIL
+  NameAr            str(300)  req
+  NameEn            str(300)  req
+  IsRequired        bool      req =0   # من البنود الأساسية؛ غيرها اختياري يُعد صفرًا إن لم يُدخل
+  TotalFormula      str(500)         # للإجمالي، مثل GROSS_PROFIT = REVENUE - COGS
+  SortOrder         int       req
+  unique Code
+  check  Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'
+  check  (LineKind IN ('OF_WHICH','DETAIL') AND ParentCode IS NOT NULL) OR (LineKind NOT IN ('OF_WHICH','DETAIL') AND ParentCode IS NULL)
+  check  (LineKind = 'TOTAL' AND TotalFormula IS NOT NULL) OR (LineKind <> 'TOTAL' AND TotalFormula IS NULL)
+  check  ParentCode IS NULL OR ParentCode <> Code
+
+table fin.StandardLineTotal int global  # The components of a standard total and their sign, so a total is recomputed after a pro-forma change (docs/35 section 12)
+  TotalCode         ascii(40) req
+  ComponentCode     ascii(40) req
+  Sign              smallint  req
+  unique TotalCode,ComponentCode
+  check  Sign IN (-1,1)
+  check  TotalCode <> ComponentCode
+
+table fin.ScorecardParameter int global  # A parameter of a scorecard version: a haircut of the break-up test, a collateral haircut, a band of the loss given default, a liquidity threshold, a cost rule; frozen with its scorecard (docs/35 sections 5, 9 and 10)
+  ScorecardId       ->fin.Scorecard req
+  GroupCode         enum{CARD,REALISABLE_HAIRCUT,COLLATERAL_HAIRCUT,LGD_BAND,SGL,FIXED_COST} req
+  ParamKey          ascii(40) req
+  Value             dec(19,6) req
+  Value2            dec(19,6)        # لنطاق الخسارة: الدرجات؛ ولغيره فارغ
+  unique ScorecardId,GroupCode,ParamKey
+
+table fin.ScorecardSubfactor int global  # A sub-factor of a qualitative factor of a scorecard, with its grading guide; the factor's grade is the average of the graded sub-factors when the analyst grades them (docs/35 section 5)
+  ScorecardId       ->fin.Scorecard req
+  MetricId          ->fin.CreditMetric req noidx   # العامل النوعي
+  Code              ascii(40) req
+  NameAr            str(200)  req
+  NameEn            str(200)  req
+  GuideAr           str(1500) req
+  SortOrder         int       req =0
+  unique ScorecardId,MetricId,Code
+
+table fin.CreditRemedy int global  # A remedy the report proposes against a finding: a real action, or a presentation that follows the legal substance and needs its evidence, with the change it makes to the statement for the pro-forma grade (docs/35 section 12)
+  Code              ascii(40) req
+  Kind              enum{REAL_ACTION,PRESENTATION} req
+  MinLevel          enum{MODERATE,ELEVATED,HIGH,CRITICAL} req   # أدنى مستوى خطر يُقترح عنده
+  NameAr            str(200)  req
+  NameEn            str(200)  req
+  TextAr            str(1000) req
+  TextEn            str(1000) req
+  EvidenceAr        str(500)
+  EvidenceEn        str(500)
+  Funding           enum{OWNER_CONSENT,OWNER_CASH,RELATED_PARTIES,LENDERS,OPERATIONS,ASSET_SALE,POLICY,DISCLOSURE} req   # ما يحتاجه الحل: توقيع الشركاء، نقدهم، البنوك، التشغيل...
+  SetsEvidence      enum{SUBORDINATION,CAPITAL_RESOLUTION,WAIVER_BEFORE_PERIOD_END}   # الدليل الذي يفترضه الحل في حسابه التقديري
+  SortOrder         int       req =0
+  IsActive          bool      req =1
+  unique Code
+  check  Kind = 'REAL_ACTION' OR EvidenceAr IS NOT NULL   # الإظهار يحتاج دليله
+  check  Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%'
+
+table fin.CreditRemedyTrigger int global  # A finding a remedy answers: a metric or an adjustment code
+  RemedyId          ->fin.CreditRemedy req
+  TriggerCode       ascii(40) req
+  SortOrder         int       req      # الترتيب الذي يُبحث به عن النتيجة التي تستدعي الحل
+  unique RemedyId,TriggerCode
+  unique RemedyId,SortOrder
+  index  TriggerCode
+
+table fin.CreditRemedyStep int global  # A step of a remedy's pro-forma: an amount, a share of a reference line capped by what the lines decreased hold, taken from up to three lines and added to up to three
+  RemedyId          ->fin.CreditRemedy req
+  StepNo            tinyint   req
+  RefLine           ascii(40) req
+  Pct               dec(9,4)  req
+  Dec1              ascii(40)
+  Dec2              ascii(40)
+  Dec3              ascii(40)
+  Inc1              ascii(40)
+  Inc2              ascii(40)
+  Inc3              ascii(40)
+  unique RemedyId,StepNo
+  check  Pct > 0 AND Pct <= 100
+  check  Dec1 IS NOT NULL OR Inc1 IS NOT NULL
+  check  (Dec2 IS NULL OR Dec1 IS NOT NULL) AND (Dec3 IS NULL OR Dec2 IS NOT NULL)
+  check  (Inc2 IS NULL OR Inc1 IS NOT NULL) AND (Inc3 IS NULL OR Inc2 IS NOT NULL)
+
+table fin.StrengtheningPlan int global  # A ready-made plan to strengthen the statements: a package of remedies applied one after another, or the best plan the engine builds step by step from the remedies the findings call for (docs/35 section 12)
+  Code              ascii(40) req
+  Kind              enum{PACKAGE,OPTIMAL} req
+  NameAr            str(200)  req
+  NameEn            str(200)  req
+  TextAr            str(1000) req
+  TextEn            str(1000) req
+  ExcludeFunding    ascii(100)        # للخطة المثلى: أنواع التمويل المستبعدة مفصولة بفواصل
+  SortOrder         int       req
+  IsActive          bool      req =1
+  unique Code
+  check  Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%'
+  check  Kind = 'OPTIMAL' OR ExcludeFunding IS NULL
+
+table fin.StrengtheningPlanMember int global  # A remedy of a package plan, in the order the plan applies it
+  PlanId            ->fin.StrengtheningPlan req
+  RemedyId          ->fin.CreditRemedy req noidx
+  SortOrder         int       req
+  unique PlanId,RemedyId
+  unique PlanId,SortOrder
+
+table fin.CreditText int global  # A text of the credit report: the reconciliation rows, the disclosures and data the report asks for, the outlook rules and views, the liquidity labels, the resilience and the funding kinds (docs/35)
+  Domain            enum{RECLASS,DISCLOSURE,REQUEST,OUTLOOK,OUTLOOK_VIEW,LIQUIDITY,RESILIENCE,FUNDING} req
+  Code              ascii(40) req
+  NameAr            str(200)  req
+  NameEn            str(200)  req
+  TextAr            str(1000) req
+  TextEn            str(1000) req
+  unique Domain,Code
 
 table fin.CreditAssessment public  # Credit assessment of an approved statement on a sector scorecard: the study of the balance sheet with a grade on the Moody's scale, its strengths, weaknesses and risks; written as a draft, computed by the database, approved by someone else (FR-FIN-020 to FR-FIN-024, BR-FIN-018 to BR-FIN-024; owner request 2026-10-18)
   CompanyId         ->org.Company req
@@ -748,6 +926,14 @@ table fin.CreditAssessment public  # Credit assessment of an approved statement 
   SupportNotches    int
   OverrideNotches   int
   FinalGradeId      ->fin.RatingGrade noidx
+  FacilityGradeId   ->fin.RatingGrade noidx   # درجة التسهيلات: درجة الملتزم بعد نطاق الخسارة عند التعثر من الضمانات (docs/35 §10)
+  LgdPct            dec(5,2)            # الخسارة المتوقعة عند التعثر من التعرض
+  LgdBand           ascii(4)            # LGD1..LGD6
+  LiquidityLabel    ascii(5)            # SGL-1..SGL-4 من مصادر السنة واستخداماتها (docs/35 §9)
+  CompletenessPct   dec(5,2)            # الإفصاحات المطلوبة المعطاة (docs/35 §11)
+  AdjustedDebt      money               # الدين المعدَّل تحليليًا بعملة القائمة
+  AdjustedTnw       money               # صافي الثروة الملموسة المعدَّلة
+  RealisableNetWorth money              # الأصول بعد خصومات التسييل ناقص الخصوم المعدَّلة
   SummaryAr         str(1000)
   SummaryEn         str(1000)
   Snapshot          json                 # البنود المقروءة ومعامل التحويل إلى سنة والسعر وإصدار البطاقة
@@ -756,6 +942,14 @@ table fin.CreditAssessment public  # Credit assessment of an approved statement 
   ApprovedBy        ->sec.AppUser
   ApprovedOn        ts
   RejectionReason   str(500)
+  IndustryId        ->ref.Industry noidx   # النشاط الذي قرأه التقييم (من الشركة عند الحساب)
+  SectorPosition    enum{ABOVE,WITHIN,BELOW}   # الدرجة مقابل المدى المتوقع لقطاعها
+  Resilience        enum{RESILIENT,MODERATE,VULNERABLE}   # من سيناريو ركود السوق (docs/35 §13)
+  Outlook           enum{POSITIVE,STABLE,NEGATIVE,DEVELOPING}   # اتجاه الدرجة خلال 12-18 شهرًا (docs/35 §15)
+  OutlookRules      ascii(200)          # القواعد التي تحققت مفصولة بفواصل
+  UpHeadroom        dec(9,4)            # المسافة من المجموع المرجح إلى الدرجة الأعلى
+  DownHeadroom      dec(9,4)            # المسافة إلى الدرجة الأدنى
+  StrengtheningRequested bool req =0    # طلب العميل خطط تقوية القوائم (docs/35 §12)
   unique PublicId
   unique StatementId where Status = 'APPROVED'   # تقييم معتمد واحد لكل قائمة
   index  CompanyId,AssessmentDate include Status,FinalGradeId   # سجل تقييمات الشركة
@@ -774,16 +968,21 @@ table fin.CreditAssessment public  # Credit assessment of an approved statement 
 
 table fin.CreditAssessmentInput deletable  # The analyst's inputs to an assessment: the grade of a qualitative factor, group support or an override, each with its justification; they change only while the assessment is a draft (BR-FIN-021, BR-FIN-022)
   AssessmentId      ->fin.CreditAssessment req
-  Kind              enum{QUALITATIVE,GROUP_SUPPORT,OVERRIDE} req
+  Kind              enum{QUALITATIVE,SUBFACTOR,GROUP_SUPPORT,OVERRIDE,MARKET_SIZE,FX_RATE,EVIDENCE} req
   MetricId          ->fin.CreditMetric noidx   # العامل النوعي
+  SubfactorId       ->fin.ScorecardSubfactor noidx   # العامل الفرعي (SUBFACTOR)
+  Amount            money               # حجم السوق بعملة القائمة (MARKET_SIZE)
+  CurrencyId        ->ref.Currency noidx   # عملة السعر (FX_RATE)
+  Rate              dec(19,8)           # سعر العملة بعملة القائمة (FX_RATE)
+  EvidenceCode      enum{SUBORDINATION,CAPITAL_RESOLUTION,WAIVER_BEFORE_PERIOD_END,REFINANCING_BEFORE_PERIOD_END}   # دليل التبويب (docs/35 §6)
   GradeId           ->fin.RatingGrade noidx    # درجته
   Notches           int                        # الدعم 1..2، والتجاوز −2..+1 بلا صفر: الرفع درجة واحدة لأن الشركة تقيّم نفسها
   ParentAssessmentId ->fin.CreditAssessment     # التقييم المعتمد للأم أو القابضة (GROUP_SUPPORT)
   Justification     str(1000) req
   DocumentId        ->doc.Document   # المستند المؤيد؛ يلزم لدرجة نوعية تبعد أكثر من الحد عن الدرجة المالية (BR-FIN-021)
   EnteredBy         ->sec.AppUser
-  unique AssessmentId,Kind,MetricId   # دعم واحد وتجاوز واحد ودرجة واحدة لكل عامل
-  check  (Kind = 'QUALITATIVE' AND MetricId IS NOT NULL AND GradeId IS NOT NULL AND Notches IS NULL AND ParentAssessmentId IS NULL) OR (Kind = 'GROUP_SUPPORT' AND MetricId IS NULL AND GradeId IS NULL AND Notches IS NOT NULL AND Notches BETWEEN 1 AND 2 AND ParentAssessmentId IS NOT NULL) OR (Kind = 'OVERRIDE' AND MetricId IS NULL AND GradeId IS NULL AND Notches IS NOT NULL AND Notches IN (-2,-1,1) AND ParentAssessmentId IS NULL)
+  unique AssessmentId,Kind,MetricId,SubfactorId,CurrencyId,EvidenceCode   # مدخل واحد لكل عامل وعامل فرعي وعملة ودليل، ودعم واحد وتجاوز واحد
+  check  (Kind = 'QUALITATIVE' AND MetricId IS NOT NULL AND GradeId IS NOT NULL AND Notches IS NULL AND ParentAssessmentId IS NULL AND SubfactorId IS NULL AND Amount IS NULL AND CurrencyId IS NULL AND Rate IS NULL AND EvidenceCode IS NULL) OR (Kind = 'SUBFACTOR' AND MetricId IS NOT NULL AND SubfactorId IS NOT NULL AND GradeId IS NOT NULL AND Notches IS NULL AND ParentAssessmentId IS NULL AND Amount IS NULL AND CurrencyId IS NULL AND Rate IS NULL AND EvidenceCode IS NULL) OR (Kind = 'GROUP_SUPPORT' AND MetricId IS NULL AND GradeId IS NULL AND Notches IS NOT NULL AND Notches BETWEEN 1 AND 2 AND ParentAssessmentId IS NOT NULL AND SubfactorId IS NULL AND Amount IS NULL AND CurrencyId IS NULL AND Rate IS NULL AND EvidenceCode IS NULL) OR (Kind = 'OVERRIDE' AND MetricId IS NULL AND GradeId IS NULL AND Notches IS NOT NULL AND Notches IN (-2,-1,1) AND ParentAssessmentId IS NULL AND SubfactorId IS NULL AND Amount IS NULL AND CurrencyId IS NULL AND Rate IS NULL AND EvidenceCode IS NULL) OR (Kind = 'MARKET_SIZE' AND Amount IS NOT NULL AND Amount > 0 AND MetricId IS NULL AND GradeId IS NULL AND Notches IS NULL AND ParentAssessmentId IS NULL AND SubfactorId IS NULL AND CurrencyId IS NULL AND Rate IS NULL AND EvidenceCode IS NULL) OR (Kind = 'FX_RATE' AND CurrencyId IS NOT NULL AND Rate IS NOT NULL AND Rate > 0 AND MetricId IS NULL AND GradeId IS NULL AND Notches IS NULL AND ParentAssessmentId IS NULL AND SubfactorId IS NULL AND Amount IS NULL AND EvidenceCode IS NULL) OR (Kind = 'EVIDENCE' AND EvidenceCode IS NOT NULL AND DocumentId IS NOT NULL AND MetricId IS NULL AND GradeId IS NULL AND Notches IS NULL AND ParentAssessmentId IS NULL AND SubfactorId IS NULL AND Amount IS NULL AND CurrencyId IS NULL AND Rate IS NULL)
   check  ParentAssessmentId IS NULL OR ParentAssessmentId <> AssessmentId
   check  LEN(LTRIM(RTRIM(Justification))) >= 10   # مبرّر مكتوب لا رمز
 
@@ -808,7 +1007,7 @@ table fin.CreditAssessmentFinding norv  # A finding of an assessment, with its t
   AssessmentId      ->fin.CreditAssessment req
   SeqNo             int       req
   Kind              enum{STRENGTH,INFO,WATCH,WEAKNESS,CRITICAL_RISK,ADJUSTMENT} req
-  Source            enum{SCORECARD,ITEM_RULE,ADJUSTMENT,COVENANT,BANK_FLOW,ANALYST} req
+  Source            enum{SCORECARD,ITEM_RULE,ADJUSTMENT,COVENANT,BANK_FLOW,ANALYST,DATA,LIQUIDITY,FACILITY} req   # DATA: إفصاح ناقص أو غير متسق
   RuleCode          ascii(40) req   # رمز المقياس أو القاعدة أو التعديل
   LineCode          ascii(40)       # بند الميزانية لقاعدة البند
   RiskLevel         enum{LOW,MODERATE,ELEVATED,HIGH,CRITICAL}
@@ -822,3 +1021,144 @@ table fin.CreditAssessmentFinding norv  # A finding of an assessment, with its t
   check  SeqNo >= 1
   check  Source <> 'ITEM_RULE' OR LineCode IS NOT NULL   # بلا مستوى إن لم يُقيَّم البند
   check  RiskLevel IS NULL OR Source = 'ITEM_RULE'
+
+table fin.CreditAssessmentGuarantor deletable  # A guarantor of the company's facilities with the net worth statement the analyst read: partners' solvency for the facility grade (docs/35 section 10); changes only while the assessment is a draft
+  AssessmentId      ->fin.CreditAssessment req
+  PartyId           ->pty.Party req          # الشريك أو الكفيل
+  NetWorth          money      req          # صافي الثروة المصرَّح به بعملة القائمة
+  LiquidAssets      money      req          # منه أصول سائلة (نقد وودائع وأسهم مدرجة)
+  GuaranteesGiven   money      req =0       # كفالات قدّمها لالتزامات أخرى
+  GuaranteedAmount  money      req          # ما يكفله من تسهيلات الشركة
+  AsOfDate          date       req
+  DocumentId        ->doc.Document req      # إقرار الذمة المالية أو القوائم الشخصية
+  unique AssessmentId,PartyId
+  check  NetWorth >= 0 AND LiquidAssets >= 0 AND GuaranteesGiven >= 0 AND GuaranteedAmount > 0
+  check  LiquidAssets <= NetWorth
+
+table fin.CreditAssessmentReclass norv  # A row of the reconciliation of the analytical statement: a standard adjustment that moved an amount of a reported line to an analytical bucket; written by fin.usp_ComputeCreditAssessment only (docs/35 section 6)
+  AssessmentId      ->fin.CreditAssessment req
+  SeqNo             int       req
+  AdjCode           ascii(30) req   # ADJ_LEASE, ADJ_EOSB, ADJ_SHL_SUB ...
+  LineCode          ascii(40) req
+  Bucket            enum{DEBT,ST_DEBT,EQUITY,NOT_CASH,NOT_TNW,NON_CURRENT,EBITDA,INTEREST} req
+  Amount            money     req
+  TextAr            str(500)  req
+  TextEn            str(500)
+  unique AssessmentId,SeqNo
+  check  SeqNo >= 1
+
+table fin.CreditAssessmentFacility norv  # A facility of the company read from the platform on the assessment date: its limit, outstanding, lender, commitment, expiry and collateral cover, in the statement currency; written by fin.usp_ComputeCreditAssessment only (docs/35 section 10)
+  AssessmentId      ->fin.CreditAssessment req
+  FacilityId        ->fac.Facility req noidx
+  LenderInstitutionId ->ins.Institution noidx   # المقرض صاحب الحصة الأكبر
+  CurrencyId        ->ref.Currency req noidx
+  RateToStatement   dec(19,8)
+  LimitAmount       money      req      # بعملة التسهيل
+  OutstandingAmount money      req
+  SecuredCover      money      req =0   # تغطية الضمانات المرتبطة بعملة التسهيل
+  RecoverableCover  money      req =0   # بعد خصومات أنواع الضمانات
+  IsCommitted       bool       req =0
+  ExpiryDate        date       req
+  IsIncluded        bool       req      # يُستبعد التسهيل بعملة لا سعر لها
+  ExclusionReason   str(300)
+  unique AssessmentId,FacilityId
+  check  IsIncluded = 1 OR ExclusionReason IS NOT NULL
+
+table fin.CreditAssessmentRemedy norv  # A remedy the report proposes, with the finding it answers and the grade the pro-forma statement would get; written by fin.usp_ComputeCreditAssessment only (docs/35 section 12)
+  AssessmentId      ->fin.CreditAssessment req
+  SeqNo             int       req
+  RemedyId          ->fin.CreditRemedy req noidx
+  TriggerCode       ascii(40) req
+  TriggerLevel      enum{MODERATE,ELEVATED,HIGH,CRITICAL,ADJUSTMENT} req
+  MovedAmount       money             # ما نقلته خطوات الحل
+  ProFormaScore     dec(9,4)
+  ProFormaGradeId   ->fin.RatingGrade noidx
+  NotchesGained     int               # درجات الرتبة التي يكسبها الحل
+  unique AssessmentId,SeqNo
+  unique AssessmentId,RemedyId
+  check  SeqNo >= 1
+  check  (ProFormaGradeId IS NULL AND NotchesGained IS NULL) OR (ProFormaGradeId IS NOT NULL AND NotchesGained IS NOT NULL)
+
+table fin.CompanyProductLine public  # A product or service line of a company for a fiscal year: its category, share of revenue and of inventory, and its sales channels; read by the credit assessment for the quality of cash flows and the liquidity of the inventory (docs/35 section 5)
+  CompanyId         ->org.Company req
+  FiscalYear        int       req
+  NameAr            str(200)  req
+  ProductCategoryId ->fin.ProductCategory req noidx
+  RevenueSharePct   dec(9,4)  req
+  InventorySharePct dec(9,4)  req =0
+  CashSalesPct      dec(9,4)  req =0
+  GovernmentSalesPct dec(9,4) req =0
+  ExportSalesPct    dec(9,4)  req =0
+  TypicalCreditDays int       req =0
+  index  CompanyId,FiscalYear
+  check  RevenueSharePct BETWEEN 0 AND 100 AND InventorySharePct BETWEEN 0 AND 100
+  check  CashSalesPct + GovernmentSalesPct + ExportSalesPct <= 100 AND CashSalesPct >= 0 AND GovernmentSalesPct >= 0 AND ExportSalesPct >= 0
+  check  TypicalCreditDays BETWEEN 0 AND 720
+  check  FiscalYear BETWEEN 1900 AND 2200
+
+table fin.CreditAssessmentBureau deletable  # The company's SIMAH commercial credit report the analyst read: exposure at all lenders, payment behaviour, defaults, bounced cheques, judgments (docs/35 section 10); changes only while the assessment is a draft
+  AssessmentId      ->fin.CreditAssessment req
+  ReportDate        date       req
+  DocumentId        ->doc.Document req
+  TotalLimits       money      req   # بعملة القائمة
+  TotalOutstanding  money      req
+  LenderCount       int        req
+  WorstDpd12m       int        req =0   # أسوأ أيام تأخر في 12 شهرًا
+  WorstDpd24m       int        req =0
+  CurrentDefault    bool       req =0   # تعثر قائم أو حساب مشطوب غير مسوّى
+  Defaults24mCount  int        req =0
+  Defaults24mAmount money      req =0
+  BouncedCheques12mCount int   req =0
+  BouncedCheques12mAmount money req =0
+  JudgmentsCount    int        req =0
+  JudgmentsAmount   money      req =0
+  Inquiries6m       int        req =0
+  Restructured      bool       req =0
+  unique AssessmentId
+  check  TotalLimits >= 0 AND TotalOutstanding >= 0 AND LenderCount >= 0
+  check  WorstDpd12m >= 0 AND WorstDpd24m >= WorstDpd12m
+  check  Defaults24mCount >= 0 AND Defaults24mAmount >= 0 AND BouncedCheques12mCount >= 0 AND BouncedCheques12mAmount >= 0 AND JudgmentsCount >= 0 AND JudgmentsAmount >= 0 AND Inquiries6m >= 0
+
+table fin.CreditAssessmentScenario norv  # The assessment recomputed on the statement under a stress scenario of its activity: the grade, the liquidity label and the notches lost; written by fin.usp_ComputeCreditAssessment only (docs/35 section 13)
+  AssessmentId      ->fin.CreditAssessment req
+  Scenario          enum{STAGNANT_MARKET,FINANCIAL_CRISIS} req
+  RevenueAfter      money
+  EbitdaAfter       money
+  InventoryValueAfter money
+  Score             dec(9,4)
+  GradeId           ->fin.RatingGrade noidx
+  LiquidityLabel    ascii(5)
+  NotchesLost       int
+  unique AssessmentId,Scenario
+
+table fin.CreditAssessmentPlan norv  # A strengthening plan computed for the assessment when the customer asked for one: the grade at its end and whether the balance sheet stayed balanced; written by fin.usp_ComputeCreditAssessment only (docs/35 section 12)
+  AssessmentId      ->fin.CreditAssessment req
+  PlanId            ->fin.StrengtheningPlan req noidx
+  StepCount         int       req
+  FinalScore        dec(9,4)  req
+  FinalGradeId      ->fin.RatingGrade req noidx
+  NotchesGained     int       req
+  IsBalanced        bool      req      # الأصول = الخصوم + حقوق الملكية بعد كل خطوة
+  unique AssessmentId,PlanId
+  check  StepCount >= 1
+
+table fin.CreditAssessmentPlanStep norv  # A step of a strengthening plan: the remedy applied, the amount it moved and the grade after it
+  AssessmentId      ->fin.CreditAssessment req
+  PlanId            ->fin.StrengtheningPlan req noidx
+  StepNo            int       req
+  RemedyId          ->fin.CreditRemedy req noidx
+  MovedAmount       money     req
+  Score             dec(9,4)  req
+  GradeId           ->fin.RatingGrade req noidx
+  unique AssessmentId,PlanId,StepNo
+  check  StepNo >= 1
+
+table fin.CreditAssessmentTrigger norv  # What would move the scorecard grade one notch: the value of a metric at which the weighted score crosses to the grade above or below, the other metrics unchanged (docs/35 section 15)
+  AssessmentId      ->fin.CreditAssessment req
+  MetricId          ->fin.CreditMetric req noidx
+  Direction         enum{UP,DOWN} req
+  CurrentValue      dec(19,6) req
+  TriggerValue      dec(19,6) req
+  Score             dec(9,4)  req
+  TargetScore       dec(9,4)  req
+  unique AssessmentId,MetricId,Direction

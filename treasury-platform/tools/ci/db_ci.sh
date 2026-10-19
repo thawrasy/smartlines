@@ -83,6 +83,13 @@ if ! diff -q "$TMP/104_credit_scorecard.sql" db/seed/104_credit_scorecard.sql >/
     exit 1
 fi
 echo "credit methodology seed and the tables of docs/35 match tools/dbgen/credit_scorecard.json"
+# The cases that check the T-SQL engine against the Python reference are generated from the same file (ADR 0018).
+python3 tools/dbgen/gen_credit_cases.py "$TMP/credit_engine_cases.sql" >/dev/null
+if ! diff -q "$TMP/credit_engine_cases.sql" db/tests/credit_engine_cases.sql >/dev/null; then
+    echo "db/tests/credit_engine_cases.sql is stale: run tools/dbgen/gen_credit_cases.py and commit the result"
+    exit 1
+fi
+echo "credit engine cases match tools/dbgen/credit_scorecard.json and tools/dbgen/credit_reference.py"
 
 echo "== 3. every foreign key is indexed or flagged noidx; static grant and cascade rules R1-R11"
 python3 tools/dbgen/check_fk_indexes.py
@@ -186,8 +193,8 @@ sq -d BankFas -i db/seed/102_permissions.sql >/dev/null
 sq -d BankFas -i db/seed/103_lc_reference.sql >/dev/null
 sq -d BankFas -i db/seed/104_credit_scorecard.sql >/dev/null
 seed_after="$(seed_state)"
-if [ "$seed_before" != "$seed_after" ] || [ "$seed_before" != "9/32/1/9/23/249/157/142/16/39/21/36/3/158/0" ]; then
-    echo "platform seed is not safe to run again, or incomplete: settings/jobs/plans/plan modules/reserved/countries/currencies/permissions/Incoterms/unverified UCP articles/grades/credit metrics/approved scorecards/scorecard rows/updated before $seed_before, after $seed_after (expected 9/32/1/9/23/249/157/142/16/39/21/36/3/158/0)"
+if [ "$seed_before" != "$seed_after" ] || [ "$seed_before" != "9/32/1/9/23/249/157/142/16/39/21/112/3/605/0" ]; then
+    echo "platform seed is not safe to run again, or incomplete: settings/jobs/plans/plan modules/reserved/countries/currencies/permissions/Incoterms/unverified UCP articles/grades/credit metrics/approved scorecards/scorecard rows/updated before $seed_before, after $seed_after (expected 9/32/1/9/23/249/157/142/16/39/21/112/3/605/0)"
     exit 1
 fi
 echo "platform seed unchanged on a second run ($seed_after)"
@@ -493,7 +500,7 @@ if [ "$fs_pass" -ne 11 ]; then
     exit 1
 fi
 echo "financial statements tests: $fs_pass passed"
-echo "== 19c. the credit assessment on the Moody's scale (db/tests/credit_assessment_tests.sql, 046, ADR 0017)"
+echo "== 19c. the credit assessment on the Moody's scale through the tables (db/tests/credit_assessment_tests.sql, 046, 047, ADR 0017, ADR 0018)"
 sq -i db/tests/credit_assessment_tests.sql > "$TMP/crd.out" 2>&1 || {
     cat "$TMP/crd.out"
     echo "credit assessment test run failed"
@@ -505,16 +512,32 @@ if grep -qaE "$FAIL_RE" "$TMP/crd.out"; then
     exit 1
 fi
 ca_pass=$(grep -oaE "$PASS_RE" "$TMP/crd.out" | sort -u | wc -l)
-# 12 cases: CA1 the continuum and the item levels, CA2 the worked example equal to tools/dbgen/credit_reference.py,
-# CA3-CA4 coverage, indicative grades and ratios without meaning, CA5-CA6 the adjustments, group support and the
-# override, CA7 the life of an assessment and what the application cannot write, CA8 the report, CA9 covenants,
-# breaches and bank flows, CA10 the methodology fixed once approved, CA11 isolation, CA12 the seed (owner request of
-# 2026-10-18).
-if [ "$ca_pass" -ne 12 ]; then
-    echo "expected 12 PASS, found $ca_pass"
+# 15 cases: CA1 the continuum, its inverse and the item levels, CA2 the worked example through the tables equal to
+# tools/dbgen/credit_reference.py, CA3 coverage, indicative grades and sub-factors, CA4 the data requested, CA5-CA6 the
+# adjustments, group support and the override, CA7 the life of an assessment and what the application cannot write,
+# CA8 the report, CA9 covenants, breaches and bank flows, CA10 the methodology fixed once approved, CA11 isolation,
+# CA12 the seed, CA13 facilities, collateral, guarantors and the bureau report, CA14 activity, products, scenarios and
+# strengthening plans, CA15 the hash of what was read (owner requests of 2026-10-18 and 2026-10-19).
+if [ "$ca_pass" -ne 15 ]; then
+    echo "expected 15 PASS, found $ca_pass"
     exit 1
 fi
 echo "credit assessment tests: $ca_pass passed"
+echo "== 19d. the T-SQL credit engine equals the Python reference, number for number (db/tests/credit_engine_cases.sql, 047, ADR 0018)"
+sq -i db/tests/credit_engine_cases.sql > "$TMP/cre.out" 2>&1 || {
+    cat "$TMP/cre.out"
+    echo "credit engine case run failed"
+    exit 1
+}
+grep -aE "$FAIL_RE" "$TMP/cre.out" && { echo "a credit engine case differs from the reference"; exit 1; }
+ce_pass=$(grep -oaE "$PASS_RE" "$TMP/cre.out" | sort -u | wc -l)
+ce_want=$(grep -c "^/\* C[EV][0-9]*:" db/tests/credit_engine_cases.sql)
+# each stress case and variant twice: the core (CE) and the whole evaluation with scenarios, remedies and plans (CV)
+if [ "$ce_pass" -ne "$ce_want" ]; then
+    echo "expected $ce_want PASS, found $ce_pass"
+    exit 1
+fi
+echo "credit engine cases: $ce_pass passed"
 echo "== 20. SQL Server Audit and its AL-18 alerts (tools/deploy/server_audit.sh, tools/ci/server_audit_check.sh, ADR 0012)"
 SQL_SERVER="$SQL_SERVER" SQLCMD="$SQLCMD" AUDIT_SINCE="$audit_since" MIGRATOR_SECRET="$TMP/migrator/bankfas_migrator.secret" \
     bash tools/ci/server_audit_check.sh > "$TMP/server_audit.out" 2>&1 || {

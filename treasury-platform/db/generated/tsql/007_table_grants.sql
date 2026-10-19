@@ -149,6 +149,9 @@ GRANT SELECT, INSERT, UPDATE ON [ref].[Country] TO [tp_platform];
 -- ref.Currency
 GRANT SELECT ON [ref].[Currency] TO [tp_app];
 GRANT SELECT, INSERT, UPDATE ON [ref].[Currency] TO [tp_platform];
+-- ref.Industry
+GRANT SELECT ON [ref].[Industry] TO [tp_app];
+GRANT SELECT, INSERT, UPDATE ON [ref].[Industry] TO [tp_platform];
 -- cat.TenantCurrency
 GRANT SELECT, INSERT, UPDATE ON [cat].[TenantCurrency] TO [tp_app];
 -- cat.InstitutionType
@@ -335,6 +338,45 @@ GRANT SELECT, INSERT, UPDATE ON [fin].[ScorecardItemRule] TO [tp_platform];
 -- fin.ScorecardAdjustment
 GRANT SELECT ON [fin].[ScorecardAdjustment] TO [tp_app];
 GRANT SELECT, INSERT, UPDATE ON [fin].[ScorecardAdjustment] TO [tp_platform];
+-- fin.IndustryProfile
+GRANT SELECT ON [fin].[IndustryProfile] TO [tp_app];
+GRANT SELECT, INSERT, UPDATE ON [fin].[IndustryProfile] TO [tp_platform];
+-- fin.IndustryScenario
+GRANT SELECT ON [fin].[IndustryScenario] TO [tp_app];
+GRANT SELECT, INSERT, UPDATE ON [fin].[IndustryScenario] TO [tp_platform];
+-- fin.ProductCategory
+GRANT SELECT ON [fin].[ProductCategory] TO [tp_app];
+GRANT SELECT, INSERT, UPDATE ON [fin].[ProductCategory] TO [tp_platform];
+-- fin.StandardLine
+GRANT SELECT ON [fin].[StandardLine] TO [tp_app];
+GRANT SELECT, INSERT, UPDATE ON [fin].[StandardLine] TO [tp_platform];
+-- fin.StandardLineTotal
+GRANT SELECT ON [fin].[StandardLineTotal] TO [tp_app];
+GRANT SELECT, INSERT, UPDATE ON [fin].[StandardLineTotal] TO [tp_platform];
+-- fin.ScorecardParameter
+GRANT SELECT ON [fin].[ScorecardParameter] TO [tp_app];
+GRANT SELECT, INSERT, UPDATE ON [fin].[ScorecardParameter] TO [tp_platform];
+-- fin.ScorecardSubfactor
+GRANT SELECT ON [fin].[ScorecardSubfactor] TO [tp_app];
+GRANT SELECT, INSERT, UPDATE ON [fin].[ScorecardSubfactor] TO [tp_platform];
+-- fin.CreditRemedy
+GRANT SELECT ON [fin].[CreditRemedy] TO [tp_app];
+GRANT SELECT, INSERT, UPDATE ON [fin].[CreditRemedy] TO [tp_platform];
+-- fin.CreditRemedyTrigger
+GRANT SELECT ON [fin].[CreditRemedyTrigger] TO [tp_app];
+GRANT SELECT, INSERT, UPDATE ON [fin].[CreditRemedyTrigger] TO [tp_platform];
+-- fin.CreditRemedyStep
+GRANT SELECT ON [fin].[CreditRemedyStep] TO [tp_app];
+GRANT SELECT, INSERT, UPDATE ON [fin].[CreditRemedyStep] TO [tp_platform];
+-- fin.StrengtheningPlan
+GRANT SELECT ON [fin].[StrengtheningPlan] TO [tp_app];
+GRANT SELECT, INSERT, UPDATE ON [fin].[StrengtheningPlan] TO [tp_platform];
+-- fin.StrengtheningPlanMember
+GRANT SELECT ON [fin].[StrengtheningPlanMember] TO [tp_app];
+GRANT SELECT, INSERT, UPDATE ON [fin].[StrengtheningPlanMember] TO [tp_platform];
+-- fin.CreditText
+GRANT SELECT ON [fin].[CreditText] TO [tp_app];
+GRANT SELECT, INSERT, UPDATE ON [fin].[CreditText] TO [tp_platform];
 -- fin.CreditAssessment
 GRANT SELECT, INSERT, UPDATE ON [fin].[CreditAssessment] TO [tp_app];
 -- fin.CreditAssessmentInput
@@ -343,6 +385,26 @@ GRANT SELECT, INSERT, UPDATE ON [fin].[CreditAssessmentInput] TO [tp_app];
 GRANT SELECT, INSERT, UPDATE ON [fin].[CreditAssessmentFactor] TO [tp_app];
 -- fin.CreditAssessmentFinding
 GRANT SELECT, INSERT, UPDATE ON [fin].[CreditAssessmentFinding] TO [tp_app];
+-- fin.CreditAssessmentGuarantor
+GRANT SELECT, INSERT, UPDATE ON [fin].[CreditAssessmentGuarantor] TO [tp_app];
+-- fin.CreditAssessmentReclass
+GRANT SELECT, INSERT, UPDATE ON [fin].[CreditAssessmentReclass] TO [tp_app];
+-- fin.CreditAssessmentFacility
+GRANT SELECT, INSERT, UPDATE ON [fin].[CreditAssessmentFacility] TO [tp_app];
+-- fin.CreditAssessmentRemedy
+GRANT SELECT, INSERT, UPDATE ON [fin].[CreditAssessmentRemedy] TO [tp_app];
+-- fin.CompanyProductLine
+GRANT SELECT, INSERT, UPDATE ON [fin].[CompanyProductLine] TO [tp_app];
+-- fin.CreditAssessmentBureau
+GRANT SELECT, INSERT, UPDATE ON [fin].[CreditAssessmentBureau] TO [tp_app];
+-- fin.CreditAssessmentScenario
+GRANT SELECT, INSERT, UPDATE ON [fin].[CreditAssessmentScenario] TO [tp_app];
+-- fin.CreditAssessmentPlan
+GRANT SELECT, INSERT, UPDATE ON [fin].[CreditAssessmentPlan] TO [tp_app];
+-- fin.CreditAssessmentPlanStep
+GRANT SELECT, INSERT, UPDATE ON [fin].[CreditAssessmentPlanStep] TO [tp_app];
+-- fin.CreditAssessmentTrigger
+GRANT SELECT, INSERT, UPDATE ON [fin].[CreditAssessmentTrigger] TO [tp_app];
 -- wfl.RequestType
 GRANT SELECT, INSERT, UPDATE ON [wfl].[RequestType] TO [tp_app];
 -- wfl.RequestTypeAudience

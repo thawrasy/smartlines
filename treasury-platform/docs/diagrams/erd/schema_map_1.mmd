@@ -31,7 +31,7 @@ erDiagram
     int tables "11"
   }
   ref {
-    int tables "4"
+    int tables "5"
   }
   sec {
     int tables "15"
@@ -42,6 +42,6 @@ erDiagram
   ins ||--o{ acc : "5 FK"
   ins ||--o{ pty : "8 FK"
   pty ||--o{ org : "6 FK"
-  ref ||--o{ org : "8 FK"
+  ref ||--o{ org : "9 FK"
   ref ||--o{ pty : "6 FK"
   sec ||--o{ ntf : "6 FK"

@@ -19,6 +19,7 @@ table org.Company public  # Company: root of the corporate structure (FR-ORG-001
   IsHolding          bool       req =0   # قابضة: علم مستقل عن الشكل القانوني (FR-ORG-003، BR-ORG-003)
   ParentCompanyId    ->org.Company       # الأم؛ منع الحلقات والعمق الأقصى 10 في التطبيق (FR-ORG-004، BR-ORG-002)
   CountryId          ->ref.Country req   # بلد التأسيس
+  IndustryId         ->ref.Industry       # النشاط الرئيسي بالتصنيف السعودي للأنشطة الاقتصادية (ISIC 4)؛ يلزم للتقييم الائتماني (docs/35 §5، طلب المالك 2026-10-19)
   Status             enum{ACTIVE,DORMANT,LIQUIDATED,ARCHIVED} req =ACTIVE  # الأرشفة ممنوعة مع استخدام نشط (FR-ORG-010)
   EstablishedOn      date               # تاريخ التأسيس
   CrNumber           ascii(30)          # رقم السجل التجاري (FR-ORG-005)

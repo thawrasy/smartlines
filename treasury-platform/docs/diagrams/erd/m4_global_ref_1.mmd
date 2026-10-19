@@ -1,0 +1,16 @@
+%% م4 · المراجع العامة (ref) (1/2) — Global references (shared, read-only)
+erDiagram
+  ref_Country["ref.Country"] {
+    int CountryId PK
+  }
+  ref_Currency["ref.Currency"] {
+    int CurrencyId PK
+  }
+  ref_Incoterm["ref.Incoterm"] {
+    int IncotermId PK
+  }
+  ref_Industry["ref.Industry"] {
+    int IndustryId PK
+    int ParentId FK
+  }
+  ref_Industry |o--o{ ref_Industry : "ParentId"

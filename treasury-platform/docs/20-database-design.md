@@ -2,13 +2,13 @@
 
 | البند | القيمة |
 |---|---|
-| الحالة | **مسودة للتقييم (الإصدار 0.3)** — التصميم مكتمل لكل وحدات `10…14` مع وحدة القوائم المالية (ADR 0016) والتقييم الائتماني على سلّم موديز (ADR 0017) وإصلاحات المراجعة الذاتية (ADR 0015)؛ نُشر على SQL Server 2025 في بيئة التطوير ويمر CI كاملًا (انظر §14)؛ لم يُنشر على خادم الإنتاج بعد |
+| الحالة | **مسودة للتقييم (الإصدار 0.3)** — التصميم مكتمل لكل وحدات `10…14` مع وحدة القوائم المالية (ADR 0016) والتقييم الائتماني على سلّم موديز (ADR 0017، ونسخته الثانية ADR 0018) وإصلاحات المراجعة الذاتية (ADR 0015)؛ نُشر على SQL Server 2025 في بيئة التطوير ويمر CI كاملًا (انظر §14)؛ لم يُنشر على خادم الإنتاج بعد |
 | التاريخ | 2026-10-18 |
 | المنتج | منصة إدارة الخزينة متعددة المشتركين (TMP) — قاعدة البيانات `BankFas` |
 | المحرك المعتمد | **SQL Server 2025** (آخر إصدار؛ قاعدة سياسة الإصدارات في `01` §13) |
-| المرجع الهندسي | `db/model/*.model` (213 جدولًا، §1) — **الملفات المولَّدة لا تُعدَّل يدويًا** |
+| المرجع الهندسي | `db/model/*.model` (237 جدولًا، §1) — **الملفات المولَّدة لا تُعدَّل يدويًا** |
 | المخرجات | `db/generated/tsql/*` (SQL Server) · `db/static/*` (الأدوار والـRLS والجلسة والعروض والحراس) · `db/deploy.sql` · `21-data-dictionary.md` · `22-erd-by-schema.md` · `tools/dbgen/check_grants.py` (التحقق الثابت للصلاحيات) · `tools/dbgen/ddl_metrics.py` (أرقام هذه الوثيقة) |
-| المتطلبات | 481 متطلبًا وظيفيًا في `10-detailed-analysis/10…14` (فهرس: `10-detailed-analysis/91-requirements-index.md`) |
+| المتطلبات | 487 متطلبًا وظيفيًا في `10-detailed-analysis/10…14` (فهرس: `10-detailed-analysis/91-requirements-index.md`) |
 
 ---
 
@@ -32,6 +32,7 @@
 | C-13 | إصلاحات المراجعة الذاتية (ADR 0015، `34-self-review-2026-10-18.md`): المراجعة المعتمدة نهائية (§5.1)، والحراس الخمسة في §7.2، وجذر العقدة في الاختبارات والمخالفات وبنود التقويم، و`NoSourceReason` لكل قيمة بلا مستند (§5.2)، وضوابط النشر والتدقيق (§12.1) | مراجعة بخمس عدسات وجدت 63 نتيجة، بعضها يغيّر ما تسمح به القاعدة |
 | C-14 | وحدة القوائم المالية في م5 (ADR 0016، `045_financial_statements.sql`): القوائم المستقلة والموحّدة للقابضة بوحداتها، ومقاييس التحليل، وربط الاختبار بالقوائم التي قرأها، وتقرير المخالفات، وأداء السيولة المحوَّلة إلى البنك (§11) | طلب المالك 2026-10-18 |
 | C-15 | التقييم الائتماني للميزانية على سلّم موديز (ADR 0017، `046_credit_assessment.sql`، `docs/35`): المنهجية بيانات عالمية للمنصة، والحساب في القاعدة، وتقرير بنقاط القوة والضعف والمخاطر (§11.5) | طلب المالك 2026-10-18، بمراجعة آلية مستقلة في دور محلل ائتمان (`docs/35` §13) |
+| C-16 | النسخة الثانية من التقييم (ADR 0018، `047_credit_engine.sql`، `docs/35` الإصدار 2.0): 157 بندًا معياريًا تُدرس بندًا بندًا، و112 مقياسًا، والربط بتسهيلات المنصة وضماناتها، والنشاط ومنتجاته وسيناريو السوق الراكد والأزمة، وعلاجات وخطط تقوية بقوائم متوازنة عند طلب العميل، والنظرة المستقبلية ومحفّزاتها (§11.5) | طلبات المالك الثلاثة 2026-10-19؛ المحتوى صاغه وراجعه وكلاء ذكاء اصطناعي لا محللون بشريون |
 
 **مرفوض:** اقتراح تقرير Technical Evaluation بـ.NET 9، لأن قرار المشروع `.NET 10 LTS` (`01` §13) ويبقى كما هو. **مؤجَّل:** أدوات الترحيل (O-2)، ومرساة سلسلة التدقيق (O-13)، وRPO/RTO (O-14)، ومكدّس الواجهات (خارج نطاق وثيقة القاعدة). **لم يُعتمد** الادعاء بأن القيود وحدها تضمن سلامة الحجز؛ الحجز يبقى ذريًا بالقفل في طبقة التطبيق (§7.1).
 
@@ -45,13 +46,13 @@
 
 | المؤشر | القيمة |
 |---|---|
-| جداول | **213** في 20 مخططًا |
-| أعمدة | 3,612 مُعرَّفة في النماذج + الأعمدة الآلية = **4,165** في DDL |
-| مفاتيح أجنبية | **829** = 194 إلى `plat.Tenant` (`TenantId`) + **549 مركّبة** `(TenantId, …)` بين جداول المشترك + 86 بسيطة نحو جداول عالمية/مختلطة؛ حذف متتالٍ واحد (§7) |
-| فهارس | 772 غير مجمّع (229 مصفّاة · 51 بأعمدة `INCLUDE`) |
-| قيود | 1,359 `CHECK` (قوائم قيم وتناسق حقول وتواريخ وأطوال الأغلفة المشفّرة) · 448 قيد `UNIQUE` + 148 فهرسًا فريدًا |
-| جداول بمعرّف عام `PublicId` | 40 (جذور التجميعات المعرَّضة عبر API) |
-| جداول خاضعة لعزل الصفوف RLS | 192 (189 مملوكة للمشترك + 3 مختلطة، منها `aud.AuditLog` بسياسة خاصة؛ الـ21 العالمية خارجها) |
+| جداول | **237** في 20 مخططًا |
+| أعمدة | 3,946 مُعرَّفة في النماذج + الأعمدة الآلية = **4,536** في DDL |
+| مفاتيح أجنبية | **884** = 204 إلى `plat.Tenant` (`TenantId`) + **564 مركّبة** `(TenantId, …)` بين جداول المشترك + 116 بسيطة نحو جداول عالمية/مختلطة؛ حذف متتالٍ واحد (§7) |
+| فهارس | 779 غير مجمّع (229 مصفّاة · 51 بأعمدة `INCLUDE`) |
+| قيود | 1,419 `CHECK` (قوائم قيم وتناسق حقول وتواريخ وأطوال الأغلفة المشفّرة) · 485 قيد `UNIQUE` + 148 فهرسًا فريدًا |
+| جداول بمعرّف عام `PublicId` | 41 (جذور التجميعات المعرَّضة عبر API) |
+| جداول خاضعة لعزل الصفوف RLS | 202 (199 مملوكة للمشترك + 3 مختلطة، منها `aud.AuditLog` بسياسة خاصة؛ الـ35 العالمية خارجها) |
 | أعمدة محجوبة عن دور التقارير | 31 |
 | جداول محجوبة كليًا عن تطبيق المشترك (`noapp`) | 8: العالمية المحجوبة الخمسة والداخلية الثلاثة (§3.3)؛ يقرأ التطبيق صف مشتركه ووحداته عبر `plat.v_CurrentTenant` و`plat.v_TenantModule` |
 
@@ -83,7 +84,7 @@
 
 ### 3.1 الطبقات الأربع
 1. **بنية:** كل جدول مملوك للمشترك فيه `TenantId INT NOT NULL` مع `FK` إلى `plat.Tenant`.
-2. **مفاتيح مركّبة:** كل جدول يملك `UNIQUE (TenantId, <Id>)` هدفًا، وكل مرجع بين جدولين للمشترك **مركّب** `(TenantId, [أعمدة النطاق…], Col) → (TenantId, [أعمدة النطاق…], Id)`. يستحيل ربط سجل بسجل مشترك آخر **حتى لو أخطأ التطبيق**. و**أعمدة النطاق `via=`** تمنع الربط عبر تجميعتين داخل المشترك نفسه: حد أب من تسهيل آخر، حجز على خط منتج من حد آخر، مرحلة من قالب آخر… (138 مفتاحًا من الـ549 المركّبة تحمل أعمدة نطاق).
+2. **مفاتيح مركّبة:** كل جدول يملك `UNIQUE (TenantId, <Id>)` هدفًا، وكل مرجع بين جدولين للمشترك **مركّب** `(TenantId, [أعمدة النطاق…], Col) → (TenantId, [أعمدة النطاق…], Id)`. يستحيل ربط سجل بسجل مشترك آخر **حتى لو أخطأ التطبيق**. و**أعمدة النطاق `via=`** تمنع الربط عبر تجميعتين داخل المشترك نفسه: حد أب من تسهيل آخر، حجز على خط منتج من حد آخر، مرحلة من قالب آخر… (138 مفتاحًا من الـ564 المركّبة تحمل أعمدة نطاق).
 3. **عزل الصفوف RLS** (`db/static/010_rls.sql`): سياسة أمنية لكل جدول؛ ترشيح وحجب إدراج/تعديل بالمعيار `TenantId = SESSION_CONTEXT('TenantId')`.
 4. **ربط الاتصال بجلسة دخول** داخل `sec.usp_SetSessionContext` (§3.2، ADR 0002): الاتصال يُربط بالمشترك برمز جلسة صادر عن دخول تحقق من كلمة المرور داخل القاعدة، والمستخدم يؤخذ من الجلسة لا من التطبيق.
 
@@ -106,8 +107,8 @@
 ### 3.3 أنواع النطاق
 | النوع | علامة النموذج | الجداول | القراءة (tp_app) | الكتابة (tp_app) | الكتابة (tp_platform) |
 |---|---|---|---|---|---|
-| مملوك للمشترك | (افتراضي) | 189 | صفوف مشتركه | صفوف مشتركه | **لا وصول مباشر** |
-| عالمي | `global` | 7 | الكل (ما عدا `noapp`) | **لا** | نعم |
+| مملوك للمشترك | (افتراضي) | 199 | صفوف مشتركه | صفوف مشتركه | **لا وصول مباشر** |
+| عالمي | `global` | 27 | الكل (ما عدا `noapp`) | **لا** | نعم |
 | عالمي محجوب | `global noapp` | 5 (`plat.Tenant`، `plat.PlatformOperator`، `plat.ReservedSubdomain`، `plat.TenantModule`، `cfg.JobDefinition`) | **لا وصول** (يُقرأ صف المشترك عبر §3.6، ووحدات الاشتراك عبر `plat.v_TenantModule`) | لا | نعم، والإنشاء والحالة وحسابات المشغّلين بإجراءات فقط (ADR 0004) |
 | داخلي | `global noapp noplat` | 3 (`sec.SessionBinding`، `plat.OperatorSession`، `plat.OperatorToken`) | **لا وصول** | لا | لا: تكتبها إجراءات بعينها فقط (030، 036) |
 | مختلط | `mixed` | 3 (`aud.AuditLog`، `cfg.NonWorkingDay`، `ref.UcpArticle`) | صفوف المنصة (`TenantId IS NULL`) + صفوف مشتركه | صفوف مشتركه فقط | صفوف المنصة وغيرها |
@@ -140,11 +141,11 @@
 
 | الموضوع | الاتفاق |
 |---|---|
-| **المفاتيح** | `<Table>Id BIGINT IDENTITY` (و`INT` للكتالوجات الصغيرة بعلامة `int`، 55 جدولًا)؛ المفتاح الأساسي مجمّع على المعرّف وحده؛ الفرادة المركّبة `(TenantId, Id)` هدفًا للمراجع |
+| **المفاتيح** | `<Table>Id BIGINT IDENTITY` (و`INT` للكتالوجات الصغيرة بعلامة `int`، 69 جدولًا)؛ المفتاح الأساسي مجمّع على المعرّف وحده؛ الفرادة المركّبة `(TenantId, Id)` هدفًا للمراجع |
 | **المعرّف العام** | `PublicId UNIQUEIDENTIFIER DEFAULT NEWSEQUENTIALID()` على جذور التجميعات المعرَّضة (علامة `public`)، فريد على مستوى القاعدة؛ **لا يُعرَّض `BIGINT` عبر API** |
-| **التدقيق** | `CreatedAt/CreatedBy/UpdatedAt/UpdatedBy` (UTC `DATETIME2(3)`) + `RowVersion ROWVERSION` للتزامن المتفائل (164 جدولًا) |
+| **التدقيق** | `CreatedAt/CreatedBy/UpdatedAt/UpdatedBy` (UTC `DATETIME2(3)`) + `RowVersion ROWVERSION` للتزامن المتفائل (167 جدولًا) |
 | **للإضافة فقط** | علامة `append`: بلا `UpdatedAt/By` وبلا `RowVersion`؛ **تُفرض بالمنح** (`INSERT` و`SELECT` فقط) و**`DENY UPDATE`** — §9 |
-| **الحذف** | **لا حذف فعلي** إلا على الجداول المعلَّمة `deletable` (39 جدولًا: وسطاء وجلسات ورموز مؤقتة…)؛ الباقي بالحالة (أرشفة/إلغاء/استبدال) |
+| **الحذف** | **لا حذف فعلي** إلا على الجداول المعلَّمة `deletable` (41 جدولًا: وسطاء وجلسات ورموز مؤقتة…)؛ الباقي بالحالة (أرشفة/إلغاء/استبدال) |
 | **المبالغ** | `DECIMAL(19,4)` + عمود `CurrencyId` مجاور؛ لا مبلغ بلا عملة. أسعار الصرف `DECIMAL(19,8)` |
 | **النسب** | `DECIMAL(9,6)` بنقاط مئوية (1.5 = 1.5%) |
 | **القوائم المغلقة** | `VARCHAR` + `CHECK ... IN (...)` (لا جداول بحث لقيم منطق ثابت)؛ القوائم القابلة للتخصيص لكل مشترك في `cat.LookupList/LookupItem` أو كتالوجات مسمّاة |
@@ -276,7 +277,7 @@
 | **`INCLUDE` (51)** | لوحات التوفر وتقارير الاستحقاق دون رجوع للجدول |
 | **بحث نصي كامل** | `wfl.Request.SearchText` — اختياري `db/static/040_fulltext_optional.sql` (يتطلب ميزة Full-Text Search) |
 
-قيود SQL Server التي فُحصت آليًا: لا مفتاح فهرس يتجاوز **1,700 بايت** ولا 16 عمودًا؛ المسندات المصفّاة تستعمل `=` و`<>` و`IN` و`IS [NOT] NULL` و`AND` فقط (**لا `OR`**)؛ مفتاح واحد فقط بـ`ON DELETE CASCADE` (§7) فلا مسارات تعاقب متعددة. `check_fk_indexes.py` (الخطوة 3 في CI) يشترط لكل مفتاح أجنبي من أعمدة النموذج فهرسًا يبدأ بأعمدته أو علامة `noidx`: 551 مفهرسًا و85 `noidx` وصفر بلا فهرس.
+قيود SQL Server التي فُحصت آليًا: لا مفتاح فهرس يتجاوز **1,700 بايت** ولا 16 عمودًا؛ المسندات المصفّاة تستعمل `=` و`<>` و`IN` و`IS [NOT] NULL` و`AND` فقط (**لا `OR`**)؛ مفتاح واحد فقط بـ`ON DELETE CASCADE` (§7) فلا مسارات تعاقب متعددة. `check_fk_indexes.py` (الخطوة 3 في CI) يشترط لكل مفتاح أجنبي من أعمدة النموذج فهرسًا يبدأ بأعمدته أو علامة `noidx`: 573 مفهرسًا و108 `noidx` وصفر بلا فهرس.
 
 > ملاحظة التنفيذ: الفهارس المصفّاة والأعمدة المحسوبة المخزَّنة تتطلب `QUOTED_IDENTIFIER ON` وخيارات ANSI. أدوات `sqlcmd` تفترضها `OFF`؛ لذلك يبدأ كل ملف مولَّد وثابت بضبطها ويُشغَّل النشر بالخيار `-I`.
 
@@ -287,7 +288,7 @@
 ### 9.1 الأدوار
 | الدور | الغرض | الصلاحيات (ملخص؛ التفصيل الجدولي في 007) |
 |---|---|---|
-| `tp_app` | حساب تشغيل تطبيق المشترك | **المشترك والمختلط:** `SELECT, INSERT, UPDATE` (RLS يقصر الصفوف على المشترك) · **العالمي:** `SELECT` فقط · **للإضافة فقط:** `SELECT, INSERT` · **`noapp`:** لا شيء · **`plat.v_CurrentTenant` و`plat.v_TenantModule`:** `SELECT` · الحذف الفعلي على `deletable` فقط · `EXECUTE` على الإجراءات العامة في 030 (`usp_GetPasswordParams` و`usp_StartSession` و`usp_ConfirmMfa` و`usp_SetSessionContext`) و035 (خمسة عشر إجراءً، ADR 0003) و039 (`cfg.usp_AllocateNumber` و`cfg.usp_VoidNumber`، ADR 0005) و042 (`cfg.usp_RequestDataExport` و`cfg.usp_ApproveDataExport`، ADR 0008) فقط · `SELECT` على عروض القوائم المالية ودالة أداء التدفقات في 045 (ADR 0016)، و`EXECUTE` على `fin.usp_ComputeCreditAssessment` و`SELECT` على عروض التقييم في 046 (ADR 0017) · لا يكتب نتائج التقييم ولا عوامله ولا ملاحظاته (`DENY` في 046) · لا يكتب `obl.CovenantTestStatement` (`DENY` في 045) · لا يدرج طلب تصدير ولا يعدّله مباشرة (`DENY` في 042) · لا يكتب العدّادات ولا الأرقام المصدرة مباشرة (`DENY` في 039)، ويربط الرقم بكيانه فقط · لا `REFERENCES` · لا منح على مستوى المخطط |
+| `tp_app` | حساب تشغيل تطبيق المشترك | **المشترك والمختلط:** `SELECT, INSERT, UPDATE` (RLS يقصر الصفوف على المشترك) · **العالمي:** `SELECT` فقط · **للإضافة فقط:** `SELECT, INSERT` · **`noapp`:** لا شيء · **`plat.v_CurrentTenant` و`plat.v_TenantModule`:** `SELECT` · الحذف الفعلي على `deletable` فقط · `EXECUTE` على الإجراءات العامة في 030 (`usp_GetPasswordParams` و`usp_StartSession` و`usp_ConfirmMfa` و`usp_SetSessionContext`) و035 (خمسة عشر إجراءً، ADR 0003) و039 (`cfg.usp_AllocateNumber` و`cfg.usp_VoidNumber`، ADR 0005) و042 (`cfg.usp_RequestDataExport` و`cfg.usp_ApproveDataExport`، ADR 0008) فقط · `SELECT` على عروض القوائم المالية ودالة أداء التدفقات في 045 (ADR 0016)، و`EXECUTE` على `fin.usp_ComputeCreditAssessment` و`SELECT` على عروض التقييم الثلاثة عشر في 047 (ADR 0017 و0018) · لا يكتب نتائج التقييم ولا عوامله ولا ملاحظاته ولا إعادة تبويبه ولا لقطة تسهيلاته ولا علاجاته وسيناريوهاته وخططه ومحفّزاته (`DENY` في 047) · لا يكتب `obl.CovenantTestStatement` (`DENY` في 045) · لا يدرج طلب تصدير ولا يعدّله مباشرة (`DENY` في 042) · لا يكتب العدّادات ولا الأرقام المصدرة مباشرة (`DENY` في 039)، ويربط الرقم بكيانه فقط · لا `REFERENCES` · لا منح على مستوى المخطط |
 | `tp_platform` | مشغّلو المنصة | **العالمي والمختلط:** `SELECT, INSERT, UPDATE` (للإضافة فقط: `SELECT, INSERT`) · **جداول المشتركين: لا شيء** · لا حذف · `DENY UPDATE` على جداول الإضافة فقط · `EXECUTE` على إجراءات المشغّلين والتهيئة وحالة المشترك (036، 038)، و`DENY` على إدراج المشترك والمشغّل وعلى أعمدة الرمز والحالة وبيانات الاعتماد (ADR 0004) |
 | `tp_auth` | داخلي بلا تسجيل دخول (عبر المستخدم `tp_auth_exec`) | منح 020 على `sec.AppUser` و`plat.Tenant` و`sec.SessionBinding` و`sec.UserSession` و`sec.LoginAttempt` فقط؛ تُنفَّذ به إجراءات 030 الأربعة وقوادحها فقط (`EXECUTE AS`) · ومنح 028 و036 إلى 038 (الإعدادات، المشغّلون وجلساتهم وروابطهم، منح الدعم، قائمة المهام، التهيئة)، ADR 0004 |
 | `tp_readonly` | تقارير/تحليل | `SELECT` على كل المخططات دون الأعمدة الحساسة (`006`)؛ `DENY SELECT` على `plat.PlatformOperator` كليًا؛ ولا دوال `rls` و`sec` و`plat` و`cfg` ولا `lc.BeneficiaryIbanChange` (`090`، ADR 0015)، وتبقى عروض التقارير مقروءة |
@@ -307,7 +308,8 @@
 | `db/static/025_tenant_views.sql` | عرض `plat.v_CurrentTenant` لـ`tp_app` |
 | `db/static/030_session_context.sql` | إجراءات الدخول والربط الأربعة وقوادح السحب و`DENY` الخاصة بـ`tp_app` (ADR 0002) |
 | `db/static/045_financial_statements.sql` | قراءة عروض القوائم المالية ودالة الأداء لـ`tp_app`، و`DENY` كتابة `obl.CovenantTestStatement` (ADR 0016) |
-| `db/static/046_credit_assessment.sql` | `EXECUTE` على إجراء الحساب و`SELECT` على العروض الستة ودالة تحليل البنود لـ`tp_app`، و`DENY` كتابة العوامل والملاحظات وأعمدة النتيجة (ADR 0017) |
+| `db/static/046_credit_assessment.sql` | حراس دورة حياة التقييم وتجميد مدخلاته ونتائجه (ADR 0017 و0018) |
+| `db/static/047_credit_engine.sql` | `EXECUTE` على إجراء الحساب و`SELECT` على العروض الثلاثة عشر ودالة تحليل البنود لـ`tp_app`، و`DENY` كتابة جداول النتائج التسعة وأعمدة النتيجة (ADR 0018) |
 | `db/static/090_readonly_denies.sql` | آخر سكربت ثابت: `DENY` على الدوال الداخلية لـ`tp_readonly`، فتشمل كل دالة أنشأها ما قبله (ADR 0015) |
 
 ### 9.3 التحقق الثابت من الصلاحيات
@@ -341,7 +343,7 @@
 | `cfg` | 14 — SettingDefinition, TenantSetting, NumberSequenceDefinition, NumberSequence, NumberIssue, ExpiryAlertRule, ExpiryAlertRuleRole, ExpiryAlertLog, DataExportJob, NonWorkingDay, OutboxEvent, JobDefinition, JobRun, SeedRun | م0 |
 | `org` | 14 — Company, CompanyTaxRate, Department, Shareholding, GoverningBody, BodyMember, AuthorityGrant, CompanyProfile, CompanyBranch, CompanyKycFinancialProfile, CompanyExpectedFlow, CompanyWealthSource, CompanyDisclosure, CompanyKeyRelation | م1 |
 | `pty` | 11 — Party, IdentityDocument, Address, ContactMethod, CustomFieldDefinition, PartyCustomField, KycProfile, KycProfileItem, KycProfileItemLegalForm, PartyCompliance, TaxIdentity | م1 |
-| `ref` | 4 — Country, Currency, Incoterm, UcpArticle | مرجعي |
+| `ref` | 5 — Country, Currency, Incoterm, UcpArticle, **Industry** | مرجعي |
 | `cat` | 26 — TenantCurrency, InstitutionType, AccountType, LegalEntityType, DocumentType, Position, PowerType, OperationType, OperationTypePowerType, ProductCategory, Product, FeeType, FinancingType, ProductFeeType, ProductFinancingType, FacilityType, LimitType, LimitTypeProduct, CollateralType, CollateralTypeAttribute, ObligationType, BaseRate, BaseRateAlias, BaseRateValue, LookupList, LookupItem | م4 |
 | `ins` | 6 — Institution, InstitutionUnit, Contact, Relationship, RelationshipContact, RelationshipProduct | م2 |
 | `acc` | 6 — BankAccount, FacilityAccount, Signatory, SignatoryAuthority, SignatoryAuthorityJointClass, AuthorityConflict | م3 |
@@ -350,12 +352,12 @@
 | `cmp` | 2 — TermType, TermValue | م5 |
 | `col` | 7 — Collateral, CollateralLink, Guarantee, PromissoryNote, PromissoryNoteSigner, InsurancePolicyAssignment, ValuationSchedule | م5 |
 | `obl` | 9 — Obligation, ObligationCompany, ReportingObligation, ReportingInstance, Covenant, CovenantAccount, CovenantTest, **CovenantTestStatement**, ObligationBreach | م5 |
-| `fin` | 20 — LineCatalogItem, LineCatalogItemAlias, FinancialStatement, StatementLine, ConsolidationMember, StatementRatio, RevenueEstimate, AccountMonthlyStat, BankFlowEntry, MeasureFormula, **RatingGrade**, **CreditMetric**, **Scorecard**, **ScorecardMetric**, **ScorecardItemRule**, **ScorecardAdjustment**, **CreditAssessment**, **CreditAssessmentInput**, **CreditAssessmentFactor**, **CreditAssessmentFinding** | م5 |
+| `fin` | 43 — LineCatalogItem, LineCatalogItemAlias, FinancialStatement, StatementLine, ConsolidationMember, StatementRatio, RevenueEstimate, AccountMonthlyStat, BankFlowEntry, MeasureFormula, **RatingGrade**, **CreditMetric**, **Scorecard**, **ScorecardMetric**, **ScorecardItemRule**, **ScorecardAdjustment**, **ScorecardParameter**, **ScorecardSubfactor**, **StandardLine**, **StandardLineTotal**, **IndustryProfile**, **IndustryScenario**, **ProductCategory**, **CreditRemedy**, **CreditRemedyTrigger**, **CreditRemedyStep**, **StrengtheningPlan**, **StrengtheningPlanMember**, **CreditText**, **CreditAssessment**, **CreditAssessmentInput**, **CreditAssessmentFactor**, **CreditAssessmentFinding**, **CreditAssessmentGuarantor**, **CreditAssessmentBureau**, **CompanyProductLine**, **CreditAssessmentReclass**, **CreditAssessmentFacility**, **CreditAssessmentRemedy**, **CreditAssessmentScenario**, **CreditAssessmentPlan**, **CreditAssessmentPlanStep**, **CreditAssessmentTrigger** | م5 |
 | `wfl` | 19 — RequestType, RequestTypeAudience, ExternalPhase, WorkflowTemplate, WorkflowStage, StageApprover, WorkflowTransition, WorkflowStageHook, TemplateField, TemplateAttachmentRule, Request, RequestComment, RequestAttachment, RequestExternalRef, RequestStageInstance, RequestApproval, RequestAction, HookExecution, UserDelegation | م6 |
 | `ntf` | 7 — NotificationEventType, NotificationRule, NotificationTemplate, NotificationPreference, DigestBatch, Notification, NotificationDelivery | م6 |
 | `lc` | 21 — LcFieldDefinition, LcFieldUcpRef, Counterparty, LcDocumentClause, LcDocumentClauseUcpRef, LcTerms, LcTermsDocument, LcChargesMatrix, LcFormTemplate, LcFormFieldMap, LetterOfCredit, LcExternalRef, LcAmendment, LcDrawing, LcSalesOrder, LcDrawingAllocation, LcDiscrepancy, ProformaInvoice, ProformaLine, LcTermsComparison, LcTermsComparisonLine | م7/م8 |
 
-مجموع العمود هو عدد الجداول في §1. بالخط العريض الجداول العشرة للتقييم الائتماني (ADR 0017)، الستة الأولى منها عالمية للمنصة.
+مجموع العمود هو عدد الجداول في §1. بالخط العريض الجداول الأربعة والثلاثون للتقييم الائتماني (ADR 0017 و0018): المنهجية العالمية للمنصة (من `RatingGrade` إلى `CreditText`، ومعها `ref.Industry`)، ثم جداول المشترك (من `CreditAssessment` إلى `CreditAssessmentTrigger`).
 
 القاموس الكامل (عمود بعمود: النوع، الإلزام، الافتراضي، المرجع، الحساسية، الوصف): [`21-data-dictionary.md`](21-data-dictionary.md). مخططات العلاقات لكل مخطط: [`22-erd-by-schema.md`](22-erd-by-schema.md).
 
@@ -474,16 +476,16 @@
 
 الربط مع نظام التقييم الائتماني الخارجي مرحلة لاحقة لم تُبنَ (المواصفة 12 §11).
 
-### 11.5 التقييم الائتماني على سلّم موديز (ADR 0017، `046_credit_assessment.sql`، `docs/35`)
+### 11.5 التقييم الائتماني على سلّم موديز (ADR 0017 و0018، `046_credit_assessment.sql` و`047_credit_engine.sql`، `docs/35`)
 
 | البند | التصميم | الفرض |
 |---|---|---|
-| المنهجية | `fin.RatingGrade` (21 درجة ومجالاتها على الخط) و`fin.CreditMetric` (36 مقياسًا بتعريفاتها ونصوصها) و`fin.Scorecard` بإصداراتها و`ScorecardMetric` (الأوزان وحدود الشبكات التسعة) و`ScorecardItemRule` (حدود مخاطر البنود) و`ScorecardAdjustment` (التنزيل والسقوف بمراحلها): **عالمية تملكها المنصة**، تبذرها `seed/104` المولَّدة من `tools/dbgen/credit_scorecard.json` | البطاقة تُعتمد كاملة ثم لا تتغير، ولا الدرجات والمقاييس التي تستعملها (50066) |
-| `fin.CreditAssessment` | تقييم قائمة معتمدة على بطاقة: قائمة المقارنة والتاريخ والسعر، والنتائج (التغطية، والدرجة المالية والمؤشرة والمنفردة والنهائية، والتنزيل والسقف والدعم والتجاوز، والخلاصة، واللقطة، وبصمة المدخلات) | النتائج يكتبها الإجراء وحده (`DENY UPDATE` على أعمدتها لـ`tp_app`)؛ المسودة تُحسب، وتُقدَّم محسوبة على ما تحمله، ويعتمدها غير مُعِدّها، وبعدها لا تتغير (50063) |
-| `fin.CreditAssessmentInput` | العاملان النوعيان ودعم المجموعة والتجاوز، كلٌّ بمبرّر | في المسودة وحدها؛ النوعي من البطاقة؛ الدعم من تقييم معتمد للأم أو للقابضة الموحِّدة (50065)؛ والتجاوز −2 إلى +1 |
-| `fin.CreditAssessmentFactor` و`Finding` | درجة كل مقياس ووزنه ومساهمته، والملاحظات بأنواعها ونصوصها | `DENY` كتابتها لـ`tp_app`، ولا تتغير بعد المسودة |
-| `fin.usp_ComputeCreditAssessment` | المقاييس بحالاتها الحدية، والدرجات على الخط، والتغطية الكمية، والتعديلات بترتيبها، والملاحظات من البطاقة والبنود والتعهدات والتحويلات | يعمل باسم المستدعي: مرشّحات الصفوف تحصره في المشترك، وسلسلة الملكية تكتب ما يُحجب عن التطبيق؛ ويطابقه `credit_reference.py` |
-| العروض | `v_CreditAssessmentReport` و`Factors` و`Findings` و`Items` (والدالة `fn_StatementItemAnalysis`) و`Covenants` و`GroupUnits` | تقرؤها `tp_app` و`tp_readonly` بمرشّحات جداولها |
+| المنهجية | `fin.RatingGrade` (21 درجة) و`StandardLine`/`StandardLineTotal` (157 بندًا معياريًا ومجاميعها) و`CreditMetric` (112 مقياسًا بنمط حسابها وحالاتها الحدية) و`Scorecard` بإصداراتها و`ScorecardMetric` و`ScorecardSubfactor` و`ScorecardParameter` و`ScorecardItemRule` و`ScorecardAdjustment`، و`ref.Industry` و`IndustryProfile`/`IndustryScenario` (61 نشاطًا بمدى الدرجة المتوقع وسيناريو السوق الراكد والأزمة) و`ProductCategory` (15 فئة)، و`CreditRemedy` بمحفّزاتها وخطواتها (39 علاجًا)، و`StrengtheningPlan` وأعضاؤها (10 خطط)، و`CreditText`: **عالمية تملكها المنصة**، تبذرها `seed/104` المولَّدة من `tools/dbgen/credit_scorecard.json` | البطاقة تُعتمد كاملة ثم لا تتغير، ولا ما تستعمله من درجات ومقاييس ومعاملات وعوامل فرعية (50066، 50065) |
+| `fin.CreditAssessment` | تقييم قائمة معتمدة على بطاقة: قائمة المقارنة والتاريخ والسعر وطلب خطط التقوية (`StrengtheningRequested`)، والنتائج (التغطية والاكتمال، والدرجات المالية والمؤشرة والمنفردة والنهائية ودرجة التسهيل، والسيولة، والصمود، والنظرة المستقبلية وقواعدها وهوامشها، والخلاصة، واللقطة، وبصمة المدخلات) | النتائج يكتبها الإجراء وحده (`DENY UPDATE` على أعمدتها لـ`tp_app`)؛ المسودة تُحسب، وتُقدَّم محسوبة على ما تحمله، ويعتمدها غير مُعِدّها، وبعدها لا تتغير (50063) |
+| المدخلات | `CreditAssessmentInput` (النوعي والعوامل الفرعية والدعم والتجاوز والمستندات وحجم السوق)، و`CreditAssessmentGuarantor`، و`CreditAssessmentBureau` (تقرير سمة)، و`fin.CompanyProductLine` (مزيج منتجات الشركة لسنتها) | في المسودة وحدها؛ والإخضاع أو قرار رأس المال أو التنازل لا يغيّر القراءة إلا بمستند (`EVIDENCE`) |
+| النتائج | `CreditAssessmentFactor` و`Finding` و`Reclass` (إعادة التبويب بسببها) و`Facility` (لقطة التسهيلات والضمانات على تاريخ التقييم) و`Remedy` و`Scenario` و`Plan` و`PlanStep` و`Trigger` | `DENY` كتابتها لـ`tp_app`، ولا تتغير بعد المسودة (قوادح `TR_<table>_DraftOnly`) |
+| المحرك (047) | `fin.usp_CreditCore` (تقييم واحد لقائمة في جداول مؤقتة) و`usp_CreditEvaluate` (القائمة، والسيناريوهان، وكل علاج، وكل خطوة من خطط التقوية، ثم المحفّزات والنظرة) و`usp_ComputeCreditAssessment` (يقرأ الجداول ويكتب النتائج) | يعمل باسم المستدعي: مرشّحات الصفوف تحصره في المشترك، وسلسلة الملكية تكتب ما يُحجب عن التطبيق؛ ويطابقه `credit_reference.py` في 94 حالة (الخطوة 19d)؛ وكل خطوة علاج أو خطة قيد مزدوج يُفحص بعده توازن الميزانية |
+| العروض | `v_CreditAssessmentReport` و`Factors` و`Findings` و`ItemRegister` و`Items` (والدالة `fn_StatementItemAnalysis`) و`Reclass` و`Remedies` و`Scenarios` و`Facilities` و`Plans` و`Triggers` و`Covenants` و`GroupUnits` | تقرؤها `tp_app` و`tp_readonly` بمرشّحات جداولها |
 
 ---
 
@@ -520,7 +522,7 @@ SQL_USER=bankfas_monitor tools/dbgen/check_deployed.py --server <server>   # the
 7. `025_tenant_views` (عرض صف المشترك؛ يحتاج دوال 010)
 8. `028_tenant_settings` (إعدادات المشترك ضمن حدود المنصة، ADR 0004) → `029_audit_writer` (كاتب التدقيق وقادح محاولات الدخول، ADR 0007)
 9. `030_session_context` (إجراءات الدخول والربط بـ`EXECUTE AS tp_auth_exec`، وقوادح السحب، وكل `DENY` تزيله منح 007 لو سبقتها)
-10. `035_account_security` → `036_operator_and_support` → `037_job_context` → `038_tenant_onboarding` (ADR 0003 و0004) → `039_numbering` (الترقيم، ADR 0005) → `041_kyc_profile_versions` (نسخ ملفات الاكتمال، ADR 0006) → `042_data_export` (التصدير في كل حالة تسمح به، ADR 0008) → `043_review_guards` (حراس الدفعة أ، ADR 0011) → `044_entry_guards` (شروط دخول الشرائح S1-ب إلى S4، ADR 0011، وحراس المراجعة الذاتية §7.2، ADR 0015) → `045_financial_statements` (القوائم المالية، ADR 0016) → `046_credit_assessment` (التقييم الائتماني، ADR 0017)
+10. `035_account_security` → `036_operator_and_support` → `037_job_context` → `038_tenant_onboarding` (ADR 0003 و0004) → `039_numbering` (الترقيم، ADR 0005) → `041_kyc_profile_versions` (نسخ ملفات الاكتمال، ADR 0006) → `042_data_export` (التصدير في كل حالة تسمح به، ADR 0008) → `043_review_guards` (حراس الدفعة أ، ADR 0011) → `044_entry_guards` (شروط دخول الشرائح S1-ب إلى S4، ADR 0011، وحراس المراجعة الذاتية §7.2، ADR 0015) → `045_financial_statements` (القوائم المالية، ADR 0016) → `046_credit_assessment` (حراس التقييم الائتماني، ADR 0017) → `047_credit_engine` (محرك التقييم وعروضه، ADR 0018)
 11. `050_fac_share_rule` (قاعدة حصص المقرضين) → `090_readonly_denies` (حجب الدوال الداخلية عن `tp_readonly`؛ آخر سكربت ثابت لأنه يحجب كل دالة أنشأها ما قبله، ADR 0015)
 12. البذور العالمية: `seed/100_platform_global` (الإعدادات والمهام والباقة والعناوين المحجوزة) → `seed/101_iso_reference` (الدول والعملات) → `seed/102_permissions` (الصلاحيات) → `seed/103_lc_reference` (Incoterms ومواد UCP 600) → `seed/104_credit_scorecard` (منهجية التقييم الائتماني، مولَّدة من `tools/dbgen/credit_scorecard.json`)؛ إدراج فقط، وتعيد الخطوة 4b في CI تشغيلها وتشترط ألا يتغير شيء
 13. اختياري: `040_fulltext_optional`
@@ -549,7 +551,7 @@ SQL_USER=bankfas_monitor tools/dbgen/check_deployed.py --server <server>   # the
 
 | المرحلة | المحتوى | الآلية |
 |---|---|---|
-| **عالمي** | `ref.Country/Currency/Incoterm` وصفوف المنصة في `ref.UcpArticle`، `plat.Plan/PlanModule`، `sec.Permission` (بما فيها `req.treasury.close`)، `cfg.SettingDefinition`، `cfg.JobDefinition`، `plat.ReservedSubdomain` | سكربتات بذور عند النشر (`db/seed/100` إلى `103`) بإدراج آمن لإعادة التشغيل تتحقق منه الخطوة 4b في CI. هذه الجداول **يكتبها `tp_platform` فقط**، وصفوف المنصة في الجداول المختلطة يكتبها السكربت بمستخدم مؤقت من `tp_platform` يُحذف بعده. أنواع الأحداث `ntf.NotificationEventType` وتعريفات حقول الاعتماد مملوكة للمشترك في النموذج، فتُبذر في حزمتي المشترك NTF.BASE وLC.BASE لا هنا (DOC-B05 §5.1). **منفّذ:** `db/seed/100` (تسعة إعدادات: سبعة أمنية وبداية يوم العمل ونهايته؛ 32 مهمة؛ الباقة STANDARD بوحداتها التسع؛ 23 عنوانًا محجوزًا)، و`101` (249 دولة و157 عملة بإصدار ISO مسجَّل، DQ-B05-5)، و`102` (142 صلاحية منها `fin.stats.confirm` لتأكيد التدفقات، ADR 0016، و`fin.credit.assess` و`fin.credit.approve` للتقييم الائتماني، ADR 0017؛ خمس منها مقفلة على TM وFO، DQ-F07-1 وDQ-F09-1)؛ المولِّدان `tools/dbgen/gen_iso_seed.py` و`gen_permission_seed.py`، و`103` (16 قاعدة Incoterms منها 5 قديمة LEGACY، ومواد UCP 600 الـ39 صفوفَ منصة بحالة UNVERIFIED حتى يتحقق مختص، O-06) (ADR 0005)، و`104` (سلّم موديز بـ21 درجة، و36 مقياسًا، وثلاث بطاقات قطاعية معتمدة بأوزانها وشبكاتها وقواعد بنودها وتعديلاتها، ADR 0017). البذر العالمي في الوثائق مكتمل؛ والعطل الرسمية يدخلها المشغّل (FR-PLT-035) |
+| **عالمي** | `ref.Country/Currency/Incoterm` وصفوف المنصة في `ref.UcpArticle`، `plat.Plan/PlanModule`، `sec.Permission` (بما فيها `req.treasury.close`)، `cfg.SettingDefinition`، `cfg.JobDefinition`، `plat.ReservedSubdomain` | سكربتات بذور عند النشر (`db/seed/100` إلى `103`) بإدراج آمن لإعادة التشغيل تتحقق منه الخطوة 4b في CI. هذه الجداول **يكتبها `tp_platform` فقط**، وصفوف المنصة في الجداول المختلطة يكتبها السكربت بمستخدم مؤقت من `tp_platform` يُحذف بعده. أنواع الأحداث `ntf.NotificationEventType` وتعريفات حقول الاعتماد مملوكة للمشترك في النموذج، فتُبذر في حزمتي المشترك NTF.BASE وLC.BASE لا هنا (DOC-B05 §5.1). **منفّذ:** `db/seed/100` (تسعة إعدادات: سبعة أمنية وبداية يوم العمل ونهايته؛ 32 مهمة؛ الباقة STANDARD بوحداتها التسع؛ 23 عنوانًا محجوزًا)، و`101` (249 دولة و157 عملة بإصدار ISO مسجَّل، DQ-B05-5)، و`102` (142 صلاحية منها `fin.stats.confirm` لتأكيد التدفقات، ADR 0016، و`fin.credit.assess` و`fin.credit.approve` للتقييم الائتماني، ADR 0017؛ خمس منها مقفلة على TM وFO، DQ-F07-1 وDQ-F09-1)؛ المولِّدان `tools/dbgen/gen_iso_seed.py` و`gen_permission_seed.py`، و`103` (16 قاعدة Incoterms منها 5 قديمة LEGACY، ومواد UCP 600 الـ39 صفوفَ منصة بحالة UNVERIFIED حتى يتحقق مختص، O-06) (ADR 0005)، و`104` (سلّم موديز بـ21 درجة، و157 بندًا معياريًا، و112 مقياسًا، وثلاث بطاقات قطاعية معتمدة بأوزانها وشبكاتها و134 قاعدة بنود لكل منها و44 تعديلًا، و61 نشاطًا بسيناريوهاته، و15 فئة منتجات، و39 علاجًا، و10 خطط تقوية، و67 نصًا للتقرير، ADR 0017 و0018). البذر العالمي في الوثائق مكتمل؛ والعطل الرسمية يدخلها المشغّل (FR-PLT-035) |
 | **إجراء تهيئة المشترك** (إجراء منصة واحد) | ينشئ داخل معاملة واحدة: صف المشترك، **حساب الخدمة `IsSystemUser`**، **مستخدم المدير الأول**، ونسخ كتالوجات النظام لهذا المشترك (§11.3)، والأدوار القياسية وربطها بالصلاحيات، وقوالب دورات العمل، وتعريفات الترقيم (`req:<TypeCode>` و`PROFORMA` بلا فجوات)، وملفات KYC المسبقة، وقواعد الإشعارات، ووحدات الاشتراك في `plat.TenantModule` | **منفّذ بمرحلتين (ADR 0004):** `plat.usp_CreateTenant` ينشئ المشترك ووحداته وحساب الخدمة والمدير الأول المدعو في معاملة واحدة، ثم تبذر مهمة التهيئة الحزم في التطبيق وتدعو المدير الأول (`sec.usp_InviteFirstAdministrator`) |
 | **مفتاح مفقود** | قائمة `AUTHORISATION_BASIS` في `cat.LookupList` لأسس التفويض (طلبها مؤلفو النماذج) | تُضاف لبذور المشترك |
 
@@ -561,15 +563,15 @@ SQL_USER=bankfas_monitor tools/dbgen/check_deployed.py --server <server>   # the
 
 | الفحص | النتيجة | ملاحظة |
 |---|---|---|
-| فحص النموذج (`dbgen check`) | **OK** — 213 جدولًا / 3,612 عمودًا؛ لا مراجع معلّقة؛ لا مخالفة لقواعد النطاق | التسمية والمراجع والمفاتيح المركّبة والأعمدة المطلوبة |
+| فحص النموذج (`dbgen check`) | **OK** — 237 جدولًا / 3,946 عمودًا؛ لا مراجع معلّقة؛ لا مخالفة لقواعد النطاق | التسمية والمراجع والمفاتيح المركّبة والأعمدة المطلوبة |
 | تنفيذ PostgreSQL 16 | **تشغيل سابق** — 194 جدولًا / 763 مفتاحًا أجنبيًا / 691 قيد فريد أو أساسي، قبل إضافة `sec.SessionBinding`؛ لم يُعَد على النموذج الحالي، ولا يدخل CI | يثبت **البنية المنطقية** فقط. **لا** يثبت صحة T-SQL |
-| التحقق الثابت من الصلاحيات (`check_grants.py`) | **OK** — 213 جدولًا، 274 منحة مولّدة، 108 منحة ثابتة، 31 عمودًا مقيّدًا، القواعد R1–R11؛ يعمل في الخطوة 3 من `db_ci.sh` | حُقنت ثلاث مخالفات متعمدة فاكتُشفت كلها (§9.3). **لا يثبت** أن المحرك ينفّذ المنح كما هي |
+| التحقق الثابت من الصلاحيات (`check_grants.py`) | **OK** — 237 جدولًا، 314 منحة مولّدة، 122 منحة ثابتة، 31 عمودًا مقيّدًا، القواعد R1–R11؛ يعمل في الخطوة 3 من `db_ci.sh` | حُقنت ثلاث مخالفات متعمدة فاكتُشفت كلها (§9.3). **لا يثبت** أن المحرك ينفّذ المنح كما هي |
 | التحقق من الإصلاحات (`check_review_fixes.py`) | **OK** — 75 من 75، في الخطوة 3 من `db_ci.sh` | يفحص أن كل إصلاح من DR-01 إلى DR-50 موجود في DDL المولَّد أو في الحارس الثابت (043، 044)، لا في الوثيقة وحدها |
-| فهرسة المفاتيح الأجنبية (`check_fk_indexes.py`) | **OK** — 551 مفهرسًا، 85 `noidx`، صفر بلا فهرس؛ الخطوة 3 | §8 |
+| فهرسة المفاتيح الأجنبية (`check_fk_indexes.py`) | **OK** — 573 مفهرسًا، 108 `noidx`، صفر بلا فهرس؛ الخطوة 3 | §8 |
 | تحليل T-SQL بـ `sqlglot` | الملفات `000–004`، `007`، `010`، `025`، `030`، `040`: **بلا أخطاء**؛ `005` و`006` و`020`: خطأ واحد لكل ملف عند عبارة `DENY` | المحلّل لا يدعم عبارة `DENY` بصيغتها الكاملة؛ الصيغة صحيحة في T-SQL. التحليل نحوي جزئي |
 | فحوص آلية لمحاذير SQL Server | لا `OR` في الفهارس المصفّاة · مفاتيح الفهارس ≤ 1,700 بايت و≤ 16 عمودًا · لا مسارات `CASCADE` متعددة · خيارات `SET` ضُمّنت | فحوص نصّية على المخرجات |
 | **التنفيذ على SQL Server 2025** | **OK** — نشر كامل لـ `db/deploy.sql` على قاعدة جديدة في كل تشغيل لـ `tools/ci/db_ci.sh`، بحساب النشر `bankfas_migrator` وصلاحية `db_owner` وحدها كما في الإنتاج (ADR 0010) (صورة Ubuntu 24.04، ومرّ أيضًا على صورة RHEL؛ ADR 0001) ثم يطابق `check_deployed.py` بحساب المراقبة 14 بندًا مع DDL المولَّد والسكربتات الثابتة: الجداول والمخططات والمفاتيح والقيود والفهارس والسياسات، والوحدات المنفّذة بصفة `tp_auth_exec`، و78 قادحًا بلا معطَّل، ولا دالة مفتوحة لـ`tp_readonly`، وحساب النشر معطَّل، والترتيب `Arabic_100_CI_AS_SC` (الخطوة 5)؛ والخطوة 23 تشترط ألا يبقى بعد الاختبارات مفتاح أو قيد غير موثوق ولا قادح أو سياسة معطّلة ولا مستخدم اختبار ولا مشترك | يثبت أن المحرك يقبل النص وترتيب النشر والمنح كما هي. صفحة الدعم الرسمية لـ Ubuntu 24.04 لم تُراجَع من بيئة العمل (O-23) |
-| **اختبارات السلوك** (RLS، ربط الهوية، الصلاحيات، الحراس، التدفق المالي) | **جزئي** — بالخطوات 6 إلى 22 و19b من `db_ci.sh`: `db/tests/fac_share_rule_tests.sql` 7 فحوص (T1–T6 وT2b) · `tenant_isolation_tests.sql` 48 حالة (العزل، قراءة المنصة للتدقيق، ربط الاتصال، الدخول والقفل وMFA، حالة المشترك، حدود `tp_app`) · `auth_flow_tests.sql` 20 (حسابات المستخدمين وإعدادات المشترك، ADR 0003 و0004) · `operator_support_tests.sql` 11 · `job_context_tests.sql` 7 · `tenant_onboarding_tests.sql` 5 (ADR 0004) · `numbering_tests.sql` 8 و`tools/ci/numbering_concurrency.sh` 2 (C1: ستة اتصالات متزامنة، 114 رقمًا من 1 إلى 114 بلا تكرار ولا فجوة بعد 36 تراجعًا؛ C2: خارج معاملة، ADR 0005) · `kyc_history_tests.sql` 4 (ADR 0006) · `reference_data_tests.sql` 4 · `audit_trail_tests.sql` 7 (ADR 0007) · `data_export_tests.sql` 7 (X1–X7، ADR 0008) · `tools/ci/service_logins_check.sh` 6 (ADR 0009) · `review_fixes_tests.sql` 43 (RF1–RF34 لإصلاحات المراجعة وشروط دخول الشرائح، ADR 0011؛ وSR1–SR9 للمراجعة الذاتية، ADR 0015) · `financial_statements_tests.sql` 11 (FS1–FS11، ADR 0016) · `credit_assessment_tests.sql` 12 (CA1–CA12، ADR 0017؛ ويمرر `credit_stress.py` حالات الضغط الست عشرة للمراجعة المستقلة في الخطوة 3) · `tools/ci/server_audit_check.sh` 9 (SA1–SA9، ADR 0012 و0015) · `tools/ci/monitor_login_check.sh` 6 (ADR 0013) · `tools/ci/deploy_preflight_check.sh` 8 (PF1–PF8، ADR 0014 و0015)؛ وكلها تمر في CI، ويفشل البناء إن اختلف عدد أي منها عن المتوقع | لم تُكتب بعد: التدفق المالي (الحجز والاستغلال) خارج قاعدة الحصص |
+| **اختبارات السلوك** (RLS، ربط الهوية، الصلاحيات، الحراس، التدفق المالي) | **جزئي** — بالخطوات 6 إلى 22 و19b من `db_ci.sh`: `db/tests/fac_share_rule_tests.sql` 7 فحوص (T1–T6 وT2b) · `tenant_isolation_tests.sql` 48 حالة (العزل، قراءة المنصة للتدقيق، ربط الاتصال، الدخول والقفل وMFA، حالة المشترك، حدود `tp_app`) · `auth_flow_tests.sql` 20 (حسابات المستخدمين وإعدادات المشترك، ADR 0003 و0004) · `operator_support_tests.sql` 11 · `job_context_tests.sql` 7 · `tenant_onboarding_tests.sql` 5 (ADR 0004) · `numbering_tests.sql` 8 و`tools/ci/numbering_concurrency.sh` 2 (C1: ستة اتصالات متزامنة، 114 رقمًا من 1 إلى 114 بلا تكرار ولا فجوة بعد 36 تراجعًا؛ C2: خارج معاملة، ADR 0005) · `kyc_history_tests.sql` 4 (ADR 0006) · `reference_data_tests.sql` 4 · `audit_trail_tests.sql` 7 (ADR 0007) · `data_export_tests.sql` 7 (X1–X7، ADR 0008) · `tools/ci/service_logins_check.sh` 6 (ADR 0009) · `review_fixes_tests.sql` 43 (RF1–RF34 لإصلاحات المراجعة وشروط دخول الشرائح، ADR 0011؛ وSR1–SR9 للمراجعة الذاتية، ADR 0015) · `financial_statements_tests.sql` 11 (FS1–FS11، ADR 0016) · `credit_assessment_tests.sql` 15 (CA1–CA15، ADR 0017 و0018؛ ويمرر `credit_stress.py` حالات الضغط الخمس والثلاثين في الخطوة 3) · `credit_engine_cases.sql` 94 (47 حالة مولَّدة يطابق فيها محرك T-SQL مرجع Python رقمًا برقم، الخطوة 19d) · `tools/ci/server_audit_check.sh` 9 (SA1–SA9، ADR 0012 و0015) · `tools/ci/monitor_login_check.sh` 6 (ADR 0013) · `tools/ci/deploy_preflight_check.sh` 8 (PF1–PF8، ADR 0014 و0015)؛ وكلها تمر في CI، ويفشل البناء إن اختلف عدد أي منها عن المتوقع | لم تُكتب بعد: التدفق المالي (الحجز والاستغلال) خارج قاعدة الحصص |
 
 ---
 
@@ -605,7 +607,7 @@ SQL_USER=bankfas_monitor tools/dbgen/check_deployed.py --server <server>   # the
 
 | # | البند | الأثر | المقترح |
 |---|---|---|---|
-| O-1 | **التنفيذ على SQL Server** (§14) | **محلول في بيئة التطوير:** النشر الكامل على SQL Server 2025 يمر في `db_ci.sh` بخطواته من 0 إلى 23 مع 4b و19b و19c، واختباراته كلها (§14) | يمر أيضًا على GitHub (`.github/workflows/treasury-db-ci.yml` في جذر المستودع)؛ يبقى النشر على خادم الإنتاج (O-02، erd_open_items) |
+| O-1 | **التنفيذ على SQL Server** (§14) | **محلول في بيئة التطوير:** النشر الكامل على SQL Server 2025 يمر في `db_ci.sh` بخطواته من 0 إلى 23 مع 4b و19b و19c و19d، واختباراته كلها (§14) | يمر أيضًا على GitHub (`.github/workflows/treasury-db-ci.yml` في جذر المستودع)؛ يبقى النشر على خادم الإنتاج (O-02، erd_open_items) |
 | O-2 | لا سكربتات ترحيل بين الإصدارات | تغيير النموذج يعيد توليد DDL كاملًا | أداة ترحيل (DbUp أو Flyway) عند أول نشر فعلي على بيانات حقيقية |
 | O-3 | البذور (§13) | **البذر العالمي منفّذ (2026-10-13):** الإعدادات والمهام والباقة والعناوين المحجوزة والدول والعملات والصلاحيات وIncoterms ومواد UCP 600 (ADR 0004 و0005) | باقٍ: حزم المشترك في التطبيق (DOC-B05 §5)، والتحقق من مواد UCP على النص الرسمي (O-06) |
 | O-4 | أسئلة مفتوحة بقيم افتراضية في `90-consolidated-open-questions.md` | أثرها على الشرائح اللاحقة؛ المتعلق منها بـ S3: Q-WFL-02, Q-WFL-09, Q-WFL-11, Q-LCT-01/02, Q-LCI-01/02 | تُراجع عند بدء S3 |
@@ -621,12 +623,12 @@ SQL_USER=bankfas_monitor tools/dbgen/check_deployed.py --server <server>   # the
 | **O-14** | أرقام RPO/RTO | لا خطة استعادة مُقاسة بعد | تُحدَّد مع الاعتماد التشغيلي (§12.3) |
 | **O-15** | **36 نتيجة رئيسية و4 طفيفة** من المراجعة (`docs/review/design-review-2026-10-11.json`) | بعضها يغيّر أعمدة أو قيودًا | **محلول (2026-10-13، ADR 0011):** اعتمد المالك سجل `docs/32-review-findings-decisions.md` وأجوبته العشرة. الدفعة (أ) مُطبَّقة في 33 نتيجة كلها أو جزئيًا (المولّد والنموذج و`043_review_guards.sql`، الاختبارات RF1 إلى RF18، و`check_review_fixes.py` في CI)؛ والدفعة (ب)، شروط دخول الشرائح S1 إلى S4، منفّذة كلها في اليوم نفسه (النموذج و`044_entry_guards.sql`، الاختبارات RF19 إلى RF34؛ 75 إصلاحًا يفحصها `check_review_fixes.py`)؛ وDR-20 محلولة بـ DR-02، ويبقى مؤجلًا مرساة البصمة الخارجية (مع O-13) وفحص المفاتيح المتقاعدة (DR-20) |
 | **O-16** | **ما بقي من المراجعة الذاتية ووحدة القوائم المالية** (ADR 0015، ADR 0016) | تغطية جزئية لبعض فروع الحراس، واختباران يعتمدان التوقيت، وسماحات CI يضبطها أي مشغّل (`34-self-review-2026-10-18.md` §7)؛ وفي القوائم: التدفق المخصّص لتسهيل يُحسب له وحده، والتدفق على مستوى البنك يُحسب لكل تعهدات تسهيلاته (BR-FIN-016، اعتمده المالك 2026-10-18)، والأداء يُحسب عند القراءة بلا لقطة يومية | اللقطة اليومية مع مهام S2-ب؛ والربط بالتقييم الائتماني مرحلة لاحقة |
-| **O-17** | **معايرة التقييم الائتماني** (ADR 0017، `docs/35`) | الحدود معايرة بالخبرة، راجعها وكيل ذكاء اصطناعي في دور محلل ائتمان لا محلل بشري، بلا بيانات تعثر؛ والقوائم المرحلية تُحوَّل إلى سنة بالضرب؛ ولا حدود غير مسحوبة ولا تأخر في السداد في المقاييس (`docs/35` §16) | سبعة أسئلة للمالك في `docs/35` §15؛ وتتحقق إدارة مخاطر الائتمان في البنك من المعايرة قبل استعمال الدرجة في قرار |
+| **O-17** | **معايرة التقييم الائتماني** (ADR 0017 و0018، `docs/35`) | الحدود والأوزان وقواعد البنود والسيناريوهات معايرة بالخبرة صاغها وراجعها وكلاء ذكاء اصطناعي في دور محللين أوائل، لا محللون بشريون، بلا بيانات تعثر؛ ولم يُنقل شيء من وثائق موديز التي أرفقها المالك لأنها تمنع استعمالها في بناء نموذج أو قاعدة بيانات (`docs/35` §23)؛ وحدود أخرى في `docs/35` §25 | أسئلة المالك في `docs/35` §24؛ وتتحقق إدارة مخاطر الائتمان في البنك من المعايرة قبل استعمال الدرجة في قرار؛ واستعمال أرقام موديز نفسها يحتاج ترخيصًا |
 
 ---
 
 ## 17. الخطوة التالية
 
-1. **تقييمك** لهذا الإصدار، خاصة القرارات DB-14 إلى DB-21 والنقاط O-9 إلى O-13 و O-15، وما بقي من البنود المفتوحة في §16. تعديل المواصفة 13 (O-10) ونتائج المراجعة الـ40 (O-15) حُسما وطُبّقا (DQ-F08-1، ADR 0011)، وكذلك إصلاحات المراجعة الذاتية (ADR 0015) ووحدة القوائم المالية (ADR 0016)، وما بقي منهما في O-16، والتقييم الائتماني (ADR 0017) وما بقي منه في O-17.
+1. **تقييمك** لهذا الإصدار، خاصة القرارات DB-14 إلى DB-21 والنقاط O-9 إلى O-13 و O-15، وما بقي من البنود المفتوحة في §16. تعديل المواصفة 13 (O-10) ونتائج المراجعة الـ40 (O-15) حُسما وطُبّقا (DQ-F08-1، ADR 0011)، وكذلك إصلاحات المراجعة الذاتية (ADR 0015) ووحدة القوائم المالية (ADR 0016)، وما بقي منهما في O-16، والتقييم الائتماني (ADR 0017 و0018) وما بقي منه في O-17.
 2. النشر على SQL Server 2025 تم في بيئة التطوير ويمر CI (O-1)؛ ويمر على GitHub أيضًا (`.github/workflows/treasury-db-ci.yml`)؛ يبقى النشر على خادم الإنتاج (O-02، erd_open_items).
 3. ثم الواجهات والشريحة الرأسية S0. O-9 وO-11 محلولان بـ ADR 0002 وADR 0003، وO-12 للتهيئة والدعم بـ ADR 0004.

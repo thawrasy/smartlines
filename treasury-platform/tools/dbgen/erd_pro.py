@@ -209,7 +209,7 @@ def groups_plan():
     return [
         ('m0_tenancy', 'م0 · المشترك والاشتراكات والمشغّلون', 'Tenancy & platform operators', ['plat']),
         ('m0_identity', 'م0 · الهوية والصلاحيات', 'Identity & authorisation', ['sec.AppUser', 'sec.Role', 'sec.Permission', 'sec.RolePermission', 'sec.UserRole', 'sec.UserCompanyScope', 'sec.ExternalIdentity']),
-        ('m0_sessions', 'م0 · الجلسات والمفاتيح والمحاولات', 'Sessions, keys & attempts', ['sec.UserSession', 'sec.LoginAttempt', 'sec.MfaRecoveryCode', 'sec.UserToken', 'sec.UserPasswordHistory', 'sec.TenantKey', 'sec.KeyEvent']),
+        ('m0_sessions', 'م0 · الجلسات والمفاتيح والمحاولات', 'Sessions, keys & attempts', ['sec.UserSession', 'sec.LoginAttempt', 'sec.MfaRecoveryCode', 'sec.UserToken', 'sec.UserPasswordHistory', 'sec.TenantKey', 'sec.KeyEvent', 'sec.SessionBinding']),
         ('m0_audit_docs', 'م0 · التدقيق والمستندات', 'Audit & documents', ['aud', 'doc']),
         ('m0_config', 'م0 · الإعدادات والمهام الخلفية', 'Configuration & background jobs', ['cfg']),
         ('m1_company', 'م1 · الشركات والحوكمة', 'Company structure & governance', ['org.Company', 'org.CompanyTaxRate', 'org.Department', 'org.Shareholding', 'org.GoverningBody', 'org.BodyMember', 'org.AuthorityGrant']),

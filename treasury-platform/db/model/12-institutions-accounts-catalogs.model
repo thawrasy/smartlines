@@ -43,6 +43,17 @@ table ref.Currency global int  # Currency: global ISO 4217 reference, read-only 
 # =============================================================================
 module CAT
 
+table ref.Industry int global  # An economic activity of the Saudi classification of economic activities (GASTAT, ISIC Rev.4): section and division; a company's main activity (docs/35 section 5)
+  Code              ascii(10) req   # A ... U للقسم، أو C10 وF41 للفرع
+  SectionCode       char(1)   req
+  ParentId          ->ref.Industry  # الفرع تحت قسمه
+  NameAr            str(300)  req
+  NameEn            str(300)  req
+  IsActive          bool      req =1
+  unique Code
+  check  SectionCode COLLATE Arabic_100_BIN2 LIKE '[A-U]'
+  check  Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9]%'
+
 table cat.TenantCurrency pk=CurrencyId norv  # Currencies enabled for the tenant: a subset of the global currency reference (FR-CAT-023, Q-CAT-08) -- جدول بنيوي جديد
   CurrencyId   ->ref.Currency req
   IsEnabled    bool       req =1   # غير المفعّلة لا تظهر في الاختيار وتبقى ظاهرة في السجلات

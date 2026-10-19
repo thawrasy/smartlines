@@ -1,0 +1,16 @@
+%% م5 · البيانات المالية والأرصدة (11/11) — Financial statements & balances
+erDiagram
+  fin_StatementRatio["fin.StatementRatio"] {
+    bigint StatementRatioId PK
+    bigint StatementId FK
+    bigint FormulaId FK
+  }
+  fin_StrengtheningPlan["fin.StrengtheningPlan"] {
+    int StrengtheningPlanId PK
+  }
+  fin_StrengtheningPlanMember["fin.StrengtheningPlanMember"] {
+    int StrengtheningPlanMemberId PK
+    int PlanId FK
+    int RemedyId FK
+  }
+  fin_StrengtheningPlan ||--o{ fin_StrengtheningPlanMember : "PlanId"

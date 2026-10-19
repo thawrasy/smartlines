@@ -1,0 +1,21 @@
+%% م5 · البيانات المالية والأرصدة (7/11) — Financial statements & balances
+erDiagram
+  fin_IndustryScenario["fin.IndustryScenario"] {
+    int IndustryScenarioId PK
+    int IndustryId FK
+  }
+  fin_LineCatalogItem["fin.LineCatalogItem"] {
+    int LineCatalogItemId PK
+  }
+  fin_LineCatalogItemAlias["fin.LineCatalogItemAlias"] {
+    int LineCatalogItemAliasId PK
+    int LineCatalogItemId FK
+  }
+  fin_MeasureFormula["fin.MeasureFormula"] {
+    bigint MeasureFormulaId PK
+    bigint FacilityId FK
+    bigint BaseTemplateId FK
+    bigint ApprovedBy FK
+  }
+  fin_LineCatalogItem ||--o{ fin_LineCatalogItemAlias : "LineCatalogItemId"
+  fin_MeasureFormula |o--o{ fin_MeasureFormula : "BaseTemplateId"

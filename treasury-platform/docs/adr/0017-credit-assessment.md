@@ -92,3 +92,5 @@ are for rated issuers, mostly large.
   - a flat notch for a qualified opinion;
   - no guarantee substitution.
 - The sovereign ceiling (Aa3, Moody's November 2024) is a parameter to check with each scorecard version.
+
+Note (2026-10-19): the computation, the metrics, the report views and the limits of section 16 of docs/35 are superseded by ADR 0018 (docs/35 version 2.0). The scale, the life cycle, the guards and the inputs hash stay as decided here.

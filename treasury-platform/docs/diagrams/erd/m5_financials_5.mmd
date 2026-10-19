@@ -1,22 +1,19 @@
-%% م5 · البيانات المالية والأرصدة (5/5) — Financial statements & balances
+%% م5 · البيانات المالية والأرصدة (5/11) — Financial statements & balances
 erDiagram
-  fin_ScorecardItemRule["fin.ScorecardItemRule"] {
-    int ScorecardItemRuleId PK
-    int ScorecardId FK
+  fin_CreditAssessmentTrigger["fin.CreditAssessmentTrigger"] {
+    bigint CreditAssessmentTriggerId PK
+    bigint AssessmentId FK
     int MetricId FK
   }
-  fin_ScorecardMetric["fin.ScorecardMetric"] {
-    int ScorecardMetricId PK
-    int ScorecardId FK
-    int MetricId FK
+  fin_CreditMetric["fin.CreditMetric"] {
+    int CreditMetricId PK
   }
-  fin_StatementLine["fin.StatementLine"] {
-    bigint StatementLineId PK
-    bigint StatementId FK
-    int LineCatalogItemId FK
+  fin_CreditRemedy["fin.CreditRemedy"] {
+    int CreditRemedyId PK
   }
-  fin_StatementRatio["fin.StatementRatio"] {
-    bigint StatementRatioId PK
-    bigint StatementId FK
-    bigint FormulaId FK
+  fin_CreditRemedyStep["fin.CreditRemedyStep"] {
+    int CreditRemedyStepId PK
+    int RemedyId FK
   }
+  fin_CreditMetric ||--o{ fin_CreditAssessmentTrigger : "MetricId"
+  fin_CreditRemedy ||--o{ fin_CreditRemedyStep : "RemedyId"

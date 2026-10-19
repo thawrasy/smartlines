@@ -1,0 +1,18 @@
+%% م5 · البيانات المالية والأرصدة (10/11) — Financial statements & balances
+erDiagram
+  fin_ScorecardSubfactor["fin.ScorecardSubfactor"] {
+    int ScorecardSubfactorId PK
+    int ScorecardId FK
+    int MetricId FK
+  }
+  fin_StandardLine["fin.StandardLine"] {
+    int StandardLineId PK
+  }
+  fin_StandardLineTotal["fin.StandardLineTotal"] {
+    int StandardLineTotalId PK
+  }
+  fin_StatementLine["fin.StatementLine"] {
+    bigint StatementLineId PK
+    bigint StatementId FK
+    int LineCatalogItemId FK
+  }

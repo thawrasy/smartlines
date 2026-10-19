@@ -11,4 +11,9 @@ erDiagram
     bigint KeyEventId PK
     bigint TenantKeyId FK
   }
+  sec_SessionBinding["sec.SessionBinding"] {
+    integer SessionId PK
+    int BoundTenantId FK
+    int BoundOperatorId FK
+  }
   sec_TenantKey |o--o{ sec_KeyEvent : "TenantKeyId"
