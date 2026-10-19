@@ -457,6 +457,8 @@
 | e4 | بلا قائمة تدفقات ولا عوامل نوعية | GENERAL_CORPORATE | لا درجة نهائية | INDICATIVE | 10.04 |  | نعم |
 <!-- /gen:stress -->
 
+تُحسب حالات الضغط بلا قائمة مقارنة. لذلك يختلف مجموع الحالة e0 (10.15) قليلًا عن المثال المحسوب في §14 (10.11)، فهو يقرأ قائمة 2024 أيضًا، والدرجة واحدة: Baa3.
+
 ## 14. مثال محسوب
 
 شركة صناعية، قائمتها السنوية لعام 2025 مدققة برأي نظيف، بالريال:
@@ -552,7 +554,7 @@
 - [Moody's, Corporates rating methodology, 21 May 2021](https://ratings.moodys.com/api/rmc-documents/72240)
 - [Moody's, Corporates rating methodology, 12 November 2021](https://ratings.moodys.com/api/rmc-documents/356428)
 - [Moody's, Financial Institutions rating methodology, 8 April 2024](https://ratings.moodys.com/api/rmc-documents/418351)
-- [Moody's, Financial Institutions rating methodology, 5 November 2025](https://www.fundfinance.com/wp-content/uploads/2026/03/Moodys-Rating-Methodology-for-SCF.pdf)
+- [Moody's, Financial Institutions rating methodology, 5 November 2025](https://www.fundfinance.com/wp-content/uploads/2026/03/Moodys-Rating-Methodology-for-SCF.pdf) (نسخة على موقع طرف ثالث، لا على موقع موديز)
 
 **التصنيف السيادي:**
 - [Saudi Arabia's Rating Upgraded by Moody's for the First Time (BNN Bloomberg, 22 November 2024)](https://bnnbloomberg.ca/investing/2024/11/22/saudi-arabias-rating-upgraded-by-moodys-for-the-first-time)
