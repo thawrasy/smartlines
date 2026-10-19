@@ -582,11 +582,15 @@ ALTER TABLE [fin].[ScorecardItemRule] ADD CONSTRAINT [FK_ScorecardItemRule_Metri
 ALTER TABLE [fin].[ScorecardAdjustment] ADD CONSTRAINT [FK_ScorecardAdjustment_ScorecardId] FOREIGN KEY ([ScorecardId]) REFERENCES [fin].[Scorecard] ([ScorecardId]);
 ALTER TABLE [fin].[ScorecardAdjustment] ADD CONSTRAINT [FK_ScorecardAdjustment_CapGradeId] FOREIGN KEY ([CapGradeId]) REFERENCES [fin].[RatingGrade] ([RatingGradeId]);
 ALTER TABLE [fin].[IndustryProfile] ADD CONSTRAINT [FK_IndustryProfile_IndustryId] FOREIGN KEY ([IndustryId]) REFERENCES [ref].[Industry] ([IndustryId]);
-ALTER TABLE [fin].[IndustryProfile] ADD CONSTRAINT [FK_IndustryProfile_ExpectedBestGradeId] FOREIGN KEY ([ExpectedBestGradeId]) REFERENCES [fin].[RatingGrade] ([RatingGradeId]);
-ALTER TABLE [fin].[IndustryProfile] ADD CONSTRAINT [FK_IndustryProfile_ExpectedTypicalGradeId] FOREIGN KEY ([ExpectedTypicalGradeId]) REFERENCES [fin].[RatingGrade] ([RatingGradeId]);
-ALTER TABLE [fin].[IndustryProfile] ADD CONSTRAINT [FK_IndustryProfile_ExpectedWorstGradeId] FOREIGN KEY ([ExpectedWorstGradeId]) REFERENCES [fin].[RatingGrade] ([RatingGradeId]);
 ALTER TABLE [fin].[IndustryProfile] ADD CONSTRAINT [FK_IndustryProfile_CeilingGradeId] FOREIGN KEY ([CeilingGradeId]) REFERENCES [fin].[RatingGrade] ([RatingGradeId]);
-ALTER TABLE [fin].[IndustryScenario] ADD CONSTRAINT [FK_IndustryScenario_IndustryId] FOREIGN KEY ([IndustryId]) REFERENCES [ref].[Industry] ([IndustryId]);
+ALTER TABLE [fin].[MacroScenarioIntensity] ADD CONSTRAINT [FK_MacroScenarioIntensity_MacroScenarioId] FOREIGN KEY ([MacroScenarioId]) REFERENCES [fin].[MacroScenario] ([MacroScenarioId]);
+ALTER TABLE [fin].[MacroScenarioIntensity] ADD CONSTRAINT [FK_MacroScenarioIntensity_ShockDriverId] FOREIGN KEY ([ShockDriverId]) REFERENCES [fin].[ShockDriver] ([ShockDriverId]);
+ALTER TABLE [fin].[IndustrySensitivity] ADD CONSTRAINT [FK_IndustrySensitivity_IndustryId] FOREIGN KEY ([IndustryId]) REFERENCES [ref].[Industry] ([IndustryId]);
+ALTER TABLE [fin].[IndustrySensitivity] ADD CONSTRAINT [FK_IndustrySensitivity_ShockDriverId] FOREIGN KEY ([ShockDriverId]) REFERENCES [fin].[ShockDriver] ([ShockDriverId]);
+ALTER TABLE [fin].[CountryRiskProfile] ADD CONSTRAINT [FK_CountryRiskProfile_CountryId] FOREIGN KEY ([CountryId]) REFERENCES [ref].[Country] ([CountryId]);
+ALTER TABLE [fin].[CountryRiskProfile] ADD CONSTRAINT [FK_CountryRiskProfile_SovereignRatingGradeId] FOREIGN KEY ([SovereignRatingGradeId]) REFERENCES [fin].[RatingGrade] ([RatingGradeId]);
+ALTER TABLE [fin].[CountryRiskProfile] ADD CONSTRAINT [FK_CountryRiskProfile_CeilingGradeId] FOREIGN KEY ([CeilingGradeId]) REFERENCES [fin].[RatingGrade] ([RatingGradeId]);
+ALTER TABLE [fin].[CountryRegion] ADD CONSTRAINT [FK_CountryRegion_CountryId] FOREIGN KEY ([CountryId]) REFERENCES [ref].[Country] ([CountryId]);
 ALTER TABLE [fin].[ScorecardParameter] ADD CONSTRAINT [FK_ScorecardParameter_ScorecardId] FOREIGN KEY ([ScorecardId]) REFERENCES [fin].[Scorecard] ([ScorecardId]);
 ALTER TABLE [fin].[ScorecardSubfactor] ADD CONSTRAINT [FK_ScorecardSubfactor_ScorecardId] FOREIGN KEY ([ScorecardId]) REFERENCES [fin].[Scorecard] ([ScorecardId]);
 ALTER TABLE [fin].[ScorecardSubfactor] ADD CONSTRAINT [FK_ScorecardSubfactor_MetricId] FOREIGN KEY ([MetricId]) REFERENCES [fin].[CreditMetric] ([CreditMetricId]);
@@ -609,6 +613,9 @@ ALTER TABLE [fin].[CreditAssessment] ADD CONSTRAINT [FK_CreditAssessment_Facilit
 ALTER TABLE [fin].[CreditAssessment] ADD CONSTRAINT [FK_CreditAssessment_PreparedBy] FOREIGN KEY ([TenantId], [PreparedBy]) REFERENCES [sec].[AppUser] ([TenantId], [AppUserId]);
 ALTER TABLE [fin].[CreditAssessment] ADD CONSTRAINT [FK_CreditAssessment_ApprovedBy] FOREIGN KEY ([TenantId], [ApprovedBy]) REFERENCES [sec].[AppUser] ([TenantId], [AppUserId]);
 ALTER TABLE [fin].[CreditAssessment] ADD CONSTRAINT [FK_CreditAssessment_IndustryId] FOREIGN KEY ([IndustryId]) REFERENCES [ref].[Industry] ([IndustryId]);
+ALTER TABLE [fin].[CreditAssessment] ADD CONSTRAINT [FK_CreditAssessment_MarketCountryId] FOREIGN KEY ([MarketCountryId]) REFERENCES [ref].[Country] ([CountryId]);
+ALTER TABLE [fin].[CreditAssessment] ADD CONSTRAINT [FK_CreditAssessment_AnchorGradeId] FOREIGN KEY ([AnchorGradeId]) REFERENCES [fin].[RatingGrade] ([RatingGradeId]);
+ALTER TABLE [fin].[CreditAssessment] ADD CONSTRAINT [FK_CreditAssessment_CountryCeilingGradeId] FOREIGN KEY ([CountryCeilingGradeId]) REFERENCES [fin].[RatingGrade] ([RatingGradeId]);
 ALTER TABLE [fin].[CreditAssessmentInput] ADD CONSTRAINT [FK_CreditAssessmentInput_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
 ALTER TABLE [fin].[CreditAssessmentInput] ADD CONSTRAINT [FK_CreditAssessmentInput_AssessmentId] FOREIGN KEY ([TenantId], [AssessmentId]) REFERENCES [fin].[CreditAssessment] ([TenantId], [CreditAssessmentId]);
 ALTER TABLE [fin].[CreditAssessmentInput] ADD CONSTRAINT [FK_CreditAssessmentInput_MetricId] FOREIGN KEY ([MetricId]) REFERENCES [fin].[CreditMetric] ([CreditMetricId]);
@@ -647,6 +654,7 @@ ALTER TABLE [fin].[CreditAssessmentBureau] ADD CONSTRAINT [FK_CreditAssessmentBu
 ALTER TABLE [fin].[CreditAssessmentBureau] ADD CONSTRAINT [FK_CreditAssessmentBureau_DocumentId] FOREIGN KEY ([TenantId], [DocumentId]) REFERENCES [doc].[Document] ([TenantId], [DocumentId]);
 ALTER TABLE [fin].[CreditAssessmentScenario] ADD CONSTRAINT [FK_CreditAssessmentScenario_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
 ALTER TABLE [fin].[CreditAssessmentScenario] ADD CONSTRAINT [FK_CreditAssessmentScenario_AssessmentId] FOREIGN KEY ([TenantId], [AssessmentId]) REFERENCES [fin].[CreditAssessment] ([TenantId], [CreditAssessmentId]);
+ALTER TABLE [fin].[CreditAssessmentScenario] ADD CONSTRAINT [FK_CreditAssessmentScenario_MacroScenarioId] FOREIGN KEY ([MacroScenarioId]) REFERENCES [fin].[MacroScenario] ([MacroScenarioId]);
 ALTER TABLE [fin].[CreditAssessmentScenario] ADD CONSTRAINT [FK_CreditAssessmentScenario_GradeId] FOREIGN KEY ([GradeId]) REFERENCES [fin].[RatingGrade] ([RatingGradeId]);
 ALTER TABLE [fin].[CreditAssessmentPlan] ADD CONSTRAINT [FK_CreditAssessmentPlan_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
 ALTER TABLE [fin].[CreditAssessmentPlan] ADD CONSTRAINT [FK_CreditAssessmentPlan_AssessmentId] FOREIGN KEY ([TenantId], [AssessmentId]) REFERENCES [fin].[CreditAssessment] ([TenantId], [CreditAssessmentId]);

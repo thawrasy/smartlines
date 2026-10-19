@@ -67,7 +67,7 @@ SELECT CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', CONCAT(
                    b.Inquiries6m, b.Restructured
             FROM fin.CreditAssessmentBureau AS b
             WHERE b.TenantId = a.TenantId AND b.AssessmentId = a.CreditAssessmentId
-            FOR JSON PATH), '|', a.StrengtheningRequested, '|', co.IndustryId, '|',
+            FOR JSON PATH), '|', a.StrengtheningRequested, '|', co.IndustryId, '|', co.CountryId, '|', a.MarketCountryId, '|', a.MarketRegionCode, '|',
            (SELECT pl.ProductCategoryId, pl.RevenueSharePct, pl.InventorySharePct, pl.CashSalesPct, pl.GovernmentSalesPct, pl.ExportSalesPct, pl.TypicalCreditDays
             FROM fin.CompanyProductLine AS pl
             JOIN fin.FinancialStatement AS s ON s.TenantId = a.TenantId AND s.FinancialStatementId = a.StatementId
@@ -104,6 +104,7 @@ BEGIN
                            OR i.FacilityGradeId IS NOT NULL OR i.LgdPct IS NOT NULL OR i.LgdBand IS NOT NULL OR i.LiquidityLabel IS NOT NULL
                            OR i.CompletenessPct IS NOT NULL OR i.AdjustedDebt IS NOT NULL OR i.AdjustedTnw IS NOT NULL OR i.RealisableNetWorth IS NOT NULL
                            OR i.IndustryId IS NOT NULL OR i.SectorPosition IS NOT NULL OR i.Resilience IS NOT NULL OR i.Outlook IS NOT NULL
+                           OR i.CountryRisk IS NOT NULL OR i.IndustryRisk IS NOT NULL OR i.AnchorGradeId IS NOT NULL OR i.CountryCeilingGradeId IS NOT NULL
                            OR i.OutlookRules IS NOT NULL OR i.UpHeadroom IS NOT NULL OR i.DownHeadroom IS NOT NULL
                            OR i.SummaryAr IS NOT NULL OR i.SummaryEn IS NOT NULL OR i.Snapshot IS NOT NULL))
                   OR (d.CreditAssessmentId IS NOT NULL AND i.Status <> d.Status

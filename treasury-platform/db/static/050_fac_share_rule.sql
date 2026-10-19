@@ -59,6 +59,12 @@ BEGIN
     END
 END;
 GO
+-- A row of an approved revision is refused by the freeze of 044 (50049) before its shares are summed here (50071):
+-- the order of two triggers on a table is otherwise undefined.
+EXEC sys.sp_settriggerorder @triggername = N'fac.TR_FacilityLender_ApprovedShares', @order = N'Last', @stmttype = N'INSERT';
+EXEC sys.sp_settriggerorder @triggername = N'fac.TR_FacilityLender_ApprovedShares', @order = N'Last', @stmttype = N'UPDATE';
+EXEC sys.sp_settriggerorder @triggername = N'fac.TR_FacilityLender_ApprovedShares', @order = N'Last', @stmttype = N'DELETE';
+GO
 
 CREATE OR ALTER TRIGGER fac.TR_Facility_ApprovedShares
 ON fac.Facility

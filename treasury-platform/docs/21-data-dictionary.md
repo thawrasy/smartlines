@@ -2,7 +2,7 @@
 
 > مُولَّد آليًا من نموذج البيانات بـ `tools/dbgen` — لا يُعدَّل يدويًا. الأعمدة المشتركة التي تضيفها اصطلاحات التوليد (TenantId، المعرّف، التدقيق) تظهر في كل جدول.
 
-**عدد الجداول: 237**
+**عدد الجداول: 243**
 
 | الوحدة | عدد الجداول |
 |---|---|
@@ -22,7 +22,7 @@
 | CMP | 2 |
 | COL | 7 |
 | OBL | 9 |
-| FIN | 43 |
+| FIN | 49 |
 | REQ | 8 |
 | WFL | 11 |
 | NTF | 7 |
@@ -4651,7 +4651,7 @@
 
 **قيود:** `Notches BETWEEN -3 AND 0` · `(Stage = 'NOTCH' AND CapGradeId IS NULL AND Notches <= 0) OR (Stage <> 'NOTCH' AND CapGradeId IS NOT NULL AND Notches = 0)` · `RuleCode COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%'` · `RuleCode NOT IN ('STALE_STATEMENT','RESTATEMENT','HALF_CAPITAL_LOST','HALF_CAPITAL_LOST_CURED','RELATED_PARTY_EXPOSURE','FLOW_SHORTFALL','SIZE_CEILING') OR ParamValue IS NOT NULL`
 
-### `fin.IndustryProfile` — The credit profile of an activity: its default scorecard, sector risk, cyclicality, the grade range expected of a typical mid-size Saudi company in it, its ceiling, and the extra data it must give (docs/35 section 5)
+### `fin.IndustryProfile` — The credit profile of an activity or a division: its sector family scorecard, industry risk, cyclicality, its ceiling, the extra data it must give and the products it usually sells; the expected grade range comes from the country and industry risk anchor (docs/35 section 13, ADR 0019)
 
 *عالمي*
 
@@ -4659,16 +4659,14 @@
 |---|---|---|---|---|---|
 | **IndustryProfileId** | INT IDENTITY | لا | | | مفتاح أساسي |
 | IndustryId | INT | لا |  | ref.Industry |  |
-| DefaultScorecardCode | VARCHAR(40) | لا |  |  | GENERAL_CORPORATE أو TRADING_DISTRIBUTION أو CONTRACTING |
-| SectorRisk | TINYINT | لا |  |  | 1 منخفضة جدًا ... 5 مرتفعة جدًا |
+| DefaultScorecardCode | VARCHAR(40) | لا |  |  | بطاقة عائلة القطاع (ADR 0019) |
+| IndustryRisk | TINYINT | لا |  |  | 1 منخفضة جدًا ... 6 مرتفعة جدًا |
 | Cyclicality | VARCHAR(10) | لا |  |  | enum: LOW, MEDIUM, HIGH |
-| ExpectedBestGradeId | INT | لا |  | fin.RatingGrade |  |
-| ExpectedTypicalGradeId | INT | لا |  | fin.RatingGrade |  |
-| ExpectedWorstGradeId | INT | لا |  | fin.RatingGrade |  |
-| CeilingGradeId | INT | نعم |  | fin.RatingGrade | سقف القطاع إن وُجد |
+| CeilingGradeId | INT | نعم |  | fin.RatingGrade | سقف النشاط إن وُجد |
 | ExtraDisclosures | VARCHAR(400) | نعم |  |  | رموز الإفصاحات الإضافية للقطاع مفصولة بفواصل |
 | ProductCategories | VARCHAR(400) | لا |  |  | فئات المنتجات المعتادة للنشاط مفصولة بفواصل؛ تُقرأ حين لا تُدخل الشركة خطوط منتجاتها |
 | NoteAr | NVARCHAR(1000) | نعم |  |  |  |
+| NoteEn | NVARCHAR(1000) | نعم |  |  |  |
 | CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
 | CreatedBy | BIGINT | نعم |  |  |  |
 | UpdatedAt | DATETIME2(3) | نعم |  |  |  |
@@ -4676,29 +4674,169 @@
 
 **المفاتيح:** PK(IndustryProfileId) · UQ(IndustryId)
 
-**قيود:** `SectorRisk BETWEEN 1 AND 5`
+**قيود:** `IndustryRisk BETWEEN 1 AND 6`
 
-### `fin.IndustryScenario` — A stress scenario of an activity: the stagnant market or the financial crisis, as changes the assessment applies to the statement (docs/35 section 13)
+### `fin.ShockDriver` — A driver of stress: private demand, government spending, real estate, conflict, oil, credit, imports and currency; its effect at full intensity on revenue, gross margin and collection days (docs/35 section 14, ADR 0019)
 
 *عالمي*
 
 | العمود | النوع | NULL | الافتراضي | المرجع | ملاحظة |
 |---|---|---|---|---|---|
-| **IndustryScenarioId** | INT IDENTITY | لا | | | مفتاح أساسي |
-| IndustryId | INT | لا |  | ref.Industry |  |
-| Scenario | VARCHAR(16) | لا |  |  | enum: STAGNANT_MARKET, FINANCIAL_CRISIS |
-| RevenuePct | DECIMAL(9,4) | لا |  |  | تغيّر الإيرادات، سالب |
-| GrossMarginPp | DECIMAL(9,4) | لا |  |  | تغيّر هامش مجمل الربح بالنقاط |
+| **ShockDriverId** | INT IDENTITY | لا | | | مفتاح أساسي |
+| Code | VARCHAR(20) | لا |  |  |  |
+| NameAr | NVARCHAR(200) | لا |  |  |  |
+| NameEn | NVARCHAR(200) | لا |  |  |  |
+| RevenuePct | DECIMAL(9,4) | لا |  |  | فقد الإيرادات عند الشدة الكاملة والحساسية 5 والتعرض 1 |
+| GrossMarginPp | DECIMAL(9,4) | لا |  |  | نقاط هامش مجمل الربح |
 | DsoDays | DECIMAL(9,2) | لا |  |  | أيام تحصيل إضافية |
-| StLinesWithdrawnPct | DECIMAL(9,4) | لا |  |  | من الخطوط قصيرة الأجل غير الملتزمة |
-| RateBp | INT | لا |  |  | ارتفاع سعر الفائدة على الدين المتغير |
-| PrivateArLossPct | DECIMAL(9,4) | لا |  |  | خسارة الذمم الخاصة فوق 180 يومًا |
+| SortOrder | INT | لا |  |  |  |
 | CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
 | CreatedBy | BIGINT | نعم |  |  |  |
 | UpdatedAt | DATETIME2(3) | نعم |  |  |  |
 | UpdatedBy | BIGINT | نعم |  |  |  |
 
-**المفاتيح:** PK(IndustryScenarioId) · UQ(IndustryId, Scenario)
+**المفاتيح:** PK(ShockDriverId) · UQ(Code)
+
+**قيود:** `Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%'` · `RevenuePct >= 0 AND GrossMarginPp >= 0 AND DsoDays >= 0`
+
+### `fin.MacroScenario` — A macro stress scenario: the stagnant market, the financial crisis, a fiscal squeeze, a real estate correction, a regional conflict, an oil price collapse; the intensity of each driver and the financial conditions (docs/35 section 14, ADR 0019)
+
+*عالمي*
+
+| العمود | النوع | NULL | الافتراضي | المرجع | ملاحظة |
+|---|---|---|---|---|---|
+| **MacroScenarioId** | INT IDENTITY | لا | | | مفتاح أساسي |
+| Code | VARCHAR(30) | لا |  |  |  |
+| NameAr | NVARCHAR(200) | لا |  |  |  |
+| NameEn | NVARCHAR(200) | لا |  |  |  |
+| DescriptionAr | NVARCHAR(1000) | لا |  |  |  |
+| DescriptionEn | NVARCHAR(1000) | لا |  |  |  |
+| InventorySeverity | VARCHAR(10) | لا |  |  | أي قيمة بيع للمخزون من فئات المنتجات enum: STAGNANT, CRISIS |
+| StLinesWithdrawnPct | DECIMAL(9,4) | لا |  |  | من الخطوط قصيرة الأجل غير الملتزمة، قبل تعرض البلد للائتمان |
+| RateBp | INT | لا |  |  | ارتفاع سعر الفائدة على الدين المتغير |
+| PrivateArLossPct | DECIMAL(9,4) | لا |  |  | خسارة الذمم الخاصة فوق 180 يومًا قبل أثر الطلب |
+| BaseDsoDays | DECIMAL(9,2) | لا |  |  |  |
+| IsResilienceBase | BIT | لا | 0 |  | السيناريو الذي يقيس الصمود والنظرة (ركود السوق) |
+| SortOrder | INT | لا |  |  |  |
+| CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
+| CreatedBy | BIGINT | نعم |  |  |  |
+| UpdatedAt | DATETIME2(3) | نعم |  |  |  |
+| UpdatedBy | BIGINT | نعم |  |  |  |
+
+**المفاتيح:** PK(MacroScenarioId) · UQ(Code) · UQ(IsResilienceBase) WHERE IsResilienceBase = 1
+
+**قيود:** `Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%'` · `StLinesWithdrawnPct BETWEEN 0 AND 100 AND PrivateArLossPct BETWEEN 0 AND 100 AND RateBp >= 0 AND BaseDsoDays >= 0`
+
+### `fin.MacroScenarioIntensity` — The intensity 0 to 1 of a driver in a macro scenario (docs/35 section 14)
+
+*عالمي*
+
+| العمود | النوع | NULL | الافتراضي | المرجع | ملاحظة |
+|---|---|---|---|---|---|
+| **MacroScenarioIntensityId** | INT IDENTITY | لا | | | مفتاح أساسي |
+| MacroScenarioId | INT | لا |  | fin.MacroScenario |  |
+| ShockDriverId | INT | لا |  | fin.ShockDriver |  |
+| Intensity | DECIMAL(5,3) | لا |  |  |  |
+| CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
+| CreatedBy | BIGINT | نعم |  |  |  |
+| UpdatedAt | DATETIME2(3) | نعم |  |  |  |
+| UpdatedBy | BIGINT | نعم |  |  |  |
+
+**المفاتيح:** PK(MacroScenarioIntensityId) · UQ(MacroScenarioId, ShockDriverId)
+
+**قيود:** `Intensity BETWEEN 0 AND 1`
+
+### `fin.IndustrySensitivity` — The sensitivity 0 (none) to 5 (extreme) of an activity to a driver of stress (docs/35 section 14)
+
+*عالمي*
+
+| العمود | النوع | NULL | الافتراضي | المرجع | ملاحظة |
+|---|---|---|---|---|---|
+| **IndustrySensitivityId** | INT IDENTITY | لا | | | مفتاح أساسي |
+| IndustryId | INT | لا |  | ref.Industry |  |
+| ShockDriverId | INT | لا |  | fin.ShockDriver |  |
+| Sensitivity | TINYINT | لا |  |  |  |
+| CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
+| CreatedBy | BIGINT | نعم |  |  |  |
+| UpdatedAt | DATETIME2(3) | نعم |  |  |  |
+| UpdatedBy | BIGINT | نعم |  |  |  |
+
+**المفاتيح:** PK(IndustrySensitivityId) · UQ(IndustryId, ShockDriverId)
+
+**قيود:** `Sensitivity BETWEEN 0 AND 5`
+
+### `fin.CountryRiskProfile` — The credit risk of a country for its companies: country risk 1 to 6, the published sovereign rating and its date, the ceiling of a company's grade, and the country's exposure to each driver of stress; one default row for a country without a profile (docs/35 section 13, ADR 0019)
+
+*عالمي*
+
+| العمود | النوع | NULL | الافتراضي | المرجع | ملاحظة |
+|---|---|---|---|---|---|
+| **CountryRiskProfileId** | INT IDENTITY | لا | | | مفتاح أساسي |
+| CountryId | INT | نعم |  | ref.Country | فارغ للصف الافتراضي |
+| IsDefault | BIT | لا | 0 |  |  |
+| CountryRisk | TINYINT | لا |  |  |  |
+| SovereignRatingGradeId | INT | نعم |  | fin.RatingGrade | التصنيف السيادي المنشور إن وُجد؛ يتحقق منه مشغّل المنصة |
+| RatingAsOf | VARCHAR(7) | نعم |  |  | الشهر YYYY-MM |
+| CeilingGradeId | INT | لا |  | fin.RatingGrade | سقف درجة الشركة: التصنيف السيادي، أو سقف مخاطر البلد إن لم يُصنَّف |
+| ExpDemand | DECIMAL(5,2) | لا |  |  |  |
+| ExpGovSpending | DECIMAL(5,2) | لا |  |  |  |
+| ExpRealEstate | DECIMAL(5,2) | لا |  |  |  |
+| ExpConflict | DECIMAL(5,2) | لا |  |  |  |
+| ExpOil | DECIMAL(5,2) | لا |  |  |  |
+| ExpCredit | DECIMAL(5,2) | لا |  |  |  |
+| ExpImportFx | DECIMAL(5,2) | لا |  |  |  |
+| NoteAr | NVARCHAR(1000) | نعم |  |  |  |
+| NoteEn | NVARCHAR(1000) | نعم |  |  |  |
+| CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
+| CreatedBy | BIGINT | نعم |  |  |  |
+| UpdatedAt | DATETIME2(3) | نعم |  |  |  |
+| UpdatedBy | BIGINT | نعم |  |  |  |
+
+**المفاتيح:** PK(CountryRiskProfileId) · UQ(CountryId) WHERE CountryId IS NOT NULL · UQ(IsDefault) WHERE IsDefault = 1
+
+**قيود:** `CountryRisk BETWEEN 1 AND 6` · `(IsDefault = 1 AND CountryId IS NULL) OR (IsDefault = 0 AND CountryId IS NOT NULL)` · `ExpDemand BETWEEN 0.3 AND 2 AND ExpGovSpending BETWEEN 0.3 AND 2 AND ExpRealEstate BETWEEN 0.3 AND 2 AND ExpConflict BETWEEN 0.3 AND 2 AND ExpOil BETWEEN 0.3 AND 2 AND ExpCredit BETWEEN 0.3 AND 2 AND ExpImportFx BETWEEN 0.3 AND 2` · `RatingAsOf IS NULL OR RatingAsOf COLLATE Arabic_100_BIN2 LIKE '[12][0-9][0-9][0-9]-[01][0-9]'`
+
+### `fin.CountryRegion` — A city or region of a country and how much more or less its property falls, and how exposed it is to conflict, than its country (docs/35 section 14)
+
+*عالمي*
+
+| العمود | النوع | NULL | الافتراضي | المرجع | ملاحظة |
+|---|---|---|---|---|---|
+| **CountryRegionId** | INT IDENTITY | لا | | | مفتاح أساسي |
+| CountryId | INT | لا |  | ref.Country |  |
+| Code | VARCHAR(10) | لا |  |  |  |
+| NameAr | NVARCHAR(200) | لا |  |  |  |
+| NameEn | NVARCHAR(200) | لا |  |  |  |
+| Tier | VARCHAR(10) | لا |  |  | enum: PRIME, MAJOR, SECONDARY, PERIPHERAL |
+| RealEstateMult | DECIMAL(5,2) | لا |  |  |  |
+| ConflictMult | DECIMAL(5,2) | لا |  |  |  |
+| CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
+| CreatedBy | BIGINT | نعم |  |  |  |
+| UpdatedAt | DATETIME2(3) | نعم |  |  |  |
+| UpdatedBy | BIGINT | نعم |  |  |  |
+
+**المفاتيح:** PK(CountryRegionId) · UQ(CountryId, Code)
+
+**قيود:** `Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%'` · `RealEstateMult BETWEEN 0.5 AND 2 AND ConflictMult BETWEEN 0.5 AND 2`
+
+### `fin.RiskAnchor` — The anchor of a company's business risk from its country risk and its industry risk, a notch of the 21-grade scale: the computed sector risk sub-factor and the centre of the expected range (docs/35 section 13)
+
+*عالمي*
+
+| العمود | النوع | NULL | الافتراضي | المرجع | ملاحظة |
+|---|---|---|---|---|---|
+| **RiskAnchorId** | INT IDENTITY | لا | | | مفتاح أساسي |
+| CountryRisk | TINYINT | لا |  |  |  |
+| IndustryRisk | TINYINT | لا |  |  |  |
+| AnchorNotch | TINYINT | لا |  |  |  |
+| CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
+| CreatedBy | BIGINT | نعم |  |  |  |
+| UpdatedAt | DATETIME2(3) | نعم |  |  |  |
+| UpdatedBy | BIGINT | نعم |  |  |  |
+
+**المفاتيح:** PK(RiskAnchorId) · UQ(CountryRisk, IndustryRisk)
+
+**قيود:** `CountryRisk BETWEEN 1 AND 6 AND IndustryRisk BETWEEN 1 AND 6 AND AnchorNotch BETWEEN 1 AND 21`
 
 ### `fin.ProductCategory` — A category of products or services and its credit behaviour: cash-flow quality, revenue sensitivity, inventory sale value and time to sell in normal, stagnant and crisis markets (docs/35 section 5)
 
@@ -4711,8 +4849,7 @@
 | NameAr | NVARCHAR(200) | لا |  |  |  |
 | NameEn | NVARCHAR(200) | لا |  |  |  |
 | CashFlowQuality | TINYINT | لا |  |  | 1 الأفضل ... 5 الأضعف |
-| RevStagnantPct | DECIMAL(9,4) | لا |  |  |  |
-| RevCrisisPct | DECIMAL(9,4) | لا |  |  |  |
+| DemandSensitivity | TINYINT | لا |  |  | حساسية الطلب على الفئة 0 إلى 5؛ تحل محل حساسية النشاط للطلب حين تُدخل الشركة منتجاتها |
 | InvValueNormalPct | DECIMAL(9,4) | لا |  |  | قيمة بيع المخزون من الدفترية |
 | InvValueStagnantPct | DECIMAL(9,4) | لا |  |  |  |
 | InvValueCrisisPct | DECIMAL(9,4) | لا |  |  |  |
@@ -4727,7 +4864,7 @@
 
 **المفاتيح:** PK(ProductCategoryId) · UQ(Code)
 
-**قيود:** `CashFlowQuality BETWEEN 1 AND 5` · `InvValueNormalPct BETWEEN 0 AND 100 AND InvValueStagnantPct BETWEEN 0 AND 100 AND InvValueCrisisPct BETWEEN 0 AND 100`
+**قيود:** `CashFlowQuality BETWEEN 1 AND 5` · `DemandSensitivity BETWEEN 0 AND 5` · `InvValueNormalPct BETWEEN 0 AND 100 AND InvValueStagnantPct BETWEEN 0 AND 100 AND InvValueCrisisPct BETWEEN 0 AND 100`
 
 ### `fin.StandardLine` — The standard statement line catalogue of the platform: every point of the statements the credit assessment reads, its kind and the line it breaks down; installed into a tenant's catalogue by fin.usp_InstallStandardLines (docs/35 section 4, FR-FIN-001)
 
@@ -4781,7 +4918,7 @@
 |---|---|---|---|---|---|
 | **ScorecardParameterId** | INT IDENTITY | لا | | | مفتاح أساسي |
 | ScorecardId | INT | لا |  | fin.Scorecard |  |
-| GroupCode | VARCHAR(18) | لا |  |  | enum: CARD, REALISABLE_HAIRCUT, COLLATERAL_HAIRCUT, LGD_BAND, SGL, FIXED_COST |
+| GroupCode | VARCHAR(18) | لا |  |  | enum: CARD, REALISABLE_HAIRCUT, COLLATERAL_HAIRCUT, LGD_BAND, SGL, FIXED_COST, SCENARIO |
 | ParamKey | VARCHAR(40) | لا |  |  |  |
 | Value | DECIMAL(19,6) | لا |  |  |  |
 | Value2 | DECIMAL(19,6) | نعم |  |  | لنطاق الخسارة: الدرجات؛ ولغيره فارغ |
@@ -5001,6 +5138,12 @@
 | UpHeadroom | DECIMAL(9,4) | نعم |  |  | المسافة من المجموع المرجح إلى الدرجة الأعلى |
 | DownHeadroom | DECIMAL(9,4) | نعم |  |  | المسافة إلى الدرجة الأدنى |
 | StrengtheningRequested | BIT | لا | 0 |  | طلب العميل خطط تقوية القوائم (docs/35 §12) |
+| MarketCountryId | INT | نعم |  | ref.Country | بلد السوق الرئيسي؛ فارغ = بلد تأسيس الشركة (ADR 0019) |
+| MarketRegionCode | VARCHAR(10) | نعم |  |  | المدينة أو المنطقة الرئيسية من fin.CountryRegion، للعقار والمقاولات خاصة |
+| CountryRisk | TINYINT | نعم |  |  | من هنا: يكتبها الإجراء؛ مخاطر البلد التي قرأها التقييم |
+| IndustryRisk | TINYINT | نعم |  |  |  |
+| AnchorGradeId | INT | نعم |  | fin.RatingGrade | مرتكز مخاطر البلد والنشاط |
+| CountryCeilingGradeId | INT | نعم |  | fin.RatingGrade | سقف البلد الذي طُبّق |
 | PublicId | UNIQUEIDENTIFIER | لا | NEWSEQUENTIALID() |  |  |
 | CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
 | CreatedBy | BIGINT | نعم |  |  |  |
@@ -5009,7 +5152,7 @@
 
 **المفاتيح:** PK(CreditAssessmentId) · UQ(PublicId) · UQ(TenantId, StatementId) WHERE Status = 'APPROVED'
 
-**قيود:** `FxRateToScorecard IS NULL OR FxRateToScorecard > 0` · `PriorStatementId IS NULL OR PriorStatementId <> StatementId` · `(ResultState IS NULL AND FinancialScore IS NULL AND WeightedScore IS NULL AND IndicatedGradeId IS NULL AND FinalGradeId IS NULL) OR (ResultState IS NOT NULL AND ComputedAt IS NOT NULL AND InputsHash IS NOT NULL AND CoveragePct IS NOT NULL AND ((ResultState = 'INSUFFICIENT_DATA' AND FinancialScore IS NULL AND WeightedScore IS NULL AND IndicatedGradeId IS NULL AND FinalGradeId IS NULL) OR (ResultState = 'INDICATIVE' AND FinancialScore IS NOT NULL AND FinancialGradeId IS NOT NULL AND WeightedScore IS NULL AND FinalGradeId IS NULL) OR (ResultState = 'RATED' AND FinancialScore IS NOT NULL AND WeightedScore IS NOT NULL AND IndicatedGradeId IS NOT NULL AND StandaloneGradeId IS NOT NULL AND FinalGradeId IS NOT NULL)))` · `WeightedScore IS NULL OR (WeightedScore >= 0.5 AND WeightedScore <= 20.5)` · `FinancialScore IS NULL OR (FinancialScore >= 0.5 AND FinancialScore <= 20.5)` · `CoveragePct IS NULL OR (CoveragePct >= 0 AND CoveragePct <= 100)` · `SupportNotches IS NULL OR SupportNotches BETWEEN 0 AND 2` · `OverrideNotches IS NULL OR OverrideNotches BETWEEN -2 AND 1` · `Status NOT IN ('SUBMITTED','APPROVED','SUPERSEDED') OR (ResultState IS NOT NULL AND ResultState = 'RATED' AND PreparedBy IS NOT NULL AND PreparedOn IS NOT NULL)` · `Status NOT IN ('APPROVED','SUPERSEDED') OR (ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)` · `ApprovedBy IS NULL OR PreparedBy IS NULL OR ApprovedBy <> PreparedBy` · `Status <> 'REJECTED' OR RejectionReason IS NOT NULL`
+**قيود:** `FxRateToScorecard IS NULL OR FxRateToScorecard > 0` · `PriorStatementId IS NULL OR PriorStatementId <> StatementId` · `(ResultState IS NULL AND FinancialScore IS NULL AND WeightedScore IS NULL AND IndicatedGradeId IS NULL AND FinalGradeId IS NULL) OR (ResultState IS NOT NULL AND ComputedAt IS NOT NULL AND InputsHash IS NOT NULL AND CoveragePct IS NOT NULL AND ((ResultState = 'INSUFFICIENT_DATA' AND FinancialScore IS NULL AND WeightedScore IS NULL AND IndicatedGradeId IS NULL AND FinalGradeId IS NULL) OR (ResultState = 'INDICATIVE' AND FinancialScore IS NOT NULL AND FinancialGradeId IS NOT NULL AND WeightedScore IS NULL AND FinalGradeId IS NULL) OR (ResultState = 'RATED' AND FinancialScore IS NOT NULL AND WeightedScore IS NOT NULL AND IndicatedGradeId IS NOT NULL AND StandaloneGradeId IS NOT NULL AND FinalGradeId IS NOT NULL)))` · `WeightedScore IS NULL OR (WeightedScore >= 0.5 AND WeightedScore <= 20.5)` · `FinancialScore IS NULL OR (FinancialScore >= 0.5 AND FinancialScore <= 20.5)` · `CoveragePct IS NULL OR (CoveragePct >= 0 AND CoveragePct <= 100)` · `SupportNotches IS NULL OR SupportNotches BETWEEN 0 AND 2` · `OverrideNotches IS NULL OR OverrideNotches BETWEEN -2 AND 1` · `Status NOT IN ('SUBMITTED','APPROVED','SUPERSEDED') OR (ResultState IS NOT NULL AND ResultState = 'RATED' AND PreparedBy IS NOT NULL AND PreparedOn IS NOT NULL)` · `Status NOT IN ('APPROVED','SUPERSEDED') OR (ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)` · `ApprovedBy IS NULL OR PreparedBy IS NULL OR ApprovedBy <> PreparedBy` · `Status <> 'REJECTED' OR RejectionReason IS NOT NULL` · `MarketRegionCode IS NULL OR MarketRegionCode COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%'` · `CountryRisk IS NULL OR CountryRisk BETWEEN 1 AND 6` · `IndustryRisk IS NULL OR IndustryRisk BETWEEN 1 AND 6`
 
 ### `fin.CreditAssessmentInput` — The analyst's inputs to an assessment: the grade of a qualitative factor, group support or an override, each with its justification; they change only while the assessment is a draft (BR-FIN-021, BR-FIN-022)
 
@@ -5268,7 +5411,7 @@
 
 **قيود:** `TotalLimits >= 0 AND TotalOutstanding >= 0 AND LenderCount >= 0` · `WorstDpd12m >= 0 AND WorstDpd24m >= WorstDpd12m` · `Defaults24mCount >= 0 AND Defaults24mAmount >= 0 AND BouncedCheques12mCount >= 0 AND BouncedCheques12mAmount >= 0 AND JudgmentsCount >= 0 AND JudgmentsAmount >= 0 AND Inquiries6m >= 0`
 
-### `fin.CreditAssessmentScenario` — The assessment recomputed on the statement under a stress scenario of its activity: the grade, the liquidity label and the notches lost; written by fin.usp_ComputeCreditAssessment only (docs/35 section 13)
+### `fin.CreditAssessmentScenario` — The assessment recomputed on the statement under each macro scenario, with the stress applied: the grade, the liquidity label and the notches lost; written by fin.usp_ComputeCreditAssessment only (docs/35 section 13)
 
 *مملوك للمشترك*
 
@@ -5277,7 +5420,14 @@
 | TenantId | INT | لا | | plat.Tenant | عزل المشترك |
 | **CreditAssessmentScenarioId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
 | AssessmentId | BIGINT | لا |  | fin.CreditAssessment |  |
-| Scenario | VARCHAR(16) | لا |  |  | enum: STAGNANT_MARKET, FINANCIAL_CRISIS |
+| MacroScenarioId | INT | لا |  | fin.MacroScenario |  |
+| RevenuePct | DECIMAL(9,4) | نعم |  |  | الضغط الذي طُبّق: من شدة المحركات وحساسية النشاط وتعرض البلد والمنطقة |
+| GrossMarginPp | DECIMAL(9,4) | نعم |  |  |  |
+| DsoDays | DECIMAL(9,2) | نعم |  |  |  |
+| StLinesWithdrawnPct | DECIMAL(9,4) | نعم |  |  |  |
+| RateBp | INT | نعم |  |  |  |
+| PrivateArLossPct | DECIMAL(9,4) | نعم |  |  |  |
+| InventoryWritedownPct | DECIMAL(9,4) | نعم |  |  |  |
 | RevenueAfter | DECIMAL(19,4) | نعم |  |  |  |
 | EbitdaAfter | DECIMAL(19,4) | نعم |  |  |  |
 | InventoryValueAfter | DECIMAL(19,4) | نعم |  |  |  |
@@ -5290,7 +5440,7 @@
 | UpdatedAt | DATETIME2(3) | نعم |  |  |  |
 | UpdatedBy | BIGINT | نعم |  |  |  |
 
-**المفاتيح:** PK(CreditAssessmentScenarioId) · UQ(TenantId, AssessmentId, Scenario)
+**المفاتيح:** PK(CreditAssessmentScenarioId) · UQ(TenantId, AssessmentId, MacroScenarioId)
 
 ### `fin.CreditAssessmentPlan` — A strengthening plan computed for the assessment when the customer asked for one: the grade at its end and whether the balance sheet stayed balanced; written by fin.usp_ComputeCreditAssessment only (docs/35 section 12)
 

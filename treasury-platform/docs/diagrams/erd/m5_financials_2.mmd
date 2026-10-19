@@ -1,5 +1,15 @@
-%% م5 · البيانات المالية والأرصدة (2/11) — Financial statements & balances
+%% م5 · البيانات المالية والأرصدة (2/13) — Financial statements & balances
 erDiagram
+  fin_CountryRegion["fin.CountryRegion"] {
+    int CountryRegionId PK
+    int CountryId FK
+  }
+  fin_CountryRiskProfile["fin.CountryRiskProfile"] {
+    int CountryRiskProfileId PK
+    int CountryId FK
+    int SovereignRatingGradeId FK
+    int CeilingGradeId FK
+  }
   fin_CreditAssessment["fin.CreditAssessment"] {
     bigint CreditAssessmentId PK
     bigint CompanyId FK
@@ -16,25 +26,13 @@ erDiagram
     bigint PreparedBy FK
     bigint ApprovedBy FK
     int IndustryId FK
+    int MarketCountryId FK
+    int AnchorGradeId FK
+    int CountryCeilingGradeId FK
   }
   fin_CreditAssessmentBureau["fin.CreditAssessmentBureau"] {
     bigint CreditAssessmentBureauId PK
     bigint AssessmentId FK
     bigint DocumentId FK
   }
-  fin_CreditAssessmentFacility["fin.CreditAssessmentFacility"] {
-    bigint CreditAssessmentFacilityId PK
-    bigint AssessmentId FK
-    bigint FacilityId FK
-    bigint LenderInstitutionId FK
-    int CurrencyId FK
-  }
-  fin_CreditAssessmentFactor["fin.CreditAssessmentFactor"] {
-    bigint CreditAssessmentFactorId PK
-    bigint AssessmentId FK
-    int MetricId FK
-    int GradeId FK
-  }
   fin_CreditAssessment ||--o{ fin_CreditAssessmentBureau : "AssessmentId"
-  fin_CreditAssessment ||--o{ fin_CreditAssessmentFacility : "AssessmentId"
-  fin_CreditAssessment ||--o{ fin_CreditAssessmentFactor : "AssessmentId"

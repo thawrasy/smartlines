@@ -23,6 +23,7 @@
    CA14 the company's activity and product lines: the scenarios, the resilience, the sector position and the
         strengthening plans with a balanced balance sheet at every step
    CA15 what the computation read: the guarantors, the bureau report and the product lines are in its hash
+   CA16 the market country and city and the detailed activity: the anchor, the country ceiling, the requests, the stress
 
    Run against a deployed BankFas database that holds no real data, with a sysadmin login:
        sqlcmd -S <server> -U sa -C -I -b -i db/tests/credit_assessment_tests.sql
@@ -258,7 +259,7 @@ SELECT @cur = CAST(IsCurrent AS INT) FROM fin.v_CreditAssessmentReport WHERE Cre
 SELECT @nr = COUNT(*) FROM fin.v_CreditAssessmentReclass WHERE AssessmentId = @a;
 SELECT @nt = COUNT(*) FROM fin.v_CreditAssessmentTriggers WHERE AssessmentId = @a;
 WHILE @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
-IF @factors = 'REVENUE_SIZE:13.3000 BUSINESS_PROFILE:11.0000 REV_TOP5_SHARE:- EBITDA_MARGIN:9.2778 ROA:7.3608 BREAKEVEN_SAFETY_MARGIN:6.7673 DEBT_TO_EBITDA:9.4154 RCF_TO_NET_DEBT:11.3149 EBITDA_TO_INTEREST:8.5909 DSCR:9.9935 CFO_TO_DEBT:10.0882 TL_TO_TNW:9.7703 REALISABLE_COVERAGE:12.7565 CONTINGENT_TO_TNW:8.3378 LIQUIDITY_COVERAGE:12.8228 CASH_CYCLE:9.1120 CURRENT_RATIO:13.1571 FUNDING_GAP:9.9444 RELATED_TO_TNW:8.4121 AR_OVER_180_SHARE:- INV_SLOW_SHARE:- NON_OPERATING_ASSETS_SHARE:9.3750 FINANCIAL_POLICY:10.0000 PARTNER_DRAWINGS_TO_CFO:10.5000' AND @head = 'RATED 92.68 10.4170 Baa3 10.4795 Baa3 Ba2 Ba2 SGL-3 9.09 NEGATIVE NEG_LIQUIDITY,NEG_HEADROOM,NEG_TREND | INFORMATION_RISK,INFORMATION_RISK_SEVERE' AND @rem = 'CONVERT_DUE_TO_RELATED_TO_SUB:Ba2 COMMITTED_FACILITY:- CREDIT_INSURANCE:- RETAIN_EARNINGS:Ba2 DISCLOSE_BREAKDOWNS:-' AND @cur = 1 AND @nr = 5 AND @nt = 20
+IF @factors = 'REVENUE_SIZE:12.5000 BUSINESS_PROFILE:11.0000 REV_TOP5_SHARE:- EBITDA_MARGIN:8.4333 BREAKEVEN_SAFETY_MARGIN:6.7673 DEBT_TO_EBITDA:9.4154 EBITDA_TO_INTEREST:8.5909 RCF_TO_NET_DEBT:11.3149 TL_TO_TNW:9.7703 CONTINGENT_TO_TNW:8.3378 LIQUIDITY_COVERAGE:12.8228 CASH_CYCLE:9.1120 FUNDING_GAP:9.9444 RELATED_TO_TNW:8.4121 AR_OVER_180_SHARE:- FINANCIAL_POLICY:10.0000 PARTNER_DRAWINGS_TO_CFO:10.5000' AND @head = 'RATED 92.68 9.9901 Baa3 10.1322 Baa3 Ba2 Ba2 SGL-3 9.09 NEGATIVE NEG_LIQUIDITY,NEG_TREND | INFORMATION_RISK,INFORMATION_RISK_SEVERE' AND @rem = 'CONVERT_DUE_TO_RELATED_TO_SUB:Ba2 COMMITTED_FACILITY:- CREDIT_INSURANCE:- RETAIN_EARNINGS:Ba2 DISCLOSE_BREAKDOWNS:-' AND @cur = 1 AND @nr = 5 AND @nt = 15
     PRINT 'PASS CA2: the worked example entered as a statement gives the reference''s factors, grades, liquidity, completeness, outlook, adjustments and remedies';
 ELSE PRINT CONCAT('FAIL CA2: factors ', @factors, ' | head ', @head, ' | remedies ', @rem, ' | current ', @cur, ' reclass ', @nr, ' triggers ', @nt);
 GO
@@ -326,9 +327,9 @@ END;
 GO
 DECLARE @got NVARCHAR(2000);
 EXEC #CCases '#CoverageCase', 1, 5, @got OUTPUT;
-IF @got = '1:0=INDICATIVE 10.4229 Baa3 - 2:547 3:0=INDICATIVE 79.88 - 4:0=RATED 83.54 10.2964 Baa3 10.3782 Baa3 Ba3 Ba3 SGL-3 9.09 NEGATIVE NEG_LIQUIDITY,NEG_TREND | INCOMPLETE_STATEMENT,INFORMATION_RISK,INFORMATION_RISK_SEVERE 5:0=10.0000 Ba3'
+IF @got = '1:0=INDICATIVE 10.0316 Baa3 - 2:547 3:0=INDICATIVE 81.71 - 4:0=RATED 85.37 9.8872 Baa3 10.0542 Baa3 Ba3 Ba3 SGL-3 9.09 NEGATIVE NEG_LIQUIDITY,NEG_TREND | INCOMPLETE_STATEMENT,INFORMATION_RISK,INFORMATION_RISK_SEVERE 5:0=10.2500 Ba3'
     PRINT 'PASS CA3: no final grade without the qualitative grades or enough quantitative metrics, a statement without cash flows costs a notch, and graded sub-factors give the business profile with the sector risk';
-ELSE PRINT CONCAT('FAIL CA3: ', @got, ' (expected 1:0=INDICATIVE 10.4229 Baa3 - 2:547 3:0=INDICATIVE 79.88 - 4:0=RATED 83.54 10.2964 Baa3 10.3782 Baa3 Ba3 Ba3 SGL-3 9.09 NEGATIVE NEG_LIQUIDITY,NEG_TREND | INCOMPLETE_STATEMENT,INFORMATION_RISK,INFORMATION_RISK_SEVERE 5:0=10.0000 Ba3)');
+ELSE PRINT CONCAT('FAIL CA3: ', @got, ' (expected 1:0=INDICATIVE 10.0316 Baa3 - 2:547 3:0=INDICATIVE 81.71 - 4:0=RATED 85.37 9.8872 Baa3 10.0542 Baa3 Ba3 Ba3 SGL-3 9.09 NEGATIVE NEG_LIQUIDITY,NEG_TREND | INCOMPLETE_STATEMENT,INFORMATION_RISK,INFORMATION_RISK_SEVERE 5:0=10.2500 Ba3)');
 GO
 /* CA4 (FR-FIN-025, BR-FIN-026, docs/35 section 11): the disclosures the methodology asks of the statement and the data
    the report requests (the bureau report, the product lines, the activity), each a finding of its own; entering a
@@ -611,7 +612,7 @@ UPDATE fin.CreditAssessmentInput SET Justification = N'test: changed after the c
 SELECT @cur2 = CAST(IsCurrent AS INT) FROM fin.v_CreditAssessmentReport WHERE CreditAssessmentId = @a;
 WHILE @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
 IF @items = 'CASH:0.0000:4.5000:HIGH AR:0.0000:16.0000:MODERATE TOTAL_ASSETS:6.3830:100.0000:HIGH ST_LOANS:0.0000:12.0000:CRITICAL REVENUE:5.8824:100.0000:LOW'
-   AND @n = 47 AND @nf = 24 AND @nk > 0 AND @head = 'Ba2 BB SUBSTANTIAL disclaimer summary Industrial GENERAL_CORPORATE Adequate liquidity relying on renewals' AND @nreg = 134
+   AND @n = 47 AND @nf = 17 AND @nk > 0 AND @head = 'Ba2 BB SUBSTANTIAL disclaimer summary Industrial GENERAL_CORPORATE Adequate liquidity relying on renewals' AND @nreg = 134
    AND @reg = 'CURRENT_RATIO/OTHER_CL:LIQUIDITY:ELEVATED:effects CURRENT_RATIO/TOTAL_CA:LIQUIDITY:ELEVATED:effects DSO/AR:RECEIVABLES:MODERATE:effects'
    AND @rec = 'ADJ_RELATED:NOT_TNW:20.00:text ADJ_INTANGIBLES:NOT_TNW:30.00:text ADJ_RELATED_DEBT:ST_DEBT:10.00:text ADJ_LEASE:DEBT:20.00:text ADJ_EOSB:DEBT:18.00:text'
    AND @cur1 = 1 AND @cur2 = 0
@@ -783,15 +784,18 @@ IF @n1 = 0 AND @n2 = 0 AND @n3 = 0 AND @n4 = 0 AND @n5 = 0 AND @e = 50064
 ELSE PRINT CONCAT('FAIL CA11: report ', @n1, ', factors ', @n2, ', findings ', @n3, ', remedies ', @n4, ', reclass ', @n5, ', compute ', @e, ' (expected 0, 0, 0, 0, 0, 50064)');
 GO
 /* CA12 (db/seed/104): the methodology as tools/dbgen/credit_scorecard.json gives it: 21 grades with Baa3 the last
-   investment grade, the standard lines, the metric dictionary, the activities with their profiles and scenarios, the
-   product categories, the remedies, the strengthening plans and the report texts; three approved sector scorecards
+   investment grade, the standard lines, the metric dictionary, the activities with their profiles and sensitivities,
+   the macro scenarios, the countries with their regions and the risk anchor, the product categories, the remedies, the
+   strengthening plans and the report texts; sixteen approved sector family scorecards
    whose weights add up to 100 with a grid for each quantitative metric, their item rules and adjustments; the
    sovereign ceiling at Aa3 and the contracting ceiling on its own scorecard. */
 DECLARE @got NVARCHAR(1000) = CONCAT(
     (SELECT COUNT(*) FROM fin.RatingGrade), ' ', (SELECT COUNT(*) FROM fin.RatingGrade WHERE IsInvestmentGrade = 1), ' ',
     (SELECT MAX(Code) FROM fin.RatingGrade WHERE NotchNo = 10 AND IsInvestmentGrade = 1), ' ',
     (SELECT COUNT(*) FROM fin.StandardLine), ' ', (SELECT COUNT(*) FROM fin.CreditMetric), ' ',
-    (SELECT COUNT(*) FROM fin.IndustryProfile), ' ', (SELECT COUNT(*) FROM fin.IndustryScenario), ' ', (SELECT COUNT(*) FROM fin.ProductCategory), ' ',
+    (SELECT COUNT(*) FROM fin.IndustryProfile), ' ', (SELECT COUNT(*) FROM fin.IndustrySensitivity), ' ', (SELECT COUNT(*) FROM fin.MacroScenario), ' ',
+    (SELECT COUNT(*) FROM fin.MacroScenarioIntensity), ' ', (SELECT COUNT(*) FROM fin.CountryRiskProfile), ' ', (SELECT COUNT(*) FROM fin.CountryRegion), ' ',
+    (SELECT COUNT(*) FROM fin.RiskAnchor), ' ', (SELECT COUNT(*) FROM fin.ProductCategory), ' ',
     (SELECT COUNT(*) FROM fin.CreditRemedy), ' ', (SELECT COUNT(*) FROM fin.StrengtheningPlan), ' ', (SELECT COUNT(*) FROM fin.CreditText), ' ',
     (SELECT STRING_AGG(CONCAT(sc.Code, ':', w.W, ':', w.Grids, ':', r.Items, ':', ad.Adj), ' ') WITHIN GROUP (ORDER BY sc.Code)
      FROM fin.Scorecard AS sc
@@ -802,9 +806,9 @@ DECLARE @got NVARCHAR(1000) = CONCAT(
      WHERE sc.Status = 'APPROVED'), ' ',
     (SELECT MIN(g.Code) FROM fin.ScorecardAdjustment AS a JOIN fin.RatingGrade AS g ON g.RatingGradeId = a.CapGradeId WHERE a.RuleCode = 'SOVEREIGN_CEILING'), ' ',
     (SELECT STRING_AGG(sc.Code, ',') FROM fin.ScorecardAdjustment AS a JOIN fin.Scorecard AS sc ON sc.ScorecardId = a.ScorecardId WHERE a.RuleCode = 'SECTOR_CEILING'));
-IF @got = '21 10 Baa3 157 112 61 122 15 39 10 67 CONTRACTING:100:25:134:44 GENERAL_CORPORATE:100:24:134:43 TRADING_DISTRIBUTION:100:24:134:43 Aa3 CONTRACTING'
-    PRINT 'PASS CA12: the platform seed holds the scale, the lines, the metrics, the activities, the products, the remedies, the plans, the texts and the three approved sector scorecards of the methodology';
-ELSE PRINT CONCAT('FAIL CA12: ', @got, ' (expected 21 10 Baa3 157 112 61 122 15 39 10 67 CONTRACTING:100:25:134:44 GENERAL_CORPORATE:100:24:134:43 TRADING_DISTRIBUTION:100:24:134:43 Aa3 CONTRACTING)');
+IF @got = '21 10 Baa3 157 112 368 2576 6 42 23 127 36 15 39 10 70 AUTOMOTIVE_DISTRIBUTION:100:18:134:44 AVIATION:100:17:134:44 BUILDING_MATERIALS_MFG:100:18:134:44 BUILDING_MATERIALS_TRADE:100:16:134:44 BUSINESS_SERVICES:100:18:134:44 CONTRACTING:100:18:134:45 FOOD_BEVERAGE_MFG:100:18:134:44 GENERAL_CORPORATE:100:17:134:44 HEALTHCARE_PHARMA:100:18:134:44 HOSPITALITY_TOURISM:100:18:134:44 PROPERTY_DEVELOPMENT:100:18:134:44 PROPERTY_INVESTMENT:100:17:134:44 RESTAURANTS_FOOD_SERVICE:100:17:134:44 RETAIL:100:17:134:44 TRADING_DISTRIBUTION:100:18:134:44 TRANSPORT_LOGISTICS:100:18:134:44 Aa3 CONTRACTING'
+    PRINT 'PASS CA12: the platform seed holds the scale, the lines, the metrics, the activities, the products, the remedies, the plans, the texts and the sixteen approved sector family scorecards of the methodology';
+ELSE PRINT CONCAT('FAIL CA12: ', @got, ' (expected 21 10 Baa3 157 112 368 2576 6 42 23 127 36 15 39 10 70 AUTOMOTIVE_DISTRIBUTION:100:18:134:44 AVIATION:100:17:134:44 BUILDING_MATERIALS_MFG:100:18:134:44 BUILDING_MATERIALS_TRADE:100:16:134:44 BUSINESS_SERVICES:100:18:134:44 CONTRACTING:100:18:134:45 FOOD_BEVERAGE_MFG:100:18:134:44 GENERAL_CORPORATE:100:17:134:44 HEALTHCARE_PHARMA:100:18:134:44 HOSPITALITY_TOURISM:100:18:134:44 PROPERTY_DEVELOPMENT:100:18:134:44 PROPERTY_INVESTMENT:100:17:134:44 RESTAURANTS_FOOD_SERVICE:100:17:134:44 RETAIL:100:17:134:44 TRADING_DISTRIBUTION:100:18:134:44 TRANSPORT_LOGISTICS:100:18:134:44 Aa3 CONTRACTING)');
 GO
 /* CA13 fixture: IND's facility on the platform (revision 1 approved, bank 1 at 100 percent), a committed root limit of
    @Limit million SAR, an active utilisation of @Used million, and its collateral: a property covering @Property million
@@ -885,9 +889,9 @@ END;
 GO
 DECLARE @got NVARCHAR(2000);
 EXEC #CCases '#PlatformCase', 1, 3, @got OUTPUT;
-IF @got = '1:0=Ba2 Ba1 39.00 LGD3 RR3 SGL-2 | 300/250/500/120/1 | INFORMATION_RISK,INFORMATION_RISK_SEVERE 2:0=Ba2 Ba2 65.00 LGD4 RR4 SGL-2 | 300/250/300/0/1 | INFORMATION_RISK,INFORMATION_RISK_SEVERE 3:0=B2 B1 39.00 LGD3 RR3 SGL-2 | 300/250/500/120/1 | BUREAU_DPD30_59,BUREAU_HIDDEN_DEBT,BUREAU_LENDERS_NOT_ON_PLATFORM,INFORMATION_RISK,INFORMATION_RISK_SEVERE'
+IF @got = '1:0=Ba2 Ba1 39.00 LGD3 RR3 SGL-2 | 300/250/500/120/1 | INFORMATION_RISK,INFORMATION_RISK_SEVERE 2:0=Ba2 Ba2 65.00 LGD4 RR4 SGL-2 | 300/250/300/0/1 | INFORMATION_RISK,INFORMATION_RISK_SEVERE 3:0=B1 Ba3 39.00 LGD3 RR3 SGL-2 | 300/250/500/120/1 | BUREAU_DPD30_59,BUREAU_HIDDEN_DEBT,BUREAU_LENDERS_NOT_ON_PLATFORM,INFORMATION_RISK,INFORMATION_RISK_SEVERE'
     PRINT 'PASS CA13: the facilities, collateral and guarantor on the platform give the facility grade, and the SIMAH report its adjustments, as the reference computes them';
-ELSE PRINT CONCAT('FAIL CA13: ', @got, ' (expected 1:0=Ba2 Ba1 39.00 LGD3 RR3 SGL-2 | 300/250/500/120/1 | INFORMATION_RISK,INFORMATION_RISK_SEVERE 2:0=Ba2 Ba2 65.00 LGD4 RR4 SGL-2 | 300/250/300/0/1 | INFORMATION_RISK,INFORMATION_RISK_SEVERE 3:0=B2 B1 39.00 LGD3 RR3 SGL-2 | 300/250/500/120/1 | BUREAU_DPD30_59,BUREAU_HIDDEN_DEBT,BUREAU_LENDERS_NOT_ON_PLATFORM,INFORMATION_RISK,INFORMATION_RISK_SEVERE)');
+ELSE PRINT CONCAT('FAIL CA13: ', @got, ' (expected 1:0=Ba2 Ba1 39.00 LGD3 RR3 SGL-2 | 300/250/500/120/1 | INFORMATION_RISK,INFORMATION_RISK_SEVERE 2:0=Ba2 Ba2 65.00 LGD4 RR4 SGL-2 | 300/250/300/0/1 | INFORMATION_RISK,INFORMATION_RISK_SEVERE 3:0=B1 Ba3 39.00 LGD3 RR3 SGL-2 | 300/250/500/120/1 | BUREAU_DPD30_59,BUREAU_HIDDEN_DEBT,BUREAU_LENDERS_NOT_ON_PLATFORM,INFORMATION_RISK,INFORMATION_RISK_SEVERE)');
 GO
 /* CA14 (FR-FIN-028 to FR-FIN-030, BR-FIN-028 to BR-FIN-030, docs/35 sections 5, 12, 13 and 15): IND's activity is the
    manufacture of non-metallic mineral products and its product lines for 2025 are building materials and capital
@@ -918,7 +922,7 @@ FROM (SELECT PlanCode, FinalGrade, NotchesGained, SortOrder, STRING_AGG(RemedyCo
 SELECT @steps = COUNT(*), @unbal = SUM(CASE WHEN IsBalanced = 0 THEN 1 ELSE 0 END) FROM fin.v_CreditAssessmentPlans WHERE AssessmentId = @a;
 SELECT @trig = COUNT(*) FROM fin.v_CreditAssessmentTriggers WHERE AssessmentId = @a;
 WHILE @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
-IF @head = 'B1 C23 Ba1 BELOW VULNERABLE DEVELOPING NEG_LIQUIDITY,NEG_SCENARIO,NEG_TREND,POS_HEADROOM' AND @scen = 'FINANCIAL_CRISIS:Caa3:6:SGL-4 STAGNANT_MARKET:Caa1:4:SGL-4' AND @plans = 'OWNER_SUPPORT_NO_CASH:Ba3:+1:CONVERT_DUE_TO_RELATED_TO_SUB CAPITAL_STRENGTHENING:Ba3:+1:RETAIN_EARNINGS RELATED_PARTY_CLEANUP:Ba3:+1:CONVERT_DUE_TO_RELATED_TO_SUB OPTIMAL_NO_NEW_CASH:Ba3:+1:RETAIN_EARNINGS,CONVERT_DUE_TO_RELATED_TO_SUB' AND @unbal = 0 AND @steps > 0 AND @trig = 20
+IF @head = 'Ba3 C23 B1 WITHIN VULNERABLE NEGATIVE NEG_LIQUIDITY,NEG_SCENARIO,NEG_TREND' AND @scen = 'FINANCIAL_CRISIS:Caa3:7:SGL-4 FISCAL_SQUEEZE:Caa3:7:SGL-4 OIL_PRICE_COLLAPSE:Caa2:6:SGL-4 REAL_ESTATE_CORRECTION:Caa2:6:SGL-4 REGIONAL_CONFLICT:Caa2:6:SGL-4 STAGNANT_MARKET:Caa2:6:SGL-4' AND @plans = 'OWNER_SUPPORT_NO_CASH:Ba3:+0:CONVERT_DUE_TO_RELATED_TO_SUB CAPITAL_STRENGTHENING:Ba3:+0:RETAIN_EARNINGS RELATED_PARTY_CLEANUP:Ba3:+0:CONVERT_DUE_TO_RELATED_TO_SUB OPTIMAL_NO_NEW_CASH:Ba3:+0:RETAIN_EARNINGS,CONVERT_DUE_TO_RELATED_TO_SUB' AND @unbal = 0 AND @steps > 0 AND @trig = 15
     PRINT 'PASS CA14: the activity and product lines give the scenarios, resilience, sector position and triggers, and the strengthening plans keep the balance sheet balanced at every step, as the reference computes them';
 ELSE PRINT CONCAT('FAIL CA14: ', @head, ' | ', @scen, ' | ', @plans, ' | unbalanced ', @unbal, ' of ', @steps, ' | triggers ', @trig);
 GO
@@ -957,7 +961,42 @@ IF @got = '1:50063 2:50063 3:50063 4:0=SUBMITTED 5:50063'
     PRINT 'PASS CA15: a guarantor, the bureau report or a product line changed after the computation stops the submission until it is computed again';
 ELSE PRINT CONCAT('FAIL CA15: ', @got, ' (expected 1:50063 2:50063 3:50063 4:0=SUBMITTED 5:50063)');
 GO
-DROP PROCEDURE #HashCase, #PlatformCase, #CPlatform, #CardCase, #CovCase, #CCov, #LifeCase, #SupportCase, #HoldAssessment, #AdjustCase, #DataCase,
+/* CA16 (FR-FIN-031 to FR-FIN-033, BR-FIN-031 and BR-FIN-032, ADR 0019): the market country and city of the
+   assessment and the detailed activity of the company: (1) a division with detailed activities, in the UAE without a
+   city, asks for the activity and the city; (2) a finished building materials supplier in Dubai gives the Dubai real
+   estate stress; (3) a country without a profile reads the default one and asks for it; (4) a strong company in
+   Bahrain is capped at the sovereign rating. Each gives the country risk, the industry risk, the anchor, the country
+   ceiling, the final grade, the requests and the revenue change of the real estate correction the reference gives. */
+CREATE PROCEDURE #CountryCase @Case INT, @Out NVARCHAR(1000) OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @s BIGINT, @a BIGINT, @ind BIGINT = (SELECT v FROM #C WHERE k = 'ind');
+    UPDATE org.Company SET IndustryId = (SELECT IndustryId FROM ref.Industry WHERE Code = CASE @Case WHEN 1 THEN 'G4663' WHEN 4 THEN 'C2101' ELSE 'G466301' END)
+    WHERE CompanyId = @ind;
+    EXEC #CStmt @ind, '2025-12-31';
+    SELECT @s = v FROM #C WHERE k = 's';
+    EXEC #CAssess @s;
+    SELECT @a = v FROM #C WHERE k = 'a';
+    UPDATE fin.CreditAssessment
+       SET MarketCountryId = (SELECT CountryId FROM ref.Country WHERE Iso2 = CASE @Case WHEN 3 THEN 'TR' WHEN 4 THEN 'BH' ELSE 'AE' END),
+           MarketRegionCode = CASE WHEN @Case = 2 THEN 'DXB' END
+    WHERE CreditAssessmentId = @a;
+    EXEC fin.usp_ComputeCreditAssessment @a;
+    SELECT @Out = CONCAT(r.CountryRisk, ' ', r.IndustryRisk, ' ', r.SectorTypicalGrade, ' ', r.CountryCeilingGrade, ' ', r.FinalGrade, ' ',
+                         ISNULL((SELECT STRING_AGG(x.RuleCode, ',') WITHIN GROUP (ORDER BY x.RuleCode) FROM fin.CreditAssessmentFinding AS x
+                                 WHERE x.AssessmentId = @a AND x.Source = 'DATA' AND x.RuleCode IN ('COUNTRY_PROFILE', 'INDUSTRY_DETAIL', 'MARKET_REGION')), '-'), ' ',
+                         (SELECT FORMAT(RevenuePct, 'N2', 'en-US') FROM fin.v_CreditAssessmentScenarios WHERE AssessmentId = @a AND Scenario = 'REAL_ESTATE_CORRECTION'))
+    FROM fin.v_CreditAssessmentReport AS r WHERE r.CreditAssessmentId = @a;
+END;
+GO
+DECLARE @got NVARCHAR(2000);
+EXEC #CCases '#CountryCase', 1, 4, @got OUTPUT;
+IF @got = '1:0=2 4 B1 Aa2 Ba3 INDUSTRY_DETAIL,MARKET_REGION -29.63 2:0=2 4 B1 Aa2 Ba3 - -42.55 3:0=4 4 B3 Ba2 Ba3 COUNTRY_PROFILE -26.30 4:0=4 2 Ba1 B2 B2 - -4.24'
+    PRINT 'PASS CA16: the market country and city and the detailed activity give the country risk, the anchor, the country ceiling, the requests and the stress of the scenarios, as the reference computes them';
+ELSE PRINT CONCAT('FAIL CA16: ', @got, ' (expected 1:0=2 4 B1 Aa2 Ba3 INDUSTRY_DETAIL,MARKET_REGION -29.63 2:0=2 4 B1 Aa2 Ba3 - -42.55 3:0=4 4 B3 Ba2 Ba3 COUNTRY_PROFILE -26.30 4:0=4 2 Ba1 B2 B2 - -4.24)');
+GO
+DROP PROCEDURE #CountryCase, #HashCase, #PlatformCase, #CPlatform, #CardCase, #CovCase, #CCov, #LifeCase, #SupportCase, #HoldAssessment, #AdjustCase, #DataCase,
                #CoverageCase, #CHead, #CGrade, #CCases, #CAssess, #Crd, #CStmt, #CBase, #CBind;
 DROP TABLE #C;
 DROP USER [tp_test_crdapp];

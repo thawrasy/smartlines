@@ -5123,48 +5123,167 @@ CREATE TABLE [fin].[ScorecardAdjustment] (
     CONSTRAINT [CK_ScorecardAdjustment_ShowWhen] CHECK ([ShowWhen] IS NULL OR [ShowWhen] IN ('ALWAYS', 'WHEN_BINDING'))
 );
 GO
--- The credit profile of an activity: its default scorecard, sector risk, cyclicality, the grade range expected of a typical mid-size Saudi company in it, its ceiling, and the extra data it must give (docs/35 section 5)
+-- The credit profile of an activity or a division: its sector family scorecard, industry risk, cyclicality, its ceiling, the extra data it must give and the products it usually sells; the expected grade range comes from the country and industry risk anchor (docs/35 section 13, ADR 0019)
 CREATE TABLE [fin].[IndustryProfile] (
     [IndustryProfileId] INT IDENTITY(1,1) NOT NULL,
     [IndustryId] INT NOT NULL,
     [DefaultScorecardCode] VARCHAR(40) NOT NULL,
-    [SectorRisk] TINYINT NOT NULL,
+    [IndustryRisk] TINYINT NOT NULL,
     [Cyclicality] VARCHAR(10) NOT NULL,
-    [ExpectedBestGradeId] INT NOT NULL,
-    [ExpectedTypicalGradeId] INT NOT NULL,
-    [ExpectedWorstGradeId] INT NOT NULL,
     [CeilingGradeId] INT NULL,
     [ExtraDisclosures] VARCHAR(400) NULL,
     [ProductCategories] VARCHAR(400) NOT NULL,
     [NoteAr] NVARCHAR(1000) NULL,
+    [NoteEn] NVARCHAR(1000) NULL,
     [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_IndustryProfile_CreatedAt] DEFAULT SYSUTCDATETIME(),
     [CreatedBy] BIGINT NULL,
     [UpdatedAt] DATETIME2(3) NULL,
     [UpdatedBy] BIGINT NULL,
     CONSTRAINT [PK_IndustryProfile] PRIMARY KEY CLUSTERED ([IndustryProfileId]),
     CONSTRAINT [UQ_IndustryProfile_IndustryId] UNIQUE ([IndustryId]),
-    CONSTRAINT [CK_IndustryProfile_1] CHECK (SectorRisk BETWEEN 1 AND 5),
+    CONSTRAINT [CK_IndustryProfile_1] CHECK (IndustryRisk BETWEEN 1 AND 6),
     CONSTRAINT [CK_IndustryProfile_Cyclicality] CHECK ([Cyclicality] IS NULL OR [Cyclicality] IN ('LOW', 'MEDIUM', 'HIGH'))
 );
 GO
--- A stress scenario of an activity: the stagnant market or the financial crisis, as changes the assessment applies to the statement (docs/35 section 13)
-CREATE TABLE [fin].[IndustryScenario] (
-    [IndustryScenarioId] INT IDENTITY(1,1) NOT NULL,
-    [IndustryId] INT NOT NULL,
-    [Scenario] VARCHAR(16) NOT NULL,
+-- A driver of stress: private demand, government spending, real estate, conflict, oil, credit, imports and currency; its effect at full intensity on revenue, gross margin and collection days (docs/35 section 14, ADR 0019)
+CREATE TABLE [fin].[ShockDriver] (
+    [ShockDriverId] INT IDENTITY(1,1) NOT NULL,
+    [Code] VARCHAR(20) NOT NULL,
+    [NameAr] NVARCHAR(200) NOT NULL,
+    [NameEn] NVARCHAR(200) NOT NULL,
     [RevenuePct] DECIMAL(9,4) NOT NULL,
     [GrossMarginPp] DECIMAL(9,4) NOT NULL,
     [DsoDays] DECIMAL(9,2) NOT NULL,
-    [StLinesWithdrawnPct] DECIMAL(9,4) NOT NULL,
-    [RateBp] INT NOT NULL,
-    [PrivateArLossPct] DECIMAL(9,4) NOT NULL,
-    [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_IndustryScenario_CreatedAt] DEFAULT SYSUTCDATETIME(),
+    [SortOrder] INT NOT NULL,
+    [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_ShockDriver_CreatedAt] DEFAULT SYSUTCDATETIME(),
     [CreatedBy] BIGINT NULL,
     [UpdatedAt] DATETIME2(3) NULL,
     [UpdatedBy] BIGINT NULL,
-    CONSTRAINT [PK_IndustryScenario] PRIMARY KEY CLUSTERED ([IndustryScenarioId]),
-    CONSTRAINT [UQ_IndustryScenario_IndustryId_Scenario] UNIQUE ([IndustryId], [Scenario]),
-    CONSTRAINT [CK_IndustryScenario_Scenario] CHECK ([Scenario] IS NULL OR [Scenario] IN ('STAGNANT_MARKET', 'FINANCIAL_CRISIS'))
+    CONSTRAINT [PK_ShockDriver] PRIMARY KEY CLUSTERED ([ShockDriverId]),
+    CONSTRAINT [UQ_ShockDriver_Code] UNIQUE ([Code]),
+    CONSTRAINT [CK_ShockDriver_1] CHECK (Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%'),
+    CONSTRAINT [CK_ShockDriver_2] CHECK (RevenuePct >= 0 AND GrossMarginPp >= 0 AND DsoDays >= 0)
+);
+GO
+-- A macro stress scenario: the stagnant market, the financial crisis, a fiscal squeeze, a real estate correction, a regional conflict, an oil price collapse; the intensity of each driver and the financial conditions (docs/35 section 14, ADR 0019)
+CREATE TABLE [fin].[MacroScenario] (
+    [MacroScenarioId] INT IDENTITY(1,1) NOT NULL,
+    [Code] VARCHAR(30) NOT NULL,
+    [NameAr] NVARCHAR(200) NOT NULL,
+    [NameEn] NVARCHAR(200) NOT NULL,
+    [DescriptionAr] NVARCHAR(1000) NOT NULL,
+    [DescriptionEn] NVARCHAR(1000) NOT NULL,
+    [InventorySeverity] VARCHAR(10) NOT NULL,
+    [StLinesWithdrawnPct] DECIMAL(9,4) NOT NULL,
+    [RateBp] INT NOT NULL,
+    [PrivateArLossPct] DECIMAL(9,4) NOT NULL,
+    [BaseDsoDays] DECIMAL(9,2) NOT NULL,
+    [IsResilienceBase] BIT NOT NULL CONSTRAINT [DF_MacroScenario_IsResilienceBase] DEFAULT 0,
+    [SortOrder] INT NOT NULL,
+    [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_MacroScenario_CreatedAt] DEFAULT SYSUTCDATETIME(),
+    [CreatedBy] BIGINT NULL,
+    [UpdatedAt] DATETIME2(3) NULL,
+    [UpdatedBy] BIGINT NULL,
+    CONSTRAINT [PK_MacroScenario] PRIMARY KEY CLUSTERED ([MacroScenarioId]),
+    CONSTRAINT [UQ_MacroScenario_Code] UNIQUE ([Code]),
+    CONSTRAINT [CK_MacroScenario_1] CHECK (Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%'),
+    CONSTRAINT [CK_MacroScenario_2] CHECK (StLinesWithdrawnPct BETWEEN 0 AND 100 AND PrivateArLossPct BETWEEN 0 AND 100 AND RateBp >= 0 AND BaseDsoDays >= 0),
+    CONSTRAINT [CK_MacroScenario_InventorySeverity] CHECK ([InventorySeverity] IS NULL OR [InventorySeverity] IN ('STAGNANT', 'CRISIS'))
+);
+GO
+-- The intensity 0 to 1 of a driver in a macro scenario (docs/35 section 14)
+CREATE TABLE [fin].[MacroScenarioIntensity] (
+    [MacroScenarioIntensityId] INT IDENTITY(1,1) NOT NULL,
+    [MacroScenarioId] INT NOT NULL,
+    [ShockDriverId] INT NOT NULL,
+    [Intensity] DECIMAL(5,3) NOT NULL,
+    [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_MacroScenarioIntensity_CreatedAt] DEFAULT SYSUTCDATETIME(),
+    [CreatedBy] BIGINT NULL,
+    [UpdatedAt] DATETIME2(3) NULL,
+    [UpdatedBy] BIGINT NULL,
+    CONSTRAINT [PK_MacroScenarioIntensity] PRIMARY KEY CLUSTERED ([MacroScenarioIntensityId]),
+    CONSTRAINT [UQ_MacroScenarioIntensity_MacroScenarioId_ShockDriverId] UNIQUE ([MacroScenarioId], [ShockDriverId]),
+    CONSTRAINT [CK_MacroScenarioIntensity_1] CHECK (Intensity BETWEEN 0 AND 1)
+);
+GO
+-- The sensitivity 0 (none) to 5 (extreme) of an activity to a driver of stress (docs/35 section 14)
+CREATE TABLE [fin].[IndustrySensitivity] (
+    [IndustrySensitivityId] INT IDENTITY(1,1) NOT NULL,
+    [IndustryId] INT NOT NULL,
+    [ShockDriverId] INT NOT NULL,
+    [Sensitivity] TINYINT NOT NULL,
+    [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_IndustrySensitivity_CreatedAt] DEFAULT SYSUTCDATETIME(),
+    [CreatedBy] BIGINT NULL,
+    [UpdatedAt] DATETIME2(3) NULL,
+    [UpdatedBy] BIGINT NULL,
+    CONSTRAINT [PK_IndustrySensitivity] PRIMARY KEY CLUSTERED ([IndustrySensitivityId]),
+    CONSTRAINT [UQ_IndustrySensitivity_IndustryId_ShockDriverId] UNIQUE ([IndustryId], [ShockDriverId]),
+    CONSTRAINT [CK_IndustrySensitivity_1] CHECK (Sensitivity BETWEEN 0 AND 5)
+);
+GO
+-- The credit risk of a country for its companies: country risk 1 to 6, the published sovereign rating and its date, the ceiling of a company's grade, and the country's exposure to each driver of stress; one default row for a country without a profile (docs/35 section 13, ADR 0019)
+CREATE TABLE [fin].[CountryRiskProfile] (
+    [CountryRiskProfileId] INT IDENTITY(1,1) NOT NULL,
+    [CountryId] INT NULL,
+    [IsDefault] BIT NOT NULL CONSTRAINT [DF_CountryRiskProfile_IsDefault] DEFAULT 0,
+    [CountryRisk] TINYINT NOT NULL,
+    [SovereignRatingGradeId] INT NULL,
+    [RatingAsOf] VARCHAR(7) NULL,
+    [CeilingGradeId] INT NOT NULL,
+    [ExpDemand] DECIMAL(5,2) NOT NULL,
+    [ExpGovSpending] DECIMAL(5,2) NOT NULL,
+    [ExpRealEstate] DECIMAL(5,2) NOT NULL,
+    [ExpConflict] DECIMAL(5,2) NOT NULL,
+    [ExpOil] DECIMAL(5,2) NOT NULL,
+    [ExpCredit] DECIMAL(5,2) NOT NULL,
+    [ExpImportFx] DECIMAL(5,2) NOT NULL,
+    [NoteAr] NVARCHAR(1000) NULL,
+    [NoteEn] NVARCHAR(1000) NULL,
+    [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_CountryRiskProfile_CreatedAt] DEFAULT SYSUTCDATETIME(),
+    [CreatedBy] BIGINT NULL,
+    [UpdatedAt] DATETIME2(3) NULL,
+    [UpdatedBy] BIGINT NULL,
+    CONSTRAINT [PK_CountryRiskProfile] PRIMARY KEY CLUSTERED ([CountryRiskProfileId]),
+    CONSTRAINT [CK_CountryRiskProfile_1] CHECK (CountryRisk BETWEEN 1 AND 6),
+    CONSTRAINT [CK_CountryRiskProfile_2] CHECK ((IsDefault = 1 AND CountryId IS NULL) OR (IsDefault = 0 AND CountryId IS NOT NULL)),
+    CONSTRAINT [CK_CountryRiskProfile_3] CHECK (ExpDemand BETWEEN 0.3 AND 2 AND ExpGovSpending BETWEEN 0.3 AND 2 AND ExpRealEstate BETWEEN 0.3 AND 2 AND ExpConflict BETWEEN 0.3 AND 2 AND ExpOil BETWEEN 0.3 AND 2 AND ExpCredit BETWEEN 0.3 AND 2 AND ExpImportFx BETWEEN 0.3 AND 2),
+    CONSTRAINT [CK_CountryRiskProfile_4] CHECK (RatingAsOf IS NULL OR RatingAsOf COLLATE Arabic_100_BIN2 LIKE '[12][0-9][0-9][0-9]-[01][0-9]')
+);
+GO
+-- A city or region of a country and how much more or less its property falls, and how exposed it is to conflict, than its country (docs/35 section 14)
+CREATE TABLE [fin].[CountryRegion] (
+    [CountryRegionId] INT IDENTITY(1,1) NOT NULL,
+    [CountryId] INT NOT NULL,
+    [Code] VARCHAR(10) NOT NULL,
+    [NameAr] NVARCHAR(200) NOT NULL,
+    [NameEn] NVARCHAR(200) NOT NULL,
+    [Tier] VARCHAR(10) NOT NULL,
+    [RealEstateMult] DECIMAL(5,2) NOT NULL,
+    [ConflictMult] DECIMAL(5,2) NOT NULL,
+    [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_CountryRegion_CreatedAt] DEFAULT SYSUTCDATETIME(),
+    [CreatedBy] BIGINT NULL,
+    [UpdatedAt] DATETIME2(3) NULL,
+    [UpdatedBy] BIGINT NULL,
+    CONSTRAINT [PK_CountryRegion] PRIMARY KEY CLUSTERED ([CountryRegionId]),
+    CONSTRAINT [UQ_CountryRegion_CountryId_Code] UNIQUE ([CountryId], [Code]),
+    CONSTRAINT [CK_CountryRegion_1] CHECK (Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%'),
+    CONSTRAINT [CK_CountryRegion_2] CHECK (RealEstateMult BETWEEN 0.5 AND 2 AND ConflictMult BETWEEN 0.5 AND 2),
+    CONSTRAINT [CK_CountryRegion_Tier] CHECK ([Tier] IS NULL OR [Tier] IN ('PRIME', 'MAJOR', 'SECONDARY', 'PERIPHERAL'))
+);
+GO
+-- The anchor of a company's business risk from its country risk and its industry risk, a notch of the 21-grade scale: the computed sector risk sub-factor and the centre of the expected range (docs/35 section 13)
+CREATE TABLE [fin].[RiskAnchor] (
+    [RiskAnchorId] INT IDENTITY(1,1) NOT NULL,
+    [CountryRisk] TINYINT NOT NULL,
+    [IndustryRisk] TINYINT NOT NULL,
+    [AnchorNotch] TINYINT NOT NULL,
+    [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_RiskAnchor_CreatedAt] DEFAULT SYSUTCDATETIME(),
+    [CreatedBy] BIGINT NULL,
+    [UpdatedAt] DATETIME2(3) NULL,
+    [UpdatedBy] BIGINT NULL,
+    CONSTRAINT [PK_RiskAnchor] PRIMARY KEY CLUSTERED ([RiskAnchorId]),
+    CONSTRAINT [UQ_RiskAnchor_CountryRisk_IndustryRisk] UNIQUE ([CountryRisk], [IndustryRisk]),
+    CONSTRAINT [CK_RiskAnchor_1] CHECK (CountryRisk BETWEEN 1 AND 6 AND IndustryRisk BETWEEN 1 AND 6 AND AnchorNotch BETWEEN 1 AND 21)
 );
 GO
 -- A category of products or services and its credit behaviour: cash-flow quality, revenue sensitivity, inventory sale value and time to sell in normal, stagnant and crisis markets (docs/35 section 5)
@@ -5174,8 +5293,7 @@ CREATE TABLE [fin].[ProductCategory] (
     [NameAr] NVARCHAR(200) NOT NULL,
     [NameEn] NVARCHAR(200) NOT NULL,
     [CashFlowQuality] TINYINT NOT NULL,
-    [RevStagnantPct] DECIMAL(9,4) NOT NULL,
-    [RevCrisisPct] DECIMAL(9,4) NOT NULL,
+    [DemandSensitivity] TINYINT NOT NULL,
     [InvValueNormalPct] DECIMAL(9,4) NOT NULL,
     [InvValueStagnantPct] DECIMAL(9,4) NOT NULL,
     [InvValueCrisisPct] DECIMAL(9,4) NOT NULL,
@@ -5190,7 +5308,8 @@ CREATE TABLE [fin].[ProductCategory] (
     CONSTRAINT [PK_ProductCategory] PRIMARY KEY CLUSTERED ([ProductCategoryId]),
     CONSTRAINT [UQ_ProductCategory_Code] UNIQUE ([Code]),
     CONSTRAINT [CK_ProductCategory_1] CHECK (CashFlowQuality BETWEEN 1 AND 5),
-    CONSTRAINT [CK_ProductCategory_2] CHECK (InvValueNormalPct BETWEEN 0 AND 100 AND InvValueStagnantPct BETWEEN 0 AND 100 AND InvValueCrisisPct BETWEEN 0 AND 100)
+    CONSTRAINT [CK_ProductCategory_2] CHECK (DemandSensitivity BETWEEN 0 AND 5),
+    CONSTRAINT [CK_ProductCategory_3] CHECK (InvValueNormalPct BETWEEN 0 AND 100 AND InvValueStagnantPct BETWEEN 0 AND 100 AND InvValueCrisisPct BETWEEN 0 AND 100)
 );
 GO
 -- The standard statement line catalogue of the platform: every point of the statements the credit assessment reads, its kind and the line it breaks down; installed into a tenant's catalogue by fin.usp_InstallStandardLines (docs/35 section 4, FR-FIN-001)
@@ -5249,7 +5368,7 @@ CREATE TABLE [fin].[ScorecardParameter] (
     [UpdatedBy] BIGINT NULL,
     CONSTRAINT [PK_ScorecardParameter] PRIMARY KEY CLUSTERED ([ScorecardParameterId]),
     CONSTRAINT [UQ_ScorecardParameter_ScorecardId_GroupCode_ParamKey] UNIQUE ([ScorecardId], [GroupCode], [ParamKey]),
-    CONSTRAINT [CK_ScorecardParameter_GroupCode] CHECK ([GroupCode] IS NULL OR [GroupCode] IN ('CARD', 'REALISABLE_HAIRCUT', 'COLLATERAL_HAIRCUT', 'LGD_BAND', 'SGL', 'FIXED_COST'))
+    CONSTRAINT [CK_ScorecardParameter_GroupCode] CHECK ([GroupCode] IS NULL OR [GroupCode] IN ('CARD', 'REALISABLE_HAIRCUT', 'COLLATERAL_HAIRCUT', 'LGD_BAND', 'SGL', 'FIXED_COST', 'SCENARIO'))
 );
 GO
 -- A sub-factor of a qualitative factor of a scorecard, with its grading guide; the factor's grade is the average of the graded sub-factors when the analyst grades them (docs/35 section 5)
@@ -5446,6 +5565,12 @@ CREATE TABLE [fin].[CreditAssessment] (
     [UpHeadroom] DECIMAL(9,4) NULL,
     [DownHeadroom] DECIMAL(9,4) NULL,
     [StrengtheningRequested] BIT NOT NULL CONSTRAINT [DF_CreditAssessment_StrengtheningRequested] DEFAULT 0,
+    [MarketCountryId] INT NULL,
+    [MarketRegionCode] VARCHAR(10) NULL,
+    [CountryRisk] TINYINT NULL,
+    [IndustryRisk] TINYINT NULL,
+    [AnchorGradeId] INT NULL,
+    [CountryCeilingGradeId] INT NULL,
     [PublicId] UNIQUEIDENTIFIER NOT NULL CONSTRAINT [DF_CreditAssessment_PublicId] DEFAULT NEWSEQUENTIALID(),
     [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_CreditAssessment_CreatedAt] DEFAULT SYSUTCDATETIME(),
     [CreatedBy] BIGINT NULL,
@@ -5467,6 +5592,9 @@ CREATE TABLE [fin].[CreditAssessment] (
     CONSTRAINT [CK_CreditAssessment_10] CHECK (Status NOT IN ('APPROVED','SUPERSEDED') OR (ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)),
     CONSTRAINT [CK_CreditAssessment_11] CHECK (ApprovedBy IS NULL OR PreparedBy IS NULL OR ApprovedBy <> PreparedBy),
     CONSTRAINT [CK_CreditAssessment_12] CHECK (Status <> 'REJECTED' OR RejectionReason IS NOT NULL),
+    CONSTRAINT [CK_CreditAssessment_13] CHECK (MarketRegionCode IS NULL OR MarketRegionCode COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%'),
+    CONSTRAINT [CK_CreditAssessment_14] CHECK (CountryRisk IS NULL OR CountryRisk BETWEEN 1 AND 6),
+    CONSTRAINT [CK_CreditAssessment_15] CHECK (IndustryRisk IS NULL OR IndustryRisk BETWEEN 1 AND 6),
     CONSTRAINT [CK_CreditAssessment_Status] CHECK ([Status] IS NULL OR [Status] IN ('DRAFT', 'SUBMITTED', 'APPROVED', 'REJECTED', 'SUPERSEDED')),
     CONSTRAINT [CK_CreditAssessment_ResultState] CHECK ([ResultState] IS NULL OR [ResultState] IN ('RATED', 'INDICATIVE', 'INSUFFICIENT_DATA')),
     CONSTRAINT [CK_CreditAssessment_SectorPosition] CHECK ([SectorPosition] IS NULL OR [SectorPosition] IN ('ABOVE', 'WITHIN', 'BELOW')),
@@ -5731,12 +5859,19 @@ CREATE TABLE [fin].[CreditAssessmentBureau] (
     CONSTRAINT [CK_CreditAssessmentBureau_3] CHECK (Defaults24mCount >= 0 AND Defaults24mAmount >= 0 AND BouncedCheques12mCount >= 0 AND BouncedCheques12mAmount >= 0 AND JudgmentsCount >= 0 AND JudgmentsAmount >= 0 AND Inquiries6m >= 0)
 );
 GO
--- The assessment recomputed on the statement under a stress scenario of its activity: the grade, the liquidity label and the notches lost; written by fin.usp_ComputeCreditAssessment only (docs/35 section 13)
+-- The assessment recomputed on the statement under each macro scenario, with the stress applied: the grade, the liquidity label and the notches lost; written by fin.usp_ComputeCreditAssessment only (docs/35 section 13)
 CREATE TABLE [fin].[CreditAssessmentScenario] (
     [TenantId] INT NOT NULL,
     [CreditAssessmentScenarioId] BIGINT IDENTITY(1,1) NOT NULL,
     [AssessmentId] BIGINT NOT NULL,
-    [Scenario] VARCHAR(16) NOT NULL,
+    [MacroScenarioId] INT NOT NULL,
+    [RevenuePct] DECIMAL(9,4) NULL,
+    [GrossMarginPp] DECIMAL(9,4) NULL,
+    [DsoDays] DECIMAL(9,2) NULL,
+    [StLinesWithdrawnPct] DECIMAL(9,4) NULL,
+    [RateBp] INT NULL,
+    [PrivateArLossPct] DECIMAL(9,4) NULL,
+    [InventoryWritedownPct] DECIMAL(9,4) NULL,
     [RevenueAfter] DECIMAL(19,4) NULL,
     [EbitdaAfter] DECIMAL(19,4) NULL,
     [InventoryValueAfter] DECIMAL(19,4) NULL,
@@ -5750,8 +5885,7 @@ CREATE TABLE [fin].[CreditAssessmentScenario] (
     [UpdatedBy] BIGINT NULL,
     CONSTRAINT [PK_CreditAssessmentScenario] PRIMARY KEY CLUSTERED ([CreditAssessmentScenarioId]),
     CONSTRAINT [UQ_CreditAssessmentScenario_Tenant] UNIQUE ([TenantId], [CreditAssessmentScenarioId]),
-    CONSTRAINT [UQ_CreditAssessmentScenario_AssessmentId_Scenario] UNIQUE ([TenantId], [AssessmentId], [Scenario]),
-    CONSTRAINT [CK_CreditAssessmentScenario_Scenario] CHECK ([Scenario] IS NULL OR [Scenario] IN ('STAGNANT_MARKET', 'FINANCIAL_CRISIS'))
+    CONSTRAINT [UQ_CreditAssessmentScenario_AssessmentId_MacroScenarioId] UNIQUE ([TenantId], [AssessmentId], [MacroScenarioId])
 );
 GO
 -- A strengthening plan computed for the assessment when the customer asked for one: the grade at its end and whether the balance sheet stayed balanced; written by fin.usp_ComputeCreditAssessment only (docs/35 section 12)

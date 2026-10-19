@@ -744,39 +744,111 @@ table fin.ScorecardAdjustment int global  # An adjustment of a scorecard: notche
 
 # ---------- التقييم الائتماني v2: البنود والتبويب التحليلي والحلول (طلب المالك 2026-10-19، docs/35 v2، ADR 0018) ----------
 
-table fin.IndustryProfile int global  # The credit profile of an activity: its default scorecard, sector risk, cyclicality, the grade range expected of a typical mid-size Saudi company in it, its ceiling, and the extra data it must give (docs/35 section 5)
+table fin.IndustryProfile int global  # The credit profile of an activity or a division: its sector family scorecard, industry risk, cyclicality, its ceiling, the extra data it must give and the products it usually sells; the expected grade range comes from the country and industry risk anchor (docs/35 section 13, ADR 0019)
   IndustryId        ->ref.Industry req
-  DefaultScorecardCode ascii(40) req   # GENERAL_CORPORATE أو TRADING_DISTRIBUTION أو CONTRACTING
-  SectorRisk        tinyint   req      # 1 منخفضة جدًا ... 5 مرتفعة جدًا
+  DefaultScorecardCode ascii(40) req   # بطاقة عائلة القطاع (ADR 0019)
+  IndustryRisk      tinyint   req      # 1 منخفضة جدًا ... 6 مرتفعة جدًا
   Cyclicality       enum{LOW,MEDIUM,HIGH} req
-  ExpectedBestGradeId    ->fin.RatingGrade req noidx
-  ExpectedTypicalGradeId ->fin.RatingGrade req noidx
-  ExpectedWorstGradeId   ->fin.RatingGrade req noidx
-  CeilingGradeId    ->fin.RatingGrade noidx   # سقف القطاع إن وُجد
+  CeilingGradeId    ->fin.RatingGrade noidx   # سقف النشاط إن وُجد
   ExtraDisclosures  ascii(400)          # رموز الإفصاحات الإضافية للقطاع مفصولة بفواصل
   ProductCategories ascii(400) req      # فئات المنتجات المعتادة للنشاط مفصولة بفواصل؛ تُقرأ حين لا تُدخل الشركة خطوط منتجاتها
   NoteAr            str(1000)
+  NoteEn            str(1000)
   unique IndustryId
-  check  SectorRisk BETWEEN 1 AND 5
+  check  IndustryRisk BETWEEN 1 AND 6
 
-table fin.IndustryScenario int global  # A stress scenario of an activity: the stagnant market or the financial crisis, as changes the assessment applies to the statement (docs/35 section 13)
-  IndustryId        ->ref.Industry req
-  Scenario          enum{STAGNANT_MARKET,FINANCIAL_CRISIS} req
-  RevenuePct        dec(9,4)  req      # تغيّر الإيرادات، سالب
-  GrossMarginPp     dec(9,4)  req      # تغيّر هامش مجمل الربح بالنقاط
+table fin.ShockDriver int global  # A driver of stress: private demand, government spending, real estate, conflict, oil, credit, imports and currency; its effect at full intensity on revenue, gross margin and collection days (docs/35 section 14, ADR 0019)
+  Code              ascii(20) req
+  NameAr            str(200)  req
+  NameEn            str(200)  req
+  RevenuePct        dec(9,4)  req      # فقد الإيرادات عند الشدة الكاملة والحساسية 5 والتعرض 1
+  GrossMarginPp     dec(9,4)  req      # نقاط هامش مجمل الربح
   DsoDays           dec(9,2)  req      # أيام تحصيل إضافية
-  StLinesWithdrawnPct dec(9,4) req     # من الخطوط قصيرة الأجل غير الملتزمة
+  SortOrder         int       req
+  unique Code
+  check  Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%'
+  check  RevenuePct >= 0 AND GrossMarginPp >= 0 AND DsoDays >= 0
+
+table fin.MacroScenario int global  # A macro stress scenario: the stagnant market, the financial crisis, a fiscal squeeze, a real estate correction, a regional conflict, an oil price collapse; the intensity of each driver and the financial conditions (docs/35 section 14, ADR 0019)
+  Code              ascii(30) req
+  NameAr            str(200)  req
+  NameEn            str(200)  req
+  DescriptionAr     str(1000) req
+  DescriptionEn     str(1000) req
+  InventorySeverity enum{STAGNANT,CRISIS} req   # أي قيمة بيع للمخزون من فئات المنتجات
+  StLinesWithdrawnPct dec(9,4) req     # من الخطوط قصيرة الأجل غير الملتزمة، قبل تعرض البلد للائتمان
   RateBp            int       req      # ارتفاع سعر الفائدة على الدين المتغير
-  PrivateArLossPct  dec(9,4)  req      # خسارة الذمم الخاصة فوق 180 يومًا
-  unique IndustryId,Scenario
+  PrivateArLossPct  dec(9,4)  req      # خسارة الذمم الخاصة فوق 180 يومًا قبل أثر الطلب
+  BaseDsoDays       dec(9,2)  req
+  IsResilienceBase  bool      req =0   # السيناريو الذي يقيس الصمود والنظرة (ركود السوق)
+  SortOrder         int       req
+  unique Code
+  unique IsResilienceBase where IsResilienceBase = 1
+  check  Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%'
+  check  StLinesWithdrawnPct BETWEEN 0 AND 100 AND PrivateArLossPct BETWEEN 0 AND 100 AND RateBp >= 0 AND BaseDsoDays >= 0
+
+table fin.MacroScenarioIntensity int global  # The intensity 0 to 1 of a driver in a macro scenario (docs/35 section 14)
+  MacroScenarioId   ->fin.MacroScenario req
+  ShockDriverId     ->fin.ShockDriver req
+  Intensity         dec(5,3)  req
+  unique MacroScenarioId,ShockDriverId
+  check  Intensity BETWEEN 0 AND 1
+
+table fin.IndustrySensitivity int global  # The sensitivity 0 (none) to 5 (extreme) of an activity to a driver of stress (docs/35 section 14)
+  IndustryId        ->ref.Industry req
+  ShockDriverId     ->fin.ShockDriver req
+  Sensitivity       tinyint   req
+  unique IndustryId,ShockDriverId
+  check  Sensitivity BETWEEN 0 AND 5
+
+table fin.CountryRiskProfile int global  # The credit risk of a country for its companies: country risk 1 to 6, the published sovereign rating and its date, the ceiling of a company's grade, and the country's exposure to each driver of stress; one default row for a country without a profile (docs/35 section 13, ADR 0019)
+  CountryId         ->ref.Country         # فارغ للصف الافتراضي
+  IsDefault         bool      req =0
+  CountryRisk       tinyint   req
+  SovereignRatingGradeId ->fin.RatingGrade noidx   # التصنيف السيادي المنشور إن وُجد؛ يتحقق منه مشغّل المنصة
+  RatingAsOf        ascii(7)            # الشهر YYYY-MM
+  CeilingGradeId    ->fin.RatingGrade req noidx   # سقف درجة الشركة: التصنيف السيادي، أو سقف مخاطر البلد إن لم يُصنَّف
+  ExpDemand         dec(5,2)  req
+  ExpGovSpending    dec(5,2)  req
+  ExpRealEstate     dec(5,2)  req
+  ExpConflict       dec(5,2)  req
+  ExpOil            dec(5,2)  req
+  ExpCredit         dec(5,2)  req
+  ExpImportFx       dec(5,2)  req
+  NoteAr            str(1000)
+  NoteEn            str(1000)
+  unique CountryId where CountryId IS NOT NULL
+  unique IsDefault where IsDefault = 1
+  check  CountryRisk BETWEEN 1 AND 6
+  check  (IsDefault = 1 AND CountryId IS NULL) OR (IsDefault = 0 AND CountryId IS NOT NULL)
+  check  ExpDemand BETWEEN 0.3 AND 2 AND ExpGovSpending BETWEEN 0.3 AND 2 AND ExpRealEstate BETWEEN 0.3 AND 2 AND ExpConflict BETWEEN 0.3 AND 2 AND ExpOil BETWEEN 0.3 AND 2 AND ExpCredit BETWEEN 0.3 AND 2 AND ExpImportFx BETWEEN 0.3 AND 2
+  check  RatingAsOf IS NULL OR RatingAsOf COLLATE Arabic_100_BIN2 LIKE '[12][0-9][0-9][0-9]-[01][0-9]'
+
+table fin.CountryRegion int global  # A city or region of a country and how much more or less its property falls, and how exposed it is to conflict, than its country (docs/35 section 14)
+  CountryId         ->ref.Country req
+  Code              ascii(10) req
+  NameAr            str(200)  req
+  NameEn            str(200)  req
+  Tier              enum{PRIME,MAJOR,SECONDARY,PERIPHERAL} req
+  RealEstateMult    dec(5,2)  req
+  ConflictMult      dec(5,2)  req
+  unique CountryId,Code
+  check  Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%'
+  check  RealEstateMult BETWEEN 0.5 AND 2 AND ConflictMult BETWEEN 0.5 AND 2
+
+table fin.RiskAnchor int global  # The anchor of a company's business risk from its country risk and its industry risk, a notch of the 21-grade scale: the computed sector risk sub-factor and the centre of the expected range (docs/35 section 13)
+  CountryRisk       tinyint   req
+  IndustryRisk      tinyint   req
+  AnchorNotch       tinyint   req
+  unique CountryRisk,IndustryRisk
+  check  CountryRisk BETWEEN 1 AND 6 AND IndustryRisk BETWEEN 1 AND 6 AND AnchorNotch BETWEEN 1 AND 21
 
 table fin.ProductCategory int global  # A category of products or services and its credit behaviour: cash-flow quality, revenue sensitivity, inventory sale value and time to sell in normal, stagnant and crisis markets (docs/35 section 5)
   Code              ascii(40) req
   NameAr            str(200)  req
   NameEn            str(200)  req
   CashFlowQuality   tinyint   req      # 1 الأفضل ... 5 الأضعف
-  RevStagnantPct    dec(9,4)  req
-  RevCrisisPct      dec(9,4)  req
+  DemandSensitivity tinyint   req      # حساسية الطلب على الفئة 0 إلى 5؛ تحل محل حساسية النشاط للطلب حين تُدخل الشركة منتجاتها
   InvValueNormalPct dec(9,4)  req      # قيمة بيع المخزون من الدفترية
   InvValueStagnantPct dec(9,4) req
   InvValueCrisisPct dec(9,4)  req
@@ -786,6 +858,7 @@ table fin.ProductCategory int global  # A category of products or services and i
   CrisisExtraDso    int       req
   unique Code
   check  CashFlowQuality BETWEEN 1 AND 5
+  check  DemandSensitivity BETWEEN 0 AND 5
   check  InvValueNormalPct BETWEEN 0 AND 100 AND InvValueStagnantPct BETWEEN 0 AND 100 AND InvValueCrisisPct BETWEEN 0 AND 100
 
 table fin.StandardLine int global  # The standard statement line catalogue of the platform: every point of the statements the credit assessment reads, its kind and the line it breaks down; installed into a tenant's catalogue by fin.usp_InstallStandardLines (docs/35 section 4, FR-FIN-001)
@@ -814,7 +887,7 @@ table fin.StandardLineTotal int global  # The components of a standard total and
 
 table fin.ScorecardParameter int global  # A parameter of a scorecard version: a haircut of the break-up test, a collateral haircut, a band of the loss given default, a liquidity threshold, a cost rule; frozen with its scorecard (docs/35 sections 5, 9 and 10)
   ScorecardId       ->fin.Scorecard req
-  GroupCode         enum{CARD,REALISABLE_HAIRCUT,COLLATERAL_HAIRCUT,LGD_BAND,SGL,FIXED_COST} req
+  GroupCode         enum{CARD,REALISABLE_HAIRCUT,COLLATERAL_HAIRCUT,LGD_BAND,SGL,FIXED_COST,SCENARIO} req
   ParamKey          ascii(40) req
   Value             dec(19,6) req
   Value2            dec(19,6)        # لنطاق الخسارة: الدرجات؛ ولغيره فارغ
@@ -950,6 +1023,12 @@ table fin.CreditAssessment public  # Credit assessment of an approved statement 
   UpHeadroom        dec(9,4)            # المسافة من المجموع المرجح إلى الدرجة الأعلى
   DownHeadroom      dec(9,4)            # المسافة إلى الدرجة الأدنى
   StrengtheningRequested bool req =0    # طلب العميل خطط تقوية القوائم (docs/35 §12)
+  MarketCountryId   ->ref.Country noidx   # بلد السوق الرئيسي؛ فارغ = بلد تأسيس الشركة (ADR 0019)
+  MarketRegionCode  ascii(10)           # المدينة أو المنطقة الرئيسية من fin.CountryRegion، للعقار والمقاولات خاصة
+  CountryRisk       tinyint             # من هنا: يكتبها الإجراء؛ مخاطر البلد التي قرأها التقييم
+  IndustryRisk      tinyint
+  AnchorGradeId     ->fin.RatingGrade noidx   # مرتكز مخاطر البلد والنشاط
+  CountryCeilingGradeId ->fin.RatingGrade noidx   # سقف البلد الذي طُبّق
   unique PublicId
   unique StatementId where Status = 'APPROVED'   # تقييم معتمد واحد لكل قائمة
   index  CompanyId,AssessmentDate include Status,FinalGradeId   # سجل تقييمات الشركة
@@ -965,6 +1044,9 @@ table fin.CreditAssessment public  # Credit assessment of an approved statement 
   check  Status NOT IN ('APPROVED','SUPERSEDED') OR (ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)
   check  ApprovedBy IS NULL OR PreparedBy IS NULL OR ApprovedBy <> PreparedBy   # المُعِدّ ≠ المعتمِد
   check  Status <> 'REJECTED' OR RejectionReason IS NOT NULL
+  check  MarketRegionCode IS NULL OR MarketRegionCode COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%'
+  check  CountryRisk IS NULL OR CountryRisk BETWEEN 1 AND 6
+  check  IndustryRisk IS NULL OR IndustryRisk BETWEEN 1 AND 6
 
 table fin.CreditAssessmentInput deletable  # The analyst's inputs to an assessment: the grade of a qualitative factor, group support or an override, each with its justification; they change only while the assessment is a draft (BR-FIN-021, BR-FIN-022)
   AssessmentId      ->fin.CreditAssessment req
@@ -1119,9 +1201,16 @@ table fin.CreditAssessmentBureau deletable  # The company's SIMAH commercial cre
   check  WorstDpd12m >= 0 AND WorstDpd24m >= WorstDpd12m
   check  Defaults24mCount >= 0 AND Defaults24mAmount >= 0 AND BouncedCheques12mCount >= 0 AND BouncedCheques12mAmount >= 0 AND JudgmentsCount >= 0 AND JudgmentsAmount >= 0 AND Inquiries6m >= 0
 
-table fin.CreditAssessmentScenario norv  # The assessment recomputed on the statement under a stress scenario of its activity: the grade, the liquidity label and the notches lost; written by fin.usp_ComputeCreditAssessment only (docs/35 section 13)
+table fin.CreditAssessmentScenario norv  # The assessment recomputed on the statement under each macro scenario, with the stress applied: the grade, the liquidity label and the notches lost; written by fin.usp_ComputeCreditAssessment only (docs/35 section 13)
   AssessmentId      ->fin.CreditAssessment req
-  Scenario          enum{STAGNANT_MARKET,FINANCIAL_CRISIS} req
+  MacroScenarioId   ->fin.MacroScenario req noidx
+  RevenuePct        dec(9,4)            # الضغط الذي طُبّق: من شدة المحركات وحساسية النشاط وتعرض البلد والمنطقة
+  GrossMarginPp     dec(9,4)
+  DsoDays           dec(9,2)
+  StLinesWithdrawnPct dec(9,4)
+  RateBp            int
+  PrivateArLossPct  dec(9,4)
+  InventoryWritedownPct dec(9,4)
   RevenueAfter      money
   EbitdaAfter       money
   InventoryValueAfter money
@@ -1129,7 +1218,7 @@ table fin.CreditAssessmentScenario norv  # The assessment recomputed on the stat
   GradeId           ->fin.RatingGrade noidx
   LiquidityLabel    ascii(5)
   NotchesLost       int
-  unique AssessmentId,Scenario
+  unique AssessmentId,MacroScenarioId
 
 table fin.CreditAssessmentPlan norv  # A strengthening plan computed for the assessment when the customer asked for one: the grade at its end and whether the balance sheet stayed balanced; written by fin.usp_ComputeCreditAssessment only (docs/35 section 12)
   AssessmentId      ->fin.CreditAssessment req

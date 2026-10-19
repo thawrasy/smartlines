@@ -8,7 +8,8 @@ period, the market size, a holding company), becomes one test of db/tests/credit
   CE  the core (fin.usp_CreditCore) on the statement: every named quantity, every metric with its state, the factors
       and their effective weights, every item level, the adjustments that apply, the grades, the liquidity label, the
       data completeness and the facility grade, as the reference computes them without scenarios or remedies;
-  CV  the evaluation (fin.usp_CreditEvaluate): the final grade with the two scenarios of the activity and the
+  CV  the evaluation (fin.usp_CreditEvaluate): the final grade with the six macro scenarios (their stress parameters
+      from the drivers, the activity, the country and the region) and the
       resilience overlay, the grade each scenario gives, and every remedy with its pro-forma grade, the balance of the
       pro-forma balance sheet, and the strengthening plans.
 The file is generated; CI regenerates it and fails when the committed file differs.
@@ -42,6 +43,14 @@ VARIANTS = [
     ('V11_MANAGEMENT', 'G01_EXAMPLE', dict(assurance='MANAGEMENT'), 'an annual statement prepared by the management'),
     ('V12_NO_TOTALS', 'G01_EXAMPLE', dict(drop=['TOTAL_CA', 'TOTAL_ASSETS', 'TOTAL_EQUITY', 'GROSS_PROFIT', 'OPERATING_PROFIT', 'EBITDA', 'NET_PROFIT']),
      'a statement without its totals: each is the sum of its lines'),
+    ('V13_EGYPT', 'S04_BUILDING_CONTRACTOR', dict(country='EG'), 'a contractor in a country of high risk: its anchor, exposures and sovereign ceiling'),
+    ('V14_BAHRAIN_CEILING', 'G02_STRONG_LARGE', dict(country='BH', industry='C2101'), 'a strong company capped by its country\'s sovereign rating'),
+    ('V15_DUBAI_REGION', 'S02_BUILDING_MATERIALS_TRADER', dict(country='AE', region='DXB', industry='G466301', card='BUILDING_MATERIALS_TRADE'),
+     'a finished building materials supplier in a city whose property falls more, on its family card'),
+    ('V16_NO_PROFILE', 'S01_FOOD_DISTRIBUTOR', dict(country='TR'), 'a country without a risk profile: the default profile'),
+    ('V17_MICRO', 'G01_EXAMPLE', dict(scale=0.04), 'a very small company under the micro-size ceiling'),
+    ('V18_JORDAN_TOURISM', 'S03_FASHION_RETAILER', dict(country='JO', region='AMM', industry='N7902', card='HOSPITALITY_TOURISM'),
+     'an activity exposed to conflict in a country exposed to it'),
 ]
 
 
@@ -71,6 +80,13 @@ def cases():
         ch = copy.deepcopy(ch)
         for k in ch.pop('drop', []):
             lines.pop(k, None)
+        if 'scale' in ch:
+            f = ch.pop('scale')
+            lines = {k: v * f for k, v in lines.items()}
+            if kw.get('prior'):
+                kw['prior'] = {k: v * f for k, v in kw['prior'].items()}
+        if 'card' in ch:
+            card = ch.pop('card')
         if ch.pop('quarter', False):
             kw['prior_period_type'] = 'ANNUAL'
             lines = {k: (v / 4 if cr.LINES[k]['section'] in ('IS', 'CF') else v) for k, v in lines.items()}
@@ -102,7 +118,7 @@ def context(card, lines, kw):
     gu = kw.get('guarantors')
     mix = kw.get('product_mix') or []
     ind = kw.get('industry')
-    ctx = dict(product_mix=mix, industry=ind)
+    country = kw.get('country', 'SA')
     # the product measures, as metric_values computes them
     pv = {}
     if mix:
@@ -137,13 +153,14 @@ def context(card, lines, kw):
         BuBouncedCount=(bu or {}).get('bounced_count'), BuBouncedAmount=(bu or {}).get('bounced_amount'), BuJudgments=(bu or {}).get('judgments_amount'),
         BuRestructured=bool((bu or {}).get('restructured')), BuInquiries6m=(bu or {}).get('inquiries_6m'),
         BuMonthsAfterPeriodEnd=(bu or {}).get('months_after_period_end'),
-        QualBp=cr.qualitative_score(card, 'BUSINESS_PROFILE', qual, subs, ind), QualFp=cr.qualitative_score(card, 'FINANCIAL_POLICY', qual, subs, ind),
+        QualBp=cr.qualitative_score(card, 'BUSINESS_PROFILE', qual, subs, ind, country), QualFp=cr.qualitative_score(card, 'FINANCIAL_POLICY', qual, subs, ind, country),
         DocBp='BUSINESS_PROFILE' in (kw.get('documented') or ()), DocFp='FINANCIAL_POLICY' in (kw.get('documented') or ()),
         ProdCashFlowQuality=pv.get('cfq'), ProdConcentration=pv.get('conc'), InvCrisisValue=pv.get('crisis'), InvDaysStagnant=pv.get('days'),
         Support=kw.get('support'), ParentNotch=kw.get('parent_notch'), Override=kw.get('override') or 0,
         GuLiquid=None if not gu else sum(g['liquid'] for g in gu), GuNetWorth=None if not gu else sum(g['net_worth'] for g in gu),
         GuGiven=None if not gu else sum(g['given'] for g in gu), GuGuaranteed=None if not gu else sum(g['guaranteed'] for g in gu),
         GuMaxLeverage=None if not gu else max((g['given'] / g['net_worth'] * 100 if g['net_worth'] > 0 else 999.0) for g in gu),
+        Country=country, RegionCode=kw.get('region'),
     )
 
 
@@ -153,8 +170,8 @@ X_COLS = ['ScorecardId', 'PeriodType', 'PriorPeriodType', 'HasPrior', 'Fx', 'Ass
           'BuPresent', 'BuOutstanding', 'BuLimits', 'BuLenders', 'BuDpd12m', 'BuCurrentDefault', 'BuDefaults24m', 'BuBouncedCount', 'BuBouncedAmount',
           'BuJudgments', 'BuRestructured', 'BuInquiries6m', 'BuMonthsAfterPeriodEnd', 'QualBp', 'QualFp', 'DocBp', 'DocFp', 'ProdCashFlowQuality',
           'ProdConcentration', 'InvCrisisValue', 'InvDaysStagnant', 'Support', 'ParentNotch', 'Override', 'GuLiquid', 'GuNetWorth', 'GuGiven',
-          'GuGuaranteed', 'GuMaxLeverage']
-STR_X = {'PeriodType', 'PriorPeriodType', 'Assurance', 'Opinion', 'Breach'}
+          'GuGuaranteed', 'GuMaxLeverage', 'CountryId', 'RegionCode']
+STR_X = {'PeriodType', 'PriorPeriodType', 'Assurance', 'Opinion', 'Breach', 'RegionCode'}
 
 
 def x_values(x):
@@ -162,6 +179,8 @@ def x_values(x):
     for c in X_COLS:
         if c == 'ScorecardId':
             vals.append(f"(SELECT ScorecardId FROM fin.Scorecard WHERE Code = {s(x['Card'])} AND Status = 'APPROVED')")
+        elif c == 'CountryId':
+            vals.append(f"(SELECT CountryId FROM ref.Country WHERE Iso2 = {s(x['Country'])})")
         elif c == 'IndustryId':
             vals.append('NULL' if x['Industry'] is None else f"(SELECT IndustryId FROM ref.Industry WHERE Code = {s(x['Industry'])})")
         elif c in STR_X:
@@ -252,7 +271,11 @@ def eval_case(i, key, title, card, lines, kw):
     b.append(insert('#eEv', ['State', 'FinalNotch', 'Resilience', 'Outlook', 'OutlookRules'],
                     [[s(r['state']), num(r.get('final_notch')), s(r.get('resilience')), s(o.get('outlook')), s(','.join(o.get('rules', [])) or None)]]).rstrip())
     for name, v in sorted((r.get('scenarios') or {}).items()):
-        b.append(insert('#eScen', ['Scenario', 'FinalNotch', 'NotchesLost', 'Liquidity'], [[s(name), num(v['notch']), num(v['lost']), s(v['liquidity'])]]).rstrip())
+        pm = v['params']
+        b.append(insert('#eScen', ['Scenario', 'FinalNotch', 'NotchesLost', 'Liquidity', 'RevenuePct', 'DsoDays', 'StLinesWithdrawnPct', 'PrivateArLossPct',
+                                   'InventoryWritedownPct'],
+                        [[s(name), num(v['notch']), num(v['lost']), s(v['liquidity']), num(pm['revenue_pct']), num(pm['dso_days']),
+                          num(pm['st_lines_withdrawn_pct']), num(pm['private_ar_loss_pct']), num(pm['inventory_writedown_pct'])]]).rstrip())
     rows = []
     for rm in r.get('remedies', []):
         pf = rm.get('final')
@@ -261,7 +284,8 @@ def eval_case(i, key, title, card, lines, kw):
     rows = [[s(pl['code']), num(pl['final_notch']), num(pl['gained']), s(','.join(st['remedy'] for st in pl['steps'])), num(pl['balanced'])] for pl in r.get('plans', [])]
     b.append(insert('#ePlan', ['Code', 'FinalNotch', 'NotchesGained', 'Steps', 'IsBalanced'], rows).rstrip())
     tr = (r.get('triggers') or {}).get('metrics') or []
-    b.append(insert('#eTrig', ['MetricCode', 'Direction', 'TriggerValue'], [[s(m['metric']), s(m['way']), num(m['value'])] for m in tr]).rstrip())
+    b.append(insert('#eTrig', ['MetricCode', 'Direction', 'TriggerValue', 'TargetScore'],
+                    [[s(m['metric']), s(m['way']), num(m['value']), num(m['target_score'])] for m in tr]).rstrip())
     b.append(EVAL_BATCH.format(id=f'CV{i}', key=key))
     return '\n'.join(x for x in b if x) + '\nGO\n'
 
@@ -292,7 +316,7 @@ TABLES = """CREATE TABLE #crX (ScorecardId INT, PeriodType VARCHAR(10) COLLATE D
     BuLenders INT, BuDpd12m INT, BuCurrentDefault BIT, BuDefaults24m INT, BuBouncedCount INT, BuBouncedAmount FLOAT, BuJudgments FLOAT, BuRestructured BIT,
     BuInquiries6m INT, BuMonthsAfterPeriodEnd INT, QualBp FLOAT, QualFp FLOAT, DocBp BIT, DocFp BIT, ProdCashFlowQuality FLOAT, ProdConcentration FLOAT,
     InvCrisisValue FLOAT, InvDaysStagnant FLOAT, Support INT, ParentNotch INT, Override INT, GuLiquid FLOAT, GuNetWorth FLOAT, GuGiven FLOAT,
-    GuGuaranteed FLOAT, GuMaxLeverage FLOAT);
+    GuGuaranteed FLOAT, GuMaxLeverage FLOAT, CountryId INT, RegionCode VARCHAR(10) COLLATE DATABASE_DEFAULT);
 CREATE TABLE #crL (Code VARCHAR(40) COLLATE DATABASE_DEFAULT PRIMARY KEY, Amount FLOAT NULL);
 CREATE TABLE #crP (Code VARCHAR(40) COLLATE DATABASE_DEFAULT PRIMARY KEY, Amount FLOAT NULL);
 CREATE TABLE #crColl (Kind VARCHAR(40) COLLATE DATABASE_DEFAULT NOT NULL, Cover FLOAT NOT NULL);
@@ -305,9 +329,10 @@ CREATE TABLE #crA (Ord INT PRIMARY KEY, RuleCode VARCHAR(40) COLLATE DATABASE_DE
 CREATE TABLE #crR (AdjCode VARCHAR(40) COLLATE DATABASE_DEFAULT, LineCode VARCHAR(40) COLLATE DATABASE_DEFAULT, Bucket VARCHAR(20) COLLATE DATABASE_DEFAULT, Amount FLOAT);
 CREATE TABLE #crD (Code VARCHAR(40) COLLATE DATABASE_DEFAULT PRIMARY KEY, Given BIT NOT NULL);
 CREATE TABLE #crMix (ProductCategoryId INT NOT NULL, RevenueSharePct FLOAT NOT NULL, InventorySharePct FLOAT NOT NULL);
-CREATE TABLE #evScen (Scenario VARCHAR(20) COLLATE DATABASE_DEFAULT PRIMARY KEY, State VARCHAR(20) COLLATE DATABASE_DEFAULT, FinalNotch INT, WeightedScore FLOAT,
+CREATE TABLE #evScen (Scenario VARCHAR(30) COLLATE DATABASE_DEFAULT PRIMARY KEY, State VARCHAR(20) COLLATE DATABASE_DEFAULT, FinalNotch INT, WeightedScore FLOAT,
     Liquidity VARCHAR(6) COLLATE DATABASE_DEFAULT, NotchesLost INT, Revenue FLOAT, Ebitda FLOAT, Inventory FLOAT, ArLoss FLOAT, InventoryWritedown FLOAT,
-    ExtraFinanceCost FLOAT, ReceivablesStretch FLOAT, BalanceGap FLOAT);
+    ExtraFinanceCost FLOAT, ReceivablesStretch FLOAT, BalanceGap FLOAT, RevenuePct FLOAT, GrossMarginPp FLOAT, DsoDays FLOAT, StLinesWithdrawnPct FLOAT,
+    RateBp INT, PrivateArLossPct FLOAT, InventoryWritedownPct FLOAT);
 CREATE TABLE #evRem (SeqNo INT PRIMARY KEY, RemedyId INT NOT NULL, TriggerCode VARCHAR(40) COLLATE DATABASE_DEFAULT, TriggerLevel VARCHAR(12) COLLATE DATABASE_DEFAULT,
     Moved FLOAT, FinalNotch INT, WeightedScore FLOAT, NotchesGained INT, BalanceGap FLOAT);
 CREATE TABLE #evPlan (PlanId INT PRIMARY KEY, StepCount INT, FinalNotch INT, FinalScore FLOAT, NotchesGained INT, IsBalanced BIT);
@@ -343,11 +368,13 @@ CREATE TABLE #eI (MetricCode VARCHAR(40) COLLATE DATABASE_DEFAULT, LineCode VARC
 CREATE TABLE #eA (RuleCode VARCHAR(40) COLLATE DATABASE_DEFAULT PRIMARY KEY);
 CREATE TABLE #eEv (State VARCHAR(20) COLLATE DATABASE_DEFAULT, FinalNotch INT, Resilience VARCHAR(10) COLLATE DATABASE_DEFAULT,
     Outlook VARCHAR(10) COLLATE DATABASE_DEFAULT, OutlookRules VARCHAR(200) COLLATE DATABASE_DEFAULT);
-CREATE TABLE #eScen (Scenario VARCHAR(20) COLLATE DATABASE_DEFAULT PRIMARY KEY, FinalNotch INT, NotchesLost INT, Liquidity VARCHAR(6) COLLATE DATABASE_DEFAULT);
+CREATE TABLE #eScen (Scenario VARCHAR(30) COLLATE DATABASE_DEFAULT PRIMARY KEY, FinalNotch INT, NotchesLost INT, Liquidity VARCHAR(6) COLLATE DATABASE_DEFAULT,
+    RevenuePct FLOAT, DsoDays FLOAT, StLinesWithdrawnPct FLOAT, PrivateArLossPct FLOAT, InventoryWritedownPct FLOAT);
 CREATE TABLE #eRem (Code VARCHAR(40) COLLATE DATABASE_DEFAULT PRIMARY KEY, TriggerCode VARCHAR(40) COLLATE DATABASE_DEFAULT, TriggerLevel VARCHAR(12) COLLATE DATABASE_DEFAULT,
     Moved FLOAT, FinalNotch INT, NotchesGained INT);
 CREATE TABLE #ePlan (Code VARCHAR(40) COLLATE DATABASE_DEFAULT PRIMARY KEY, FinalNotch INT, NotchesGained INT, Steps VARCHAR(1000) COLLATE DATABASE_DEFAULT, IsBalanced BIT);
-CREATE TABLE #eTrig (MetricCode VARCHAR(40) COLLATE DATABASE_DEFAULT, Direction VARCHAR(4) COLLATE DATABASE_DEFAULT, TriggerValue FLOAT, PRIMARY KEY (MetricCode, Direction));
+CREATE TABLE #eTrig (MetricCode VARCHAR(40) COLLATE DATABASE_DEFAULT, Direction VARCHAR(4) COLLATE DATABASE_DEFAULT, TriggerValue FLOAT, TargetScore FLOAT,
+    PRIMARY KEY (MetricCode, Direction));
 CREATE TABLE #eS (State VARCHAR(20) COLLATE DATABASE_DEFAULT, Coverage FLOAT, Completeness FLOAT, Liquidity VARCHAR(6) COLLATE DATABASE_DEFAULT, FinancialScore FLOAT, WeightedScore FLOAT, FinalNotch INT,
     Notches INT, FacilityLgd FLOAT, FacilityBand VARCHAR(4) COLLATE DATABASE_DEFAULT, FacilityNotch INT);
 GO
@@ -379,7 +406,9 @@ BEGIN
                       x.NotchesLost, ' ', x.Liquidity)
         FROM #eScen AS e FULL JOIN #evScen AS x ON x.Scenario = e.Scenario
         WHERE e.Scenario IS NULL OR x.Scenario IS NULL OR ISNULL(e.FinalNotch, 0) <> ISNULL(x.FinalNotch, 0) OR ISNULL(e.NotchesLost, 99) <> ISNULL(x.NotchesLost, 99)
-           OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '');
+           OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
+           OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
+           OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -401,8 +430,10 @@ BEGIN
         SELECT CONCAT('trigger ', COALESCE(e.MetricCode, x.MetricCode), ' ', COALESCE(e.Direction, x.Direction), ' ', CONVERT(VARCHAR(30), e.TriggerValue, 3), ' / ',
                       CONVERT(VARCHAR(30), x.TriggerValue, 3))
         FROM #eTrig AS e FULL JOIN #evTrig AS x ON x.MetricCode = e.MetricCode AND x.Direction = e.Direction
+        -- a trigger agrees when its value does, or its target score does to a thousandth: the weighted score is rounded to
+        -- four decimals on both sides, and a steep grid turns its last digit into a visible difference of value
         WHERE e.MetricCode IS NULL OR x.MetricCode IS NULL
-           OR ABS(e.TriggerValue - x.TriggerValue) > 1e-5 * (1 + ABS(e.TriggerValue));
+           OR (ABS(e.TriggerValue - x.TriggerValue) > 1e-5 * (1 + ABS(e.TriggerValue)) AND ABS(e.TargetScore - x.TargetScore) > 1e-3);
     END;
     DECLARE @n INT = (SELECT COUNT(*) FROM @d), @first NVARCHAR(4000);
     SELECT @first = STRING_AGG(t, '; ') WITHIN GROUP (ORDER BY n) FROM @d WHERE n <= 6;

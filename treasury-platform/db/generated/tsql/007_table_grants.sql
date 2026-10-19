@@ -341,9 +341,27 @@ GRANT SELECT, INSERT, UPDATE ON [fin].[ScorecardAdjustment] TO [tp_platform];
 -- fin.IndustryProfile
 GRANT SELECT ON [fin].[IndustryProfile] TO [tp_app];
 GRANT SELECT, INSERT, UPDATE ON [fin].[IndustryProfile] TO [tp_platform];
--- fin.IndustryScenario
-GRANT SELECT ON [fin].[IndustryScenario] TO [tp_app];
-GRANT SELECT, INSERT, UPDATE ON [fin].[IndustryScenario] TO [tp_platform];
+-- fin.ShockDriver
+GRANT SELECT ON [fin].[ShockDriver] TO [tp_app];
+GRANT SELECT, INSERT, UPDATE ON [fin].[ShockDriver] TO [tp_platform];
+-- fin.MacroScenario
+GRANT SELECT ON [fin].[MacroScenario] TO [tp_app];
+GRANT SELECT, INSERT, UPDATE ON [fin].[MacroScenario] TO [tp_platform];
+-- fin.MacroScenarioIntensity
+GRANT SELECT ON [fin].[MacroScenarioIntensity] TO [tp_app];
+GRANT SELECT, INSERT, UPDATE ON [fin].[MacroScenarioIntensity] TO [tp_platform];
+-- fin.IndustrySensitivity
+GRANT SELECT ON [fin].[IndustrySensitivity] TO [tp_app];
+GRANT SELECT, INSERT, UPDATE ON [fin].[IndustrySensitivity] TO [tp_platform];
+-- fin.CountryRiskProfile
+GRANT SELECT ON [fin].[CountryRiskProfile] TO [tp_app];
+GRANT SELECT, INSERT, UPDATE ON [fin].[CountryRiskProfile] TO [tp_platform];
+-- fin.CountryRegion
+GRANT SELECT ON [fin].[CountryRegion] TO [tp_app];
+GRANT SELECT, INSERT, UPDATE ON [fin].[CountryRegion] TO [tp_platform];
+-- fin.RiskAnchor
+GRANT SELECT ON [fin].[RiskAnchor] TO [tp_app];
+GRANT SELECT, INSERT, UPDATE ON [fin].[RiskAnchor] TO [tp_platform];
 -- fin.ProductCategory
 GRANT SELECT ON [fin].[ProductCategory] TO [tp_app];
 GRANT SELECT, INSERT, UPDATE ON [fin].[ProductCategory] TO [tp_platform];

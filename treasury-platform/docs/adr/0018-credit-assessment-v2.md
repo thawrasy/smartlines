@@ -68,3 +68,8 @@ Version 1 had 36 metrics on 51 lines, one procedure, and no link to the platform
 - 046 keeps the guards; the computation, the engine, thirteen report views and their grants are in 047.
 - Tests: CA1 to CA15 through the tables (step 19c) and 94 engine cases (step 19d); 35 stress cases (step 3).
 - Known limits: docs/35 section 25.
+
+Note (2026-10-19, later the same day): ADR 0019 replaces the three scorecards with sixteen sector family scorecards, the
+activity scenarios with six macro scenarios computed from sensitivities and country exposures, and the single sovereign
+ceiling with a ceiling per country; and the owner decided that the company's treasury department, not the bank's credit
+risk function, validates the calibration.

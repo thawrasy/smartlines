@@ -585,6 +585,11 @@ CREATE UNIQUE NONCLUSTERED INDEX [UQ_Scorecard_Code] ON [fin].[Scorecard] ([Code
 CREATE NONCLUSTERED INDEX [IX_Scorecard_CurrencyId] ON [fin].[Scorecard] ([CurrencyId]);
 CREATE NONCLUSTERED INDEX [IX_ScorecardMetric_MetricId] ON [fin].[ScorecardMetric] ([MetricId]);
 CREATE NONCLUSTERED INDEX [IX_ScorecardItemRule_MetricId] ON [fin].[ScorecardItemRule] ([MetricId]);
+CREATE UNIQUE NONCLUSTERED INDEX [UQ_MacroScenario_IsResilienceBase] ON [fin].[MacroScenario] ([IsResilienceBase]) WHERE IsResilienceBase = 1;
+CREATE NONCLUSTERED INDEX [IX_MacroScenarioIntensity_ShockDriverId] ON [fin].[MacroScenarioIntensity] ([ShockDriverId]);
+CREATE NONCLUSTERED INDEX [IX_IndustrySensitivity_ShockDriverId] ON [fin].[IndustrySensitivity] ([ShockDriverId]);
+CREATE UNIQUE NONCLUSTERED INDEX [UQ_CountryRiskProfile_CountryId] ON [fin].[CountryRiskProfile] ([CountryId]) WHERE CountryId IS NOT NULL;
+CREATE UNIQUE NONCLUSTERED INDEX [UQ_CountryRiskProfile_IsDefault] ON [fin].[CountryRiskProfile] ([IsDefault]) WHERE IsDefault = 1;
 CREATE NONCLUSTERED INDEX [IX_CreditRemedyTrigger_TriggerCode] ON [fin].[CreditRemedyTrigger] ([TriggerCode]);
 CREATE UNIQUE NONCLUSTERED INDEX [UQ_CreditAssessment_StatementId] ON [fin].[CreditAssessment] ([TenantId], [StatementId]) WHERE Status = 'APPROVED';
 CREATE NONCLUSTERED INDEX [IX_CreditAssessment_CompanyId_AssessmentDate] ON [fin].[CreditAssessment] ([TenantId], [CompanyId], [AssessmentDate]) INCLUDE ([Status], [FinalGradeId]);

@@ -18,10 +18,11 @@ the numbers this module gives for the same fixtures, so the two implementations 
 Usage: python3 tools/dbgen/credit_reference.py [stress case key]
 """
 import copy, json, math, os, sys
+import credit_methodology
 from decimal import Decimal, ROUND_HALF_UP
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-M = json.load(open(os.environ.get('CREDIT_METHODOLOGY') or os.path.join(HERE, 'credit_scorecard.json'), encoding='utf-8'))
+M = credit_methodology.load()
 S = M['score_points']
 GRADES = {g['notch']: g for g in M['grades']}
 BY_CODE = {g['code']: g for g in M['grades']}
@@ -32,7 +33,14 @@ CARDS = {c['code']: c for c in M['scorecards']}
 LINES = {x['code']: x for x in M['lines']}
 ADJ = {a['r']: a for a in M['adjustments'] + [x for c in M['scorecards'] for x in c['extra_adjustments']]}
 REMEDIES = {r['code']: r for r in M['remedies']}
-INDUSTRIES = {d['code']: d for d in M['industries']['divisions']}
+INDUSTRIES = {d['code']: d for d in M['industries']['divisions'] + M['industries'].get('activities', [])}
+DIVISIONS_WITH_ACTIVITIES = {a['division'] for a in M['industries'].get('activities', [])}
+CR = M['country_risk']
+COUNTRIES = {c['iso2']: c for c in CR['countries']}
+DRIVERS = [d['code'] for d in M['shock_drivers']]
+DRV = {d['code']: d for d in M['shock_drivers']}
+SCENARIOS = M['macro_scenarios']
+BASE_SCENARIO = next(x['code'] for x in SCENARIOS if x['resilience_base'])
 PCAT = {p['code']: p for p in M['product_categories']}
 MONTHS = {'ANNUAL': 12, 'SEMIANNUAL': 6, 'QUARTERLY': 3, 'MONTHLY': 1}
 CF = ('OP_CASH_FLOW', 'CFO_BEFORE_WC', 'CAPEX', 'PRINCIPAL_REPAID', 'INTEREST_PAID', 'DIVIDENDS', 'PARTNER_DRAWINGS')
@@ -306,7 +314,9 @@ def analytical(card, s, p, ctx):
         AR_TOP5=s('AR_TOP5'), AR_RELATED=s('AR_RELATED_TRADE'), AP_OVERDUE=s('AP_OVERDUE'), SUPPLIER_FINANCE=s('SUPPLIER_FINANCE'),
         STAFF_COSTS=s('STAFF_COSTS'), ECL_CHARGE=s('ECL_CHARGE'), NONRECURRING_GAINS=s('NONRECURRING_GAINS'),
         DEBT_SECURED=s('DEBT_SECURED'), DEBT_DUE_1Y=s('DEBT_DUE_1Y'),
-        DEBT_PROFILE=None if not s.known('DEBT_DUE_1Y') else sum(s.z(c) for c in ('DEBT_DUE_1Y', 'DEBT_DUE_1_2Y', 'DEBT_DUE_2_5Y', 'DEBT_DUE_OVER_5Y')),
+        # the maturity profile needs the debt due within a year and at least one later bucket: the first alone is no profile
+        DEBT_PROFILE=None if not s.known('DEBT_DUE_1Y') or not any(s.known(c) for c in ('DEBT_DUE_1_2Y', 'DEBT_DUE_2_5Y', 'DEBT_DUE_OVER_5Y'))
+        else sum(s.z(c) for c in ('DEBT_DUE_1Y', 'DEBT_DUE_1_2Y', 'DEBT_DUE_2_5Y', 'DEBT_DUE_OVER_5Y')),
         FLOAT_SHOCK=None if s('DEBT_FLOATING') is None else s('DEBT_FLOATING') * P['rate_shock_pct'] / 100,
         FX_OPEN=s('NET_FX_OPEN_POSITION') if s.known('NET_FX_OPEN_POSITION') else s('DEBT_FOREIGN_CCY'),
         DUE_FROM_SHAREHOLDERS=s('DUE_FROM_SHAREHOLDERS'), DUE_TO_RELATED=s('DUE_TO_RELATED'), EOSB=s('EOSB'),
@@ -562,9 +572,16 @@ def data_requests(card, s, ctx, missing):
         req.append(('BUREAU_REPORT', 'SIMAH'))
     if not ctx.get('product_mix'):
         req.append(('PRODUCT_MIX', 'PRODUCT_LINES'))
+    if ctx.get('country') not in COUNTRIES:
+        req.append(('COUNTRY_PROFILE', ctx.get('country') or 'NONE'))
     if not ctx.get('industry'):
         req.append(('INDUSTRY', 'ISIC'))
     else:
+        if ctx['industry'] in DIVISIONS_WITH_ACTIVITIES:
+            req.append(('INDUSTRY_DETAIL', ctx['industry']))
+        cp = COUNTRIES.get(ctx.get('country'))
+        if INDUSTRIES[ctx['industry']]['sens']['REAL_ESTATE'] >= 4 and cp and cp.get('regions') and not ctx.get('region'):
+            req.append(('MARKET_REGION', ctx['country']))
         for c in INDUSTRIES[ctx['industry']]['disclosures']:
             if c in LINES and not s.known(c) and ('DISCLOSURE', c) not in req:
                 req.append(('INDUSTRY_DISCLOSURE', c))
@@ -573,18 +590,35 @@ def data_requests(card, s, ctx, missing):
     return req
 
 
-def sector_risk_score(industry):
-    """The computed sub-factor of the business profile (docs/35 section 5): sector risk 1..5 gives scores 6, 9, 12,
-    14 and 16; high cyclicality one notch worse, low one better."""
+def country_profile(country):
+    """The country's risk profile, or the default one for a country without a profile (docs/35 section 13)."""
+    return COUNTRIES.get(country) or CR['default']
+
+
+def country_ceiling(country):
+    """The ceiling of a company's grade in its country: the published sovereign rating, or the ceiling of its country
+    risk when it has none."""
+    c = country_profile(country)
+    g = c.get('sovereign_rating') or CR['unrated_ceiling'][str(c['country_risk'])]
+    return 'Ca' if g == 'C' else g   # a sovereign in default (C): the scale of a company's grade ends at Ca
+
+
+def anchor_notch(industry, country):
+    """The country and industry risk anchor (docs/35 section 13): the matrix cell of the country risk and the industry
+    risk, high cyclicality one notch worse and low one better."""
+    d = INDUSTRIES[industry]
+    n = CR['anchor'][country_profile(country)['country_risk'] - 1][d['industry_risk'] - 1] + CR['cyclicality_notch'][d['cyclicality']]
+    return min(20, max(1, n))
+
+
+def sector_risk_score(industry, country):
+    """The computed SECTOR_RISK sub-factor of the business profile: the anchor notch as a score."""
     if not industry:
         return None
-    d = INDUSTRIES[industry]
-    sc = {1: 6, 2: 9, 3: 12, 4: 14, 5: 16}[d['sector_risk']]
-    sc += {'HIGH': 1, 'MEDIUM': 0, 'LOW': -1}[d['cyclicality']]
-    return float(sc)
+    return float(anchor_notch(industry, country))
 
 
-def qualitative_score(card, factor, qual, subfactors, industry):
+def qualitative_score(card, factor, qual, subfactors, industry, country):
     """A qualitative factor: the analyst's grade (its midpoint), or the average of the graded sub-factors when at least
     the minimum are graded; for the business profile the computed sector risk joins the average."""
     subs = CARDS[card]['qualitative'].get(factor, [])
@@ -597,7 +631,7 @@ def qualitative_score(card, factor, qual, subfactors, industry):
     if vals is None:
         return None
     if factor == 'BUSINESS_PROFILE':
-        sr = sector_risk_score(industry)
+        sr = sector_risk_score(industry, country)
         if sr is not None:
             vals = vals + [sr]
     return rnd(sum(vals) / len(vals), 4)
@@ -679,15 +713,15 @@ def applied_adjustments(card, s, p, Q, m, ctx, opts):
     if opts['going_concern']: add('GOING_CONCERN')
     if Q['QUASI'] <= 0: add('NEGATIVE_EQUITY')
     rs = m['REVENUE_SIZE']
-    for code in ('SIZE_CEILING', 'SIZE_CEILING_MID', 'SIZE_CEILING_SMALL'):
-        if rs == E(WORST) or (rs[0] == 'COMPUTED' and rs[1] < P(code)): add(code)
+    for code in ('SIZE_CEILING', 'SIZE_CEILING_MID', 'SIZE_CEILING_SMALL', 'SIZE_CEILING_MICRO'):
+        if rs == E(WORST) or (rs[0] == 'COMPUTED' and rs[1] < cp(code)): add(code)
     if lab == 'SGL-4': add('LIQUIDITY_SGL4_CAP')
     for ad in CARDS[card]['extra_adjustments']:
         if ad['r'] == 'SECTOR_CEILING': add('SECTOR_CEILING')
     if ctx.get('industry') and INDUSTRIES[ctx['industry']].get('ceiling'):
         add('INDUSTRY_CEILING', cap=INDUSTRIES[ctx['industry']]['ceiling'])
     if opts['opinion'] in ('ADVERSE', 'DISCLAIMER'): add('AUDIT_ADVERSE')
-    add('SOVEREIGN_CEILING')
+    add('SOVEREIGN_CEILING', cap=country_ceiling(ctx.get('country')))
     return out
 
 
@@ -735,7 +769,7 @@ def assess(card, cur, *, prior=None, period_type='ANNUAL', prior_period_type='AN
            going_concern=False, holding=False, basis=None, platform=None, support=None, parent_notch=None, override=0,
            guarantors=None, bureau=None, industry=None, product_mix=None, market_size=None, statement_age_months=None,
            restated_change_pct=None, flow_shortfall=False, rollover_factor=1.0, resilience_notch=False, proforma=False,
-           with_remedies=True, with_scenarios=True, with_plans=False):
+           with_remedies=True, with_scenarios=True, with_plans=False, country='SA', region=None):
     """cur and prior: lines in SAR. Returns the full result (docs/35 sections 3 to 14)."""
     c = CARDS[card]
     s = Stmt(cur, period_type)
@@ -743,14 +777,14 @@ def assess(card, cur, *, prior=None, period_type='ANNUAL', prior_period_type='AN
     holding_standalone = bool(holding) and (basis or 'STANDALONE') == 'STANDALONE'
     ctx = dict(evidence=set(ev), breach_at_period_end=breach_at_period_end, platform=platform, guarantors=guarantors, bureau=bureau,
                industry=industry, product_mix=product_mix, market_size=market_size, holding_standalone=holding_standalone,
-               rollover_factor=rollover_factor)
+               rollover_factor=rollover_factor, country=country, region=region)
     Q, R = analytical(card, s, p, ctx)
     m = all_metrics(card, s, p, Q, ctx, fx, c['amount_unit'])
     rows = []
     for sm in c['metrics']:
         md = METRICS[sm['m']]
         if md['kind'] == 'QUALITATIVE':
-            sc = qualitative_score(card, sm['m'], qual, subfactors, industry)
+            sc = qualitative_score(card, sm['m'], qual, subfactors, industry, country)
             rows.append(dict(m=sm['m'], f=sm['f'], w=sm['w'], st='ANALYST' if sc is not None else 'NOT_COMPUTABLE', v=None, score=sc, qual=True))
             continue
         st, v = m[sm['m']]
@@ -788,8 +822,8 @@ def assess(card, cur, *, prior=None, period_type='ANNUAL', prior_period_type='AN
         return dict(res, state='INDICATIVE')
     if not proforma:
         for r in quals:
-            if abs(notch_of(r['score']) - fin_notch) > M['qualitative_bound'] and r['m'] not in documented:
-                raise InputError(f"{r['m']} more than {M['qualitative_bound']} notches from the financial grade without a document")
+            if fin_notch - notch_of(r['score']) > M['qualitative_bound'] and r['m'] not in documented:
+                raise InputError(f"{r['m']} more than {M['qualitative_bound']} notches better than the financial grade without a document")
     scored = [r for r in rows if r['score'] is not None]
     agg = rnd(sum(r['score'] * r['eff'] for r in scored) / sum(r['eff'] for r in scored), 4)
     n0 = notch_of(agg)
@@ -812,25 +846,25 @@ def assess(card, cur, *, prior=None, period_type='ANNUAL', prior_period_type='AN
                facility=facility_grade(n5, s, Q, platform, guarantors))
     res['triggers'] = triggers(card, res)
     if industry:
-        e = INDUSTRIES[industry]['expected']
-        best, typ, worst = N[e[0]], N[e[1]], N[e[2]]
+        typ = anchor_notch(industry, country)
         res['sector_position'] = 'ABOVE' if n5 < typ - 1 else 'BELOW' if n5 > typ + 1 else 'WITHIN'
     kw = dict(prior=prior, period_type=period_type, prior_period_type=prior_period_type, fx=fx, qual=qual, subfactors=subfactors,
               documented=documented, ev=ev, breach=breach, breach_at_period_end=breach_at_period_end, assurance=assurance, opinion=opinion,
               going_concern=going_concern, holding=holding, basis=basis, platform=platform, support=support, parent_notch=parent_notch,
               override=override, guarantors=guarantors, bureau=bureau, industry=industry, product_mix=product_mix, market_size=market_size,
-              statement_age_months=statement_age_months, restated_change_pct=restated_change_pct, flow_shortfall=flow_shortfall)
+              statement_age_months=statement_age_months, restated_change_pct=restated_change_pct, flow_shortfall=flow_shortfall,
+              country=country, region=region)
     if with_scenarios and not proforma and industry:
         sc = {}
-        for name in ('STAGNANT_MARKET', 'FINANCIAL_CRISIS'):
-            prm = scenario_params(industry, name, product_mix)
+        for name in [x['code'] for x in SCENARIOS]:
+            prm = scenario_params(industry, name, product_mix, country, region)
             lines2, extra = stress_lines(card, cur, prm)
             r2 = assess(card, lines2, **dict(kw, rollover_factor=1 - prm['st_lines_withdrawn_pct'] / 100), proforma=True, with_remedies=False, with_scenarios=False)
             sc[name] = dict(final=r2.get('final'), notch=r2.get('final_notch'), liquidity=r2['liquidity'], aggregate=r2.get('aggregate'),
                             lost=None if r2.get('final_notch') is None else r2['final_notch'] - n5, revenue=lines2['REVENUE'],
-                            ebitda=r2['Q']['EBITDA'], inventory=lines2['INVENTORY'], extra=extra)
+                            ebitda=r2['Q']['EBITDA'], inventory=lines2['INVENTORY'], extra=extra, params=prm)
         res['scenarios'] = sc
-        lost = sc['STAGNANT_MARKET']['lost']
+        lost = sc[BASE_SCENARIO]['lost']
         if lost is not None and lost > ADJ['RESILIENCE']['p'] and not resilience_notch:
             r3 = assess(card, cur, **kw, resilience_notch=True, with_remedies=with_remedies, with_scenarios=False, with_plans=with_plans)
             r3['scenarios'] = sc
@@ -900,7 +934,7 @@ def outlook(card, res, prior_metrics, breach):
     hits = []
     if res.get('liquidity') in ('SGL-3', 'SGL-4'): hits.append('NEG_LIQUIDITY')
     sc = res.get('scenarios') or {}
-    lost = (sc.get('STAGNANT_MARKET') or {}).get('lost')
+    lost = (sc.get(BASE_SCENARIO) or {}).get('lost')
     if lost is not None and lost >= O['stagnant_loss_negative']: hits.append('NEG_SCENARIO')
     tr = res['triggers']
     if tr['down_headroom'] is not None and tr['down_headroom'] < O['headroom_pct'] / 100: hits.append('NEG_HEADROOM')
@@ -1093,22 +1127,42 @@ def rebuild_totals(out, original):
     return d
 
 
-def scenario_params(industry, scen, mix):
-    """The parameters of a scenario (docs/35 section 13): the activity's, with the revenue fall and the inventory
-    write-down from the product mix when the company has product lines."""
-    s = dict(INDUSTRIES[industry]['scenarios'][scen])
+def scenario_params(industry, scen, mix, country=None, region=None):
+    """The stress of a macro scenario on the company (docs/35 section 14): per driver, the scenario intensity × the
+    activity sensitivity ÷ 5 × the country exposure × the region multiplier (real estate and conflict); the product mix
+    replaces the activity's demand sensitivity and gives the inventory write-down."""
+    sd = next(x for x in SCENARIOS if x['code'] == scen)
+    R = M['scenario_rules']
+    sens = dict(INDUSTRIES[industry]['sens'])
+    cp = country_profile(country)
+    rg = next((x for x in cp.get('regions') or [] if x['code'] == region), None) if region else None
+    sev = 'STAGNANT_MARKET' if sd['inventory'] == 'STAGNANT' else 'FINANCIAL_CRISIS'
     if mix:
         rw = sum(m['revenue_share_pct'] for m in mix)
-        s['revenue_pct'] = sum(PCAT[m['category']]['revenue_change_pct'][scen] * m['revenue_share_pct'] for m in mix) / rw
+        sens['DEMAND'] = sum(PCAT[m['category']]['demand_sensitivity'] * m['revenue_share_pct'] for m in mix) / rw
+    x = {}
+    for d in DRIVERS:
+        v = sd['intensity'][d] * sens[d] / 5 * cp['exposure'][d]
+        if rg and d == 'REAL_ESTATE': v *= rg['re_mult']
+        if rg and d == 'CONFLICT': v *= rg['conflict_mult']
+        x[d] = v
+    p = dict(revenue_pct=max(-R['max_revenue_fall_pct'], -sum(x[d] * DRV[d]['rev_pct'] for d in DRIVERS)),
+             gross_margin_pp=-sum(x[d] * DRV[d]['gm_pp'] for d in DRIVERS),
+             dso_days=sd['base_dso_days'] + sum(x[d] * DRV[d]['dso_days'] for d in DRIVERS),
+             st_lines_withdrawn_pct=min(R['st_lines_max_pct'], sd['st_lines_withdrawn_pct'] * cp['exposure']['CREDIT'] * sens['CREDIT'] / R['credit_sensitivity_reference']),
+             rate_bp=sd['rate_bp'],
+             private_ar_loss_pct=min(100.0, sd['private_ar_loss_pct'] * (1 + R['private_ar_loss_demand_factor'] * x['DEMAND'])),
+             property_writedown_pct=min(R['investment_property_fall_max_pct'], R['investment_property_fall_pct'] * x['REAL_ESTATE']))
+    if mix:
         iw = sum(m.get('inventory_share_pct', 0) for m in mix) or 1
-        s['inventory_writedown_pct'] = sum((PCAT[m['category']]['inventory_value_pct']['NORMAL'] - PCAT[m['category']]['inventory_value_pct'][scen])
+        p['inventory_writedown_pct'] = sum((PCAT[m['category']]['inventory_value_pct']['NORMAL'] - PCAT[m['category']]['inventory_value_pct'][sev])
                                            * m.get('inventory_share_pct', 0) for m in mix) / iw
-        if scen == 'FINANCIAL_CRISIS':
-            s['dso_days'] = max(s['dso_days'], sum(PCAT[m['category']]['crisis_extra_dso'] * m['revenue_share_pct'] for m in mix) / rw)
+        if sev == 'FINANCIAL_CRISIS':
+            p['dso_days'] = max(p['dso_days'], sum(PCAT[m['category']]['crisis_extra_dso'] * m['revenue_share_pct'] for m in mix) / rw)
     else:
         cats = INDUSTRIES[industry]['product_categories']
-        s['inventory_writedown_pct'] = sum(PCAT[c]['inventory_value_pct']['NORMAL'] - PCAT[c]['inventory_value_pct'][scen] for c in cats) / len(cats)
-    return s
+        p['inventory_writedown_pct'] = sum(PCAT[c]['inventory_value_pct']['NORMAL'] - PCAT[c]['inventory_value_pct'][sev] for c in cats) / len(cats)
+    return p
 
 
 def stress_lines(card, d, prm):
@@ -1120,7 +1174,9 @@ def stress_lines(card, d, prm):
     rev, cogs, opex = a('REVENUE'), a('COGS'), a('OPEX')
     gm = (rev - cogs) / rev
     rev2 = rev * (1 + prm['revenue_pct'] / 100)
-    gp2 = rev2 * (gm + prm['gross_margin_pp'] / 100)
+    R = M['scenario_rules']
+    gm_eff = prm['gross_margin_pp'] * min(R['gross_margin_scale_max'], max(gm, 0.0) * 100 / R['reference_gross_margin_pct'])
+    gp2 = rev2 * (gm + gm_eff / 100)
     fr = CARDS[card]['fixed_cost_rule']
     ga, sd = a('GENERAL_ADMIN'), a('SELLING_DISTRIBUTION')
     if ga is None and sd is None:
@@ -1137,10 +1193,12 @@ def stress_lines(card, d, prm):
         priv180 = 0.10 * max(0.0, a('AR') - a.z('AR_GOVERNMENT'))
     ar_loss = priv180 * prm['private_ar_loss_pct'] / 100
     inv_wd = a('INVENTORY') * prm['inventory_writedown_pct'] / 100
+    ip_wd = a.z('INVESTMENT_PROPERTY') * prm['property_writedown_pct'] / 100
     d_ebitda = (gp2 - opex2) - (rev - cogs - opex)
     o['REVENUE'] = rev2; o['COGS'] = rev2 - gp2; o['OPEX'] = opex2
     o['FINANCE_COSTS'] = a('FINANCE_COSTS') + dfin
-    o['OTHER_INCOME'] = a('OTHER_INCOME') - ar_loss - inv_wd
+    o['OTHER_INCOME'] = a('OTHER_INCOME') - ar_loss - inv_wd - ip_wd
+    if ip_wd: o['INVESTMENT_PROPERTY'] = a('INVESTMENT_PROPERTY') - ip_wd
     if a('INTEREST_PAID'): o['INTEREST_PAID'] = a('INTEREST_PAID') + dfin
     flow = d_ebitda - dfin - stretch
     if a('OP_CASH_FLOW') or a('CFO_BEFORE_WC'):
@@ -1162,7 +1220,7 @@ def stress_lines(card, d, prm):
     if free + flow < 0:
         st_add = -(free + flow); cash = a.z('CASH_RESTRICTED')
     o['CASH'] = cash; o['ST_LOANS'] = a('ST_LOANS') + st_add
-    o['RETAINED_EARNINGS'] = a('RETAINED_EARNINGS') + d_ebitda - dfin - ar_loss - inv_wd
+    o['RETAINED_EARNINGS'] = a('RETAINED_EARNINGS') + d_ebitda - dfin - ar_loss - inv_wd - ip_wd
     for k in ('REV_TOP5', 'REV_TOP_CUSTOMER', 'REV_GOVERNMENT', 'REV_CASH', 'REV_EXPORT'):
         if k in o: o[k] = o[k] * rev2 / rev
     full = rebuild_totals(o, {})
@@ -1170,7 +1228,7 @@ def stress_lines(card, d, prm):
     full['OPERATING_PROFIT'] = full['GROSS_PROFIT'] - full['OPEX']
     full['EBITDA'] = full['OPERATING_PROFIT'] + full.get('DEPR_AMORT', 0)
     full['NET_PROFIT'] = full['OPERATING_PROFIT'] - full.get('FINANCE_COSTS', 0) + full.get('OTHER_INCOME', 0) + full.get('SHARE_OF_ASSOCIATES', 0) - full.get('ZAKAT_TAX', 0)
-    return full, dict(ar_loss=ar_loss, inv_wd=inv_wd, dfin=dfin, stretch=stretch, d_ebitda=d_ebitda)
+    return full, dict(ar_loss=ar_loss, inv_wd=inv_wd, ip_wd=ip_wd, gm_pp=gm_eff, dfin=dfin, stretch=stretch, d_ebitda=d_ebitda)
 
 
 def case_args(c, scale=1.0):
@@ -1193,7 +1251,7 @@ def case_args(c, scale=1.0):
     return dict(prior=sc(c.get('prior')), qual=c['qual'], ev=tuple(inp.get('ev', ())), breach=inp.get('breach'),
                 breach_at_period_end=inp.get('breach_at_period_end', False), assurance=inp.get('assurance', 'AUDITED'),
                 holding=inp.get('holding', False), platform=plat, guarantors=guarantors, industry=c.get('industry'),
-                product_mix=mix or None), sc(c['lines'])
+                product_mix=mix or None, country=c.get('country', 'SA'), region=c.get('region')), sc(c['lines'])
 
 
 if __name__ == '__main__':

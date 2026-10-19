@@ -1,5 +1,17 @@
-%% م5 · البيانات المالية والأرصدة (5/11) — Financial statements & balances
+%% م5 · البيانات المالية والأرصدة (5/13) — Financial statements & balances
 erDiagram
+  fin_CreditAssessmentRemedy["fin.CreditAssessmentRemedy"] {
+    bigint CreditAssessmentRemedyId PK
+    bigint AssessmentId FK
+    int RemedyId FK
+    int ProFormaGradeId FK
+  }
+  fin_CreditAssessmentScenario["fin.CreditAssessmentScenario"] {
+    bigint CreditAssessmentScenarioId PK
+    bigint AssessmentId FK
+    int MacroScenarioId FK
+    int GradeId FK
+  }
   fin_CreditAssessmentTrigger["fin.CreditAssessmentTrigger"] {
     bigint CreditAssessmentTriggerId PK
     bigint AssessmentId FK
@@ -8,12 +20,4 @@ erDiagram
   fin_CreditMetric["fin.CreditMetric"] {
     int CreditMetricId PK
   }
-  fin_CreditRemedy["fin.CreditRemedy"] {
-    int CreditRemedyId PK
-  }
-  fin_CreditRemedyStep["fin.CreditRemedyStep"] {
-    int CreditRemedyStepId PK
-    int RemedyId FK
-  }
   fin_CreditMetric ||--o{ fin_CreditAssessmentTrigger : "MetricId"
-  fin_CreditRemedy ||--o{ fin_CreditRemedyStep : "RemedyId"

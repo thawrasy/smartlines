@@ -1,20 +1,22 @@
-%% م5 · البيانات المالية والأرصدة (8/11) — Financial statements & balances
+%% م5 · البيانات المالية والأرصدة (8/13) — Financial statements & balances
 erDiagram
-  fin_ProductCategory["fin.ProductCategory"] {
-    int ProductCategoryId PK
+  fin_LineCatalogItemAlias["fin.LineCatalogItemAlias"] {
+    int LineCatalogItemAliasId PK
+    int LineCatalogItemId FK
   }
-  fin_RatingGrade["fin.RatingGrade"] {
-    int RatingGradeId PK
+  fin_MacroScenario["fin.MacroScenario"] {
+    int MacroScenarioId PK
   }
-  fin_RevenueEstimate["fin.RevenueEstimate"] {
-    bigint RevenueEstimateId PK
-    bigint CompanyId FK
-    int CurrencyId FK
-    bigint DocumentId FK
-    bigint PreparedBy FK
+  fin_MacroScenarioIntensity["fin.MacroScenarioIntensity"] {
+    int MacroScenarioIntensityId PK
+    int MacroScenarioId FK
+    int ShockDriverId FK
+  }
+  fin_MeasureFormula["fin.MeasureFormula"] {
+    bigint MeasureFormulaId PK
+    bigint FacilityId FK
+    bigint BaseTemplateId FK
     bigint ApprovedBy FK
   }
-  fin_Scorecard["fin.Scorecard"] {
-    int ScorecardId PK
-    int CurrencyId FK
-  }
+  fin_MacroScenario ||--o{ fin_MacroScenarioIntensity : "MacroScenarioId"
+  fin_MeasureFormula |o--o{ fin_MeasureFormula : "BaseTemplateId"

@@ -9,8 +9,9 @@
                                data completeness, the adjustments, the grades, the liquidity label and the facility
                                grade. It reads and writes temporary tables its caller creates (below), and nothing else
                                but the methodology tables.
-     fin.usp_CreditEvaluate    the core on the statement, then on the two scenarios of the company's activity (the
-                               resilience overlay), then on the pro-forma statement of each remedy the findings call for.
+     fin.usp_CreditEvaluate    the core on the statement, then on the six macro scenarios with the stress of the
+                               company's activity, country and city (the resilience overlay from the stagnant market),
+                               then on the pro-forma statement of each remedy the findings call for.
      fin.usp_ComputeCreditAssessment (end of this script) reads a draft assessment from the tables: its statement and
                                comparison statement, its inputs, guarantors and bureau report, the company's product lines
                                and activity, and the platform's facilities and collateral on the assessment date; it
@@ -58,6 +59,42 @@ SELECT CAST(ROUND(CASE
                    ELSE               19.5 + (@b7 - @v) / (@b7 - @b8) * 1 END
        END, 4) AS DECIMAL(9,4)) AS Score;
 GO
+/* The country risk profile of a company's country, or the default profile when its country has none (docs/35
+   section 13, ADR 0019). */
+CREATE OR ALTER FUNCTION fin.fn_CountryProfileId (@CountryId INT)
+RETURNS INT
+AS
+BEGIN
+    RETURN ISNULL((SELECT CountryRiskProfileId FROM fin.CountryRiskProfile WHERE CountryId = @CountryId),
+                  (SELECT CountryRiskProfileId FROM fin.CountryRiskProfile WHERE IsDefault = 1));
+END;
+GO
+
+/* The ceiling of a company's grade in its country: the published sovereign rating, or the ceiling of the country risk
+   when unrated (credit_reference.country_ceiling). */
+CREATE OR ALTER FUNCTION fin.fn_CountryCeilingGradeId (@CountryId INT)
+RETURNS INT
+AS
+BEGIN
+    RETURN (SELECT CeilingGradeId FROM fin.CountryRiskProfile WHERE CountryRiskProfileId = fin.fn_CountryProfileId(@CountryId));
+END;
+GO
+
+/* The country and industry risk anchor, a notch of the scale: the matrix cell of the country risk and the industry
+   risk, high cyclicality one notch worse and low one better (credit_reference.anchor_notch). */
+CREATE OR ALTER FUNCTION fin.fn_CreditAnchorNotch (@IndustryId INT, @CountryId INT)
+RETURNS INT
+AS
+BEGIN
+    DECLARE @n INT = (SELECT ra.AnchorNotch + CASE ip.Cyclicality WHEN 'HIGH' THEN 1 WHEN 'LOW' THEN -1 ELSE 0 END
+                      FROM fin.IndustryProfile AS ip
+                      JOIN fin.CountryRiskProfile AS cp ON cp.CountryRiskProfileId = fin.fn_CountryProfileId(@CountryId)
+                      JOIN fin.RiskAnchor AS ra ON ra.CountryRisk = cp.CountryRisk AND ra.IndustryRisk = ip.IndustryRisk
+                      WHERE ip.IndustryId = @IndustryId);
+    RETURN CASE WHEN @n > 20 THEN 20 WHEN @n < 1 THEN 1 ELSE @n END;
+END;
+GO
+
 /* The risk level of a value under the four thresholds of an item rule; a value on a threshold belongs to the worse
    level (docs/35 section 6). */
 CREATE OR ALTER FUNCTION fin.fn_CreditItemLevel (@v FLOAT, @t1 FLOAT, @t2 FLOAT, @t3 FLOAT, @t4 FLOAT)
@@ -74,7 +111,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
     DECLARE @card INT, @pt VARCHAR(10), @ppt VARCHAR(10), @hasPrior BIT, @fx FLOAT, @assurance VARCHAR(10), @opinion VARCHAR(11), @goingConcern BIT,
-            @holdco BIT, @breach VARCHAR(16), @breachAtPe BIT, @flowShortfall BIT, @ageMonths INT, @restatedPct FLOAT, @industry INT, @marketSize FLOAT,
+            @holdco BIT, @breach VARCHAR(16), @breachAtPe BIT, @flowShortfall BIT, @ageMonths INT, @restatedPct FLOAT, @industry INT, @country INT, @marketSize FLOAT,
             @rollFactor FLOAT, @resilienceNotch BIT, @proforma BIT, @evSub BIT, @evCap BIT,
             @pfLimits FLOAT, @pfOut FLOAT, @pfUndrawn FLOAT, @pfLargest FLOAT, @pfExpiring FLOAT, @pfLenders INT,
             @bu BIT, @buOut FLOAT, @buLimits FLOAT, @buLenders INT, @buDpd12 INT, @buDefault BIT, @buDefaults24 INT, @buBouncedN INT, @buBouncedAmt FLOAT,
@@ -83,7 +120,7 @@ BEGIN
             @support INT, @parentNotch INT, @override INT, @guLiquid FLOAT, @guNetWorth FLOAT, @guGiven FLOAT, @guGuaranteed FLOAT, @guMaxLev FLOAT;
     SELECT @card = ScorecardId, @pt = PeriodType, @ppt = PriorPeriodType, @hasPrior = HasPrior, @fx = Fx, @assurance = Assurance, @opinion = Opinion,
            @goingConcern = GoingConcern, @holdco = HoldingStandalone, @breach = Breach, @breachAtPe = BreachAtPeriodEnd, @flowShortfall = FlowShortfall,
-           @ageMonths = StatementAgeMonths, @restatedPct = RestatedPct, @industry = IndustryId, @marketSize = MarketSize, @rollFactor = RolloverFactor,
+           @ageMonths = StatementAgeMonths, @restatedPct = RestatedPct, @industry = IndustryId, @country = CountryId, @marketSize = MarketSize, @rollFactor = RolloverFactor,
            @resilienceNotch = ResilienceNotch, @proforma = Proforma, @evSub = EvSub, @evCap = EvCap,
            @pfLimits = PfLimits, @pfOut = PfOutstanding, @pfUndrawn = PfCommittedUndrawn, @pfLargest = PfLargestLenderShare,
            @pfExpiring = PfExpiring12mShare, @pfLenders = PfLenders,
@@ -437,7 +474,8 @@ BEGIN
         ('AR_TOP5', @AR_TOP5), ('AR_RELATED', @AR_RELATED_TRADE), ('AP_OVERDUE', @AP_OVERDUE), ('SUPPLIER_FINANCE', @SUPPLIER_FINANCE),
         ('STAFF_COSTS', @STAFF_COSTS), ('ECL_CHARGE', @ECL_CHARGE), ('NONRECURRING_GAINS', @NONRECURRING_GAINS), ('DEBT_SECURED', @DEBT_SECURED),
         ('DEBT_DUE_1Y', @DEBT_DUE_1Y),
-        ('DEBT_PROFILE', CASE WHEN @DEBT_DUE_1Y IS NULL THEN NULL ELSE @DEBT_DUE_1Y + ISNULL(@DEBT_DUE_1_2Y, 0) + ISNULL(@DEBT_DUE_2_5Y, 0) + ISNULL(@DEBT_DUE_OVER_5Y, 0) END),
+        ('DEBT_PROFILE', CASE WHEN @DEBT_DUE_1Y IS NULL OR (@DEBT_DUE_1_2Y IS NULL AND @DEBT_DUE_2_5Y IS NULL AND @DEBT_DUE_OVER_5Y IS NULL) THEN NULL
+                              ELSE @DEBT_DUE_1Y + ISNULL(@DEBT_DUE_1_2Y, 0) + ISNULL(@DEBT_DUE_2_5Y, 0) + ISNULL(@DEBT_DUE_OVER_5Y, 0) END),
         ('FLOAT_SHOCK', @DEBT_FLOATING * @rateShock / 100), ('FX_OPEN', ISNULL(@NET_FX_OPEN_POSITION, @DEBT_FOREIGN_CCY)),
         ('DUE_FROM_SHAREHOLDERS', @DUE_FROM_SHAREHOLDERS), ('DUE_TO_RELATED', @DUE_TO_RELATED), ('EOSB', @EOSB), ('ZAKAT_DISPUTED', @ZAKAT_DISPUTED),
         ('GUARANTEES_GIVEN', @GUARANTEES_GIVEN), ('LEGAL_CLAIMS', @LEGAL_CLAIMS), ('PURCHASES_RELATED', @PURCHASES_RELATED),
@@ -633,9 +671,9 @@ BEGIN
         BEGIN
             IF @proforma = 0 AND EXISTS (SELECT 1 FROM #crF
                                          WHERE Kind = 'QUALITATIVE'
-                                           AND ABS(CASE WHEN FLOOR(Score - 0.5) + 1 > 20 THEN 20 WHEN FLOOR(Score - 0.5) + 1 < 1 THEN 1 ELSE FLOOR(Score - 0.5) + 1 END - @finNotch) > @qualBound
+                                           AND @finNotch - CASE WHEN FLOOR(Score - 0.5) + 1 > 20 THEN 20 WHEN FLOOR(Score - 0.5) + 1 < 1 THEN 1 ELSE FLOOR(Score - 0.5) + 1 END > @qualBound
                                            AND NOT ((Code = 'BUSINESS_PROFILE' AND @docBp = 1) OR (Code = 'FINANCIAL_POLICY' AND @docFp = 1)))
-                THROW 50065, 'A qualitative grade more than the scorecard''s bound from the financial grade needs a supporting document (BR-FIN-021)', 1;
+                THROW 50065, 'A qualitative grade more than the scorecard''s bound better than the financial grade needs a supporting document (BR-FIN-021)', 1;
             SET @state = 'RATED';
             SET @agg = ROUND((SELECT SUM(Score * EffectiveWeight) / SUM(EffectiveWeight) FROM #crF WHERE Score IS NOT NULL), 4);
             SET @n0 = CASE WHEN FLOOR(@agg - 0.5) + 1 > 20 THEN 20 WHEN FLOOR(@agg - 0.5) + 1 < 1 THEN 1 ELSE FLOOR(@agg - 0.5) + 1 END;
@@ -710,17 +748,19 @@ BEGIN
             (37, 'SIZE_CEILING', CASE WHEN @rsState = 'WORST' OR (@rsState = 'COMPUTED' AND @rsValue < (SELECT P FROM @P WHERE RuleCode = 'SIZE_CEILING')) THEN 1 ELSE 0 END),
             (38, 'SIZE_CEILING_MID', CASE WHEN @rsState = 'WORST' OR (@rsState = 'COMPUTED' AND @rsValue < (SELECT P FROM @P WHERE RuleCode = 'SIZE_CEILING_MID')) THEN 1 ELSE 0 END),
             (39, 'SIZE_CEILING_SMALL', CASE WHEN @rsState = 'WORST' OR (@rsState = 'COMPUTED' AND @rsValue < (SELECT P FROM @P WHERE RuleCode = 'SIZE_CEILING_SMALL')) THEN 1 ELSE 0 END),
-            (40, 'LIQUIDITY_SGL4_CAP', CASE WHEN @sgl = 'SGL-4' THEN 1 ELSE 0 END),
-            (41, 'SECTOR_CEILING', 1),
-            (42, 'INDUSTRY_CEILING', CASE WHEN EXISTS (SELECT 1 FROM fin.IndustryProfile WHERE IndustryId = @industry AND CeilingGradeId IS NOT NULL) THEN 1 ELSE 0 END),
-            (43, 'AUDIT_ADVERSE', CASE WHEN @opinion IN ('ADVERSE','DISCLAIMER') THEN 1 ELSE 0 END),
-            (44, 'SOVEREIGN_CEILING', 1)
+            (40, 'SIZE_CEILING_MICRO', CASE WHEN @rsState = 'WORST' OR (@rsState = 'COMPUTED' AND @rsValue < (SELECT P FROM @P WHERE RuleCode = 'SIZE_CEILING_MICRO')) THEN 1 ELSE 0 END),
+            (41, 'LIQUIDITY_SGL4_CAP', CASE WHEN @sgl = 'SGL-4' THEN 1 ELSE 0 END),
+            (42, 'SECTOR_CEILING', 1),
+            (43, 'INDUSTRY_CEILING', CASE WHEN EXISTS (SELECT 1 FROM fin.IndustryProfile WHERE IndustryId = @industry AND CeilingGradeId IS NOT NULL) THEN 1 ELSE 0 END),
+            (44, 'AUDIT_ADVERSE', CASE WHEN @opinion IN ('ADVERSE','DISCLAIMER') THEN 1 ELSE 0 END),
+            (45, 'SOVEREIGN_CEILING', 1)
         ) AS v (Ord, RuleCode, Applies)
         WHERE v.Applies = 1 AND EXISTS (SELECT 1 FROM @P AS p WHERE p.RuleCode = v.RuleCode);
         INSERT #crA (Ord, RuleCode, Stage, Notches, CapNotch, ParamValue)
         SELECT ap.Ord, ap.RuleCode, a.Stage, a.Notches,
                CASE WHEN ap.RuleCode = 'INDUSTRY_CEILING' THEN (SELECT g.NotchNo FROM fin.IndustryProfile AS ip JOIN fin.RatingGrade AS g ON g.RatingGradeId = ip.CeilingGradeId
                                                                  WHERE ip.IndustryId = @industry)
+                    WHEN ap.RuleCode = 'SOVEREIGN_CEILING' THEN (SELECT g2.NotchNo FROM fin.RatingGrade AS g2 WHERE g2.RatingGradeId = fin.fn_CountryCeilingGradeId(@country))
                     ELSE g.NotchNo END, a.ParamValue
         FROM @app AS ap
         JOIN fin.ScorecardAdjustment AS a ON a.ScorecardId = @card AND a.RuleCode = ap.RuleCode
@@ -852,25 +892,66 @@ GO
    floating debt costs more, receivables stretch and private aged receivables are lost, inventory is written down; the
    cash effect goes to cash and then to short-term loans, the losses to retained earnings. The product lines of #crMix
    give the revenue change and the inventory write-down when the company has them. */
-CREATE OR ALTER PROCEDURE fin.usp_CreditStressLines @Scenario VARCHAR(20), @Withdrawn FLOAT OUTPUT, @ArLoss FLOAT OUTPUT, @InvWd FLOAT OUTPUT,
-                                                     @Dfin FLOAT OUTPUT, @Stretch FLOAT OUTPUT
+CREATE OR ALTER PROCEDURE fin.usp_CreditStressLines @Scenario VARCHAR(30), @Withdrawn FLOAT OUTPUT, @ArLoss FLOAT OUTPUT, @InvWd FLOAT OUTPUT,
+                                                     @Dfin FLOAT OUTPUT, @Stretch FLOAT OUTPUT, @RevPctOut FLOAT OUTPUT, @GmPpOut FLOAT OUTPUT,
+                                                     @DsoOut FLOAT OUTPUT, @RateBpOut INT OUTPUT, @PrivLossOut FLOAT OUTPUT, @InvWdPctOut FLOAT OUTPUT
 AS
 BEGIN
     SET NOCOUNT ON;
-    DECLARE @card INT, @industry INT;
-    SELECT @card = ScorecardId, @industry = IndustryId FROM #crX;
-    -- the parameters: the activity's, the revenue change and inventory write-down from the product mix
-    DECLARE @revPct FLOAT, @gmPp FLOAT, @dso FLOAT, @rateBp FLOAT, @privLoss FLOAT, @invWdPct FLOAT;
-    SELECT @revPct = RevenuePct, @gmPp = GrossMarginPp, @dso = DsoDays, @Withdrawn = StLinesWithdrawnPct, @rateBp = RateBp, @privLoss = PrivateArLossPct
-    FROM fin.IndustryScenario WHERE IndustryId = @industry AND Scenario = @Scenario;
+    DECLARE @card INT, @industry INT, @country INT, @region VARCHAR(10);
+    SELECT @card = ScorecardId, @industry = IndustryId, @country = CountryId, @region = RegionCode FROM #crX;
+    -- the stress of the macro scenario (credit_reference.scenario_params): per driver the scenario intensity × the
+    -- activity sensitivity ÷ 5 × the country exposure × the region multiplier (real estate and conflict); the product
+    -- mix replaces the activity's demand sensitivity and gives the inventory write-down
+    DECLARE @scId INT, @sev VARCHAR(10), @baseDso FLOAT, @stShare FLOAT, @rateBp FLOAT, @privBase FLOAT, @profile INT;
+    SELECT @scId = MacroScenarioId, @sev = InventorySeverity, @baseDso = BaseDsoDays, @stShare = StLinesWithdrawnPct, @rateBp = RateBp,
+           @privBase = PrivateArLossPct
+    FROM fin.MacroScenario WHERE Code = @Scenario;
+    SET @profile = fin.fn_CountryProfileId(@country);
+    DECLARE @maxFall FLOAT, @stMax FLOAT, @privDemand FLOAT, @creditRef FLOAT, @gmRef FLOAT, @gmScaleMax FLOAT, @ipFall FLOAT, @ipFallMax FLOAT;
+    SELECT @maxFall = MAX(CASE WHEN ParamKey = 'MAX_REVENUE_FALL_PCT' THEN Value END), @stMax = MAX(CASE WHEN ParamKey = 'ST_LINES_MAX_PCT' THEN Value END),
+           @privDemand = MAX(CASE WHEN ParamKey = 'PRIVATE_AR_LOSS_DEMAND_FACTOR' THEN Value END),
+           @creditRef = MAX(CASE WHEN ParamKey = 'CREDIT_SENSITIVITY_REFERENCE' THEN Value END),
+           @gmRef = MAX(CASE WHEN ParamKey = 'REFERENCE_GROSS_MARGIN_PCT' THEN Value END), @gmScaleMax = MAX(CASE WHEN ParamKey = 'GROSS_MARGIN_SCALE_MAX' THEN Value END),
+           @ipFall = MAX(CASE WHEN ParamKey = 'INVESTMENT_PROPERTY_FALL_PCT' THEN Value END), @ipFallMax = MAX(CASE WHEN ParamKey = 'INVESTMENT_PROPERTY_FALL_MAX_PCT' THEN Value END)
+    FROM fin.ScorecardParameter WHERE ScorecardId = @card AND GroupCode = 'SCENARIO';
+    DECLARE @mixDemand FLOAT = NULL, @rw FLOAT = (SELECT SUM(RevenueSharePct) FROM #crMix), @iw FLOAT = (SELECT SUM(InventorySharePct) FROM #crMix);
+    IF EXISTS (SELECT 1 FROM #crMix)
+        SET @mixDemand = (SELECT SUM(CAST(pc.DemandSensitivity AS FLOAT) * m.RevenueSharePct) / @rw
+                          FROM #crMix AS m JOIN fin.ProductCategory AS pc ON pc.ProductCategoryId = m.ProductCategoryId);
+    DECLARE @x TABLE (Driver VARCHAR(20) COLLATE DATABASE_DEFAULT PRIMARY KEY, X FLOAT, RevPct FLOAT, GmPp FLOAT, Dso FLOAT, SortOrder INT);
+    INSERT @x (Driver, X, RevPct, GmPp, Dso, SortOrder)
+    SELECT d.Code,
+           CAST(si.Intensity AS FLOAT) * CASE WHEN d.Code = 'DEMAND' AND @mixDemand IS NOT NULL THEN @mixDemand ELSE CAST(ISNULL(ins.Sensitivity, 0) AS FLOAT) END / 5
+           * CAST(CASE d.Code WHEN 'DEMAND' THEN cp.ExpDemand WHEN 'GOV_SPENDING' THEN cp.ExpGovSpending WHEN 'REAL_ESTATE' THEN cp.ExpRealEstate
+                              WHEN 'CONFLICT' THEN cp.ExpConflict WHEN 'OIL' THEN cp.ExpOil WHEN 'CREDIT' THEN cp.ExpCredit ELSE cp.ExpImportFx END AS FLOAT)
+           * CASE WHEN rg.CountryRegionId IS NULL THEN 1.0 WHEN d.Code = 'REAL_ESTATE' THEN CAST(rg.RealEstateMult AS FLOAT)
+                  WHEN d.Code = 'CONFLICT' THEN CAST(rg.ConflictMult AS FLOAT) ELSE 1.0 END,
+           d.RevenuePct, d.GrossMarginPp, d.DsoDays, d.SortOrder
+    FROM fin.ShockDriver AS d
+    JOIN fin.MacroScenarioIntensity AS si ON si.MacroScenarioId = @scId AND si.ShockDriverId = d.ShockDriverId
+    JOIN fin.CountryRiskProfile AS cp ON cp.CountryRiskProfileId = @profile
+    LEFT JOIN fin.IndustrySensitivity AS ins ON ins.IndustryId = @industry AND ins.ShockDriverId = d.ShockDriverId
+    LEFT JOIN fin.CountryRegion AS rg ON rg.CountryId = @country AND rg.Code = @region;
+    DECLARE @revPct FLOAT, @gmPp FLOAT, @dso FLOAT, @privLoss FLOAT, @invWdPct FLOAT, @xd FLOAT, @expCredit FLOAT;
+    SELECT @revPct = -SUM(X * RevPct), @gmPp = -SUM(X * GmPp), @dso = @baseDso + SUM(X * Dso) FROM @x;
+    SET @xd = (SELECT X FROM @x WHERE Driver = 'DEMAND');
+    IF @revPct < -@maxFall SET @revPct = -@maxFall;
+    SET @expCredit = (SELECT CAST(ExpCredit AS FLOAT) FROM fin.CountryRiskProfile WHERE CountryRiskProfileId = @profile);
+    DECLARE @creditSens FLOAT = ISNULL((SELECT CAST(ss.Sensitivity AS FLOAT) FROM fin.IndustrySensitivity AS ss JOIN fin.ShockDriver AS sd ON sd.ShockDriverId = ss.ShockDriverId
+                                        WHERE ss.IndustryId = @industry AND sd.Code = 'CREDIT'), 0);
+    SET @Withdrawn = @stShare * @expCredit * @creditSens / @creditRef;
+    DECLARE @ipWdPct FLOAT = @ipFall * (SELECT X FROM @x WHERE Driver = 'REAL_ESTATE');
+    IF @ipWdPct > @ipFallMax SET @ipWdPct = @ipFallMax;
+    IF @Withdrawn > @stMax SET @Withdrawn = @stMax;
+    SET @privLoss = @privBase * (1 + @privDemand * @xd);
+    IF @privLoss > 100 SET @privLoss = 100;
     IF EXISTS (SELECT 1 FROM #crMix)
     BEGIN
-        DECLARE @rw FLOAT = (SELECT SUM(RevenueSharePct) FROM #crMix), @iw FLOAT = (SELECT SUM(InventorySharePct) FROM #crMix);
-        SELECT @revPct = SUM(CASE @Scenario WHEN 'STAGNANT_MARKET' THEN pc.RevStagnantPct ELSE pc.RevCrisisPct END * m.RevenueSharePct) / @rw,
-               @invWdPct = SUM((pc.InvValueNormalPct - CASE @Scenario WHEN 'STAGNANT_MARKET' THEN pc.InvValueStagnantPct ELSE pc.InvValueCrisisPct END)
+        SELECT @invWdPct = SUM((pc.InvValueNormalPct - CASE @sev WHEN 'STAGNANT' THEN pc.InvValueStagnantPct ELSE pc.InvValueCrisisPct END)
                                * m.InventorySharePct) / CASE WHEN @iw = 0 THEN 1 ELSE @iw END
         FROM #crMix AS m JOIN fin.ProductCategory AS pc ON pc.ProductCategoryId = m.ProductCategoryId;
-        IF @Scenario = 'FINANCIAL_CRISIS'
+        IF @sev = 'CRISIS'
         BEGIN
             DECLARE @mixDso FLOAT = (SELECT SUM(pc.CrisisExtraDso * m.RevenueSharePct) / @rw FROM #crMix AS m
                                      JOIN fin.ProductCategory AS pc ON pc.ProductCategoryId = m.ProductCategoryId);
@@ -878,11 +959,12 @@ BEGIN
         END;
     END
     ELSE
-        SELECT @invWdPct = AVG(pc.InvValueNormalPct - CASE @Scenario WHEN 'STAGNANT_MARKET' THEN pc.InvValueStagnantPct ELSE pc.InvValueCrisisPct END)
+        SELECT @invWdPct = AVG(pc.InvValueNormalPct - CASE @sev WHEN 'STAGNANT' THEN pc.InvValueStagnantPct ELSE pc.InvValueCrisisPct END)
         FROM fin.IndustryProfile AS ip
         CROSS APPLY STRING_SPLIT(ip.ProductCategories, ',') AS c
         JOIN fin.ProductCategory AS pc ON pc.Code = c.value
         WHERE ip.IndustryId = @industry;
+    SELECT @RevPctOut = @revPct, @DsoOut = @dso, @RateBpOut = @rateBp, @PrivLossOut = @privLoss, @InvWdPctOut = @invWdPct;
     -- the lines as the reference's Stmt reads them: a LINE absent is zero, another line absent or an OF_WHICH above its
     -- parent unknown
     DECLARE @d TABLE (Code VARCHAR(40) COLLATE DATABASE_DEFAULT PRIMARY KEY, Amount FLOAT, Kind VARCHAR(10), V FLOAT);
@@ -898,7 +980,7 @@ BEGIN
                              ELSE (SELECT p.Amount FROM #crL AS p WHERE p.Code = sl.ParentCode) END AS Amount) AS par;
     DECLARE @REVENUE FLOAT, @COGS FLOAT, @OPEX FLOAT, @GA FLOAT, @SD FLOAT, @RENT FLOAT, @FLOAT FLOAT, @ST FLOAT, @BA FLOAT, @CPLTD FLOAT, @LT FLOAT,
             @AR FLOAT, @A181 FLOAT, @A365 FLOAT, @A365G FLOAT, @ECL FLOAT, @ARGOV FLOAT, @INV FLOAT, @FIN FLOAT, @OI FLOAT, @IP FLOAT, @CFO FLOAT,
-            @CFOWC FLOAT, @CASH FLOAT, @RESTR FLOAT, @RE FLOAT;
+            @CFOWC FLOAT, @CASH FLOAT, @RESTR FLOAT, @RE FLOAT, @IPROP FLOAT;
     SELECT @REVENUE = MAX(CASE Code WHEN 'REVENUE' THEN V END), @COGS = MAX(CASE Code WHEN 'COGS' THEN V END), @OPEX = MAX(CASE Code WHEN 'OPEX' THEN V END),
            @GA = MAX(CASE Code WHEN 'GENERAL_ADMIN' THEN V END), @SD = MAX(CASE Code WHEN 'SELLING_DISTRIBUTION' THEN V END),
            @RENT = MAX(CASE Code WHEN 'RENT_SHORT_TERM' THEN V END), @FLOAT = MAX(CASE Code WHEN 'DEBT_FLOATING' THEN V END),
@@ -911,13 +993,18 @@ BEGIN
            @OI = MAX(CASE Code WHEN 'OTHER_INCOME' THEN V END), @IP = MAX(CASE Code WHEN 'INTEREST_PAID' THEN V END),
            @CFO = MAX(CASE Code WHEN 'OP_CASH_FLOW' THEN V END), @CFOWC = MAX(CASE Code WHEN 'CFO_BEFORE_WC' THEN V END),
            @CASH = MAX(CASE Code WHEN 'CASH' THEN V END), @RESTR = MAX(CASE Code WHEN 'CASH_RESTRICTED' THEN V END),
-           @RE = MAX(CASE Code WHEN 'RETAINED_EARNINGS' THEN V END)
+           @RE = MAX(CASE Code WHEN 'RETAINED_EARNINGS' THEN V END), @IPROP = MAX(CASE Code WHEN 'INVESTMENT_PROPERTY' THEN V END)
     FROM @d;
     DECLARE @staffFixed FLOAT, @sellFixed FLOAT, @fbFixed FLOAT;
     SELECT @sellFixed = MAX(CASE WHEN ParamKey = 'selling_fixed_pct' THEN Value END), @fbFixed = MAX(CASE WHEN ParamKey = 'fallback_opex_fixed_pct' THEN Value END)
     FROM fin.ScorecardParameter WHERE ScorecardId = @card AND GroupCode = 'FIXED_COST';
     DECLARE @gm FLOAT = (@REVENUE - @COGS) / NULLIF(@REVENUE, 0);
     DECLARE @rev2 FLOAT = @REVENUE * (1 + @revPct / 100);
+    -- the margin shock in proportion to the company's own gross margin (a thin margin is not hit by fixed points)
+    DECLARE @gmScale FLOAT = (CASE WHEN @gm > 0 THEN @gm ELSE 0.0 END) * 100 / @gmRef;
+    IF @gmScale > @gmScaleMax SET @gmScale = @gmScaleMax;
+    SET @gmPp = @gmPp * @gmScale;
+    SET @GmPpOut = @gmPp;
     DECLARE @gp2 FLOAT = @rev2 * (@gm + @gmPp / 100);
     DECLARE @opexFixed FLOAT = CASE WHEN @GA IS NULL AND @SD IS NULL THEN @fbFixed / 100 * @OPEX
                                     ELSE LEAST(@OPEX, ISNULL(@GA, 0) + @sellFixed / 100 * ISNULL(@SD, 0) + ISNULL(@RENT, 0)) END;
@@ -929,14 +1016,16 @@ BEGIN
                                   ELSE 0.10 * GREATEST(0.0, @AR - ISNULL(@ARGOV, 0)) END;
     SET @ArLoss = @priv180 * @privLoss / 100;
     SET @InvWd = @INV * @invWdPct / 100;
+    DECLARE @ipWd FLOAT = ISNULL(@IPROP, 0) * @ipWdPct / 100;
     DECLARE @dEbitda FLOAT = (@gp2 - @opex2) - (@REVENUE - @COGS - @OPEX);
     DECLARE @flow FLOAT = @dEbitda - @Dfin - @Stretch;
     -- the new lines: the totals go and are rebuilt
     DELETE l FROM #crL AS l JOIN fin.StandardLine AS sl ON sl.Code = l.Code WHERE sl.LineKind = 'TOTAL';
     DECLARE @set TABLE (Code VARCHAR(40) COLLATE DATABASE_DEFAULT PRIMARY KEY, Amount FLOAT);
-    INSERT @set VALUES ('REVENUE', @rev2), ('COGS', @rev2 - @gp2), ('OPEX', @opex2), ('FINANCE_COSTS', @FIN + @Dfin), ('OTHER_INCOME', @OI - @ArLoss - @InvWd),
+    INSERT @set VALUES ('REVENUE', @rev2), ('COGS', @rev2 - @gp2), ('OPEX', @opex2), ('FINANCE_COSTS', @FIN + @Dfin), ('OTHER_INCOME', @OI - @ArLoss - @InvWd - @ipWd),
                        ('AR', @AR + @Stretch - @ArLoss), ('INVENTORY', @INV - @InvWd);
     IF @IP <> 0 INSERT @set VALUES ('INTEREST_PAID', @IP + @Dfin);
+    IF @ipWd <> 0 INSERT @set VALUES ('INVESTMENT_PROPERTY', @IPROP - @ipWd);
     IF @CFO <> 0 OR @CFOWC <> 0
     BEGIN
         INSERT @set VALUES ('OP_CASH_FLOW', @CFO + @flow);
@@ -945,7 +1034,7 @@ BEGIN
     DECLARE @cash2 FLOAT = @CASH + @flow, @stAdd FLOAT = 0, @free FLOAT = @CASH - ISNULL(@RESTR, 0);
     IF @free + @flow < 0
         SELECT @stAdd = -(@free + @flow), @cash2 = ISNULL(@RESTR, 0);
-    INSERT @set VALUES ('CASH', @cash2), ('ST_LOANS', @ST + @stAdd), ('RETAINED_EARNINGS', @RE + @dEbitda - @Dfin - @ArLoss - @InvWd);
+    INSERT @set VALUES ('CASH', @cash2), ('ST_LOANS', @ST + @stAdd), ('RETAINED_EARNINGS', @RE + @dEbitda - @Dfin - @ArLoss - @InvWd - @ipWd);
     MERGE #crL AS t USING @set AS s ON t.Code = s.Code
     WHEN MATCHED THEN UPDATE SET Amount = s.Amount
     WHEN NOT MATCHED THEN INSERT (Code, Amount) VALUES (s.Code, s.Amount);
@@ -1133,26 +1222,31 @@ BEGIN
     -- the scenarios of the activity
     IF @state = 'RATED' AND @WithScenarios = 1 AND @industry IS NOT NULL AND ISNULL((SELECT Proforma FROM #crX0), 0) = 0
     BEGIN
-        DECLARE @sc VARCHAR(20), @k INT = 1;
-        WHILE @k <= 2
+        DECLARE @sc VARCHAR(30), @k INT = 1, @kMax INT = (SELECT COUNT(*) FROM fin.MacroScenario);
+        DECLARE @baseSc VARCHAR(30) = (SELECT Code FROM fin.MacroScenario WHERE IsResilienceBase = 1);
+        WHILE @k <= @kMax
         BEGIN
-            SET @sc = CASE @k WHEN 1 THEN 'STAGNANT_MARKET' ELSE 'FINANCIAL_CRISIS' END;
-            DECLARE @wd FLOAT, @arLoss FLOAT, @invWd FLOAT, @dfin FLOAT, @stretch FLOAT;
+            SET @sc = (SELECT Code FROM fin.MacroScenario ORDER BY SortOrder OFFSET @k - 1 ROWS FETCH NEXT 1 ROWS ONLY);
+            DECLARE @wd FLOAT, @arLoss FLOAT, @invWd FLOAT, @dfin FLOAT, @stretch FLOAT, @pRev FLOAT, @pGm FLOAT, @pDso FLOAT, @pRate INT, @pPriv FLOAT,
+                    @pInv FLOAT;
             DELETE #crL; INSERT #crL SELECT Code, Amount FROM @base;
-            EXEC fin.usp_CreditStressLines @sc, @wd OUTPUT, @arLoss OUTPUT, @invWd OUTPUT, @dfin OUTPUT, @stretch OUTPUT;
+            EXEC fin.usp_CreditStressLines @sc, @wd OUTPUT, @arLoss OUTPUT, @invWd OUTPUT, @dfin OUTPUT, @stretch OUTPUT, @pRev OUTPUT, @pGm OUTPUT,
+                                           @pDso OUTPUT, @pRate OUTPUT, @pPriv OUTPUT, @pInv OUTPUT;
             UPDATE #crX SET RolloverFactor = 1 - @wd / 100, Proforma = 1, ResilienceNotch = 0;
             EXEC fin.usp_CreditCore;
             INSERT #evScen (Scenario, State, FinalNotch, WeightedScore, Liquidity, NotchesLost, Revenue, Ebitda, Inventory, ArLoss, InventoryWritedown,
-                            ExtraFinanceCost, ReceivablesStretch, BalanceGap)
+                            ExtraFinanceCost, ReceivablesStretch, BalanceGap, RevenuePct, GrossMarginPp, DsoDays, StLinesWithdrawnPct, RateBp,
+                            PrivateArLossPct, InventoryWritedownPct)
             SELECT @sc, s.State, s.FinalNotch, s.WeightedScore, s.Liquidity, s.FinalNotch - @n5, (SELECT Amount FROM #crL WHERE Code = 'REVENUE'),
                    (SELECT Value FROM #crQ WHERE Code = 'EBITDA'), (SELECT Amount FROM #crL WHERE Code = 'INVENTORY'), @arLoss, @invWd, @dfin, @stretch,
-                   (SELECT SUM(CASE Code WHEN 'TOTAL_ASSETS' THEN Amount ELSE -Amount END) FROM #crL WHERE Code IN ('TOTAL_ASSETS','TOTAL_LIABS','TOTAL_EQUITY')) - @baseGap
+                   (SELECT SUM(CASE Code WHEN 'TOTAL_ASSETS' THEN Amount ELSE -Amount END) FROM #crL WHERE Code IN ('TOTAL_ASSETS','TOTAL_LIABS','TOTAL_EQUITY')) - @baseGap,
+                   @pRev, @pGm, @pDso, @wd, @pRate, @pPriv, @pInv
             FROM #crS AS s;
             DELETE #crX; INSERT #crX SELECT * FROM #crX0;
             SET @k += 1;
         END;
         DELETE #crL; INSERT #crL SELECT Code, Amount FROM @base;
-        DECLARE @lost INT = (SELECT NotchesLost FROM #evScen WHERE Scenario = 'STAGNANT_MARKET');
+        DECLARE @lost INT = (SELECT NotchesLost FROM #evScen WHERE Scenario = @baseSc);
         IF @lost IS NOT NULL AND @lost > @resP AND @resNotch = 0
         BEGIN
             UPDATE #crX SET ResilienceNotch = 1;
@@ -1277,7 +1371,7 @@ BEGIN
         DECLARE @rules TABLE (n INT, Code VARCHAR(20) COLLATE DATABASE_DEFAULT);
         INSERT @rules SELECT v.n, v.Code FROM (VALUES
             (1, 'NEG_LIQUIDITY', CASE WHEN @liq IN ('SGL-3','SGL-4') THEN 1 ELSE 0 END),
-            (2, 'NEG_SCENARIO', CASE WHEN (SELECT NotchesLost FROM #evScen WHERE Scenario = 'STAGNANT_MARKET') >= @stagLoss THEN 1 ELSE 0 END),
+            (2, 'NEG_SCENARIO', CASE WHEN (SELECT e.NotchesLost FROM #evScen AS e JOIN fin.MacroScenario AS ms ON ms.Code = e.Scenario WHERE ms.IsResilienceBase = 1) >= @stagLoss THEN 1 ELSE 0 END),
             (3, 'NEG_HEADROOM', CASE WHEN @down IS NOT NULL AND @down < @headroom THEN 1 ELSE 0 END),
             (4, 'NEG_TREND', CASE WHEN @trend = 'NEG' THEN 1 ELSE 0 END),
             (5, 'NEG_BREACH', CASE WHEN @breach IN ('OPEN','WAIVER_REQUESTED') THEN 1 ELSE 0 END),
@@ -1316,11 +1410,12 @@ BEGIN
             @status VARCHAR(10), @wantPlans BIT, @user BIGINT = CAST(SESSION_CONTEXT(N'UserId') AS BIGINT);
     DECLARE @pt VARCHAR(10), @pe DATE, @fy INT, @basis VARCHAR(12), @assurance VARCHAR(10), @opinion VARCHAR(11), @goingConcern BIT, @cur INT,
             @sstatus VARCHAR(10), @versionReason VARCHAR(10), @supersedes BIGINT, @isHolding BIT, @industry INT, @ppt VARCHAR(10), @cardStatus VARCHAR(8),
-            @cardCur INT, @supportAge INT, @cardCode VARCHAR(40), @cardVer INT, @minCov DECIMAL(5,2), @fx FLOAT;
+            @cardCur INT, @supportAge INT, @cardCode VARCHAR(40), @cardVer INT, @minCov DECIMAL(5,2), @fx FLOAT, @country INT, @region VARCHAR(10);
 
     BEGIN TRANSACTION;
     SELECT @tenant = TenantId, @company = CompanyId, @stmt = StatementId, @priorIn = PriorStatementId, @card = ScorecardId,
-           @asOf = AssessmentDate, @fxIn = FxRateToScorecard, @status = Status, @wantPlans = StrengtheningRequested
+           @asOf = AssessmentDate, @fxIn = FxRateToScorecard, @status = Status, @wantPlans = StrengtheningRequested,
+           @country = MarketCountryId, @region = MarketRegionCode
     FROM fin.CreditAssessment WITH (UPDLOCK, HOLDLOCK)
     WHERE CreditAssessmentId = @AssessmentId;                       -- the row filter shows the bound tenant's only
     IF @tenant IS NULL THROW 50064, 'No credit assessment with this id for this tenant', 1;
@@ -1328,7 +1423,7 @@ BEGIN
 
     SELECT @pt = s.PeriodType, @pe = s.PeriodEnd, @fy = s.FiscalYear, @basis = s.Basis, @assurance = s.Assurance, @opinion = s.AuditOpinion,
            @goingConcern = s.GoingConcernUncertainty, @cur = s.CurrencyId, @sstatus = s.Status, @versionReason = s.VersionReason,
-           @supersedes = s.SupersedesId, @isHolding = c.IsHolding, @industry = c.IndustryId
+           @supersedes = s.SupersedesId, @isHolding = c.IsHolding, @industry = c.IndustryId, @country = ISNULL(@country, c.CountryId)
     FROM fin.FinancialStatement AS s
     JOIN org.Company AS c ON c.TenantId = s.TenantId AND c.CompanyId = s.CompanyId
     WHERE s.TenantId = @tenant AND s.FinancialStatementId = @stmt;
@@ -1364,7 +1459,7 @@ BEGIN
         BuLenders INT, BuDpd12m INT, BuCurrentDefault BIT, BuDefaults24m INT, BuBouncedCount INT, BuBouncedAmount FLOAT, BuJudgments FLOAT, BuRestructured BIT,
         BuInquiries6m INT, BuMonthsAfterPeriodEnd INT, QualBp FLOAT, QualFp FLOAT, DocBp BIT, DocFp BIT, ProdCashFlowQuality FLOAT, ProdConcentration FLOAT,
         InvCrisisValue FLOAT, InvDaysStagnant FLOAT, Support INT, ParentNotch INT, Override INT, GuLiquid FLOAT, GuNetWorth FLOAT, GuGiven FLOAT,
-        GuGuaranteed FLOAT, GuMaxLeverage FLOAT);
+        GuGuaranteed FLOAT, GuMaxLeverage FLOAT, CountryId INT, RegionCode VARCHAR(10) COLLATE DATABASE_DEFAULT);
     CREATE TABLE #crL (Code VARCHAR(40) COLLATE DATABASE_DEFAULT PRIMARY KEY, Amount FLOAT NULL);
     CREATE TABLE #crP (Code VARCHAR(40) COLLATE DATABASE_DEFAULT PRIMARY KEY, Amount FLOAT NULL);
     CREATE TABLE #crColl (Kind VARCHAR(40) COLLATE DATABASE_DEFAULT NOT NULL, Cover FLOAT NOT NULL);
@@ -1383,9 +1478,10 @@ BEGIN
         NotchesRaw INT, Notches INT, CapStandalone INT, CapAbsolute INT, StandaloneNotch INT, SupportedNotch INT, OverriddenNotch INT, FinalNotch INT,
         Liquidity VARCHAR(6) COLLATE DATABASE_DEFAULT, Completeness FLOAT, FacilityLgd FLOAT, FacilityBand VARCHAR(4) COLLATE DATABASE_DEFAULT, FacilityNotch INT,
         UnsecuredRecovery FLOAT, AdjustedDebt FLOAT, AdjustedTnw FLOAT, RealisableNetWorth FLOAT, Ebitda FLOAT, Revenue FLOAT, Inventory FLOAT);
-    CREATE TABLE #evScen (Scenario VARCHAR(20) COLLATE DATABASE_DEFAULT PRIMARY KEY, State VARCHAR(20) COLLATE DATABASE_DEFAULT, FinalNotch INT, WeightedScore FLOAT,
+    CREATE TABLE #evScen (Scenario VARCHAR(30) COLLATE DATABASE_DEFAULT PRIMARY KEY, State VARCHAR(20) COLLATE DATABASE_DEFAULT, FinalNotch INT, WeightedScore FLOAT,
         Liquidity VARCHAR(6) COLLATE DATABASE_DEFAULT, NotchesLost INT, Revenue FLOAT, Ebitda FLOAT, Inventory FLOAT, ArLoss FLOAT, InventoryWritedown FLOAT,
-        ExtraFinanceCost FLOAT, ReceivablesStretch FLOAT, BalanceGap FLOAT);
+        ExtraFinanceCost FLOAT, ReceivablesStretch FLOAT, BalanceGap FLOAT, RevenuePct FLOAT, GrossMarginPp FLOAT, DsoDays FLOAT, StLinesWithdrawnPct FLOAT,
+        RateBp INT, PrivateArLossPct FLOAT, InventoryWritedownPct FLOAT);
     CREATE TABLE #evRem (SeqNo INT PRIMARY KEY, RemedyId INT NOT NULL, TriggerCode VARCHAR(40) COLLATE DATABASE_DEFAULT, TriggerLevel VARCHAR(12) COLLATE DATABASE_DEFAULT,
         Moved FLOAT, FinalNotch INT, WeightedScore FLOAT, NotchesGained INT, BalanceGap FLOAT);
     CREATE TABLE #evPlan (PlanId INT PRIMARY KEY, StepCount INT, FinalNotch INT, FinalScore FLOAT, NotchesGained INT, IsBalanced BIT);
@@ -1427,9 +1523,7 @@ BEGIN
     -- The analyst's inputs: qualitative factors (a grade, or the average of graded sub-factors with the computed sector
     -- risk for the business profile), evidence, market size, rates of facility currencies.
     DECLARE @subMin INT = (SELECT Value FROM fin.ScorecardParameter WHERE ScorecardId = @card AND GroupCode = 'CARD' AND ParamKey = 'SUBFACTOR_MINIMUM');
-    DECLARE @sector FLOAT = (SELECT CAST(CASE ip.SectorRisk WHEN 1 THEN 6 WHEN 2 THEN 9 WHEN 3 THEN 12 WHEN 4 THEN 14 ELSE 16 END
-                                         + CASE ip.Cyclicality WHEN 'HIGH' THEN 1 WHEN 'LOW' THEN -1 ELSE 0 END AS FLOAT)
-                             FROM fin.IndustryProfile AS ip WHERE ip.IndustryId = @industry);
+    DECLARE @sector FLOAT = CASE WHEN @industry IS NOT NULL THEN CAST(fin.fn_CreditAnchorNotch(@industry, @country) AS FLOAT) END;
     DECLARE @q TABLE (Code VARCHAR(40) COLLATE DATABASE_DEFAULT PRIMARY KEY, Score FLOAT, Documented BIT);
     INSERT @q (Code, Score, Documented)
     SELECT cm.Code,
@@ -1575,7 +1669,7 @@ BEGIN
                  PfOutstanding, PfCommittedUndrawn, PfLargestLenderShare, PfExpiring12mShare, PfLenders, BuPresent, BuOutstanding, BuLimits, BuLenders, BuDpd12m,
                  BuCurrentDefault, BuDefaults24m, BuBouncedCount, BuBouncedAmount, BuJudgments, BuRestructured, BuInquiries6m, BuMonthsAfterPeriodEnd, QualBp,
                  QualFp, DocBp, DocFp, ProdCashFlowQuality, ProdConcentration, InvCrisisValue, InvDaysStagnant, Support, ParentNotch, Override, GuLiquid,
-                 GuNetWorth, GuGiven, GuGuaranteed, GuMaxLeverage)
+                 GuNetWorth, GuGiven, GuGuaranteed, GuMaxLeverage, CountryId, RegionCode)
     SELECT @card, @pt, ISNULL(@ppt, 'ANNUAL'), CASE WHEN @prior IS NULL THEN 0 ELSE 1 END, @fx, @assurance, ISNULL(@opinion, 'UNQUALIFIED'), @goingConcern,
            CASE WHEN @isHolding = 1 AND @basis = 'STANDALONE' THEN 1 ELSE 0 END, @breach, @bape, @flowShort, DATEDIFF(MONTH, @pe, @asOf), @restated, @industry,
            @market, 1, 0, 0, @evSub, @evCap, @pfLimits, @pfOut, @pfUndrawn, @pfLargest, @pfExpiring, @pfLenders,
@@ -1584,7 +1678,7 @@ BEGIN
            DATEDIFF(MONTH, @pe, b.ReportDate),
            (SELECT Score FROM @q WHERE Code = 'BUSINESS_PROFILE'), (SELECT Score FROM @q WHERE Code = 'FINANCIAL_POLICY'),
            ISNULL((SELECT Documented FROM @q WHERE Code = 'BUSINESS_PROFILE'), 0), ISNULL((SELECT Documented FROM @q WHERE Code = 'FINANCIAL_POLICY'), 0),
-           @cfq, @conc, @crisis, @days, @support, @parentNotch, ISNULL(@override, 0), @guLiquid, @guNw, @guGiven, @guGtd, @guLev
+           @cfq, @conc, @crisis, @days, @support, @parentNotch, ISNULL(@override, 0), @guLiquid, @guNw, @guGiven, @guGtd, @guLev, @country, @region
     FROM (SELECT 1 AS one) AS d
     LEFT JOIN fin.CreditAssessmentBureau AS b ON b.TenantId = @tenant AND b.AssessmentId = @AssessmentId;
 
@@ -1600,7 +1694,7 @@ BEGIN
     DECLARE @rated BIT = CASE WHEN @state = 'RATED' THEN 1 ELSE 0 END;
     DECLARE @n1 INT = @n0 - @notches;
     DECLARE @wScored FLOAT = (SELECT SUM(EffectiveWeight) FROM #crF WHERE Score IS NOT NULL AND (@rated = 1 OR Kind = 'QUANTITATIVE'));
-    DECLARE @typ INT = (SELECT g.NotchNo FROM fin.IndustryProfile AS ip JOIN fin.RatingGrade AS g ON g.RatingGradeId = ip.ExpectedTypicalGradeId WHERE ip.IndustryId = @industry);
+    DECLARE @typ INT = CASE WHEN @industry IS NOT NULL THEN fin.fn_CreditAnchorNotch(@industry, @country) END;
     DECLARE @resilience VARCHAR(10), @outlook VARCHAR(10), @rules VARCHAR(200), @up FLOAT, @down FLOAT;
     SELECT @resilience = Resilience, @outlook = Outlook, @rules = OutlookRules, @up = UpHeadroom, @down = DownHeadroom FROM #evSum;
 
@@ -1654,7 +1748,15 @@ BEGIN
     FROM (SELECT d.Code, 'DISCLOSURE' AS Domain, 1 AS g FROM #crD AS d WHERE d.Given = 0
           UNION ALL SELECT 'BUREAU_REPORT', 'REQUEST', 2 WHERE NOT EXISTS (SELECT 1 FROM fin.CreditAssessmentBureau WHERE TenantId = @tenant AND AssessmentId = @AssessmentId)
           UNION ALL SELECT 'PRODUCT_MIX', 'REQUEST', 3 WHERE NOT EXISTS (SELECT 1 FROM #crMix)
-          UNION ALL SELECT 'INDUSTRY', 'REQUEST', 4 WHERE @industry IS NULL) AS r
+          UNION ALL SELECT 'INDUSTRY', 'REQUEST', 4 WHERE @industry IS NULL
+          UNION ALL SELECT 'COUNTRY_PROFILE', 'REQUEST', 5 WHERE NOT EXISTS (SELECT 1 FROM fin.CountryRiskProfile WHERE CountryId = @country)
+          UNION ALL SELECT 'INDUSTRY_DETAIL', 'REQUEST', 6
+                    WHERE EXISTS (SELECT 1 FROM ref.Industry AS ch WHERE ch.ParentId = @industry
+                                  AND EXISTS (SELECT 1 FROM fin.IndustryProfile AS chp WHERE chp.IndustryId = ch.IndustryId))
+          UNION ALL SELECT 'MARKET_REGION', 'REQUEST', 7
+                    WHERE @region IS NULL AND EXISTS (SELECT 1 FROM fin.CountryRegion WHERE CountryId = @country)
+                      AND EXISTS (SELECT 1 FROM fin.IndustrySensitivity AS ss JOIN fin.ShockDriver AS sd ON sd.ShockDriverId = ss.ShockDriverId
+                                  WHERE ss.IndustryId = @industry AND sd.Code = 'REAL_ESTATE' AND ss.Sensitivity >= 4)) AS r
     JOIN fin.CreditText AS t ON t.Domain = r.Domain AND t.Code = r.Code
     ORDER BY r.g, r.Code;
     INSERT @x (Kind, Source, RuleCode, LineCode, TextAr, TextEn)
@@ -1806,10 +1908,14 @@ BEGIN
     SELECT @tenant, @AssessmentId, r.SeqNo, r.RemedyId, r.TriggerCode, r.TriggerLevel, CAST(r.Moved AS DECIMAL(19,4)), CAST(r.WeightedScore AS DECIMAL(9,4)), g.RatingGradeId,
            CASE WHEN g.RatingGradeId IS NOT NULL THEN r.NotchesGained END, @user
     FROM #evRem AS r LEFT JOIN fin.RatingGrade AS g ON g.NotchNo = r.FinalNotch;
-    INSERT fin.CreditAssessmentScenario (TenantId, AssessmentId, Scenario, RevenueAfter, EbitdaAfter, InventoryValueAfter, Score, GradeId, LiquidityLabel, NotchesLost, CreatedBy)
-    SELECT @tenant, @AssessmentId, s.Scenario, CAST(s.Revenue AS DECIMAL(19,4)), CAST(s.Ebitda AS DECIMAL(19,4)), CAST(s.Inventory AS DECIMAL(19,4)),
+    INSERT fin.CreditAssessmentScenario (TenantId, AssessmentId, MacroScenarioId, RevenuePct, GrossMarginPp, DsoDays, StLinesWithdrawnPct, RateBp,
+                                         PrivateArLossPct, InventoryWritedownPct, RevenueAfter, EbitdaAfter, InventoryValueAfter, Score, GradeId, LiquidityLabel,
+                                         NotchesLost, CreatedBy)
+    SELECT @tenant, @AssessmentId, ms.MacroScenarioId, CAST(s.RevenuePct AS DECIMAL(9,4)), CAST(s.GrossMarginPp AS DECIMAL(9,4)), CAST(s.DsoDays AS DECIMAL(9,2)),
+           CAST(s.StLinesWithdrawnPct AS DECIMAL(9,4)), s.RateBp, CAST(s.PrivateArLossPct AS DECIMAL(9,4)), CAST(s.InventoryWritedownPct AS DECIMAL(9,4)),
+           CAST(s.Revenue AS DECIMAL(19,4)), CAST(s.Ebitda AS DECIMAL(19,4)), CAST(s.Inventory AS DECIMAL(19,4)),
            CAST(s.WeightedScore AS DECIMAL(9,4)), g.RatingGradeId, s.Liquidity, s.NotchesLost, @user
-    FROM #evScen AS s LEFT JOIN fin.RatingGrade AS g ON g.NotchNo = s.FinalNotch;
+    FROM #evScen AS s JOIN fin.MacroScenario AS ms ON ms.Code = s.Scenario LEFT JOIN fin.RatingGrade AS g ON g.NotchNo = s.FinalNotch;
     INSERT fin.CreditAssessmentPlan (TenantId, AssessmentId, PlanId, StepCount, FinalScore, FinalGradeId, NotchesGained, IsBalanced, CreatedBy)
     SELECT @tenant, @AssessmentId, p.PlanId, p.StepCount, CAST(p.FinalScore AS DECIMAL(9,4)), g.RatingGradeId, p.NotchesGained, p.IsBalanced, @user
     FROM #evPlan AS p JOIN fin.RatingGrade AS g ON g.NotchNo = p.FinalNotch;
@@ -1836,6 +1942,10 @@ BEGIN
            LiquidityLabel = @liq, CompletenessPct = CAST(ROUND(@comp, 2) AS DECIMAL(5,2)),
            AdjustedDebt = CAST(@adjDebt AS DECIMAL(19,4)), AdjustedTnw = CAST(@adjTnw AS DECIMAL(19,4)), RealisableNetWorth = CAST(@realNw AS DECIMAL(19,4)),
            IndustryId = @industry,
+           CountryRisk = (SELECT CountryRisk FROM fin.CountryRiskProfile WHERE CountryRiskProfileId = fin.fn_CountryProfileId(@country)),
+           IndustryRisk = (SELECT IndustryRisk FROM fin.IndustryProfile WHERE IndustryId = @industry),
+           AnchorGradeId = (SELECT RatingGradeId FROM fin.RatingGrade WHERE NotchNo = @typ),
+           CountryCeilingGradeId = fin.fn_CountryCeilingGradeId(@country),
            SectorPosition = CASE WHEN @rated = 0 OR @typ IS NULL THEN NULL WHEN @n5 < @typ - 1 THEN 'ABOVE' WHEN @n5 > @typ + 1 THEN 'BELOW' ELSE 'WITHIN' END,
            Resilience = @resilience, Outlook = @outlook, OutlookRules = @rules, UpHeadroom = CAST(@up AS DECIMAL(9,4)), DownHeadroom = CAST(@down AS DECIMAL(9,4)),
            SummaryAr = @sumAr, SummaryEn = @sumEn, Snapshot = @snapshot, UpdatedAt = SYSUTCDATETIME(), UpdatedBy = @user
@@ -1862,7 +1972,10 @@ SELECT a.TenantId, a.CreditAssessmentId, a.PublicId, a.CompanyId, co.NameAr AS C
        CASE WHEN a.LgdBand IS NOT NULL THEN CONCAT('RR', RIGHT(a.LgdBand, 1)) END AS FitchRecoveryRating,
        a.LiquidityLabel, lq.NameAr AS LiquidityNameAr, lq.NameEn AS LiquidityNameEn, a.CompletenessPct,
        a.AdjustedDebt, a.AdjustedTnw, a.RealisableNetWorth,
-       a.IndustryId, ind.Code AS IndustryCode, ind.NameAr AS IndustryNameAr, ind.NameEn AS IndustryNameEn, ip.SectorRisk, ip.Cyclicality,
+       a.IndustryId, ind.Code AS IndustryCode, ind.NameAr AS IndustryNameAr, ind.NameEn AS IndustryNameEn, a.IndustryRisk, ip.Cyclicality,
+       ip.DefaultScorecardCode AS IndustryScorecardCode, a.MarketCountryId, ctry.Iso2 AS MarketCountryCode, a.MarketRegionCode, rg.NameAr AS MarketRegionNameAr,
+       rg.NameEn AS MarketRegionNameEn, rg.Tier AS MarketRegionTier, a.CountryRisk, ccg.Code AS CountryCeilingGrade, sov.Code AS SovereignRating,
+       cp.RatingAsOf AS SovereignRatingAsOf,
        eb.Code AS SectorBestGrade, et.Code AS SectorTypicalGrade, ew.Code AS SectorWorstGrade, ec.Code AS SectorCeilingGrade, a.SectorPosition,
        a.Resilience, rs.NameAr AS ResilienceNameAr, a.Outlook, ol.NameAr AS OutlookNameAr, ol.NameEn AS OutlookNameEn, a.OutlookRules, a.UpHeadroom, a.DownHeadroom,
        a.StrengtheningRequested,
@@ -1882,9 +1995,14 @@ LEFT JOIN fin.RatingGrade AS fg ON fg.RatingGradeId = a.FinalGradeId
 LEFT JOIN fin.RatingGrade AS facg ON facg.RatingGradeId = a.FacilityGradeId
 LEFT JOIN ref.Industry AS ind ON ind.IndustryId = a.IndustryId
 LEFT JOIN fin.IndustryProfile AS ip ON ip.IndustryId = a.IndustryId
-LEFT JOIN fin.RatingGrade AS eb ON eb.RatingGradeId = ip.ExpectedBestGradeId
-LEFT JOIN fin.RatingGrade AS et ON et.RatingGradeId = ip.ExpectedTypicalGradeId
-LEFT JOIN fin.RatingGrade AS ew ON ew.RatingGradeId = ip.ExpectedWorstGradeId
+LEFT JOIN fin.RatingGrade AS et ON et.RatingGradeId = a.AnchorGradeId
+LEFT JOIN fin.RatingGrade AS eb ON eb.NotchNo = CASE WHEN et.NotchNo - 3 < 1 THEN 1 ELSE et.NotchNo - 3 END
+LEFT JOIN fin.RatingGrade AS ew ON ew.NotchNo = CASE WHEN et.NotchNo + 4 > 20 THEN 20 ELSE et.NotchNo + 4 END
+LEFT JOIN fin.RatingGrade AS ccg ON ccg.RatingGradeId = a.CountryCeilingGradeId
+LEFT JOIN ref.Country AS ctry ON ctry.CountryId = ISNULL(a.MarketCountryId, co.CountryId)
+LEFT JOIN fin.CountryRiskProfile AS cp ON cp.CountryId = ctry.CountryId
+LEFT JOIN fin.RatingGrade AS sov ON sov.RatingGradeId = cp.SovereignRatingGradeId
+LEFT JOIN fin.CountryRegion AS rg ON rg.CountryId = ctry.CountryId AND rg.Code = a.MarketRegionCode
 LEFT JOIN fin.RatingGrade AS ec ON ec.RatingGradeId = ip.CeilingGradeId
 LEFT JOIN fin.CreditText AS lq ON lq.Domain = 'LIQUIDITY' AND lq.Code = a.LiquidityLabel
 LEFT JOIN fin.CreditText AS rs ON rs.Domain = 'RESILIENCE' AND rs.Code = a.Resilience
@@ -1972,15 +2090,14 @@ JOIN fin.CreditRemedy AS cr ON cr.CreditRemedyId = r.RemedyId
 LEFT JOIN fin.CreditText AS fk ON fk.Domain = 'FUNDING' AND fk.Code = cr.Funding
 LEFT JOIN fin.RatingGrade AS g ON g.RatingGradeId = r.ProFormaGradeId;
 GO
-/* The two scenarios of the company's activity (docs/35 section 13). */
+/* The six macro scenarios with the stress each applied to the statement (docs/35 section 14, ADR 0019). */
 CREATE OR ALTER VIEW fin.v_CreditAssessmentScenarios
 AS
-SELECT s.TenantId, s.AssessmentId, s.Scenario, CASE s.Scenario WHEN 'STAGNANT_MARKET' THEN N'ركود السوق' ELSE N'أزمة مالية' END AS ScenarioNameAr,
-       sc.RevenuePct, sc.GrossMarginPp, sc.DsoDays, sc.StLinesWithdrawnPct, sc.RateBp, sc.PrivateArLossPct,
-       s.RevenueAfter, s.EbitdaAfter, s.InventoryValueAfter, s.Score, g.Code AS Grade, s.LiquidityLabel, s.NotchesLost
+SELECT s.TenantId, s.AssessmentId, ms.Code AS Scenario, ms.NameAr AS ScenarioNameAr, ms.NameEn AS ScenarioNameEn, ms.DescriptionAr, ms.DescriptionEn,
+       ms.IsResilienceBase, s.RevenuePct, s.GrossMarginPp, s.DsoDays, s.StLinesWithdrawnPct, s.RateBp, s.PrivateArLossPct, s.InventoryWritedownPct,
+       s.RevenueAfter, s.EbitdaAfter, s.InventoryValueAfter, s.Score, g.Code AS Grade, s.LiquidityLabel, s.NotchesLost, ms.SortOrder
 FROM fin.CreditAssessmentScenario AS s
-JOIN fin.CreditAssessment AS a ON a.TenantId = s.TenantId AND a.CreditAssessmentId = s.AssessmentId
-LEFT JOIN fin.IndustryScenario AS sc ON sc.IndustryId = a.IndustryId AND sc.Scenario = s.Scenario
+JOIN fin.MacroScenario AS ms ON ms.MacroScenarioId = s.MacroScenarioId
 LEFT JOIN fin.RatingGrade AS g ON g.RatingGradeId = s.GradeId;
 GO
 /* The facilities read from the platform on the assessment date, with their collateral cover (docs/35 section 10). */
@@ -2074,5 +2191,6 @@ DENY INSERT, UPDATE, DELETE ON [fin].[CreditAssessmentTrigger] TO [tp_app];
 DENY UPDATE ON [fin].[CreditAssessment]([ComputedAt], [InputsHash], [UsedPriorStatementId], [ResultState], [CoveragePct], [FinancialScore], [FinancialGradeId],
     [WeightedScore], [IndicatedGradeId], [AdjustmentNotches], [CapGradeId], [StandaloneGradeId], [SupportNotches], [OverrideNotches], [FinalGradeId],
     [FacilityGradeId], [LgdPct], [LgdBand], [LiquidityLabel], [CompletenessPct], [AdjustedDebt], [AdjustedTnw], [RealisableNetWorth], [IndustryId],
-    [SectorPosition], [Resilience], [Outlook], [OutlookRules], [UpHeadroom], [DownHeadroom], [SummaryAr], [SummaryEn], [Snapshot]) TO [tp_app];
+    [SectorPosition], [Resilience], [Outlook], [OutlookRules], [UpHeadroom], [DownHeadroom], [SummaryAr], [SummaryEn], [Snapshot], [CountryRisk],
+    [IndustryRisk], [AnchorGradeId], [CountryCeilingGradeId]) TO [tp_app];
 GO

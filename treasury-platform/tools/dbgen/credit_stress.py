@@ -44,11 +44,10 @@ def run_scenarios():
         kw, lines = cr.case_args(c, 1e6)
         r = cr.assess(c['card'], lines, **kw, with_remedies=False)
         e = c['expected']
-        res = [('NORMAL', r.get('final')), ('STAGNANT_MARKET', r['scenarios']['STAGNANT_MARKET']['final']),
-               ('FINANCIAL_CRISIS', r['scenarios']['FINANCIAL_CRISIS']['final'])]
+        res = [('NORMAL', r.get('final'))] + [(x['code'], r['scenarios'][x['code']]['final']) for x in cr.SCENARIOS if x['code'] in e]
         acc = c.get('accepted_outside') or {}
         ok = all(in_range(g, e[k]) or acc.get(k) == g for k, g in res)
-        out.append(dict(key=c['key'], name=c['name_ar'], card=c['card'], industry=c['industry'], results=res, expected=e,
+        out.append(dict(key=c['key'], name=c['name_ar'], card=c['card'], industry=c['industry'], country=c.get('country', 'SA'), results=res, expected=e, accepted=acc, accepted_reason=c.get('accepted_reason'),
                         resilience=r.get('resilience'), ok=ok))
     return out
 
@@ -65,11 +64,9 @@ def main():
             fac = f" (التسهيلات {x['facility']})" if x.get('expected_facility') else ''
             print(f"| {x['key']} | {x['name']} | {x['card']} | {exp} | {x['final']}{fac} | {agg} | {', '.join(x['applied'])} | {'نعم' if x['ok'] else 'لا'} |")
         print()
-        print('| # | الحالة | النشاط | عادي | ركود السوق | أزمة مالية | الصمود | ضمن المدى |')
-        print('|---|---|---|---|---|---|---|---|')
         for x in scen:
-            cells = [f"{g} ({x['expected'][k][0]}–{x['expected'][k][1]})" for k, g in x['results']]
-            print(f"| {x['key']} | {x['name']} | {x['industry']} | " + ' | '.join(cells) + f" | {x['resilience'] or ''} | {'نعم' if x['ok'] else 'لا'} |")
+            cells = [f"{k} {g} ({x['expected'][k][0]}–{x['expected'][k][1]})" for k, g in x['results']]
+            print(f"| {x['key']} | {x['name']} | {x['industry']} {x['country']} | " + ' · '.join(cells) + f" | {x['resilience'] or ''} | {'نعم' if x['ok'] else 'لا'} |")
     else:
         for x in base:
             print(f"{x['key']:34s} {x['final']:5s} expected {x['expected'][0]}-{x['expected'][1]}"

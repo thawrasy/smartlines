@@ -1,5 +1,18 @@
-%% م5 · البيانات المالية والأرصدة (3/11) — Financial statements & balances
+%% م5 · البيانات المالية والأرصدة (3/13) — Financial statements & balances
 erDiagram
+  fin_CreditAssessmentFacility["fin.CreditAssessmentFacility"] {
+    bigint CreditAssessmentFacilityId PK
+    bigint AssessmentId FK
+    bigint FacilityId FK
+    bigint LenderInstitutionId FK
+    int CurrencyId FK
+  }
+  fin_CreditAssessmentFactor["fin.CreditAssessmentFactor"] {
+    bigint CreditAssessmentFactorId PK
+    bigint AssessmentId FK
+    int MetricId FK
+    int GradeId FK
+  }
   fin_CreditAssessmentFinding["fin.CreditAssessmentFinding"] {
     bigint CreditAssessmentFindingId PK
     bigint AssessmentId FK
@@ -9,21 +22,4 @@ erDiagram
     bigint AssessmentId FK
     bigint PartyId FK
     bigint DocumentId FK
-  }
-  fin_CreditAssessmentInput["fin.CreditAssessmentInput"] {
-    bigint CreditAssessmentInputId PK
-    bigint AssessmentId FK
-    int MetricId FK
-    int SubfactorId FK
-    int CurrencyId FK
-    int GradeId FK
-    bigint ParentAssessmentId FK
-    bigint DocumentId FK
-    bigint EnteredBy FK
-  }
-  fin_CreditAssessmentPlan["fin.CreditAssessmentPlan"] {
-    bigint CreditAssessmentPlanId PK
-    bigint AssessmentId FK
-    int PlanId FK
-    int FinalGradeId FK
   }

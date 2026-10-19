@@ -1,5 +1,12 @@
-%% م5 · البيانات المالية والأرصدة (6/11) — Financial statements & balances
+%% م5 · البيانات المالية والأرصدة (6/13) — Financial statements & balances
 erDiagram
+  fin_CreditRemedy["fin.CreditRemedy"] {
+    int CreditRemedyId PK
+  }
+  fin_CreditRemedyStep["fin.CreditRemedyStep"] {
+    int CreditRemedyStepId PK
+    int RemedyId FK
+  }
   fin_CreditRemedyTrigger["fin.CreditRemedyTrigger"] {
     int CreditRemedyTriggerId PK
     int RemedyId FK
@@ -7,18 +14,5 @@ erDiagram
   fin_CreditText["fin.CreditText"] {
     int CreditTextId PK
   }
-  fin_FinancialStatement["fin.FinancialStatement"] {
-    bigint FinancialStatementId PK
-    bigint CompanyId FK
-    int CurrencyId FK
-    bigint PreparedBy FK
-    bigint ApprovedBy FK
-  }
-  fin_IndustryProfile["fin.IndustryProfile"] {
-    int IndustryProfileId PK
-    int IndustryId FK
-    int ExpectedBestGradeId FK
-    int ExpectedTypicalGradeId FK
-    int ExpectedWorstGradeId FK
-    int CeilingGradeId FK
-  }
+  fin_CreditRemedy ||--o{ fin_CreditRemedyStep : "RemedyId"
+  fin_CreditRemedy ||--o{ fin_CreditRemedyTrigger : "RemedyId"

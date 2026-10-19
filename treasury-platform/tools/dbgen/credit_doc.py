@@ -96,6 +96,14 @@ def doc_tables(M):
                          [[f"`{m['code']}` {m['ar']}", (m.get('cash') or ['—'])[0], (m.get('solvency') or ['—'])[0],
                            ', '.join(f"`{x}`" for x in rem_by_trigger.get(m['code'], [])) or '—'] for m in M['metrics'] if m['kind'] == 'QUANTITATIVE'])
     # 4. the scorecards, their sub-factors, their item rules, their parameters
+    FACT = ['SCALE', 'BUSINESS_PROFILE', 'PROFITABILITY_EFFICIENCY', 'LEVERAGE_COVERAGE', 'CAPITAL_SOLVENCY', 'LIQUIDITY_FUNDING', 'BALANCE_SHEET_QUALITY',
+            'FINANCIAL_POLICY']
+    acts = M['industries']['activities']
+    T['families'] = table(['البطاقة', 'العائلة', 'أساسها', 'المقاييس'] + [M['factor_names'][f][0] for f in FACT] + ['الأنشطة'],
+                          [[f"`{c['code']}`", c['ar'], c.get('base') or '—', len(c['metrics'])]
+                           + [num(sum(sm['w'] for sm in c['metrics'] if sm['f'] == f)) for f in FACT]
+                           + [sum(1 for a in acts if a['card'] == c['code'])] for c in M['scorecards']])
+    T['families_why'] = table(['البطاقة', 'لماذا تختلف أوزانها'], [[f"`{c['code']}` {c['ar']}", c.get('why_ar') or c.get('sector')] for c in M['scorecards']])
     for c in M['scorecards']:
         rows = []
         for sm in c['metrics']:
@@ -104,17 +112,21 @@ def doc_tables(M):
             rows.append([M['factor_names'][sm['f']][0], f"`{sm['m']}` {md['ar']}", num(sm['w'])] + grid)
         T[f"card_{c['code']}"] = table(['العامل', 'المقياس', 'الوزن %', 'أفضل حد (0.5)', 'Aaa\\|Aa', 'Aa\\|A', 'A\\|Baa', 'Baa\\|Ba', 'Ba\\|B', 'B\\|Caa', 'Caa\\|Ca',
                                         'أسوأ حد (20.5)'], rows)
+        if c.get('base'):
+            continue
         T[f"items_{c['code']}"] = table(['البند', 'المقياس', 'منخفضة \\| معتدلة', 'معتدلة \\| مرتفعة نسبيًا', 'مرتفعة نسبيًا \\| مرتفعة', 'مرتفعة \\| حرجة', 'يُذكر قوةً'],
                                         [[f"`{ir['line']}`", f"`{ir['r']}` {metric[ir['r']]['ar']}"] + [num(v) for v in ir['t']] + ['نعم' if ir['strength'] else 'لا']
                                          for ir in c['items']])
     rows = []
     for c in M['scorecards']:
         for f, subs in c['qualitative'].items():
+            if c.get('base') and f == 'FINANCIAL_POLICY':
+                continue
             for s in subs:
                 g = s.get('guide_ar') or {}
                 rows.append([c['code'], M['factor_names'][f][0], f"`{s['code']}` {s['ar']}"] + [g.get(k, '—') for k in ('Aa', 'A', 'Baa', 'Ba', 'B')])
     T['subfactors'] = table(['البطاقة', 'العامل', 'العامل الفرعي', 'Aa', 'A', 'Baa', 'Ba', 'B'], rows)
-    cards = M['scorecards']
+    cards = [c for c in M['scorecards'] if not c.get('base')]
     keys = sorted({k for c in cards for k in c['params']})
     T['params'] = table(['المعامل'] + [c['code'] for c in cards], [[f"`{k}`"] + [num(c['params'].get(k)) for c in cards] for k in keys])
     keys = list(gen['realisable_haircuts'])
@@ -150,18 +162,39 @@ def doc_tables(M):
     T['requests'] = table(['الرمز', 'الطلب', 'نصه'], [[f"`{t['code']}`", t['ar'], t['text'][0]] for t in M['texts'] if t['domain'] == 'REQUEST'])
     # 9. the activities and the product categories
     pcat = {p['code']: p for p in M['product_categories']}
-    rows = []
-    for d in M['industries']['divisions']:
-        st, fc = d['scenarios']['STAGNANT_MARKET'], d['scenarios']['FINANCIAL_CRISIS']
-        rows.append([f"`{d['code']}`", d['ar'], d['card'], d['sector_risk'], CYC[d['cyclicality']], ' / '.join(d['expected']), d['ceiling'] or '—',
-                     ', '.join(f"`{c}`" for c in d['product_categories']),
-                     f"{num(st['revenue_pct'])}%، {num(st['gross_margin_pp'])} نقطة، +{num(st['dso_days'])} يومًا، سحب {num(st['st_lines_withdrawn_pct'])}%",
-                     f"{num(fc['revenue_pct'])}%، {num(fc['gross_margin_pp'])} نقطة، +{num(fc['dso_days'])} يومًا، سحب {num(fc['st_lines_withdrawn_pct'])}%، +{fc['rate_bp']} نقطة أساس"])
-    T['industries'] = table(['الرمز', 'النشاط', 'البطاقة', 'مخاطر القطاع (1–5)', 'الدورية', 'المدى المتوقع (أفضل/معتاد/أسوأ)', 'سقف', 'فئات المنتجات',
-                             'ركود السوق', 'أزمة مالية'], rows)
-    T['products'] = table(['الفئة', 'الاسم', 'جودة التدفقات (1 الأفضل)', 'الإيرادات: ركود / أزمة %', 'قيمة بيع المخزون: عادي / ركود / أزمة %',
+    SH = {'DEMAND': 'طلب', 'GOV_SPENDING': 'حكومة', 'REAL_ESTATE': 'عقار', 'CONFLICT': 'نزاع', 'OIL': 'نفط', 'CREDIT': 'ائتمان', 'IMPORT_FX': 'استيراد'}
+    sens = lambda d: ' '.join(f"{SH[k]} {d['sens'][k]}" for k in SH)
+    anc = lambda d: cr.GR[cr.anchor_notch(d['code'], 'SA') - 1]
+    T['industries'] = table(['الرمز', 'الفرع', 'البطاقة', 'مخاطر النشاط (1–6)', 'الدورية', 'المرتكز في السعودية', 'سقف', 'الحساسية للمحركات (0–5)', 'أنشطته'],
+                            [[f"`{d['code']}`", d['ar'], d['card'], d['industry_risk'], CYC[d['cyclicality']], anc(d), d.get('ceiling') or '—', sens(d),
+                              sum(1 for a in acts if a['division'] == d['code'])] for d in M['industries']['divisions']])
+    T['activities'] = table(['الرمز', 'النشاط', 'البطاقة', 'مخاطر النشاط', 'الدورية', 'المرتكز في السعودية', 'سقف', 'الحساسية للمحركات (0–5)', 'لماذا'],
+                            [[f"`{d['code']}`", d['ar'], d['card'], d['industry_risk'], CYC[d['cyclicality']], anc(d), d.get('ceiling') or '—', sens(d),
+                              d.get('note_ar')] for d in acts])
+    CRk = M['country_risk']
+    T['anchor'] = table(['مخاطر البلد \\ مخاطر النشاط', '1', '2', '3', '4', '5', '6'],
+                        [[str(i)] + [cr.GR[v - 1] for v in row] for i, row in enumerate(CRk['anchor'], 1)])
+    T['countries'] = table(['البلد', 'مخاطر البلد (1–6)', 'التصنيف السيادي (تاريخه)', 'سقف الشركات', 'التعرض: ' + ' / '.join(SH.values()), 'المدن والمناطق', 'ملاحظة'],
+                           [[f"{c['ar']} `{c['iso2']}`", c['country_risk'], f"{c['sovereign_rating']} ({c['rating_as_of']})" if c.get('sovereign_rating') else 'غير مصنّف',
+                             c.get('sovereign_rating') or CRk['unrated_ceiling'][str(c['country_risk'])], ' / '.join(num(c['exposure'][k]) for k in SH),
+                             len(c.get('regions') or []), c.get('note_ar')] for c in CRk['countries']]
+                           + [['افتراضي (بلد بلا ملف)', CRk['default']['country_risk'], '—', CRk['unrated_ceiling'][str(CRk['default']['country_risk'])],
+                               ' / '.join(num(CRk['default']['exposure'][k]) for k in SH), 0, 'يُطلب ملف البلد']])
+    TIER = {'PRIME': 'رئيسية', 'MAJOR': 'كبرى', 'SECONDARY': 'ثانوية', 'PERIPHERAL': 'طرفية'}
+    T['regions'] = table(['البلد', 'الرمز', 'المدينة أو المنطقة', 'الفئة', 'مضاعف العقار', 'مضاعف النزاع'],
+                         [[c['iso2'], f"`{r['code']}`", r['ar'], TIER[r['tier']], num(r['re_mult']), num(r['conflict_mult'])]
+                          for c in CRk['countries'] for r in c.get('regions') or []])
+    T['drivers'] = table(['المحرك', 'ما يقيسه', 'فقد الإيرادات عند الشدة الكاملة %', 'هامش مجمل الربح (نقطة)', 'أيام تحصيل إضافية'],
+                         [[f"`{d['code']}` {d['ar']}", d['about_ar'], num(d['rev_pct']), num(d['gm_pp']), num(d['dso_days'])] for d in M['shock_drivers']])
+    T['macro_scenarios'] = table(['السيناريو', 'وصفه', 'الشدة: ' + ' / '.join(SH.values()), 'المخزون', 'سحب الخطوط %', 'رفع الفائدة (نقطة أساس)',
+                                  'خسارة الذمم الخاصة %', 'أيام تحصيل أساسية'],
+                                 [[f"`{x['code']}` {x['ar']}" + (' (أساس الصمود)' if x['resilience_base'] else ''), x['desc_ar'],
+                                   ' / '.join(num(x['intensity'][k]) for k in SH), 'ركود' if x['inventory'] == 'STAGNANT' else 'أزمة',
+                                   num(x['st_lines_withdrawn_pct']), num(x['rate_bp']), num(x['private_ar_loss_pct']), num(x['base_dso_days'])]
+                                  for x in M['macro_scenarios']])
+    T['products'] = table(['الفئة', 'الاسم', 'جودة التدفقات (1 الأفضل)', 'حساسية الطلب (0–5)', 'قيمة بيع المخزون: عادي / ركود / أزمة %',
                            'أيام البيع: عادي / ركود / أزمة', 'أيام تحصيل إضافية في الأزمة'],
-                          [[f"`{p['code']}`", p['ar'], p['cash_flow_quality'], f"{num(p['revenue_change_pct']['STAGNANT_MARKET'])} / {num(p['revenue_change_pct']['FINANCIAL_CRISIS'])}",
+                          [[f"`{p['code']}`", p['ar'], p['cash_flow_quality'], p['demand_sensitivity'],
                             f"{num(p['inventory_value_pct']['NORMAL'])} / {num(p['inventory_value_pct']['STAGNANT_MARKET'])} / {num(p['inventory_value_pct']['FINANCIAL_CRISIS'])}",
                             f"{p['days_to_sell']['NORMAL']} / {p['days_to_sell']['STAGNANT_MARKET']} / {p['days_to_sell']['FINANCIAL_CRISIS']}", p['crisis_extra_dso']]
                            for p in M['product_categories']])
@@ -191,9 +224,15 @@ def doc_tables(M):
         rows.append([f"`{x['key']}`", x['name'], x['card'], exp, f"{x['final']}{fac}", '' if x['aggregate'] is None else f"{x['aggregate']:.2f}", ', '.join(x['applied']),
                      'نعم' if x['ok'] else 'لا'])
     T['stress'] = table(['#', 'الحالة', 'البطاقة', 'توقع المراجع', 'النتيجة', 'المجموع', 'التعديلات', 'ضمن المدى'], rows)
-    rows = [[f"`{x['key']}`", x['name'], f"`{x['industry']}`"] + [f"{g} ({x['expected'][k][0]}–{x['expected'][k][1]})" for k, g in x['results']] + [x['resilience'] or '—', 'نعم' if x['ok'] else 'لا']
-            for x in scen]
-    T['scenario_stress'] = table(['#', 'الحالة', 'النشاط', 'عادي', 'ركود السوق', 'أزمة مالية', 'الصمود', 'ضمن المدى'], rows)
+    rows = []
+    for x in scen:
+        got = dict(x['results'])
+        cells = [f"{got[k]} ({x['expected'][k][0]}–{x['expected'][k][1]})" if k in got else '—' for k in ['NORMAL'] + [y['code'] for y in M['macro_scenarios']]]
+        acc = '؛ '.join(f"{k}: {g}" for k, g in (x['accepted'] or {}).items())
+        acc = f"{acc} — {x['accepted_reason'][0]}" if acc and x.get('accepted_reason') else acc or '—'
+        rows.append([f"`{x['key']}`", x['name'], f"`{x['industry']}` {x['country']}"] + cells + [x['resilience'] or '—', 'نعم' if x['ok'] else 'لا', acc])
+    T['scenario_stress'] = table(['#', 'الحالة', 'النشاط والبلد', 'عادي'] + [x['ar'] for x in M['macro_scenarios']] + ['الصمود', 'ضمن المدى',
+                                 'خارج المدى بقبول المراجع وسببه'], rows)
     # 12. the worked example (test CA2)
     cur = lines_from(EXAMPLE)
     prior = dict(cur); prior.update(lines_from(EXAMPLE_PRIOR))
@@ -224,7 +263,7 @@ def doc_tables(M):
 
 
 if __name__ == '__main__':
-    import json
-    M = json.load(open(os.path.join(HERE, 'credit_scorecard.json'), encoding='utf-8'))
+    import credit_methodology
+    M = credit_methodology.load()
     for k, v in doc_tables(M).items():
         print(k, len(v.splitlines()))

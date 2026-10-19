@@ -510,73 +510,9 @@ erDiagram
 | ReportingInstance | SubmissionChannelUsedId | cat.LookupItem |
 | ReportingObligation | SubmissionChannelId | cat.LookupItem |
 
-## مخطط `fin` (43 جدولًا)
+## مخطط `fin` (49 جدولًا)
 
-```mermaid
-erDiagram
-  CreditAssessment ||--o{ CreditAssessmentBureau : "AssessmentId"
-  CreditAssessment ||--o{ CreditAssessmentFacility : "AssessmentId"
-  CreditAssessment ||--o{ CreditAssessmentFactor : "AssessmentId"
-  CreditAssessment ||--o{ CreditAssessmentFinding : "AssessmentId"
-  CreditAssessment ||--o{ CreditAssessmentGuarantor : "AssessmentId"
-  CreditAssessment ||--o{ CreditAssessmentInput : "AssessmentId"
-  CreditAssessment ||--o{ CreditAssessmentInput : "ParentAssessmentId"
-  CreditAssessment ||--o{ CreditAssessmentPlan : "AssessmentId"
-  CreditAssessment ||--o{ CreditAssessmentPlanStep : "AssessmentId"
-  CreditAssessment ||--o{ CreditAssessmentReclass : "AssessmentId"
-  CreditAssessment ||--o{ CreditAssessmentRemedy : "AssessmentId"
-  CreditAssessment ||--o{ CreditAssessmentScenario : "AssessmentId"
-  CreditAssessment ||--o{ CreditAssessmentTrigger : "AssessmentId"
-  CreditMetric ||--o{ CreditAssessmentFactor : "MetricId"
-  CreditMetric ||--o{ CreditAssessmentInput : "MetricId"
-  CreditMetric ||--o{ CreditAssessmentTrigger : "MetricId"
-  CreditMetric ||--o{ ScorecardItemRule : "MetricId"
-  CreditMetric ||--o{ ScorecardMetric : "MetricId"
-  CreditMetric ||--o{ ScorecardSubfactor : "MetricId"
-  CreditRemedy ||--o{ CreditAssessmentPlanStep : "RemedyId"
-  CreditRemedy ||--o{ CreditAssessmentRemedy : "RemedyId"
-  CreditRemedy ||--o{ CreditRemedyStep : "RemedyId"
-  CreditRemedy ||--o{ CreditRemedyTrigger : "RemedyId"
-  CreditRemedy ||--o{ StrengtheningPlanMember : "RemedyId"
-  FinancialStatement ||--o{ ConsolidationMember : "MemberStatementId"
-  FinancialStatement ||--o{ ConsolidationMember : "StatementId"
-  FinancialStatement ||--o{ CreditAssessment : "PriorStatementId"
-  FinancialStatement ||--o{ CreditAssessment : "StatementId"
-  FinancialStatement ||--o{ CreditAssessment : "UsedPriorStatementId"
-  FinancialStatement ||--o{ StatementLine : "StatementId"
-  FinancialStatement ||--o{ StatementRatio : "StatementId"
-  LineCatalogItem ||--o{ LineCatalogItemAlias : "LineCatalogItemId"
-  LineCatalogItem ||--o{ StatementLine : "LineCatalogItemId"
-  MeasureFormula ||--o{ StatementRatio : "FormulaId"
-  ProductCategory ||--o{ CompanyProductLine : "ProductCategoryId"
-  RatingGrade ||--o{ CreditAssessment : "CapGradeId"
-  RatingGrade ||--o{ CreditAssessment : "FacilityGradeId"
-  RatingGrade ||--o{ CreditAssessment : "FinalGradeId"
-  RatingGrade ||--o{ CreditAssessment : "FinancialGradeId"
-  RatingGrade ||--o{ CreditAssessment : "IndicatedGradeId"
-  RatingGrade ||--o{ CreditAssessment : "StandaloneGradeId"
-  RatingGrade ||--o{ CreditAssessmentFactor : "GradeId"
-  RatingGrade ||--o{ CreditAssessmentInput : "GradeId"
-  RatingGrade ||--o{ CreditAssessmentPlan : "FinalGradeId"
-  RatingGrade ||--o{ CreditAssessmentPlanStep : "GradeId"
-  RatingGrade ||--o{ CreditAssessmentRemedy : "ProFormaGradeId"
-  RatingGrade ||--o{ CreditAssessmentScenario : "GradeId"
-  RatingGrade ||--o{ IndustryProfile : "CeilingGradeId"
-  RatingGrade ||--o{ IndustryProfile : "ExpectedBestGradeId"
-  RatingGrade ||--o{ IndustryProfile : "ExpectedTypicalGradeId"
-  RatingGrade ||--o{ IndustryProfile : "ExpectedWorstGradeId"
-  RatingGrade ||--o{ ScorecardAdjustment : "CapGradeId"
-  Scorecard ||--o{ CreditAssessment : "ScorecardId"
-  Scorecard ||--o{ ScorecardAdjustment : "ScorecardId"
-  Scorecard ||--o{ ScorecardItemRule : "ScorecardId"
-  Scorecard ||--o{ ScorecardMetric : "ScorecardId"
-  Scorecard ||--o{ ScorecardParameter : "ScorecardId"
-  Scorecard ||--o{ ScorecardSubfactor : "ScorecardId"
-  ScorecardSubfactor ||--o{ CreditAssessmentInput : "SubfactorId"
-  StrengtheningPlan ||--o{ CreditAssessmentPlan : "PlanId"
-  StrengtheningPlan ||--o{ CreditAssessmentPlanStep : "PlanId"
-  StrengtheningPlan ||--o{ StrengtheningPlanMember : "PlanId"
-```
+(المخطط كبير؛ العلاقات الداخلية: 67)
 
 | الجدول | العمود | يشير إلى |
 |---|---|---|
@@ -593,9 +529,12 @@ erDiagram
 | BankFlowEntry | InstitutionId | ins.Institution |
 | CompanyProductLine | CompanyId | org.Company |
 | ConsolidationMember | MemberCompanyId | org.Company |
+| CountryRegion | CountryId | ref.Country |
+| CountryRiskProfile | CountryId | ref.Country |
 | CreditAssessment | ApprovedBy | sec.AppUser |
 | CreditAssessment | CompanyId | org.Company |
 | CreditAssessment | IndustryId | ref.Industry |
+| CreditAssessment | MarketCountryId | ref.Country |
 | CreditAssessment | PreparedBy | sec.AppUser |
 | CreditAssessmentBureau | DocumentId | doc.Document |
 | CreditAssessmentFacility | CurrencyId | ref.Currency |
@@ -612,7 +551,7 @@ erDiagram
 | FinancialStatement | PreparedBy | sec.AppUser |
 | FinancialStatement | SourceDocumentId | doc.Document |
 | IndustryProfile | IndustryId | ref.Industry |
-| IndustryScenario | IndustryId | ref.Industry |
+| IndustrySensitivity | IndustryId | ref.Industry |
 | MeasureFormula | ApprovedBy | sec.AppUser |
 | MeasureFormula | ConflictId | fac.ValueConflict |
 | MeasureFormula | FacilityId | fac.Facility |
