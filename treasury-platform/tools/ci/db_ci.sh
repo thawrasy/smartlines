@@ -88,10 +88,10 @@ echo "== 3. every foreign key is indexed or flagged noidx; static grant and casc
 python3 tools/dbgen/check_fk_indexes.py
 python3 tools/dbgen/check_grants.py
 python3 tools/dbgen/check_review_fixes.py | tail -1   # the design-review fixes in the generated DDL (C-12, O-15)
-# The stress cases of the independent credit review fall within the analyst's grade ranges (docs/35 section 13).
+# The stress cases of the independent credit review fall within the reviewer's grade ranges (docs/35 section 13).
 python3 tools/dbgen/credit_stress.py > "$TMP/stress.out" || {
     cat "$TMP/stress.out"
-    echo "a stress case of the credit review falls outside the analyst's range: see docs/35 section 13"
+    echo "a stress case of the credit review falls outside the reviewer's range: see docs/35 section 13"
     exit 1
 }
 tail -1 "$TMP/stress.out"

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """credit_stress.py — the stress cases of the independent credit review (docs/35 section 13), run through the
-methodology of tools/dbgen/credit_scorecard.json with credit_reference.py, beside the grade range the reviewing
-analyst expects for each. It prints one row per case and exits 1 if a case falls outside its range.
+methodology of tools/dbgen/credit_scorecard.json with credit_reference.py, beside the grade range the reviewer
+expects for each (a separate AI agent in the role of a senior credit analyst, not a human review). It prints one row per case and exits 1 if a case falls outside its range.
 
 Usage: python3 tools/dbgen/credit_stress.py [--markdown]
 The cases are built in SAR millions; the subtotals are derived and the balance sheet is checked to balance.
@@ -65,7 +65,7 @@ D2.update(ST_LOANS=0, CURRENT_PORTION_LTD=0, LT_LOANS=0, LEASE_LIABS=0, FINANCE_
           CASH=D['CASH'] * 13 - 300 * 13)
 NO_CF = {k: v for k, v in EX.items() if k not in cr.CF_CODES}
 
-# name, card, statement, qualitative, extra arguments, expected grade range (best, worst) of the reviewing analyst
+# name, card, statement, qualitative, extra arguments, expected grade range (best, worst) of the reviewer
 CASES = [
     ('a', 'تاجر بإيراد 4 مليارات وهامش EBITDA 3% وتمويل تجاري قصير في معظمه', 'TRADING_DISTRIBUTION', st(**A), Q('Ba1', 'Ba2'), {}, ('Ba2', 'B1')),
     ('a1', 'التاجر نفسه، وتدوير مرابحات 3.1 مليار في أقساط أصل الدين المسددة', 'TRADING_DISTRIBUTION', st(**dict(A, PRINCIPAL_REPAID=3100)), Q('Ba1', 'Ba2'), {}, ('Ba2', 'B1')),
@@ -105,14 +105,14 @@ def main():
         agg = r.get('aggregate', r.get('financial'))
         out.append((key, name, card, want, got, '' if agg is None else f'{agg:.2f}', ', '.join(r.get('adjustments', [])), 'نعم' if ok else 'لا'))
     if md:
-        print('| # | الحالة | البطاقة | توقع المحلل | النتيجة | المجموع | التعديلات | ضمن المدى |')
+        print('| # | الحالة | البطاقة | توقع المراجع | النتيجة | المجموع | التعديلات | ضمن المدى |')
         print('|---|---|---|---|---|---|---|---|')
         for row in out:
             print('| ' + ' | '.join(row) + ' |')
     else:
         for row in out:
             print(f'{row[0]:3s} {row[3]:14s} {row[4]:18s} {row[5]:>6s} {row[7]:3s} {row[1]}  [{row[6]}]')
-        print(f'{len(out) - bad} of {len(out)} cases within the analyst\'s range')
+        print(f'{len(out) - bad} of {len(out)} cases within the reviewer\'s range')
     return 1 if bad else 0
 
 

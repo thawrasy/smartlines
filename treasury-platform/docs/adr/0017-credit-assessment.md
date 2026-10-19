@@ -1,7 +1,8 @@
 # ADR 0017: The credit assessment of a balance sheet on the Moody's scale
 
 Status: decided by the database architect, building the owner's request of 2026-10-18. The calibration is an expert
-judgment revised after an independent review by a senior credit analyst; the owner decides the open points of
+judgment revised after an independent review by a separate AI agent in the role of a senior credit analyst
+(not a human review); the owner decides the open points of
 docs/35 section 15, and the bank's credit risk function validates the thresholds before a grade is used in a credit
 decision.
 
@@ -73,7 +74,7 @@ are for rated issuers, mostly large.
 - Ten tables: six global, four of the tenant. The database has 213 tables; 142 permissions.
 - Tests CA1 to CA12 (CI step 19c). Disabling any of the ten new triggers makes a test fail.
 - `tools/dbgen/credit_stress.py` runs the sixteen stress cases of the independent review in CI step 3. Each must stay
-  within the grade range the reviewing analyst expects, so a recalibration that breaks one shows.
+  within the grade range the reviewer expects, so a recalibration that breaks one shows.
 - The independent review (docs/35 section 13) found the first calibration 3 to 8 notches wrong in ordinary cases, for
   example:
   - a debt-free loss-maker scored best on leverage;
