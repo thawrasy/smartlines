@@ -5180,6 +5180,9 @@ CREATE TABLE [fin].[MacroScenario] (
     [BaseDsoDays] DECIMAL(9,2) NOT NULL,
     [IsResilienceBase] BIT NOT NULL CONSTRAINT [DF_MacroScenario_IsResilienceBase] DEFAULT 0,
     [UndrawnAvailablePct] DECIMAL(9,4) NOT NULL CONSTRAINT [DF_MacroScenario_UndrawnAvailablePct] DEFAULT 100,
+    [UndrawnCutPct] DECIMAL(9,4) NOT NULL CONSTRAINT [DF_MacroScenario_UndrawnCutPct] DEFAULT 0,
+    [LenderMarginBp] INT NOT NULL CONSTRAINT [DF_MacroScenario_LenderMarginBp] DEFAULT 0,
+    [LenderFeesBp] INT NOT NULL CONSTRAINT [DF_MacroScenario_LenderFeesBp] DEFAULT 0,
     [DurationMonths] INT NOT NULL CONSTRAINT [DF_MacroScenario_DurationMonths] DEFAULT 12,
     [OtherCountryMult] DECIMAL(5,3) NOT NULL CONSTRAINT [DF_MacroScenario_OtherCountryMult] DEFAULT 1,
     [SortOrder] INT NOT NULL,
@@ -5192,6 +5195,7 @@ CREATE TABLE [fin].[MacroScenario] (
     CONSTRAINT [CK_MacroScenario_1] CHECK (Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%'),
     CONSTRAINT [CK_MacroScenario_2] CHECK (StLinesWithdrawnPct BETWEEN 0 AND 100 AND PrivateArLossPct BETWEEN 0 AND 100 AND RateBp >= 0 AND BaseDsoDays >= 0),
     CONSTRAINT [CK_MacroScenario_3] CHECK (UndrawnAvailablePct BETWEEN 0 AND 100 AND DurationMonths BETWEEN 1 AND 60 AND OtherCountryMult BETWEEN 0 AND 2),
+    CONSTRAINT [CK_MacroScenario_4] CHECK (UndrawnCutPct BETWEEN 0 AND 100 AND LenderMarginBp >= 0 AND LenderFeesBp >= 0),
     CONSTRAINT [CK_MacroScenario_InventorySeverity] CHECK ([InventorySeverity] IS NULL OR [InventorySeverity] IN ('STAGNANT', 'CRISIS'))
 );
 GO
@@ -5892,6 +5896,7 @@ CREATE TABLE [fin].[CreditAssessmentScenario] (
     [PrivateArLossPct] DECIMAL(9,4) NULL,
     [InventoryWritedownPct] DECIMAL(9,4) NULL,
     [UndrawnAvailablePct] DECIMAL(9,4) NULL,
+    [LenderCostBp] DECIMAL(9,2) NULL,
     [CountryMult] DECIMAL(5,3) NULL,
     [RevenueAfter] DECIMAL(19,4) NULL,
     [EbitdaAfter] DECIMAL(19,4) NULL,

@@ -1146,6 +1146,9 @@ def scenario_params(industry, scen, mix, country=None, region=None):
         rw = sum(m['revenue_share_pct'] for m in mix)
         sens['DEMAND'] = sum(PCAT[m['category']]['demand_sensitivity'] * m['revenue_share_pct'] for m in mix) / rw
     cmult = sd['country_mult'].get(country, sd['other_country_mult'])   # a scenario that hits some countries more than others
+    # the lender's stance follows the sector's risk: it cuts short-term lines at renewal, stops undrawn limits and raises
+    # its margin and fees rather than withdrawing drawn lines (ADR 0020)
+    lender = sens['CREDIT'] / R['credit_sensitivity_reference'] * cp['exposure']['CREDIT'] * cmult
     x = {}
     for d in DRIVERS:
         v = sd['intensity'][d] * sens[d] / 5 * cp['exposure'][d]
@@ -1155,11 +1158,12 @@ def scenario_params(industry, scen, mix, country=None, region=None):
     p = dict(revenue_pct=max(-R['max_revenue_fall_pct'], -sum(x[d] * DRV[d]['rev_pct'] for d in DRIVERS)),
              gross_margin_pp=-sum(x[d] * DRV[d]['gm_pp'] for d in DRIVERS),
              dso_days=sd['base_dso_days'] + sum(x[d] * DRV[d]['dso_days'] for d in DRIVERS),
-             st_lines_withdrawn_pct=min(R['st_lines_max_pct'], sd['st_lines_withdrawn_pct'] * cp['exposure']['CREDIT'] * sens['CREDIT'] / R['credit_sensitivity_reference']),
+             st_lines_withdrawn_pct=min(R['st_lines_max_pct'], sd['st_lines_withdrawn_pct'] * lender),
              rate_bp=sd['rate_bp'],
              private_ar_loss_pct=min(100.0, sd['private_ar_loss_pct'] * (1 + R['private_ar_loss_demand_factor'] * x['DEMAND'])),
              property_writedown_pct=min(R['investment_property_fall_max_pct'], R['investment_property_fall_pct'] * x['REAL_ESTATE']),
-             undrawn_available_pct=sd['undrawn_available_pct'], country_mult=cmult)
+             undrawn_available_pct=max(0.0, sd['undrawn_available_pct'] - sd['undrawn_cut_pct'] * lender),
+             lender_cost_bp=(sd['lender_margin_bp'] + sd['lender_fees_bp']) * lender, country_mult=cmult)
     if mix:
         iw = sum(m.get('inventory_share_pct', 0) for m in mix) or 1
         p['inventory_writedown_pct'] = sum((PCAT[m['category']]['inventory_value_pct']['NORMAL'] - PCAT[m['category']]['inventory_value_pct'][sev])
@@ -1192,7 +1196,10 @@ def stress_lines(card, d, prm):
         opex_fixed = min(opex, (ga or 0) + fr['selling_fixed_pct'] / 100 * (sd or 0) + a.z('RENT_SHORT_TERM'))
     opex2 = opex_fixed + (opex - opex_fixed) * rev2 / rev
     floating = a('DEBT_FLOATING') if a.known('DEBT_FLOATING') else 0.6 * (a('ST_LOANS') + a('BANK_ACCEPTANCES') + a('CURRENT_PORTION_LTD') + a('LT_LOANS'))
-    dfin = floating * prm['rate_bp'] / 10000
+    # market rates on floating debt; the lender's margin and fees on the short-term facilities it reprices at renewal (a
+    # term loan keeps its contract price)
+    renewing = a('ST_LOANS') + a('BANK_ACCEPTANCES')
+    dfin = floating * prm['rate_bp'] / 10000 + renewing * prm['lender_cost_bp'] / 10000
     stretch = prm['dso_days'] * rev2 / 365 + (a('AR') / rev) * (rev2 - rev)
     if a.known('AR_AGE_181_365') and a.known('AR_AGE_OVER_365'):
         priv180 = max(0.0, a('AR_AGE_181_365') + a('AR_AGE_OVER_365') - a.z('AR_AGE_OVER_365_GOV') - a.z('AR_ECL_ALLOWANCE'))

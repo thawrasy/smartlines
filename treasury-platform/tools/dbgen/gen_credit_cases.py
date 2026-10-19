@@ -279,10 +279,10 @@ def eval_case(i, key, title, card, lines, kw):
     for name, v in sorted((r.get('scenarios') or {}).items()):
         pm = v['params']
         b.append(insert('#eScen', ['Scenario', 'FinalNotch', 'NotchesLost', 'Liquidity', 'RevenuePct', 'DsoDays', 'StLinesWithdrawnPct', 'PrivateArLossPct',
-                                   'InventoryWritedownPct', 'UndrawnAvailablePct', 'CountryMult'],
+                                   'InventoryWritedownPct', 'UndrawnAvailablePct', 'CountryMult', 'LenderCostBp'],
                         [[s(name), num(v['notch']), num(v['lost']), s(v['liquidity']), num(pm['revenue_pct']), num(pm['dso_days']),
                           num(pm['st_lines_withdrawn_pct']), num(pm['private_ar_loss_pct']), num(pm['inventory_writedown_pct']),
-                          num(pm['undrawn_available_pct']), num(pm['country_mult'])]]).rstrip())
+                          num(pm['undrawn_available_pct']), num(pm['country_mult']), num(pm['lender_cost_bp'])]]).rstrip())
     rows = []
     for rm in r.get('remedies', []):
         pf = rm.get('final')
@@ -339,7 +339,7 @@ CREATE TABLE #crMix (ProductCategoryId INT NOT NULL, RevenueSharePct FLOAT NOT N
 CREATE TABLE #evScen (Scenario VARCHAR(30) COLLATE DATABASE_DEFAULT PRIMARY KEY, State VARCHAR(20) COLLATE DATABASE_DEFAULT, FinalNotch INT, WeightedScore FLOAT,
     Liquidity VARCHAR(6) COLLATE DATABASE_DEFAULT, NotchesLost INT, Revenue FLOAT, Ebitda FLOAT, Inventory FLOAT, ArLoss FLOAT, InventoryWritedown FLOAT,
     ExtraFinanceCost FLOAT, ReceivablesStretch FLOAT, BalanceGap FLOAT, RevenuePct FLOAT, GrossMarginPp FLOAT, DsoDays FLOAT, StLinesWithdrawnPct FLOAT,
-    RateBp INT, PrivateArLossPct FLOAT, InventoryWritedownPct FLOAT, UndrawnAvailablePct FLOAT, CountryMult FLOAT);
+    RateBp INT, PrivateArLossPct FLOAT, InventoryWritedownPct FLOAT, UndrawnAvailablePct FLOAT, CountryMult FLOAT, LenderCostBp FLOAT);
 CREATE TABLE #evRem (SeqNo INT PRIMARY KEY, RemedyId INT NOT NULL, TriggerCode VARCHAR(40) COLLATE DATABASE_DEFAULT, TriggerLevel VARCHAR(12) COLLATE DATABASE_DEFAULT,
     Moved FLOAT, FinalNotch INT, WeightedScore FLOAT, NotchesGained INT, BalanceGap FLOAT);
 CREATE TABLE #evPlan (PlanId INT PRIMARY KEY, StepCount INT, FinalNotch INT, FinalScore FLOAT, NotchesGained INT, IsBalanced BIT);
@@ -377,7 +377,7 @@ CREATE TABLE #eEv (State VARCHAR(20) COLLATE DATABASE_DEFAULT, FinalNotch INT, R
     Outlook VARCHAR(10) COLLATE DATABASE_DEFAULT, OutlookRules VARCHAR(200) COLLATE DATABASE_DEFAULT);
 CREATE TABLE #eScen (Scenario VARCHAR(30) COLLATE DATABASE_DEFAULT PRIMARY KEY, FinalNotch INT, NotchesLost INT, Liquidity VARCHAR(6) COLLATE DATABASE_DEFAULT,
     RevenuePct FLOAT, DsoDays FLOAT, StLinesWithdrawnPct FLOAT, PrivateArLossPct FLOAT, InventoryWritedownPct FLOAT, UndrawnAvailablePct FLOAT,
-    CountryMult FLOAT);
+    CountryMult FLOAT, LenderCostBp FLOAT);
 CREATE TABLE #eRem (Code VARCHAR(40) COLLATE DATABASE_DEFAULT PRIMARY KEY, TriggerCode VARCHAR(40) COLLATE DATABASE_DEFAULT, TriggerLevel VARCHAR(12) COLLATE DATABASE_DEFAULT,
     Moved FLOAT, FinalNotch INT, NotchesGained INT);
 CREATE TABLE #ePlan (Code VARCHAR(40) COLLATE DATABASE_DEFAULT PRIMARY KEY, FinalNotch INT, NotchesGained INT, Steps VARCHAR(1000) COLLATE DATABASE_DEFAULT, IsBalanced BIT);
@@ -417,7 +417,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)

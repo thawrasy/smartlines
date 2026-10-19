@@ -39,7 +39,7 @@ CREATE TABLE #crMix (ProductCategoryId INT NOT NULL, RevenueSharePct FLOAT NOT N
 CREATE TABLE #evScen (Scenario VARCHAR(30) COLLATE DATABASE_DEFAULT PRIMARY KEY, State VARCHAR(20) COLLATE DATABASE_DEFAULT, FinalNotch INT, WeightedScore FLOAT,
     Liquidity VARCHAR(6) COLLATE DATABASE_DEFAULT, NotchesLost INT, Revenue FLOAT, Ebitda FLOAT, Inventory FLOAT, ArLoss FLOAT, InventoryWritedown FLOAT,
     ExtraFinanceCost FLOAT, ReceivablesStretch FLOAT, BalanceGap FLOAT, RevenuePct FLOAT, GrossMarginPp FLOAT, DsoDays FLOAT, StLinesWithdrawnPct FLOAT,
-    RateBp INT, PrivateArLossPct FLOAT, InventoryWritedownPct FLOAT, UndrawnAvailablePct FLOAT, CountryMult FLOAT);
+    RateBp INT, PrivateArLossPct FLOAT, InventoryWritedownPct FLOAT, UndrawnAvailablePct FLOAT, CountryMult FLOAT, LenderCostBp FLOAT);
 CREATE TABLE #evRem (SeqNo INT PRIMARY KEY, RemedyId INT NOT NULL, TriggerCode VARCHAR(40) COLLATE DATABASE_DEFAULT, TriggerLevel VARCHAR(12) COLLATE DATABASE_DEFAULT,
     Moved FLOAT, FinalNotch INT, WeightedScore FLOAT, NotchesGained INT, BalanceGap FLOAT);
 CREATE TABLE #evPlan (PlanId INT PRIMARY KEY, StepCount INT, FinalNotch INT, FinalScore FLOAT, NotchesGained INT, IsBalanced BIT);
@@ -63,7 +63,7 @@ CREATE TABLE #eEv (State VARCHAR(20) COLLATE DATABASE_DEFAULT, FinalNotch INT, R
     Outlook VARCHAR(10) COLLATE DATABASE_DEFAULT, OutlookRules VARCHAR(200) COLLATE DATABASE_DEFAULT);
 CREATE TABLE #eScen (Scenario VARCHAR(30) COLLATE DATABASE_DEFAULT PRIMARY KEY, FinalNotch INT, NotchesLost INT, Liquidity VARCHAR(6) COLLATE DATABASE_DEFAULT,
     RevenuePct FLOAT, DsoDays FLOAT, StLinesWithdrawnPct FLOAT, PrivateArLossPct FLOAT, InventoryWritedownPct FLOAT, UndrawnAvailablePct FLOAT,
-    CountryMult FLOAT);
+    CountryMult FLOAT, LenderCostBp FLOAT);
 CREATE TABLE #eRem (Code VARCHAR(40) COLLATE DATABASE_DEFAULT PRIMARY KEY, TriggerCode VARCHAR(40) COLLATE DATABASE_DEFAULT, TriggerLevel VARCHAR(12) COLLATE DATABASE_DEFAULT,
     Moved FLOAT, FinalNotch INT, NotchesGained INT);
 CREATE TABLE #ePlan (Code VARCHAR(40) COLLATE DATABASE_DEFAULT PRIMARY KEY, FinalNotch INT, NotchesGained INT, Steps VARCHAR(1000) COLLATE DATABASE_DEFAULT, IsBalanced BIT);
@@ -36165,7 +36165,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -36336,7 +36337,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -36489,7 +36491,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -36661,7 +36664,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -36815,7 +36819,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -36962,7 +36967,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -37106,7 +37112,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -37245,7 +37252,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -37429,7 +37437,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -37611,7 +37620,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -37746,7 +37756,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -37906,7 +37917,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -38094,7 +38106,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -38277,7 +38290,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -38446,7 +38460,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -38601,7 +38616,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -38772,7 +38788,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -38931,7 +38948,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -39094,7 +39112,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -39269,7 +39288,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -39457,7 +39477,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -39638,7 +39659,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -39783,7 +39805,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -39954,7 +39977,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -40105,7 +40129,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -40271,7 +40296,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -40420,7 +40446,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -40582,7 +40609,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -40713,7 +40741,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -40820,20 +40849,20 @@ INSERT #crL (Code, Amount) VALUES
     ('ZAKAT_TAX', 0.0);
 INSERT #eEv (State, FinalNotch, Resilience, Outlook, OutlookRules) VALUES
     ('RATED', 15, 'RESILIENT', 'STABLE', 'POS_RESILIENT');
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FINANCIAL_CRISIS', 15, 0, 'SGL-3', -38.36, 61.96, 64.0, 18.6, 30.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FISCAL_SQUEEZE', 15, 0, 'SGL-2', -26.12, 56.72, 24.0, 5.45, 15.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('GULF_SHIPPING_CONFLICT', 15, 0, 'SGL-1', -49.660000000000004, 41.972, 0.0, 9.248000000000001, 15.0, 0, 1.3);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('OIL_PRICE_COLLAPSE', 15, 0, 'SGL-1', -29.28, 53.36, 32.0, 8.96, 15.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REAL_ESTATE_CORRECTION', 15, 0, 'SGL-1', -27.08, 38.48, 24.0, 8.72, 15.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REGIONAL_CONFLICT', 15, 0, 'SGL-1', -37.96, 36.92, 32.0, 11.200000000000001, 30.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('STAGNANT_MARKET', 15, 0, 'SGL-1', -21.36, 34.28, 16.0, 5.8999999999999995, 15.0, 100, 1.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FINANCIAL_CRISIS', 15, 0, 'SGL-3', -38.36, 61.96, 63.99999999999999, 18.6, 30.0, 20.0, 1.0, 280.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FISCAL_SQUEEZE', 15, 0, 'SGL-2', -26.12, 56.72, 23.999999999999996, 5.45, 15.0, 76.0, 1.0, 95.99999999999999);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('GULF_SHIPPING_CONFLICT', 15, 0, 'SGL-1', -49.660000000000004, 41.972, 0.0, 9.248000000000001, 15.0, 0.0, 1.3, 239.20000000000002);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('OIL_PRICE_COLLAPSE', 15, 0, 'SGL-2', -29.28, 53.36, 31.999999999999996, 8.96, 15.0, 68.0, 1.0, 136.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REAL_ESTATE_CORRECTION', 15, 0, 'SGL-1', -27.08, 38.48, 23.999999999999996, 8.72, 15.0, 68.0, 1.0, 136.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REGIONAL_CONFLICT', 15, 0, 'SGL-1', -37.96, 36.92, 31.999999999999996, 11.200000000000001, 30.0, 60.0, 1.0, 183.99999999999997);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('STAGNANT_MARKET', 15, 0, 'SGL-1', -21.36, 34.28, 15.999999999999998, 5.8999999999999995, 15.0, 84.0, 1.0, 47.99999999999999);
 INSERT #eRem (Code, TriggerCode, TriggerLevel, Moved, FinalNotch, NotchesGained) VALUES
     ('COMMITTED_FACILITY', 'UNDRAWN_TO_ST_DEBT', 'CRITICAL', NULL, NULL, NULL),
     ('COLLECT_OVERDUE_AR', 'DSO', 'ELEVATED', 6000000.0, 15, 0),
@@ -40888,7 +40917,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -41000,20 +41030,20 @@ SELECT ProductCategoryId, 85, 80 FROM fin.ProductCategory WHERE Code = 'ESSENTIA
 UNION ALL SELECT ProductCategoryId, 15, 20 FROM fin.ProductCategory WHERE Code = 'PERISHABLE';
 INSERT #eEv (State, FinalNotch, Resilience, Outlook, OutlookRules) VALUES
     ('RATED', 11, 'MODERATE', 'NEGATIVE', 'NEG_LIQUIDITY,NEG_SCENARIO');
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FINANCIAL_CRISIS', 16, 5, 'SGL-4', -12.46, 29.74, 36.0, 16.200000000000003, 18.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FISCAL_SQUEEZE', 14, 3, 'SGL-4', -9.620000000000001, 28.189999999999998, 13.5, 5.15, 7.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('GULF_SHIPPING_CONFLICT', 15, 4, 'SGL-4', -16.73, 15.59, 0.0, 8.32, 7.0, 0, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('OIL_PRICE_COLLAPSE', 14, 3, 'SGL-4', -9.280000000000001, 24.02, 18.0, 8.32, 7.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REAL_ESTATE_CORRECTION', 12, 1, 'SGL-4', -3.41, 12.08, 13.5, 8.24, 7.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REGIONAL_CONFLICT', 16, 5, 'SGL-4', -16.91, 18.11, 18.0, 10.4, 18.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('STAGNANT_MARKET', 13, 2, 'SGL-4', -5.7299999999999995, 15.169999999999998, 9.0, 5.300000000000001, 7.0, 100, 1.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FINANCIAL_CRISIS', 16, 5, 'SGL-4', -12.46, 29.74, 36.0, 16.200000000000003, 18.0, 55.0, 1.0, 157.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FISCAL_SQUEEZE', 14, 3, 'SGL-4', -9.620000000000001, 28.189999999999998, 13.5, 5.15, 7.0, 86.5, 1.0, 54.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('GULF_SHIPPING_CONFLICT', 15, 4, 'SGL-4', -16.73, 15.59, 0.0, 8.32, 7.0, 0.0, 1.0, 103.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('OIL_PRICE_COLLAPSE', 14, 3, 'SGL-4', -9.280000000000001, 24.02, 18.0, 8.32, 7.0, 82.0, 1.0, 76.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REAL_ESTATE_CORRECTION', 13, 2, 'SGL-4', -3.41, 12.08, 13.5, 8.24, 7.0, 82.0, 1.0, 76.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REGIONAL_CONFLICT', 16, 5, 'SGL-4', -16.91, 18.11, 18.0, 10.4, 18.0, 77.5, 1.0, 103.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('STAGNANT_MARKET', 13, 2, 'SGL-4', -5.7299999999999995, 15.169999999999998, 9.0, 5.300000000000001, 7.0, 91.0, 1.0, 27.0);
 INSERT #eRem (Code, TriggerCode, TriggerLevel, Moved, FinalNotch, NotchesGained) VALUES
     ('COMMITTED_FACILITY', 'UNDRAWN_TO_ST_DEBT', 'CRITICAL', NULL, NULL, NULL),
     ('FACTOR_WITHOUT_RECOURSE', 'LIQUIDITY_COVERAGE', 'ELEVATED', 132000000.0, 10, 1),
@@ -41072,7 +41102,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -41176,20 +41207,20 @@ SELECT ProductCategoryId, 80, 85 FROM fin.ProductCategory WHERE Code = 'BUILDING
 UNION ALL SELECT ProductCategoryId, 20, 15 FROM fin.ProductCategory WHERE Code = 'COMMODITY_TRADED';
 INSERT #eEv (State, FinalNotch, Resilience, Outlook, OutlookRules) VALUES
     ('RATED', 14, 'MODERATE', 'NEGATIVE', 'NEG_LIQUIDITY,NEG_SCENARIO');
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FINANCIAL_CRISIS', 18, 4, 'SGL-4', -37.660000000000004, 62.26, 36.0, 19.560000000000002, 30.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FISCAL_SQUEEZE', 17, 3, 'SGL-4', -30.96, 71.84, 13.5, 5.569999999999999, 15.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('GULF_SHIPPING_CONFLICT', 18, 4, 'SGL-4', -30.490000000000002, 32.71, 0.0, 9.216, 15.0, 0, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('OIL_PRICE_COLLAPSE', 17, 3, 'SGL-4', -30.520000000000003, 59.080000000000005, 18.0, 9.216, 15.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REAL_ESTATE_CORRECTION', 17, 3, 'SGL-4', -25.790000000000003, 36.010000000000005, 13.5, 8.911999999999999, 15.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REGIONAL_CONFLICT', 17, 3, 'SGL-4', -29.51, 46.0, 18.0, 11.52, 30.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('STAGNANT_MARKET', 17, 3, 'SGL-4', -23.45, 38.230000000000004, 9.0, 6.14, 15.0, 100, 1.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FINANCIAL_CRISIS', 18, 4, 'SGL-4', -37.660000000000004, 62.26, 36.0, 19.560000000000002, 30.0, 55.0, 1.0, 157.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FISCAL_SQUEEZE', 17, 3, 'SGL-4', -30.96, 71.84, 13.5, 5.569999999999999, 15.0, 86.5, 1.0, 54.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('GULF_SHIPPING_CONFLICT', 18, 4, 'SGL-4', -30.490000000000002, 32.71, 0.0, 9.216, 15.0, 0.0, 1.0, 103.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('OIL_PRICE_COLLAPSE', 17, 3, 'SGL-4', -30.520000000000003, 59.080000000000005, 18.0, 9.216, 15.0, 82.0, 1.0, 76.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REAL_ESTATE_CORRECTION', 17, 3, 'SGL-4', -25.790000000000003, 36.010000000000005, 13.5, 8.911999999999999, 15.0, 82.0, 1.0, 76.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REGIONAL_CONFLICT', 18, 4, 'SGL-4', -29.51, 46.0, 18.0, 11.52, 30.0, 77.5, 1.0, 103.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('STAGNANT_MARKET', 17, 3, 'SGL-4', -23.45, 38.230000000000004, 9.0, 6.14, 15.0, 91.0, 1.0, 27.0);
 INSERT #eRem (Code, TriggerCode, TriggerLevel, Moved, FinalNotch, NotchesGained) VALUES
     ('TERM_OUT_ST_FUNDING', 'ST_DEBT_SHARE', 'HIGH', 112000000.0, 14, 0),
     ('REFINANCE_MATURITY_WALL', 'CFO_TO_CPLTD', 'HIGH', 5000000.0, 14, 0),
@@ -41258,7 +41289,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -41365,20 +41397,20 @@ SELECT ProductCategoryId, 85, 90 FROM fin.ProductCategory WHERE Code = 'FASHION_
 UNION ALL SELECT ProductCategoryId, 15, 10 FROM fin.ProductCategory WHERE Code = 'DISCRETIONARY_LUXURY';
 INSERT #eEv (State, FinalNotch, Resilience, Outlook, OutlookRules) VALUES
     ('RATED', 11, 'MODERATE', 'NEGATIVE', 'NEG_SCENARIO');
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FINANCIAL_CRISIS', 16, 5, 'SGL-4', -20.720000000000002, 34.36, 24.0, 18.78, 35.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FISCAL_SQUEEZE', 13, 2, 'SGL-4', -13.34, 31.294999999999998, 9.0, 5.4725, 20.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('GULF_SHIPPING_CONFLICT', 16, 5, 'SGL-4', -25.300000000000004, 19.16, 0.0, 9.008, 20.0, 0, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('OIL_PRICE_COLLAPSE', 14, 3, 'SGL-4', -15.360000000000001, 30.02, 12.0, 9.008, 20.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REAL_ESTATE_CORRECTION', 12, 1, 'SGL-3', -5.84, 13.115, 9.0, 8.756, 20.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REGIONAL_CONFLICT', 16, 5, 'SGL-4', -25.900000000000002, 22.04, 12.0, 11.259999999999998, 35.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('STAGNANT_MARKET', 13, 2, 'SGL-4', -11.22, 19.13, 6.0, 5.945, 20.0, 100, 1.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FINANCIAL_CRISIS', 16, 5, 'SGL-4', -20.720000000000002, 34.36, 24.0, 18.78, 35.0, 70.0, 1.0, 105.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FISCAL_SQUEEZE', 13, 2, 'SGL-4', -13.34, 31.294999999999998, 9.0, 5.4725, 20.0, 91.0, 1.0, 36.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('GULF_SHIPPING_CONFLICT', 16, 5, 'SGL-4', -25.300000000000004, 19.16, 0.0, 9.008, 20.0, 0.0, 1.0, 69.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('OIL_PRICE_COLLAPSE', 14, 3, 'SGL-4', -15.360000000000001, 30.02, 12.0, 9.008, 20.0, 88.0, 1.0, 51.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REAL_ESTATE_CORRECTION', 12, 1, 'SGL-3', -5.84, 13.115, 9.0, 8.756, 20.0, 88.0, 1.0, 51.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REGIONAL_CONFLICT', 16, 5, 'SGL-4', -25.900000000000002, 22.04, 12.0, 11.259999999999998, 35.0, 85.0, 1.0, 69.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('STAGNANT_MARKET', 13, 2, 'SGL-4', -11.22, 19.13, 6.0, 5.945, 20.0, 94.0, 1.0, 18.0);
 INSERT #eRem (Code, TriggerCode, TriggerLevel, Moved, FinalNotch, NotchesGained) VALUES
     ('COMMITTED_FACILITY', 'UNDRAWN_TO_ST_DEBT', 'CRITICAL', NULL, NULL, NULL),
     ('CREDIT_INSURANCE', 'REALISABLE_COVERAGE', 'CRITICAL', NULL, NULL, NULL),
@@ -41436,7 +41468,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -41550,20 +41583,20 @@ INSERT #crMix (ProductCategoryId, RevenueSharePct, InventorySharePct)
 SELECT ProductCategoryId, 100, 100 FROM fin.ProductCategory WHERE Code = 'PROJECT_CONTRACTING';
 INSERT #eEv (State, FinalNotch, Resilience, Outlook, OutlookRules) VALUES
     ('RATED', 14, 'MODERATE', 'NEGATIVE', 'NEG_LIQUIDITY,NEG_SCENARIO');
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FINANCIAL_CRISIS', 17, 3, 'SGL-4', -36.24, 90.0, 48.0, 17.4, 30.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FISCAL_SQUEEZE', 17, 3, 'SGL-4', -36.26, 90.35, 18.0, 5.300000000000001, 15.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('GULF_SHIPPING_CONFLICT', 16, 2, 'SGL-4', -29.0, 34.72, 0.0, 8.64, 15.0, 0, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('OIL_PRICE_COLLAPSE', 17, 3, 'SGL-4', -34.36, 72.58, 24.0, 8.64, 15.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REAL_ESTATE_CORRECTION', 16, 2, 'SGL-4', -24.94, 37.87, 18.0, 8.48, 15.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REGIONAL_CONFLICT', 17, 3, 'SGL-4', -28.8, 90.0, 24.0, 10.8, 30.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('STAGNANT_MARKET', 16, 2, 'SGL-4', -21.68, 41.739999999999995, 12.0, 5.6000000000000005, 15.0, 100, 1.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FINANCIAL_CRISIS', 17, 3, 'SGL-4', -36.24, 90.0, 48.0, 17.4, 30.0, 40.0, 1.0, 210.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FISCAL_SQUEEZE', 17, 3, 'SGL-4', -36.26, 90.35, 18.0, 5.300000000000001, 15.0, 82.0, 1.0, 72.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('GULF_SHIPPING_CONFLICT', 16, 2, 'SGL-4', -29.0, 34.72, 0.0, 8.64, 15.0, 0.0, 1.0, 138.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('OIL_PRICE_COLLAPSE', 17, 3, 'SGL-4', -34.36, 72.58, 24.0, 8.64, 15.0, 76.0, 1.0, 102.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REAL_ESTATE_CORRECTION', 16, 2, 'SGL-4', -24.94, 37.87, 18.0, 8.48, 15.0, 76.0, 1.0, 102.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REGIONAL_CONFLICT', 17, 3, 'SGL-4', -28.8, 90.0, 24.0, 10.8, 30.0, 70.0, 1.0, 138.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('STAGNANT_MARKET', 16, 2, 'SGL-4', -21.68, 41.739999999999995, 12.0, 5.6000000000000005, 15.0, 88.0, 1.0, 36.0);
 INSERT #eRem (Code, TriggerCode, TriggerLevel, Moved, FinalNotch, NotchesGained) VALUES
     ('TERM_OUT_ST_FUNDING', 'CURRENT_RATIO', 'HIGH', 100000000.0, 14, 0),
     ('REFINANCE_MATURITY_WALL', 'CFO_TO_CPLTD', 'HIGH', 15000000.0, 14, 0),
@@ -41633,7 +41666,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -41749,20 +41783,20 @@ INSERT #crMix (ProductCategoryId, RevenueSharePct, InventorySharePct)
 SELECT ProductCategoryId, 100, 100 FROM fin.ProductCategory WHERE Code = 'ESSENTIAL_STAPLE';
 INSERT #eEv (State, FinalNotch, Resilience, Outlook, OutlookRules) VALUES
     ('RATED', 8, 'RESILIENT', 'STABLE', NULL);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FINANCIAL_CRISIS', 12, 4, 'SGL-4', -12.72, 33.4, 24.0, 16.200000000000003, 15.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FISCAL_SQUEEZE', 12, 4, 'SGL-4', -14.86, 43.91, 9.0, 5.15, 5.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('GULF_SHIPPING_CONFLICT', 10, 2, 'SGL-3', -12.18, 16.34, 0.0, 8.32, 5.0, 0, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('OIL_PRICE_COLLAPSE', 10, 2, 'SGL-3', -12.28, 33.019999999999996, 12.0, 8.32, 5.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REAL_ESTATE_CORRECTION', 9, 1, 'SGL-2', -3.52, 12.41, 9.0, 8.24, 5.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REGIONAL_CONFLICT', 10, 2, 'SGL-3', -12.18, 18.32, 12.0, 10.4, 15.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('STAGNANT_MARKET', 9, 1, 'SGL-2', -7.14, 19.4, 6.0, 5.300000000000001, 5.0, 100, 1.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FINANCIAL_CRISIS', 12, 4, 'SGL-4', -12.72, 33.4, 24.0, 16.200000000000003, 15.0, 70.0, 1.0, 105.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FISCAL_SQUEEZE', 12, 4, 'SGL-4', -14.86, 43.91, 9.0, 5.15, 5.0, 91.0, 1.0, 36.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('GULF_SHIPPING_CONFLICT', 10, 2, 'SGL-3', -12.18, 16.34, 0.0, 8.32, 5.0, 0.0, 1.0, 69.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('OIL_PRICE_COLLAPSE', 10, 2, 'SGL-3', -12.28, 33.019999999999996, 12.0, 8.32, 5.0, 88.0, 1.0, 51.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REAL_ESTATE_CORRECTION', 9, 1, 'SGL-2', -3.52, 12.41, 9.0, 8.24, 5.0, 88.0, 1.0, 51.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REGIONAL_CONFLICT', 10, 2, 'SGL-3', -12.18, 18.32, 12.0, 10.4, 15.0, 85.0, 1.0, 69.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('STAGNANT_MARKET', 9, 1, 'SGL-2', -7.14, 19.4, 6.0, 5.300000000000001, 5.0, 94.0, 1.0, 18.0);
 INSERT #eRem (Code, TriggerCode, TriggerLevel, Moved, FinalNotch, NotchesGained) VALUES
     ('COMMITTED_FACILITY', 'UNDRAWN_TO_ST_DEBT', 'CRITICAL', NULL, NULL, NULL),
     ('COLLECT_OVERDUE_AR', 'AR_OVER_180_SHARE', 'ELEVATED', 22500000.0, 8, 0),
@@ -41821,7 +41855,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -41935,20 +41970,20 @@ SELECT ProductCategoryId, 70, 60 FROM fin.ProductCategory WHERE Code = 'COMMODIT
 UNION ALL SELECT ProductCategoryId, 30, 40 FROM fin.ProductCategory WHERE Code = 'BUILDING_MATERIALS';
 INSERT #eEv (State, FinalNotch, Resilience, Outlook, OutlookRules) VALUES
     ('RATED', 13, 'MODERATE', 'NEGATIVE', 'NEG_LIQUIDITY,NEG_SCENARIO');
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FINANCIAL_CRISIS', 17, 4, 'SGL-4', -34.64, 61.12, 48.0, 18.96, 30.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FISCAL_SQUEEZE', 16, 3, 'SGL-4', -29.48, 71.15, 18.0, 5.495, 15.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('GULF_SHIPPING_CONFLICT', 16, 3, 'SGL-4', -29.000000000000004, 31.16, 0.0, 9.056000000000001, 15.0, 0, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('OIL_PRICE_COLLAPSE', 16, 3, 'SGL-4', -28.400000000000002, 57.800000000000004, 24.0, 9.056000000000001, 15.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REAL_ESTATE_CORRECTION', 16, 3, 'SGL-4', -21.240000000000002, 32.510000000000005, 18.0, 8.792, 15.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REGIONAL_CONFLICT', 16, 3, 'SGL-4', -28.32, 36.0, 24.0, 11.32, 30.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('STAGNANT_MARKET', 16, 3, 'SGL-4', -20.84, 36.38, 12.0, 5.99, 15.0, 100, 1.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FINANCIAL_CRISIS', 17, 4, 'SGL-4', -34.64, 61.12, 48.0, 18.96, 30.0, 40.0, 1.0, 210.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FISCAL_SQUEEZE', 16, 3, 'SGL-4', -29.48, 71.15, 18.0, 5.495, 15.0, 82.0, 1.0, 72.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('GULF_SHIPPING_CONFLICT', 16, 3, 'SGL-4', -29.000000000000004, 31.16, 0.0, 9.056000000000001, 15.0, 0.0, 1.0, 138.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('OIL_PRICE_COLLAPSE', 16, 3, 'SGL-4', -28.400000000000002, 57.800000000000004, 24.0, 9.056000000000001, 15.0, 76.0, 1.0, 102.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REAL_ESTATE_CORRECTION', 16, 3, 'SGL-4', -21.240000000000002, 32.510000000000005, 18.0, 8.792, 15.0, 76.0, 1.0, 102.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REGIONAL_CONFLICT', 17, 4, 'SGL-4', -28.32, 36.0, 24.0, 11.32, 30.0, 70.0, 1.0, 138.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('STAGNANT_MARKET', 16, 3, 'SGL-4', -20.84, 36.38, 12.0, 5.99, 15.0, 88.0, 1.0, 36.0);
 INSERT #eRem (Code, TriggerCode, TriggerLevel, Moved, FinalNotch, NotchesGained) VALUES
     ('TERM_OUT_ST_FUNDING', 'NWC_TO_ASSETS', 'HIGH', 280000000.0, 13, 0),
     ('REFINANCE_MATURITY_WALL', 'LIQUIDITY_COVERAGE', 'HIGH', 75000000.0, 13, 0),
@@ -42013,7 +42048,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -42129,20 +42165,20 @@ INSERT #crMix (ProductCategoryId, RevenueSharePct, InventorySharePct)
 SELECT ProductCategoryId, 100, 100 FROM fin.ProductCategory WHERE Code = 'BUILDING_MATERIALS';
 INSERT #eEv (State, FinalNotch, Resilience, Outlook, OutlookRules) VALUES
     ('RATED', 14, 'VULNERABLE', 'NEGATIVE', 'NEG_LIQUIDITY,NEG_SCENARIO');
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FINANCIAL_CRISIS', 19, 6, 'SGL-4', -37.484, 57.268, 36.0, 19.8, 30.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FISCAL_SQUEEZE', 18, 5, 'SGL-4', -26.34, 55.879999999999995, 13.5, 5.6000000000000005, 15.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('GULF_SHIPPING_CONFLICT', 19, 6, 'SGL-4', -30.290000000000006, 30.11, 0.0, 9.28, 15.0, 0, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('OIL_PRICE_COLLAPSE', 18, 5, 'SGL-4', -28.44, 50.12, 18.0, 9.28, 15.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REAL_ESTATE_CORRECTION', 18, 5, 'SGL-4', -27.67, 36.71, 13.5, 8.96, 15.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REGIONAL_CONFLICT', 19, 6, 'SGL-4', -28.770000000000003, 50.0, 18.0, 11.6, 30.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('STAGNANT_MARKET', 18, 5, 'SGL-4', -23.21, 34.43, 9.0, 6.2, 15.0, 100, 1.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FINANCIAL_CRISIS', 19, 6, 'SGL-4', -37.484, 57.268, 36.0, 19.8, 30.0, 55.0, 1.0, 157.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FISCAL_SQUEEZE', 18, 5, 'SGL-4', -26.34, 55.879999999999995, 13.5, 5.6000000000000005, 15.0, 86.5, 1.0, 54.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('GULF_SHIPPING_CONFLICT', 19, 6, 'SGL-4', -30.290000000000006, 30.11, 0.0, 9.28, 15.0, 0.0, 1.0, 103.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('OIL_PRICE_COLLAPSE', 18, 5, 'SGL-4', -28.44, 50.12, 18.0, 9.28, 15.0, 82.0, 1.0, 76.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REAL_ESTATE_CORRECTION', 18, 5, 'SGL-4', -27.67, 36.71, 13.5, 8.96, 15.0, 82.0, 1.0, 76.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REGIONAL_CONFLICT', 19, 6, 'SGL-4', -28.770000000000003, 50.0, 18.0, 11.6, 30.0, 77.5, 1.0, 103.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('STAGNANT_MARKET', 18, 5, 'SGL-4', -23.21, 34.43, 9.0, 6.2, 15.0, 91.0, 1.0, 27.0);
 INSERT #eRem (Code, TriggerCode, TriggerLevel, Moved, FinalNotch, NotchesGained) VALUES
     ('COMMITTED_FACILITY', 'UNDRAWN_TO_ST_DEBT', 'CRITICAL', NULL, NULL, NULL),
     ('COLLECT_OVERDUE_AR', 'AR_OVER_180_SHARE', 'HIGH', 7000000.0, 14, 0),
@@ -42208,7 +42244,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -42323,20 +42360,20 @@ INSERT #crMix (ProductCategoryId, RevenueSharePct, InventorySharePct)
 SELECT ProductCategoryId, 100, 100 FROM fin.ProductCategory WHERE Code = 'BUILDING_MATERIALS';
 INSERT #eEv (State, FinalNotch, Resilience, Outlook, OutlookRules) VALUES
     ('RATED', 10, 'MODERATE', 'NEGATIVE', 'NEG_SCENARIO,NEG_HEADROOM');
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FINANCIAL_CRISIS', 12, 2, 'SGL-4', -38.760000000000005, 67.38399999999999, 24.0, 19.8, 30.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FISCAL_SQUEEZE', 12, 2, 'SGL-4', -36.808, 88.26799999999999, 9.0, 5.6000000000000005, 15.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('GULF_SHIPPING_CONFLICT', 12, 2, 'SGL-4', -24.284000000000002, 34.044, 0.0, 9.28, 15.0, 0, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('OIL_PRICE_COLLAPSE', 12, 2, 'SGL-4', -34.384, 69.024, 12.0, 9.28, 15.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REAL_ESTATE_CORRECTION', 12, 2, 'SGL-4', -27.900000000000002, 38.28, 9.0, 8.96, 15.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REGIONAL_CONFLICT', 12, 2, 'SGL-4', -23.588, 50.0, 12.0, 11.6, 30.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('STAGNANT_MARKET', 12, 2, 'SGL-4', -25.884, 43.523999999999994, 6.0, 6.2, 15.0, 100, 1.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FINANCIAL_CRISIS', 12, 2, 'SGL-4', -38.760000000000005, 67.38399999999999, 24.0, 19.8, 30.0, 70.0, 1.0, 105.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FISCAL_SQUEEZE', 12, 2, 'SGL-4', -36.808, 88.26799999999999, 9.0, 5.6000000000000005, 15.0, 91.0, 1.0, 36.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('GULF_SHIPPING_CONFLICT', 12, 2, 'SGL-4', -24.284000000000002, 34.044, 0.0, 9.28, 15.0, 0.0, 1.0, 69.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('OIL_PRICE_COLLAPSE', 12, 2, 'SGL-4', -34.384, 69.024, 12.0, 9.28, 15.0, 88.0, 1.0, 51.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REAL_ESTATE_CORRECTION', 12, 2, 'SGL-4', -27.900000000000002, 38.28, 9.0, 8.96, 15.0, 88.0, 1.0, 51.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REGIONAL_CONFLICT', 12, 2, 'SGL-4', -23.588, 50.0, 12.0, 11.6, 30.0, 85.0, 1.0, 69.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('STAGNANT_MARKET', 12, 2, 'SGL-4', -25.884, 43.523999999999994, 6.0, 6.2, 15.0, 94.0, 1.0, 18.0);
 INSERT #eRem (Code, TriggerCode, TriggerLevel, Moved, FinalNotch, NotchesGained) VALUES
     ('COMMITTED_FACILITY', 'UNDRAWN_TO_ST_DEBT', 'CRITICAL', NULL, NULL, NULL),
     ('LIQUIDATE_SLOW_STOCK', 'DIO', 'HIGH', 25000000.0, 10, 0),
@@ -42389,7 +42426,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -42501,20 +42539,20 @@ SELECT ProductCategoryId, 70, 70 FROM fin.ProductCategory WHERE Code = 'COMMODIT
 UNION ALL SELECT ProductCategoryId, 30, 30 FROM fin.ProductCategory WHERE Code = 'BUILDING_MATERIALS';
 INSERT #eEv (State, FinalNotch, Resilience, Outlook, OutlookRules) VALUES
     ('RATED', 14, 'MODERATE', 'DEVELOPING', 'NEG_LIQUIDITY,NEG_SCENARIO,POS_HEADROOM');
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FINANCIAL_CRISIS', 18, 4, 'SGL-4', -44.692, 77.764, 60.0, 18.96, 30.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FISCAL_SQUEEZE', 17, 3, 'SGL-4', -39.58, 93.91999999999999, 22.5, 5.495, 15.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('GULF_SHIPPING_CONFLICT', 17, 3, 'SGL-4', -36.07, 39.57, 0.0, 9.056000000000001, 15.0, 0, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('OIL_PRICE_COLLAPSE', 17, 3, 'SGL-4', -38.64, 76.97999999999999, 30.0, 9.056000000000001, 15.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REAL_ESTATE_CORRECTION', 17, 3, 'SGL-4', -31.349999999999998, 44.79, 22.5, 8.792, 15.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REGIONAL_CONFLICT', 17, 3, 'SGL-4', -35.29, 42.769999999999996, 30.0, 11.32, 30.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('STAGNANT_MARKET', 17, 3, 'SGL-4', -26.91, 46.65, 15.0, 5.99, 15.0, 100, 1.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FINANCIAL_CRISIS', 18, 4, 'SGL-4', -44.692, 77.764, 60.0, 18.96, 30.0, 25.0, 1.0, 262.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FISCAL_SQUEEZE', 17, 3, 'SGL-4', -39.58, 93.91999999999999, 22.5, 5.495, 15.0, 77.5, 1.0, 90.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('GULF_SHIPPING_CONFLICT', 17, 3, 'SGL-4', -36.07, 39.57, 0.0, 9.056000000000001, 15.0, 0.0, 1.0, 172.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('OIL_PRICE_COLLAPSE', 17, 3, 'SGL-4', -38.64, 76.97999999999999, 30.0, 9.056000000000001, 15.0, 70.0, 1.0, 127.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REAL_ESTATE_CORRECTION', 17, 3, 'SGL-4', -31.349999999999998, 44.79, 22.5, 8.792, 15.0, 70.0, 1.0, 127.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REGIONAL_CONFLICT', 17, 3, 'SGL-4', -35.29, 42.769999999999996, 30.0, 11.32, 30.0, 62.5, 1.0, 172.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('STAGNANT_MARKET', 17, 3, 'SGL-4', -26.91, 46.65, 15.0, 5.99, 15.0, 85.0, 1.0, 45.0);
 INSERT #eRem (Code, TriggerCode, TriggerLevel, Moved, FinalNotch, NotchesGained) VALUES
     ('TERM_OUT_ST_FUNDING', 'ST_DEBT_SHARE', 'HIGH', 60000000.0, 12, 2),
     ('REFINANCE_MATURITY_WALL', 'CFO_TO_CPLTD', 'CRITICAL', 2500000.0, 14, 0),
@@ -42580,7 +42618,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -42693,20 +42732,20 @@ INSERT #crMix (ProductCategoryId, RevenueSharePct, InventorySharePct)
 SELECT ProductCategoryId, 100, 100 FROM fin.ProductCategory WHERE Code = 'REAL_ESTATE_UNITS';
 INSERT #eEv (State, FinalNotch, Resilience, Outlook, OutlookRules) VALUES
     ('RATED', 11, 'MODERATE', 'NEGATIVE', 'NEG_SCENARIO');
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FINANCIAL_CRISIS', 17, 6, 'SGL-4', -54.9, 73.46000000000001, 60.0, 21.599999999999998, 30.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FISCAL_SQUEEZE', 14, 3, 'SGL-4', -30.64, 55.1, 22.5, 5.825, 15.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('GULF_SHIPPING_CONFLICT', 17, 6, 'SGL-4', -67.015, 54.205000000000005, 0.0, 10.288, 15.0, 0, 1.3);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('OIL_PRICE_COLLAPSE', 14, 3, 'SGL-4', -36.540000000000006, 55.7, 30.0, 9.76, 15.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REAL_ESTATE_CORRECTION', 15, 4, 'SGL-4', -46.31, 56.09, 22.5, 9.32, 15.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REGIONAL_CONFLICT', 17, 6, 'SGL-4', -49.61, 60.0, 30.0, 12.2, 30.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('STAGNANT_MARKET', 14, 3, 'SGL-4', -32.81, 42.53, 15.0, 6.65, 15.0, 100, 1.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FINANCIAL_CRISIS', 17, 6, 'SGL-4', -54.9, 73.46000000000001, 60.0, 21.599999999999998, 30.0, 25.0, 1.0, 262.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FISCAL_SQUEEZE', 14, 3, 'SGL-4', -30.64, 55.1, 22.5, 5.825, 15.0, 77.5, 1.0, 90.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('GULF_SHIPPING_CONFLICT', 17, 6, 'SGL-4', -67.015, 54.205000000000005, 0.0, 10.288, 15.0, 0.0, 1.3, 224.25000000000003);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('OIL_PRICE_COLLAPSE', 14, 3, 'SGL-4', -36.540000000000006, 55.7, 30.0, 9.76, 15.0, 70.0, 1.0, 127.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REAL_ESTATE_CORRECTION', 15, 4, 'SGL-4', -46.31, 56.09, 22.5, 9.32, 15.0, 70.0, 1.0, 127.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REGIONAL_CONFLICT', 17, 6, 'SGL-4', -49.61, 60.0, 30.0, 12.2, 30.0, 62.5, 1.0, 172.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('STAGNANT_MARKET', 14, 3, 'SGL-4', -32.81, 42.53, 15.0, 6.65, 15.0, 85.0, 1.0, 45.0);
 INSERT #eRem (Code, TriggerCode, TriggerLevel, Moved, FinalNotch, NotchesGained) VALUES
     ('REFINANCE_MATURITY_WALL', 'CFO_TO_CPLTD', 'HIGH', 125000000.0, 11, 0),
     ('COMMITTED_FACILITY', 'UNDRAWN_TO_ST_DEBT', 'CRITICAL', NULL, NULL, NULL),
@@ -42767,7 +42806,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -42870,20 +42910,20 @@ INSERT #crL (Code, Amount) VALUES
     ('ZAKAT_TAX', 0.0);
 INSERT #eEv (State, FinalNotch, Resilience, Outlook, OutlookRules) VALUES
     ('RATED', 10, 'MODERATE', 'NEGATIVE', 'NEG_SCENARIO');
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FINANCIAL_CRISIS', 15, 5, 'SGL-4', -26.62, 41.620000000000005, 36.0, 17.64, 0.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FISCAL_SQUEEZE', 13, 3, 'SGL-4', -14.920000000000002, 30.380000000000003, 13.5, 5.33, 0.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('GULF_SHIPPING_CONFLICT', 16, 6, 'SGL-4', -37.973000000000006, 30.155000000000005, 0.0, 8.9152, 0.0, 0, 1.3);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('OIL_PRICE_COLLAPSE', 13, 3, 'SGL-4', -18.020000000000003, 31.160000000000004, 18.0, 8.704, 0.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REAL_ESTATE_CORRECTION', 15, 5, 'SGL-4', -21.03, 29.09, 13.5, 8.528, 0.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REGIONAL_CONFLICT', 15, 5, 'SGL-4', -28.450000000000003, 25.67, 18.0, 10.88, 0.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('STAGNANT_MARKET', 13, 3, 'SGL-4', -14.790000000000003, 22.790000000000003, 9.0, 5.66, 0.0, 100, 1.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FINANCIAL_CRISIS', 15, 5, 'SGL-4', -26.62, 41.620000000000005, 36.0, 17.64, 0.0, 55.0, 1.0, 157.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FISCAL_SQUEEZE', 13, 3, 'SGL-4', -14.920000000000002, 30.380000000000003, 13.5, 5.33, 0.0, 86.5, 1.0, 54.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('GULF_SHIPPING_CONFLICT', 16, 6, 'SGL-4', -37.973000000000006, 30.155000000000005, 0.0, 8.9152, 0.0, 0.0, 1.3, 134.55);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('OIL_PRICE_COLLAPSE', 13, 3, 'SGL-4', -18.020000000000003, 31.160000000000004, 18.0, 8.704, 0.0, 82.0, 1.0, 76.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REAL_ESTATE_CORRECTION', 15, 5, 'SGL-4', -21.03, 29.09, 13.5, 8.528, 0.0, 82.0, 1.0, 76.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REGIONAL_CONFLICT', 15, 5, 'SGL-4', -28.450000000000003, 25.67, 18.0, 10.88, 0.0, 77.5, 1.0, 103.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('STAGNANT_MARKET', 13, 3, 'SGL-4', -14.790000000000003, 22.790000000000003, 9.0, 5.66, 0.0, 91.0, 1.0, 27.0);
 INSERT #eRem (Code, TriggerCode, TriggerLevel, Moved, FinalNotch, NotchesGained) VALUES
     ('COMMITTED_FACILITY', 'UNDRAWN_TO_ST_DEBT', 'CRITICAL', NULL, NULL, NULL),
     ('COLLECT_OVERDUE_AR', 'AR_OVER_180_SHARE', 'HIGH', 4500000.0, 10, 0),
@@ -42947,7 +42987,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -43051,20 +43092,20 @@ INSERT #crL (Code, Amount) VALUES
     ('ZAKAT_TAX_PAYABLE', 3000000.0);
 INSERT #eEv (State, FinalNotch, Resilience, Outlook, OutlookRules) VALUES
     ('RATED', 11, 'MODERATE', 'NEGATIVE', 'NEG_LIQUIDITY,NEG_SCENARIO');
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FINANCIAL_CRISIS', 15, 4, 'SGL-4', -23.62, 44.5, 36.0, 17.4, 0.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FISCAL_SQUEEZE', 14, 3, 'SGL-4', -18.9, 48.529999999999994, 13.5, 5.300000000000001, 0.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('GULF_SHIPPING_CONFLICT', 15, 4, 'SGL-4', -26.770000000000003, 25.47, 0.0, 8.64, 0.0, 0, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('OIL_PRICE_COLLAPSE', 14, 3, 'SGL-4', -17.6, 38.82, 18.0, 8.64, 0.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REAL_ESTATE_CORRECTION', 14, 3, 'SGL-4', -13.97, 23.46, 13.5, 8.48, 0.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REGIONAL_CONFLICT', 15, 4, 'SGL-4', -26.710000000000004, 27.11, 18.0, 10.8, 0.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('STAGNANT_MARKET', 14, 3, 'SGL-4', -13.17, 25.529999999999998, 9.0, 5.6000000000000005, 0.0, 100, 1.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FINANCIAL_CRISIS', 15, 4, 'SGL-4', -23.62, 44.5, 36.0, 17.4, 0.0, 55.0, 1.0, 157.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FISCAL_SQUEEZE', 14, 3, 'SGL-4', -18.9, 48.529999999999994, 13.5, 5.300000000000001, 0.0, 86.5, 1.0, 54.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('GULF_SHIPPING_CONFLICT', 15, 4, 'SGL-4', -26.770000000000003, 25.47, 0.0, 8.64, 0.0, 0.0, 1.0, 103.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('OIL_PRICE_COLLAPSE', 14, 3, 'SGL-4', -17.6, 38.82, 18.0, 8.64, 0.0, 82.0, 1.0, 76.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REAL_ESTATE_CORRECTION', 14, 3, 'SGL-4', -13.97, 23.46, 13.5, 8.48, 0.0, 82.0, 1.0, 76.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REGIONAL_CONFLICT', 15, 4, 'SGL-4', -26.710000000000004, 27.11, 18.0, 10.8, 0.0, 77.5, 1.0, 103.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('STAGNANT_MARKET', 14, 3, 'SGL-4', -13.17, 25.529999999999998, 9.0, 5.6000000000000005, 0.0, 91.0, 1.0, 27.0);
 INSERT #eRem (Code, TriggerCode, TriggerLevel, Moved, FinalNotch, NotchesGained) VALUES
     ('COMMITTED_FACILITY', 'UNDRAWN_TO_ST_DEBT', 'CRITICAL', NULL, NULL, NULL),
     ('COLLECT_OVERDUE_AR', 'AR_OVER_180_SHARE', 'ELEVATED', 2000000.0, 11, 0),
@@ -43125,7 +43166,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -43229,20 +43271,20 @@ INSERT #crL (Code, Amount) VALUES
     ('ZAKAT_TAX', 400000.0);
 INSERT #eEv (State, FinalNotch, Resilience, Outlook, OutlookRules) VALUES
     ('RATED', 13, 'RESILIENT', 'STABLE', NULL);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FINANCIAL_CRISIS', 18, 5, 'SGL-4', -28.92, 44.92, 48.0, 18.96, 17.5, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FISCAL_SQUEEZE', 14, 1, 'SGL-4', -16.6, 43.19, 18.0, 5.495, 10.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('GULF_SHIPPING_CONFLICT', 17, 4, 'SGL-4', -49.752, 30.164, 0.0, 8.9504, 10.0, 0, 0.9);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('OIL_PRICE_COLLAPSE', 13, 0, 'SGL-3', -15.48, 34.76, 24.0, 9.056000000000001, 10.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REAL_ESTATE_CORRECTION', 13, 0, 'SGL-1', -7.0, 16.67, 18.0, 8.792, 10.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REGIONAL_CONFLICT', 18, 5, 'SGL-4', -55.76, 35.96, 24.0, 11.32, 17.5, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('STAGNANT_MARKET', 13, 0, 'SGL-2', -12.64, 23.66, 12.0, 5.99, 10.0, 100, 1.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FINANCIAL_CRISIS', 18, 5, 'SGL-4', -28.92, 44.92, 48.0, 18.96, 17.5, 40.0, 1.0, 210.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FISCAL_SQUEEZE', 14, 1, 'SGL-4', -16.6, 43.19, 18.0, 5.495, 10.0, 82.0, 1.0, 72.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('GULF_SHIPPING_CONFLICT', 17, 4, 'SGL-4', -49.752, 30.164, 0.0, 8.9504, 10.0, 0.0, 0.9, 124.2);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('OIL_PRICE_COLLAPSE', 13, 0, 'SGL-3', -15.48, 34.76, 24.0, 9.056000000000001, 10.0, 76.0, 1.0, 102.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REAL_ESTATE_CORRECTION', 13, 0, 'SGL-1', -7.0, 16.67, 18.0, 8.792, 10.0, 76.0, 1.0, 102.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REGIONAL_CONFLICT', 18, 5, 'SGL-4', -55.76, 35.96, 24.0, 11.32, 17.5, 70.0, 1.0, 138.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('STAGNANT_MARKET', 13, 0, 'SGL-2', -12.64, 23.66, 12.0, 5.99, 10.0, 88.0, 1.0, 36.0);
 INSERT #eRem (Code, TriggerCode, TriggerLevel, Moved, FinalNotch, NotchesGained) VALUES
     ('COMMITTED_FACILITY', 'UNDRAWN_TO_ST_DEBT', 'CRITICAL', NULL, NULL, NULL),
     ('CREDIT_INSURANCE', 'REALISABLE_COVERAGE', 'HIGH', NULL, NULL, NULL),
@@ -43290,7 +43332,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -43388,20 +43431,20 @@ INSERT #crL (Code, Amount) VALUES
     ('ZAKAT_TAX_PAYABLE', 3000000.0);
 INSERT #eEv (State, FinalNotch, Resilience, Outlook, OutlookRules) VALUES
     ('RATED', 17, 'RESILIENT', 'STABLE', NULL);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FINANCIAL_CRISIS', 19, 2, 'SGL-4', -28.152, 38.152, 56.0, 19.68, 22.5, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FISCAL_SQUEEZE', 17, 0, 'SGL-4', -9.896, 17.246000000000002, 21.0, 5.585, 10.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('GULF_SHIPPING_CONFLICT', 20, 3, 'SGL-4', -36.745200000000004, 21.729200000000002, 0.0, 9.1232, 10.0, 0, 0.9);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('OIL_PRICE_COLLAPSE', 18, 1, 'SGL-4', -13.488000000000001, 21.248, 28.0, 9.248000000000001, 10.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REAL_ESTATE_CORRECTION', 17, 0, 'SGL-4', -11.42, 19.61, 21.0, 8.936, 10.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REGIONAL_CONFLICT', 20, 3, 'SGL-4', -39.316, 26.636, 28.0, 11.560000000000002, 22.5, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('STAGNANT_MARKET', 18, 1, 'SGL-4', -13.628, 18.488, 14.0, 6.17, 10.0, 100, 1.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FINANCIAL_CRISIS', 19, 2, 'SGL-4', -28.152, 38.152, 56.0, 19.68, 22.5, 30.0, 1.0, 244.99999999999997);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FISCAL_SQUEEZE', 17, 0, 'SGL-4', -9.896, 17.246000000000002, 21.0, 5.585, 10.0, 79.0, 1.0, 84.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('GULF_SHIPPING_CONFLICT', 20, 3, 'SGL-4', -36.745200000000004, 21.729200000000002, 0.0, 9.1232, 10.0, 0.0, 0.9, 144.9);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('OIL_PRICE_COLLAPSE', 18, 1, 'SGL-4', -13.488000000000001, 21.248, 28.0, 9.248000000000001, 10.0, 72.0, 1.0, 118.99999999999999);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REAL_ESTATE_CORRECTION', 17, 0, 'SGL-4', -11.42, 19.61, 21.0, 8.936, 10.0, 72.0, 1.0, 118.99999999999999);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REGIONAL_CONFLICT', 20, 3, 'SGL-4', -39.316, 26.636, 28.0, 11.560000000000002, 22.5, 65.0, 1.0, 161.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('STAGNANT_MARKET', 18, 1, 'SGL-4', -13.628, 18.488, 14.0, 6.17, 10.0, 86.0, 1.0, 42.0);
 INSERT #eRem (Code, TriggerCode, TriggerLevel, Moved, FinalNotch, NotchesGained) VALUES
     ('TERM_OUT_ST_FUNDING', 'NWC_TO_ASSETS', 'CRITICAL', 7200000.0, 17, 0),
     ('COMMITTED_FACILITY', 'UNDRAWN_TO_ST_DEBT', 'CRITICAL', NULL, NULL, NULL),
@@ -43465,7 +43508,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -43580,20 +43624,20 @@ INSERT #crMix (ProductCategoryId, RevenueSharePct, InventorySharePct)
 SELECT ProductCategoryId, 100, 100 FROM fin.ProductCategory WHERE Code = 'PROJECT_CONTRACTING';
 INSERT #eEv (State, FinalNotch, Resilience, Outlook, OutlookRules) VALUES
     ('RATED', 12, 'MODERATE', 'NEGATIVE', 'NEG_SCENARIO');
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FINANCIAL_CRISIS', 17, 5, 'SGL-4', -32.46, 90.0, 36.0, 17.160000000000004, 30.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FISCAL_SQUEEZE', 17, 5, 'SGL-4', -40.04, 105.62, 13.5, 5.2700000000000005, 15.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('GULF_SHIPPING_CONFLICT', 16, 4, 'SGL-4', -34.541000000000004, 41.751000000000005, 0.0, 8.7488, 15.0, 0, 1.3);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('OIL_PRICE_COLLAPSE', 17, 5, 'SGL-4', -36.68000000000001, 82.88, 18.0, 8.576, 15.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REAL_ESTATE_CORRECTION', 15, 3, 'SGL-4', -14.790000000000001, 28.19, 13.5, 8.432, 15.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REGIONAL_CONFLICT', 17, 5, 'SGL-4', -27.990000000000002, 90.0, 18.0, 10.72, 30.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('STAGNANT_MARKET', 15, 3, 'SGL-4', -19.21, 42.589999999999996, 9.0, 5.540000000000001, 15.0, 100, 1.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FINANCIAL_CRISIS', 17, 5, 'SGL-4', -32.46, 90.0, 36.0, 17.160000000000004, 30.0, 55.0, 1.0, 157.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FISCAL_SQUEEZE', 17, 5, 'SGL-4', -40.04, 105.62, 13.5, 5.2700000000000005, 15.0, 86.5, 1.0, 54.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('GULF_SHIPPING_CONFLICT', 16, 4, 'SGL-4', -34.541000000000004, 41.751000000000005, 0.0, 8.7488, 15.0, 0.0, 1.3, 134.55);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('OIL_PRICE_COLLAPSE', 17, 5, 'SGL-4', -36.68000000000001, 82.88, 18.0, 8.576, 15.0, 82.0, 1.0, 76.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REAL_ESTATE_CORRECTION', 15, 3, 'SGL-4', -14.790000000000001, 28.19, 13.5, 8.432, 15.0, 82.0, 1.0, 76.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REGIONAL_CONFLICT', 17, 5, 'SGL-4', -27.990000000000002, 90.0, 18.0, 10.72, 30.0, 77.5, 1.0, 103.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('STAGNANT_MARKET', 15, 3, 'SGL-4', -19.21, 42.589999999999996, 9.0, 5.540000000000001, 15.0, 91.0, 1.0, 27.0);
 INSERT #eRem (Code, TriggerCode, TriggerLevel, Moved, FinalNotch, NotchesGained) VALUES
     ('COMMITTED_FACILITY', 'UNDRAWN_TO_ST_DEBT', 'CRITICAL', NULL, NULL, NULL),
     ('COLLECT_OVERDUE_AR', 'AR_OVER_180_SHARE', 'HIGH', 35000000.0, 12, 0),
@@ -43658,7 +43702,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -43769,20 +43814,20 @@ INSERT #crMix (ProductCategoryId, RevenueSharePct, InventorySharePct)
 SELECT ProductCategoryId, 100, 100 FROM fin.ProductCategory WHERE Code = 'SERVICES_RECURRING';
 INSERT #eEv (State, FinalNotch, Resilience, Outlook, OutlookRules) VALUES
     ('RATED', 11, 'MODERATE', 'DEVELOPING', 'NEG_SCENARIO,POS_HEADROOM');
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FINANCIAL_CRISIS', 15, 4, 'SGL-4', -21.900000000000002, 53.78, 36.0, 16.080000000000002, 0.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FISCAL_SQUEEZE', 15, 4, 'SGL-4', -28.8, 79.31, 13.5, 5.135, 0.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('GULF_SHIPPING_CONFLICT', 14, 3, 'SGL-4', -15.290000000000001, 25.07, 0.0, 8.288, 0.0, 0, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('OIL_PRICE_COLLAPSE', 15, 4, 'SGL-4', -25.560000000000002, 61.44, 18.0, 8.288, 0.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REAL_ESTATE_CORRECTION', 13, 2, 'SGL-4', -10.55, 22.560000000000002, 13.5, 8.216, 0.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REGIONAL_CONFLICT', 14, 3, 'SGL-4', -16.67, 30.0, 18.0, 10.36, 0.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('STAGNANT_MARKET', 13, 2, 'SGL-4', -13.05, 32.37, 9.0, 5.2700000000000005, 0.0, 100, 1.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FINANCIAL_CRISIS', 15, 4, 'SGL-4', -21.900000000000002, 53.78, 36.0, 16.080000000000002, 0.0, 55.0, 1.0, 157.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FISCAL_SQUEEZE', 15, 4, 'SGL-4', -28.8, 79.31, 13.5, 5.135, 0.0, 86.5, 1.0, 54.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('GULF_SHIPPING_CONFLICT', 14, 3, 'SGL-4', -15.290000000000001, 25.07, 0.0, 8.288, 0.0, 0.0, 1.0, 103.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('OIL_PRICE_COLLAPSE', 15, 4, 'SGL-4', -25.560000000000002, 61.44, 18.0, 8.288, 0.0, 82.0, 1.0, 76.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REAL_ESTATE_CORRECTION', 13, 2, 'SGL-4', -10.55, 22.560000000000002, 13.5, 8.216, 0.0, 82.0, 1.0, 76.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REGIONAL_CONFLICT', 14, 3, 'SGL-4', -16.67, 30.0, 18.0, 10.36, 0.0, 77.5, 1.0, 103.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('STAGNANT_MARKET', 13, 2, 'SGL-4', -13.05, 32.37, 9.0, 5.2700000000000005, 0.0, 91.0, 1.0, 27.0);
 INSERT #eRem (Code, TriggerCode, TriggerLevel, Moved, FinalNotch, NotchesGained) VALUES
     ('COMMITTED_FACILITY', 'UNDRAWN_TO_ST_DEBT', 'CRITICAL', NULL, NULL, NULL),
     ('COLLECT_OVERDUE_AR', 'AR_OVER_180_SHARE', 'ELEVATED', 9000000.0, 10, 1),
@@ -43845,7 +43890,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -43956,20 +44002,20 @@ SELECT ProductCategoryId, 70, 70 FROM fin.ProductCategory WHERE Code = 'ESSENTIA
 UNION ALL SELECT ProductCategoryId, 30, 30 FROM fin.ProductCategory WHERE Code = 'PERISHABLE';
 INSERT #eEv (State, FinalNotch, Resilience, Outlook, OutlookRules) VALUES
     ('RATED', 11, 'RESILIENT', 'STABLE', 'POS_HEADROOM');
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FINANCIAL_CRISIS', 13, 2, 'SGL-4', -10.288, 27.056, 40.0, 16.200000000000003, 19.5, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FISCAL_SQUEEZE', 12, 1, 'SGL-4', -7.23, 22.25, 15.0, 5.15, 8.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('GULF_SHIPPING_CONFLICT', 12, 1, 'SGL-4', -5.220000000000001, 8.79, 0.0, 8.16, 8.0, 0, 0.5);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('OIL_PRICE_COLLAPSE', 12, 1, 'SGL-4', -6.53, 18.5, 20.0, 8.32, 8.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REAL_ESTATE_CORRECTION', 11, 0, 'SGL-3', -3.2, 11.75, 15.0, 8.24, 8.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REGIONAL_CONFLICT', 13, 2, 'SGL-4', -9.920000000000002, 14.68, 20.0, 10.4, 19.5, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('STAGNANT_MARKET', 12, 1, 'SGL-4', -5.03, 13.399999999999999, 10.0, 5.300000000000001, 8.0, 100, 1.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FINANCIAL_CRISIS', 13, 2, 'SGL-4', -10.288, 27.056, 40.0, 16.200000000000003, 19.5, 50.0, 1.0, 175.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FISCAL_SQUEEZE', 12, 1, 'SGL-4', -7.23, 22.25, 15.0, 5.15, 8.0, 85.0, 1.0, 60.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('GULF_SHIPPING_CONFLICT', 12, 1, 'SGL-4', -5.220000000000001, 8.79, 0.0, 8.16, 8.0, 0.0, 0.5, 57.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('OIL_PRICE_COLLAPSE', 12, 1, 'SGL-4', -6.53, 18.5, 20.0, 8.32, 8.0, 80.0, 1.0, 85.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REAL_ESTATE_CORRECTION', 12, 1, 'SGL-4', -3.2, 11.75, 15.0, 8.24, 8.0, 80.0, 1.0, 85.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REGIONAL_CONFLICT', 13, 2, 'SGL-4', -9.920000000000002, 14.68, 20.0, 10.4, 19.5, 75.0, 1.0, 115.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('STAGNANT_MARKET', 12, 1, 'SGL-4', -5.03, 13.399999999999999, 10.0, 5.300000000000001, 8.0, 90.0, 1.0, 30.0);
 INSERT #eRem (Code, TriggerCode, TriggerLevel, Moved, FinalNotch, NotchesGained) VALUES
     ('COMMITTED_FACILITY', 'UNDRAWN_TO_ST_DEBT', 'CRITICAL', NULL, NULL, NULL),
     ('CREDIT_INSURANCE', 'REALISABLE_COVERAGE', 'ELEVATED', NULL, NULL, NULL),
@@ -44024,7 +44070,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -44139,20 +44186,20 @@ INSERT #crMix (ProductCategoryId, RevenueSharePct, InventorySharePct)
 SELECT ProductCategoryId, 100, 100 FROM fin.ProductCategory WHERE Code = 'ESSENTIAL_STAPLE';
 INSERT #eEv (State, FinalNotch, Resilience, Outlook, OutlookRules) VALUES
     ('RATED', 11, 'MODERATE', 'DEVELOPING', 'NEG_LIQUIDITY,NEG_SCENARIO,POS_HEADROOM');
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FINANCIAL_CRISIS', 15, 4, 'SGL-4', -11.592, 29.344, 36.0, 16.200000000000003, 15.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FISCAL_SQUEEZE', 14, 3, 'SGL-4', -9.7, 28.189999999999998, 13.5, 5.15, 5.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('GULF_SHIPPING_CONFLICT', 15, 4, 'SGL-4', -11.590000000000002, 13.61, 0.0, 8.32, 5.0, 0, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('OIL_PRICE_COLLAPSE', 14, 3, 'SGL-4', -9.36, 24.02, 18.0, 8.32, 5.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REAL_ESTATE_CORRECTION', 12, 1, 'SGL-4', -3.41, 12.08, 13.5, 8.24, 5.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REGIONAL_CONFLICT', 15, 4, 'SGL-4', -11.450000000000001, 16.130000000000003, 18.0, 10.4, 15.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('STAGNANT_MARKET', 13, 2, 'SGL-4', -5.81, 15.169999999999998, 9.0, 5.300000000000001, 5.0, 100, 1.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FINANCIAL_CRISIS', 15, 4, 'SGL-4', -11.592, 29.344, 36.0, 16.200000000000003, 15.0, 55.0, 1.0, 157.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FISCAL_SQUEEZE', 14, 3, 'SGL-4', -9.7, 28.189999999999998, 13.5, 5.15, 5.0, 86.5, 1.0, 54.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('GULF_SHIPPING_CONFLICT', 15, 4, 'SGL-4', -11.590000000000002, 13.61, 0.0, 8.32, 5.0, 0.0, 1.0, 103.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('OIL_PRICE_COLLAPSE', 14, 3, 'SGL-4', -9.36, 24.02, 18.0, 8.32, 5.0, 82.0, 1.0, 76.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REAL_ESTATE_CORRECTION', 13, 2, 'SGL-4', -3.41, 12.08, 13.5, 8.24, 5.0, 82.0, 1.0, 76.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REGIONAL_CONFLICT', 15, 4, 'SGL-4', -11.450000000000001, 16.130000000000003, 18.0, 10.4, 15.0, 77.5, 1.0, 103.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('STAGNANT_MARKET', 13, 2, 'SGL-4', -5.81, 15.169999999999998, 9.0, 5.300000000000001, 5.0, 91.0, 1.0, 27.0);
 INSERT #eRem (Code, TriggerCode, TriggerLevel, Moved, FinalNotch, NotchesGained) VALUES
     ('COMMITTED_FACILITY', 'UNDRAWN_TO_ST_DEBT', 'CRITICAL', NULL, NULL, NULL),
     ('COLLECT_OVERDUE_AR', 'AR_OVER_180_SHARE', 'ELEVATED', 25000000.0, 10, 1),
@@ -44214,7 +44261,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -44333,20 +44381,20 @@ SELECT ProductCategoryId, 85, 80 FROM fin.ProductCategory WHERE Code = 'CONSUMER
 UNION ALL SELECT ProductCategoryId, 15, 20 FROM fin.ProductCategory WHERE Code = 'SPARE_PARTS';
 INSERT #eEv (State, FinalNotch, Resilience, Outlook, OutlookRules) VALUES
     ('RATED', 12, 'VULNERABLE', 'NEGATIVE', 'NEG_LIQUIDITY,NEG_SCENARIO');
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FINANCIAL_CRISIS', 16, 5, 'SGL-4', -22.644000000000002, 44.068, 36.0, 18.24, 28.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FISCAL_SQUEEZE', 16, 5, 'SGL-4', -20.34, 51.019999999999996, 13.5, 5.404999999999999, 14.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('GULF_SHIPPING_CONFLICT', 16, 5, 'SGL-4', -20.290000000000003, 20.63, 0.0, 8.864, 14.0, 0, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('OIL_PRICE_COLLAPSE', 16, 5, 'SGL-4', -21.439999999999998, 45.13999999999999, 18.0, 8.864, 14.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REAL_ESTATE_CORRECTION', 13, 2, 'SGL-4', -6.61, 16.19, 13.5, 8.648, 14.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REGIONAL_CONFLICT', 16, 5, 'SGL-4', -21.35, 28.5, 18.0, 11.080000000000002, 28.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('STAGNANT_MARKET', 15, 4, 'SGL-4', -12.77, 25.07, 9.0, 5.81, 14.0, 100, 1.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FINANCIAL_CRISIS', 16, 5, 'SGL-4', -22.644000000000002, 44.068, 36.0, 18.24, 28.0, 55.0, 1.0, 157.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FISCAL_SQUEEZE', 16, 5, 'SGL-4', -20.34, 51.019999999999996, 13.5, 5.404999999999999, 14.0, 86.5, 1.0, 54.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('GULF_SHIPPING_CONFLICT', 16, 5, 'SGL-4', -20.290000000000003, 20.63, 0.0, 8.864, 14.0, 0.0, 1.0, 103.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('OIL_PRICE_COLLAPSE', 16, 5, 'SGL-4', -21.439999999999998, 45.13999999999999, 18.0, 8.864, 14.0, 82.0, 1.0, 76.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REAL_ESTATE_CORRECTION', 13, 2, 'SGL-4', -6.61, 16.19, 13.5, 8.648, 14.0, 82.0, 1.0, 76.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REGIONAL_CONFLICT', 16, 5, 'SGL-4', -21.35, 28.5, 18.0, 11.080000000000002, 28.0, 77.5, 1.0, 103.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('STAGNANT_MARKET', 15, 4, 'SGL-4', -12.77, 25.07, 9.0, 5.81, 14.0, 91.0, 1.0, 27.0);
 INSERT #eRem (Code, TriggerCode, TriggerLevel, Moved, FinalNotch, NotchesGained) VALUES
     ('COMMITTED_FACILITY', 'UNDRAWN_TO_ST_DEBT', 'CRITICAL', NULL, NULL, NULL),
     ('COLLECT_OVERDUE_AR', 'AR_OVER_180_SHARE', 'ELEVATED', 9000000.0, 12, 0),
@@ -44409,7 +44457,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -44519,20 +44568,20 @@ INSERT #crMix (ProductCategoryId, RevenueSharePct, InventorySharePct)
 SELECT ProductCategoryId, 100, 100 FROM fin.ProductCategory WHERE Code = 'SERVICES_RECURRING';
 INSERT #eEv (State, FinalNotch, Resilience, Outlook, OutlookRules) VALUES
     ('RATED', 10, 'MODERATE', 'NEGATIVE', 'NEG_SCENARIO');
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FINANCIAL_CRISIS', 13, 3, 'SGL-4', -21.18, 37.620000000000005, 36.0, 16.32, 0.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FISCAL_SQUEEZE', 12, 2, 'SGL-4', -13.06, 28.85, 13.5, 5.164999999999999, 0.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('GULF_SHIPPING_CONFLICT', 14, 4, 'SGL-4', -29.289, 25.683, 0.0, 8.4576, 0.0, 0, 1.3);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('OIL_PRICE_COLLAPSE', 12, 2, 'SGL-4', -15.540000000000001, 29.12, 18.0, 8.352, 0.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REAL_ESTATE_CORRECTION', 13, 3, 'SGL-4', -17.910000000000004, 26.300000000000004, 13.5, 8.264, 0.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REGIONAL_CONFLICT', 13, 3, 'SGL-4', -21.95, 30.0, 18.0, 10.440000000000001, 0.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('STAGNANT_MARKET', 12, 2, 'SGL-4', -11.43, 20.09, 9.0, 5.33, 0.0, 100, 1.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FINANCIAL_CRISIS', 13, 3, 'SGL-4', -21.18, 37.620000000000005, 36.0, 16.32, 0.0, 55.0, 1.0, 157.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FISCAL_SQUEEZE', 12, 2, 'SGL-4', -13.06, 28.85, 13.5, 5.164999999999999, 0.0, 86.5, 1.0, 54.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('GULF_SHIPPING_CONFLICT', 14, 4, 'SGL-4', -29.289, 25.683, 0.0, 8.4576, 0.0, 0.0, 1.3, 134.55);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('OIL_PRICE_COLLAPSE', 12, 2, 'SGL-4', -15.540000000000001, 29.12, 18.0, 8.352, 0.0, 82.0, 1.0, 76.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REAL_ESTATE_CORRECTION', 13, 3, 'SGL-4', -17.910000000000004, 26.300000000000004, 13.5, 8.264, 0.0, 82.0, 1.0, 76.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REGIONAL_CONFLICT', 13, 3, 'SGL-4', -21.95, 30.0, 18.0, 10.440000000000001, 0.0, 77.5, 1.0, 103.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('STAGNANT_MARKET', 12, 2, 'SGL-4', -11.43, 20.09, 9.0, 5.33, 0.0, 91.0, 1.0, 27.0);
 INSERT #eRem (Code, TriggerCode, TriggerLevel, Moved, FinalNotch, NotchesGained) VALUES
     ('TERM_OUT_ST_FUNDING', 'NWC_TO_ASSETS', 'HIGH', 16000000.0, 10, 0),
     ('COMMITTED_FACILITY', 'UNDRAWN_TO_ST_DEBT', 'CRITICAL', NULL, NULL, NULL),
@@ -44588,7 +44637,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -44698,20 +44748,20 @@ INSERT #crL (Code, Amount) VALUES
     ('ZAKAT_TAX_PAYABLE', 12000000.0);
 INSERT #eEv (State, FinalNotch, Resilience, Outlook, OutlookRules) VALUES
     ('RATED', 10, 'RESILIENT', 'STABLE', NULL);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FINANCIAL_CRISIS', 12, 2, 'SGL-4', -17.592, 40.263999999999996, 36.0, 17.4, 7.5, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FISCAL_SQUEEZE', 12, 2, 'SGL-4', -17.84, 48.13999999999999, 13.5, 5.300000000000001, 2.5, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('GULF_SHIPPING_CONFLICT', 10, 0, 'SGL-3', -12.71, 18.17, 0.0, 8.64, 2.5, 0, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('OIL_PRICE_COLLAPSE', 12, 2, 'SGL-4', -17.16, 39.8, 18.0, 8.64, 2.5, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REAL_ESTATE_CORRECTION', 10, 0, 'SGL-2', -5.47, 15.11, 13.5, 8.48, 2.5, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REGIONAL_CONFLICT', 12, 2, 'SGL-4', -13.81, 21.59, 18.0, 10.8, 7.5, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('STAGNANT_MARKET', 10, 0, 'SGL-3', -10.33, 22.909999999999997, 9.0, 5.6000000000000005, 2.5, 100, 1.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FINANCIAL_CRISIS', 12, 2, 'SGL-4', -17.592, 40.263999999999996, 36.0, 17.4, 7.5, 55.0, 1.0, 157.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FISCAL_SQUEEZE', 12, 2, 'SGL-4', -17.84, 48.13999999999999, 13.5, 5.300000000000001, 2.5, 86.5, 1.0, 54.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('GULF_SHIPPING_CONFLICT', 10, 0, 'SGL-3', -12.71, 18.17, 0.0, 8.64, 2.5, 0.0, 1.0, 103.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('OIL_PRICE_COLLAPSE', 12, 2, 'SGL-4', -17.16, 39.8, 18.0, 8.64, 2.5, 82.0, 1.0, 76.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REAL_ESTATE_CORRECTION', 10, 0, 'SGL-2', -5.47, 15.11, 13.5, 8.48, 2.5, 82.0, 1.0, 76.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REGIONAL_CONFLICT', 12, 2, 'SGL-4', -13.81, 21.59, 18.0, 10.8, 7.5, 77.5, 1.0, 103.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('STAGNANT_MARKET', 10, 0, 'SGL-3', -10.33, 22.909999999999997, 9.0, 5.6000000000000005, 2.5, 91.0, 1.0, 27.0);
 INSERT #eRem (Code, TriggerCode, TriggerLevel, Moved, FinalNotch, NotchesGained) VALUES
     ('COMMITTED_FACILITY', 'UNDRAWN_TO_ST_DEBT', 'CRITICAL', NULL, NULL, NULL),
     ('COLLECT_OVERDUE_AR', 'AR_OVER_180_SHARE', 'HIGH', 30000000.0, 10, 0),
@@ -44777,7 +44827,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -44950,7 +45001,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -45123,7 +45175,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -45299,7 +45352,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -45472,7 +45526,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -45645,7 +45700,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -45818,7 +45874,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -45991,7 +46048,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -46164,7 +46222,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -46337,7 +46396,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -46510,7 +46570,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -46684,7 +46745,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -46850,7 +46912,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -46964,20 +47027,20 @@ INSERT #crMix (ProductCategoryId, RevenueSharePct, InventorySharePct)
 SELECT ProductCategoryId, 100, 100 FROM fin.ProductCategory WHERE Code = 'PROJECT_CONTRACTING';
 INSERT #eEv (State, FinalNotch, Resilience, Outlook, OutlookRules) VALUES
     ('RATED', 17, 'RESILIENT', 'NEGATIVE', 'NEG_LIQUIDITY');
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FINANCIAL_CRISIS', 17, 0, 'SGL-4', -40.32, 90.0, 74.66666666666667, 18.12, 30.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FISCAL_SQUEEZE', 17, 0, 'SGL-4', -33.199999999999996, 81.02, 28.0, 5.390000000000001, 15.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('GULF_SHIPPING_CONFLICT', 17, 0, 'SGL-4', -35.064, 34.664, 0.0, 8.7488, 15.0, 0, 0.9);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('OIL_PRICE_COLLAPSE', 17, 0, 'SGL-4', -30.88, 64.28, 37.333333333333336, 8.832, 15.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REAL_ESTATE_CORRECTION', 17, 0, 'SGL-4', -27.52, 41.419999999999995, 28.0, 8.624, 15.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REGIONAL_CONFLICT', 17, 0, 'SGL-4', -37.199999999999996, 90.0, 37.333333333333336, 11.040000000000001, 30.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('STAGNANT_MARKET', 17, 0, 'SGL-4', -22.8, 41.12, 18.666666666666668, 5.779999999999999, 15.0, 100, 1.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FINANCIAL_CRISIS', 17, 0, 'SGL-4', -40.32, 90.0, 74.66666666666666, 18.12, 30.0, 6.666666666666671, 1.0, 326.66666666666663);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FISCAL_SQUEEZE', 17, 0, 'SGL-4', -33.199999999999996, 81.02, 27.999999999999996, 5.390000000000001, 15.0, 72.0, 1.0, 111.99999999999999);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('GULF_SHIPPING_CONFLICT', 17, 0, 'SGL-4', -35.064, 34.664, 0.0, 8.7488, 15.0, 0.0, 0.9, 193.2);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('OIL_PRICE_COLLAPSE', 17, 0, 'SGL-4', -30.88, 64.28, 37.33333333333333, 8.832, 15.0, 62.66666666666667, 1.0, 158.66666666666666);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REAL_ESTATE_CORRECTION', 17, 0, 'SGL-4', -27.52, 41.419999999999995, 27.999999999999996, 8.624, 15.0, 62.66666666666667, 1.0, 158.66666666666666);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REGIONAL_CONFLICT', 17, 0, 'SGL-4', -37.199999999999996, 90.0, 37.33333333333333, 11.040000000000001, 30.0, 53.333333333333336, 1.0, 214.66666666666666);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('STAGNANT_MARKET', 17, 0, 'SGL-4', -22.8, 41.12, 18.666666666666664, 5.779999999999999, 15.0, 81.33333333333334, 1.0, 55.99999999999999);
 INSERT #eRem (Code, TriggerCode, TriggerLevel, Moved, FinalNotch, NotchesGained) VALUES
     ('TERM_OUT_ST_FUNDING', 'CURRENT_RATIO', 'HIGH', 100000000.0, 17, 0),
     ('REFINANCE_MATURITY_WALL', 'CFO_TO_CPLTD', 'HIGH', 15000000.0, 17, 0),
@@ -47045,7 +47108,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -47169,20 +47233,20 @@ INSERT #crL (Code, Amount) VALUES
     ('ZAKAT_TAX_PAYABLE', 120000000.0);
 INSERT #eEv (State, FinalNotch, Resilience, Outlook, OutlookRules) VALUES
     ('RATED', 15, 'RESILIENT', 'POSITIVE', 'POS_HEADROOM,POS_RESILIENT');
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FINANCIAL_CRISIS', 15, 0, 'SGL-3', -15.56, 40.44, 32.0, 16.200000000000003, 15.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FISCAL_SQUEEZE', 15, 0, 'SGL-3', -19.48, 57.68000000000001, 12.0, 5.15, 5.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('GULF_SHIPPING_CONFLICT', 15, 0, 'SGL-3', -19.812000000000005, 24.396000000000004, 0.0, 8.416, 5.0, 0, 1.3);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('OIL_PRICE_COLLAPSE', 15, 0, 'SGL-2', -15.04, 41.36, 16.0, 8.32, 5.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REAL_ESTATE_CORRECTION', 15, 0, 'SGL-1', -4.24, 14.6, 12.0, 8.24, 5.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REGIONAL_CONFLICT', 15, 0, 'SGL-2', -15.000000000000002, 22.2, 16.0, 10.4, 15.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('STAGNANT_MARKET', 15, 0, 'SGL-1', -8.68, 23.84, 8.0, 5.300000000000001, 5.0, 100, 1.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FINANCIAL_CRISIS', 15, 0, 'SGL-3', -15.56, 40.44, 31.999999999999996, 16.200000000000003, 15.0, 60.0, 1.0, 140.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FISCAL_SQUEEZE', 15, 0, 'SGL-3', -19.48, 57.68000000000001, 11.999999999999998, 5.15, 5.0, 88.0, 1.0, 47.99999999999999);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('GULF_SHIPPING_CONFLICT', 15, 0, 'SGL-3', -19.812000000000005, 24.396000000000004, 0.0, 8.416, 5.0, 0.0, 1.3, 119.60000000000001);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('OIL_PRICE_COLLAPSE', 15, 0, 'SGL-2', -15.04, 41.36, 15.999999999999998, 8.32, 5.0, 84.0, 1.0, 68.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REAL_ESTATE_CORRECTION', 15, 0, 'SGL-1', -4.24, 14.6, 11.999999999999998, 8.24, 5.0, 84.0, 1.0, 68.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REGIONAL_CONFLICT', 15, 0, 'SGL-2', -15.000000000000002, 22.2, 15.999999999999998, 10.4, 15.0, 80.0, 1.0, 91.99999999999999);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('STAGNANT_MARKET', 15, 0, 'SGL-1', -8.68, 23.84, 7.999999999999999, 5.300000000000001, 5.0, 92.0, 1.0, 23.999999999999996);
 INSERT #eRem (Code, TriggerCode, TriggerLevel, Moved, FinalNotch, NotchesGained) VALUES
     ('COMMITTED_FACILITY', 'UNDRAWN_TO_ST_DEBT', 'CRITICAL', NULL, NULL, NULL);
 INSERT #eTrig (MetricCode, Direction, TriggerValue, TargetScore) VALUES
@@ -47236,7 +47300,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -47340,20 +47405,20 @@ SELECT ProductCategoryId, 80, 85 FROM fin.ProductCategory WHERE Code = 'BUILDING
 UNION ALL SELECT ProductCategoryId, 20, 15 FROM fin.ProductCategory WHERE Code = 'COMMODITY_TRADED';
 INSERT #eEv (State, FinalNotch, Resilience, Outlook, OutlookRules) VALUES
     ('RATED', 14, 'MODERATE', 'NEGATIVE', 'NEG_LIQUIDITY,NEG_SCENARIO');
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FINANCIAL_CRISIS', 18, 4, 'SGL-4', -46.156, 62.772, 36.0, 20.016000000000002, 30.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FISCAL_SQUEEZE', 17, 3, 'SGL-4', -27.375999999999998, 50.102000000000004, 13.5, 5.627, 15.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('GULF_SHIPPING_CONFLICT', 18, 4, 'SGL-4', -49.787400000000005, 44.839800000000004, 0.0, 9.73888, 15.0, 0, 1.3);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('OIL_PRICE_COLLAPSE', 18, 4, 'SGL-4', -31.648000000000003, 48.656, 18.0, 9.3376, 15.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REAL_ESTATE_CORRECTION', 18, 4, 'SGL-4', -43.606, 51.872, 13.5, 9.0032, 15.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REGIONAL_CONFLICT', 18, 4, 'SGL-4', -34.998, 46.0, 18.0, 11.672, 30.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('STAGNANT_MARKET', 17, 3, 'SGL-4', -28.802000000000003, 37.874, 9.0, 6.254, 15.0, 100, 1.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FINANCIAL_CRISIS', 18, 4, 'SGL-4', -46.156, 62.772, 36.0, 20.016000000000002, 30.0, 55.0, 1.0, 157.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FISCAL_SQUEEZE', 17, 3, 'SGL-4', -27.375999999999998, 50.102000000000004, 13.5, 5.627, 15.0, 86.5, 1.0, 54.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('GULF_SHIPPING_CONFLICT', 18, 4, 'SGL-4', -49.787400000000005, 44.839800000000004, 0.0, 9.73888, 15.0, 0.0, 1.3, 134.55);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('OIL_PRICE_COLLAPSE', 18, 4, 'SGL-4', -31.648000000000003, 48.656, 18.0, 9.3376, 15.0, 82.0, 1.0, 76.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REAL_ESTATE_CORRECTION', 18, 4, 'SGL-4', -43.606, 51.872, 13.5, 9.0032, 15.0, 82.0, 1.0, 76.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REGIONAL_CONFLICT', 18, 4, 'SGL-4', -34.998, 46.0, 18.0, 11.672, 30.0, 77.5, 1.0, 103.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('STAGNANT_MARKET', 17, 3, 'SGL-4', -28.802000000000003, 37.874, 9.0, 6.254, 15.0, 91.0, 1.0, 27.0);
 INSERT #eRem (Code, TriggerCode, TriggerLevel, Moved, FinalNotch, NotchesGained) VALUES
     ('TERM_OUT_ST_FUNDING', 'ST_DEBT_SHARE', 'HIGH', 112000000.0, 14, 0),
     ('REFINANCE_MATURITY_WALL', 'CFO_TO_CPLTD', 'HIGH', 5000000.0, 14, 0),
@@ -47422,7 +47487,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -47534,20 +47600,20 @@ SELECT ProductCategoryId, 85, 80 FROM fin.ProductCategory WHERE Code = 'ESSENTIA
 UNION ALL SELECT ProductCategoryId, 15, 20 FROM fin.ProductCategory WHERE Code = 'PERISHABLE';
 INSERT #eEv (State, FinalNotch, Resilience, Outlook, OutlookRules) VALUES
     ('RATED', 12, 'RESILIENT', 'NEGATIVE', 'NEG_LIQUIDITY');
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FINANCIAL_CRISIS', 16, 4, 'SGL-4', -12.200000000000001, 28.2, 40.0, 16.200000000000003, 18.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FISCAL_SQUEEZE', 14, 2, 'SGL-4', -7.7, 23.0, 15.0, 5.15, 7.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('GULF_SHIPPING_CONFLICT', 13, 1, 'SGL-4', -9.15, 10.149999999999999, 0.0, 8.16, 7.0, 0, 0.5);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('OIL_PRICE_COLLAPSE', 14, 2, 'SGL-4', -7.5, 20.0, 20.0, 8.32, 7.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REAL_ESTATE_CORRECTION', 12, 0, 'SGL-4', -3.3, 11.899999999999999, 15.0, 8.24, 7.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REGIONAL_CONFLICT', 16, 4, 'SGL-4', -18.1, 17.7, 20.0, 10.4, 18.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('STAGNANT_MARKET', 13, 1, 'SGL-4', -5.2, 13.7, 10.0, 5.300000000000001, 7.0, 100, 1.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FINANCIAL_CRISIS', 16, 4, 'SGL-4', -12.200000000000001, 28.2, 40.0, 16.200000000000003, 18.0, 50.0, 1.0, 175.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FISCAL_SQUEEZE', 14, 2, 'SGL-4', -7.7, 23.0, 15.0, 5.15, 7.0, 85.0, 1.0, 60.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('GULF_SHIPPING_CONFLICT', 13, 1, 'SGL-4', -9.15, 10.149999999999999, 0.0, 8.16, 7.0, 0.0, 0.5, 57.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('OIL_PRICE_COLLAPSE', 14, 2, 'SGL-4', -7.5, 20.0, 20.0, 8.32, 7.0, 80.0, 1.0, 85.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REAL_ESTATE_CORRECTION', 13, 1, 'SGL-4', -3.3, 11.899999999999999, 15.0, 8.24, 7.0, 80.0, 1.0, 85.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REGIONAL_CONFLICT', 16, 4, 'SGL-4', -18.1, 17.7, 20.0, 10.4, 18.0, 75.0, 1.0, 115.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('STAGNANT_MARKET', 13, 1, 'SGL-4', -5.2, 13.7, 10.0, 5.300000000000001, 7.0, 90.0, 1.0, 30.0);
 INSERT #eRem (Code, TriggerCode, TriggerLevel, Moved, FinalNotch, NotchesGained) VALUES
     ('COMMITTED_FACILITY', 'UNDRAWN_TO_ST_DEBT', 'CRITICAL', NULL, NULL, NULL),
     ('FACTOR_WITHOUT_RECOURSE', 'LIQUIDITY_COVERAGE', 'ELEVATED', 132000000.0, 12, 0),
@@ -47604,7 +47670,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -47780,7 +47847,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -47887,20 +47955,20 @@ SELECT ProductCategoryId, 85, 90 FROM fin.ProductCategory WHERE Code = 'FASHION_
 UNION ALL SELECT ProductCategoryId, 15, 10 FROM fin.ProductCategory WHERE Code = 'DISCRETIONARY_LUXURY';
 INSERT #eEv (State, FinalNotch, Resilience, Outlook, OutlookRules) VALUES
     ('RATED', 13, 'RESILIENT', 'NEGATIVE', 'NEG_LIQUIDITY');
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FINANCIAL_CRISIS', 17, 4, 'SGL-4', -29.008, 49.636, 48.0, 19.158, 35.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FISCAL_SQUEEZE', 15, 2, 'SGL-4', -20.898, 56.6885, 18.0, 5.51975, 20.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('GULF_SHIPPING_CONFLICT', 18, 5, 'SGL-4', -42.753600000000006, 30.234200000000005, 0.0, 8.99792, 20.0, 0, 0.9);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('OIL_PRICE_COLLAPSE', 14, 1, 'SGL-4', -17.224, 41.498, 24.0, 9.1088, 20.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REAL_ESTATE_CORRECTION', 13, 0, 'SGL-4', -7.538, 18.0485, 18.0, 8.8316, 20.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REGIONAL_CONFLICT', 18, 5, 'SGL-4', -47.70400000000001, 35.618, 24.0, 11.386000000000001, 35.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('STAGNANT_MARKET', 14, 1, 'SGL-4', -14.196000000000002, 27.857, 12.0, 6.0395, 20.0, 100, 1.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FINANCIAL_CRISIS', 17, 4, 'SGL-4', -29.008, 49.636, 48.0, 19.158, 35.0, 40.0, 1.0, 210.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FISCAL_SQUEEZE', 15, 2, 'SGL-4', -20.898, 56.6885, 18.0, 5.51975, 20.0, 82.0, 1.0, 72.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('GULF_SHIPPING_CONFLICT', 18, 5, 'SGL-4', -42.753600000000006, 30.234200000000005, 0.0, 8.99792, 20.0, 0.0, 0.9, 124.2);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('OIL_PRICE_COLLAPSE', 14, 1, 'SGL-4', -17.224, 41.498, 24.0, 9.1088, 20.0, 76.0, 1.0, 102.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REAL_ESTATE_CORRECTION', 13, 0, 'SGL-4', -7.538, 18.0485, 18.0, 8.8316, 20.0, 76.0, 1.0, 102.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REGIONAL_CONFLICT', 18, 5, 'SGL-4', -47.70400000000001, 35.618, 24.0, 11.386000000000001, 35.0, 70.0, 1.0, 138.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('STAGNANT_MARKET', 14, 1, 'SGL-4', -14.196000000000002, 27.857, 12.0, 6.0395, 20.0, 88.0, 1.0, 36.0);
 INSERT #eRem (Code, TriggerCode, TriggerLevel, Moved, FinalNotch, NotchesGained) VALUES
     ('COMMITTED_FACILITY', 'UNDRAWN_TO_ST_DEBT', 'CRITICAL', NULL, NULL, NULL),
     ('FACTOR_WITHOUT_RECOURSE', 'LIQUIDITY_COVERAGE', 'ELEVATED', 6000000.0, 13, 0),
@@ -47961,7 +48029,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
@@ -48073,20 +48142,20 @@ SELECT ProductCategoryId, 85, 80 FROM fin.ProductCategory WHERE Code = 'ESSENTIA
 UNION ALL SELECT ProductCategoryId, 15, 20 FROM fin.ProductCategory WHERE Code = 'PERISHABLE';
 INSERT #eEv (State, FinalNotch, Resilience, Outlook, OutlookRules) VALUES
     ('RATED', 10, 'MODERATE', 'NEGATIVE', 'NEG_SCENARIO');
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FINANCIAL_CRISIS', 16, 6, 'SGL-4', -19.54, 42.62, 60.0, 16.080000000000002, 18.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('FISCAL_SQUEEZE', 14, 4, 'SGL-4', -16.08, 47.209999999999994, 22.5, 5.135, 7.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('GULF_SHIPPING_CONFLICT', 17, 7, 'SGL-4', -42.939, 30.805, 0.0, 8.3744, 7.0, 0, 1.3);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('OIL_PRICE_COLLAPSE', 13, 3, 'SGL-4', -13.56, 36.44, 30.0, 8.288, 7.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REAL_ESTATE_CORRECTION', 11, 1, 'SGL-3', -4.77, 16.4, 22.5, 8.216, 7.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('REGIONAL_CONFLICT', 16, 6, 'SGL-4', -32.97, 28.509999999999998, 30.0, 10.36, 18.0, 100, 1.0);
-INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult) VALUES
-    ('STAGNANT_MARKET', 12, 2, 'SGL-3', -7.91, 21.709999999999997, 15.0, 5.2700000000000005, 7.0, 100, 1.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FINANCIAL_CRISIS', 16, 6, 'SGL-4', -19.54, 42.62, 60.0, 16.080000000000002, 18.0, 25.0, 1.0, 262.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('FISCAL_SQUEEZE', 14, 4, 'SGL-4', -16.08, 47.209999999999994, 22.5, 5.135, 7.0, 77.5, 1.0, 90.0);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('GULF_SHIPPING_CONFLICT', 17, 7, 'SGL-4', -42.939, 30.805, 0.0, 8.3744, 7.0, 0.0, 1.3, 224.25000000000003);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('OIL_PRICE_COLLAPSE', 14, 4, 'SGL-4', -13.56, 36.44, 30.0, 8.288, 7.0, 70.0, 1.0, 127.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REAL_ESTATE_CORRECTION', 12, 2, 'SGL-4', -4.77, 16.4, 22.5, 8.216, 7.0, 70.0, 1.0, 127.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('REGIONAL_CONFLICT', 16, 6, 'SGL-4', -32.97, 28.509999999999998, 30.0, 10.36, 18.0, 62.5, 1.0, 172.5);
+INSERT #eScen (Scenario, FinalNotch, NotchesLost, Liquidity, RevenuePct, DsoDays, StLinesWithdrawnPct, PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp) VALUES
+    ('STAGNANT_MARKET', 12, 2, 'SGL-3', -7.91, 21.709999999999997, 15.0, 5.2700000000000005, 7.0, 85.0, 1.0, 45.0);
 INSERT #eRem (Code, TriggerCode, TriggerLevel, Moved, FinalNotch, NotchesGained) VALUES
     ('CREDIT_INSURANCE', 'REALISABLE_COVERAGE', 'HIGH', NULL, NULL, NULL),
     ('LIQUIDATE_SLOW_STOCK', 'INV_PROVISION_COVERAGE', 'ELEVATED', 4000000.0, 10, 0),
@@ -48147,7 +48216,8 @@ BEGIN
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
            OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
+           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)

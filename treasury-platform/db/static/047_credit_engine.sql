@@ -895,7 +895,7 @@ GO
 CREATE OR ALTER PROCEDURE fin.usp_CreditStressLines @Scenario VARCHAR(30), @Withdrawn FLOAT OUTPUT, @ArLoss FLOAT OUTPUT, @InvWd FLOAT OUTPUT,
                                                      @Dfin FLOAT OUTPUT, @Stretch FLOAT OUTPUT, @RevPctOut FLOAT OUTPUT, @GmPpOut FLOAT OUTPUT,
                                                      @DsoOut FLOAT OUTPUT, @RateBpOut INT OUTPUT, @PrivLossOut FLOAT OUTPUT, @InvWdPctOut FLOAT OUTPUT,
-                                                     @UndrawnPctOut FLOAT OUTPUT, @CountryMultOut FLOAT OUTPUT
+                                                     @UndrawnPctOut FLOAT OUTPUT, @CountryMultOut FLOAT OUTPUT, @LenderBpOut FLOAT OUTPUT
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -905,9 +905,11 @@ BEGIN
     -- activity sensitivity ÷ 5 × the country exposure × the region multiplier (real estate and conflict) × the scenario's
     -- multiplier for the country; the product mix replaces the activity's demand sensitivity and gives the inventory
     -- write-down
-    DECLARE @scId INT, @sev VARCHAR(10), @baseDso FLOAT, @stShare FLOAT, @rateBp FLOAT, @privBase FLOAT, @profile INT, @cMult FLOAT;
+    DECLARE @scId INT, @sev VARCHAR(10), @baseDso FLOAT, @stShare FLOAT, @rateBp FLOAT, @privBase FLOAT, @profile INT, @cMult FLOAT,
+            @undCut FLOAT, @lenderMarginFees FLOAT;
     SELECT @scId = MacroScenarioId, @sev = InventorySeverity, @baseDso = BaseDsoDays, @stShare = StLinesWithdrawnPct, @rateBp = RateBp,
-           @privBase = PrivateArLossPct, @UndrawnPctOut = UndrawnAvailablePct, @cMult = OtherCountryMult
+           @privBase = PrivateArLossPct, @UndrawnPctOut = UndrawnAvailablePct, @cMult = OtherCountryMult, @undCut = UndrawnCutPct,
+           @lenderMarginFees = LenderMarginBp + LenderFeesBp
     FROM fin.MacroScenario WHERE Code = @Scenario;
     SET @cMult = ISNULL((SELECT CAST(Multiplier AS FLOAT) FROM fin.MacroScenarioCountry WHERE MacroScenarioId = @scId AND CountryId = @country), @cMult);
     SET @CountryMultOut = @cMult;
@@ -944,7 +946,12 @@ BEGIN
     SET @expCredit = (SELECT CAST(ExpCredit AS FLOAT) FROM fin.CountryRiskProfile WHERE CountryRiskProfileId = @profile);
     DECLARE @creditSens FLOAT = ISNULL((SELECT CAST(ss.Sensitivity AS FLOAT) FROM fin.IndustrySensitivity AS ss JOIN fin.ShockDriver AS sd ON sd.ShockDriverId = ss.ShockDriverId
                                         WHERE ss.IndustryId = @industry AND sd.Code = 'CREDIT'), 0);
-    SET @Withdrawn = @stShare * @expCredit * @creditSens / @creditRef;
+    -- the lender's stance follows the sector's risk: it cuts short-term lines at renewal, stops undrawn limits and raises
+    -- its margin and fees rather than withdrawing drawn lines (ADR 0020)
+    DECLARE @lender FLOAT = @creditSens / @creditRef * @expCredit * @cMult;
+    SET @Withdrawn = @stShare * @lender;
+    SET @UndrawnPctOut = GREATEST(0.0, @UndrawnPctOut - @undCut * @lender);
+    SET @LenderBpOut = @lenderMarginFees * @lender;
     DECLARE @ipWdPct FLOAT = @ipFall * (SELECT X FROM @x WHERE Driver = 'REAL_ESTATE');
     IF @ipWdPct > @ipFallMax SET @ipWdPct = @ipFallMax;
     IF @Withdrawn > @stMax SET @Withdrawn = @stMax;
@@ -1014,7 +1021,9 @@ BEGIN
                                     ELSE LEAST(@OPEX, ISNULL(@GA, 0) + @sellFixed / 100 * ISNULL(@SD, 0) + ISNULL(@RENT, 0)) END;
     DECLARE @opex2 FLOAT = @opexFixed + (@OPEX - @opexFixed) * @rev2 / @REVENUE;
     DECLARE @floating FLOAT = CASE WHEN @FLOAT IS NOT NULL THEN @FLOAT ELSE 0.6 * (@ST + @BA + @CPLTD + @LT) END;
-    SET @Dfin = @floating * @rateBp / 10000;
+    -- market rates on floating debt; the lender's margin and fees on the short-term facilities it reprices at renewal (a
+    -- term loan keeps its contract price)
+    SET @Dfin = @floating * @rateBp / 10000 + (@ST + @BA) * @LenderBpOut / 10000;
     SET @Stretch = @dso * @rev2 / 365 + (@AR / @REVENUE) * (@rev2 - @REVENUE);
     DECLARE @priv180 FLOAT = CASE WHEN @A181 IS NOT NULL AND @A365 IS NOT NULL THEN GREATEST(0.0, @A181 + @A365 - ISNULL(@A365G, 0) - ISNULL(@ECL, 0))
                                   ELSE 0.10 * GREATEST(0.0, @AR - ISNULL(@ARGOV, 0)) END;
@@ -1232,20 +1241,21 @@ BEGIN
         BEGIN
             SET @sc = (SELECT Code FROM fin.MacroScenario ORDER BY SortOrder OFFSET @k - 1 ROWS FETCH NEXT 1 ROWS ONLY);
             DECLARE @wd FLOAT, @arLoss FLOAT, @invWd FLOAT, @dfin FLOAT, @stretch FLOAT, @pRev FLOAT, @pGm FLOAT, @pDso FLOAT, @pRate INT, @pPriv FLOAT,
-                    @pInv FLOAT, @pUnd FLOAT, @pCm FLOAT;
+                    @pInv FLOAT, @pUnd FLOAT, @pCm FLOAT, @pLb FLOAT;
             DELETE #crL; INSERT #crL SELECT Code, Amount FROM @base;
             EXEC fin.usp_CreditStressLines @sc, @wd OUTPUT, @arLoss OUTPUT, @invWd OUTPUT, @dfin OUTPUT, @stretch OUTPUT, @pRev OUTPUT, @pGm OUTPUT,
-                                           @pDso OUTPUT, @pRate OUTPUT, @pPriv OUTPUT, @pInv OUTPUT, @pUnd OUTPUT, @pCm OUTPUT;
+                                           @pDso OUTPUT, @pRate OUTPUT, @pPriv OUTPUT, @pInv OUTPUT, @pUnd OUTPUT, @pCm OUTPUT,
+                                           @pLb OUTPUT;
             -- the committed undrawn limits the banks keep open in the scenario (ADR 0020)
             UPDATE #crX SET RolloverFactor = 1 - @wd / 100, Proforma = 1, ResilienceNotch = 0, PfCommittedUndrawn = PfCommittedUndrawn * @pUnd / 100;
             EXEC fin.usp_CreditCore;
             INSERT #evScen (Scenario, State, FinalNotch, WeightedScore, Liquidity, NotchesLost, Revenue, Ebitda, Inventory, ArLoss, InventoryWritedown,
                             ExtraFinanceCost, ReceivablesStretch, BalanceGap, RevenuePct, GrossMarginPp, DsoDays, StLinesWithdrawnPct, RateBp,
-                            PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult)
+                            PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp)
             SELECT @sc, s.State, s.FinalNotch, s.WeightedScore, s.Liquidity, s.FinalNotch - @n5, (SELECT Amount FROM #crL WHERE Code = 'REVENUE'),
                    (SELECT Value FROM #crQ WHERE Code = 'EBITDA'), (SELECT Amount FROM #crL WHERE Code = 'INVENTORY'), @arLoss, @invWd, @dfin, @stretch,
                    (SELECT SUM(CASE Code WHEN 'TOTAL_ASSETS' THEN Amount ELSE -Amount END) FROM #crL WHERE Code IN ('TOTAL_ASSETS','TOTAL_LIABS','TOTAL_EQUITY')) - @baseGap,
-                   @pRev, @pGm, @pDso, @wd, @pRate, @pPriv, @pInv, @pUnd, @pCm
+                   @pRev, @pGm, @pDso, @wd, @pRate, @pPriv, @pInv, @pUnd, @pCm, @pLb
             FROM #crS AS s;
             DELETE #crX; INSERT #crX SELECT * FROM #crX0;
             SET @k += 1;
@@ -1486,7 +1496,8 @@ BEGIN
     CREATE TABLE #evScen (Scenario VARCHAR(30) COLLATE DATABASE_DEFAULT PRIMARY KEY, State VARCHAR(20) COLLATE DATABASE_DEFAULT, FinalNotch INT, WeightedScore FLOAT,
         Liquidity VARCHAR(6) COLLATE DATABASE_DEFAULT, NotchesLost INT, Revenue FLOAT, Ebitda FLOAT, Inventory FLOAT, ArLoss FLOAT, InventoryWritedown FLOAT,
         ExtraFinanceCost FLOAT, ReceivablesStretch FLOAT, BalanceGap FLOAT, RevenuePct FLOAT, GrossMarginPp FLOAT, DsoDays FLOAT, StLinesWithdrawnPct FLOAT,
-        RateBp INT, PrivateArLossPct FLOAT, InventoryWritedownPct FLOAT, UndrawnAvailablePct FLOAT, CountryMult FLOAT);
+        RateBp INT, PrivateArLossPct FLOAT, InventoryWritedownPct FLOAT, UndrawnAvailablePct FLOAT, CountryMult FLOAT,
+        LenderCostBp FLOAT);
     CREATE TABLE #evRem (SeqNo INT PRIMARY KEY, RemedyId INT NOT NULL, TriggerCode VARCHAR(40) COLLATE DATABASE_DEFAULT, TriggerLevel VARCHAR(12) COLLATE DATABASE_DEFAULT,
         Moved FLOAT, FinalNotch INT, WeightedScore FLOAT, NotchesGained INT, BalanceGap FLOAT);
     CREATE TABLE #evPlan (PlanId INT PRIMARY KEY, StepCount INT, FinalNotch INT, FinalScore FLOAT, NotchesGained INT, IsBalanced BIT);
@@ -1914,11 +1925,12 @@ BEGIN
            CASE WHEN g.RatingGradeId IS NOT NULL THEN r.NotchesGained END, @user
     FROM #evRem AS r LEFT JOIN fin.RatingGrade AS g ON g.NotchNo = r.FinalNotch;
     INSERT fin.CreditAssessmentScenario (TenantId, AssessmentId, MacroScenarioId, RevenuePct, GrossMarginPp, DsoDays, StLinesWithdrawnPct, RateBp,
-                                         PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, RevenueAfter, EbitdaAfter, InventoryValueAfter,
+                                         PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, LenderCostBp, RevenueAfter, EbitdaAfter,
+                                         InventoryValueAfter,
                                          Score, GradeId, LiquidityLabel, NotchesLost, CreatedBy)
     SELECT @tenant, @AssessmentId, ms.MacroScenarioId, CAST(s.RevenuePct AS DECIMAL(9,4)), CAST(s.GrossMarginPp AS DECIMAL(9,4)), CAST(s.DsoDays AS DECIMAL(9,2)),
            CAST(s.StLinesWithdrawnPct AS DECIMAL(9,4)), s.RateBp, CAST(s.PrivateArLossPct AS DECIMAL(9,4)), CAST(s.InventoryWritedownPct AS DECIMAL(9,4)),
-           CAST(s.UndrawnAvailablePct AS DECIMAL(9,4)), CAST(s.CountryMult AS DECIMAL(5,3)), CAST(s.Revenue AS DECIMAL(19,4)), CAST(s.Ebitda AS DECIMAL(19,4)),
+           CAST(s.UndrawnAvailablePct AS DECIMAL(9,4)), CAST(s.CountryMult AS DECIMAL(5,3)), CAST(s.LenderCostBp AS DECIMAL(9,2)), CAST(s.Revenue AS DECIMAL(19,4)), CAST(s.Ebitda AS DECIMAL(19,4)),
            CAST(s.Inventory AS DECIMAL(19,4)),
            CAST(s.WeightedScore AS DECIMAL(9,4)), g.RatingGradeId, s.Liquidity, s.NotchesLost, @user
     FROM #evScen AS s JOIN fin.MacroScenario AS ms ON ms.Code = s.Scenario LEFT JOIN fin.RatingGrade AS g ON g.NotchNo = s.FinalNotch;
@@ -2101,7 +2113,7 @@ CREATE OR ALTER VIEW fin.v_CreditAssessmentScenarios
 AS
 SELECT s.TenantId, s.AssessmentId, ms.Code AS Scenario, ms.NameAr AS ScenarioNameAr, ms.NameEn AS ScenarioNameEn, ms.DescriptionAr, ms.DescriptionEn,
        ms.IsResilienceBase, ms.DurationMonths, s.RevenuePct, s.GrossMarginPp, s.DsoDays, s.StLinesWithdrawnPct, s.RateBp, s.PrivateArLossPct,
-       s.InventoryWritedownPct, s.UndrawnAvailablePct, s.CountryMult, s.RevenueAfter, s.EbitdaAfter, s.InventoryValueAfter, s.Score, g.Code AS Grade,
+       s.InventoryWritedownPct, s.UndrawnAvailablePct, s.LenderCostBp, s.CountryMult, s.RevenueAfter, s.EbitdaAfter, s.InventoryValueAfter, s.Score, g.Code AS Grade,
        s.LiquidityLabel, s.NotchesLost, ms.SortOrder
 FROM fin.CreditAssessmentScenario AS s
 JOIN fin.MacroScenario AS ms ON ms.MacroScenarioId = s.MacroScenarioId

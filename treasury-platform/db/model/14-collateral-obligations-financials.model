@@ -776,12 +776,15 @@ table fin.MacroScenario int global  # A macro stress scenario: the stagnant mark
   DescriptionAr     str(1000) req
   DescriptionEn     str(1000) req
   InventorySeverity enum{STAGNANT,CRISIS} req   # أي قيمة بيع للمخزون من فئات المنتجات
-  StLinesWithdrawnPct dec(9,4) req     # من الخطوط قصيرة الأجل غير الملتزمة، قبل تعرض البلد للائتمان
+  StLinesWithdrawnPct dec(9,4) req     # تخفيض الخطوط قصيرة الأجل غير الملتزمة عند تجديدها، قبل عامل البنك
   RateBp            int       req      # ارتفاع سعر الفائدة على الدين المتغير
   PrivateArLossPct  dec(9,4)  req      # خسارة الذمم الخاصة فوق 180 يومًا قبل أثر الطلب
   BaseDsoDays       dec(9,2)  req
   IsResilienceBase  bool      req =0   # السيناريو الذي يقيس الصمود والنظرة (ركود السوق)
-  UndrawnAvailablePct dec(9,4) req =100  # ما يبقى متاحًا من الحدود الملتزمة غير المسحوبة (0: توقفها البنوك)
+  UndrawnAvailablePct dec(9,4) req =100  # ما يبقى متاحًا من الحدود الملتزمة غير المسحوبة (0: توقفها البنوك)، قبل الإيقاف بعامل البنك
+  UndrawnCutPct     dec(9,4)  req =0    # ما توقفه البنوك من الحدود غير المسحوبة، مضروبًا في عامل البنك (مخاطر القطاع والبلد)
+  LenderMarginBp    int       req =0    # زيادة هامش البنك على التسهيلات قصيرة الأجل والقبولات عند تجديدها، مضروبة في عامل البنك
+  LenderFeesBp      int       req =0    # الرسوم الإدارية الإضافية على التسهيلات قصيرة الأجل والقبولات، مضروبة في عامل البنك
   DurationMonths    int       req =12   # مدة الأثر بالأشهر (للعرض)
   OtherCountryMult  dec(5,3)  req =1    # مضاعف الضغط لبلد ليس له صف في fin.MacroScenarioCountry
   SortOrder         int       req
@@ -790,6 +793,7 @@ table fin.MacroScenario int global  # A macro stress scenario: the stagnant mark
   check  Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%'
   check  StLinesWithdrawnPct BETWEEN 0 AND 100 AND PrivateArLossPct BETWEEN 0 AND 100 AND RateBp >= 0 AND BaseDsoDays >= 0
   check  UndrawnAvailablePct BETWEEN 0 AND 100 AND DurationMonths BETWEEN 1 AND 60 AND OtherCountryMult BETWEEN 0 AND 2
+  check  UndrawnCutPct BETWEEN 0 AND 100 AND LenderMarginBp >= 0 AND LenderFeesBp >= 0
 
 table fin.MacroScenarioCountry int global  # The multiplier of a macro scenario's stress for a country it hits more or less than others; a country without a row takes the scenario's OtherCountryMult (docs/35 section 14, ADR 0020)
   MacroScenarioId   ->fin.MacroScenario req
@@ -1223,6 +1227,7 @@ table fin.CreditAssessmentScenario norv  # The assessment recomputed on the stat
   PrivateArLossPct  dec(9,4)
   InventoryWritedownPct dec(9,4)
   UndrawnAvailablePct dec(9,4)
+  LenderCostBp      dec(9,2)            # هامش البنك ورسومه على التسهيلات قصيرة الأجل بعد عامل البنك
   CountryMult       dec(5,3)
   RevenueAfter      money
   EbitdaAfter       money

@@ -37,17 +37,47 @@ models a bank that keeps drawn lines but freezes the undrawn limits.
    owner also meant a withdrawal of part of the drawn lines, only `StLinesWithdrawnPct` of the scenario changes.
 5. **The sectors of EV-05 come from the sensitivities**: the activities most sensitive to conflict and imports lose
    most; no separate sector list is kept, so a new activity is stressed by its own sensitivities.
-6. The scenario is not the resilience base; resilience and the outlook still read the stagnant market. The rule
+6. **The lender's stance in every scenario** (the owner's answer of 2026-10-19, docs/31 decision 32): a bank that sees
+   a sector's risk rise does not withdraw drawn facilities; it may stop the limits it approved but has not released,
+   cut them, or raise its margin and administrative fees, each at its own discretion. The system estimates that stance
+   from the sector's risk with a lender factor = the activity's credit sensitivity ÷ 3 × the country's credit exposure
+   × the scenario's country multiplier:
+   - short-term uncommitted lines are cut at renewal by `StLinesWithdrawnPct` × the factor (at most 80%), as before;
+   - the committed undrawn limits that stay available are `UndrawnAvailablePct` − `UndrawnCutPct` × the factor (not
+     below zero);
+   - the margin and fees, (`LenderMarginBp` + `LenderFeesBp`) × the factor, are added to the cost of the short-term
+     facilities and acceptances repriced at renewal; a term loan keeps its contract price (floating debt still follows
+     `RateBp`). A first version applied them to all bank debt and took a property investor with long-term debt below
+     the reviewer's range in the real estate correction; repricing a term loan before maturity is not the practice,
+     so the base was corrected, not the range.
+
+   | Scenario | Undrawn stop % | Margin bp | Fees bp |
+   |---|---|---|---|
+   | Stagnant market | 10 | 25 | 5 |
+   | Financial crisis | 50 | 150 | 25 |
+   | Fiscal squeeze | 15 | 50 | 10 |
+   | Real estate correction | 20 | 75 | 10 |
+   | Regional conflict | 25 | 100 | 15 |
+   | Oil price collapse | 20 | 75 | 10 |
+   | Gulf conflict | (none available) | 100 | 15 |
+
+   The system cannot know each lender's actual decision; it is an estimate for the assessment, and every facility
+   remains subject to its lender's own criteria.
+7. The scenario is not the resilience base; resilience and the outlook still read the stagnant market. The rule
    `POS_RESILIENT` reads all seven scenarios.
 
 ## Consequences
 
-- 244 tables: `fin.MacroScenarioCountry` is new; three columns on `fin.MacroScenario` (`UndrawnAvailablePct`,
-  `DurationMonths`, `OtherCountryMult`) and two on `fin.CreditAssessmentScenario` (`UndrawnAvailablePct`,
-  `CountryMult`), shown by `fin.v_CreditAssessmentScenarios`.
+- 244 tables: `fin.MacroScenarioCountry` is new; six columns on `fin.MacroScenario` (`UndrawnAvailablePct`,
+  `UndrawnCutPct`, `LenderMarginBp`, `LenderFeesBp`, `DurationMonths`, `OtherCountryMult`) and three on
+  `fin.CreditAssessmentScenario` (`UndrawnAvailablePct`, `LenderCostBp`, `CountryMult`), shown by
+  `fin.v_CreditAssessmentScenarios`.
 - The engine (047) and the reference (`tools/dbgen/credit_reference.py`) apply the multiplier and the share of undrawn
   limits; the generated cases compare both, and a new variant (V19, a staple food importer in Kuwait with committed
-  undrawn limits) reaches the freeze: in the Gulf scenario it falls to Caa1, against B3 had its limits stayed open.
+  undrawn limits) reaches the freeze: in the Gulf scenario it falls to Caa1 (its lender factor gives 224 basis points of
+  margin and fees), against B3 had its limits stayed open and its lines not been repriced.
+- With the lender's stance, the 51 review cases stay within the reviewer's ranges; five scenario cells moved by one
+  notch.
 - Tests: CA12 counts the scenario and its eight country rows, CA14 reads seven scenarios; 140 engine cases (step 19d).
 - The 51 review cases have no reviewer range in the new scenario; docs/35 section 22 shows their grade in it as
   "without a range".

@@ -31,7 +31,7 @@
 | C-15 | التقييم الائتماني للميزانية على سلّم موديز (ADR 0017، `046_credit_assessment.sql`، `docs/35`): المنهجية بيانات عالمية للمنصة، والحساب في القاعدة، وتقرير بنقاط القوة والضعف والمخاطر (§11.5) | طلب المالك 2026-10-18، بمراجعة آلية مستقلة في دور محلل ائتمان (`docs/35` §13) |
 | C-16 | النسخة الثانية من التقييم (ADR 0018، `047_credit_engine.sql`، `docs/35` الإصدار 2.0): 157 بندًا معياريًا تُدرس بندًا بندًا، و112 مقياسًا، والربط بتسهيلات المنصة وضماناتها، والنشاط ومنتجاته وسيناريو السوق الراكد والأزمة، وعلاجات وخطط تقوية بقوائم متوازنة عند طلب العميل، والنظرة المستقبلية ومحفّزاتها (§11.5) | طلبات المالك الثلاثة 2026-10-19؛ المحتوى صاغه وراجعه وكلاء ذكاء اصطناعي لا محللون بشريون |
 | C-17 | الإصدار 2.1 من التقييم (ADR 0019): 16 عائلة قطاعية ببطاقاتها، و282 نشاطًا تفصيليًا بحساسيتها لسبعة محركات ضغط، و22 بلدًا عربيًا بمخاطرها وتصنيفها السيادي وسقفها ومدنها، ومرتكز من مخاطر البلد والنشاط، وستة سيناريوهات اقتصادية، وسلّم حجم من 10 ملايين إلى 10 مليارات (§11.5) | إجابات المالك 2026-10-19: الممارسة المعيارية لوكالات التصنيف؛ وتتحقق إدارة الخزينة من المعايرة |
-| C-18 | الإصدار 2.2 من التقييم (ADR 0020): سيناريو سابع للحدث الجاري (نزاع الخليج وممرات الملاحة) بمضاعف لكل بلد (`fin.MacroScenarioCountry`)، وما يبقى متاحًا من الحدود الملتزمة غير المسحوبة ومدة الأثر على `fin.MacroScenario` ونتيجة كل سيناريو؛ 244 جدولًا (§11.5) | قرار المالك 31 (2026-10-19): اعتماد الأسئلة المفتوحة وتفاصيل الحدث الجاري، وتوقف الحدود غير المسحوبة |
+| C-18 | الإصدار 2.2 من التقييم (ADR 0020): سيناريو سابع للحدث الجاري (نزاع الخليج وممرات الملاحة) بمضاعف لكل بلد (`fin.MacroScenarioCountry`)، وموقف البنك في كل سيناريو (ما يُوقف من الحدود غير المسحوبة، وهامشه ورسومه على التسهيلات التي تتجدد، بعامل من مخاطر القطاع والبلد) ومدة الأثر على `fin.MacroScenario` ونتيجة كل سيناريو؛ 244 جدولًا (§11.5) | قرار المالك 31 (2026-10-19): اعتماد الأسئلة المفتوحة وتفاصيل الحدث الجاري، وتوقف الحدود غير المسحوبة؛ والقرار 32: موقف البنك |
 
 **مرفوض:** اقتراح تقرير Technical Evaluation بـ.NET 9، لأن قرار المشروع `.NET 10 LTS` (`01` §13) ويبقى كما هو. **مؤجَّل:** أدوات الترحيل (O-2)، ومرساة سلسلة التدقيق (O-13)، وRPO/RTO (O-14)، ومكدّس الواجهات (خارج نطاق وثيقة القاعدة). **لم يُعتمد** الادعاء بأن القيود وحدها تضمن سلامة الحجز؛ الحجز يبقى ذريًا بالقفل في طبقة التطبيق (§7.1).
 
@@ -1745,7 +1745,7 @@
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
 | `fin.CreditAssessmentRemedy` | A remedy the report proposes, with the finding it answers and the grade the pro-forma statement would get; written by fin.usp_ComputeCreditAssessment only (docs/35 section 12) | CreditAssessmentRemedyId | 3 | 3 | 2 | 9 |
-| `fin.CreditAssessmentScenario` | The assessment recomputed on the statement under each macro scenario, with the stress applied: the grade, the liquidity label and the notches lost; written by fin.usp_ComputeCreditAssessment only (docs/35 section 13) | CreditAssessmentScenarioId | 3 | 2 | 0 | 18 |
+| `fin.CreditAssessmentScenario` | The assessment recomputed on the statement under each macro scenario, with the stress applied: the grade, the liquidity label and the notches lost; written by fin.usp_ComputeCreditAssessment only (docs/35 section 13) | CreditAssessmentScenarioId | 3 | 2 | 0 | 19 |
 | `fin.CreditAssessmentTrigger` | What would move the scorecard grade one notch: the value of a metric at which the weighted score crosses to the grade above or below, the other metrics unchanged (docs/35 section 15) | CreditAssessmentTriggerId | 2 | 2 | 0 | 8 |
 | `fin.CreditMetric` | The metric dictionary of the credit assessment: how each ratio is computed from the statement lines, its unit and direction, and the texts of its strength and weakness (docs/35 section 4) | CreditMetricId | 0 | 1 | 4 | 28 |
 
@@ -1825,7 +1825,7 @@
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
 | `fin.LineCatalogItemAlias` | Alternative names (aliases) for a line item, used for paste and matching | LineCatalogItemAliasId | 1 | 2 | 1 | 4 |
-| `fin.MacroScenario` | A macro stress scenario: the stagnant market, the financial crisis, a fiscal squeeze, a real estate correction, a regional conflict, an oil price collapse, the Gulf conflict on the shipping routes; the intensity of each driver and the financial conditions (docs/35 section 14, ADR 0019) | MacroScenarioId | 0 | 2 | 3 | 18 |
+| `fin.MacroScenario` | A macro stress scenario: the stagnant market, the financial crisis, a fiscal squeeze, a real estate correction, a regional conflict, an oil price collapse, the Gulf conflict on the shipping routes; the intensity of each driver and the financial conditions (docs/35 section 14, ADR 0019) | MacroScenarioId | 0 | 2 | 4 | 21 |
 | `fin.MacroScenarioCountry` | The multiplier of a macro scenario's stress for a country it hits more or less than others; a country without a row takes the scenario's OtherCountryMult (docs/35 section 14, ADR 0020) | MacroScenarioCountryId | 2 | 1 | 1 | 4 |
 | `fin.MacroScenarioIntensity` | The intensity 0 to 1 of a driver in a macro scenario (docs/35 section 14) | MacroScenarioIntensityId | 2 | 1 | 1 | 4 |
 

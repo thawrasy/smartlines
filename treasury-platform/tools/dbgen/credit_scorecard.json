@@ -38027,7 +38027,10 @@
    "undrawn_available_pct": 100,
    "duration_months": 12,
    "other_country_mult": 1.0,
-   "country_mult": {}
+   "country_mult": {},
+   "undrawn_cut_pct": 10,
+   "lender_margin_bp": 25,
+   "lender_fees_bp": 5
   },
   {
    "code": "FINANCIAL_CRISIS",
@@ -38048,12 +38051,15 @@
     "CREDIT": 1.0,
     "IMPORT_FX": 0.4
    },
-   "desc_ar": "أزمة مصرفية ومالية: تُسحب الخطوط قصيرة الأجل وترتفع الأسعار ويهبط الطلب وتتعثر الذمم الخاصة",
-   "desc_en": "A banking and financial crisis: short-term lines are withdrawn, rates rise, demand falls and private receivables default",
+   "desc_ar": "أزمة مصرفية ومالية: تُخفض البنوك الخطوط قصيرة الأجل عند تجديدها وتوقف الحدود غير المسحوبة وترفع التسعير والرسوم، ويهبط الطلب وتتعثر الذمم الخاصة",
+   "desc_en": "A banking and financial crisis: banks cut short-term lines at renewal, stop undrawn limits and raise pricing and fees; demand falls and private receivables default",
    "undrawn_available_pct": 100,
    "duration_months": 12,
    "other_country_mult": 1.0,
-   "country_mult": {}
+   "country_mult": {},
+   "undrawn_cut_pct": 50,
+   "lender_margin_bp": 150,
+   "lender_fees_bp": 25
   },
   {
    "code": "FISCAL_SQUEEZE",
@@ -38079,7 +38085,10 @@
    "undrawn_available_pct": 100,
    "duration_months": 12,
    "other_country_mult": 1.0,
-   "country_mult": {}
+   "country_mult": {},
+   "undrawn_cut_pct": 15,
+   "lender_margin_bp": 50,
+   "lender_fees_bp": 10
   },
   {
    "code": "REAL_ESTATE_CORRECTION",
@@ -38105,7 +38114,10 @@
    "undrawn_available_pct": 100,
    "duration_months": 12,
    "other_country_mult": 1.0,
-   "country_mult": {}
+   "country_mult": {},
+   "undrawn_cut_pct": 20,
+   "lender_margin_bp": 75,
+   "lender_fees_bp": 10
   },
   {
    "code": "REGIONAL_CONFLICT",
@@ -38131,7 +38143,10 @@
    "undrawn_available_pct": 100,
    "duration_months": 12,
    "other_country_mult": 1.0,
-   "country_mult": {}
+   "country_mult": {},
+   "undrawn_cut_pct": 25,
+   "lender_margin_bp": 100,
+   "lender_fees_bp": 15
   },
   {
    "code": "OIL_PRICE_COLLAPSE",
@@ -38157,7 +38172,10 @@
    "undrawn_available_pct": 100,
    "duration_months": 12,
    "other_country_mult": 1.0,
-   "country_mult": {}
+   "country_mult": {},
+   "undrawn_cut_pct": 20,
+   "lender_margin_bp": 75,
+   "lender_fees_bp": 10
   },
   {
    "code": "GULF_SHIPPING_CONFLICT",
@@ -38178,8 +38196,8 @@
     "CREDIT": 0.3,
     "IMPORT_FX": 1.0
    },
-   "desc_ar": "حدث جارٍ (قرار المالك 2026-10-19): نزاع إقليمي ممتد في الخليج يطال طرق الملاحة في مضيق هرمز والبحر الأحمر سنة كاملة. أشد البلدان تأثرًا البحرين والكويت والإمارات، ثم السعودية وقطر وعُمان، ثم الأردن ومصر. يُضغط أثر الاضطراب لا مستوى سعر النفط. وأشد القطاعات تأثرًا السياحة والطيران والفنادق والشحن البحري والتجارة المعتمدة على الاستيراد ومواد البناء المستوردة، من حساسيتها للنزاع والاستيراد. ولا تسحب البنوك الخطوط المستعملة، لكنها توقف الحدود غير المسحوبة، فلا يُحسب منها شيء في السيولة.",
-   "desc_en": "A current event (owner's decision of 2026-10-19): a prolonged regional conflict in the Gulf reaching the shipping routes of the Strait of Hormuz and the Red Sea for a full year. Bahrain, Kuwait and the UAE are hit hardest, then Saudi Arabia, Qatar and Oman, then Jordan and Egypt. The stress is the disruption, not the oil price level. Tourism, aviation, hotels, shipping, import-dependent trade and imported building materials are hit hardest, through their sensitivity to conflict and imports. Banks do not withdraw drawn lines but stop the undrawn limits, so none of them counts in liquidity.",
+   "desc_ar": "حدث جارٍ (قرار المالك 2026-10-19): نزاع إقليمي ممتد في الخليج يطال طرق الملاحة في مضيق هرمز والبحر الأحمر سنة كاملة. أشد البلدان تأثرًا البحرين والكويت والإمارات، ثم السعودية وقطر وعُمان، ثم الأردن ومصر. يُضغط أثر الاضطراب لا مستوى سعر النفط. وأشد القطاعات تأثرًا السياحة والطيران والفنادق والشحن البحري والتجارة المعتمدة على الاستيراد ومواد البناء المستوردة، من حساسيتها للنزاع والاستيراد. ولا تسحب البنوك الخطوط المستعملة، لكنها توقف الحدود غير المسحوبة فلا يُحسب منها شيء في السيولة، وترفع هامشها ورسومها بحسب مخاطر القطاع.",
+   "desc_en": "A current event (owner's decision of 2026-10-19): a prolonged regional conflict in the Gulf reaching the shipping routes of the Strait of Hormuz and the Red Sea for a full year. Bahrain, Kuwait and the UAE are hit hardest, then Saudi Arabia, Qatar and Oman, then Jordan and Egypt. The stress is the disruption, not the oil price level. Tourism, aviation, hotels, shipping, import-dependent trade and imported building materials are hit hardest, through their sensitivity to conflict and imports. Banks do not withdraw drawn lines but stop the undrawn limits, so none of them counts in liquidity, and raise their margin and fees by the risk of the sector.",
    "undrawn_available_pct": 0,
    "duration_months": 12,
    "other_country_mult": 0.5,
@@ -38192,15 +38210,18 @@
     "OM": 1.0,
     "JO": 0.9,
     "EG": 0.9
-   }
+   },
+   "undrawn_cut_pct": 0,
+   "lender_margin_bp": 100,
+   "lender_fees_bp": 15
   }
  ],
  "scenario_rules": {
   "max_revenue_fall_pct": 75,
   "private_ar_loss_demand_factor": 0.5,
   "st_lines_max_pct": 80,
-  "about_ar": "لكل محرك: الشدة في السيناريو × حساسية النشاط ÷ 5 × تعرض البلد × مضاعف المنطقة (للعقار والنزاعات) × مضاعف البلد في السيناريو. تغيّر الإيرادات = −Σ (ذلك × أثر المحرك في الإيرادات) بحد أقصى 75%؛ وهامش مجمل الربح ينخفض بـ Σ (ذلك × أثر المحرك في الهامش) مضروبًا في هامش الشركة ÷ 25% (بحد ضعفين)، فالهامش الرقيق يُضغط بنسبته لا بنقاط ثابتة؛ وأيام التحصيل = الأساس + Σ؛ وسحب الخطوط = نسبة السيناريو × تعرض البلد للائتمان × حساسية النشاط للائتمان ÷ 3 بحد 80%؛ وخسارة الذمم الخاصة = نسبة السيناريو × (1 + 0.5 × أثر الطلب)؛ والعقار الاستثماري يُعاد تقييمه بنقص 25% × أثر العقار بحد 50%؛ ولا يُحسب من الحدود الملتزمة غير المسحوبة في السيولة إلا ما يبقى متاحًا في السيناريو. وحين تُدخل الشركة منتجاتها تحل حساسية منتجاتها للطلب مرجّحة بالإيرادات محل حساسية النشاط.",
-  "about_en": "Per driver: the scenario intensity × the activity sensitivity ÷ 5 × the country exposure × the region multiplier (real estate and conflict) × the scenario's multiplier for the country. Revenue change = −Σ (that × the driver revenue effect), at most 75%; the gross margin falls by Σ (that × the driver margin effect) times the company's gross margin ÷ 25% (at most twice), so a thin margin is squeezed in proportion, not by fixed points; collection days = base + Σ; lines withdrawn = the scenario share × the country credit exposure × the activity credit sensitivity ÷ 3, at most 80%; private receivables lost = the scenario share × (1 + 0.5 × the demand effect); investment property is revalued down by 25% × the real estate effect, at most 50%; only the share of committed undrawn limits that stays available in the scenario counts in liquidity. When the company enters its products, their revenue-weighted demand sensitivity replaces the activity demand sensitivity.",
+  "about_ar": "لكل محرك: الشدة في السيناريو × حساسية النشاط ÷ 5 × تعرض البلد × مضاعف المنطقة (للعقار والنزاعات) × مضاعف البلد في السيناريو. تغيّر الإيرادات = −Σ (ذلك × أثر المحرك في الإيرادات) بحد أقصى 75%؛ وهامش مجمل الربح ينخفض بـ Σ (ذلك × أثر المحرك في الهامش) مضروبًا في هامش الشركة ÷ 25% (بحد ضعفين)، فالهامش الرقيق يُضغط بنسبته لا بنقاط ثابتة؛ وأيام التحصيل = الأساس + Σ؛ وموقف البنك يتبع مخاطر القطاع (عامل البنك = حساسية النشاط للائتمان ÷ 3 × تعرض البلد للائتمان × مضاعف البلد في السيناريو): تخفيض الخطوط قصيرة الأجل عند تجديدها = نسبة السيناريو × عامل البنك بحد 80%، والمتاح من الحدود الملتزمة غير المسحوبة = نسبة السيناريو − نسبة إيقافها × عامل البنك (لا أقل من صفر)، والهامش والرسوم الإدارية على التسهيلات قصيرة الأجل والقبولات عند تجديدها = (هامش السيناريو + رسومه) × عامل البنك، والقرض طويل الأجل يبقى بسعر عقده؛ وخسارة الذمم الخاصة = نسبة السيناريو × (1 + 0.5 × أثر الطلب)؛ والعقار الاستثماري يُعاد تقييمه بنقص 25% × أثر العقار بحد 50%؛ ولا يُحسب من الحدود الملتزمة غير المسحوبة في السيولة إلا ما يبقى متاحًا في السيناريو. وحين تُدخل الشركة منتجاتها تحل حساسية منتجاتها للطلب مرجّحة بالإيرادات محل حساسية النشاط.",
+  "about_en": "Per driver: the scenario intensity × the activity sensitivity ÷ 5 × the country exposure × the region multiplier (real estate and conflict) × the scenario's multiplier for the country. Revenue change = −Σ (that × the driver revenue effect), at most 75%; the gross margin falls by Σ (that × the driver margin effect) times the company's gross margin ÷ 25% (at most twice), so a thin margin is squeezed in proportion, not by fixed points; collection days = base + Σ; the lender's stance follows the sector's risk (lender factor = the activity credit sensitivity ÷ 3 × the country credit exposure × the scenario's country multiplier): short-term lines cut at renewal = the scenario share × the lender factor, at most 80%; committed undrawn limits available = the scenario share − its stop share × the lender factor (not below zero); margin and administrative fees on the short-term facilities and acceptances repriced at renewal = (the scenario margin + fees) × the lender factor, a term loan keeping its contract price; private receivables lost = the scenario share × (1 + 0.5 × the demand effect); investment property is revalued down by 25% × the real estate effect, at most 50%; only the share of committed undrawn limits that stays available in the scenario counts in liquidity. When the company enters its products, their revenue-weighted demand sensitivity replaces the activity demand sensitivity.",
   "credit_sensitivity_reference": 3,
   "reference_gross_margin_pct": 25,
   "gross_margin_scale_max": 2,

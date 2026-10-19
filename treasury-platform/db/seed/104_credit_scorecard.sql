@@ -2400,30 +2400,30 @@ MERGE fin.MacroScenario AS d
 USING (VALUES
     ('STAGNANT_MARKET', N'ركود السوق', N'Stagnant market',
      N'تباطؤ الطلب سنة أو أكثر: مبيعات أقل وهوامش أضيق وتحصيل أبطأ ومخزون أبطأ بيعًا، دون أزمة مصرفية',
-     N'Demand slows for a year or more: lower sales, thinner margins, slower collection and inventory, without a banking crisis', 'STAGNANT', 10, 100, 5, 5, 1, 100, 12, 1, 10),
+     N'Demand slows for a year or more: lower sales, thinner margins, slower collection and inventory, without a banking crisis', 'STAGNANT', 10, 100, 5, 5, 1, 100, 10, 25, 5, 12, 1, 10),
     ('FINANCIAL_CRISIS', N'أزمة مالية', N'Financial crisis',
-     N'أزمة مصرفية ومالية: تُسحب الخطوط قصيرة الأجل وترتفع الأسعار ويهبط الطلب وتتعثر الذمم الخاصة',
-     N'A banking and financial crisis: short-term lines are withdrawn, rates rise, demand falls and private receivables default', 'CRISIS', 40, 250, 15, 10, 0, 100, 12, 1, 20),
+     N'أزمة مصرفية ومالية: تُخفض البنوك الخطوط قصيرة الأجل عند تجديدها وتوقف الحدود غير المسحوبة وترفع التسعير والرسوم، ويهبط الطلب وتتعثر الذمم الخاصة',
+     N'A banking and financial crisis: banks cut short-term lines at renewal, stop undrawn limits and raise pricing and fees; demand falls and private receivables default', 'CRISIS', 40, 250, 15, 10, 0, 100, 50, 150, 25, 12, 1, 20),
     ('FISCAL_SQUEEZE', N'تقشف حكومي وعجز الميزانية', N'Fiscal squeeze',
      N'خفض الإنفاق الحكومي لعجز الميزانية: تأجيل المشاريع وتأخر المستحقات الحكومية وتباطؤ الاقتصاد المرتبط بها',
-     N'Government spending is cut to close a budget deficit: projects are postponed, government payments delayed and the linked economy slows', 'STAGNANT', 15, 75, 5, 5, 0, 100, 12, 1, 30),
+     N'Government spending is cut to close a budget deficit: projects are postponed, government payments delayed and the linked economy slows', 'STAGNANT', 15, 75, 5, 5, 0, 100, 15, 50, 10, 12, 1, 30),
     ('REAL_ESTATE_CORRECTION', N'تصحيح عقاري', N'Real estate correction',
      N'هبوط أسعار العقار وصفقاته والبيع على الخريطة والإيجارات، ويختلف بين مدينة وأخرى بمضاعف المنطقة',
-     N'Property prices, transactions, off-plan sales and rents fall, by more or less from one city to another with the region multiplier', 'STAGNANT', 15, 100, 8, 5, 0, 100, 12, 1, 40),
+     N'Property prices, transactions, off-plan sales and rents fall, by more or less from one city to another with the region multiplier', 'STAGNANT', 15, 100, 8, 5, 0, 100, 20, 75, 10, 12, 1, 40),
     ('REGIONAL_CONFLICT', N'نزاع إقليمي', N'Regional conflict',
      N'حرب أو نزاع في المنطقة: تتوقف السياحة والسفر وتتعطل طرق الإمداد وترتفع كلفة الاستيراد والتأمين وتضعف الثقة',
-     N'A war or conflict in the region: tourism and travel stop, supply routes are disrupted, import and insurance costs rise and confidence weakens', 'CRISIS', 20, 200, 10, 5, 0, 100, 12, 1, 50),
+     N'A war or conflict in the region: tourism and travel stop, supply routes are disrupted, import and insurance costs rise and confidence weakens', 'CRISIS', 20, 200, 10, 5, 0, 100, 25, 100, 15, 12, 1, 50),
     ('OIL_PRICE_COLLAPSE', N'انهيار أسعار النفط', N'Oil price collapse',
      N'هبوط حاد وطويل لسعر النفط: تتراجع إيرادات الدولة والسيولة المصرفية والإنفاق في الاقتصادات النفطية',
-     N'A sharp and lasting fall in the oil price: state revenue, bank liquidity and spending fall in the oil economies', 'STAGNANT', 20, 100, 8, 5, 0, 100, 12, 1, 60),
+     N'A sharp and lasting fall in the oil price: state revenue, bank liquidity and spending fall in the oil economies', 'STAGNANT', 20, 100, 8, 5, 0, 100, 20, 75, 10, 12, 1, 60),
     ('GULF_SHIPPING_CONFLICT', N'نزاع الخليج وممرات الملاحة', N'Gulf conflict and shipping routes',
-     N'حدث جارٍ (قرار المالك 2026-10-19): نزاع إقليمي ممتد في الخليج يطال طرق الملاحة في مضيق هرمز والبحر الأحمر سنة كاملة. أشد البلدان تأثرًا البحرين والكويت والإمارات، ثم السعودية وقطر وعُمان، ثم الأردن ومصر. يُضغط أثر الاضطراب لا مستوى سعر النفط. وأشد القطاعات تأثرًا السياحة والطيران والفنادق والشحن البحري والتجارة المعتمدة على الاستيراد ومواد البناء المستوردة، من حساسيتها للنزاع والاستيراد. ولا تسحب البنوك الخطوط المستعملة، لكنها توقف الحدود غير المسحوبة، فلا يُحسب منها شيء في السيولة.',
-     N'A current event (owner''s decision of 2026-10-19): a prolonged regional conflict in the Gulf reaching the shipping routes of the Strait of Hormuz and the Red Sea for a full year. Bahrain, Kuwait and the UAE are hit hardest, then Saudi Arabia, Qatar and Oman, then Jordan and Egypt. The stress is the disruption, not the oil price level. Tourism, aviation, hotels, shipping, import-dependent trade and imported building materials are hit hardest, through their sensitivity to conflict and imports. Banks do not withdraw drawn lines but stop the undrawn limits, so none of them counts in liquidity.', 'STAGNANT', 0, 150, 8, 5, 0, 0, 12, 0.5, 70)
-) AS s (Code, NameAr, NameEn, DescriptionAr, DescriptionEn, InventorySeverity, StLinesWithdrawnPct, RateBp, PrivateArLossPct, BaseDsoDays, IsResilienceBase, UndrawnAvailablePct, DurationMonths, OtherCountryMult, SortOrder)
+     N'حدث جارٍ (قرار المالك 2026-10-19): نزاع إقليمي ممتد في الخليج يطال طرق الملاحة في مضيق هرمز والبحر الأحمر سنة كاملة. أشد البلدان تأثرًا البحرين والكويت والإمارات، ثم السعودية وقطر وعُمان، ثم الأردن ومصر. يُضغط أثر الاضطراب لا مستوى سعر النفط. وأشد القطاعات تأثرًا السياحة والطيران والفنادق والشحن البحري والتجارة المعتمدة على الاستيراد ومواد البناء المستوردة، من حساسيتها للنزاع والاستيراد. ولا تسحب البنوك الخطوط المستعملة، لكنها توقف الحدود غير المسحوبة فلا يُحسب منها شيء في السيولة، وترفع هامشها ورسومها بحسب مخاطر القطاع.',
+     N'A current event (owner''s decision of 2026-10-19): a prolonged regional conflict in the Gulf reaching the shipping routes of the Strait of Hormuz and the Red Sea for a full year. Bahrain, Kuwait and the UAE are hit hardest, then Saudi Arabia, Qatar and Oman, then Jordan and Egypt. The stress is the disruption, not the oil price level. Tourism, aviation, hotels, shipping, import-dependent trade and imported building materials are hit hardest, through their sensitivity to conflict and imports. Banks do not withdraw drawn lines but stop the undrawn limits, so none of them counts in liquidity, and raise their margin and fees by the risk of the sector.', 'STAGNANT', 0, 150, 8, 5, 0, 0, 0, 100, 15, 12, 0.5, 70)
+) AS s (Code, NameAr, NameEn, DescriptionAr, DescriptionEn, InventorySeverity, StLinesWithdrawnPct, RateBp, PrivateArLossPct, BaseDsoDays, IsResilienceBase, UndrawnAvailablePct, UndrawnCutPct, LenderMarginBp, LenderFeesBp, DurationMonths, OtherCountryMult, SortOrder)
    ON d.Code = s.Code
 WHEN NOT MATCHED THEN
-    INSERT (Code, NameAr, NameEn, DescriptionAr, DescriptionEn, InventorySeverity, StLinesWithdrawnPct, RateBp, PrivateArLossPct, BaseDsoDays, IsResilienceBase, UndrawnAvailablePct, DurationMonths, OtherCountryMult, SortOrder)
-    VALUES (s.Code, s.NameAr, s.NameEn, s.DescriptionAr, s.DescriptionEn, s.InventorySeverity, s.StLinesWithdrawnPct, s.RateBp, s.PrivateArLossPct, s.BaseDsoDays, s.IsResilienceBase, s.UndrawnAvailablePct, s.DurationMonths, s.OtherCountryMult, s.SortOrder);
+    INSERT (Code, NameAr, NameEn, DescriptionAr, DescriptionEn, InventorySeverity, StLinesWithdrawnPct, RateBp, PrivateArLossPct, BaseDsoDays, IsResilienceBase, UndrawnAvailablePct, UndrawnCutPct, LenderMarginBp, LenderFeesBp, DurationMonths, OtherCountryMult, SortOrder)
+    VALUES (s.Code, s.NameAr, s.NameEn, s.DescriptionAr, s.DescriptionEn, s.InventorySeverity, s.StLinesWithdrawnPct, s.RateBp, s.PrivateArLossPct, s.BaseDsoDays, s.IsResilienceBase, s.UndrawnAvailablePct, s.UndrawnCutPct, s.LenderMarginBp, s.LenderFeesBp, s.DurationMonths, s.OtherCountryMult, s.SortOrder);
 GO
 MERGE fin.MacroScenarioCountry AS d
 USING (SELECT ms.MacroScenarioId, co.CountryId, v.Multiplier

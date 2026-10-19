@@ -4815,6 +4815,9 @@ CREATE TABLE "fin"."MacroScenario" (
   "IsResilienceBase" smallint NOT NULL DEFAULT 0,
   CHECK ("IsResilienceBase" IS NULL OR "IsResilienceBase" IN (0,1)),
   "UndrawnAvailablePct" numeric(9,4) NOT NULL DEFAULT 100,
+  "UndrawnCutPct" numeric(9,4) NOT NULL DEFAULT 0,
+  "LenderMarginBp" integer NOT NULL DEFAULT 0,
+  "LenderFeesBp" integer NOT NULL DEFAULT 0,
   "DurationMonths" integer NOT NULL DEFAULT 12,
   "OtherCountryMult" numeric(5,3) NOT NULL DEFAULT 1,
   "SortOrder" integer NOT NULL,
@@ -4827,6 +4830,7 @@ CREATE TABLE "fin"."MacroScenario" (
   CONSTRAINT "CK_MacroScenario_1" CHECK ("Code" NOT LIKE '%[^A-Z0-9_]%'),
   CONSTRAINT "CK_MacroScenario_2" CHECK ("StLinesWithdrawnPct" BETWEEN 0 AND 100 AND "PrivateArLossPct" BETWEEN 0 AND 100 AND "RateBp" >= 0 AND "BaseDsoDays" >= 0),
   CONSTRAINT "CK_MacroScenario_3" CHECK ("UndrawnAvailablePct" BETWEEN 0 AND 100 AND "DurationMonths" BETWEEN 1 AND 60 AND "OtherCountryMult" BETWEEN 0 AND 2),
+  CONSTRAINT "CK_MacroScenario_4" CHECK ("UndrawnCutPct" BETWEEN 0 AND 100 AND "LenderMarginBp" >= 0 AND "LenderFeesBp" >= 0),
   CONSTRAINT "CK_MacroScenario_InventorySeverity" CHECK ("InventorySeverity" IS NULL OR "InventorySeverity" IN ('STAGNANT', 'CRISIS'))
 );
 CREATE TABLE "fin"."MacroScenarioCountry" (
@@ -5474,6 +5478,7 @@ CREATE TABLE "fin"."CreditAssessmentScenario" (
   "PrivateArLossPct" numeric(9,4) NULL,
   "InventoryWritedownPct" numeric(9,4) NULL,
   "UndrawnAvailablePct" numeric(9,4) NULL,
+  "LenderCostBp" numeric(9,2) NULL,
   "CountryMult" numeric(5,3) NULL,
   "RevenueAfter" numeric(19,4) NULL,
   "EbitdaAfter" numeric(19,4) NULL,

@@ -252,9 +252,11 @@ GO""")
     L.append(merge('fin.ShockDriver', ['Code', 'NameAr', 'NameEn', 'RevenuePct', 'GrossMarginPp', 'DsoDays', 'SortOrder'], rows, ['Code']))
     rows = [f"({a(x['code'])}, {q(x['ar'])}, {q(x['en'])},\n     {q(x['desc_ar'])},\n     {q(x['desc_en'])}, {a(x['inventory'])}, {n(x['st_lines_withdrawn_pct'])}, "
             f"{int(x['rate_bp'])}, {n(x['private_ar_loss_pct'])}, {n(x['base_dso_days'])}, {n(bool(x['resilience_base']))}, {n(x['undrawn_available_pct'])}, "
-            f"{int(x['duration_months'])}, {n(float(x['other_country_mult']))}, {i * 10})" for i, x in enumerate(M['macro_scenarios'], 1)]
+            f"{n(x['undrawn_cut_pct'])}, {int(x['lender_margin_bp'])}, {int(x['lender_fees_bp'])}, {int(x['duration_months'])}, "
+            f"{n(float(x['other_country_mult']))}, {i * 10})" for i, x in enumerate(M['macro_scenarios'], 1)]
     L.append(merge('fin.MacroScenario', ['Code', 'NameAr', 'NameEn', 'DescriptionAr', 'DescriptionEn', 'InventorySeverity', 'StLinesWithdrawnPct', 'RateBp',
-                                         'PrivateArLossPct', 'BaseDsoDays', 'IsResilienceBase', 'UndrawnAvailablePct', 'DurationMonths', 'OtherCountryMult',
+                                         'PrivateArLossPct', 'BaseDsoDays', 'IsResilienceBase', 'UndrawnAvailablePct', 'UndrawnCutPct', 'LenderMarginBp',
+                                         'LenderFeesBp', 'DurationMonths', 'OtherCountryMult',
                                          'SortOrder'], rows, ['Code']))
     rows = [f"({a(x['code'])}, {a(iso)}, {n(float(v))})" for x in M['macro_scenarios'] for iso, v in x['country_mult'].items()]
     L.append(f"""MERGE fin.MacroScenarioCountry AS d

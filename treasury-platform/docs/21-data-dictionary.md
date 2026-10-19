@@ -4712,12 +4712,15 @@
 | DescriptionAr | NVARCHAR(1000) | لا |  |  |  |
 | DescriptionEn | NVARCHAR(1000) | لا |  |  |  |
 | InventorySeverity | VARCHAR(10) | لا |  |  | أي قيمة بيع للمخزون من فئات المنتجات enum: STAGNANT, CRISIS |
-| StLinesWithdrawnPct | DECIMAL(9,4) | لا |  |  | من الخطوط قصيرة الأجل غير الملتزمة، قبل تعرض البلد للائتمان |
+| StLinesWithdrawnPct | DECIMAL(9,4) | لا |  |  | تخفيض الخطوط قصيرة الأجل غير الملتزمة عند تجديدها، قبل عامل البنك |
 | RateBp | INT | لا |  |  | ارتفاع سعر الفائدة على الدين المتغير |
 | PrivateArLossPct | DECIMAL(9,4) | لا |  |  | خسارة الذمم الخاصة فوق 180 يومًا قبل أثر الطلب |
 | BaseDsoDays | DECIMAL(9,2) | لا |  |  |  |
 | IsResilienceBase | BIT | لا | 0 |  | السيناريو الذي يقيس الصمود والنظرة (ركود السوق) |
-| UndrawnAvailablePct | DECIMAL(9,4) | لا | 100 |  | ما يبقى متاحًا من الحدود الملتزمة غير المسحوبة (0: توقفها البنوك) |
+| UndrawnAvailablePct | DECIMAL(9,4) | لا | 100 |  | ما يبقى متاحًا من الحدود الملتزمة غير المسحوبة (0: توقفها البنوك)، قبل الإيقاف بعامل البنك |
+| UndrawnCutPct | DECIMAL(9,4) | لا | 0 |  | ما توقفه البنوك من الحدود غير المسحوبة، مضروبًا في عامل البنك (مخاطر القطاع والبلد) |
+| LenderMarginBp | INT | لا | 0 |  | زيادة هامش البنك على التسهيلات قصيرة الأجل والقبولات عند تجديدها، مضروبة في عامل البنك |
+| LenderFeesBp | INT | لا | 0 |  | الرسوم الإدارية الإضافية على التسهيلات قصيرة الأجل والقبولات، مضروبة في عامل البنك |
 | DurationMonths | INT | لا | 12 |  | مدة الأثر بالأشهر (للعرض) |
 | OtherCountryMult | DECIMAL(5,3) | لا | 1 |  | مضاعف الضغط لبلد ليس له صف في fin.MacroScenarioCountry |
 | SortOrder | INT | لا |  |  |  |
@@ -4728,7 +4731,7 @@
 
 **المفاتيح:** PK(MacroScenarioId) · UQ(Code) · UQ(IsResilienceBase) WHERE IsResilienceBase = 1
 
-**قيود:** `Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%'` · `StLinesWithdrawnPct BETWEEN 0 AND 100 AND PrivateArLossPct BETWEEN 0 AND 100 AND RateBp >= 0 AND BaseDsoDays >= 0` · `UndrawnAvailablePct BETWEEN 0 AND 100 AND DurationMonths BETWEEN 1 AND 60 AND OtherCountryMult BETWEEN 0 AND 2`
+**قيود:** `Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%'` · `StLinesWithdrawnPct BETWEEN 0 AND 100 AND PrivateArLossPct BETWEEN 0 AND 100 AND RateBp >= 0 AND BaseDsoDays >= 0` · `UndrawnAvailablePct BETWEEN 0 AND 100 AND DurationMonths BETWEEN 1 AND 60 AND OtherCountryMult BETWEEN 0 AND 2` · `UndrawnCutPct BETWEEN 0 AND 100 AND LenderMarginBp >= 0 AND LenderFeesBp >= 0`
 
 ### `fin.MacroScenarioCountry` — The multiplier of a macro scenario's stress for a country it hits more or less than others; a country without a row takes the scenario's OtherCountryMult (docs/35 section 14, ADR 0020)
 
@@ -5451,6 +5454,7 @@
 | PrivateArLossPct | DECIMAL(9,4) | نعم |  |  |  |
 | InventoryWritedownPct | DECIMAL(9,4) | نعم |  |  |  |
 | UndrawnAvailablePct | DECIMAL(9,4) | نعم |  |  |  |
+| LenderCostBp | DECIMAL(9,2) | نعم |  |  | هامش البنك ورسومه على التسهيلات قصيرة الأجل بعد عامل البنك |
 | CountryMult | DECIMAL(5,3) | نعم |  |  |  |
 | RevenueAfter | DECIMAL(19,4) | نعم |  |  |  |
 | EbitdaAfter | DECIMAL(19,4) | نعم |  |  |  |
