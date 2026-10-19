@@ -2,7 +2,7 @@
 
 > مُولَّد آليًا من نموذج البيانات بـ `tools/dbgen` — لا يُعدَّل يدويًا. الأعمدة المشتركة التي تضيفها اصطلاحات التوليد (TenantId، المعرّف، التدقيق) تظهر في كل جدول.
 
-**عدد الجداول: 203**
+**عدد الجداول: 213**
 
 | الوحدة | عدد الجداول |
 |---|---|
@@ -22,7 +22,7 @@
 | CMP | 2 |
 | COL | 7 |
 | OBL | 9 |
-| FIN | 10 |
+| FIN | 20 |
 | REQ | 8 |
 | WFL | 11 |
 | NTF | 7 |
@@ -4155,7 +4155,7 @@
 
 ## FIN
 
-### `fin.LineCatalogItem` — Standard statement line item; 39 items seeded; system items used in formulas cannot be deleted (FR-FIN-001, CatalogBase)
+### `fin.LineCatalogItem` — Standard statement line item; 51 items seeded, twelve of them for the credit assessment; system items used in formulas cannot be deleted (FR-FIN-001, FR-FIN-020, CatalogBase)
 
 *مملوك للمشترك · كتالوج*
 
@@ -4173,7 +4173,7 @@
 | SortOrder | INT | لا | 0 |  |  |
 | SeedKey | VARCHAR(80) | نعم |  |  |  |
 | ExternalCode | VARCHAR(80) | نعم |  |  |  |
-| Section | VARCHAR(12) | لا |  |  | enum: BS_ASSET, BS_LIABILITY, BS_EQUITY, IS, CF |
+| Section | VARCHAR(12) | لا |  |  | MEMO: بند إفصاح خارج الميزانية لا يدخل إجمالياتها (الالتزامات المحتملة، FR-FIN-020) enum: BS_ASSET, BS_LIABILITY, BS_EQUITY, IS, CF, MEMO |
 | IsTotal | BIT | لا | 0 |  | إجمالي محسوب من رموز مكوّناته (BR-FIN-001) |
 | TotalFormula | NVARCHAR(500) | نعم |  |  | مثل GROSS_PROFIT - OPEX؛ نحو الإجماليات البسيط |
 | IsRequired | BIT | لا | 0 |  | الفارغ منه يمنع التقديم (BR-FIN-002) |
@@ -4225,6 +4225,7 @@
 | AccountingStandard | NVARCHAR(100) | نعم |  |  |  |
 | AuditorName | NVARCHAR(200) | نعم |  |  | مراجع الحسابات للقائمة المدققة أو المراجَعة (وحدة الميزانية، 2026-10-18) |
 | AuditOpinion | VARCHAR(11) | نعم |  |  | رأي المراجع للقائمة المدققة enum: UNQUALIFIED, QUALIFIED, ADVERSE, DISCLAIMER |
+| GoingConcernUncertainty | BIT | لا | 0 |  | فقرة شك جوهري في الاستمرارية في تقرير المراجع (التقييم الائتماني، docs/35 §7) |
 | VersionNo | INT | لا | 1 |  |  |
 | VersionReason | VARCHAR(10) | لا | ORIGINAL |  | سبب الإصدار إلزامي (BR-FIN-004) enum: ORIGINAL, RESTATED, CORRECTION |
 | SupersedesId | BIGINT | نعم |  | fin.FinancialStatement (via CompanyId,Basis,Assurance,PeriodType,PeriodEnd) | الإصدار السابق للشركة والسلسلة نفسها؛ المدققة لا تحل محل الإدارية (قرار المالك 2026-10-13، DR-34) |
@@ -4244,7 +4245,7 @@
 
 **المفاتيح:** PK(FinancialStatementId) · UQ(PublicId) · UQ(TenantId, CompanyId, PeriodType, PeriodEnd, Basis, Assurance, VersionNo) · UQ(TenantId, CompanyId, Basis, Assurance, PeriodType, PeriodEnd) WHERE Status = 'APPROVED' · UQ(TenantId, SupersedesId) WHERE SupersedesId IS NOT NULL AND Status <> 'REJECTED'
 
-**قيود:** `UnitScale IN (1,1000,1000000)` · `PeriodStart IS NULL OR PeriodEnd >= PeriodStart` · `FiscalYear BETWEEN 1900 AND 2200` · `VersionNo >= 1` · `VersionReason <> 'ORIGINAL' OR SupersedesId IS NULL` · `SupersedesId IS NULL OR (VersionNo > 1 AND VersionReason <> 'ORIGINAL' AND SupersedesId <> FinancialStatementId)` · `Status NOT IN ('SUBMITTED','APPROVED','SUPERSEDED') OR (PreparedBy IS NOT NULL AND PreparedOn IS NOT NULL)` · `Status NOT IN ('APPROVED','SUPERSEDED') OR (ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)` · `ApprovedBy IS NULL OR PreparedBy IS NULL OR ApprovedBy <> PreparedBy` · `Status = 'DRAFT' OR Assurance <> 'AUDITED' OR (AuditorName IS NOT NULL AND AuditOpinion IS NOT NULL)` · `AuditOpinion IS NULL OR Assurance = 'AUDITED'`
+**قيود:** `UnitScale IN (1,1000,1000000)` · `PeriodStart IS NULL OR PeriodEnd >= PeriodStart` · `FiscalYear BETWEEN 1900 AND 2200` · `VersionNo >= 1` · `VersionReason <> 'ORIGINAL' OR SupersedesId IS NULL` · `SupersedesId IS NULL OR (VersionNo > 1 AND VersionReason <> 'ORIGINAL' AND SupersedesId <> FinancialStatementId)` · `Status NOT IN ('SUBMITTED','APPROVED','SUPERSEDED') OR (PreparedBy IS NOT NULL AND PreparedOn IS NOT NULL)` · `Status NOT IN ('APPROVED','SUPERSEDED') OR (ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)` · `ApprovedBy IS NULL OR PreparedBy IS NULL OR ApprovedBy <> PreparedBy` · `Status = 'DRAFT' OR Assurance <> 'AUDITED' OR (AuditorName IS NOT NULL AND AuditOpinion IS NOT NULL)` · `AuditOpinion IS NULL OR Assurance = 'AUDITED'` · `GoingConcernUncertainty = 0 OR Assurance IN ('AUDITED','REVIEWED')`
 
 ### `fin.StatementLine` — Statement line in the header currency; stored value = input x UnitScale; Variance is derived; highly confidential (BR-FIN-001/002)
 
@@ -4447,6 +4448,303 @@
 **المفاتيح:** PK(MeasureFormulaId) · UQ(TenantId, Code, FacilityId, VersionNo) · UQ(TenantId, Code, FacilityId) WHERE Status = 'APPROVED'
 
 **قيود:** `Scope = 'FACILITY_COPY' OR FacilityId IS NULL` · `ResultUnit <> 'DAYS' OR Scope = 'ANALYSIS'` · `Scope <> 'FACILITY_COPY' OR FacilityId IS NOT NULL` · `Scope = 'FACILITY_COPY' OR BaseTemplateId IS NULL` · `BaseTemplateId IS NULL OR BaseTemplateId <> MeasureFormulaId` · `InputKinds <> ''` · `VersionNo >= 1` · `Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%'` · `Status NOT IN ('APPROVED','SUPERSEDED') OR (ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)` · `SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')` · `Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)` · `OriginalText IS NULL OR (OriginalText COLLATE Arabic_100_BIN2 NOT LIKE '%[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]%' AND OriginalText COLLATE Arabic_100_BIN2 NOT LIKE '%[A-Za-z][A-Za-z][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9]%')` · `SourceDocumentId IS NOT NULL OR (NoSourceReason IS NOT NULL AND LEN(LTRIM(RTRIM(NoSourceReason))) > 0)`
+
+### `fin.RatingGrade` — The 21 grades of the Moody's long-term scale, their range on the scorecard continuum and their risk band (docs/35 section 2, BR-FIN-018)
+
+*عالمي*
+
+| العمود | النوع | NULL | الافتراضي | المرجع | ملاحظة |
+|---|---|---|---|---|---|
+| **RatingGradeId** | INT IDENTITY | لا | | | مفتاح أساسي |
+| Code | VARCHAR(4) | لا |  |  | Aaa, Aa1 ... Ca, C |
+| NotchNo | TINYINT | لا |  |  | 1 = Aaa ... 20 = Ca, 21 = C |
+| Category | VARCHAR(3) | لا |  |  | Aaa, Aa, A, Baa, Ba, B, Caa, Ca, C |
+| ScoreFrom | DECIMAL(5,2) | نعم |  |  | المجال على الخط المستمر؛ فارغ لـ C التي لا تبلغها البطاقة بالحساب |
+| ScoreTo | DECIMAL(5,2) | نعم |  |  |  |
+| RiskBand | VARCHAR(11) | لا |  |  | enum: LOW, MODERATE, SUBSTANTIAL, HIGH, VERY_HIGH |
+| IsInvestmentGrade | BIT | لا | 0 |  | Baa3 فما فوق |
+| DescriptionAr | NVARCHAR(300) | لا |  |  |  |
+| DescriptionEn | NVARCHAR(300) | لا |  |  |  |
+| CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
+| CreatedBy | BIGINT | نعم |  |  |  |
+| UpdatedAt | DATETIME2(3) | نعم |  |  |  |
+| UpdatedBy | BIGINT | نعم |  |  |  |
+
+**المفاتيح:** PK(RatingGradeId) · UQ(Code) · UQ(NotchNo)
+
+**قيود:** `NotchNo BETWEEN 1 AND 21` · `(ScoreFrom IS NULL AND ScoreTo IS NULL AND NotchNo = 21) OR (ScoreFrom IS NOT NULL AND ScoreTo IS NOT NULL AND ScoreTo > ScoreFrom AND NotchNo < 21)` · `IsInvestmentGrade = 0 OR NotchNo <= 10`
+
+### `fin.CreditMetric` — The metric dictionary of the credit assessment: how each ratio is computed from the statement lines, its unit and direction, and the texts of its strength and weakness (docs/35 section 4)
+
+*عالمي*
+
+| العمود | النوع | NULL | الافتراضي | المرجع | ملاحظة |
+|---|---|---|---|---|---|
+| **CreditMetricId** | INT IDENTITY | لا | | | مفتاح أساسي |
+| Code | VARCHAR(40) | لا |  |  |  |
+| NameAr | NVARCHAR(200) | لا |  |  |  |
+| NameEn | NVARCHAR(200) | لا |  |  |  |
+| Kind | VARCHAR(12) | لا |  |  | النوعي يدخله المحلل بدرجة ومبرّر enum: QUANTITATIVE, QUALITATIVE |
+| Unit | VARCHAR(10) | لا |  |  | enum: RATIO, PERCENT, DAYS, AMOUNT, GRADE |
+| Direction | VARCHAR(13) | لا |  |  | enum: HIGHER_BETTER, LOWER_BETTER, NONE |
+| DefinitionAr | NVARCHAR(1000) | لا |  |  | الصيغة من رموز البنود والحالات الحدية؛ يحسبها 046 بالرمز، لا نصًا منفَّذًا |
+| InputsText | NVARCHAR(500) | نعم |  |  |  |
+| StrengthTextAr | NVARCHAR(500) | لا |  |  | {v} القيمة و{g} الدرجة |
+| StrengthTextEn | NVARCHAR(500) | لا |  |  |  |
+| WeaknessTextAr | NVARCHAR(500) | لا |  |  |  |
+| WeaknessTextEn | NVARCHAR(500) | لا |  |  |  |
+| CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
+| CreatedBy | BIGINT | نعم |  |  |  |
+| UpdatedAt | DATETIME2(3) | نعم |  |  |  |
+| UpdatedBy | BIGINT | نعم |  |  |  |
+
+**المفاتيح:** PK(CreditMetricId) · UQ(Code)
+
+**قيود:** `(Kind = 'QUALITATIVE' AND Unit = 'GRADE' AND Direction = 'NONE') OR (Kind = 'QUANTITATIVE' AND Unit <> 'GRADE' AND Direction <> 'NONE')` · `Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%'`
+
+### `fin.Scorecard` — A sector scorecard of the credit assessment and its version; approved, it never changes and a change is a new version (docs/35 section 5, BR-FIN-023)
+
+*عالمي*
+
+| العمود | النوع | NULL | الافتراضي | المرجع | ملاحظة |
+|---|---|---|---|---|---|
+| **ScorecardId** | INT IDENTITY | لا | | | مفتاح أساسي |
+| Code | VARCHAR(40) | لا |  |  |  |
+| VersionNo | INT | لا | 1 |  |  |
+| NameAr | NVARCHAR(200) | لا |  |  |  |
+| NameEn | NVARCHAR(200) | لا |  |  |  |
+| SectorNoteAr | NVARCHAR(500) | نعم |  |  |  |
+| CurrencyId | INT | لا |  | ref.Currency | عملة حدود الحجم |
+| AmountUnit | INT | لا | 1000000 |  | وحدة حدود الحجم (مليون) |
+| MinCoveragePct | DECIMAL(5,2) | لا | 85 |  | أدنى وزن محسوب من المقاييس الكمية لإعطاء درجة (BR-FIN-019) |
+| QualitativeBoundNotches | TINYINT | لا | 3 |  | بُعد الدرجة النوعية الأقصى عن الدرجة المالية بلا مستند (BR-FIN-021) |
+| SupportMaxAgeMonths | TINYINT | لا | 12 |  | أقصى عمر لتقييم الأم في دعم المجموعة (BR-FIN-022) |
+| Status | VARCHAR(10) | لا | DRAFT |  | enum: DRAFT, APPROVED, RETIRED |
+| EffectiveFrom | DATE | نعم |  |  |  |
+| DisclaimerAr | NVARCHAR(1000) | لا |  |  |  |
+| DisclaimerEn | NVARCHAR(1000) | لا |  |  |  |
+| CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
+| CreatedBy | BIGINT | نعم |  |  |  |
+| UpdatedAt | DATETIME2(3) | نعم |  |  |  |
+| UpdatedBy | BIGINT | نعم |  |  |  |
+
+**المفاتيح:** PK(ScorecardId) · UQ(Code, VersionNo) · UQ(Code) WHERE Status = 'APPROVED'
+
+**قيود:** `VersionNo >= 1` · `AmountUnit IN (1,1000,1000000)` · `MinCoveragePct > 0 AND MinCoveragePct <= 100` · `QualitativeBoundNotches BETWEEN 1 AND 20` · `SupportMaxAgeMonths BETWEEN 1 AND 36` · `Status = 'DRAFT' OR EffectiveFrom IS NOT NULL` · `Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%'`
+
+### `fin.ScorecardMetric` — A metric of a scorecard: its factor, its weight and the nine boundaries of its grid (best cap, Aaa|Aa, Aa|A, A|Baa, Baa|Ba, Ba|B, B|Caa, Caa|Ca, worst cap); a qualitative metric has no grid (docs/35 section 5)
+
+*عالمي*
+
+| العمود | النوع | NULL | الافتراضي | المرجع | ملاحظة |
+|---|---|---|---|---|---|
+| **ScorecardMetricId** | INT IDENTITY | لا | | | مفتاح أساسي |
+| ScorecardId | INT | لا |  | fin.Scorecard |  |
+| MetricId | INT | لا |  | fin.CreditMetric |  |
+| FactorCode | VARCHAR(13) | لا |  |  | enum: SCALE, PROFITABILITY, LEVERAGE, COVERAGE, CASH_FLOW, LIQUIDITY, QUALITATIVE |
+| Weight | DECIMAL(5,2) | لا |  |  |  |
+| B0 | DECIMAL(19,6) | نعم |  |  | القيمة التي تساوي 0.5 أو أفضل منها |
+| B1 | DECIMAL(19,6) | نعم |  |  | 1.5: حد Aaa/Aa |
+| B2 | DECIMAL(19,6) | نعم |  |  | 4.5: حد Aa/A |
+| B3 | DECIMAL(19,6) | نعم |  |  | 7.5: حد A/Baa |
+| B4 | DECIMAL(19,6) | نعم |  |  | 10.5: حد Baa/Ba |
+| B5 | DECIMAL(19,6) | نعم |  |  | 13.5: حد Ba/B |
+| B6 | DECIMAL(19,6) | نعم |  |  | 16.5: حد B/Caa |
+| B7 | DECIMAL(19,6) | نعم |  |  | 19.5: حد Caa/Ca |
+| B8 | DECIMAL(19,6) | نعم |  |  | القيمة التي تساوي 20.5 أو أسوأ منها |
+| SortOrder | INT | لا | 0 |  |  |
+| CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
+| CreatedBy | BIGINT | نعم |  |  |  |
+| UpdatedAt | DATETIME2(3) | نعم |  |  |  |
+| UpdatedBy | BIGINT | نعم |  |  |  |
+
+**المفاتيح:** PK(ScorecardMetricId) · UQ(ScorecardId, MetricId)
+
+**قيود:** `Weight > 0 AND Weight <= 100` · `(B0 IS NULL AND B1 IS NULL AND B2 IS NULL AND B3 IS NULL AND B4 IS NULL AND B5 IS NULL AND B6 IS NULL AND B7 IS NULL AND B8 IS NULL) OR (B0 IS NOT NULL AND B1 IS NOT NULL AND B2 IS NOT NULL AND B3 IS NOT NULL AND B4 IS NOT NULL AND B5 IS NOT NULL AND B6 IS NOT NULL AND B7 IS NOT NULL AND B8 IS NOT NULL AND ((B0 < B1 AND B1 < B2 AND B2 < B3 AND B3 < B4 AND B4 < B5 AND B5 < B6 AND B6 < B7 AND B7 < B8) OR (B0 > B1 AND B1 > B2 AND B2 > B3 AND B3 > B4 AND B4 > B5 AND B5 > B6 AND B6 > B7 AND B7 > B8)))`
+
+### `fin.ScorecardItemRule` — A balance-sheet item rule of a scorecard: the item, its metric and the thresholds of LOW, MODERATE, ELEVATED, HIGH and CRITICAL; a value on a threshold belongs to the worse level (docs/35 section 6)
+
+*عالمي*
+
+| العمود | النوع | NULL | الافتراضي | المرجع | ملاحظة |
+|---|---|---|---|---|---|
+| **ScorecardItemRuleId** | INT IDENTITY | لا | | | مفتاح أساسي |
+| ScorecardId | INT | لا |  | fin.Scorecard |  |
+| MetricId | INT | لا |  | fin.CreditMetric |  |
+| LineCode | VARCHAR(40) | لا |  |  | بند الميزانية الذي يُنسب إليه الخطر |
+| T1 | DECIMAL(19,6) | لا |  |  |  |
+| T2 | DECIMAL(19,6) | لا |  |  |  |
+| T3 | DECIMAL(19,6) | لا |  |  |  |
+| T4 | DECIMAL(19,6) | لا |  |  |  |
+| ReportStrength | BIT | لا | 0 |  | LOW يُذكر نقطة قوة |
+| SortOrder | INT | لا | 0 |  |  |
+| CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
+| CreatedBy | BIGINT | نعم |  |  |  |
+| UpdatedAt | DATETIME2(3) | نعم |  |  |  |
+| UpdatedBy | BIGINT | نعم |  |  |  |
+
+**المفاتيح:** PK(ScorecardItemRuleId) · UQ(ScorecardId, MetricId)
+
+**قيود:** `(T1 < T2 AND T2 < T3 AND T3 < T4) OR (T1 > T2 AND T2 > T3 AND T3 > T4)`
+
+### `fin.ScorecardAdjustment` — An adjustment of a scorecard: notches down, a standalone cap or an absolute cap on the best grade, applied in that order around group support and the override (docs/35 section 7)
+
+*عالمي*
+
+| العمود | النوع | NULL | الافتراضي | المرجع | ملاحظة |
+|---|---|---|---|---|---|
+| **ScorecardAdjustmentId** | INT IDENTITY | لا | | | مفتاح أساسي |
+| ScorecardId | INT | لا |  | fin.Scorecard |  |
+| RuleCode | VARCHAR(23) | لا |  |  | منطق كل قاعدة في 046 برمزها enum: AUDIT_QUALIFIED, UNAUDITED_ANNUAL, STALE_STATEMENT, INCOMPLETE_STATEMENT, RESTATEMENT, HALF_CAPITAL_LOST_CURED, RELATED_PARTY_EXPOSURE, HOLDCO_STANDALONE, OPEN_BREACH, BREACH_WAIVER_REQUESTED, FLOW_SHORTFALL, GOING_CONCERN, NEGATIVE_EQUITY, HALF_CAPITAL_LOST, SIZE_CEILING, SECTOR_CEILING, AUDIT_ADVERSE, SOVEREIGN_CEILING |
+| Stage | VARCHAR(10) | لا |  |  | تنزيل، ثم سقف منفرد قبل الدعم، ثم سقف مطلق بعد التجاوز enum: NOTCH, STANDALONE, ABSOLUTE |
+| Notches | INT | لا | 0 |  | درجات التنزيل، سالبة؛ صفر للسقف |
+| CapGradeId | INT | نعم |  | fin.RatingGrade | أفضل درجة مسموحة بعد القاعدة |
+| ParamValue | DECIMAL(19,6) | نعم |  |  | المعامل: أشهر القِدم، النسبة، الإيراد بالملايين |
+| ShowWhen | VARCHAR(12) | لا | ALWAYS |  | يُذكر السقف دائمًا أو حين يغيّر الدرجة enum: ALWAYS, WHEN_BINDING |
+| IsActive | BIT | لا | 1 |  |  |
+| NameAr | NVARCHAR(200) | لا |  |  |  |
+| TextAr | NVARCHAR(500) | لا |  |  | {p} المعامل |
+| TextEn | NVARCHAR(500) | لا |  |  |  |
+| CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
+| CreatedBy | BIGINT | نعم |  |  |  |
+| UpdatedAt | DATETIME2(3) | نعم |  |  |  |
+| UpdatedBy | BIGINT | نعم |  |  |  |
+
+**المفاتيح:** PK(ScorecardAdjustmentId) · UQ(ScorecardId, RuleCode)
+
+**قيود:** `Notches BETWEEN -3 AND 0` · `(Stage = 'NOTCH' AND CapGradeId IS NULL AND Notches < 0) OR (Stage <> 'NOTCH' AND CapGradeId IS NOT NULL AND Notches = 0)` · `RuleCode NOT IN ('STALE_STATEMENT','RESTATEMENT','HALF_CAPITAL_LOST','HALF_CAPITAL_LOST_CURED','RELATED_PARTY_EXPOSURE','FLOW_SHORTFALL','SIZE_CEILING') OR ParamValue IS NOT NULL`
+
+### `fin.CreditAssessment` — Credit assessment of an approved statement on a sector scorecard: the study of the balance sheet with a grade on the Moody's scale, its strengths, weaknesses and risks; written as a draft, computed by the database, approved by someone else (FR-FIN-020 to FR-FIN-024, BR-FIN-018 to BR-FIN-024; owner request 2026-10-18)
+
+*مملوك للمشترك*
+
+| العمود | النوع | NULL | الافتراضي | المرجع | ملاحظة |
+|---|---|---|---|---|---|
+| TenantId | INT | لا | | plat.Tenant | عزل المشترك |
+| **CreditAssessmentId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
+| CompanyId | BIGINT | لا |  | org.Company |  |
+| StatementId | BIGINT | لا |  | fin.FinancialStatement (via CompanyId) | القائمة المقيَّمة، معتمدة ومن الشركة نفسها |
+| PriorStatementId | BIGINT | نعم |  | fin.FinancialStatement (via CompanyId) | قائمة المقارنة؛ فارغة = يختارها الإجراء |
+| ScorecardId | INT | لا |  | fin.Scorecard | بطاقة القطاع وإصدارها |
+| AssessmentDate | DATE | لا |  |  |  |
+| FxRateToScorecard | DECIMAL(19,8) | نعم |  |  | سعر عملة القائمة بعملة البطاقة؛ إلزامي إن اختلفتا (BR-FIN-019) |
+| Status | VARCHAR(10) | لا | DRAFT |  | enum: DRAFT, SUBMITTED, APPROVED, REJECTED, SUPERSEDED |
+| ComputedAt | DATETIME2(3) | نعم |  |  | من هنا إلى Snapshot: يكتبها fin.usp_ComputeCreditAssessment وحده (DENY على tp_app، 046) |
+| InputsHash | VARCHAR(64) | نعم |  |  | بصمة SHA-256 لما قرأه الحساب؛ التقديم يُرفض إن تغيّر بعده (50063) |
+| UsedPriorStatementId | BIGINT | نعم |  | fin.FinancialStatement (via CompanyId) |  |
+| ResultState | VARCHAR(17) | نعم |  |  | INDICATIVE: درجة مالية فقط لنقص العوامل النوعية، لا تُقدَّم enum: RATED, INDICATIVE, INSUFFICIENT_DATA |
+| CoveragePct | DECIMAL(5,2) | نعم |  |  | من أوزان المقاييس الكمية |
+| FinancialScore | DECIMAL(9,4) | نعم |  |  | مجموع المقاييس الكمية وحدها |
+| FinancialGradeId | INT | نعم |  | fin.RatingGrade |  |
+| WeightedScore | DECIMAL(9,4) | نعم |  |  |  |
+| IndicatedGradeId | INT | نعم |  | fin.RatingGrade |  |
+| AdjustmentNotches | INT | نعم |  |  |  |
+| CapGradeId | INT | نعم |  | fin.RatingGrade | أشد سقف طُبّق |
+| StandaloneGradeId | INT | نعم |  | fin.RatingGrade | بعد التنزيل والسقوف المنفردة، قبل الدعم |
+| SupportNotches | INT | نعم |  |  |  |
+| OverrideNotches | INT | نعم |  |  |  |
+| FinalGradeId | INT | نعم |  | fin.RatingGrade |  |
+| SummaryAr | NVARCHAR(1000) | نعم |  |  |  |
+| SummaryEn | NVARCHAR(1000) | نعم |  |  |  |
+| Snapshot | NVARCHAR(MAX) | نعم |  |  | البنود المقروءة ومعامل التحويل إلى سنة والسعر وإصدار البطاقة |
+| PreparedBy | BIGINT | نعم |  | sec.AppUser |  |
+| PreparedOn | DATETIME2(3) | نعم |  |  |  |
+| ApprovedBy | BIGINT | نعم |  | sec.AppUser |  |
+| ApprovedOn | DATETIME2(3) | نعم |  |  |  |
+| RejectionReason | NVARCHAR(500) | نعم |  |  |  |
+| PublicId | UNIQUEIDENTIFIER | لا | NEWSEQUENTIALID() |  |  |
+| CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
+| CreatedBy | BIGINT | نعم |  |  |  |
+| UpdatedAt | DATETIME2(3) | نعم |  |  |  |
+| UpdatedBy | BIGINT | نعم |  |  |  |
+
+**المفاتيح:** PK(CreditAssessmentId) · UQ(PublicId) · UQ(TenantId, StatementId) WHERE Status = 'APPROVED'
+
+**قيود:** `FxRateToScorecard IS NULL OR FxRateToScorecard > 0` · `PriorStatementId IS NULL OR PriorStatementId <> StatementId` · `(ResultState IS NULL AND FinancialScore IS NULL AND WeightedScore IS NULL AND IndicatedGradeId IS NULL AND FinalGradeId IS NULL) OR (ResultState IS NOT NULL AND ComputedAt IS NOT NULL AND InputsHash IS NOT NULL AND CoveragePct IS NOT NULL AND ((ResultState = 'INSUFFICIENT_DATA' AND FinancialScore IS NULL AND WeightedScore IS NULL AND IndicatedGradeId IS NULL AND FinalGradeId IS NULL) OR (ResultState = 'INDICATIVE' AND FinancialScore IS NOT NULL AND FinancialGradeId IS NOT NULL AND WeightedScore IS NULL AND FinalGradeId IS NULL) OR (ResultState = 'RATED' AND FinancialScore IS NOT NULL AND WeightedScore IS NOT NULL AND IndicatedGradeId IS NOT NULL AND StandaloneGradeId IS NOT NULL AND FinalGradeId IS NOT NULL)))` · `WeightedScore IS NULL OR (WeightedScore >= 0.5 AND WeightedScore <= 20.5)` · `FinancialScore IS NULL OR (FinancialScore >= 0.5 AND FinancialScore <= 20.5)` · `CoveragePct IS NULL OR (CoveragePct >= 0 AND CoveragePct <= 100)` · `SupportNotches IS NULL OR SupportNotches BETWEEN 0 AND 2` · `OverrideNotches IS NULL OR OverrideNotches BETWEEN -2 AND 1` · `Status NOT IN ('SUBMITTED','APPROVED','SUPERSEDED') OR (ResultState IS NOT NULL AND ResultState = 'RATED' AND PreparedBy IS NOT NULL AND PreparedOn IS NOT NULL)` · `Status NOT IN ('APPROVED','SUPERSEDED') OR (ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)` · `ApprovedBy IS NULL OR PreparedBy IS NULL OR ApprovedBy <> PreparedBy` · `Status <> 'REJECTED' OR RejectionReason IS NOT NULL`
+
+### `fin.CreditAssessmentInput` — The analyst's inputs to an assessment: the grade of a qualitative factor, group support or an override, each with its justification; they change only while the assessment is a draft (BR-FIN-021, BR-FIN-022)
+
+*مملوك للمشترك*
+
+| العمود | النوع | NULL | الافتراضي | المرجع | ملاحظة |
+|---|---|---|---|---|---|
+| TenantId | INT | لا | | plat.Tenant | عزل المشترك |
+| **CreditAssessmentInputId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
+| AssessmentId | BIGINT | لا |  | fin.CreditAssessment |  |
+| Kind | VARCHAR(13) | لا |  |  | enum: QUALITATIVE, GROUP_SUPPORT, OVERRIDE |
+| MetricId | INT | نعم |  | fin.CreditMetric | العامل النوعي |
+| GradeId | INT | نعم |  | fin.RatingGrade | درجته |
+| Notches | INT | نعم |  |  | الدعم 1..2، والتجاوز −2..+1 بلا صفر: الرفع درجة واحدة لأن الشركة تقيّم نفسها |
+| ParentAssessmentId | BIGINT | نعم |  | fin.CreditAssessment | التقييم المعتمد للأم أو القابضة (GROUP_SUPPORT) |
+| Justification | NVARCHAR(1000) | لا |  |  |  |
+| DocumentId | BIGINT | نعم |  | doc.Document | المستند المؤيد؛ يلزم لدرجة نوعية تبعد أكثر من الحد عن الدرجة المالية (BR-FIN-021) |
+| EnteredBy | BIGINT | نعم |  | sec.AppUser |  |
+| CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
+| CreatedBy | BIGINT | نعم |  |  |  |
+| UpdatedAt | DATETIME2(3) | نعم |  |  |  |
+| UpdatedBy | BIGINT | نعم |  |  |  |
+
+**المفاتيح:** PK(CreditAssessmentInputId) · UQ(TenantId, AssessmentId, Kind, MetricId)
+
+**قيود:** `(Kind = 'QUALITATIVE' AND MetricId IS NOT NULL AND GradeId IS NOT NULL AND Notches IS NULL AND ParentAssessmentId IS NULL) OR (Kind = 'GROUP_SUPPORT' AND MetricId IS NULL AND GradeId IS NULL AND Notches IS NOT NULL AND Notches BETWEEN 1 AND 2 AND ParentAssessmentId IS NOT NULL) OR (Kind = 'OVERRIDE' AND MetricId IS NULL AND GradeId IS NULL AND Notches IS NOT NULL AND Notches IN (-2,-1,1) AND ParentAssessmentId IS NULL)` · `ParentAssessmentId IS NULL OR ParentAssessmentId <> AssessmentId` · `LEN(LTRIM(RTRIM(Justification))) >= 10`
+
+### `fin.CreditAssessmentFactor` — A scorecard metric of an assessment: its value, its score on the linear continuum, its grade, weight and contribution; written by fin.usp_ComputeCreditAssessment only (BR-FIN-018, BR-FIN-019)
+
+*مملوك للمشترك*
+
+| العمود | النوع | NULL | الافتراضي | المرجع | ملاحظة |
+|---|---|---|---|---|---|
+| TenantId | INT | لا | | plat.Tenant | عزل المشترك |
+| **CreditAssessmentFactorId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
+| AssessmentId | BIGINT | لا |  | fin.CreditAssessment |  |
+| MetricId | INT | لا |  | fin.CreditMetric |  |
+| FactorCode | VARCHAR(30) | لا |  |  |  |
+| Weight | DECIMAL(5,2) | لا |  |  |  |
+| EffectiveWeight | DECIMAL(9,4) | نعم |  |  | الوزن بعد إعادة توزيعه على المقاييس ذات الدرجة |
+| Status | VARCHAR(14) | لا |  |  | EXTREME: لا معنى للنسبة فتُعطى طرف الخط (لا دين، EBITDA سالب...) enum: COMPUTED, EXTREME, NOT_COMPUTABLE, ANALYST |
+| Value | DECIMAL(19,6) | نعم |  |  |  |
+| Score | DECIMAL(9,4) | نعم |  |  |  |
+| GradeId | INT | نعم |  | fin.RatingGrade |  |
+| Contribution | DECIMAL(9,4) | نعم |  |  |  |
+| Reason | NVARCHAR(300) | نعم |  |  |  |
+| CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
+| CreatedBy | BIGINT | نعم |  |  |  |
+| UpdatedAt | DATETIME2(3) | نعم |  |  |  |
+| UpdatedBy | BIGINT | نعم |  |  |  |
+
+**المفاتيح:** PK(CreditAssessmentFactorId) · UQ(TenantId, AssessmentId, MetricId)
+
+**قيود:** `(Status = 'COMPUTED' AND Value IS NOT NULL AND Score IS NOT NULL AND Reason IS NULL) OR (Status = 'EXTREME' AND Value IS NULL AND Score IS NOT NULL AND Reason IS NOT NULL) OR (Status = 'NOT_COMPUTABLE' AND Value IS NULL AND Score IS NULL AND Reason IS NOT NULL) OR (Status = 'ANALYST' AND Value IS NULL AND Score IS NOT NULL)` · `Score IS NULL OR (Score >= 0.5 AND Score <= 20.5)` · `Weight > 0 AND Weight <= 100`
+
+### `fin.CreditAssessmentFinding` — A finding of an assessment, with its text: a strength, a point to note or watch, a weakness, a critical risk or an adjustment, from the scorecard, an item rule, the covenants or the bank flows; written by fin.usp_ComputeCreditAssessment only (BR-FIN-020)
+
+*مملوك للمشترك*
+
+| العمود | النوع | NULL | الافتراضي | المرجع | ملاحظة |
+|---|---|---|---|---|---|
+| TenantId | INT | لا | | plat.Tenant | عزل المشترك |
+| **CreditAssessmentFindingId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
+| AssessmentId | BIGINT | لا |  | fin.CreditAssessment |  |
+| SeqNo | INT | لا |  |  |  |
+| Kind | VARCHAR(13) | لا |  |  | enum: STRENGTH, INFO, WATCH, WEAKNESS, CRITICAL_RISK, ADJUSTMENT |
+| Source | VARCHAR(10) | لا |  |  | enum: SCORECARD, ITEM_RULE, ADJUSTMENT, COVENANT, BANK_FLOW, ANALYST |
+| RuleCode | VARCHAR(40) | لا |  |  | رمز المقياس أو القاعدة أو التعديل |
+| LineCode | VARCHAR(40) | نعم |  |  | بند الميزانية لقاعدة البند |
+| RiskLevel | VARCHAR(10) | نعم |  |  | enum: LOW, MODERATE, ELEVATED, HIGH, CRITICAL |
+| Value | DECIMAL(19,6) | نعم |  |  |  |
+| PriorValue | DECIMAL(19,6) | نعم |  |  |  |
+| Notches | INT | نعم |  |  |  |
+| RefId | BIGINT | نعم |  |  | اختبار التعهد أو التعهد للنتائج من التعهدات والتحويلات |
+| TextAr | NVARCHAR(1000) | لا |  |  |  |
+| TextEn | NVARCHAR(1000) | نعم |  |  |  |
+| CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
+| CreatedBy | BIGINT | نعم |  |  |  |
+| UpdatedAt | DATETIME2(3) | نعم |  |  |  |
+| UpdatedBy | BIGINT | نعم |  |  |  |
+
+**المفاتيح:** PK(CreditAssessmentFindingId) · UQ(TenantId, AssessmentId, SeqNo)
+
+**قيود:** `SeqNo >= 1` · `Source <> 'ITEM_RULE' OR LineCode IS NOT NULL` · `RiskLevel IS NULL OR Source = 'ITEM_RULE'`
 
 ## REQ
 

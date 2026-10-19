@@ -1,0 +1,2542 @@
+{
+ "_about": "The credit assessment methodology of BankFas (docs/35-credit-assessment-methodology.md, ADR 0017): the rating scale, the metric dictionary, three sector scorecards with weights and grids, the balance sheet item risk rules and the adjustments (their order: notches, standalone caps, group support, the override, absolute caps). Revised after the independent review of a senior credit analyst (docs/35 section 13). gen_credit_seed.py writes db/seed/104_credit_scorecard.sql and the tables of docs/35 from this file; credit_reference.py computes an assessment from it independently of the database. The thresholds are a calibration by expert judgment on the Moody's global scale, not Moody's own grids; they are validated by the bank's credit risk function before use (docs/35 section 12).",
+ "score_points": [
+  0.5,
+  1.5,
+  4.5,
+  7.5,
+  10.5,
+  13.5,
+  16.5,
+  19.5,
+  20.5
+ ],
+ "grades": [
+  {
+   "code": "Aaa",
+   "notch": 1,
+   "category": "Aaa",
+   "from": 0.5,
+   "to": 1.5,
+   "band": "LOW",
+   "ig": true
+  },
+  {
+   "code": "Aa1",
+   "notch": 2,
+   "category": "Aa",
+   "from": 1.5,
+   "to": 2.5,
+   "band": "LOW",
+   "ig": true
+  },
+  {
+   "code": "Aa2",
+   "notch": 3,
+   "category": "Aa",
+   "from": 2.5,
+   "to": 3.5,
+   "band": "LOW",
+   "ig": true
+  },
+  {
+   "code": "Aa3",
+   "notch": 4,
+   "category": "Aa",
+   "from": 3.5,
+   "to": 4.5,
+   "band": "LOW",
+   "ig": true
+  },
+  {
+   "code": "A1",
+   "notch": 5,
+   "category": "A",
+   "from": 4.5,
+   "to": 5.5,
+   "band": "LOW",
+   "ig": true
+  },
+  {
+   "code": "A2",
+   "notch": 6,
+   "category": "A",
+   "from": 5.5,
+   "to": 6.5,
+   "band": "LOW",
+   "ig": true
+  },
+  {
+   "code": "A3",
+   "notch": 7,
+   "category": "A",
+   "from": 6.5,
+   "to": 7.5,
+   "band": "LOW",
+   "ig": true
+  },
+  {
+   "code": "Baa1",
+   "notch": 8,
+   "category": "Baa",
+   "from": 7.5,
+   "to": 8.5,
+   "band": "MODERATE",
+   "ig": true
+  },
+  {
+   "code": "Baa2",
+   "notch": 9,
+   "category": "Baa",
+   "from": 8.5,
+   "to": 9.5,
+   "band": "MODERATE",
+   "ig": true
+  },
+  {
+   "code": "Baa3",
+   "notch": 10,
+   "category": "Baa",
+   "from": 9.5,
+   "to": 10.5,
+   "band": "MODERATE",
+   "ig": true
+  },
+  {
+   "code": "Ba1",
+   "notch": 11,
+   "category": "Ba",
+   "from": 10.5,
+   "to": 11.5,
+   "band": "SUBSTANTIAL",
+   "ig": false
+  },
+  {
+   "code": "Ba2",
+   "notch": 12,
+   "category": "Ba",
+   "from": 11.5,
+   "to": 12.5,
+   "band": "SUBSTANTIAL",
+   "ig": false
+  },
+  {
+   "code": "Ba3",
+   "notch": 13,
+   "category": "Ba",
+   "from": 12.5,
+   "to": 13.5,
+   "band": "SUBSTANTIAL",
+   "ig": false
+  },
+  {
+   "code": "B1",
+   "notch": 14,
+   "category": "B",
+   "from": 13.5,
+   "to": 14.5,
+   "band": "HIGH",
+   "ig": false
+  },
+  {
+   "code": "B2",
+   "notch": 15,
+   "category": "B",
+   "from": 14.5,
+   "to": 15.5,
+   "band": "HIGH",
+   "ig": false
+  },
+  {
+   "code": "B3",
+   "notch": 16,
+   "category": "B",
+   "from": 15.5,
+   "to": 16.5,
+   "band": "HIGH",
+   "ig": false
+  },
+  {
+   "code": "Caa1",
+   "notch": 17,
+   "category": "Caa",
+   "from": 16.5,
+   "to": 17.5,
+   "band": "VERY_HIGH",
+   "ig": false
+  },
+  {
+   "code": "Caa2",
+   "notch": 18,
+   "category": "Caa",
+   "from": 17.5,
+   "to": 18.5,
+   "band": "VERY_HIGH",
+   "ig": false
+  },
+  {
+   "code": "Caa3",
+   "notch": 19,
+   "category": "Caa",
+   "from": 18.5,
+   "to": 19.5,
+   "band": "VERY_HIGH",
+   "ig": false
+  },
+  {
+   "code": "Ca",
+   "notch": 20,
+   "category": "Ca",
+   "from": 19.5,
+   "to": 20.5,
+   "band": "VERY_HIGH",
+   "ig": false
+  },
+  {
+   "code": "C",
+   "notch": 21,
+   "category": "C",
+   "from": null,
+   "to": null,
+   "band": "VERY_HIGH",
+   "ig": false
+  }
+ ],
+ "category_text": {
+  "Aaa": [
+   "أعلى جودة ائتمانية، وأدنى مخاطر",
+   "Highest quality, minimal credit risk"
+  ],
+  "Aa": [
+   "جودة عالية، ومخاطر ائتمانية منخفضة جدًا",
+   "High quality, very low credit risk"
+  ],
+  "A": [
+   "فوق المتوسط، ومخاطر ائتمانية منخفضة",
+   "Upper-medium grade, low credit risk"
+  ],
+  "Baa": [
+   "متوسطة الجودة، ومخاطر معتدلة قد تحمل خصائص مضاربية؛ آخر فئات درجة الاستثمار",
+   "Medium grade, moderate credit risk, may have speculative characteristics"
+  ],
+  "Ba": [
+   "عناصر مضاربية، ومخاطر ائتمانية جوهرية",
+   "Speculative elements, substantial credit risk"
+  ],
+  "B": [
+   "مضاربية، ومخاطر ائتمانية مرتفعة",
+   "Speculative, high credit risk"
+  ],
+  "Caa": [
+   "مركز ضعيف، ومخاطر ائتمانية مرتفعة جدًا",
+   "Poor standing, very high credit risk"
+  ],
+  "Ca": [
+   "مضاربية للغاية، في التعثر أو قريبة منه مع احتمال استرداد",
+   "Highly speculative, likely in or near default, some prospect of recovery"
+  ],
+  "C": [
+   "أدنى درجة، متعثرة عادة مع احتمال استرداد ضئيل؛ لا تبلغها البطاقة بالحساب",
+   "Lowest rated, typically in default, little prospect of recovery; not reached by the scorecard"
+  ]
+ },
+ "band_text": {
+  "LOW": [
+   "منخفضة",
+   "Low"
+  ],
+  "MODERATE": [
+   "معتدلة",
+   "Moderate"
+  ],
+  "SUBSTANTIAL": [
+   "جوهرية",
+   "Substantial"
+  ],
+  "HIGH": [
+   "مرتفعة",
+   "High"
+  ],
+  "VERY_HIGH": [
+   "مرتفعة جدًا",
+   "Very high"
+  ]
+ },
+ "metrics": [
+  {
+   "code": "REVENUE_SIZE",
+   "kind": "QUANTITATIVE",
+   "unit": "AMOUNT",
+   "dir": "HIGHER_BETTER",
+   "ar": "حجم الإيرادات",
+   "en": "Revenue (scale)",
+   "inputs": "REVENUE",
+   "def": "الإيرادات السنوية بعملة البطاقة وبوحدتها (مليون): الإيرادات × معامل التحويل إلى سنة × سعر الصرف ÷ وحدة البطاقة. إيرادات غير موجبة: أسوأ درجة",
+   "s": [
+    "حجم إيرادات داعم: {v} مليون ({g})",
+    "Supportive scale: revenue {v} million ({g})"
+   ],
+   "w": [
+    "حجم إيرادات صغير: {v} مليون ({g})",
+    "Small scale: revenue {v} million ({g})"
+   ]
+  },
+  {
+   "code": "EBITDA_MARGIN",
+   "kind": "QUANTITATIVE",
+   "unit": "PERCENT",
+   "dir": "HIGHER_BETTER",
+   "ar": "هامش EBITDA",
+   "en": "EBITDA margin",
+   "inputs": "OPERATING_PROFIT, DEPR_AMORT, REVENUE",
+   "def": "EBITDA (الربح التشغيلي + الاستهلاك والإطفاء) ÷ الإيرادات × 100. إيرادات غير موجبة: لا يُحسب",
+   "s": [
+    "ربحية تشغيلية قوية: هامش EBITDA {v}% ({g})",
+    "Strong operating profitability: EBITDA margin {v}% ({g})"
+   ],
+   "w": [
+    "ربحية تشغيلية ضعيفة: هامش EBITDA {v}% ({g})",
+    "Weak operating profitability: EBITDA margin {v}% ({g})"
+   ]
+  },
+  {
+   "code": "ROA",
+   "kind": "QUANTITATIVE",
+   "unit": "PERCENT",
+   "dir": "HIGHER_BETTER",
+   "ar": "العائد التشغيلي على الأصول",
+   "en": "Operating return on assets",
+   "inputs": "OPERATING_PROFIT, TOTAL_ASSETS",
+   "def": "الربح التشغيلي السنوي ÷ متوسط إجمالي الأصول في الفترتين (أو أصول نهاية الفترة بلا قائمة مقارنة) × 100",
+   "s": [
+    "عائد تشغيلي جيد على الأصول: {v}% ({g})",
+    "Good operating return on assets: {v}% ({g})"
+   ],
+   "w": [
+    "عائد تشغيلي ضعيف على الأصول: {v}% ({g})",
+    "Weak operating return on assets: {v}% ({g})"
+   ]
+  },
+  {
+   "code": "DEBT_TO_EBITDA",
+   "kind": "QUANTITATIVE",
+   "unit": "RATIO",
+   "dir": "LOWER_BETTER",
+   "ar": "الدين إلى EBITDA",
+   "en": "Debt / EBITDA",
+   "inputs": "ST_LOANS, BANK_ACCEPTANCES, CURRENT_PORTION_LTD, LT_LOANS, LEASE_LIABS, DUE_TO_RELATED, OPERATING_PROFIT, DEPR_AMORT",
+   "def": "إجمالي الدين ÷ EBITDA السنوي. إجمالي الدين = القروض قصيرة الأجل + القبولات البنكية + الجزء المتداول + القروض طويلة الأجل + التزامات الإيجار + المستحق لأطراف ذات علاقة غير المساند (ويدخل فيه التمويل بالمرابحة والتورق والإجارة والصكوك أينما عُرض). لا دين مع EBITDA موجب: أفضل درجة؛ لا دين مع EBITDA غير موجب، أو EBITDA غير موجب مع دين: أسوأ درجة",
+   "s": [
+    "رفع مالي منخفض: الدين {v} مرة من EBITDA ({g})",
+    "Low leverage: debt {v}x EBITDA ({g})"
+   ],
+   "w": [
+    "رفع مالي مرتفع: الدين {v} مرة من EBITDA ({g})",
+    "High leverage: debt {v}x EBITDA ({g})"
+   ]
+  },
+  {
+   "code": "TL_TO_TNW",
+   "kind": "QUANTITATIVE",
+   "unit": "RATIO",
+   "dir": "LOWER_BETTER",
+   "ar": "الخصوم إلى صافي الثروة الملموسة المعدَّلة",
+   "en": "Total liabilities / adjusted tangible net worth",
+   "inputs": "TOTAL_LIABS, SHAREHOLDER_LOANS_SUB, TOTAL_EQUITY, INTANGIBLES, DUE_FROM_RELATED, REVALUATION_RESERVE",
+   "def": "(إجمالي الخصوم − قروض الشركاء المساندة) ÷ صافي الثروة الملموسة المعدَّلة. صافي الثروة الملموسة المعدَّلة = إجمالي حقوق الملكية + قروض الشركاء المساندة − الأصول غير الملموسة − المستحق من أطراف ذات علاقة − احتياطي إعادة التقييم. صافي ثروة غير موجب: أسوأ درجة",
+   "s": [
+    "هيكل رأسمالي متين: الخصوم {v} مرة من صافي الثروة الملموسة ({g})",
+    "Solid capital structure: liabilities {v}x adjusted TNW ({g})"
+   ],
+   "w": [
+    "هيكل رأسمالي مثقل: الخصوم {v} مرة من صافي الثروة الملموسة ({g})",
+    "Stretched capital structure: liabilities {v}x adjusted TNW ({g})"
+   ]
+  },
+  {
+   "code": "EBITDA_TO_INTEREST",
+   "kind": "QUANTITATIVE",
+   "unit": "RATIO",
+   "dir": "HIGHER_BETTER",
+   "ar": "تغطية تكاليف التمويل",
+   "en": "EBITDA / finance costs",
+   "inputs": "OPERATING_PROFIT, DEPR_AMORT, FINANCE_COSTS, INTEREST_PAID",
+   "def": "EBITDA ÷ تكاليف التمويل (الأعلى من المصروف في قائمة الدخل والمدفوع في قائمة التدفقات، فلا تُفلت الأرباح المرسملة). لا تكاليف مع EBITDA موجب: أفضل درجة؛ وإلا مع EBITDA غير موجب: أسوأ درجة",
+   "s": [
+    "تغطية مريحة لتكاليف التمويل: {v} مرة ({g})",
+    "Comfortable interest cover: {v}x ({g})"
+   ],
+   "w": [
+    "تغطية ضعيفة لتكاليف التمويل: {v} مرة ({g})",
+    "Weak interest cover: {v}x ({g})"
+   ]
+  },
+  {
+   "code": "DSCR",
+   "kind": "QUANTITATIVE",
+   "unit": "RATIO",
+   "dir": "HIGHER_BETTER",
+   "ar": "تغطية خدمة الدين",
+   "en": "Debt service coverage",
+   "inputs": "OPERATING_PROFIT, DEPR_AMORT, ZAKAT_TAX, CURRENT_PORTION_LTD (المقارنة), FINANCE_COSTS, INTEREST_PAID",
+   "def": "(EBITDA − الزكاة والضريبة) ÷ (أقساط أصل الدين المجدولة + تكاليف التمويل). الأقساط المجدولة = الجزء المتداول من القروض طويلة الأجل في قائمة المقارنة، وإلا في القائمة نفسها؛ لا أقساط أصل الدين المسددة في قائمة التدفقات، لأنها تشمل تدوير المرابحات قصيرة الأجل. لا خدمة دين مع بسط موجب: أفضل درجة؛ وإلا بسط غير موجب: أسوأ درجة",
+   "s": [
+    "قدرة جيدة على خدمة الدين: {v} مرة ({g})",
+    "Good debt service capacity: {v}x ({g})"
+   ],
+   "w": [
+    "قدرة ضعيفة على خدمة الدين: {v} مرة ({g})",
+    "Weak debt service capacity: {v}x ({g})"
+   ]
+  },
+  {
+   "code": "CFO_TO_DEBT",
+   "kind": "QUANTITATIVE",
+   "unit": "PERCENT",
+   "dir": "HIGHER_BETTER",
+   "ar": "التدفق التشغيلي إلى الدين",
+   "en": "Cash flow from operations / debt",
+   "inputs": "OP_CASH_FLOW (الفترتان), بنود الدين",
+   "def": "صافي التدفق التشغيلي السنوي (متوسط السنتين إن كان للمقارنة قائمة تدفقات) ÷ إجمالي الدين × 100. تُعد قائمة التدفقات مقدَّمة إن كان فيها بند غير صفري، والناقص منها صفر؛ لا دين مع تدفق غير سالب: أفضل درجة، ومع تدفق سالب: أسوأ درجة",
+   "s": [
+    "تدفق تشغيلي قوي مقابل الدين: {v}% ({g})",
+    "Strong operating cash flow against debt: {v}% ({g})"
+   ],
+   "w": [
+    "تدفق تشغيلي ضعيف مقابل الدين: {v}% ({g})",
+    "Weak operating cash flow against debt: {v}% ({g})"
+   ]
+  },
+  {
+   "code": "CURRENT_RATIO",
+   "kind": "QUANTITATIVE",
+   "unit": "RATIO",
+   "dir": "HIGHER_BETTER",
+   "ar": "نسبة التداول",
+   "en": "Current ratio",
+   "inputs": "TOTAL_CA, TOTAL_CL",
+   "def": "إجمالي الأصول المتداولة ÷ إجمالي الخصوم المتداولة. لا خصوم متداولة: أفضل درجة",
+   "s": [
+    "سيولة جيدة: نسبة التداول {v} ({g})",
+    "Good liquidity: current ratio {v} ({g})"
+   ],
+   "w": [
+    "سيولة ضعيفة: نسبة التداول {v} ({g})",
+    "Weak liquidity: current ratio {v} ({g})"
+   ]
+  },
+  {
+   "code": "CASH_CYCLE",
+   "kind": "QUANTITATIVE",
+   "unit": "DAYS",
+   "dir": "LOWER_BETTER",
+   "ar": "دورة التحويل النقدي",
+   "en": "Cash conversion cycle",
+   "inputs": "AR, CONTRACT_ASSETS, INVENTORY, AP, REVENUE, COGS",
+   "def": "أيام التحصيل + أيام المخزون − أيام السداد. أيام التحصيل = (الذمم المدينة + أصول العقود والمحتجزات) ÷ الإيرادات × 365؛ والمخزون والسداد على تكلفة المبيعات. إيرادات أو تكلفة غير موجبة: لا يُحسب",
+   "s": [
+    "دورة نقدية قصيرة: {v} يومًا ({g})",
+    "Short cash conversion cycle: {v} days ({g})"
+   ],
+   "w": [
+    "دورة نقدية طويلة: {v} يومًا ({g})",
+    "Long cash conversion cycle: {v} days ({g})"
+   ]
+  },
+  {
+   "code": "BUSINESS_PROFILE",
+   "kind": "QUALITATIVE",
+   "unit": "GRADE",
+   "dir": "NONE",
+   "ar": "المركز السوقي وملف الأعمال",
+   "en": "Business profile and market position",
+   "inputs": "تقدير المحلل",
+   "def": "تقدير المحلل بدرجة من السلّم، بمبرّر مكتوب: مكانة الشركة في سوقها، وتنوّع منتجاتها وعملائها ومورديها وأسواقها، واستقرار الطلب ومخاطر القطاع، والاعتماد على عميل أو عقد واحد",
+   "s": [
+    "ملف أعمال قوي بتقدير المحلل ({g})",
+    "Strong business profile in the analyst's view ({g})"
+   ],
+   "w": [
+    "ملف أعمال ضعيف بتقدير المحلل ({g})",
+    "Weak business profile in the analyst's view ({g})"
+   ]
+  },
+  {
+   "code": "FINANCIAL_POLICY",
+   "kind": "QUALITATIVE",
+   "unit": "GRADE",
+   "dir": "NONE",
+   "ar": "السياسة المالية والحوكمة",
+   "en": "Financial policy and governance",
+   "inputs": "تقدير المحلل",
+   "def": "تقدير المحلل بدرجة من السلّم، بمبرّر مكتوب: سياسة التوزيعات والاستحواذات والرفع المستهدف، وجودة الحوكمة والإفصاح وتوقيت القوائم، وتعاملات الأطراف ذات العلاقة، وسجل الالتزام مع البنوك",
+   "s": [
+    "سياسة مالية متحفظة وحوكمة جيدة بتقدير المحلل ({g})",
+    "Conservative financial policy and good governance in the analyst's view ({g})"
+   ],
+   "w": [
+    "سياسة مالية أو حوكمة ضعيفة بتقدير المحلل ({g})",
+    "Weak financial policy or governance in the analyst's view ({g})"
+   ]
+  },
+  {
+   "code": "CASH_TO_ST_DEBT",
+   "kind": "QUANTITATIVE",
+   "unit": "RATIO",
+   "dir": "HIGHER_BETTER",
+   "ar": "تغطية النقد للدين قصير الأجل",
+   "en": "Cash / short-term debt",
+   "inputs": "CASH, ST_LOANS, BANK_ACCEPTANCES, CURRENT_PORTION_LTD",
+   "def": "النقد ÷ (القروض قصيرة الأجل + القبولات البنكية + الجزء المتداول). لا دين قصير الأجل: منخفضة",
+   "s": [
+    "النقد يغطي الدين قصير الأجل: {v} مرة",
+    "Cash covers short-term debt: {v}x"
+   ],
+   "w": [
+    "تغطية النقد للدين قصير الأجل {v} مرة",
+    "Cash covers short-term debt {v}x"
+   ]
+  },
+  {
+   "code": "DSO",
+   "kind": "QUANTITATIVE",
+   "unit": "DAYS",
+   "dir": "LOWER_BETTER",
+   "ar": "أيام تحصيل الذمم المدينة",
+   "en": "Days sales outstanding",
+   "inputs": "AR, CONTRACT_ASSETS, REVENUE",
+   "def": "(الذمم المدينة + أصول العقود والمحتجزات) ÷ الإيرادات السنوية × 365. إيرادات غير موجبة: لا يُحسب",
+   "s": [
+    "تحصيل سريع للذمم المدينة: {v} يومًا",
+    "Fast collection of receivables: {v} days"
+   ],
+   "w": [
+    "تحصيل الذمم المدينة يستغرق {v} يومًا",
+    "Receivables take {v} days to collect"
+   ]
+  },
+  {
+   "code": "DIO",
+   "kind": "QUANTITATIVE",
+   "unit": "DAYS",
+   "dir": "LOWER_BETTER",
+   "ar": "أيام المخزون",
+   "en": "Days inventory outstanding",
+   "inputs": "INVENTORY, COGS",
+   "def": "المخزون ÷ تكلفة المبيعات السنوية × 365. تكلفة مبيعات غير موجبة: لا يُحسب",
+   "s": [
+    "دوران سريع للمخزون: {v} يومًا",
+    "Fast inventory turnover: {v} days"
+   ],
+   "w": [
+    "المخزون يكفي {v} يومًا من تكلفة المبيعات",
+    "Inventory holds {v} days of cost of sales"
+   ]
+  },
+  {
+   "code": "DPO",
+   "kind": "QUANTITATIVE",
+   "unit": "DAYS",
+   "dir": "LOWER_BETTER",
+   "ar": "أيام سداد الذمم الدائنة",
+   "en": "Days payables outstanding",
+   "inputs": "AP, COGS",
+   "def": "الذمم الدائنة ÷ تكلفة المبيعات السنوية × 365. الأيام الطويلة تدل على تأخر السداد للموردين",
+   "s": [
+    "سداد منتظم للموردين: {v} يومًا",
+    "Suppliers paid on time: {v} days"
+   ],
+   "w": [
+    "سداد الموردين يستغرق {v} يومًا",
+    "Suppliers are paid in {v} days"
+   ]
+  },
+  {
+   "code": "RELATED_TO_TNW",
+   "kind": "QUANTITATIVE",
+   "unit": "PERCENT",
+   "dir": "LOWER_BETTER",
+   "ar": "المستحق من الأطراف ذات العلاقة إلى حقوق الملكية الملموسة",
+   "en": "Due from related parties / tangible equity",
+   "inputs": "DUE_FROM_RELATED, TOTAL_EQUITY, SHAREHOLDER_LOANS_SUB, INTANGIBLES",
+   "def": "المستحق من أطراف ذات علاقة ÷ (إجمالي حقوق الملكية + قروض الشركاء المساندة − الأصول غير الملموسة) × 100. أساس غير موجب مع مستحق: حرجة",
+   "s": [
+    "لا مستحقات جوهرية من الأطراف ذات العلاقة: {v}%",
+    "No material amounts due from related parties: {v}%"
+   ],
+   "w": [
+    "المستحق من الأطراف ذات العلاقة {v}% من حقوق الملكية الملموسة",
+    "Amounts due from related parties are {v}% of tangible equity"
+   ]
+  },
+  {
+   "code": "INTANGIBLES_TO_EQUITY",
+   "kind": "QUANTITATIVE",
+   "unit": "PERCENT",
+   "dir": "LOWER_BETTER",
+   "ar": "الأصول غير الملموسة إلى حقوق الملكية",
+   "en": "Intangible assets / equity",
+   "inputs": "INTANGIBLES, TOTAL_EQUITY, SHAREHOLDER_LOANS_SUB",
+   "def": "الأصول غير الملموسة (ومنها الشهرة) ÷ (إجمالي حقوق الملكية + قروض الشركاء المساندة) × 100. أساس غير موجب مع أصول غير ملموسة: حرجة",
+   "s": [
+    "حقوق الملكية ملموسة في معظمها: غير الملموس {v}%",
+    "Equity is mostly tangible: intangibles {v}%"
+   ],
+   "w": [
+    "الأصول غير الملموسة {v}% من حقوق الملكية",
+    "Intangible assets are {v}% of equity"
+   ]
+  },
+  {
+   "code": "NWC_TO_ASSETS",
+   "kind": "QUANTITATIVE",
+   "unit": "PERCENT",
+   "dir": "HIGHER_BETTER",
+   "ar": "رأس المال العامل إلى إجمالي الأصول",
+   "en": "Net working capital / total assets",
+   "inputs": "TOTAL_CA, TOTAL_CL, TOTAL_ASSETS",
+   "def": "(الأصول المتداولة − الخصوم المتداولة) ÷ إجمالي الأصول × 100. السالب يدل على تمويل أصول طويلة بخصوم قصيرة",
+   "s": [
+    "رأس مال عامل موجب ومريح: {v}% من الأصول",
+    "Comfortable positive working capital: {v}% of assets"
+   ],
+   "w": [
+    "رأس المال العامل {v}% من الأصول",
+    "Net working capital is {v}% of assets"
+   ]
+  },
+  {
+   "code": "ST_DEBT_SHARE",
+   "kind": "QUANTITATIVE",
+   "unit": "PERCENT",
+   "dir": "LOWER_BETTER",
+   "ar": "حصة الدين قصير الأجل",
+   "en": "Short-term share of debt",
+   "inputs": "ST_LOANS, BANK_ACCEPTANCES, CURRENT_PORTION_LTD, بنود الدين",
+   "def": "(القروض قصيرة الأجل + القبولات البنكية + الجزء المتداول) ÷ إجمالي الدين × 100: مخاطر إعادة التمويل خلال سنة. لا دين: منخفضة",
+   "s": [
+    "دين متوازن الآجال: قصير الأجل {v}%",
+    "Balanced debt maturities: short-term {v}%"
+   ],
+   "w": [
+    "الدين قصير الأجل {v}% من إجمالي الدين",
+    "Short-term debt is {v}% of total debt"
+   ]
+  },
+  {
+   "code": "CFO_TO_CPLTD",
+   "kind": "QUANTITATIVE",
+   "unit": "RATIO",
+   "dir": "HIGHER_BETTER",
+   "ar": "تغطية التدفق التشغيلي لأقساط السنة القادمة",
+   "en": "CFO / current portion of long-term debt",
+   "inputs": "OP_CASH_FLOW, CURRENT_PORTION_LTD",
+   "def": "صافي التدفق التشغيلي السنوي ÷ الجزء المتداول من القروض طويلة الأجل. يلزم قائمة تدفقات؛ لا أقساط مستحقة: منخفضة",
+   "s": [
+    "التدفق التشغيلي يغطي أقساط السنة القادمة {v} مرة",
+    "Operating cash flow covers next year's instalments {v}x"
+   ],
+   "w": [
+    "التدفق التشغيلي يغطي أقساط السنة القادمة {v} مرة فقط",
+    "Operating cash flow covers next year's instalments only {v}x"
+   ]
+  },
+  {
+   "code": "ACC_LOSS_TO_CAPITAL",
+   "kind": "QUANTITATIVE",
+   "unit": "PERCENT",
+   "dir": "LOWER_BETTER",
+   "ar": "الخسائر المتراكمة إلى رأس المال",
+   "en": "Accumulated losses / share capital",
+   "inputs": "RETAINED_EARNINGS, SHARE_CAPITAL",
+   "def": "الأرباح المبقاة السالبة (بالقيمة المطلقة) ÷ رأس المال × 100. أرباح مبقاة غير سالبة: منخفضة. بلوغ النصف يستوجب إجراءات نظام الشركات",
+   "s": [
+    "لا خسائر متراكمة",
+    "No accumulated losses"
+   ],
+   "w": [
+    "الخسائر المتراكمة {v}% من رأس المال",
+    "Accumulated losses are {v}% of share capital"
+   ]
+  },
+  {
+   "code": "EQUITY_RATIO",
+   "kind": "QUANTITATIVE",
+   "unit": "PERCENT",
+   "dir": "HIGHER_BETTER",
+   "ar": "نسبة حقوق الملكية وشبهها إلى الأصول",
+   "en": "Equity and quasi-equity / total assets",
+   "inputs": "TOTAL_EQUITY, SHAREHOLDER_LOANS_SUB, TOTAL_ASSETS",
+   "def": "(إجمالي حقوق الملكية + قروض الشركاء المساندة) ÷ إجمالي الأصول × 100",
+   "s": [
+    "تمويل ذاتي قوي: حقوق الملكية {v}% من الأصول",
+    "Strong self-funding: equity {v}% of assets"
+   ],
+   "w": [
+    "حقوق الملكية {v}% من الأصول",
+    "Equity is {v}% of assets"
+   ]
+  },
+  {
+   "code": "REVENUE_GROWTH",
+   "kind": "QUANTITATIVE",
+   "unit": "PERCENT",
+   "dir": "HIGHER_BETTER",
+   "ar": "نمو الإيرادات",
+   "en": "Revenue growth",
+   "inputs": "REVENUE (الفترتان)",
+   "def": "(الإيرادات − إيرادات الفترة المقارنة) ÷ إيرادات الفترة المقارنة × 100، بعد التحويل إلى سنة. تلزم قائمة مقارنة",
+   "s": [
+    "نمو في الإيرادات: {v}%",
+    "Revenue growth: {v}%"
+   ],
+   "w": [
+    "تغيّر الإيرادات {v}%",
+    "Revenue changed by {v}%"
+   ]
+  },
+  {
+   "code": "GROSS_MARGIN_CHANGE",
+   "kind": "QUANTITATIVE",
+   "unit": "PERCENT",
+   "dir": "HIGHER_BETTER",
+   "ar": "تغيّر هامش مجمل الربح",
+   "en": "Change in gross margin",
+   "inputs": "GROSS_PROFIT, REVENUE (الفترتان)",
+   "def": "هامش مجمل الربح ناقص هامشه في الفترة المقارنة، بالنقاط المئوية. تلزم قائمة مقارنة",
+   "s": [
+    "تحسّن هامش مجمل الربح {v} نقطة",
+    "Gross margin improved by {v} points"
+   ],
+   "w": [
+    "تغيّر هامش مجمل الربح {v} نقطة",
+    "Gross margin changed by {v} points"
+   ]
+  },
+  {
+   "code": "NET_MARGIN",
+   "kind": "QUANTITATIVE",
+   "unit": "PERCENT",
+   "dir": "HIGHER_BETTER",
+   "ar": "هامش صافي الربح",
+   "en": "Net profit margin",
+   "inputs": "NET_PROFIT, REVENUE",
+   "def": "صافي الربح ÷ الإيرادات × 100",
+   "s": [
+    "هامش صافي ربح جيد: {v}%",
+    "Good net margin: {v}%"
+   ],
+   "w": [
+    "هامش صافي الربح {v}%",
+    "Net margin is {v}%"
+   ]
+  },
+  {
+   "code": "CFO_TO_EBITDA",
+   "kind": "QUANTITATIVE",
+   "unit": "PERCENT",
+   "dir": "HIGHER_BETTER",
+   "ar": "تحويل الأرباح إلى نقد",
+   "en": "Cash conversion of EBITDA",
+   "inputs": "OP_CASH_FLOW, OPERATING_PROFIT, DEPR_AMORT",
+   "def": "صافي التدفق التشغيلي ÷ EBITDA × 100: جودة الأرباح. يلزم قائمة تدفقات؛ EBITDA غير موجب مع تدفق سالب: حرجة",
+   "s": [
+    "أرباح تتحول إلى نقد: {v}% من EBITDA",
+    "Earnings convert to cash: {v}% of EBITDA"
+   ],
+   "w": [
+    "التدفق التشغيلي {v}% من EBITDA",
+    "Operating cash flow is {v}% of EBITDA"
+   ]
+  },
+  {
+   "code": "PAYOUT_RATIO",
+   "kind": "QUANTITATIVE",
+   "unit": "PERCENT",
+   "dir": "LOWER_BETTER",
+   "ar": "نسبة توزيع الأرباح",
+   "en": "Dividend payout",
+   "inputs": "DIVIDENDS, NET_PROFIT",
+   "def": "التوزيعات ÷ صافي الربح × 100. لا توزيعات مع ربح: منخفضة؛ لا توزيعات ولا ربح: لا يُقيَّم؛ توزيعات مع ربح غير موجب: حرجة",
+   "s": [
+    "توزيعات متحفظة: {v}% من الربح",
+    "Conservative dividends: {v}% of profit"
+   ],
+   "w": [
+    "التوزيعات {v}% من صافي الربح",
+    "Dividends are {v}% of net profit"
+   ]
+  },
+  {
+   "code": "CONTINGENT_TO_TNW",
+   "kind": "QUANTITATIVE",
+   "unit": "RATIO",
+   "dir": "LOWER_BETTER",
+   "ar": "الالتزامات المحتملة إلى صافي الثروة الملموسة المعدَّلة",
+   "en": "Contingent liabilities / adjusted TNW",
+   "inputs": "LC_OUTSTANDING, LG_PERFORMANCE, LG_FINANCIAL, GUARANTEES_GIVEN, صافي الثروة الملموسة المعدَّلة",
+   "def": "(الاعتمادات المستندية القائمة + خطابات الضمان الحسنة التنفيذ + خطابات الضمان المالية + الكفالات المقدَّمة للغير) ÷ صافي الثروة الملموسة المعدَّلة، بالقيمة الإجمالية. صافي الثروة الملموسة المعدَّلة = إجمالي حقوق الملكية + قروض الشركاء المساندة − الأصول غير الملموسة − المستحق من أطراف ذات علاقة − احتياطي إعادة التقييم. صافي ثروة غير موجب مع التزامات: أسوأ درجة",
+   "s": [
+    "التزامات محتملة محدودة: {v} مرة من صافي الثروة ({g})",
+    "Limited contingent liabilities: {v}x net worth ({g})"
+   ],
+   "w": [
+    "الالتزامات المحتملة {v} مرة من صافي الثروة الملموسة ({g})",
+    "Contingent liabilities are {v}x tangible net worth ({g})"
+   ]
+  },
+  {
+   "code": "ST_DEBT_TO_TRADE_ASSETS",
+   "kind": "QUANTITATIVE",
+   "unit": "PERCENT",
+   "dir": "LOWER_BETTER",
+   "ar": "تمويل التجارة قصير الأجل إلى الذمم والمخزون",
+   "en": "Short-term trade finance / receivables and inventory",
+   "inputs": "ST_LOANS, BANK_ACCEPTANCES, AR, INVENTORY",
+   "def": "(القروض قصيرة الأجل + القبولات البنكية) ÷ (الذمم المدينة + المخزون) × 100: هل تغطي الأصول ذاتية التسييل خطوط التجارة. لا أصول تجارية مع دين: حرجة",
+   "s": [
+    "خطوط التجارة مغطاة بالذمم والمخزون: {v}%",
+    "Trade lines covered by receivables and inventory: {v}%"
+   ],
+   "w": [
+    "خطوط التجارة {v}% من الذمم والمخزون",
+    "Trade lines are {v}% of receivables and inventory"
+   ]
+  },
+  {
+   "code": "EOSB_TO_TNW",
+   "kind": "QUANTITATIVE",
+   "unit": "PERCENT",
+   "dir": "LOWER_BETTER",
+   "ar": "مكافأة نهاية الخدمة إلى صافي الثروة الملموسة",
+   "en": "End-of-service benefits / adjusted TNW",
+   "inputs": "EOSB, صافي الثروة الملموسة المعدَّلة",
+   "def": "مخصص مكافأة نهاية الخدمة غير الممول ÷ صافي الثروة الملموسة المعدَّلة × 100: التزام شبيه بالدين. صافي ثروة غير موجب مع مخصص: حرجة",
+   "s": [
+    "مخصص نهاية الخدمة محدود: {v}%",
+    "Limited end-of-service provision: {v}%"
+   ],
+   "w": [
+    "مخصص نهاية الخدمة {v}% من صافي الثروة الملموسة",
+    "End-of-service provision is {v}% of tangible net worth"
+   ]
+  },
+  {
+   "code": "ZAKAT_DISPUTED_TO_TNW",
+   "kind": "QUANTITATIVE",
+   "unit": "PERCENT",
+   "dir": "LOWER_BETTER",
+   "ar": "الزكاة المستحقة والمتنازع عليها إلى صافي الثروة",
+   "en": "Zakat payable and disputed / adjusted TNW",
+   "inputs": "ZAKAT_DISPUTED, صافي الثروة الملموسة المعدَّلة",
+   "def": "ربوط الزكاة والضريبة المتنازع عليها وغير المخصصة ÷ صافي الثروة الملموسة المعدَّلة × 100. صافي ثروة غير موجب مع ربوط: حرجة",
+   "s": [
+    "لا ربوط زكوية جوهرية متنازع عليها: {v}%",
+    "No material disputed zakat assessments: {v}%"
+   ],
+   "w": [
+    "ربوط الزكاة المتنازع عليها {v}% من صافي الثروة الملموسة",
+    "Disputed zakat assessments are {v}% of tangible net worth"
+   ]
+  },
+  {
+   "code": "DUE_TO_RELATED_TO_TNW",
+   "kind": "QUANTITATIVE",
+   "unit": "PERCENT",
+   "dir": "LOWER_BETTER",
+   "ar": "المستحق لأطراف ذات علاقة إلى صافي الثروة",
+   "en": "Due to related parties / adjusted TNW",
+   "inputs": "DUE_TO_RELATED, صافي الثروة الملموسة المعدَّلة",
+   "def": "المستحق لأطراف ذات علاقة غير المساند ÷ صافي الثروة الملموسة المعدَّلة × 100: تمويل قد يُسحب قبل البنوك. صافي ثروة غير موجب مع مستحق: حرجة",
+   "s": [
+    "اعتماد محدود على تمويل الأطراف ذات العلاقة: {v}%",
+    "Limited reliance on related-party funding: {v}%"
+   ],
+   "w": [
+    "المستحق لأطراف ذات علاقة {v}% من صافي الثروة الملموسة",
+    "Due to related parties is {v}% of tangible net worth"
+   ]
+  },
+  {
+   "code": "OTHER_CA_SHARE",
+   "kind": "QUANTITATIVE",
+   "unit": "PERCENT",
+   "dir": "LOWER_BETTER",
+   "ar": "الأصول المتداولة الأخرى إلى الأصول المتداولة",
+   "en": "Other current assets / current assets",
+   "inputs": "OTHER_CA, TOTAL_CA",
+   "def": "الأصول المتداولة الأخرى ÷ إجمالي الأصول المتداولة × 100: قد تخفي دفعات مقدمة لأطراف ذات علاقة. لا أصول متداولة: لا يُحسب",
+   "s": [
+    "الأصول المتداولة مفصّلة: الأخرى {v}%",
+    "Current assets well itemised: other {v}%"
+   ],
+   "w": [
+    "الأصول المتداولة الأخرى {v}% من المتداولة",
+    "Other current assets are {v}% of current assets"
+   ]
+  },
+  {
+   "code": "CONTRACT_ASSETS_TO_REVENUE",
+   "kind": "QUANTITATIVE",
+   "unit": "PERCENT",
+   "dir": "LOWER_BETTER",
+   "ar": "أصول العقود والمحتجزات إلى الإيرادات",
+   "en": "Contract assets and retentions / revenue",
+   "inputs": "CONTRACT_ASSETS, REVENUE",
+   "def": "أصول العقود (أعمال منجزة غير مفوترة) والمحتجزات ÷ الإيرادات السنوية × 100. إيرادات غير موجبة: لا يُحسب",
+   "s": [
+    "أصول عقود محدودة: {v}% من الإيرادات",
+    "Limited contract assets: {v}% of revenue"
+   ],
+   "w": [
+    "أصول العقود والمحتجزات {v}% من الإيرادات",
+    "Contract assets and retentions are {v}% of revenue"
+   ]
+  },
+  {
+   "code": "GUARANTEES_TO_TNW",
+   "kind": "QUANTITATIVE",
+   "unit": "PERCENT",
+   "dir": "LOWER_BETTER",
+   "ar": "الكفالات المقدَّمة للغير إلى صافي الثروة",
+   "en": "Guarantees given / adjusted TNW",
+   "inputs": "GUARANTEES_GIVEN, صافي الثروة الملموسة المعدَّلة",
+   "def": "الكفالات والضمانات المقدَّمة لالتزامات أطراف أخرى (غالبًا ذات علاقة) ÷ صافي الثروة الملموسة المعدَّلة × 100. صافي ثروة غير موجب مع كفالات: حرجة",
+   "s": [
+    "لا كفالات جوهرية للغير: {v}%",
+    "No material guarantees given: {v}%"
+   ],
+   "w": [
+    "الكفالات المقدَّمة للغير {v}% من صافي الثروة الملموسة",
+    "Guarantees given are {v}% of tangible net worth"
+   ]
+  }
+ ],
+ "scorecards": [
+  {
+   "code": "GENERAL_CORPORATE",
+   "version": 1,
+   "ar": "الشركات العامة: الصناعة والخدمات",
+   "en": "General corporates: industry and services",
+   "sector": "الشركات الصناعية والخدمية وما لا يندرج في القطاعين الآخرين؛ البطاقة الافتراضية",
+   "currency": "SAR",
+   "amount_unit": 1000000,
+   "min_coverage": 85,
+   "metrics": [
+    {
+     "m": "REVENUE_SIZE",
+     "f": "SCALE",
+     "w": 15,
+     "b": [
+      150000,
+      75000,
+      30000,
+      10000,
+      3000,
+      750,
+      100,
+      20,
+      2
+     ]
+    },
+    {
+     "m": "EBITDA_MARGIN",
+     "f": "PROFITABILITY",
+     "w": 7.5,
+     "b": [
+      45,
+      30,
+      22,
+      15,
+      10,
+      6,
+      3,
+      0,
+      -10
+     ]
+    },
+    {
+     "m": "ROA",
+     "f": "PROFITABILITY",
+     "w": 2.5,
+     "b": [
+      20,
+      12,
+      8,
+      5,
+      3,
+      1.5,
+      0,
+      -3,
+      -10
+     ]
+    },
+    {
+     "m": "DEBT_TO_EBITDA",
+     "f": "LEVERAGE",
+     "w": 12.5,
+     "b": [
+      0,
+      0.5,
+      1.5,
+      2.5,
+      3.5,
+      4.5,
+      6,
+      8,
+      12
+     ]
+    },
+    {
+     "m": "TL_TO_TNW",
+     "f": "LEVERAGE",
+     "w": 10,
+     "b": [
+      0,
+      0.25,
+      0.6,
+      1,
+      1.75,
+      2.75,
+      4,
+      6,
+      10
+     ]
+    },
+    {
+     "m": "EBITDA_TO_INTEREST",
+     "f": "COVERAGE",
+     "w": 5,
+     "b": [
+      40,
+      20,
+      12,
+      7,
+      4,
+      2.5,
+      1.5,
+      1,
+      0
+     ]
+    },
+    {
+     "m": "DSCR",
+     "f": "COVERAGE",
+     "w": 7.5,
+     "b": [
+      6,
+      4,
+      2.75,
+      2,
+      1.5,
+      1.25,
+      1,
+      0.8,
+      0
+     ]
+    },
+    {
+     "m": "CFO_TO_DEBT",
+     "f": "CASH_FLOW",
+     "w": 7.5,
+     "b": [
+      150,
+      80,
+      50,
+      35,
+      20,
+      10,
+      5,
+      0,
+      -20
+     ]
+    },
+    {
+     "m": "CURRENT_RATIO",
+     "f": "LIQUIDITY",
+     "w": 2.5,
+     "b": [
+      4,
+      3,
+      2.2,
+      1.6,
+      1.25,
+      1,
+      0.8,
+      0.6,
+      0.3
+     ]
+    },
+    {
+     "m": "CASH_CYCLE",
+     "f": "LIQUIDITY",
+     "w": 5,
+     "b": [
+      -30,
+      0,
+      30,
+      60,
+      90,
+      120,
+      180,
+      270,
+      365
+     ]
+    },
+    {
+     "m": "BUSINESS_PROFILE",
+     "f": "QUALITATIVE",
+     "w": 15
+    },
+    {
+     "m": "FINANCIAL_POLICY",
+     "f": "QUALITATIVE",
+     "w": 10
+    }
+   ],
+   "items": [
+    {
+     "r": "CASH_TO_ST_DEBT",
+     "line": "CASH",
+     "t": [
+      0.75,
+      0.4,
+      0.2,
+      0.1
+     ],
+     "strength": true
+    },
+    {
+     "r": "DSO",
+     "line": "AR",
+     "t": [
+      60,
+      90,
+      120,
+      180
+     ],
+     "strength": true
+    },
+    {
+     "r": "DIO",
+     "line": "INVENTORY",
+     "t": [
+      60,
+      90,
+      150,
+      240
+     ],
+     "strength": true
+    },
+    {
+     "r": "DPO",
+     "line": "AP",
+     "t": [
+      60,
+      90,
+      120,
+      180
+     ],
+     "strength": false
+    },
+    {
+     "r": "RELATED_TO_TNW",
+     "line": "DUE_FROM_RELATED",
+     "t": [
+      5,
+      15,
+      30,
+      50
+     ],
+     "strength": true
+    },
+    {
+     "r": "INTANGIBLES_TO_EQUITY",
+     "line": "INTANGIBLES",
+     "t": [
+      10,
+      25,
+      50,
+      75
+     ],
+     "strength": false
+    },
+    {
+     "r": "NWC_TO_ASSETS",
+     "line": "TOTAL_CA",
+     "t": [
+      15,
+      5,
+      0,
+      -10
+     ],
+     "strength": true
+    },
+    {
+     "r": "ST_DEBT_SHARE",
+     "line": "ST_LOANS",
+     "t": [
+      40,
+      60,
+      80,
+      95
+     ],
+     "strength": true
+    },
+    {
+     "r": "CFO_TO_CPLTD",
+     "line": "CURRENT_PORTION_LTD",
+     "t": [
+      2,
+      1.25,
+      1,
+      0.5
+     ],
+     "strength": true
+    },
+    {
+     "r": "ACC_LOSS_TO_CAPITAL",
+     "line": "RETAINED_EARNINGS",
+     "t": [
+      0,
+      20,
+      35,
+      50
+     ],
+     "strength": false
+    },
+    {
+     "r": "EQUITY_RATIO",
+     "line": "TOTAL_EQUITY",
+     "t": [
+      50,
+      35,
+      20,
+      10
+     ],
+     "strength": true
+    },
+    {
+     "r": "REVENUE_GROWTH",
+     "line": "REVENUE",
+     "t": [
+      5,
+      0,
+      -10,
+      -25
+     ],
+     "strength": true
+    },
+    {
+     "r": "GROSS_MARGIN_CHANGE",
+     "line": "GROSS_PROFIT",
+     "t": [
+      0,
+      -2,
+      -5,
+      -10
+     ],
+     "strength": false
+    },
+    {
+     "r": "NET_MARGIN",
+     "line": "NET_PROFIT",
+     "t": [
+      10,
+      5,
+      2,
+      0
+     ],
+     "strength": true
+    },
+    {
+     "r": "CFO_TO_EBITDA",
+     "line": "OP_CASH_FLOW",
+     "t": [
+      80,
+      60,
+      40,
+      0
+     ],
+     "strength": true
+    },
+    {
+     "r": "PAYOUT_RATIO",
+     "line": "DIVIDENDS",
+     "t": [
+      30,
+      50,
+      75,
+      100
+     ],
+     "strength": true
+    },
+    {
+     "r": "CONTINGENT_TO_TNW",
+     "line": "LG_PERFORMANCE",
+     "t": [
+      0.5,
+      1,
+      2,
+      3
+     ],
+     "strength": false
+    },
+    {
+     "r": "EOSB_TO_TNW",
+     "line": "EOSB",
+     "t": [
+      10,
+      20,
+      35,
+      50
+     ],
+     "strength": false
+    },
+    {
+     "r": "ZAKAT_DISPUTED_TO_TNW",
+     "line": "ZAKAT_DISPUTED",
+     "t": [
+      2,
+      5,
+      10,
+      20
+     ],
+     "strength": false
+    },
+    {
+     "r": "DUE_TO_RELATED_TO_TNW",
+     "line": "DUE_TO_RELATED",
+     "t": [
+      10,
+      25,
+      50,
+      100
+     ],
+     "strength": false
+    },
+    {
+     "r": "OTHER_CA_SHARE",
+     "line": "OTHER_CA",
+     "t": [
+      15,
+      25,
+      40,
+      60
+     ],
+     "strength": false
+    },
+    {
+     "r": "CONTRACT_ASSETS_TO_REVENUE",
+     "line": "CONTRACT_ASSETS",
+     "t": [
+      15,
+      25,
+      40,
+      60
+     ],
+     "strength": false
+    },
+    {
+     "r": "GUARANTEES_TO_TNW",
+     "line": "GUARANTEES_GIVEN",
+     "t": [
+      25,
+      50,
+      100,
+      150
+     ],
+     "strength": false
+    }
+   ],
+   "extra_adjustments": []
+  },
+  {
+   "code": "TRADING_DISTRIBUTION",
+   "version": 1,
+   "ar": "التجارة والتوزيع",
+   "en": "Trading and distribution",
+   "sector": "تجارة الجملة والتجزئة والتوزيع: هوامش أدنى ودورة أقصر واعتماد أكبر على تمويل التجارة قصير الأجل",
+   "currency": "SAR",
+   "amount_unit": 1000000,
+   "min_coverage": 85,
+   "metrics": [
+    {
+     "m": "REVENUE_SIZE",
+     "f": "SCALE",
+     "w": 15,
+     "b": [
+      300000,
+      150000,
+      60000,
+      20000,
+      6000,
+      1500,
+      250,
+      50,
+      5
+     ]
+    },
+    {
+     "m": "EBITDA_MARGIN",
+     "f": "PROFITABILITY",
+     "w": 5,
+     "b": [
+      20,
+      12,
+      8,
+      6,
+      4,
+      2.5,
+      1.5,
+      0,
+      -5
+     ]
+    },
+    {
+     "m": "ROA",
+     "f": "PROFITABILITY",
+     "w": 5,
+     "b": [
+      15,
+      10,
+      7,
+      5,
+      3,
+      1.5,
+      0,
+      -3,
+      -10
+     ]
+    },
+    {
+     "m": "DEBT_TO_EBITDA",
+     "f": "LEVERAGE",
+     "w": 10,
+     "b": [
+      0,
+      0.75,
+      2,
+      3.25,
+      4.5,
+      5.75,
+      7.5,
+      10,
+      14
+     ]
+    },
+    {
+     "m": "TL_TO_TNW",
+     "f": "LEVERAGE",
+     "w": 12.5,
+     "b": [
+      0,
+      0.4,
+      0.8,
+      1.3,
+      2,
+      3,
+      4.5,
+      6.5,
+      10
+     ]
+    },
+    {
+     "m": "EBITDA_TO_INTEREST",
+     "f": "COVERAGE",
+     "w": 5,
+     "b": [
+      40,
+      20,
+      12,
+      7,
+      4,
+      2.5,
+      1.5,
+      1,
+      0
+     ]
+    },
+    {
+     "m": "DSCR",
+     "f": "COVERAGE",
+     "w": 7.5,
+     "b": [
+      6,
+      4,
+      2.75,
+      2,
+      1.5,
+      1.25,
+      1,
+      0.8,
+      0
+     ]
+    },
+    {
+     "m": "CFO_TO_DEBT",
+     "f": "CASH_FLOW",
+     "w": 7.5,
+     "b": [
+      150,
+      80,
+      50,
+      35,
+      20,
+      10,
+      5,
+      0,
+      -20
+     ]
+    },
+    {
+     "m": "CURRENT_RATIO",
+     "f": "LIQUIDITY",
+     "w": 2.5,
+     "b": [
+      3,
+      2.4,
+      1.9,
+      1.5,
+      1.25,
+      1.05,
+      0.9,
+      0.75,
+      0.5
+     ]
+    },
+    {
+     "m": "CASH_CYCLE",
+     "f": "LIQUIDITY",
+     "w": 5,
+     "b": [
+      -30,
+      0,
+      20,
+      45,
+      70,
+      100,
+      140,
+      200,
+      300
+     ]
+    },
+    {
+     "m": "BUSINESS_PROFILE",
+     "f": "QUALITATIVE",
+     "w": 15
+    },
+    {
+     "m": "FINANCIAL_POLICY",
+     "f": "QUALITATIVE",
+     "w": 10
+    }
+   ],
+   "items": [
+    {
+     "r": "CASH_TO_ST_DEBT",
+     "line": "CASH",
+     "t": [
+      0.5,
+      0.25,
+      0.1,
+      0.05
+     ],
+     "strength": true
+    },
+    {
+     "r": "DSO",
+     "line": "AR",
+     "t": [
+      45,
+      75,
+      105,
+      150
+     ],
+     "strength": true
+    },
+    {
+     "r": "DIO",
+     "line": "INVENTORY",
+     "t": [
+      45,
+      75,
+      120,
+      180
+     ],
+     "strength": true
+    },
+    {
+     "r": "DPO",
+     "line": "AP",
+     "t": [
+      60,
+      90,
+      120,
+      180
+     ],
+     "strength": false
+    },
+    {
+     "r": "RELATED_TO_TNW",
+     "line": "DUE_FROM_RELATED",
+     "t": [
+      5,
+      15,
+      30,
+      50
+     ],
+     "strength": true
+    },
+    {
+     "r": "INTANGIBLES_TO_EQUITY",
+     "line": "INTANGIBLES",
+     "t": [
+      10,
+      25,
+      50,
+      75
+     ],
+     "strength": false
+    },
+    {
+     "r": "NWC_TO_ASSETS",
+     "line": "TOTAL_CA",
+     "t": [
+      15,
+      5,
+      0,
+      -10
+     ],
+     "strength": true
+    },
+    {
+     "r": "CFO_TO_CPLTD",
+     "line": "CURRENT_PORTION_LTD",
+     "t": [
+      2,
+      1.25,
+      1,
+      0.5
+     ],
+     "strength": true
+    },
+    {
+     "r": "ACC_LOSS_TO_CAPITAL",
+     "line": "RETAINED_EARNINGS",
+     "t": [
+      0,
+      20,
+      35,
+      50
+     ],
+     "strength": false
+    },
+    {
+     "r": "EQUITY_RATIO",
+     "line": "TOTAL_EQUITY",
+     "t": [
+      40,
+      30,
+      20,
+      10
+     ],
+     "strength": true
+    },
+    {
+     "r": "REVENUE_GROWTH",
+     "line": "REVENUE",
+     "t": [
+      5,
+      0,
+      -10,
+      -25
+     ],
+     "strength": true
+    },
+    {
+     "r": "GROSS_MARGIN_CHANGE",
+     "line": "GROSS_PROFIT",
+     "t": [
+      0,
+      -1,
+      -3,
+      -6
+     ],
+     "strength": false
+    },
+    {
+     "r": "NET_MARGIN",
+     "line": "NET_PROFIT",
+     "t": [
+      5,
+      2.5,
+      1,
+      0
+     ],
+     "strength": true
+    },
+    {
+     "r": "CFO_TO_EBITDA",
+     "line": "OP_CASH_FLOW",
+     "t": [
+      80,
+      60,
+      40,
+      0
+     ],
+     "strength": true
+    },
+    {
+     "r": "PAYOUT_RATIO",
+     "line": "DIVIDENDS",
+     "t": [
+      30,
+      50,
+      75,
+      100
+     ],
+     "strength": true
+    },
+    {
+     "r": "CONTINGENT_TO_TNW",
+     "line": "LG_PERFORMANCE",
+     "t": [
+      0.75,
+      1.5,
+      2.5,
+      4
+     ],
+     "strength": false
+    },
+    {
+     "r": "ST_DEBT_TO_TRADE_ASSETS",
+     "line": "ST_LOANS",
+     "t": [
+      50,
+      70,
+      85,
+      100
+     ],
+     "strength": true
+    },
+    {
+     "r": "EOSB_TO_TNW",
+     "line": "EOSB",
+     "t": [
+      10,
+      20,
+      35,
+      50
+     ],
+     "strength": false
+    },
+    {
+     "r": "ZAKAT_DISPUTED_TO_TNW",
+     "line": "ZAKAT_DISPUTED",
+     "t": [
+      2,
+      5,
+      10,
+      20
+     ],
+     "strength": false
+    },
+    {
+     "r": "DUE_TO_RELATED_TO_TNW",
+     "line": "DUE_TO_RELATED",
+     "t": [
+      10,
+      25,
+      50,
+      100
+     ],
+     "strength": false
+    },
+    {
+     "r": "OTHER_CA_SHARE",
+     "line": "OTHER_CA",
+     "t": [
+      15,
+      25,
+      40,
+      60
+     ],
+     "strength": false
+    },
+    {
+     "r": "CONTRACT_ASSETS_TO_REVENUE",
+     "line": "CONTRACT_ASSETS",
+     "t": [
+      15,
+      25,
+      40,
+      60
+     ],
+     "strength": false
+    },
+    {
+     "r": "GUARANTEES_TO_TNW",
+     "line": "GUARANTEES_GIVEN",
+     "t": [
+      25,
+      50,
+      100,
+      150
+     ],
+     "strength": false
+    }
+   ],
+   "extra_adjustments": []
+  },
+  {
+   "code": "CONTRACTING",
+   "version": 1,
+   "ar": "المقاولات والإنشاءات",
+   "en": "Contracting and construction",
+   "sector": "المقاولات العامة والإنشاءات والهندسة: دورة تحصيل طويلة بمستخلصات ومحتجزات، وهوامش أدنى من الصناعة، واعتماد كبير على خطابات الضمان",
+   "currency": "SAR",
+   "amount_unit": 1000000,
+   "min_coverage": 85,
+   "metrics": [
+    {
+     "m": "REVENUE_SIZE",
+     "f": "SCALE",
+     "w": 15,
+     "b": [
+      150000,
+      75000,
+      30000,
+      10000,
+      3000,
+      750,
+      100,
+      20,
+      2
+     ]
+    },
+    {
+     "m": "EBITDA_MARGIN",
+     "f": "PROFITABILITY",
+     "w": 7.5,
+     "b": [
+      25,
+      18,
+      14,
+      12,
+      9,
+      6,
+      3,
+      0,
+      -10
+     ]
+    },
+    {
+     "m": "ROA",
+     "f": "PROFITABILITY",
+     "w": 2.5,
+     "b": [
+      15,
+      10,
+      7,
+      5,
+      3.5,
+      2,
+      0.5,
+      -3,
+      -10
+     ]
+    },
+    {
+     "m": "DEBT_TO_EBITDA",
+     "f": "LEVERAGE",
+     "w": 10,
+     "b": [
+      0,
+      0.5,
+      1.5,
+      2.5,
+      3.5,
+      4.5,
+      6,
+      8,
+      12
+     ]
+    },
+    {
+     "m": "TL_TO_TNW",
+     "f": "LEVERAGE",
+     "w": 7.5,
+     "b": [
+      0,
+      0.4,
+      0.8,
+      1.3,
+      2,
+      3,
+      4.5,
+      6.5,
+      10
+     ]
+    },
+    {
+     "m": "CONTINGENT_TO_TNW",
+     "f": "LEVERAGE",
+     "w": 5,
+     "b": [
+      0,
+      0.5,
+      1,
+      1.5,
+      2.25,
+      3,
+      4.5,
+      6,
+      10
+     ]
+    },
+    {
+     "m": "EBITDA_TO_INTEREST",
+     "f": "COVERAGE",
+     "w": 5,
+     "b": [
+      40,
+      20,
+      12,
+      7,
+      4,
+      2.5,
+      1.5,
+      1,
+      0
+     ]
+    },
+    {
+     "m": "DSCR",
+     "f": "COVERAGE",
+     "w": 7.5,
+     "b": [
+      6,
+      4,
+      2.75,
+      2,
+      1.5,
+      1.25,
+      1,
+      0.8,
+      0
+     ]
+    },
+    {
+     "m": "CFO_TO_DEBT",
+     "f": "CASH_FLOW",
+     "w": 7.5,
+     "b": [
+      150,
+      80,
+      50,
+      35,
+      20,
+      10,
+      5,
+      0,
+      -20
+     ]
+    },
+    {
+     "m": "CURRENT_RATIO",
+     "f": "LIQUIDITY",
+     "w": 2.5,
+     "b": [
+      3,
+      2.5,
+      2,
+      1.6,
+      1.3,
+      1.1,
+      0.9,
+      0.75,
+      0.5
+     ]
+    },
+    {
+     "m": "CASH_CYCLE",
+     "f": "LIQUIDITY",
+     "w": 5,
+     "b": [
+      0,
+      30,
+      50,
+      75,
+      100,
+      140,
+      200,
+      280,
+      400
+     ]
+    },
+    {
+     "m": "BUSINESS_PROFILE",
+     "f": "QUALITATIVE",
+     "w": 15
+    },
+    {
+     "m": "FINANCIAL_POLICY",
+     "f": "QUALITATIVE",
+     "w": 10
+    }
+   ],
+   "items": [
+    {
+     "r": "CASH_TO_ST_DEBT",
+     "line": "CASH",
+     "t": [
+      0.75,
+      0.4,
+      0.2,
+      0.1
+     ],
+     "strength": true
+    },
+    {
+     "r": "DSO",
+     "line": "AR",
+     "t": [
+      90,
+      120,
+      180,
+      270
+     ],
+     "strength": true
+    },
+    {
+     "r": "DIO",
+     "line": "INVENTORY",
+     "t": [
+      30,
+      60,
+      120,
+      180
+     ],
+     "strength": false
+    },
+    {
+     "r": "DPO",
+     "line": "AP",
+     "t": [
+      90,
+      120,
+      180,
+      240
+     ],
+     "strength": false
+    },
+    {
+     "r": "RELATED_TO_TNW",
+     "line": "DUE_FROM_RELATED",
+     "t": [
+      5,
+      15,
+      30,
+      50
+     ],
+     "strength": true
+    },
+    {
+     "r": "INTANGIBLES_TO_EQUITY",
+     "line": "INTANGIBLES",
+     "t": [
+      10,
+      25,
+      50,
+      75
+     ],
+     "strength": false
+    },
+    {
+     "r": "NWC_TO_ASSETS",
+     "line": "TOTAL_CA",
+     "t": [
+      15,
+      5,
+      0,
+      -10
+     ],
+     "strength": true
+    },
+    {
+     "r": "ST_DEBT_SHARE",
+     "line": "ST_LOANS",
+     "t": [
+      50,
+      70,
+      85,
+      95
+     ],
+     "strength": false
+    },
+    {
+     "r": "CFO_TO_CPLTD",
+     "line": "CURRENT_PORTION_LTD",
+     "t": [
+      2,
+      1.25,
+      1,
+      0.5
+     ],
+     "strength": true
+    },
+    {
+     "r": "ACC_LOSS_TO_CAPITAL",
+     "line": "RETAINED_EARNINGS",
+     "t": [
+      0,
+      20,
+      35,
+      50
+     ],
+     "strength": false
+    },
+    {
+     "r": "EQUITY_RATIO",
+     "line": "TOTAL_EQUITY",
+     "t": [
+      40,
+      30,
+      20,
+      10
+     ],
+     "strength": true
+    },
+    {
+     "r": "REVENUE_GROWTH",
+     "line": "REVENUE",
+     "t": [
+      5,
+      0,
+      -15,
+      -30
+     ],
+     "strength": true
+    },
+    {
+     "r": "GROSS_MARGIN_CHANGE",
+     "line": "GROSS_PROFIT",
+     "t": [
+      0,
+      -2,
+      -5,
+      -10
+     ],
+     "strength": false
+    },
+    {
+     "r": "NET_MARGIN",
+     "line": "NET_PROFIT",
+     "t": [
+      7,
+      4,
+      1.5,
+      0
+     ],
+     "strength": true
+    },
+    {
+     "r": "CFO_TO_EBITDA",
+     "line": "OP_CASH_FLOW",
+     "t": [
+      70,
+      50,
+      30,
+      0
+     ],
+     "strength": true
+    },
+    {
+     "r": "PAYOUT_RATIO",
+     "line": "DIVIDENDS",
+     "t": [
+      30,
+      50,
+      75,
+      100
+     ],
+     "strength": true
+    },
+    {
+     "r": "CONTINGENT_TO_TNW",
+     "line": "LG_PERFORMANCE",
+     "t": [
+      1,
+      2,
+      3,
+      5
+     ],
+     "strength": false
+    },
+    {
+     "r": "EOSB_TO_TNW",
+     "line": "EOSB",
+     "t": [
+      10,
+      20,
+      35,
+      50
+     ],
+     "strength": false
+    },
+    {
+     "r": "ZAKAT_DISPUTED_TO_TNW",
+     "line": "ZAKAT_DISPUTED",
+     "t": [
+      2,
+      5,
+      10,
+      20
+     ],
+     "strength": false
+    },
+    {
+     "r": "DUE_TO_RELATED_TO_TNW",
+     "line": "DUE_TO_RELATED",
+     "t": [
+      10,
+      25,
+      50,
+      100
+     ],
+     "strength": false
+    },
+    {
+     "r": "OTHER_CA_SHARE",
+     "line": "OTHER_CA",
+     "t": [
+      15,
+      25,
+      40,
+      60
+     ],
+     "strength": false
+    },
+    {
+     "r": "CONTRACT_ASSETS_TO_REVENUE",
+     "line": "CONTRACT_ASSETS",
+     "t": [
+      15,
+      25,
+      40,
+      60
+     ],
+     "strength": false
+    },
+    {
+     "r": "GUARANTEES_TO_TNW",
+     "line": "GUARANTEES_GIVEN",
+     "t": [
+      25,
+      50,
+      100,
+      150
+     ],
+     "strength": false
+    }
+   ],
+   "extra_adjustments": [
+    {
+     "r": "SECTOR_CEILING",
+     "n": 0,
+     "cap": "Baa2",
+     "p": null,
+     "stage": "STANDALONE",
+     "ar": "سقف قطاع المقاولات",
+     "en": "Contracting sector ceiling",
+     "t": [
+      "قطاع المقاولات: لا تتجاوز الدرجة المنفردة Baa2 (تقلّب الطلب الحكومي وتجربة 2016–2018)",
+      "Contracting sector: standalone grade capped at Baa2 (volatile public demand, the 2016-2018 experience)"
+     ],
+     "show": "WHEN_BINDING"
+    }
+   ]
+  }
+ ],
+ "adjustments": [
+  {
+   "r": "AUDIT_QUALIFIED",
+   "n": -1,
+   "cap": null,
+   "p": null,
+   "stage": "NOTCH",
+   "ar": "رأي المراجع متحفظ",
+   "en": "Qualified audit opinion",
+   "t": [
+    "رأي المراجع متحفظ: تنزيل درجة واحدة",
+    "Qualified audit opinion: one notch down"
+   ],
+   "show": "ALWAYS"
+  },
+  {
+   "r": "UNAUDITED_ANNUAL",
+   "n": -1,
+   "cap": null,
+   "p": null,
+   "stage": "NOTCH",
+   "ar": "قائمة سنوية غير مدققة",
+   "en": "Unaudited annual statement",
+   "t": [
+    "قائمة سنوية إدارية غير مدققة: تنزيل درجة واحدة",
+    "Unaudited (management) annual statement: one notch down"
+   ],
+   "show": "ALWAYS"
+  },
+  {
+   "r": "STALE_STATEMENT",
+   "n": -1,
+   "cap": null,
+   "p": 15,
+   "stage": "NOTCH",
+   "ar": "قائمة قديمة",
+   "en": "Stale statement",
+   "t": [
+    "مضى على نهاية فترة القائمة أكثر من {p} شهرًا: تنزيل درجة واحدة",
+    "The statement's period ended more than {p} months ago: one notch down"
+   ],
+   "show": "ALWAYS"
+  },
+  {
+   "r": "INCOMPLETE_STATEMENT",
+   "n": -1,
+   "cap": null,
+   "p": null,
+   "stage": "NOTCH",
+   "ar": "لا قائمة تدفقات نقدية",
+   "en": "No cash flow statement",
+   "t": [
+    "لم تُقدَّم قائمة التدفقات النقدية: تنزيل درجة واحدة، فلا يكسب حجبُها درجة",
+    "No cash flow statement was given: one notch down, so leaving it out gains nothing"
+   ],
+   "show": "ALWAYS"
+  },
+  {
+   "r": "RESTATEMENT",
+   "n": -1,
+   "cap": null,
+   "p": 5,
+   "stage": "NOTCH",
+   "ar": "إعادة عرض جوهرية",
+   "en": "Material restatement",
+   "t": [
+    "أعادت القائمة عرض صافي الربح أو حقوق الملكية بأكثر من {p}% عن الإصدار السابق: تنزيل درجة واحدة",
+    "The statement restated net profit or equity by more than {p}% of the earlier version: one notch down"
+   ],
+   "show": "ALWAYS"
+  },
+  {
+   "r": "HALF_CAPITAL_LOST_CURED",
+   "n": -1,
+   "cap": null,
+   "p": 50,
+   "stage": "NOTCH",
+   "ar": "خسائر بلغت نصف رأس المال وعولجت",
+   "en": "Half the capital lost, cured",
+   "t": [
+    "الخسائر المتراكمة بلغت {p}% من رأس المال أو أكثر، وتغطيها حقوق الملكية مع قروض الشركاء المساندة: تنزيل درجة واحدة",
+    "Accumulated losses reach {p}% of share capital, covered by equity and subordinated shareholder loans: one notch down"
+   ],
+   "show": "ALWAYS"
+  },
+  {
+   "r": "RELATED_PARTY_EXPOSURE",
+   "n": -1,
+   "cap": null,
+   "p": 50,
+   "stage": "NOTCH",
+   "ar": "تعرّض للأطراف ذات العلاقة",
+   "en": "Related-party exposure",
+   "t": [
+    "المستحق من الأطراف ذات العلاقة والكفالات المقدَّمة لها تتجاوز {p}% من صافي الثروة الملموسة المعدَّلة: تنزيل درجة واحدة",
+    "Amounts due from related parties and guarantees given exceed {p}% of adjusted tangible net worth: one notch down"
+   ],
+   "show": "ALWAYS"
+  },
+  {
+   "r": "HOLDCO_STANDALONE",
+   "n": -1,
+   "cap": null,
+   "p": null,
+   "stage": "NOTCH",
+   "ar": "قائمة منفردة لقابضة",
+   "en": "Standalone statement of a holding",
+   "t": [
+    "قائمة منفردة لشركة قابضة: لا تُظهر ديون الوحدات ولا تدفقاتها، فتنزيل درجة واحدة؛ والأولى تقييم القائمة الموحدة",
+    "A holding's standalone statement hides its units' debt and cash flows: one notch down; assess the consolidated statement instead"
+   ],
+   "show": "ALWAYS"
+  },
+  {
+   "r": "OPEN_BREACH",
+   "n": -2,
+   "cap": null,
+   "p": null,
+   "stage": "NOTCH",
+   "ar": "خرق تعهد مفتوح بلا تنازل",
+   "en": "Open covenant breach without waiver",
+   "t": [
+    "خرق تعهد بنكي مفتوح بلا طلب تنازل في تاريخ التقييم (حالة تعثر وقد يمتد إلى التسهيلات الأخرى): تنزيل درجتين",
+    "Open bank covenant breach with no waiver requested on the assessment date (an event of default, possibly cross-default): two notches down"
+   ],
+   "show": "ALWAYS"
+  },
+  {
+   "r": "BREACH_WAIVER_REQUESTED",
+   "n": -1,
+   "cap": null,
+   "p": null,
+   "stage": "NOTCH",
+   "ar": "خرق تعهد طُلب التنازل عنه",
+   "en": "Covenant breach, waiver requested",
+   "t": [
+    "خرق تعهد بنكي مفتوح طُلب التنازل عنه: تنزيل درجة واحدة",
+    "Open bank covenant breach with a waiver requested: one notch down"
+   ],
+   "show": "ALWAYS"
+  },
+  {
+   "r": "FLOW_SHORTFALL",
+   "n": -1,
+   "cap": null,
+   "p": 25,
+   "stage": "NOTCH",
+   "ar": "عجز جوهري في تحويلات السيولة",
+   "en": "Material bank flow shortfall",
+   "t": [
+    "تحويلات السيولة إلى البنك تقل عن المطلوب حتى تاريخه بأكثر من {p}% في تعهد واحد على الأقل (مؤشر تحويل التدفقات بعيدًا عن البنك): تنزيل درجة واحدة",
+    "Liquidity routed to the bank falls short of what is due to date by more than {p}% in at least one covenant (a sign of flows diverted from the bank): one notch down"
+   ],
+   "show": "ALWAYS"
+  },
+  {
+   "r": "GOING_CONCERN",
+   "n": 0,
+   "cap": "Caa1",
+   "p": null,
+   "stage": "STANDALONE",
+   "ar": "شك جوهري في الاستمرارية",
+   "en": "Going-concern uncertainty",
+   "t": [
+    "أبدى المراجع شكًا جوهريًا في قدرة المنشأة على الاستمرار: لا تتجاوز الدرجة المنفردة Caa1",
+    "The auditor reported a material going-concern uncertainty: standalone grade capped at Caa1"
+   ],
+   "show": "ALWAYS"
+  },
+  {
+   "r": "NEGATIVE_EQUITY",
+   "n": 0,
+   "cap": "Caa1",
+   "p": null,
+   "stage": "STANDALONE",
+   "ar": "حقوق ملكية سالبة",
+   "en": "Negative equity",
+   "t": [
+    "حقوق الملكية مع قروض الشركاء المساندة سالبة أو صفرية: لا تتجاوز الدرجة المنفردة Caa1",
+    "Equity with subordinated shareholder loans is negative or nil: standalone grade capped at Caa1"
+   ],
+   "show": "ALWAYS"
+  },
+  {
+   "r": "HALF_CAPITAL_LOST",
+   "n": 0,
+   "cap": "B3",
+   "p": 50,
+   "stage": "STANDALONE",
+   "ar": "خسائر بلغت نصف رأس المال",
+   "en": "Half the capital lost",
+   "t": [
+    "الخسائر المتراكمة بلغت {p}% من رأس المال أو أكثر ولا تغطيها حقوق الملكية مع قروض الشركاء المساندة، فتلزم إجراءات نظام الشركات: لا تتجاوز الدرجة المنفردة B3",
+    "Accumulated losses reach {p}% of share capital, not covered by equity and subordinated shareholder loans (Companies Law steps): standalone grade capped at B3"
+   ],
+   "show": "ALWAYS"
+  },
+  {
+   "r": "SIZE_CEILING",
+   "n": 0,
+   "cap": "A3",
+   "p": 3000,
+   "stage": "STANDALONE",
+   "ar": "سقف الحجم",
+   "en": "Size ceiling",
+   "t": [
+    "إيرادات دون {p} مليون: لا تتجاوز الدرجة المنفردة A3، فالشركات المتوسطة لا تبلغ فئات Aa بنسبها وحدها",
+    "Revenue below {p} million: standalone grade capped at A3, as a mid-size company does not reach the Aa range on its ratios alone"
+   ],
+   "show": "WHEN_BINDING"
+  },
+  {
+   "r": "AUDIT_ADVERSE",
+   "n": 0,
+   "cap": "Caa1",
+   "p": null,
+   "stage": "ABSOLUTE",
+   "ar": "رأي سلبي أو امتناع عن الرأي",
+   "en": "Adverse or disclaimed audit opinion",
+   "t": [
+    "رأي المراجع سلبي أو امتنع عن الرأي: لا تتجاوز الدرجة Caa1 بعد الدعم والتجاوز",
+    "Adverse or disclaimed audit opinion: capped at Caa1 after support and override"
+   ],
+   "show": "ALWAYS"
+  },
+  {
+   "r": "SOVEREIGN_CEILING",
+   "n": 0,
+   "cap": "Aa3",
+   "p": null,
+   "stage": "ABSOLUTE",
+   "ar": "سقف التصنيف السيادي",
+   "en": "Sovereign ceiling",
+   "t": [
+    "لا تتجاوز الدرجة التصنيف السيادي للمملكة العربية السعودية Aa3 (موديز، نوفمبر 2024؛ يُتحقق منه دوريًا)",
+    "Capped at the sovereign rating of Saudi Arabia, Aa3 (Moody's, November 2024; checked periodically)"
+   ],
+   "show": "WHEN_BINDING"
+  }
+ ],
+ "factor_names": {
+  "SCALE": [
+   "الحجم",
+   "Scale"
+  ],
+  "PROFITABILITY": [
+   "الربحية",
+   "Profitability"
+  ],
+  "LEVERAGE": [
+   "الرفع المالي وهيكل رأس المال",
+   "Leverage and capital structure"
+  ],
+  "COVERAGE": [
+   "التغطية وخدمة الدين",
+   "Coverage and debt service"
+  ],
+  "CASH_FLOW": [
+   "التدفق النقدي",
+   "Cash flow"
+  ],
+  "LIQUIDITY": [
+   "السيولة ورأس المال العامل",
+   "Liquidity and working capital"
+  ],
+  "QUALITATIVE": [
+   "العوامل النوعية (تقدير المحلل)",
+   "Qualitative factors (analyst)"
+  ]
+ },
+ "disclaimer": [
+  "تقييم داخلي يعتمد سلّم موديز (Moody's) للتصنيف طويل الأجل وطريقة بطاقات التقييم المنشورة: درجة لكل مقياس على خط مستمر ووزن لكل عامل؛ والحدود معايرة بخبرة المحلل للسوق السعودية. ليس تصنيفًا صادرًا عن موديز ولا عن أي وكالة، ولا يحل محل التصنيف الداخلي للبنك.",
+  "An internal assessment on Moody's long-term rating scale and its published scorecard approach (a score per metric on a linear continuum, a weight per factor); the thresholds are calibrated by expert judgment for the Saudi market. It is not a rating issued by Moody's or any agency, and it does not replace a bank's internal rating."
+ ],
+ "override": {
+  "up": 1,
+  "down": 2
+ },
+ "qualitative_bound": 3,
+ "support_max_age_months": 12
+}

@@ -82,6 +82,6 @@ covenant engine's results (S2-b). What it lacked:
 - Tests: FS1 to FS11 in `db/tests/financial_statements_tests.sql` (CI step 19b). Disabling any of the five triggers
   makes its tests fail.
 - RF28's deletion case now stops at the statement link's key (547), before the freeze trigger.
-- Open, marked 🟡 in spec 12 (BR-FIN-016): a flow given to one facility counts for it alone, and a bank-level flow
-  counts for every covenant of that bank's facilities. The owner is asked to confirm.
+- BR-FIN-016, approved by the owner as written (2026-10-18): a flow given to one facility counts for it alone, and a
+  bank-level flow counts for every covenant of that bank's facilities.
 - The performance function computes on read. A daily snapshot for history and alerts is left to the jobs of S2-b.

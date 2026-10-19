@@ -1,25 +1,26 @@
-%% م5 · البيانات المالية والأرصدة (2/3) — Financial statements & balances
+%% م5 · البيانات المالية والأرصدة (2/5) — Financial statements & balances
 erDiagram
-  fin_LineCatalogItem["fin.LineCatalogItem"] {
-    int LineCatalogItemId PK
+  fin_CreditAssessmentFactor["fin.CreditAssessmentFactor"] {
+    bigint CreditAssessmentFactorId PK
+    bigint AssessmentId FK
+    int MetricId FK
+    int GradeId FK
   }
-  fin_LineCatalogItemAlias["fin.LineCatalogItemAlias"] {
-    int LineCatalogItemAliasId PK
-    int LineCatalogItemId FK
+  fin_CreditAssessmentFinding["fin.CreditAssessmentFinding"] {
+    bigint CreditAssessmentFindingId PK
+    bigint AssessmentId FK
   }
-  fin_MeasureFormula["fin.MeasureFormula"] {
-    bigint MeasureFormulaId PK
-    bigint FacilityId FK
-    bigint BaseTemplateId FK
-    bigint ApprovedBy FK
-  }
-  fin_RevenueEstimate["fin.RevenueEstimate"] {
-    bigint RevenueEstimateId PK
-    bigint CompanyId FK
-    int CurrencyId FK
+  fin_CreditAssessmentInput["fin.CreditAssessmentInput"] {
+    bigint CreditAssessmentInputId PK
+    bigint AssessmentId FK
+    int MetricId FK
+    int GradeId FK
+    bigint ParentAssessmentId FK
     bigint DocumentId FK
-    bigint PreparedBy FK
-    bigint ApprovedBy FK
+    bigint EnteredBy FK
   }
-  fin_LineCatalogItem ||--o{ fin_LineCatalogItemAlias : "LineCatalogItemId"
-  fin_MeasureFormula |o--o{ fin_MeasureFormula : "BaseTemplateId"
+  fin_CreditMetric["fin.CreditMetric"] {
+    int CreditMetricId PK
+  }
+  fin_CreditMetric ||--o{ fin_CreditAssessmentFactor : "MetricId"
+  fin_CreditMetric |o--o{ fin_CreditAssessmentInput : "MetricId"

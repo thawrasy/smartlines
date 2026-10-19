@@ -509,17 +509,40 @@ erDiagram
 | ReportingInstance | SubmissionChannelUsedId | cat.LookupItem |
 | ReportingObligation | SubmissionChannelId | cat.LookupItem |
 
-## مخطط `fin` (10 جدولًا)
+## مخطط `fin` (20 جدولًا)
 
 ```mermaid
 erDiagram
+  CreditAssessment ||--o{ CreditAssessmentFactor : "AssessmentId"
+  CreditAssessment ||--o{ CreditAssessmentFinding : "AssessmentId"
+  CreditAssessment ||--o{ CreditAssessmentInput : "AssessmentId"
+  CreditAssessment ||--o{ CreditAssessmentInput : "ParentAssessmentId"
+  CreditMetric ||--o{ CreditAssessmentFactor : "MetricId"
+  CreditMetric ||--o{ CreditAssessmentInput : "MetricId"
+  CreditMetric ||--o{ ScorecardItemRule : "MetricId"
+  CreditMetric ||--o{ ScorecardMetric : "MetricId"
   FinancialStatement ||--o{ ConsolidationMember : "MemberStatementId"
   FinancialStatement ||--o{ ConsolidationMember : "StatementId"
+  FinancialStatement ||--o{ CreditAssessment : "PriorStatementId"
+  FinancialStatement ||--o{ CreditAssessment : "StatementId"
+  FinancialStatement ||--o{ CreditAssessment : "UsedPriorStatementId"
   FinancialStatement ||--o{ StatementLine : "StatementId"
   FinancialStatement ||--o{ StatementRatio : "StatementId"
   LineCatalogItem ||--o{ LineCatalogItemAlias : "LineCatalogItemId"
   LineCatalogItem ||--o{ StatementLine : "LineCatalogItemId"
   MeasureFormula ||--o{ StatementRatio : "FormulaId"
+  RatingGrade ||--o{ CreditAssessment : "CapGradeId"
+  RatingGrade ||--o{ CreditAssessment : "FinalGradeId"
+  RatingGrade ||--o{ CreditAssessment : "FinancialGradeId"
+  RatingGrade ||--o{ CreditAssessment : "IndicatedGradeId"
+  RatingGrade ||--o{ CreditAssessment : "StandaloneGradeId"
+  RatingGrade ||--o{ CreditAssessmentFactor : "GradeId"
+  RatingGrade ||--o{ CreditAssessmentInput : "GradeId"
+  RatingGrade ||--o{ ScorecardAdjustment : "CapGradeId"
+  Scorecard ||--o{ CreditAssessment : "ScorecardId"
+  Scorecard ||--o{ ScorecardAdjustment : "ScorecardId"
+  Scorecard ||--o{ ScorecardItemRule : "ScorecardId"
+  Scorecard ||--o{ ScorecardMetric : "ScorecardId"
 ```
 
 | الجدول | العمود | يشير إلى |
@@ -536,6 +559,11 @@ erDiagram
 | BankFlowEntry | FlowKindListId | cat.LookupList |
 | BankFlowEntry | InstitutionId | ins.Institution |
 | ConsolidationMember | MemberCompanyId | org.Company |
+| CreditAssessment | ApprovedBy | sec.AppUser |
+| CreditAssessment | CompanyId | org.Company |
+| CreditAssessment | PreparedBy | sec.AppUser |
+| CreditAssessmentInput | DocumentId | doc.Document |
+| CreditAssessmentInput | EnteredBy | sec.AppUser |
 | FinancialStatement | ApprovedBy | sec.AppUser |
 | FinancialStatement | CompanyId | org.Company |
 | FinancialStatement | CurrencyId | ref.Currency |
@@ -551,6 +579,7 @@ erDiagram
 | RevenueEstimate | CurrencyId | ref.Currency |
 | RevenueEstimate | DocumentId | doc.Document |
 | RevenueEstimate | PreparedBy | sec.AppUser |
+| Scorecard | CurrencyId | ref.Currency |
 
 ## مخطط `wfl` (19 جدولًا)
 

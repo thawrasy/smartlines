@@ -72,11 +72,29 @@ if ! diff -q "$TMP/102_permissions.sql" db/seed/102_permissions.sql >/dev/null; 
     exit 1
 fi
 echo "permission seed matches the documents"
+# The credit assessment methodology seed is generated from tools/dbgen/credit_scorecard.json (docs/35, ADR 0017).
+# Its tables in docs/35 come from the same file (--doc-check changes nothing and fails on a difference).
+python3 tools/dbgen/gen_credit_seed.py "$TMP/104_credit_scorecard.sql" --doc-check > "$TMP/credit_seed.out" || {
+    tail -1 "$TMP/credit_seed.out"
+    exit 1
+}
+if ! diff -q "$TMP/104_credit_scorecard.sql" db/seed/104_credit_scorecard.sql >/dev/null; then
+    echo "db/seed/104_credit_scorecard.sql is stale: run tools/dbgen/gen_credit_seed.py and commit the result"
+    exit 1
+fi
+echo "credit methodology seed and the tables of docs/35 match tools/dbgen/credit_scorecard.json"
 
 echo "== 3. every foreign key is indexed or flagged noidx; static grant and cascade rules R1-R11"
 python3 tools/dbgen/check_fk_indexes.py
 python3 tools/dbgen/check_grants.py
 python3 tools/dbgen/check_review_fixes.py | tail -1   # the design-review fixes in the generated DDL (C-12, O-15)
+# The stress cases of the independent credit review fall within the analyst's grade ranges (docs/35 section 13).
+python3 tools/dbgen/credit_stress.py > "$TMP/stress.out" || {
+    cat "$TMP/stress.out"
+    echo "a stress case of the credit review falls outside the analyst's range: see docs/35 section 13"
+    exit 1
+}
+tail -1 "$TMP/stress.out"
 # No deployment tool trusts any certificate by itself; only CI passes -C (DQ-S05-7, ADR 0013).
 # A default of -C, or -C written into a command, in the shell, Python and PowerShell tools. A missing file would make
 # grep end with code 2 and the check pass unseen, so the files are required first (self-review C8). Other spellings of
@@ -155,15 +173,21 @@ fi
 echo "deployed as bankfas_migrator (db_owner only); the owner login and the deployment login are disabled, everything is owned by dbo ($deploy_state)"
 
 echo "== 4b. the platform seed is complete and can run again without changing anything (DOC-B05 section 6)"
-seed_state() { sq -d BankFas -h -1 -W -Q "SET NOCOUNT ON; SELECT CONCAT((SELECT COUNT(*) FROM cfg.SettingDefinition), '/', (SELECT COUNT(*) FROM cfg.JobDefinition), '/', (SELECT COUNT(*) FROM plat.[Plan]), '/', (SELECT COUNT(*) FROM plat.PlanModule), '/', (SELECT COUNT(*) FROM plat.ReservedSubdomain), '/', (SELECT COUNT(*) FROM ref.Country), '/', (SELECT COUNT(*) FROM ref.Currency), '/', (SELECT COUNT(*) FROM sec.Permission), '/', (SELECT COUNT(*) FROM ref.Incoterm), '/', (SELECT COUNT(*) FROM ref.UcpArticle WHERE TenantId IS NULL AND VerificationStatus = 'UNVERIFIED'), '/', (SELECT COUNT(UpdatedAt) FROM cfg.SettingDefinition) + (SELECT COUNT(UpdatedAt) FROM cfg.JobDefinition) + (SELECT COUNT(UpdatedAt) FROM plat.[Plan]) + (SELECT COUNT(UpdatedAt) FROM ref.Incoterm) + (SELECT COUNT(UpdatedAt) FROM ref.UcpArticle))"; }
+# The query is read from a file: an older sqlcmd garbles a -Q text of this length.
+cat > "$TMP/seed_state.sql" <<'SQL'
+SET NOCOUNT ON;
+SELECT CONCAT((SELECT COUNT(*) FROM cfg.SettingDefinition), '/', (SELECT COUNT(*) FROM cfg.JobDefinition), '/', (SELECT COUNT(*) FROM plat.[Plan]), '/', (SELECT COUNT(*) FROM plat.PlanModule), '/', (SELECT COUNT(*) FROM plat.ReservedSubdomain), '/', (SELECT COUNT(*) FROM ref.Country), '/', (SELECT COUNT(*) FROM ref.Currency), '/', (SELECT COUNT(*) FROM sec.Permission), '/', (SELECT COUNT(*) FROM ref.Incoterm), '/', (SELECT COUNT(*) FROM ref.UcpArticle WHERE TenantId IS NULL AND VerificationStatus = 'UNVERIFIED'), '/', (SELECT COUNT(*) FROM fin.RatingGrade), '/', (SELECT COUNT(*) FROM fin.CreditMetric), '/', (SELECT COUNT(*) FROM fin.Scorecard WHERE Status = 'APPROVED'), '/', (SELECT COUNT(*) FROM fin.ScorecardMetric) + (SELECT COUNT(*) FROM fin.ScorecardItemRule) + (SELECT COUNT(*) FROM fin.ScorecardAdjustment), '/', (SELECT COUNT(UpdatedAt) FROM cfg.SettingDefinition) + (SELECT COUNT(UpdatedAt) FROM cfg.JobDefinition) + (SELECT COUNT(UpdatedAt) FROM plat.[Plan]) + (SELECT COUNT(UpdatedAt) FROM ref.Incoterm) + (SELECT COUNT(UpdatedAt) FROM ref.UcpArticle) + (SELECT COUNT(UpdatedAt) FROM fin.Scorecard) + (SELECT COUNT(UpdatedAt) FROM fin.ScorecardMetric));
+SQL
+seed_state() { sq -d BankFas -h -1 -W -i "$TMP/seed_state.sql"; }
 seed_before="$(seed_state)"
 sq -d BankFas -i db/seed/100_platform_global.sql >/dev/null
 sq -d BankFas -i db/seed/101_iso_reference.sql >/dev/null
 sq -d BankFas -i db/seed/102_permissions.sql >/dev/null
 sq -d BankFas -i db/seed/103_lc_reference.sql >/dev/null
+sq -d BankFas -i db/seed/104_credit_scorecard.sql >/dev/null
 seed_after="$(seed_state)"
-if [ "$seed_before" != "$seed_after" ] || [ "$seed_before" != "9/32/1/9/23/249/157/140/16/39/0" ]; then
-    echo "platform seed is not safe to run again, or incomplete: settings/jobs/plans/plan modules/reserved/countries/currencies/permissions/Incoterms/unverified UCP articles/updated before $seed_before, after $seed_after (expected 9/32/1/9/23/249/157/140/16/39/0)"
+if [ "$seed_before" != "$seed_after" ] || [ "$seed_before" != "9/32/1/9/23/249/157/142/16/39/21/36/3/158/0" ]; then
+    echo "platform seed is not safe to run again, or incomplete: settings/jobs/plans/plan modules/reserved/countries/currencies/permissions/Incoterms/unverified UCP articles/grades/credit metrics/approved scorecards/scorecard rows/updated before $seed_before, after $seed_after (expected 9/32/1/9/23/249/157/142/16/39/21/36/3/158/0)"
     exit 1
 fi
 echo "platform seed unchanged on a second run ($seed_after)"
@@ -469,6 +493,28 @@ if [ "$fs_pass" -ne 11 ]; then
     exit 1
 fi
 echo "financial statements tests: $fs_pass passed"
+echo "== 19c. the credit assessment on the Moody's scale (db/tests/credit_assessment_tests.sql, 046, ADR 0017)"
+sq -i db/tests/credit_assessment_tests.sql > "$TMP/crd.out" 2>&1 || {
+    cat "$TMP/crd.out"
+    echo "credit assessment test run failed"
+    exit 1
+}
+cat "$TMP/crd.out"
+if grep -qaE "$FAIL_RE" "$TMP/crd.out"; then
+    echo "a credit assessment test failed"
+    exit 1
+fi
+ca_pass=$(grep -oaE "$PASS_RE" "$TMP/crd.out" | sort -u | wc -l)
+# 12 cases: CA1 the continuum and the item levels, CA2 the worked example equal to tools/dbgen/credit_reference.py,
+# CA3-CA4 coverage, indicative grades and ratios without meaning, CA5-CA6 the adjustments, group support and the
+# override, CA7 the life of an assessment and what the application cannot write, CA8 the report, CA9 covenants,
+# breaches and bank flows, CA10 the methodology fixed once approved, CA11 isolation, CA12 the seed (owner request of
+# 2026-10-18).
+if [ "$ca_pass" -ne 12 ]; then
+    echo "expected 12 PASS, found $ca_pass"
+    exit 1
+fi
+echo "credit assessment tests: $ca_pass passed"
 echo "== 20. SQL Server Audit and its AL-18 alerts (tools/deploy/server_audit.sh, tools/ci/server_audit_check.sh, ADR 0012)"
 SQL_SERVER="$SQL_SERVER" SQLCMD="$SQLCMD" AUDIT_SINCE="$audit_since" MIGRATOR_SECRET="$TMP/migrator/bankfas_migrator.secret" \
     bash tools/ci/server_audit_check.sh > "$TMP/server_audit.out" 2>&1 || {

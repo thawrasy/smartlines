@@ -5,7 +5,7 @@
 | الحالة | **مسودة للتقييم (الإصدار 0.4)** — تصميم قاعدة البيانات مع مخططات ERD مهنية (تدوين Crow's Foot) ومواصفات الجداول والعلاقات، مُولَّدة من النموذج |
 | التاريخ | 2026-10-18 |
 | المحرك المعتمد | **SQL Server 2025** |
-| المرجع | `db/model/*.model` (الجداول 203 · المخططات 20، من `tools/dbgen/ddl_metrics.py`) — الملفات المولَّدة لا تُعدَّل يدويًا |
+| المرجع | `db/model/*.model` (الجداول 213 · المخططات 20، من `tools/dbgen/ddl_metrics.py`) — الملفات المولَّدة لا تُعدَّل يدويًا |
 | الدعم | `tools/dbgen/erd_mermaid.py` (المخططات) · `tools/dbgen/build_erd_doc.py` · `tools/dbgen/check_grants.py` · `tools/dbgen/check_review_fixes.py` · `tools/dbgen/ddl_metrics.py` (الأرقام) |
 
 ## 0. سجل التعديلات (الإصداران 0.2 و0.3)
@@ -28,6 +28,7 @@
 | C-12 | تطبيق الإصلاحات الحرجة العشرة من مراجعة التصميم (DR-01 إلى DR-10) على النموذج والـDDL: كتالوجات القيم مملوكة للمشترك بنسخ لكل مشترك (DR-03/05/07)، ومفتاح الغرض في مفاتيح التشفير (DR-02)، والمالك المتعدد بأقواس خارجية (DR-04)، وربط المراجع بالتسهيل والشركة والقالب (DR-06/09/10)، وتصنيف `Collateral.Attributes` (DR-08)، و`plat.TenantModule` مملوك للمنصة (DR-01) | المراجع في الجداول المختلطة وبعض المفاتيح الأجنبية لا تُقيَّد بالنطاق (المشترك أو الغرض أو التسهيل أو الشركة)، فيقبل قيد المفتاح قيمة من خارج النطاق (`20-database-design-and-erd.md` §18) |
 | C-13 | إصلاحات المراجعة الذاتية (ADR 0015، `34-self-review-2026-10-18.md`): المراجعة المعتمدة نهائية (§5.1)، والحراس الخمسة في §7.2، وجذر العقدة في الاختبارات والمخالفات وبنود التقويم، و`NoSourceReason` لكل قيمة بلا مستند (§5.2)، وضوابط النشر والتدقيق (§12.1) | مراجعة بخمس عدسات وجدت 63 نتيجة، بعضها يغيّر ما تسمح به القاعدة |
 | C-14 | وحدة القوائم المالية في م5 (ADR 0016، `045_financial_statements.sql`): القوائم المستقلة والموحّدة للقابضة بوحداتها، ومقاييس التحليل، وربط الاختبار بالقوائم التي قرأها، وتقرير المخالفات، وأداء السيولة المحوَّلة إلى البنك (§11) | طلب المالك 2026-10-18 |
+| C-15 | التقييم الائتماني للميزانية على سلّم موديز (ADR 0017، `046_credit_assessment.sql`، `docs/35`): المنهجية بيانات عالمية للمنصة، والحساب في القاعدة، وتقرير بنقاط القوة والضعف والمخاطر (§11.5) | طلب المالك 2026-10-18، بمراجعة خبير ائتمان مستقل |
 
 **مرفوض:** اقتراح تقرير Technical Evaluation بـ.NET 9، لأن قرار المشروع `.NET 10 LTS` (`01` §13) ويبقى كما هو. **مؤجَّل:** أدوات الترحيل (O-2)، ومرساة سلسلة التدقيق (O-13)، وRPO/RTO (O-14)، ومكدّس الواجهات (خارج نطاق وثيقة القاعدة). **لم يُعتمد** الادعاء بأن القيود وحدها تضمن سلامة الحجز؛ الحجز يبقى ذريًا بالقفل في طبقة التطبيق (§7.1).
 
@@ -41,13 +42,13 @@
 
 | المؤشر | القيمة |
 |---|---|
-| جداول | **203** في 20 مخططًا |
-| أعمدة | 3,438 مُعرَّفة في النماذج + الأعمدة الآلية = **3,975** في DDL |
-| مفاتيح أجنبية | **796** = 190 إلى `plat.Tenant` (`TenantId`) + **537 مركّبة** `(TenantId, …)` بين جداول المشترك + 69 بسيطة نحو جداول عالمية/مختلطة؛ حذف متتالٍ واحد (§7) |
-| فهارس | 759 غير مجمّع (227 مصفّاة · 50 بأعمدة `INCLUDE`) |
-| قيود | 1,302 `CHECK` (قوائم قيم وتناسق حقول وتواريخ وأطوال الأغلفة المشفّرة) · 433 قيد `UNIQUE` + 146 فهرسًا فريدًا |
-| جداول بمعرّف عام `PublicId` | 39 (جذور التجميعات المعرَّضة عبر API) |
-| جداول خاضعة لعزل الصفوف RLS | 188 (185 مملوكة للمشترك + 3 مختلطة، منها `aud.AuditLog` بسياسة خاصة؛ الـ15 العالمية خارجها) |
+| جداول | **213** في 20 مخططًا |
+| أعمدة | 3,612 مُعرَّفة في النماذج + الأعمدة الآلية = **4,165** في DDL |
+| مفاتيح أجنبية | **829** = 194 إلى `plat.Tenant` (`TenantId`) + **549 مركّبة** `(TenantId, …)` بين جداول المشترك + 86 بسيطة نحو جداول عالمية/مختلطة؛ حذف متتالٍ واحد (§7) |
+| فهارس | 772 غير مجمّع (229 مصفّاة · 51 بأعمدة `INCLUDE`) |
+| قيود | 1,359 `CHECK` (قوائم قيم وتناسق حقول وتواريخ وأطوال الأغلفة المشفّرة) · 448 قيد `UNIQUE` + 148 فهرسًا فريدًا |
+| جداول بمعرّف عام `PublicId` | 40 (جذور التجميعات المعرَّضة عبر API) |
+| جداول خاضعة لعزل الصفوف RLS | 192 (189 مملوكة للمشترك + 3 مختلطة، منها `aud.AuditLog` بسياسة خاصة؛ الـ21 العالمية خارجها) |
 | أعمدة محجوبة عن دور التقارير | 31 |
 | جداول محجوبة كليًا عن تطبيق المشترك (`noapp`) | 8: العالمية المحجوبة الخمسة والداخلية الثلاثة (§3.3)؛ يقرأ التطبيق صف مشتركه ووحداته عبر `plat.v_CurrentTenant` و`plat.v_TenantModule` |
 
@@ -79,7 +80,7 @@
 
 ### 3.1 الطبقات الأربع
 1. **بنية:** كل جدول مملوك للمشترك فيه `TenantId INT NOT NULL` مع `FK` إلى `plat.Tenant`.
-2. **مفاتيح مركّبة:** كل جدول يملك `UNIQUE (TenantId, <Id>)` هدفًا، وكل مرجع بين جدولين للمشترك **مركّب** `(TenantId, [أعمدة النطاق…], Col) → (TenantId, [أعمدة النطاق…], Id)`. يستحيل ربط سجل بسجل مشترك آخر **حتى لو أخطأ التطبيق**. و**أعمدة النطاق `via=`** تمنع الربط عبر تجميعتين داخل المشترك نفسه: حد أب من تسهيل آخر، حجز على خط منتج من حد آخر، مرحلة من قالب آخر… (135 مفتاحًا من الـ537 المركّبة تحمل أعمدة نطاق).
+2. **مفاتيح مركّبة:** كل جدول يملك `UNIQUE (TenantId, <Id>)` هدفًا، وكل مرجع بين جدولين للمشترك **مركّب** `(TenantId, [أعمدة النطاق…], Col) → (TenantId, [أعمدة النطاق…], Id)`. يستحيل ربط سجل بسجل مشترك آخر **حتى لو أخطأ التطبيق**. و**أعمدة النطاق `via=`** تمنع الربط عبر تجميعتين داخل المشترك نفسه: حد أب من تسهيل آخر، حجز على خط منتج من حد آخر، مرحلة من قالب آخر… (138 مفتاحًا من الـ549 المركّبة تحمل أعمدة نطاق).
 3. **عزل الصفوف RLS** (`db/static/010_rls.sql`): سياسة أمنية لكل جدول؛ ترشيح وحجب إدراج/تعديل بالمعيار `TenantId = SESSION_CONTEXT('TenantId')`.
 4. **ربط الاتصال بجلسة دخول** داخل `sec.usp_SetSessionContext` (§3.2، ADR 0002): الاتصال يُربط بالمشترك برمز جلسة صادر عن دخول تحقق من كلمة المرور داخل القاعدة، والمستخدم يؤخذ من الجلسة لا من التطبيق.
 
@@ -102,7 +103,7 @@
 ### 3.3 أنواع النطاق
 | النوع | علامة النموذج | الجداول | القراءة (tp_app) | الكتابة (tp_app) | الكتابة (tp_platform) |
 |---|---|---|---|---|---|
-| مملوك للمشترك | (افتراضي) | 185 | صفوف مشتركه | صفوف مشتركه | **لا وصول مباشر** |
+| مملوك للمشترك | (افتراضي) | 189 | صفوف مشتركه | صفوف مشتركه | **لا وصول مباشر** |
 | عالمي | `global` | 7 | الكل (ما عدا `noapp`) | **لا** | نعم |
 | عالمي محجوب | `global noapp` | 5 (`plat.Tenant`، `plat.PlatformOperator`، `plat.ReservedSubdomain`، `plat.TenantModule`، `cfg.JobDefinition`) | **لا وصول** (يُقرأ صف المشترك عبر §3.6، ووحدات الاشتراك عبر `plat.v_TenantModule`) | لا | نعم، والإنشاء والحالة وحسابات المشغّلين بإجراءات فقط (ADR 0004) |
 | داخلي | `global noapp noplat` | 3 (`sec.SessionBinding`، `plat.OperatorSession`، `plat.OperatorToken`) | **لا وصول** | لا | لا: تكتبها إجراءات بعينها فقط (030، 036) |
@@ -136,11 +137,11 @@
 
 | الموضوع | الاتفاق |
 |---|---|
-| **المفاتيح** | `<Table>Id BIGINT IDENTITY` (و`INT` للكتالوجات الصغيرة بعلامة `int`، 49 جدولًا)؛ المفتاح الأساسي مجمّع على المعرّف وحده؛ الفرادة المركّبة `(TenantId, Id)` هدفًا للمراجع |
+| **المفاتيح** | `<Table>Id BIGINT IDENTITY` (و`INT` للكتالوجات الصغيرة بعلامة `int`، 55 جدولًا)؛ المفتاح الأساسي مجمّع على المعرّف وحده؛ الفرادة المركّبة `(TenantId, Id)` هدفًا للمراجع |
 | **المعرّف العام** | `PublicId UNIQUEIDENTIFIER DEFAULT NEWSEQUENTIALID()` على جذور التجميعات المعرَّضة (علامة `public`)، فريد على مستوى القاعدة؛ **لا يُعرَّض `BIGINT` عبر API** |
-| **التدقيق** | `CreatedAt/CreatedBy/UpdatedAt/UpdatedBy` (UTC `DATETIME2(3)`) + `RowVersion ROWVERSION` للتزامن المتفائل (162 جدولًا) |
+| **التدقيق** | `CreatedAt/CreatedBy/UpdatedAt/UpdatedBy` (UTC `DATETIME2(3)`) + `RowVersion ROWVERSION` للتزامن المتفائل (164 جدولًا) |
 | **للإضافة فقط** | علامة `append`: بلا `UpdatedAt/By` وبلا `RowVersion`؛ **تُفرض بالمنح** (`INSERT` و`SELECT` فقط) و**`DENY UPDATE`** — §9 |
-| **الحذف** | **لا حذف فعلي** إلا على الجداول المعلَّمة `deletable` (38 جدولًا: وسطاء وجلسات ورموز مؤقتة…)؛ الباقي بالحالة (أرشفة/إلغاء/استبدال) |
+| **الحذف** | **لا حذف فعلي** إلا على الجداول المعلَّمة `deletable` (39 جدولًا: وسطاء وجلسات ورموز مؤقتة…)؛ الباقي بالحالة (أرشفة/إلغاء/استبدال) |
 | **المبالغ** | `DECIMAL(19,4)` + عمود `CurrencyId` مجاور؛ لا مبلغ بلا عملة. أسعار الصرف `DECIMAL(19,8)` |
 | **النسب** | `DECIMAL(9,6)` بنقاط مئوية (1.5 = 1.5%) |
 | **القوائم المغلقة** | `VARCHAR` + `CHECK ... IN (...)` (لا جداول بحث لقيم منطق ثابت)؛ القوائم القابلة للتخصيص لكل مشترك في `cat.LookupList/LookupItem` أو كتالوجات مسمّاة |
@@ -268,11 +269,11 @@
 |---|---|
 | **تلقائي لكل مفتاح أجنبي** | يُنشأ ما لم يغطّه مفتاح/فهرس أو وُسم `noidx` — يمنع الأقفال الطويلة عند الحذف/التحديث ويُسرّع الربط. أعمدة المفاتيح ومراجع الغلاف `noidx` لأنها لا تُبحث |
 | **`TenantId` أولًا** في كل فهرس لجداول المشترك | توافق مع مرشّح RLS |
-| **مصفّاة (227)** | استحقاقات وتنبيهات على الحالات الحية فقط |
-| **`INCLUDE` (50)** | لوحات التوفر وتقارير الاستحقاق دون رجوع للجدول |
+| **مصفّاة (229)** | استحقاقات وتنبيهات على الحالات الحية فقط |
+| **`INCLUDE` (51)** | لوحات التوفر وتقارير الاستحقاق دون رجوع للجدول |
 | **بحث نصي كامل** | `wfl.Request.SearchText` — اختياري `db/static/040_fulltext_optional.sql` (يتطلب ميزة Full-Text Search) |
 
-قيود SQL Server التي فُحصت آليًا: لا مفتاح فهرس يتجاوز **1,700 بايت** ولا 16 عمودًا؛ المسندات المصفّاة تستعمل `=` و`<>` و`IN` و`IS [NOT] NULL` و`AND` فقط (**لا `OR`**)؛ مفتاح واحد فقط بـ`ON DELETE CASCADE` (§7) فلا مسارات تعاقب متعددة. `check_fk_indexes.py` (الخطوة 3 في CI) يشترط لكل مفتاح أجنبي من أعمدة النموذج فهرسًا يبدأ بأعمدته أو علامة `noidx`: 534 مفهرسًا و73 `noidx` وصفر بلا فهرس.
+قيود SQL Server التي فُحصت آليًا: لا مفتاح فهرس يتجاوز **1,700 بايت** ولا 16 عمودًا؛ المسندات المصفّاة تستعمل `=` و`<>` و`IN` و`IS [NOT] NULL` و`AND` فقط (**لا `OR`**)؛ مفتاح واحد فقط بـ`ON DELETE CASCADE` (§7) فلا مسارات تعاقب متعددة. `check_fk_indexes.py` (الخطوة 3 في CI) يشترط لكل مفتاح أجنبي من أعمدة النموذج فهرسًا يبدأ بأعمدته أو علامة `noidx`: 551 مفهرسًا و85 `noidx` وصفر بلا فهرس.
 
 > ملاحظة التنفيذ: الفهارس المصفّاة والأعمدة المحسوبة المخزَّنة تتطلب `QUOTED_IDENTIFIER ON` وخيارات ANSI. أدوات `sqlcmd` تفترضها `OFF`؛ لذلك يبدأ كل ملف مولَّد وثابت بضبطها ويُشغَّل النشر بالخيار `-I`.
 
@@ -283,7 +284,7 @@
 ### 9.1 الأدوار
 | الدور | الغرض | الصلاحيات (ملخص؛ التفصيل الجدولي في 007) |
 |---|---|---|
-| `tp_app` | حساب تشغيل تطبيق المشترك | **المشترك والمختلط:** `SELECT, INSERT, UPDATE` (RLS يقصر الصفوف على المشترك) · **العالمي:** `SELECT` فقط · **للإضافة فقط:** `SELECT, INSERT` · **`noapp`:** لا شيء · **`plat.v_CurrentTenant` و`plat.v_TenantModule`:** `SELECT` · الحذف الفعلي على `deletable` فقط · `EXECUTE` على الإجراءات العامة في 030 (`usp_GetPasswordParams` و`usp_StartSession` و`usp_ConfirmMfa` و`usp_SetSessionContext`) و035 (خمسة عشر إجراءً، ADR 0003) و039 (`cfg.usp_AllocateNumber` و`cfg.usp_VoidNumber`، ADR 0005) و042 (`cfg.usp_RequestDataExport` و`cfg.usp_ApproveDataExport`، ADR 0008) فقط · `SELECT` على عروض القوائم المالية ودالة أداء التدفقات في 045 (ADR 0016) · لا يكتب `obl.CovenantTestStatement` (`DENY` في 045) · لا يدرج طلب تصدير ولا يعدّله مباشرة (`DENY` في 042) · لا يكتب العدّادات ولا الأرقام المصدرة مباشرة (`DENY` في 039)، ويربط الرقم بكيانه فقط · لا `REFERENCES` · لا منح على مستوى المخطط |
+| `tp_app` | حساب تشغيل تطبيق المشترك | **المشترك والمختلط:** `SELECT, INSERT, UPDATE` (RLS يقصر الصفوف على المشترك) · **العالمي:** `SELECT` فقط · **للإضافة فقط:** `SELECT, INSERT` · **`noapp`:** لا شيء · **`plat.v_CurrentTenant` و`plat.v_TenantModule`:** `SELECT` · الحذف الفعلي على `deletable` فقط · `EXECUTE` على الإجراءات العامة في 030 (`usp_GetPasswordParams` و`usp_StartSession` و`usp_ConfirmMfa` و`usp_SetSessionContext`) و035 (خمسة عشر إجراءً، ADR 0003) و039 (`cfg.usp_AllocateNumber` و`cfg.usp_VoidNumber`، ADR 0005) و042 (`cfg.usp_RequestDataExport` و`cfg.usp_ApproveDataExport`، ADR 0008) فقط · `SELECT` على عروض القوائم المالية ودالة أداء التدفقات في 045 (ADR 0016)، و`EXECUTE` على `fin.usp_ComputeCreditAssessment` و`SELECT` على عروض التقييم في 046 (ADR 0017) · لا يكتب نتائج التقييم ولا عوامله ولا ملاحظاته (`DENY` في 046) · لا يكتب `obl.CovenantTestStatement` (`DENY` في 045) · لا يدرج طلب تصدير ولا يعدّله مباشرة (`DENY` في 042) · لا يكتب العدّادات ولا الأرقام المصدرة مباشرة (`DENY` في 039)، ويربط الرقم بكيانه فقط · لا `REFERENCES` · لا منح على مستوى المخطط |
 | `tp_platform` | مشغّلو المنصة | **العالمي والمختلط:** `SELECT, INSERT, UPDATE` (للإضافة فقط: `SELECT, INSERT`) · **جداول المشتركين: لا شيء** · لا حذف · `DENY UPDATE` على جداول الإضافة فقط · `EXECUTE` على إجراءات المشغّلين والتهيئة وحالة المشترك (036، 038)، و`DENY` على إدراج المشترك والمشغّل وعلى أعمدة الرمز والحالة وبيانات الاعتماد (ADR 0004) |
 | `tp_auth` | داخلي بلا تسجيل دخول (عبر المستخدم `tp_auth_exec`) | منح 020 على `sec.AppUser` و`plat.Tenant` و`sec.SessionBinding` و`sec.UserSession` و`sec.LoginAttempt` فقط؛ تُنفَّذ به إجراءات 030 الأربعة وقوادحها فقط (`EXECUTE AS`) · ومنح 028 و036 إلى 038 (الإعدادات، المشغّلون وجلساتهم وروابطهم، منح الدعم، قائمة المهام، التهيئة)، ADR 0004 |
 | `tp_readonly` | تقارير/تحليل | `SELECT` على كل المخططات دون الأعمدة الحساسة (`006`)؛ `DENY SELECT` على `plat.PlatformOperator` كليًا؛ ولا دوال `rls` و`sec` و`plat` و`cfg` ولا `lc.BeneficiaryIbanChange` (`090`، ADR 0015)، وتبقى عروض التقارير مقروءة |
@@ -299,10 +300,11 @@
 | `db/static/020_roles_and_grants.sql` | إنشاء الأدوار، `tp_auth`، قراءة `tp_readonly`، الحجب عن `PlatformOperator` |
 | `db/generated/tsql/005_delete_grants.sql` | الحذف على الجداول `deletable` لـ`tp_app`، و`DENY UPDATE` على جداول الإضافة فقط |
 | `db/generated/tsql/006_sensitive_columns.sql` | `DENY SELECT` على الأعمدة المقيّدة (31) لـ`tp_readonly` |
-| `db/generated/tsql/007_table_grants.sql` | **المنح الجدولية الصريحة لـ`tp_app` و`tp_platform`** (210 عبارات `GRANT`) |
+| `db/generated/tsql/007_table_grants.sql` | **المنح الجدولية الصريحة لـ`tp_app` و`tp_platform`** (226 عبارة `GRANT`) |
 | `db/static/025_tenant_views.sql` | عرض `plat.v_CurrentTenant` لـ`tp_app` |
 | `db/static/030_session_context.sql` | إجراءات الدخول والربط الأربعة وقوادح السحب و`DENY` الخاصة بـ`tp_app` (ADR 0002) |
 | `db/static/045_financial_statements.sql` | قراءة عروض القوائم المالية ودالة الأداء لـ`tp_app`، و`DENY` كتابة `obl.CovenantTestStatement` (ADR 0016) |
+| `db/static/046_credit_assessment.sql` | `EXECUTE` على إجراء الحساب و`SELECT` على العروض الستة ودالة تحليل البنود لـ`tp_app`، و`DENY` كتابة العوامل والملاحظات وأعمدة النتيجة (ADR 0017) |
 | `db/static/090_readonly_denies.sql` | آخر سكربت ثابت: `DENY` على الدوال الداخلية لـ`tp_readonly`، فتشمل كل دالة أنشأها ما قبله (ADR 0015) |
 
 ### 9.3 التحقق الثابت من الصلاحيات
@@ -1560,11 +1562,11 @@
 | `obl.ReportingObligation.SubmissionChannelId` | `cat.LookupItem` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `obl.ReportingObligation.SupersedesId` | `obl.ReportingObligation` | 1 : N | اختياري | مشترك · مركّب | قيد | InheritedRootId |
 
-#### م5 · البيانات المالية والأرصدة (1/3)
+#### م5 · البيانات المالية والأرصدة (1/5)
 
 *Financial statements & balances* — 4 جدولًا
 
-![م5 · البيانات المالية والأرصدة (1/3)](diagrams/erd/m5_financials_1.png)
+![م5 · البيانات المالية والأرصدة (1/5)](diagrams/erd/m5_financials_1.png)
 
 **مواصفات الجداول**
 
@@ -1573,7 +1575,7 @@
 | `fin.AccountMonthlyStat` | Monthly balance of an account in the account currency (FR-FIN-008, BR-FIN-005/006, V-FIN-02) | AccountMonthlyStatId | 2 | 3 | 1 | 12 |
 | `fin.BankFlowEntry` | Amount transferred to the bank in a month; annual totals are computed automatically (FR-FIN-009/010, BR-FIN-007/008) | BankFlowEntryId | 9 | 3 | 5 | 10 |
 | `fin.ConsolidationMember` | A unit of a holding's consolidated statement: the parent, each subsidiary, associate and joint venture, with its method and ownership (FR-FIN-015, BR-FIN-013; owner request 2026-10-18) | ConsolidationMemberId | 3 | 3 | 7 | 10 |
-| `fin.FinancialStatement` | Financial statement header; highly confidential (FR-FIN-002/005/006, BR-FIN-001..004, section 8) | FinancialStatementId | 6 | 8 | 11 | 21 |
+| `fin.CreditAssessment` | Credit assessment of an approved statement on a sector scorecard: the study of the balance sheet with a grade on the Moody's scale, its strengths, weaknesses and risks; written as a draft, computed by the database, approved by someone else (FR-FIN-020 to FR-FIN-024, BR-FIN-018 to BR-FIN-024; owner request 2026-10-18) | CreditAssessmentId | 12 | 3 | 12 | 22 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
@@ -1593,32 +1595,74 @@
 | `fin.ConsolidationMember.StatementId` | `fin.FinancialStatement` | 1 : N | إلزامي | مشترك · مركّب | قيد | StatementBasis |
 | `fin.ConsolidationMember.MemberCompanyId` | `org.Company` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `fin.ConsolidationMember.MemberStatementId` | `fin.FinancialStatement` | 1 : N | اختياري | مشترك · مركّب | قيد | MemberCompanyId |
+| `fin.CreditAssessment.CompanyId` | `org.Company` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
+| `fin.CreditAssessment.StatementId` | `fin.FinancialStatement` | 1 : N | إلزامي | مشترك · مركّب | قيد | CompanyId |
+| `fin.CreditAssessment.PriorStatementId` | `fin.FinancialStatement` | 1 : N | اختياري | مشترك · مركّب | قيد | CompanyId |
+| `fin.CreditAssessment.ScorecardId` | `fin.Scorecard` | 1 : N | إلزامي | مرجع عام | قيد | — |
+| `fin.CreditAssessment.UsedPriorStatementId` | `fin.FinancialStatement` | 1 : N | اختياري | مشترك · مركّب | قيد | CompanyId |
+| `fin.CreditAssessment.FinancialGradeId` | `fin.RatingGrade` | 1 : N | اختياري | مرجع عام | قيد | — |
+| `fin.CreditAssessment.IndicatedGradeId` | `fin.RatingGrade` | 1 : N | اختياري | مرجع عام | قيد | — |
+| `fin.CreditAssessment.CapGradeId` | `fin.RatingGrade` | 1 : N | اختياري | مرجع عام | قيد | — |
+| `fin.CreditAssessment.StandaloneGradeId` | `fin.RatingGrade` | 1 : N | اختياري | مرجع عام | قيد | — |
+| `fin.CreditAssessment.FinalGradeId` | `fin.RatingGrade` | 1 : N | اختياري | مرجع عام | قيد | — |
+| `fin.CreditAssessment.PreparedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `fin.CreditAssessment.ApprovedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+
+#### م5 · البيانات المالية والأرصدة (2/5)
+
+*Financial statements & balances* — 4 جدولًا
+
+![م5 · البيانات المالية والأرصدة (2/5)](diagrams/erd/m5_financials_2.png)
+
+**مواصفات الجداول**
+
+| الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
+|---|---|---|---|---|---|---|
+| `fin.CreditAssessmentFactor` | A scorecard metric of an assessment: its value, its score on the linear continuum, its grade, weight and contribution; written by fin.usp_ComputeCreditAssessment only (BR-FIN-018, BR-FIN-019) | CreditAssessmentFactorId | 3 | 2 | 3 | 11 |
+| `fin.CreditAssessmentFinding` | A finding of an assessment, with its text: a strength, a point to note or watch, a weakness, a critical risk or an adjustment, from the scorecard, an item rule, the covenants or the bank flows; written by fin.usp_ComputeCreditAssessment only (BR-FIN-020) | CreditAssessmentFindingId | 1 | 2 | 3 | 15 |
+| `fin.CreditAssessmentInput` | The analyst's inputs to an assessment: the grade of a qualitative factor, group support or an override, each with its justification; they change only while the assessment is a draft (BR-FIN-021, BR-FIN-022) | CreditAssessmentInputId | 6 | 2 | 3 | 6 |
+| `fin.CreditMetric` | The metric dictionary of the credit assessment: how each ratio is computed from the statement lines, its unit and direction, and the texts of its strength and weakness (docs/35 section 4) | CreditMetricId | 0 | 1 | 2 | 15 |
+
+**العلاقات (المفاتيح الأجنبية)**
+
+| الطفل (الجدول.العمود) | الأب | العلاقة | الإلزام | النطاق | الحذف | أعمدة النطاق |
+|---|---|---|---|---|---|---|
+| `fin.CreditAssessmentFactor.AssessmentId` | `fin.CreditAssessment` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
+| `fin.CreditAssessmentFactor.MetricId` | `fin.CreditMetric` | 1 : N | إلزامي | مرجع عام | قيد | — |
+| `fin.CreditAssessmentFactor.GradeId` | `fin.RatingGrade` | 1 : N | اختياري | مرجع عام | قيد | — |
+| `fin.CreditAssessmentFinding.AssessmentId` | `fin.CreditAssessment` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
+| `fin.CreditAssessmentInput.AssessmentId` | `fin.CreditAssessment` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
+| `fin.CreditAssessmentInput.MetricId` | `fin.CreditMetric` | 1 : N | اختياري | مرجع عام | قيد | — |
+| `fin.CreditAssessmentInput.GradeId` | `fin.RatingGrade` | 1 : N | اختياري | مرجع عام | قيد | — |
+| `fin.CreditAssessmentInput.ParentAssessmentId` | `fin.CreditAssessment` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `fin.CreditAssessmentInput.DocumentId` | `doc.Document` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `fin.CreditAssessmentInput.EnteredBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+
+#### م5 · البيانات المالية والأرصدة (3/5)
+
+*Financial statements & balances* — 4 جدولًا
+
+![م5 · البيانات المالية والأرصدة (3/5)](diagrams/erd/m5_financials_3.png)
+
+**مواصفات الجداول**
+
+| الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
+|---|---|---|---|---|---|---|
+| `fin.FinancialStatement` | Financial statement header; highly confidential (FR-FIN-002/005/006, BR-FIN-001..004, section 8) | FinancialStatementId | 6 | 8 | 12 | 22 |
+| `fin.LineCatalogItem` | Standard statement line item; 51 items seeded, twelve of them for the credit assessment; system items used in formulas cannot be deleted (FR-FIN-001, FR-FIN-020, CatalogBase) | LineCatalogItemId | 0 | 3 | 5 | 17 |
+| `fin.LineCatalogItemAlias` | Alternative names (aliases) for a line item, used for paste and matching | LineCatalogItemAliasId | 1 | 2 | 1 | 4 |
+| `fin.MeasureFormula` | Measure formula: a template or a facility-agreement version with revisions; never executed as text (FR-FIN-011, BR-FIN-009, section 12) | MeasureFormulaId | 6 | 4 | 13 | 21 |
+
+**العلاقات (المفاتيح الأجنبية)**
+
+| الطفل (الجدول.العمود) | الأب | العلاقة | الإلزام | النطاق | الحذف | أعمدة النطاق |
+|---|---|---|---|---|---|---|
 | `fin.FinancialStatement.CompanyId` | `org.Company` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `fin.FinancialStatement.CurrencyId` | `ref.Currency` | 1 : N | إلزامي | مرجع عام | قيد | — |
 | `fin.FinancialStatement.SupersedesId` | `fin.FinancialStatement` | 1 : N | اختياري | مشترك · مركّب | قيد | CompanyId, Basis, Assurance, PeriodType, PeriodEnd |
 | `fin.FinancialStatement.SourceDocumentId` | `doc.Document` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `fin.FinancialStatement.PreparedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `fin.FinancialStatement.ApprovedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
-
-#### م5 · البيانات المالية والأرصدة (2/3)
-
-*Financial statements & balances* — 4 جدولًا
-
-![م5 · البيانات المالية والأرصدة (2/3)](diagrams/erd/m5_financials_2.png)
-
-**مواصفات الجداول**
-
-| الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
-|---|---|---|---|---|---|---|
-| `fin.LineCatalogItem` | Standard statement line item; 39 items seeded; system items used in formulas cannot be deleted (FR-FIN-001, CatalogBase) | LineCatalogItemId | 0 | 3 | 5 | 17 |
-| `fin.LineCatalogItemAlias` | Alternative names (aliases) for a line item, used for paste and matching | LineCatalogItemAliasId | 1 | 2 | 1 | 4 |
-| `fin.MeasureFormula` | Measure formula: a template or a facility-agreement version with revisions; never executed as text (FR-FIN-011, BR-FIN-009, section 12) | MeasureFormulaId | 6 | 4 | 13 | 21 |
-| `fin.RevenueEstimate` | Manual revenue estimate for a fiscal year, used by a revenue-share covenant with RevenueBasisRule MANUAL_ESTIMATE (Q-FIN-05, BR-FIN-008, self-review B4) | RevenueEstimateId | 5 | 3 | 4 | 10 |
-
-**العلاقات (المفاتيح الأجنبية)**
-
-| الطفل (الجدول.العمود) | الأب | العلاقة | الإلزام | النطاق | الحذف | أعمدة النطاق |
-|---|---|---|---|---|---|---|
 | `fin.LineCatalogItemAlias.LineCatalogItemId` | `fin.LineCatalogItem` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `fin.MeasureFormula.FacilityId` | `fac.Facility` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `fin.MeasureFormula.BaseTemplateId` | `fin.MeasureFormula` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
@@ -1626,22 +1670,47 @@
 | `fin.MeasureFormula.SourceDocumentId` | `doc.Document` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `fin.MeasureFormula.VerifiedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `fin.MeasureFormula.ConflictId` | `fac.ValueConflict` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
-| `fin.RevenueEstimate.CompanyId` | `org.Company` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
-| `fin.RevenueEstimate.CurrencyId` | `ref.Currency` | 1 : N | إلزامي | مرجع عام | قيد | — |
-| `fin.RevenueEstimate.DocumentId` | `doc.Document` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
-| `fin.RevenueEstimate.PreparedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
-| `fin.RevenueEstimate.ApprovedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 
-#### م5 · البيانات المالية والأرصدة (3/3)
+#### م5 · البيانات المالية والأرصدة (4/5)
 
-*Financial statements & balances* — 2 جدولًا
+*Financial statements & balances* — 4 جدولًا
 
-![م5 · البيانات المالية والأرصدة (3/3)](diagrams/erd/m5_financials_3.png)
+![م5 · البيانات المالية والأرصدة (4/5)](diagrams/erd/m5_financials_4.png)
 
 **مواصفات الجداول**
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
+| `fin.RatingGrade` | The 21 grades of the Moody's long-term scale, their range on the scorecard continuum and their risk band (docs/35 section 2, BR-FIN-018) | RatingGradeId | 0 | 2 | 3 | 12 |
+| `fin.RevenueEstimate` | Manual revenue estimate for a fiscal year, used by a revenue-share covenant with RevenueBasisRule MANUAL_ESTIMATE (Q-FIN-05, BR-FIN-008, self-review B4) | RevenueEstimateId | 5 | 3 | 4 | 10 |
+| `fin.Scorecard` | A sector scorecard of the credit assessment and its version; approved, it never changes and a change is a new version (docs/35 section 5, BR-FIN-023) | ScorecardId | 1 | 2 | 7 | 16 |
+| `fin.ScorecardAdjustment` | An adjustment of a scorecard: notches down, a standalone cap or an absolute cap on the best grade, applied in that order around group support and the override (docs/35 section 7) | ScorecardAdjustmentId | 2 | 1 | 3 | 12 |
+
+**العلاقات (المفاتيح الأجنبية)**
+
+| الطفل (الجدول.العمود) | الأب | العلاقة | الإلزام | النطاق | الحذف | أعمدة النطاق |
+|---|---|---|---|---|---|---|
+| `fin.RevenueEstimate.CompanyId` | `org.Company` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
+| `fin.RevenueEstimate.CurrencyId` | `ref.Currency` | 1 : N | إلزامي | مرجع عام | قيد | — |
+| `fin.RevenueEstimate.DocumentId` | `doc.Document` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `fin.RevenueEstimate.PreparedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `fin.RevenueEstimate.ApprovedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `fin.Scorecard.CurrencyId` | `ref.Currency` | 1 : N | إلزامي | عام | قيد | — |
+| `fin.ScorecardAdjustment.ScorecardId` | `fin.Scorecard` | 1 : N | إلزامي | عام | قيد | — |
+| `fin.ScorecardAdjustment.CapGradeId` | `fin.RatingGrade` | 1 : N | اختياري | عام | قيد | — |
+
+#### م5 · البيانات المالية والأرصدة (5/5)
+
+*Financial statements & balances* — 4 جدولًا
+
+![م5 · البيانات المالية والأرصدة (5/5)](diagrams/erd/m5_financials_5.png)
+
+**مواصفات الجداول**
+
+| الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
+|---|---|---|---|---|---|---|
+| `fin.ScorecardItemRule` | A balance-sheet item rule of a scorecard: the item, its metric and the thresholds of LOW, MODERATE, ELEVATED, HIGH and CRITICAL; a value on a threshold belongs to the worse level (docs/35 section 6) | ScorecardItemRuleId | 2 | 1 | 1 | 10 |
+| `fin.ScorecardMetric` | A metric of a scorecard: its factor, its weight and the nine boundaries of its grid (best cap, Aaa\|Aa, Aa\|A, A\|Baa, Baa\|Ba, Ba\|B, B\|Caa, Caa\|Ca, worst cap); a qualitative metric has no grid (docs/35 section 5) | ScorecardMetricId | 2 | 1 | 2 | 15 |
 | `fin.StatementLine` | Statement line in the header currency; stored value = input x UnitScale; Variance is derived; highly confidential (BR-FIN-001/002) | StatementLineId | 2 | 2 | 0 | 5 |
 | `fin.StatementRatio` | An analysis measure computed on an approved statement, for the study of the balance sheet; written by the engine (FR-FIN-016, BR-FIN-014) | StatementRatioId | 2 | 2 | 1 | 9 |
 
@@ -1649,6 +1718,10 @@
 
 | الطفل (الجدول.العمود) | الأب | العلاقة | الإلزام | النطاق | الحذف | أعمدة النطاق |
 |---|---|---|---|---|---|---|
+| `fin.ScorecardItemRule.ScorecardId` | `fin.Scorecard` | 1 : N | إلزامي | عام | قيد | — |
+| `fin.ScorecardItemRule.MetricId` | `fin.CreditMetric` | 1 : N | إلزامي | عام | قيد | — |
+| `fin.ScorecardMetric.ScorecardId` | `fin.Scorecard` | 1 : N | إلزامي | عام | قيد | — |
+| `fin.ScorecardMetric.MetricId` | `fin.CreditMetric` | 1 : N | إلزامي | عام | قيد | — |
 | `fin.StatementLine.StatementId` | `fin.FinancialStatement` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `fin.StatementLine.LineCatalogItemId` | `fin.LineCatalogItem` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `fin.StatementRatio.StatementId` | `fin.FinancialStatement` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
@@ -2176,7 +2249,18 @@
 | `fin.fn_BankFlowPerformance(@AsOf)` | أداء كل تعهد تدفق أو حصة إيرادات سارٍ في التاريخ: النافذة، والمؤكَّد والمنتظر، والباقي والمعدل الشهري اللازم، والإنجاز والحالة | دالة تحسب عند القراءة |
 | `fin.v_ConsolidationUnits` | كل وحدة بقائمتها المعتمدة ونسبة الملكية المسجّلة | عرض |
 
-الربط مع نظام التقييم الائتماني مرحلة لاحقة لم تُبنَ (المواصفة 12 §11).
+الربط مع نظام التقييم الائتماني الخارجي مرحلة لاحقة لم تُبنَ (المواصفة 12 §11).
+
+### 11.5 التقييم الائتماني على سلّم موديز (ADR 0017، `046_credit_assessment.sql`، `docs/35`)
+
+| البند | التصميم | الفرض |
+|---|---|---|
+| المنهجية | `fin.RatingGrade` (21 درجة ومجالاتها على الخط) و`fin.CreditMetric` (36 مقياسًا بتعريفاتها ونصوصها) و`fin.Scorecard` بإصداراتها و`ScorecardMetric` (الأوزان وحدود الشبكات التسعة) و`ScorecardItemRule` (حدود مخاطر البنود) و`ScorecardAdjustment` (التنزيل والسقوف بمراحلها): **عالمية تملكها المنصة**، تبذرها `seed/104` المولَّدة من `tools/dbgen/credit_scorecard.json` | البطاقة تُعتمد كاملة ثم لا تتغير، ولا الدرجات والمقاييس التي تستعملها (50066) |
+| `fin.CreditAssessment` | تقييم قائمة معتمدة على بطاقة: قائمة المقارنة والتاريخ والسعر، والنتائج (التغطية، والدرجة المالية والمؤشرة والمنفردة والنهائية، والتنزيل والسقف والدعم والتجاوز، والخلاصة، واللقطة، وبصمة المدخلات) | النتائج يكتبها الإجراء وحده (`DENY UPDATE` على أعمدتها لـ`tp_app`)؛ المسودة تُحسب، وتُقدَّم محسوبة على ما تحمله، ويعتمدها غير مُعِدّها، وبعدها لا تتغير (50063) |
+| `fin.CreditAssessmentInput` | العاملان النوعيان ودعم المجموعة والتجاوز، كلٌّ بمبرّر | في المسودة وحدها؛ النوعي من البطاقة؛ الدعم من تقييم معتمد للأم أو للقابضة الموحِّدة (50065)؛ والتجاوز −2 إلى +1 |
+| `fin.CreditAssessmentFactor` و`Finding` | درجة كل مقياس ووزنه ومساهمته، والملاحظات بأنواعها ونصوصها | `DENY` كتابتها لـ`tp_app`، ولا تتغير بعد المسودة |
+| `fin.usp_ComputeCreditAssessment` | المقاييس بحالاتها الحدية، والدرجات على الخط، والتغطية الكمية، والتعديلات بترتيبها، والملاحظات من البطاقة والبنود والتعهدات والتحويلات | يعمل باسم المستدعي: مرشّحات الصفوف تحصره في المشترك، وسلسلة الملكية تكتب ما يُحجب عن التطبيق؛ ويطابقه `credit_reference.py` |
+| العروض | `v_CreditAssessmentReport` و`Factors` و`Findings` و`Items` (والدالة `fn_StatementItemAnalysis`) و`Covenants` و`GroupUnits` | تقرؤها `tp_app` و`tp_readonly` بمرشّحات جداولها |
 
 ---
 
@@ -2213,9 +2297,9 @@ SQL_USER=bankfas_monitor tools/dbgen/check_deployed.py --server <server>   # the
 7. `025_tenant_views` (عرض صف المشترك؛ يحتاج دوال 010)
 8. `028_tenant_settings` (إعدادات المشترك ضمن حدود المنصة، ADR 0004) → `029_audit_writer` (كاتب التدقيق وقادح محاولات الدخول، ADR 0007)
 9. `030_session_context` (إجراءات الدخول والربط بـ`EXECUTE AS tp_auth_exec`، وقوادح السحب، وكل `DENY` تزيله منح 007 لو سبقتها)
-10. `035_account_security` → `036_operator_and_support` → `037_job_context` → `038_tenant_onboarding` (ADR 0003 و0004) → `039_numbering` (الترقيم، ADR 0005) → `041_kyc_profile_versions` (نسخ ملفات الاكتمال، ADR 0006) → `042_data_export` (التصدير في كل حالة تسمح به، ADR 0008) → `043_review_guards` (حراس الدفعة أ، ADR 0011) → `044_entry_guards` (شروط دخول الشرائح S1-ب إلى S4، ADR 0011، وحراس المراجعة الذاتية §7.2، ADR 0015) → `045_financial_statements` (القوائم المالية، ADR 0016)
+10. `035_account_security` → `036_operator_and_support` → `037_job_context` → `038_tenant_onboarding` (ADR 0003 و0004) → `039_numbering` (الترقيم، ADR 0005) → `041_kyc_profile_versions` (نسخ ملفات الاكتمال، ADR 0006) → `042_data_export` (التصدير في كل حالة تسمح به، ADR 0008) → `043_review_guards` (حراس الدفعة أ، ADR 0011) → `044_entry_guards` (شروط دخول الشرائح S1-ب إلى S4، ADR 0011، وحراس المراجعة الذاتية §7.2، ADR 0015) → `045_financial_statements` (القوائم المالية، ADR 0016) → `046_credit_assessment` (التقييم الائتماني، ADR 0017)
 11. `050_fac_share_rule` (قاعدة حصص المقرضين) → `090_readonly_denies` (حجب الدوال الداخلية عن `tp_readonly`؛ آخر سكربت ثابت لأنه يحجب كل دالة أنشأها ما قبله، ADR 0015)
-12. البذور العالمية: `seed/100_platform_global` (الإعدادات والمهام والباقة والعناوين المحجوزة) → `seed/101_iso_reference` (الدول والعملات) → `seed/102_permissions` (الصلاحيات) → `seed/103_lc_reference` (Incoterms ومواد UCP 600)؛ إدراج فقط، وتعيد الخطوة 4b في CI تشغيلها وتشترط ألا يتغير شيء
+12. البذور العالمية: `seed/100_platform_global` (الإعدادات والمهام والباقة والعناوين المحجوزة) → `seed/101_iso_reference` (الدول والعملات) → `seed/102_permissions` (الصلاحيات) → `seed/103_lc_reference` (Incoterms ومواد UCP 600) → `seed/104_credit_scorecard` (منهجية التقييم الائتماني، مولَّدة من `tools/dbgen/credit_scorecard.json`)؛ إدراج فقط، وتعيد الخطوة 4b في CI تشغيلها وتشترط ألا يتغير شيء
 13. اختياري: `040_fulltext_optional`
 14. بعد النشر وداخل النافذة، بحساب مدير شخصي: `tools/deploy/server_audit.sh apply` يضيف مواصفة تدقيق القاعدة على جداول التدقيق، بعد أن شغّله المدير مرة قبل النشر الأول فبدأ تدقيق الخادم (SQL Server Audit) وسُجّل النشر نفسه. وكل سكربت في `tools/deploy` يعلن عمله في التدقيق، فتنبيهات AL-18 لا تنطلق إلا لما يقع خارج نافذة معلنة (`server_audit.sh alerts`؛ ADR 0012، DOC-S08 §10). ولا تُحسب النافذة إلا إذا فعّل معلنها حساب النشر خلال دقيقة، ولا يُسكت تنبيه AUDIT لحساب النشر أبدًا، وأُضيفت القاعدتان SERVER_CONFIG وLOGINS (ADR 0015)
 15. داخل النافذة أيضًا، بحساب مدير شخصي يملك إنشاء الحسابات: `tools/deploy/provision_logins.sh` ينشئ حسابات الخدمة الأربعة (`bankfas_app` و`bankfas_jobs` و`bankfas_platform` و`bankfas_support`، كلٌّ بزوج a/b للتدوير) ويربط كلًا بدوره وحده، وأسرارها من ملفات خاصة لا من سطر الأوامر (ADR 0009، DOC-S08)
@@ -2242,7 +2326,7 @@ SQL_USER=bankfas_monitor tools/dbgen/check_deployed.py --server <server>   # the
 
 | المرحلة | المحتوى | الآلية |
 |---|---|---|
-| **عالمي** | `ref.Country/Currency/Incoterm` وصفوف المنصة في `ref.UcpArticle`، `plat.Plan/PlanModule`، `sec.Permission` (بما فيها `req.treasury.close`)، `cfg.SettingDefinition`، `cfg.JobDefinition`، `plat.ReservedSubdomain` | سكربتات بذور عند النشر (`db/seed/100` إلى `103`) بإدراج آمن لإعادة التشغيل تتحقق منه الخطوة 4b في CI. هذه الجداول **يكتبها `tp_platform` فقط**، وصفوف المنصة في الجداول المختلطة يكتبها السكربت بمستخدم مؤقت من `tp_platform` يُحذف بعده. أنواع الأحداث `ntf.NotificationEventType` وتعريفات حقول الاعتماد مملوكة للمشترك في النموذج، فتُبذر في حزمتي المشترك NTF.BASE وLC.BASE لا هنا (DOC-B05 §5.1). **منفّذ:** `db/seed/100` (تسعة إعدادات: سبعة أمنية وبداية يوم العمل ونهايته؛ 32 مهمة؛ الباقة STANDARD بوحداتها التسع؛ 23 عنوانًا محجوزًا)، و`101` (249 دولة و157 عملة بإصدار ISO مسجَّل، DQ-B05-5)، و`102` (140 صلاحية منها `fin.stats.confirm` لتأكيد التدفقات، ADR 0016؛ خمس منها مقفلة على TM وFO، DQ-F07-1 وDQ-F09-1)؛ المولِّدان `tools/dbgen/gen_iso_seed.py` و`gen_permission_seed.py`، و`103` (16 قاعدة Incoterms منها 5 قديمة LEGACY، ومواد UCP 600 الـ39 صفوفَ منصة بحالة UNVERIFIED حتى يتحقق مختص، O-06) (ADR 0005). البذر العالمي في الوثائق مكتمل؛ والعطل الرسمية يدخلها المشغّل (FR-PLT-035) |
+| **عالمي** | `ref.Country/Currency/Incoterm` وصفوف المنصة في `ref.UcpArticle`، `plat.Plan/PlanModule`، `sec.Permission` (بما فيها `req.treasury.close`)، `cfg.SettingDefinition`، `cfg.JobDefinition`، `plat.ReservedSubdomain` | سكربتات بذور عند النشر (`db/seed/100` إلى `103`) بإدراج آمن لإعادة التشغيل تتحقق منه الخطوة 4b في CI. هذه الجداول **يكتبها `tp_platform` فقط**، وصفوف المنصة في الجداول المختلطة يكتبها السكربت بمستخدم مؤقت من `tp_platform` يُحذف بعده. أنواع الأحداث `ntf.NotificationEventType` وتعريفات حقول الاعتماد مملوكة للمشترك في النموذج، فتُبذر في حزمتي المشترك NTF.BASE وLC.BASE لا هنا (DOC-B05 §5.1). **منفّذ:** `db/seed/100` (تسعة إعدادات: سبعة أمنية وبداية يوم العمل ونهايته؛ 32 مهمة؛ الباقة STANDARD بوحداتها التسع؛ 23 عنوانًا محجوزًا)، و`101` (249 دولة و157 عملة بإصدار ISO مسجَّل، DQ-B05-5)، و`102` (142 صلاحية منها `fin.stats.confirm` لتأكيد التدفقات، ADR 0016، و`fin.credit.assess` و`fin.credit.approve` للتقييم الائتماني، ADR 0017؛ خمس منها مقفلة على TM وFO، DQ-F07-1 وDQ-F09-1)؛ المولِّدان `tools/dbgen/gen_iso_seed.py` و`gen_permission_seed.py`، و`103` (16 قاعدة Incoterms منها 5 قديمة LEGACY، ومواد UCP 600 الـ39 صفوفَ منصة بحالة UNVERIFIED حتى يتحقق مختص، O-06) (ADR 0005)، و`104` (سلّم موديز بـ21 درجة، و36 مقياسًا، وثلاث بطاقات قطاعية معتمدة بأوزانها وشبكاتها وقواعد بنودها وتعديلاتها، ADR 0017). البذر العالمي في الوثائق مكتمل؛ والعطل الرسمية يدخلها المشغّل (FR-PLT-035) |
 | **إجراء تهيئة المشترك** (إجراء منصة واحد) | ينشئ داخل معاملة واحدة: صف المشترك، **حساب الخدمة `IsSystemUser`**، **مستخدم المدير الأول**، ونسخ كتالوجات النظام لهذا المشترك (§11.3)، والأدوار القياسية وربطها بالصلاحيات، وقوالب دورات العمل، وتعريفات الترقيم (`req:<TypeCode>` و`PROFORMA` بلا فجوات)، وملفات KYC المسبقة، وقواعد الإشعارات، ووحدات الاشتراك في `plat.TenantModule` | **منفّذ بمرحلتين (ADR 0004):** `plat.usp_CreateTenant` ينشئ المشترك ووحداته وحساب الخدمة والمدير الأول المدعو في معاملة واحدة، ثم تبذر مهمة التهيئة الحزم في التطبيق وتدعو المدير الأول (`sec.usp_InviteFirstAdministrator`) |
 | **مفتاح مفقود** | قائمة `AUTHORISATION_BASIS` في `cat.LookupList` لأسس التفويض (طلبها مؤلفو النماذج) | تُضاف لبذور المشترك |
 
@@ -2254,15 +2338,15 @@ SQL_USER=bankfas_monitor tools/dbgen/check_deployed.py --server <server>   # the
 
 | الفحص | النتيجة | ملاحظة |
 |---|---|---|
-| فحص النموذج (`dbgen check`) | **OK** — 203 جداول / 3,438 عمودًا؛ لا مراجع معلّقة؛ لا مخالفة لقواعد النطاق | التسمية والمراجع والمفاتيح المركّبة والأعمدة المطلوبة |
+| فحص النموذج (`dbgen check`) | **OK** — 213 جدولًا / 3,612 عمودًا؛ لا مراجع معلّقة؛ لا مخالفة لقواعد النطاق | التسمية والمراجع والمفاتيح المركّبة والأعمدة المطلوبة |
 | تنفيذ PostgreSQL 16 | **تشغيل سابق** — 194 جدولًا / 763 مفتاحًا أجنبيًا / 691 قيد فريد أو أساسي، قبل إضافة `sec.SessionBinding`؛ لم يُعَد على النموذج الحالي، ولا يدخل CI | يثبت **البنية المنطقية** فقط. **لا** يثبت صحة T-SQL |
-| التحقق الثابت من الصلاحيات (`check_grants.py`) | **OK** — 203 جداول، 257 منحة مولّدة، 98 منحة ثابتة، 31 عمودًا مقيّدًا، القواعد R1–R11؛ يعمل في الخطوة 3 من `db_ci.sh` | حُقنت ثلاث مخالفات متعمدة فاكتُشفت كلها (§9.3). **لا يثبت** أن المحرك ينفّذ المنح كما هي |
+| التحقق الثابت من الصلاحيات (`check_grants.py`) | **OK** — 213 جدولًا، 274 منحة مولّدة، 108 منحة ثابتة، 31 عمودًا مقيّدًا، القواعد R1–R11؛ يعمل في الخطوة 3 من `db_ci.sh` | حُقنت ثلاث مخالفات متعمدة فاكتُشفت كلها (§9.3). **لا يثبت** أن المحرك ينفّذ المنح كما هي |
 | التحقق من الإصلاحات (`check_review_fixes.py`) | **OK** — 75 من 75، في الخطوة 3 من `db_ci.sh` | يفحص أن كل إصلاح من DR-01 إلى DR-50 موجود في DDL المولَّد أو في الحارس الثابت (043، 044)، لا في الوثيقة وحدها |
-| فهرسة المفاتيح الأجنبية (`check_fk_indexes.py`) | **OK** — 534 مفهرسًا، 73 `noidx`، صفر بلا فهرس؛ الخطوة 3 | §8 |
+| فهرسة المفاتيح الأجنبية (`check_fk_indexes.py`) | **OK** — 551 مفهرسًا، 85 `noidx`، صفر بلا فهرس؛ الخطوة 3 | §8 |
 | تحليل T-SQL بـ `sqlglot` | الملفات `000–004`، `007`، `010`، `025`، `030`، `040`: **بلا أخطاء**؛ `005` و`006` و`020`: خطأ واحد لكل ملف عند عبارة `DENY` | المحلّل لا يدعم عبارة `DENY` بصيغتها الكاملة؛ الصيغة صحيحة في T-SQL. التحليل نحوي جزئي |
 | فحوص آلية لمحاذير SQL Server | لا `OR` في الفهارس المصفّاة · مفاتيح الفهارس ≤ 1,700 بايت و≤ 16 عمودًا · لا مسارات `CASCADE` متعددة · خيارات `SET` ضُمّنت | فحوص نصّية على المخرجات |
-| **التنفيذ على SQL Server 2025** | **OK** — نشر كامل لـ `db/deploy.sql` على قاعدة جديدة في كل تشغيل لـ `tools/ci/db_ci.sh`، بحساب النشر `bankfas_migrator` وصلاحية `db_owner` وحدها كما في الإنتاج (ADR 0010) (صورة Ubuntu 24.04، ومرّ أيضًا على صورة RHEL؛ ADR 0001) ثم يطابق `check_deployed.py` بحساب المراقبة 14 بندًا مع DDL المولَّد والسكربتات الثابتة: الجداول والمخططات والمفاتيح والقيود والفهارس والسياسات، والوحدات المنفّذة بصفة `tp_auth_exec`، و68 قادحًا بلا معطَّل، ولا دالة مفتوحة لـ`tp_readonly`، وحساب النشر معطَّل، والترتيب `Arabic_100_CI_AS_SC` (الخطوة 5)؛ والخطوة 23 تشترط ألا يبقى بعد الاختبارات مفتاح أو قيد غير موثوق ولا قادح أو سياسة معطّلة ولا مستخدم اختبار ولا مشترك | يثبت أن المحرك يقبل النص وترتيب النشر والمنح كما هي. صفحة الدعم الرسمية لـ Ubuntu 24.04 لم تُراجَع من بيئة العمل (O-23) |
-| **اختبارات السلوك** (RLS، ربط الهوية، الصلاحيات، الحراس، التدفق المالي) | **جزئي** — بالخطوات 6 إلى 22 و19b من `db_ci.sh`: `db/tests/fac_share_rule_tests.sql` 7 فحوص (T1–T6 وT2b) · `tenant_isolation_tests.sql` 48 حالة (العزل، قراءة المنصة للتدقيق، ربط الاتصال، الدخول والقفل وMFA، حالة المشترك، حدود `tp_app`) · `auth_flow_tests.sql` 20 (حسابات المستخدمين وإعدادات المشترك، ADR 0003 و0004) · `operator_support_tests.sql` 11 · `job_context_tests.sql` 7 · `tenant_onboarding_tests.sql` 5 (ADR 0004) · `numbering_tests.sql` 8 و`tools/ci/numbering_concurrency.sh` 2 (C1: ستة اتصالات متزامنة، 114 رقمًا من 1 إلى 114 بلا تكرار ولا فجوة بعد 36 تراجعًا؛ C2: خارج معاملة، ADR 0005) · `kyc_history_tests.sql` 4 (ADR 0006) · `reference_data_tests.sql` 4 · `audit_trail_tests.sql` 7 (ADR 0007) · `data_export_tests.sql` 7 (X1–X7، ADR 0008) · `tools/ci/service_logins_check.sh` 6 (ADR 0009) · `review_fixes_tests.sql` 43 (RF1–RF34 لإصلاحات المراجعة وشروط دخول الشرائح، ADR 0011؛ وSR1–SR9 للمراجعة الذاتية، ADR 0015) · `financial_statements_tests.sql` 11 (FS1–FS11، ADR 0016) · `tools/ci/server_audit_check.sh` 9 (SA1–SA9، ADR 0012 و0015) · `tools/ci/monitor_login_check.sh` 6 (ADR 0013) · `tools/ci/deploy_preflight_check.sh` 8 (PF1–PF8، ADR 0014 و0015)؛ وكلها تمر في CI، ويفشل البناء إن اختلف عدد أي منها عن المتوقع | لم تُكتب بعد: التدفق المالي (الحجز والاستغلال) خارج قاعدة الحصص |
+| **التنفيذ على SQL Server 2025** | **OK** — نشر كامل لـ `db/deploy.sql` على قاعدة جديدة في كل تشغيل لـ `tools/ci/db_ci.sh`، بحساب النشر `bankfas_migrator` وصلاحية `db_owner` وحدها كما في الإنتاج (ADR 0010) (صورة Ubuntu 24.04، ومرّ أيضًا على صورة RHEL؛ ADR 0001) ثم يطابق `check_deployed.py` بحساب المراقبة 14 بندًا مع DDL المولَّد والسكربتات الثابتة: الجداول والمخططات والمفاتيح والقيود والفهارس والسياسات، والوحدات المنفّذة بصفة `tp_auth_exec`، و78 قادحًا بلا معطَّل، ولا دالة مفتوحة لـ`tp_readonly`، وحساب النشر معطَّل، والترتيب `Arabic_100_CI_AS_SC` (الخطوة 5)؛ والخطوة 23 تشترط ألا يبقى بعد الاختبارات مفتاح أو قيد غير موثوق ولا قادح أو سياسة معطّلة ولا مستخدم اختبار ولا مشترك | يثبت أن المحرك يقبل النص وترتيب النشر والمنح كما هي. صفحة الدعم الرسمية لـ Ubuntu 24.04 لم تُراجَع من بيئة العمل (O-23) |
+| **اختبارات السلوك** (RLS، ربط الهوية، الصلاحيات، الحراس، التدفق المالي) | **جزئي** — بالخطوات 6 إلى 22 و19b من `db_ci.sh`: `db/tests/fac_share_rule_tests.sql` 7 فحوص (T1–T6 وT2b) · `tenant_isolation_tests.sql` 48 حالة (العزل، قراءة المنصة للتدقيق، ربط الاتصال، الدخول والقفل وMFA، حالة المشترك، حدود `tp_app`) · `auth_flow_tests.sql` 20 (حسابات المستخدمين وإعدادات المشترك، ADR 0003 و0004) · `operator_support_tests.sql` 11 · `job_context_tests.sql` 7 · `tenant_onboarding_tests.sql` 5 (ADR 0004) · `numbering_tests.sql` 8 و`tools/ci/numbering_concurrency.sh` 2 (C1: ستة اتصالات متزامنة، 114 رقمًا من 1 إلى 114 بلا تكرار ولا فجوة بعد 36 تراجعًا؛ C2: خارج معاملة، ADR 0005) · `kyc_history_tests.sql` 4 (ADR 0006) · `reference_data_tests.sql` 4 · `audit_trail_tests.sql` 7 (ADR 0007) · `data_export_tests.sql` 7 (X1–X7، ADR 0008) · `tools/ci/service_logins_check.sh` 6 (ADR 0009) · `review_fixes_tests.sql` 43 (RF1–RF34 لإصلاحات المراجعة وشروط دخول الشرائح، ADR 0011؛ وSR1–SR9 للمراجعة الذاتية، ADR 0015) · `financial_statements_tests.sql` 11 (FS1–FS11، ADR 0016) · `credit_assessment_tests.sql` 12 (CA1–CA12، ADR 0017؛ ويمرر `credit_stress.py` حالات الضغط الست عشرة للمراجعة المستقلة في الخطوة 3) · `tools/ci/server_audit_check.sh` 9 (SA1–SA9، ADR 0012 و0015) · `tools/ci/monitor_login_check.sh` 6 (ADR 0013) · `tools/ci/deploy_preflight_check.sh` 8 (PF1–PF8، ADR 0014 و0015)؛ وكلها تمر في CI، ويفشل البناء إن اختلف عدد أي منها عن المتوقع | لم تُكتب بعد: التدفق المالي (الحجز والاستغلال) خارج قاعدة الحصص |
 
 ---
 
@@ -2298,7 +2382,7 @@ SQL_USER=bankfas_monitor tools/dbgen/check_deployed.py --server <server>   # the
 
 | # | البند | الأثر | المقترح |
 |---|---|---|---|
-| O-1 | **التنفيذ على SQL Server** (§14) | **محلول في بيئة التطوير:** النشر الكامل على SQL Server 2025 يمر في `db_ci.sh` بخطواته من 0 إلى 23 مع 4b و19b، واختباراته كلها (§14) | يمر أيضًا على GitHub (`.github/workflows/treasury-db-ci.yml` في جذر المستودع)؛ يبقى النشر على خادم الإنتاج (O-02، erd_open_items) |
+| O-1 | **التنفيذ على SQL Server** (§14) | **محلول في بيئة التطوير:** النشر الكامل على SQL Server 2025 يمر في `db_ci.sh` بخطواته من 0 إلى 23 مع 4b و19b و19c، واختباراته كلها (§14) | يمر أيضًا على GitHub (`.github/workflows/treasury-db-ci.yml` في جذر المستودع)؛ يبقى النشر على خادم الإنتاج (O-02، erd_open_items) |
 | O-2 | لا سكربتات ترحيل بين الإصدارات | تغيير النموذج يعيد توليد DDL كاملًا | أداة ترحيل (DbUp أو Flyway) عند أول نشر فعلي على بيانات حقيقية |
 | O-3 | البذور (§13) | **البذر العالمي منفّذ (2026-10-13):** الإعدادات والمهام والباقة والعناوين المحجوزة والدول والعملات والصلاحيات وIncoterms ومواد UCP 600 (ADR 0004 و0005) | باقٍ: حزم المشترك في التطبيق (DOC-B05 §5)، والتحقق من مواد UCP على النص الرسمي (O-06) |
 | O-4 | أسئلة مفتوحة بقيم افتراضية في `90-consolidated-open-questions.md` | أثرها على الشرائح اللاحقة؛ المتعلق منها بـ S3: Q-WFL-02, Q-WFL-09, Q-WFL-11, Q-LCT-01/02, Q-LCI-01/02 | تُراجع عند بدء S3 |
@@ -2313,13 +2397,14 @@ SQL_USER=bankfas_monitor tools/dbgen/check_deployed.py --server <server>   # the
 | **O-13** | **موقع مرساة سلسلة التدقيق** (§5.3) | بلا مرساة خارجية، السلسلة لا تكشف العبث | تخزين غير قابل للتعديل أو تجزئة منشورة دوريًا؛ قرار تشغيلي |
 | **O-14** | أرقام RPO/RTO | لا خطة استعادة مُقاسة بعد | تُحدَّد مع الاعتماد التشغيلي (§12.3) |
 | **O-15** | **36 نتيجة رئيسية و4 طفيفة** من المراجعة (`docs/review/design-review-2026-10-11.json`) | بعضها يغيّر أعمدة أو قيودًا | **محلول (2026-10-13، ADR 0011):** اعتمد المالك سجل `docs/32-review-findings-decisions.md` وأجوبته العشرة. الدفعة (أ) مُطبَّقة في 33 نتيجة كلها أو جزئيًا (المولّد والنموذج و`043_review_guards.sql`، الاختبارات RF1 إلى RF18، و`check_review_fixes.py` في CI)؛ والدفعة (ب)، شروط دخول الشرائح S1 إلى S4، منفّذة كلها في اليوم نفسه (النموذج و`044_entry_guards.sql`، الاختبارات RF19 إلى RF34؛ 75 إصلاحًا يفحصها `check_review_fixes.py`)؛ وDR-20 محلولة بـ DR-02، ويبقى مؤجلًا مرساة البصمة الخارجية (مع O-13) وفحص المفاتيح المتقاعدة (DR-20) |
-| **O-16** | **ما بقي من المراجعة الذاتية ووحدة القوائم المالية** (ADR 0015، ADR 0016) | تغطية جزئية لبعض فروع الحراس، واختباران يعتمدان التوقيت، وسماحات CI يضبطها أي مشغّل (`34-self-review-2026-10-18.md` §7)؛ وفي القوائم: التدفق المخصّص لتسهيل يُحسب له وحده، والتدفق على مستوى البنك يُحسب لكل تعهدات تسهيلاته (BR-FIN-016 🟡)، والأداء يُحسب عند القراءة بلا لقطة يومية | يؤكد المالك قاعدة BR-FIN-016؛ اللقطة اليومية مع مهام S2-ب؛ والربط بالتقييم الائتماني مرحلة لاحقة |
+| **O-16** | **ما بقي من المراجعة الذاتية ووحدة القوائم المالية** (ADR 0015، ADR 0016) | تغطية جزئية لبعض فروع الحراس، واختباران يعتمدان التوقيت، وسماحات CI يضبطها أي مشغّل (`34-self-review-2026-10-18.md` §7)؛ وفي القوائم: التدفق المخصّص لتسهيل يُحسب له وحده، والتدفق على مستوى البنك يُحسب لكل تعهدات تسهيلاته (BR-FIN-016، اعتمده المالك 2026-10-18)، والأداء يُحسب عند القراءة بلا لقطة يومية | اللقطة اليومية مع مهام S2-ب؛ والربط بالتقييم الائتماني مرحلة لاحقة |
+| **O-17** | **معايرة التقييم الائتماني** (ADR 0017، `docs/35`) | الحدود معايرة بخبرة المحلل وروجعت مراجعة مستقلة، بلا بيانات تعثر؛ والقوائم المرحلية تُحوَّل إلى سنة بالضرب؛ ولا حدود غير مسحوبة ولا تأخر في السداد في المقاييس (`docs/35` §16) | سبعة أسئلة للمالك في `docs/35` §15؛ وتتحقق إدارة مخاطر الائتمان في البنك من المعايرة قبل استعمال الدرجة في قرار |
 
 ---
 
 ## 17. الخطوة التالية
 
-1. **تقييمك** لهذا الإصدار، خاصة القرارات DB-14 إلى DB-21 والنقاط O-9 إلى O-13 و O-15، وما بقي من البنود المفتوحة في §16. تعديل المواصفة 13 (O-10) ونتائج المراجعة الـ40 (O-15) حُسما وطُبّقا (DQ-F08-1، ADR 0011)، وكذلك إصلاحات المراجعة الذاتية (ADR 0015) ووحدة القوائم المالية (ADR 0016)، وما بقي منهما في O-16.
+1. **تقييمك** لهذا الإصدار، خاصة القرارات DB-14 إلى DB-21 والنقاط O-9 إلى O-13 و O-15، وما بقي من البنود المفتوحة في §16. تعديل المواصفة 13 (O-10) ونتائج المراجعة الـ40 (O-15) حُسما وطُبّقا (DQ-F08-1، ADR 0011)، وكذلك إصلاحات المراجعة الذاتية (ADR 0015) ووحدة القوائم المالية (ADR 0016)، وما بقي منهما في O-16، والتقييم الائتماني (ADR 0017) وما بقي منه في O-17.
 2. النشر على SQL Server 2025 تم في بيئة التطوير ويمر CI (O-1)؛ ويمر على GitHub أيضًا (`.github/workflows/treasury-db-ci.yml`)؛ يبقى النشر على خادم الإنتاج (O-02، erd_open_items).
 3. ثم الواجهات والشريحة الرأسية S0. O-9 وO-11 محلولان بـ ADR 0002 وADR 0003، وO-12 للتهيئة والدعم بـ ADR 0004.
 

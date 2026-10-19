@@ -17,6 +17,8 @@ on:
       # the permission seed is generated from the readiness documents and the specs' role matrices (step 2)
       - 'treasury-platform/docs/30-readiness/**'
       - 'treasury-platform/docs/10-detailed-analysis/**'
+      # the generated tables of the credit methodology document match tools/dbgen/credit_scorecard.json (step 2)
+      - 'treasury-platform/docs/35-credit-assessment-methodology.md'
       - '.github/workflows/treasury-db-ci.yml'
   pull_request:
     paths:
@@ -28,6 +30,8 @@ on:
       # the permission seed is generated from the readiness documents and the specs' role matrices (step 2)
       - 'treasury-platform/docs/30-readiness/**'
       - 'treasury-platform/docs/10-detailed-analysis/**'
+      # the generated tables of the credit methodology document match tools/dbgen/credit_scorecard.json (step 2)
+      - 'treasury-platform/docs/35-credit-assessment-methodology.md'
       - '.github/workflows/treasury-db-ci.yml'
   workflow_dispatch:
 

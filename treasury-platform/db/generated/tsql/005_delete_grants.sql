@@ -31,6 +31,7 @@ GRANT DELETE ON [col].[PromissoryNoteSigner] TO [tp_app];
 GRANT DELETE ON [obl].[ObligationCompany] TO [tp_app];
 GRANT DELETE ON [obl].[CovenantAccount] TO [tp_app];
 GRANT DELETE ON [fin].[LineCatalogItemAlias] TO [tp_app];
+GRANT DELETE ON [fin].[CreditAssessmentInput] TO [tp_app];
 GRANT DELETE ON [wfl].[RequestTypeAudience] TO [tp_app];
 GRANT DELETE ON [wfl].[WorkflowStage] TO [tp_app];
 GRANT DELETE ON [wfl].[StageApprover] TO [tp_app];

@@ -4573,7 +4573,7 @@ CREATE TABLE [obl].[ObligationBreach] (
 GO
 
 -- ===== schema fin =====
--- Standard statement line item; 39 items seeded; system items used in formulas cannot be deleted (FR-FIN-001, CatalogBase)
+-- Standard statement line item; 51 items seeded, twelve of them for the credit assessment; system items used in formulas cannot be deleted (FR-FIN-001, FR-FIN-020, CatalogBase)
 CREATE TABLE [fin].[LineCatalogItem] (
     [TenantId] INT NOT NULL,
     [LineCatalogItemId] INT IDENTITY(1,1) NOT NULL,
@@ -4604,7 +4604,7 @@ CREATE TABLE [fin].[LineCatalogItem] (
     CONSTRAINT [CK_LineCatalogItem_3] CHECK (NameEn IS NOT NULL),
     CONSTRAINT [CK_LineCatalogItem_4] CHECK (Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'),
     CONSTRAINT [CK_LineCatalogItem_5] CHECK (IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)),
-    CONSTRAINT [CK_LineCatalogItem_Section] CHECK ([Section] IS NULL OR [Section] IN ('BS_ASSET', 'BS_LIABILITY', 'BS_EQUITY', 'IS', 'CF'))
+    CONSTRAINT [CK_LineCatalogItem_Section] CHECK ([Section] IS NULL OR [Section] IN ('BS_ASSET', 'BS_LIABILITY', 'BS_EQUITY', 'IS', 'CF', 'MEMO'))
 );
 GO
 -- Alternative names (aliases) for a line item, used for paste and matching -- جدول جديد للأسماء البديلة (FR-FIN-003)
@@ -4640,6 +4640,7 @@ CREATE TABLE [fin].[FinancialStatement] (
     [AccountingStandard] NVARCHAR(100) NULL,
     [AuditorName] NVARCHAR(200) NULL,
     [AuditOpinion] VARCHAR(11) NULL,
+    [GoingConcernUncertainty] BIT NOT NULL CONSTRAINT [DF_FinancialStatement_GoingConcernUncertainty] DEFAULT 0,
     [VersionNo] INT NOT NULL CONSTRAINT [DF_FinancialStatement_VersionNo] DEFAULT 1,
     [VersionReason] VARCHAR(10) NOT NULL CONSTRAINT [DF_FinancialStatement_VersionReason] DEFAULT 'ORIGINAL',
     [SupersedesId] BIGINT NULL,
@@ -4675,6 +4676,7 @@ CREATE TABLE [fin].[FinancialStatement] (
     CONSTRAINT [CK_FinancialStatement_9] CHECK (ApprovedBy IS NULL OR PreparedBy IS NULL OR ApprovedBy <> PreparedBy),
     CONSTRAINT [CK_FinancialStatement_10] CHECK (Status = 'DRAFT' OR Assurance <> 'AUDITED' OR (AuditorName IS NOT NULL AND AuditOpinion IS NOT NULL)),
     CONSTRAINT [CK_FinancialStatement_11] CHECK (AuditOpinion IS NULL OR Assurance = 'AUDITED'),
+    CONSTRAINT [CK_FinancialStatement_12] CHECK (GoingConcernUncertainty = 0 OR Assurance IN ('AUDITED','REVIEWED')),
     CONSTRAINT [CK_FinancialStatement_PeriodType] CHECK ([PeriodType] IS NULL OR [PeriodType] IN ('ANNUAL', 'SEMIANNUAL', 'QUARTERLY', 'MONTHLY')),
     CONSTRAINT [CK_FinancialStatement_Basis] CHECK ([Basis] IS NULL OR [Basis] IN ('STANDALONE', 'CONSOLIDATED')),
     CONSTRAINT [CK_FinancialStatement_Assurance] CHECK ([Assurance] IS NULL OR [Assurance] IN ('AUDITED', 'REVIEWED', 'MANAGEMENT')),
@@ -4915,6 +4917,316 @@ CREATE TABLE [fin].[MeasureFormula] (
     CONSTRAINT [CK_MeasureFormula_ResultUnit] CHECK ([ResultUnit] IS NULL OR [ResultUnit] IN ('RATIO', 'AMOUNT', 'PERCENT', 'DAYS')),
     CONSTRAINT [CK_MeasureFormula_Status] CHECK ([Status] IS NULL OR [Status] IN ('DRAFT', 'APPROVED', 'SUPERSEDED')),
     CONSTRAINT [CK_MeasureFormula_Confidence] CHECK ([Confidence] IS NULL OR [Confidence] IN ('CONFIRMED_AGAINST_ORIGINAL', 'READ_FROM_SCAN_UNVERIFIED', 'ENTERED_NO_DOCUMENT'))
+);
+GO
+-- The 21 grades of the Moody's long-term scale, their range on the scorecard continuum and their risk band (docs/35 section 2, BR-FIN-018)
+CREATE TABLE [fin].[RatingGrade] (
+    [RatingGradeId] INT IDENTITY(1,1) NOT NULL,
+    [Code] VARCHAR(4) NOT NULL,
+    [NotchNo] TINYINT NOT NULL,
+    [Category] VARCHAR(3) NOT NULL,
+    [ScoreFrom] DECIMAL(5,2) NULL,
+    [ScoreTo] DECIMAL(5,2) NULL,
+    [RiskBand] VARCHAR(11) NOT NULL,
+    [IsInvestmentGrade] BIT NOT NULL CONSTRAINT [DF_RatingGrade_IsInvestmentGrade] DEFAULT 0,
+    [DescriptionAr] NVARCHAR(300) NOT NULL,
+    [DescriptionEn] NVARCHAR(300) NOT NULL,
+    [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_RatingGrade_CreatedAt] DEFAULT SYSUTCDATETIME(),
+    [CreatedBy] BIGINT NULL,
+    [UpdatedAt] DATETIME2(3) NULL,
+    [UpdatedBy] BIGINT NULL,
+    CONSTRAINT [PK_RatingGrade] PRIMARY KEY CLUSTERED ([RatingGradeId]),
+    CONSTRAINT [UQ_RatingGrade_Code] UNIQUE ([Code]),
+    CONSTRAINT [UQ_RatingGrade_NotchNo] UNIQUE ([NotchNo]),
+    CONSTRAINT [CK_RatingGrade_1] CHECK (NotchNo BETWEEN 1 AND 21),
+    CONSTRAINT [CK_RatingGrade_2] CHECK ((ScoreFrom IS NULL AND ScoreTo IS NULL AND NotchNo = 21) OR (ScoreFrom IS NOT NULL AND ScoreTo IS NOT NULL AND ScoreTo > ScoreFrom AND NotchNo < 21)),
+    CONSTRAINT [CK_RatingGrade_3] CHECK (IsInvestmentGrade = 0 OR NotchNo <= 10),
+    CONSTRAINT [CK_RatingGrade_RiskBand] CHECK ([RiskBand] IS NULL OR [RiskBand] IN ('LOW', 'MODERATE', 'SUBSTANTIAL', 'HIGH', 'VERY_HIGH'))
+);
+GO
+-- The metric dictionary of the credit assessment: how each ratio is computed from the statement lines, its unit and direction, and the texts of its strength and weakness (docs/35 section 4)
+CREATE TABLE [fin].[CreditMetric] (
+    [CreditMetricId] INT IDENTITY(1,1) NOT NULL,
+    [Code] VARCHAR(40) NOT NULL,
+    [NameAr] NVARCHAR(200) NOT NULL,
+    [NameEn] NVARCHAR(200) NOT NULL,
+    [Kind] VARCHAR(12) NOT NULL,
+    [Unit] VARCHAR(10) NOT NULL,
+    [Direction] VARCHAR(13) NOT NULL,
+    [DefinitionAr] NVARCHAR(1000) NOT NULL,
+    [InputsText] NVARCHAR(500) NULL,
+    [StrengthTextAr] NVARCHAR(500) NOT NULL,
+    [StrengthTextEn] NVARCHAR(500) NOT NULL,
+    [WeaknessTextAr] NVARCHAR(500) NOT NULL,
+    [WeaknessTextEn] NVARCHAR(500) NOT NULL,
+    [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_CreditMetric_CreatedAt] DEFAULT SYSUTCDATETIME(),
+    [CreatedBy] BIGINT NULL,
+    [UpdatedAt] DATETIME2(3) NULL,
+    [UpdatedBy] BIGINT NULL,
+    CONSTRAINT [PK_CreditMetric] PRIMARY KEY CLUSTERED ([CreditMetricId]),
+    CONSTRAINT [UQ_CreditMetric_Code] UNIQUE ([Code]),
+    CONSTRAINT [CK_CreditMetric_1] CHECK ((Kind = 'QUALITATIVE' AND Unit = 'GRADE' AND Direction = 'NONE') OR (Kind = 'QUANTITATIVE' AND Unit <> 'GRADE' AND Direction <> 'NONE')),
+    CONSTRAINT [CK_CreditMetric_2] CHECK (Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%'),
+    CONSTRAINT [CK_CreditMetric_Kind] CHECK ([Kind] IS NULL OR [Kind] IN ('QUANTITATIVE', 'QUALITATIVE')),
+    CONSTRAINT [CK_CreditMetric_Unit] CHECK ([Unit] IS NULL OR [Unit] IN ('RATIO', 'PERCENT', 'DAYS', 'AMOUNT', 'GRADE')),
+    CONSTRAINT [CK_CreditMetric_Direction] CHECK ([Direction] IS NULL OR [Direction] IN ('HIGHER_BETTER', 'LOWER_BETTER', 'NONE'))
+);
+GO
+-- A sector scorecard of the credit assessment and its version; approved, it never changes and a change is a new version (docs/35 section 5, BR-FIN-023)
+CREATE TABLE [fin].[Scorecard] (
+    [ScorecardId] INT IDENTITY(1,1) NOT NULL,
+    [Code] VARCHAR(40) NOT NULL,
+    [VersionNo] INT NOT NULL CONSTRAINT [DF_Scorecard_VersionNo] DEFAULT 1,
+    [NameAr] NVARCHAR(200) NOT NULL,
+    [NameEn] NVARCHAR(200) NOT NULL,
+    [SectorNoteAr] NVARCHAR(500) NULL,
+    [CurrencyId] INT NOT NULL,
+    [AmountUnit] INT NOT NULL CONSTRAINT [DF_Scorecard_AmountUnit] DEFAULT 1000000,
+    [MinCoveragePct] DECIMAL(5,2) NOT NULL CONSTRAINT [DF_Scorecard_MinCoveragePct] DEFAULT 85,
+    [QualitativeBoundNotches] TINYINT NOT NULL CONSTRAINT [DF_Scorecard_QualitativeBoundNotches] DEFAULT 3,
+    [SupportMaxAgeMonths] TINYINT NOT NULL CONSTRAINT [DF_Scorecard_SupportMaxAgeMonths] DEFAULT 12,
+    [Status] VARCHAR(10) NOT NULL CONSTRAINT [DF_Scorecard_Status] DEFAULT 'DRAFT',
+    [EffectiveFrom] DATE NULL,
+    [DisclaimerAr] NVARCHAR(1000) NOT NULL,
+    [DisclaimerEn] NVARCHAR(1000) NOT NULL,
+    [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_Scorecard_CreatedAt] DEFAULT SYSUTCDATETIME(),
+    [CreatedBy] BIGINT NULL,
+    [UpdatedAt] DATETIME2(3) NULL,
+    [UpdatedBy] BIGINT NULL,
+    CONSTRAINT [PK_Scorecard] PRIMARY KEY CLUSTERED ([ScorecardId]),
+    CONSTRAINT [UQ_Scorecard_Code_VersionNo] UNIQUE ([Code], [VersionNo]),
+    CONSTRAINT [CK_Scorecard_1] CHECK (VersionNo >= 1),
+    CONSTRAINT [CK_Scorecard_2] CHECK (AmountUnit IN (1,1000,1000000)),
+    CONSTRAINT [CK_Scorecard_3] CHECK (MinCoveragePct > 0 AND MinCoveragePct <= 100),
+    CONSTRAINT [CK_Scorecard_4] CHECK (QualitativeBoundNotches BETWEEN 1 AND 20),
+    CONSTRAINT [CK_Scorecard_5] CHECK (SupportMaxAgeMonths BETWEEN 1 AND 36),
+    CONSTRAINT [CK_Scorecard_6] CHECK (Status = 'DRAFT' OR EffectiveFrom IS NOT NULL),
+    CONSTRAINT [CK_Scorecard_7] CHECK (Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%'),
+    CONSTRAINT [CK_Scorecard_Status] CHECK ([Status] IS NULL OR [Status] IN ('DRAFT', 'APPROVED', 'RETIRED'))
+);
+GO
+-- A metric of a scorecard: its factor, its weight and the nine boundaries of its grid (best cap, Aaa|Aa, Aa|A, A|Baa, Baa|Ba, Ba|B, B|Caa, Caa|Ca, worst cap); a qualitative metric has no grid (docs/35 section 5)
+CREATE TABLE [fin].[ScorecardMetric] (
+    [ScorecardMetricId] INT IDENTITY(1,1) NOT NULL,
+    [ScorecardId] INT NOT NULL,
+    [MetricId] INT NOT NULL,
+    [FactorCode] VARCHAR(13) NOT NULL,
+    [Weight] DECIMAL(5,2) NOT NULL,
+    [B0] DECIMAL(19,6) NULL,
+    [B1] DECIMAL(19,6) NULL,
+    [B2] DECIMAL(19,6) NULL,
+    [B3] DECIMAL(19,6) NULL,
+    [B4] DECIMAL(19,6) NULL,
+    [B5] DECIMAL(19,6) NULL,
+    [B6] DECIMAL(19,6) NULL,
+    [B7] DECIMAL(19,6) NULL,
+    [B8] DECIMAL(19,6) NULL,
+    [SortOrder] INT NOT NULL CONSTRAINT [DF_ScorecardMetric_SortOrder] DEFAULT 0,
+    [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_ScorecardMetric_CreatedAt] DEFAULT SYSUTCDATETIME(),
+    [CreatedBy] BIGINT NULL,
+    [UpdatedAt] DATETIME2(3) NULL,
+    [UpdatedBy] BIGINT NULL,
+    CONSTRAINT [PK_ScorecardMetric] PRIMARY KEY CLUSTERED ([ScorecardMetricId]),
+    CONSTRAINT [UQ_ScorecardMetric_ScorecardId_MetricId] UNIQUE ([ScorecardId], [MetricId]),
+    CONSTRAINT [CK_ScorecardMetric_1] CHECK (Weight > 0 AND Weight <= 100),
+    CONSTRAINT [CK_ScorecardMetric_2] CHECK ((B0 IS NULL AND B1 IS NULL AND B2 IS NULL AND B3 IS NULL AND B4 IS NULL AND B5 IS NULL AND B6 IS NULL AND B7 IS NULL AND B8 IS NULL) OR (B0 IS NOT NULL AND B1 IS NOT NULL AND B2 IS NOT NULL AND B3 IS NOT NULL AND B4 IS NOT NULL AND B5 IS NOT NULL AND B6 IS NOT NULL AND B7 IS NOT NULL AND B8 IS NOT NULL AND ((B0 < B1 AND B1 < B2 AND B2 < B3 AND B3 < B4 AND B4 < B5 AND B5 < B6 AND B6 < B7 AND B7 < B8) OR (B0 > B1 AND B1 > B2 AND B2 > B3 AND B3 > B4 AND B4 > B5 AND B5 > B6 AND B6 > B7 AND B7 > B8)))),
+    CONSTRAINT [CK_ScorecardMetric_FactorCode] CHECK ([FactorCode] IS NULL OR [FactorCode] IN ('SCALE', 'PROFITABILITY', 'LEVERAGE', 'COVERAGE', 'CASH_FLOW', 'LIQUIDITY', 'QUALITATIVE'))
+);
+GO
+-- A balance-sheet item rule of a scorecard: the item, its metric and the thresholds of LOW, MODERATE, ELEVATED, HIGH and CRITICAL; a value on a threshold belongs to the worse level (docs/35 section 6)
+CREATE TABLE [fin].[ScorecardItemRule] (
+    [ScorecardItemRuleId] INT IDENTITY(1,1) NOT NULL,
+    [ScorecardId] INT NOT NULL,
+    [MetricId] INT NOT NULL,
+    [LineCode] VARCHAR(40) NOT NULL,
+    [T1] DECIMAL(19,6) NOT NULL,
+    [T2] DECIMAL(19,6) NOT NULL,
+    [T3] DECIMAL(19,6) NOT NULL,
+    [T4] DECIMAL(19,6) NOT NULL,
+    [ReportStrength] BIT NOT NULL CONSTRAINT [DF_ScorecardItemRule_ReportStrength] DEFAULT 0,
+    [SortOrder] INT NOT NULL CONSTRAINT [DF_ScorecardItemRule_SortOrder] DEFAULT 0,
+    [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_ScorecardItemRule_CreatedAt] DEFAULT SYSUTCDATETIME(),
+    [CreatedBy] BIGINT NULL,
+    [UpdatedAt] DATETIME2(3) NULL,
+    [UpdatedBy] BIGINT NULL,
+    CONSTRAINT [PK_ScorecardItemRule] PRIMARY KEY CLUSTERED ([ScorecardItemRuleId]),
+    CONSTRAINT [UQ_ScorecardItemRule_ScorecardId_MetricId] UNIQUE ([ScorecardId], [MetricId]),
+    CONSTRAINT [CK_ScorecardItemRule_1] CHECK ((T1 < T2 AND T2 < T3 AND T3 < T4) OR (T1 > T2 AND T2 > T3 AND T3 > T4))
+);
+GO
+-- An adjustment of a scorecard: notches down, a standalone cap or an absolute cap on the best grade, applied in that order around group support and the override (docs/35 section 7)
+CREATE TABLE [fin].[ScorecardAdjustment] (
+    [ScorecardAdjustmentId] INT IDENTITY(1,1) NOT NULL,
+    [ScorecardId] INT NOT NULL,
+    [RuleCode] VARCHAR(23) NOT NULL,
+    [Stage] VARCHAR(10) NOT NULL,
+    [Notches] INT NOT NULL CONSTRAINT [DF_ScorecardAdjustment_Notches] DEFAULT 0,
+    [CapGradeId] INT NULL,
+    [ParamValue] DECIMAL(19,6) NULL,
+    [ShowWhen] VARCHAR(12) NOT NULL CONSTRAINT [DF_ScorecardAdjustment_ShowWhen] DEFAULT 'ALWAYS',
+    [IsActive] BIT NOT NULL CONSTRAINT [DF_ScorecardAdjustment_IsActive] DEFAULT 1,
+    [NameAr] NVARCHAR(200) NOT NULL,
+    [TextAr] NVARCHAR(500) NOT NULL,
+    [TextEn] NVARCHAR(500) NOT NULL,
+    [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_ScorecardAdjustment_CreatedAt] DEFAULT SYSUTCDATETIME(),
+    [CreatedBy] BIGINT NULL,
+    [UpdatedAt] DATETIME2(3) NULL,
+    [UpdatedBy] BIGINT NULL,
+    CONSTRAINT [PK_ScorecardAdjustment] PRIMARY KEY CLUSTERED ([ScorecardAdjustmentId]),
+    CONSTRAINT [UQ_ScorecardAdjustment_ScorecardId_RuleCode] UNIQUE ([ScorecardId], [RuleCode]),
+    CONSTRAINT [CK_ScorecardAdjustment_1] CHECK (Notches BETWEEN -3 AND 0),
+    CONSTRAINT [CK_ScorecardAdjustment_2] CHECK ((Stage = 'NOTCH' AND CapGradeId IS NULL AND Notches < 0) OR (Stage <> 'NOTCH' AND CapGradeId IS NOT NULL AND Notches = 0)),
+    CONSTRAINT [CK_ScorecardAdjustment_3] CHECK (RuleCode NOT IN ('STALE_STATEMENT','RESTATEMENT','HALF_CAPITAL_LOST','HALF_CAPITAL_LOST_CURED','RELATED_PARTY_EXPOSURE','FLOW_SHORTFALL','SIZE_CEILING') OR ParamValue IS NOT NULL),
+    CONSTRAINT [CK_ScorecardAdjustment_RuleCode] CHECK ([RuleCode] IS NULL OR [RuleCode] IN ('AUDIT_QUALIFIED', 'UNAUDITED_ANNUAL', 'STALE_STATEMENT', 'INCOMPLETE_STATEMENT', 'RESTATEMENT', 'HALF_CAPITAL_LOST_CURED', 'RELATED_PARTY_EXPOSURE', 'HOLDCO_STANDALONE', 'OPEN_BREACH', 'BREACH_WAIVER_REQUESTED', 'FLOW_SHORTFALL', 'GOING_CONCERN', 'NEGATIVE_EQUITY', 'HALF_CAPITAL_LOST', 'SIZE_CEILING', 'SECTOR_CEILING', 'AUDIT_ADVERSE', 'SOVEREIGN_CEILING')),
+    CONSTRAINT [CK_ScorecardAdjustment_Stage] CHECK ([Stage] IS NULL OR [Stage] IN ('NOTCH', 'STANDALONE', 'ABSOLUTE')),
+    CONSTRAINT [CK_ScorecardAdjustment_ShowWhen] CHECK ([ShowWhen] IS NULL OR [ShowWhen] IN ('ALWAYS', 'WHEN_BINDING'))
+);
+GO
+-- Credit assessment of an approved statement on a sector scorecard: the study of the balance sheet with a grade on the Moody's scale, its strengths, weaknesses and risks; written as a draft, computed by the database, approved by someone else (FR-FIN-020 to FR-FIN-024, BR-FIN-018 to BR-FIN-024; owner request 2026-10-18)
+CREATE TABLE [fin].[CreditAssessment] (
+    [TenantId] INT NOT NULL,
+    [CreditAssessmentId] BIGINT IDENTITY(1,1) NOT NULL,
+    [CompanyId] BIGINT NOT NULL,
+    [StatementId] BIGINT NOT NULL,
+    [PriorStatementId] BIGINT NULL,
+    [ScorecardId] INT NOT NULL,
+    [AssessmentDate] DATE NOT NULL,
+    [FxRateToScorecard] DECIMAL(19,8) NULL,
+    [Status] VARCHAR(10) NOT NULL CONSTRAINT [DF_CreditAssessment_Status] DEFAULT 'DRAFT',
+    [ComputedAt] DATETIME2(3) NULL,
+    [InputsHash] VARCHAR(64) NULL,
+    [UsedPriorStatementId] BIGINT NULL,
+    [ResultState] VARCHAR(17) NULL,
+    [CoveragePct] DECIMAL(5,2) NULL,
+    [FinancialScore] DECIMAL(9,4) NULL,
+    [FinancialGradeId] INT NULL,
+    [WeightedScore] DECIMAL(9,4) NULL,
+    [IndicatedGradeId] INT NULL,
+    [AdjustmentNotches] INT NULL,
+    [CapGradeId] INT NULL,
+    [StandaloneGradeId] INT NULL,
+    [SupportNotches] INT NULL,
+    [OverrideNotches] INT NULL,
+    [FinalGradeId] INT NULL,
+    [SummaryAr] NVARCHAR(1000) NULL,
+    [SummaryEn] NVARCHAR(1000) NULL,
+    [Snapshot] NVARCHAR(MAX) NULL,
+    [PreparedBy] BIGINT NULL,
+    [PreparedOn] DATETIME2(3) NULL,
+    [ApprovedBy] BIGINT NULL,
+    [ApprovedOn] DATETIME2(3) NULL,
+    [RejectionReason] NVARCHAR(500) NULL,
+    [PublicId] UNIQUEIDENTIFIER NOT NULL CONSTRAINT [DF_CreditAssessment_PublicId] DEFAULT NEWSEQUENTIALID(),
+    [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_CreditAssessment_CreatedAt] DEFAULT SYSUTCDATETIME(),
+    [CreatedBy] BIGINT NULL,
+    [UpdatedAt] DATETIME2(3) NULL,
+    [UpdatedBy] BIGINT NULL,
+    [RowVersion] ROWVERSION NOT NULL,
+    CONSTRAINT [PK_CreditAssessment] PRIMARY KEY CLUSTERED ([CreditAssessmentId]),
+    CONSTRAINT [UQ_CreditAssessment_Tenant] UNIQUE ([TenantId], [CreditAssessmentId]),
+    CONSTRAINT [UQ_CreditAssessment_PublicId] UNIQUE ([PublicId]),
+    CONSTRAINT [CK_CreditAssessment_1] CHECK (FxRateToScorecard IS NULL OR FxRateToScorecard > 0),
+    CONSTRAINT [CK_CreditAssessment_2] CHECK (PriorStatementId IS NULL OR PriorStatementId <> StatementId),
+    CONSTRAINT [CK_CreditAssessment_3] CHECK ((ResultState IS NULL AND FinancialScore IS NULL AND WeightedScore IS NULL AND IndicatedGradeId IS NULL AND FinalGradeId IS NULL) OR (ResultState IS NOT NULL AND ComputedAt IS NOT NULL AND InputsHash IS NOT NULL AND CoveragePct IS NOT NULL AND ((ResultState = 'INSUFFICIENT_DATA' AND FinancialScore IS NULL AND WeightedScore IS NULL AND IndicatedGradeId IS NULL AND FinalGradeId IS NULL) OR (ResultState = 'INDICATIVE' AND FinancialScore IS NOT NULL AND FinancialGradeId IS NOT NULL AND WeightedScore IS NULL AND FinalGradeId IS NULL) OR (ResultState = 'RATED' AND FinancialScore IS NOT NULL AND WeightedScore IS NOT NULL AND IndicatedGradeId IS NOT NULL AND StandaloneGradeId IS NOT NULL AND FinalGradeId IS NOT NULL)))),
+    CONSTRAINT [CK_CreditAssessment_4] CHECK (WeightedScore IS NULL OR (WeightedScore >= 0.5 AND WeightedScore <= 20.5)),
+    CONSTRAINT [CK_CreditAssessment_5] CHECK (FinancialScore IS NULL OR (FinancialScore >= 0.5 AND FinancialScore <= 20.5)),
+    CONSTRAINT [CK_CreditAssessment_6] CHECK (CoveragePct IS NULL OR (CoveragePct >= 0 AND CoveragePct <= 100)),
+    CONSTRAINT [CK_CreditAssessment_7] CHECK (SupportNotches IS NULL OR SupportNotches BETWEEN 0 AND 2),
+    CONSTRAINT [CK_CreditAssessment_8] CHECK (OverrideNotches IS NULL OR OverrideNotches BETWEEN -2 AND 1),
+    CONSTRAINT [CK_CreditAssessment_9] CHECK (Status NOT IN ('SUBMITTED','APPROVED','SUPERSEDED') OR (ResultState IS NOT NULL AND ResultState = 'RATED' AND PreparedBy IS NOT NULL AND PreparedOn IS NOT NULL)),
+    CONSTRAINT [CK_CreditAssessment_10] CHECK (Status NOT IN ('APPROVED','SUPERSEDED') OR (ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)),
+    CONSTRAINT [CK_CreditAssessment_11] CHECK (ApprovedBy IS NULL OR PreparedBy IS NULL OR ApprovedBy <> PreparedBy),
+    CONSTRAINT [CK_CreditAssessment_12] CHECK (Status <> 'REJECTED' OR RejectionReason IS NOT NULL),
+    CONSTRAINT [CK_CreditAssessment_Status] CHECK ([Status] IS NULL OR [Status] IN ('DRAFT', 'SUBMITTED', 'APPROVED', 'REJECTED', 'SUPERSEDED')),
+    CONSTRAINT [CK_CreditAssessment_ResultState] CHECK ([ResultState] IS NULL OR [ResultState] IN ('RATED', 'INDICATIVE', 'INSUFFICIENT_DATA')),
+    CONSTRAINT [CK_CreditAssessment_Snapshot_json] CHECK ([Snapshot] IS NULL OR ISJSON([Snapshot], VALUE) = 1)
+);
+GO
+-- The analyst's inputs to an assessment: the grade of a qualitative factor, group support or an override, each with its justification; they change only while the assessment is a draft (BR-FIN-021, BR-FIN-022)
+CREATE TABLE [fin].[CreditAssessmentInput] (
+    [TenantId] INT NOT NULL,
+    [CreditAssessmentInputId] BIGINT IDENTITY(1,1) NOT NULL,
+    [AssessmentId] BIGINT NOT NULL,
+    [Kind] VARCHAR(13) NOT NULL,
+    [MetricId] INT NULL,
+    [GradeId] INT NULL,
+    [Notches] INT NULL,
+    [ParentAssessmentId] BIGINT NULL,
+    [Justification] NVARCHAR(1000) NOT NULL,
+    [DocumentId] BIGINT NULL,
+    [EnteredBy] BIGINT NULL,
+    [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_CreditAssessmentInput_CreatedAt] DEFAULT SYSUTCDATETIME(),
+    [CreatedBy] BIGINT NULL,
+    [UpdatedAt] DATETIME2(3) NULL,
+    [UpdatedBy] BIGINT NULL,
+    [RowVersion] ROWVERSION NOT NULL,
+    CONSTRAINT [PK_CreditAssessmentInput] PRIMARY KEY CLUSTERED ([CreditAssessmentInputId]),
+    CONSTRAINT [UQ_CreditAssessmentInput_Tenant] UNIQUE ([TenantId], [CreditAssessmentInputId]),
+    CONSTRAINT [UQ_CreditAssessmentInput_AssessmentId_Kind_MetricId] UNIQUE ([TenantId], [AssessmentId], [Kind], [MetricId]),
+    CONSTRAINT [CK_CreditAssessmentInput_1] CHECK ((Kind = 'QUALITATIVE' AND MetricId IS NOT NULL AND GradeId IS NOT NULL AND Notches IS NULL AND ParentAssessmentId IS NULL) OR (Kind = 'GROUP_SUPPORT' AND MetricId IS NULL AND GradeId IS NULL AND Notches IS NOT NULL AND Notches BETWEEN 1 AND 2 AND ParentAssessmentId IS NOT NULL) OR (Kind = 'OVERRIDE' AND MetricId IS NULL AND GradeId IS NULL AND Notches IS NOT NULL AND Notches IN (-2,-1,1) AND ParentAssessmentId IS NULL)),
+    CONSTRAINT [CK_CreditAssessmentInput_2] CHECK (ParentAssessmentId IS NULL OR ParentAssessmentId <> AssessmentId),
+    CONSTRAINT [CK_CreditAssessmentInput_3] CHECK (LEN(LTRIM(RTRIM(Justification))) >= 10),
+    CONSTRAINT [CK_CreditAssessmentInput_Kind] CHECK ([Kind] IS NULL OR [Kind] IN ('QUALITATIVE', 'GROUP_SUPPORT', 'OVERRIDE'))
+);
+GO
+-- A scorecard metric of an assessment: its value, its score on the linear continuum, its grade, weight and contribution; written by fin.usp_ComputeCreditAssessment only (BR-FIN-018, BR-FIN-019)
+CREATE TABLE [fin].[CreditAssessmentFactor] (
+    [TenantId] INT NOT NULL,
+    [CreditAssessmentFactorId] BIGINT IDENTITY(1,1) NOT NULL,
+    [AssessmentId] BIGINT NOT NULL,
+    [MetricId] INT NOT NULL,
+    [FactorCode] VARCHAR(30) NOT NULL,
+    [Weight] DECIMAL(5,2) NOT NULL,
+    [EffectiveWeight] DECIMAL(9,4) NULL,
+    [Status] VARCHAR(14) NOT NULL,
+    [Value] DECIMAL(19,6) NULL,
+    [Score] DECIMAL(9,4) NULL,
+    [GradeId] INT NULL,
+    [Contribution] DECIMAL(9,4) NULL,
+    [Reason] NVARCHAR(300) NULL,
+    [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_CreditAssessmentFactor_CreatedAt] DEFAULT SYSUTCDATETIME(),
+    [CreatedBy] BIGINT NULL,
+    [UpdatedAt] DATETIME2(3) NULL,
+    [UpdatedBy] BIGINT NULL,
+    CONSTRAINT [PK_CreditAssessmentFactor] PRIMARY KEY CLUSTERED ([CreditAssessmentFactorId]),
+    CONSTRAINT [UQ_CreditAssessmentFactor_Tenant] UNIQUE ([TenantId], [CreditAssessmentFactorId]),
+    CONSTRAINT [UQ_CreditAssessmentFactor_AssessmentId_MetricId] UNIQUE ([TenantId], [AssessmentId], [MetricId]),
+    CONSTRAINT [CK_CreditAssessmentFactor_1] CHECK ((Status = 'COMPUTED' AND Value IS NOT NULL AND Score IS NOT NULL AND Reason IS NULL) OR (Status = 'EXTREME' AND Value IS NULL AND Score IS NOT NULL AND Reason IS NOT NULL) OR (Status = 'NOT_COMPUTABLE' AND Value IS NULL AND Score IS NULL AND Reason IS NOT NULL) OR (Status = 'ANALYST' AND Value IS NULL AND Score IS NOT NULL)),
+    CONSTRAINT [CK_CreditAssessmentFactor_2] CHECK (Score IS NULL OR (Score >= 0.5 AND Score <= 20.5)),
+    CONSTRAINT [CK_CreditAssessmentFactor_3] CHECK (Weight > 0 AND Weight <= 100),
+    CONSTRAINT [CK_CreditAssessmentFactor_Status] CHECK ([Status] IS NULL OR [Status] IN ('COMPUTED', 'EXTREME', 'NOT_COMPUTABLE', 'ANALYST'))
+);
+GO
+-- A finding of an assessment, with its text: a strength, a point to note or watch, a weakness, a critical risk or an adjustment, from the scorecard, an item rule, the covenants or the bank flows; written by fin.usp_ComputeCreditAssessment only (BR-FIN-020)
+CREATE TABLE [fin].[CreditAssessmentFinding] (
+    [TenantId] INT NOT NULL,
+    [CreditAssessmentFindingId] BIGINT IDENTITY(1,1) NOT NULL,
+    [AssessmentId] BIGINT NOT NULL,
+    [SeqNo] INT NOT NULL,
+    [Kind] VARCHAR(13) NOT NULL,
+    [Source] VARCHAR(10) NOT NULL,
+    [RuleCode] VARCHAR(40) NOT NULL,
+    [LineCode] VARCHAR(40) NULL,
+    [RiskLevel] VARCHAR(10) NULL,
+    [Value] DECIMAL(19,6) NULL,
+    [PriorValue] DECIMAL(19,6) NULL,
+    [Notches] INT NULL,
+    [RefId] BIGINT NULL,
+    [TextAr] NVARCHAR(1000) NOT NULL,
+    [TextEn] NVARCHAR(1000) NULL,
+    [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_CreditAssessmentFinding_CreatedAt] DEFAULT SYSUTCDATETIME(),
+    [CreatedBy] BIGINT NULL,
+    [UpdatedAt] DATETIME2(3) NULL,
+    [UpdatedBy] BIGINT NULL,
+    CONSTRAINT [PK_CreditAssessmentFinding] PRIMARY KEY CLUSTERED ([CreditAssessmentFindingId]),
+    CONSTRAINT [UQ_CreditAssessmentFinding_Tenant] UNIQUE ([TenantId], [CreditAssessmentFindingId]),
+    CONSTRAINT [UQ_CreditAssessmentFinding_AssessmentId_SeqNo] UNIQUE ([TenantId], [AssessmentId], [SeqNo]),
+    CONSTRAINT [CK_CreditAssessmentFinding_1] CHECK (SeqNo >= 1),
+    CONSTRAINT [CK_CreditAssessmentFinding_2] CHECK (Source <> 'ITEM_RULE' OR LineCode IS NOT NULL),
+    CONSTRAINT [CK_CreditAssessmentFinding_3] CHECK (RiskLevel IS NULL OR Source = 'ITEM_RULE'),
+    CONSTRAINT [CK_CreditAssessmentFinding_Kind] CHECK ([Kind] IS NULL OR [Kind] IN ('STRENGTH', 'INFO', 'WATCH', 'WEAKNESS', 'CRITICAL_RISK', 'ADJUSTMENT')),
+    CONSTRAINT [CK_CreditAssessmentFinding_Source] CHECK ([Source] IS NULL OR [Source] IN ('SCORECARD', 'ITEM_RULE', 'ADJUSTMENT', 'COVENANT', 'BANK_FLOW', 'ANALYST')),
+    CONSTRAINT [CK_CreditAssessmentFinding_RiskLevel] CHECK ([RiskLevel] IS NULL OR [RiskLevel] IN ('LOW', 'MODERATE', 'ELEVATED', 'HIGH', 'CRITICAL'))
 );
 GO
 

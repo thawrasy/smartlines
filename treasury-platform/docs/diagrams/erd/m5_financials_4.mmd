@@ -1,0 +1,24 @@
+%% م5 · البيانات المالية والأرصدة (4/5) — Financial statements & balances
+erDiagram
+  fin_RatingGrade["fin.RatingGrade"] {
+    int RatingGradeId PK
+  }
+  fin_RevenueEstimate["fin.RevenueEstimate"] {
+    bigint RevenueEstimateId PK
+    bigint CompanyId FK
+    int CurrencyId FK
+    bigint DocumentId FK
+    bigint PreparedBy FK
+    bigint ApprovedBy FK
+  }
+  fin_Scorecard["fin.Scorecard"] {
+    int ScorecardId PK
+    int CurrencyId FK
+  }
+  fin_ScorecardAdjustment["fin.ScorecardAdjustment"] {
+    int ScorecardAdjustmentId PK
+    int ScorecardId FK
+    int CapGradeId FK
+  }
+  fin_RatingGrade |o--o{ fin_ScorecardAdjustment : "CapGradeId"
+  fin_Scorecard ||--o{ fin_ScorecardAdjustment : "ScorecardId"

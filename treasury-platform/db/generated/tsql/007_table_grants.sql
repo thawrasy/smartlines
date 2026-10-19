@@ -317,6 +317,32 @@ GRANT SELECT, INSERT, UPDATE ON [fin].[AccountMonthlyStat] TO [tp_app];
 GRANT SELECT, INSERT, UPDATE ON [fin].[BankFlowEntry] TO [tp_app];
 -- fin.MeasureFormula
 GRANT SELECT, INSERT, UPDATE ON [fin].[MeasureFormula] TO [tp_app];
+-- fin.RatingGrade
+GRANT SELECT ON [fin].[RatingGrade] TO [tp_app];
+GRANT SELECT, INSERT, UPDATE ON [fin].[RatingGrade] TO [tp_platform];
+-- fin.CreditMetric
+GRANT SELECT ON [fin].[CreditMetric] TO [tp_app];
+GRANT SELECT, INSERT, UPDATE ON [fin].[CreditMetric] TO [tp_platform];
+-- fin.Scorecard
+GRANT SELECT ON [fin].[Scorecard] TO [tp_app];
+GRANT SELECT, INSERT, UPDATE ON [fin].[Scorecard] TO [tp_platform];
+-- fin.ScorecardMetric
+GRANT SELECT ON [fin].[ScorecardMetric] TO [tp_app];
+GRANT SELECT, INSERT, UPDATE ON [fin].[ScorecardMetric] TO [tp_platform];
+-- fin.ScorecardItemRule
+GRANT SELECT ON [fin].[ScorecardItemRule] TO [tp_app];
+GRANT SELECT, INSERT, UPDATE ON [fin].[ScorecardItemRule] TO [tp_platform];
+-- fin.ScorecardAdjustment
+GRANT SELECT ON [fin].[ScorecardAdjustment] TO [tp_app];
+GRANT SELECT, INSERT, UPDATE ON [fin].[ScorecardAdjustment] TO [tp_platform];
+-- fin.CreditAssessment
+GRANT SELECT, INSERT, UPDATE ON [fin].[CreditAssessment] TO [tp_app];
+-- fin.CreditAssessmentInput
+GRANT SELECT, INSERT, UPDATE ON [fin].[CreditAssessmentInput] TO [tp_app];
+-- fin.CreditAssessmentFactor
+GRANT SELECT, INSERT, UPDATE ON [fin].[CreditAssessmentFactor] TO [tp_app];
+-- fin.CreditAssessmentFinding
+GRANT SELECT, INSERT, UPDATE ON [fin].[CreditAssessmentFinding] TO [tp_app];
 -- wfl.RequestType
 GRANT SELECT, INSERT, UPDATE ON [wfl].[RequestType] TO [tp_app];
 -- wfl.RequestTypeAudience
