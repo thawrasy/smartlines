@@ -859,7 +859,11 @@ def assess(card, cur, *, prior=None, period_type='ANNUAL', prior_period_type='AN
         for name in [x['code'] for x in SCENARIOS]:
             prm = scenario_params(industry, name, product_mix, country, region)
             lines2, extra = stress_lines(card, cur, prm)
-            r2 = assess(card, lines2, **dict(kw, rollover_factor=1 - prm['st_lines_withdrawn_pct'] / 100), proforma=True, with_remedies=False, with_scenarios=False)
+            # the committed undrawn limits the banks keep open in the scenario (ADR 0020)
+            plat2 = dict(platform, committed_undrawn=platform['committed_undrawn'] * prm['undrawn_available_pct'] / 100) \
+                if platform and platform.get('committed_undrawn') is not None else platform
+            r2 = assess(card, lines2, **dict(kw, rollover_factor=1 - prm['st_lines_withdrawn_pct'] / 100, platform=plat2), proforma=True,
+                        with_remedies=False, with_scenarios=False)
             sc[name] = dict(final=r2.get('final'), notch=r2.get('final_notch'), liquidity=r2['liquidity'], aggregate=r2.get('aggregate'),
                             lost=None if r2.get('final_notch') is None else r2['final_notch'] - n5, revenue=lines2['REVENUE'],
                             ebitda=r2['Q']['EBITDA'], inventory=lines2['INVENTORY'], extra=extra, params=prm)
@@ -1129,8 +1133,9 @@ def rebuild_totals(out, original):
 
 def scenario_params(industry, scen, mix, country=None, region=None):
     """The stress of a macro scenario on the company (docs/35 section 14): per driver, the scenario intensity × the
-    activity sensitivity ÷ 5 × the country exposure × the region multiplier (real estate and conflict); the product mix
-    replaces the activity's demand sensitivity and gives the inventory write-down."""
+    activity sensitivity ÷ 5 × the country exposure × the region multiplier (real estate and conflict) × the scenario's
+    multiplier for the country; the product mix replaces the activity's demand sensitivity and gives the inventory
+    write-down."""
     sd = next(x for x in SCENARIOS if x['code'] == scen)
     R = M['scenario_rules']
     sens = dict(INDUSTRIES[industry]['sens'])
@@ -1140,19 +1145,21 @@ def scenario_params(industry, scen, mix, country=None, region=None):
     if mix:
         rw = sum(m['revenue_share_pct'] for m in mix)
         sens['DEMAND'] = sum(PCAT[m['category']]['demand_sensitivity'] * m['revenue_share_pct'] for m in mix) / rw
+    cmult = sd['country_mult'].get(country, sd['other_country_mult'])   # a scenario that hits some countries more than others
     x = {}
     for d in DRIVERS:
         v = sd['intensity'][d] * sens[d] / 5 * cp['exposure'][d]
         if rg and d == 'REAL_ESTATE': v *= rg['re_mult']
         if rg and d == 'CONFLICT': v *= rg['conflict_mult']
-        x[d] = v
+        x[d] = v * cmult
     p = dict(revenue_pct=max(-R['max_revenue_fall_pct'], -sum(x[d] * DRV[d]['rev_pct'] for d in DRIVERS)),
              gross_margin_pp=-sum(x[d] * DRV[d]['gm_pp'] for d in DRIVERS),
              dso_days=sd['base_dso_days'] + sum(x[d] * DRV[d]['dso_days'] for d in DRIVERS),
              st_lines_withdrawn_pct=min(R['st_lines_max_pct'], sd['st_lines_withdrawn_pct'] * cp['exposure']['CREDIT'] * sens['CREDIT'] / R['credit_sensitivity_reference']),
              rate_bp=sd['rate_bp'],
              private_ar_loss_pct=min(100.0, sd['private_ar_loss_pct'] * (1 + R['private_ar_loss_demand_factor'] * x['DEMAND'])),
-             property_writedown_pct=min(R['investment_property_fall_max_pct'], R['investment_property_fall_pct'] * x['REAL_ESTATE']))
+             property_writedown_pct=min(R['investment_property_fall_max_pct'], R['investment_property_fall_pct'] * x['REAL_ESTATE']),
+             undrawn_available_pct=sd['undrawn_available_pct'], country_mult=cmult)
     if mix:
         iw = sum(m.get('inventory_share_pct', 0) for m in mix) or 1
         p['inventory_writedown_pct'] = sum((PCAT[m['category']]['inventory_value_pct']['NORMAL'] - PCAT[m['category']]['inventory_value_pct'][sev])

@@ -583,6 +583,8 @@ ALTER TABLE [fin].[ScorecardAdjustment] ADD CONSTRAINT [FK_ScorecardAdjustment_S
 ALTER TABLE [fin].[ScorecardAdjustment] ADD CONSTRAINT [FK_ScorecardAdjustment_CapGradeId] FOREIGN KEY ([CapGradeId]) REFERENCES [fin].[RatingGrade] ([RatingGradeId]);
 ALTER TABLE [fin].[IndustryProfile] ADD CONSTRAINT [FK_IndustryProfile_IndustryId] FOREIGN KEY ([IndustryId]) REFERENCES [ref].[Industry] ([IndustryId]);
 ALTER TABLE [fin].[IndustryProfile] ADD CONSTRAINT [FK_IndustryProfile_CeilingGradeId] FOREIGN KEY ([CeilingGradeId]) REFERENCES [fin].[RatingGrade] ([RatingGradeId]);
+ALTER TABLE [fin].[MacroScenarioCountry] ADD CONSTRAINT [FK_MacroScenarioCountry_MacroScenarioId] FOREIGN KEY ([MacroScenarioId]) REFERENCES [fin].[MacroScenario] ([MacroScenarioId]);
+ALTER TABLE [fin].[MacroScenarioCountry] ADD CONSTRAINT [FK_MacroScenarioCountry_CountryId] FOREIGN KEY ([CountryId]) REFERENCES [ref].[Country] ([CountryId]);
 ALTER TABLE [fin].[MacroScenarioIntensity] ADD CONSTRAINT [FK_MacroScenarioIntensity_MacroScenarioId] FOREIGN KEY ([MacroScenarioId]) REFERENCES [fin].[MacroScenario] ([MacroScenarioId]);
 ALTER TABLE [fin].[MacroScenarioIntensity] ADD CONSTRAINT [FK_MacroScenarioIntensity_ShockDriverId] FOREIGN KEY ([ShockDriverId]) REFERENCES [fin].[ShockDriver] ([ShockDriverId]);
 ALTER TABLE [fin].[IndustrySensitivity] ADD CONSTRAINT [FK_IndustrySensitivity_IndustryId] FOREIGN KEY ([IndustryId]) REFERENCES [ref].[Industry] ([IndustryId]);

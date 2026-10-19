@@ -187,10 +187,14 @@ def doc_tables(M):
     T['drivers'] = table(['المحرك', 'ما يقيسه', 'فقد الإيرادات عند الشدة الكاملة %', 'هامش مجمل الربح (نقطة)', 'أيام تحصيل إضافية'],
                          [[f"`{d['code']}` {d['ar']}", d['about_ar'], num(d['rev_pct']), num(d['gm_pp']), num(d['dso_days'])] for d in M['shock_drivers']])
     T['macro_scenarios'] = table(['السيناريو', 'وصفه', 'الشدة: ' + ' / '.join(SH.values()), 'المخزون', 'سحب الخطوط %', 'رفع الفائدة (نقطة أساس)',
-                                  'خسارة الذمم الخاصة %', 'أيام تحصيل أساسية'],
+                                  'خسارة الذمم الخاصة %', 'أيام تحصيل أساسية', 'المتاح من الحدود الملتزمة غير المسحوبة %', 'المدة (شهر)',
+                                  'مضاعف البلد'],
                                  [[f"`{x['code']}` {x['ar']}" + (' (أساس الصمود)' if x['resilience_base'] else ''), x['desc_ar'],
                                    ' / '.join(num(x['intensity'][k]) for k in SH), 'ركود' if x['inventory'] == 'STAGNANT' else 'أزمة',
-                                   num(x['st_lines_withdrawn_pct']), num(x['rate_bp']), num(x['private_ar_loss_pct']), num(x['base_dso_days'])]
+                                   num(x['st_lines_withdrawn_pct']), num(x['rate_bp']), num(x['private_ar_loss_pct']), num(x['base_dso_days']),
+                                   num(x['undrawn_available_pct']), x['duration_months'],
+                                   ('، '.join(f"{k} {num(v)}" for k, v in x['country_mult'].items()) + f"، وغيرها {num(x['other_country_mult'])}")
+                                   if x['country_mult'] else num(x['other_country_mult']) + ' لكل البلدان']
                                   for x in M['macro_scenarios']])
     T['products'] = table(['الفئة', 'الاسم', 'جودة التدفقات (1 الأفضل)', 'حساسية الطلب (0–5)', 'قيمة بيع المخزون: عادي / ركود / أزمة %',
                            'أيام البيع: عادي / ركود / أزمة', 'أيام تحصيل إضافية في الأزمة'],
@@ -227,7 +231,8 @@ def doc_tables(M):
     rows = []
     for x in scen:
         got = dict(x['results'])
-        cells = [f"{got[k]} ({x['expected'][k][0]}–{x['expected'][k][1]})" if k in got else '—' for k in ['NORMAL'] + [y['code'] for y in M['macro_scenarios']]]
+        cells = [f"{got[k]} ({x['expected'][k][0]}–{x['expected'][k][1]})" if k in x['expected'] else f"{got[k]} (بلا مدى)" if k in got else '—'
+                 for k in ['NORMAL'] + [y['code'] for y in M['macro_scenarios']]]
         acc = '؛ '.join(f"{k}: {g}" for k, g in (x['accepted'] or {}).items())
         acc = f"{acc} — {x['accepted_reason'][0]}" if acc and x.get('accepted_reason') else acc or '—'
         rows.append([f"`{x['key']}`", x['name'], f"`{x['industry']}` {x['country']}"] + cells + [x['resilience'] or '—', 'نعم' if x['ok'] else 'لا', acc])

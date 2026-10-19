@@ -9,7 +9,7 @@
                                data completeness, the adjustments, the grades, the liquidity label and the facility
                                grade. It reads and writes temporary tables its caller creates (below), and nothing else
                                but the methodology tables.
-     fin.usp_CreditEvaluate    the core on the statement, then on the six macro scenarios with the stress of the
+     fin.usp_CreditEvaluate    the core on the statement, then on the seven macro scenarios with the stress of the
                                company's activity, country and city (the resilience overlay from the stagnant market),
                                then on the pro-forma statement of each remedy the findings call for.
      fin.usp_ComputeCreditAssessment (end of this script) reads a draft assessment from the tables: its statement and
@@ -894,19 +894,23 @@ GO
    give the revenue change and the inventory write-down when the company has them. */
 CREATE OR ALTER PROCEDURE fin.usp_CreditStressLines @Scenario VARCHAR(30), @Withdrawn FLOAT OUTPUT, @ArLoss FLOAT OUTPUT, @InvWd FLOAT OUTPUT,
                                                      @Dfin FLOAT OUTPUT, @Stretch FLOAT OUTPUT, @RevPctOut FLOAT OUTPUT, @GmPpOut FLOAT OUTPUT,
-                                                     @DsoOut FLOAT OUTPUT, @RateBpOut INT OUTPUT, @PrivLossOut FLOAT OUTPUT, @InvWdPctOut FLOAT OUTPUT
+                                                     @DsoOut FLOAT OUTPUT, @RateBpOut INT OUTPUT, @PrivLossOut FLOAT OUTPUT, @InvWdPctOut FLOAT OUTPUT,
+                                                     @UndrawnPctOut FLOAT OUTPUT, @CountryMultOut FLOAT OUTPUT
 AS
 BEGIN
     SET NOCOUNT ON;
     DECLARE @card INT, @industry INT, @country INT, @region VARCHAR(10);
     SELECT @card = ScorecardId, @industry = IndustryId, @country = CountryId, @region = RegionCode FROM #crX;
     -- the stress of the macro scenario (credit_reference.scenario_params): per driver the scenario intensity × the
-    -- activity sensitivity ÷ 5 × the country exposure × the region multiplier (real estate and conflict); the product
-    -- mix replaces the activity's demand sensitivity and gives the inventory write-down
-    DECLARE @scId INT, @sev VARCHAR(10), @baseDso FLOAT, @stShare FLOAT, @rateBp FLOAT, @privBase FLOAT, @profile INT;
+    -- activity sensitivity ÷ 5 × the country exposure × the region multiplier (real estate and conflict) × the scenario's
+    -- multiplier for the country; the product mix replaces the activity's demand sensitivity and gives the inventory
+    -- write-down
+    DECLARE @scId INT, @sev VARCHAR(10), @baseDso FLOAT, @stShare FLOAT, @rateBp FLOAT, @privBase FLOAT, @profile INT, @cMult FLOAT;
     SELECT @scId = MacroScenarioId, @sev = InventorySeverity, @baseDso = BaseDsoDays, @stShare = StLinesWithdrawnPct, @rateBp = RateBp,
-           @privBase = PrivateArLossPct
+           @privBase = PrivateArLossPct, @UndrawnPctOut = UndrawnAvailablePct, @cMult = OtherCountryMult
     FROM fin.MacroScenario WHERE Code = @Scenario;
+    SET @cMult = ISNULL((SELECT CAST(Multiplier AS FLOAT) FROM fin.MacroScenarioCountry WHERE MacroScenarioId = @scId AND CountryId = @country), @cMult);
+    SET @CountryMultOut = @cMult;
     SET @profile = fin.fn_CountryProfileId(@country);
     DECLARE @maxFall FLOAT, @stMax FLOAT, @privDemand FLOAT, @creditRef FLOAT, @gmRef FLOAT, @gmScaleMax FLOAT, @ipFall FLOAT, @ipFallMax FLOAT;
     SELECT @maxFall = MAX(CASE WHEN ParamKey = 'MAX_REVENUE_FALL_PCT' THEN Value END), @stMax = MAX(CASE WHEN ParamKey = 'ST_LINES_MAX_PCT' THEN Value END),
@@ -926,7 +930,7 @@ BEGIN
            * CAST(CASE d.Code WHEN 'DEMAND' THEN cp.ExpDemand WHEN 'GOV_SPENDING' THEN cp.ExpGovSpending WHEN 'REAL_ESTATE' THEN cp.ExpRealEstate
                               WHEN 'CONFLICT' THEN cp.ExpConflict WHEN 'OIL' THEN cp.ExpOil WHEN 'CREDIT' THEN cp.ExpCredit ELSE cp.ExpImportFx END AS FLOAT)
            * CASE WHEN rg.CountryRegionId IS NULL THEN 1.0 WHEN d.Code = 'REAL_ESTATE' THEN CAST(rg.RealEstateMult AS FLOAT)
-                  WHEN d.Code = 'CONFLICT' THEN CAST(rg.ConflictMult AS FLOAT) ELSE 1.0 END,
+                  WHEN d.Code = 'CONFLICT' THEN CAST(rg.ConflictMult AS FLOAT) ELSE 1.0 END * @cMult,
            d.RevenuePct, d.GrossMarginPp, d.DsoDays, d.SortOrder
     FROM fin.ShockDriver AS d
     JOIN fin.MacroScenarioIntensity AS si ON si.MacroScenarioId = @scId AND si.ShockDriverId = d.ShockDriverId
@@ -1228,19 +1232,20 @@ BEGIN
         BEGIN
             SET @sc = (SELECT Code FROM fin.MacroScenario ORDER BY SortOrder OFFSET @k - 1 ROWS FETCH NEXT 1 ROWS ONLY);
             DECLARE @wd FLOAT, @arLoss FLOAT, @invWd FLOAT, @dfin FLOAT, @stretch FLOAT, @pRev FLOAT, @pGm FLOAT, @pDso FLOAT, @pRate INT, @pPriv FLOAT,
-                    @pInv FLOAT;
+                    @pInv FLOAT, @pUnd FLOAT, @pCm FLOAT;
             DELETE #crL; INSERT #crL SELECT Code, Amount FROM @base;
             EXEC fin.usp_CreditStressLines @sc, @wd OUTPUT, @arLoss OUTPUT, @invWd OUTPUT, @dfin OUTPUT, @stretch OUTPUT, @pRev OUTPUT, @pGm OUTPUT,
-                                           @pDso OUTPUT, @pRate OUTPUT, @pPriv OUTPUT, @pInv OUTPUT;
-            UPDATE #crX SET RolloverFactor = 1 - @wd / 100, Proforma = 1, ResilienceNotch = 0;
+                                           @pDso OUTPUT, @pRate OUTPUT, @pPriv OUTPUT, @pInv OUTPUT, @pUnd OUTPUT, @pCm OUTPUT;
+            -- the committed undrawn limits the banks keep open in the scenario (ADR 0020)
+            UPDATE #crX SET RolloverFactor = 1 - @wd / 100, Proforma = 1, ResilienceNotch = 0, PfCommittedUndrawn = PfCommittedUndrawn * @pUnd / 100;
             EXEC fin.usp_CreditCore;
             INSERT #evScen (Scenario, State, FinalNotch, WeightedScore, Liquidity, NotchesLost, Revenue, Ebitda, Inventory, ArLoss, InventoryWritedown,
                             ExtraFinanceCost, ReceivablesStretch, BalanceGap, RevenuePct, GrossMarginPp, DsoDays, StLinesWithdrawnPct, RateBp,
-                            PrivateArLossPct, InventoryWritedownPct)
+                            PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult)
             SELECT @sc, s.State, s.FinalNotch, s.WeightedScore, s.Liquidity, s.FinalNotch - @n5, (SELECT Amount FROM #crL WHERE Code = 'REVENUE'),
                    (SELECT Value FROM #crQ WHERE Code = 'EBITDA'), (SELECT Amount FROM #crL WHERE Code = 'INVENTORY'), @arLoss, @invWd, @dfin, @stretch,
                    (SELECT SUM(CASE Code WHEN 'TOTAL_ASSETS' THEN Amount ELSE -Amount END) FROM #crL WHERE Code IN ('TOTAL_ASSETS','TOTAL_LIABS','TOTAL_EQUITY')) - @baseGap,
-                   @pRev, @pGm, @pDso, @wd, @pRate, @pPriv, @pInv
+                   @pRev, @pGm, @pDso, @wd, @pRate, @pPriv, @pInv, @pUnd, @pCm
             FROM #crS AS s;
             DELETE #crX; INSERT #crX SELECT * FROM #crX0;
             SET @k += 1;
@@ -1481,7 +1486,7 @@ BEGIN
     CREATE TABLE #evScen (Scenario VARCHAR(30) COLLATE DATABASE_DEFAULT PRIMARY KEY, State VARCHAR(20) COLLATE DATABASE_DEFAULT, FinalNotch INT, WeightedScore FLOAT,
         Liquidity VARCHAR(6) COLLATE DATABASE_DEFAULT, NotchesLost INT, Revenue FLOAT, Ebitda FLOAT, Inventory FLOAT, ArLoss FLOAT, InventoryWritedown FLOAT,
         ExtraFinanceCost FLOAT, ReceivablesStretch FLOAT, BalanceGap FLOAT, RevenuePct FLOAT, GrossMarginPp FLOAT, DsoDays FLOAT, StLinesWithdrawnPct FLOAT,
-        RateBp INT, PrivateArLossPct FLOAT, InventoryWritedownPct FLOAT);
+        RateBp INT, PrivateArLossPct FLOAT, InventoryWritedownPct FLOAT, UndrawnAvailablePct FLOAT, CountryMult FLOAT);
     CREATE TABLE #evRem (SeqNo INT PRIMARY KEY, RemedyId INT NOT NULL, TriggerCode VARCHAR(40) COLLATE DATABASE_DEFAULT, TriggerLevel VARCHAR(12) COLLATE DATABASE_DEFAULT,
         Moved FLOAT, FinalNotch INT, WeightedScore FLOAT, NotchesGained INT, BalanceGap FLOAT);
     CREATE TABLE #evPlan (PlanId INT PRIMARY KEY, StepCount INT, FinalNotch INT, FinalScore FLOAT, NotchesGained INT, IsBalanced BIT);
@@ -1909,11 +1914,12 @@ BEGIN
            CASE WHEN g.RatingGradeId IS NOT NULL THEN r.NotchesGained END, @user
     FROM #evRem AS r LEFT JOIN fin.RatingGrade AS g ON g.NotchNo = r.FinalNotch;
     INSERT fin.CreditAssessmentScenario (TenantId, AssessmentId, MacroScenarioId, RevenuePct, GrossMarginPp, DsoDays, StLinesWithdrawnPct, RateBp,
-                                         PrivateArLossPct, InventoryWritedownPct, RevenueAfter, EbitdaAfter, InventoryValueAfter, Score, GradeId, LiquidityLabel,
-                                         NotchesLost, CreatedBy)
+                                         PrivateArLossPct, InventoryWritedownPct, UndrawnAvailablePct, CountryMult, RevenueAfter, EbitdaAfter, InventoryValueAfter,
+                                         Score, GradeId, LiquidityLabel, NotchesLost, CreatedBy)
     SELECT @tenant, @AssessmentId, ms.MacroScenarioId, CAST(s.RevenuePct AS DECIMAL(9,4)), CAST(s.GrossMarginPp AS DECIMAL(9,4)), CAST(s.DsoDays AS DECIMAL(9,2)),
            CAST(s.StLinesWithdrawnPct AS DECIMAL(9,4)), s.RateBp, CAST(s.PrivateArLossPct AS DECIMAL(9,4)), CAST(s.InventoryWritedownPct AS DECIMAL(9,4)),
-           CAST(s.Revenue AS DECIMAL(19,4)), CAST(s.Ebitda AS DECIMAL(19,4)), CAST(s.Inventory AS DECIMAL(19,4)),
+           CAST(s.UndrawnAvailablePct AS DECIMAL(9,4)), CAST(s.CountryMult AS DECIMAL(5,3)), CAST(s.Revenue AS DECIMAL(19,4)), CAST(s.Ebitda AS DECIMAL(19,4)),
+           CAST(s.Inventory AS DECIMAL(19,4)),
            CAST(s.WeightedScore AS DECIMAL(9,4)), g.RatingGradeId, s.Liquidity, s.NotchesLost, @user
     FROM #evScen AS s JOIN fin.MacroScenario AS ms ON ms.Code = s.Scenario LEFT JOIN fin.RatingGrade AS g ON g.NotchNo = s.FinalNotch;
     INSERT fin.CreditAssessmentPlan (TenantId, AssessmentId, PlanId, StepCount, FinalScore, FinalGradeId, NotchesGained, IsBalanced, CreatedBy)
@@ -2090,12 +2096,13 @@ JOIN fin.CreditRemedy AS cr ON cr.CreditRemedyId = r.RemedyId
 LEFT JOIN fin.CreditText AS fk ON fk.Domain = 'FUNDING' AND fk.Code = cr.Funding
 LEFT JOIN fin.RatingGrade AS g ON g.RatingGradeId = r.ProFormaGradeId;
 GO
-/* The six macro scenarios with the stress each applied to the statement (docs/35 section 14, ADR 0019). */
+/* The seven macro scenarios with the stress each applied to the statement (docs/35 section 14, ADR 0019, ADR 0020). */
 CREATE OR ALTER VIEW fin.v_CreditAssessmentScenarios
 AS
 SELECT s.TenantId, s.AssessmentId, ms.Code AS Scenario, ms.NameAr AS ScenarioNameAr, ms.NameEn AS ScenarioNameEn, ms.DescriptionAr, ms.DescriptionEn,
-       ms.IsResilienceBase, s.RevenuePct, s.GrossMarginPp, s.DsoDays, s.StLinesWithdrawnPct, s.RateBp, s.PrivateArLossPct, s.InventoryWritedownPct,
-       s.RevenueAfter, s.EbitdaAfter, s.InventoryValueAfter, s.Score, g.Code AS Grade, s.LiquidityLabel, s.NotchesLost, ms.SortOrder
+       ms.IsResilienceBase, ms.DurationMonths, s.RevenuePct, s.GrossMarginPp, s.DsoDays, s.StLinesWithdrawnPct, s.RateBp, s.PrivateArLossPct,
+       s.InventoryWritedownPct, s.UndrawnAvailablePct, s.CountryMult, s.RevenueAfter, s.EbitdaAfter, s.InventoryValueAfter, s.Score, g.Code AS Grade,
+       s.LiquidityLabel, s.NotchesLost, ms.SortOrder
 FROM fin.CreditAssessmentScenario AS s
 JOIN fin.MacroScenario AS ms ON ms.MacroScenarioId = s.MacroScenarioId
 LEFT JOIN fin.RatingGrade AS g ON g.RatingGradeId = s.GradeId;

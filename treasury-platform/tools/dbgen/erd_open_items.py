@@ -26,7 +26,7 @@ ITEMS = [
         'id': 'O-03', 'sources': f'{REVIEW_A}; {REVIEW_B}',
         'finding': 'Lender shares must total 100 per facility and at most one lender may hold the AGENT role. The model says the application checks both.',
         'status': 'Trigger in db/static/050_fac_share_rule.sql, deployed by db/deploy.sql. Six tests pass on SQL Server 2025 (db/tests/fac_share_rule_tests.sql): valid approval, rejected total above 100, rejected approval without lenders for the new revision, valid new revision, rejected second agent, and a partial draft accepted.',
-        'next': 'Decided by the owner (2026-10-12, docs/31-owner-decisions.md): a lender change after approval goes through a CORRECTION revision only; the trigger stays as the last guard (DQ-F13-7). To build with the facility service in S2.',
+        'next': 'Decided by the owner (2026-10-12, confirmed 2026-10-19, docs/31-owner-decisions.md): a lender change after approval goes through a CORRECTION revision only; the trigger stays as the last guard (DQ-F13-7). To build with the facility service in S2.',
     },
     {
         'id': 'O-04', 'sources': REVIEW_B,
@@ -37,20 +37,20 @@ ITEMS = [
     {
         'id': 'O-05', 'sources': REVIEW_B,
         'finding': 'An LC terms record needs six complete charge rows, one per category. The model checks this in the application only.',
-        'status': 'Open. The state in which completeness must hold is not defined, so no database rule is written yet.',
-        'next': 'Business decision: at which status (draft, submitted, approved) the six rows must be complete.',
+        'status': 'Decided by the owner (2026-10-19, docs/31-owner-decisions.md): the treasury manager sets the status at which the six rows must be complete. Until that status is set, no database rule is written.',
+        'next': 'The treasury manager names the status (draft, submitted or approved); then a rule is added to db/static with a test.',
     },
     {
         'id': 'O-06', 'sources': f'{REVIEW_A}; {REVIEW_B}',
         'finding': 'UCP 600 article numbers are not verified against the official ICC text.',
         'status': 'Open. The analysis document marks them UNVERIFIED, and the platform seed holds the 39 articles as UNVERIFIED platform rows (db/seed/103_lc_reference.sql, ADR 0005), so the badge and the print footnote show until they are checked.',
-        'next': 'Check each article number against the official text and record the result.',
+        'next': 'Decided by the owner (2026-10-19, docs/31-owner-decisions.md): a licensed copy of the ICC text is provided, and a specialist checks each article number against it and records the result.',
     },
     {
         'id': 'O-07', 'sources': f'{REVIEW_A}; {REVIEW_B}',
         'finding': '155 open questions are answered with default values.',
-        'status': 'Listed in docs/10-detailed-analysis/90-consolidated-open-questions.md. Defaults are in use.',
-        'next': 'Owner decision 2026-10-12 (DQ-B09-2): add owner, needed-by and review-date columns to section 14 of each specification and to tools/gen_indexes.py; resolve the critical questions before slices S0 to S2.',
+        'status': 'Closed. The owner approved the recommended default of each of the 148 questions still open (2026-10-19, docs/31-owner-decisions.md decision 31); all 155 are now marked decided in section 14 of the specifications and in docs/10-detailed-analysis/90-consolidated-open-questions.md.',
+        'next': 'None. A question raised later is added to section 14 of its specification with a recommended default.',
     },
     {
         'id': 'O-08', 'sources': f'{REVIEW_A}; {REVIEW_B}',

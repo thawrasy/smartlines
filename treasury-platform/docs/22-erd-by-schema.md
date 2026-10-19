@@ -510,9 +510,9 @@ erDiagram
 | ReportingInstance | SubmissionChannelUsedId | cat.LookupItem |
 | ReportingObligation | SubmissionChannelId | cat.LookupItem |
 
-## مخطط `fin` (49 جدولًا)
+## مخطط `fin` (50 جدولًا)
 
-(المخطط كبير؛ العلاقات الداخلية: 67)
+(المخطط كبير؛ العلاقات الداخلية: 68)
 
 | الجدول | العمود | يشير إلى |
 |---|---|---|
@@ -552,6 +552,7 @@ erDiagram
 | FinancialStatement | SourceDocumentId | doc.Document |
 | IndustryProfile | IndustryId | ref.Industry |
 | IndustrySensitivity | IndustryId | ref.Industry |
+| MacroScenarioCountry | CountryId | ref.Country |
 | MeasureFormula | ApprovedBy | sec.AppUser |
 | MeasureFormula | ConflictId | fac.ValueConflict |
 | MeasureFormula | FacilityId | fac.Facility |

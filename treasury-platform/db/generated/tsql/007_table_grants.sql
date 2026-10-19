@@ -347,6 +347,9 @@ GRANT SELECT, INSERT, UPDATE ON [fin].[ShockDriver] TO [tp_platform];
 -- fin.MacroScenario
 GRANT SELECT ON [fin].[MacroScenario] TO [tp_app];
 GRANT SELECT, INSERT, UPDATE ON [fin].[MacroScenario] TO [tp_platform];
+-- fin.MacroScenarioCountry
+GRANT SELECT ON [fin].[MacroScenarioCountry] TO [tp_app];
+GRANT SELECT, INSERT, UPDATE ON [fin].[MacroScenarioCountry] TO [tp_platform];
 -- fin.MacroScenarioIntensity
 GRANT SELECT ON [fin].[MacroScenarioIntensity] TO [tp_app];
 GRANT SELECT, INSERT, UPDATE ON [fin].[MacroScenarioIntensity] TO [tp_platform];

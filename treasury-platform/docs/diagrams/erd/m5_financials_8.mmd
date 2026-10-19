@@ -7,16 +7,15 @@ erDiagram
   fin_MacroScenario["fin.MacroScenario"] {
     int MacroScenarioId PK
   }
+  fin_MacroScenarioCountry["fin.MacroScenarioCountry"] {
+    int MacroScenarioCountryId PK
+    int MacroScenarioId FK
+    int CountryId FK
+  }
   fin_MacroScenarioIntensity["fin.MacroScenarioIntensity"] {
     int MacroScenarioIntensityId PK
     int MacroScenarioId FK
     int ShockDriverId FK
   }
-  fin_MeasureFormula["fin.MeasureFormula"] {
-    bigint MeasureFormulaId PK
-    bigint FacilityId FK
-    bigint BaseTemplateId FK
-    bigint ApprovedBy FK
-  }
+  fin_MacroScenario ||--o{ fin_MacroScenarioCountry : "MacroScenarioId"
   fin_MacroScenario ||--o{ fin_MacroScenarioIntensity : "MacroScenarioId"
-  fin_MeasureFormula |o--o{ fin_MeasureFormula : "BaseTemplateId"

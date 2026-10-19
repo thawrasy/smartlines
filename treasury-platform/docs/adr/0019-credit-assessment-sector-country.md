@@ -69,3 +69,7 @@ two scenarios per activity, and one sovereign ceiling. They asked for the standa
 - A qualitative grade better than the financial grade by more than three notches needs a document (BR-FIN-034).
 - Tests: CA1 to CA16 (step 19c) and 138 engine cases (step 19d).
 - Known limits: docs/35 section 25.
+
+Note (2026-10-19, later the same day): ADR 0020 adds a seventh scenario for the current event (the Gulf conflict on the
+shipping routes), a multiplier of a scenario per country and the share of committed undrawn limits that stays
+available in a scenario.

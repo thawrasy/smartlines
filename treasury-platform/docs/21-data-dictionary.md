@@ -2,7 +2,7 @@
 
 > مُولَّد آليًا من نموذج البيانات بـ `tools/dbgen` — لا يُعدَّل يدويًا. الأعمدة المشتركة التي تضيفها اصطلاحات التوليد (TenantId، المعرّف، التدقيق) تظهر في كل جدول.
 
-**عدد الجداول: 243**
+**عدد الجداول: 244**
 
 | الوحدة | عدد الجداول |
 |---|---|
@@ -22,7 +22,7 @@
 | CMP | 2 |
 | COL | 7 |
 | OBL | 9 |
-| FIN | 49 |
+| FIN | 50 |
 | REQ | 8 |
 | WFL | 11 |
 | NTF | 7 |
@@ -4699,7 +4699,7 @@
 
 **قيود:** `Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%'` · `RevenuePct >= 0 AND GrossMarginPp >= 0 AND DsoDays >= 0`
 
-### `fin.MacroScenario` — A macro stress scenario: the stagnant market, the financial crisis, a fiscal squeeze, a real estate correction, a regional conflict, an oil price collapse; the intensity of each driver and the financial conditions (docs/35 section 14, ADR 0019)
+### `fin.MacroScenario` — A macro stress scenario: the stagnant market, the financial crisis, a fiscal squeeze, a real estate correction, a regional conflict, an oil price collapse, the Gulf conflict on the shipping routes; the intensity of each driver and the financial conditions (docs/35 section 14, ADR 0019)
 
 *عالمي*
 
@@ -4717,6 +4717,9 @@
 | PrivateArLossPct | DECIMAL(9,4) | لا |  |  | خسارة الذمم الخاصة فوق 180 يومًا قبل أثر الطلب |
 | BaseDsoDays | DECIMAL(9,2) | لا |  |  |  |
 | IsResilienceBase | BIT | لا | 0 |  | السيناريو الذي يقيس الصمود والنظرة (ركود السوق) |
+| UndrawnAvailablePct | DECIMAL(9,4) | لا | 100 |  | ما يبقى متاحًا من الحدود الملتزمة غير المسحوبة (0: توقفها البنوك) |
+| DurationMonths | INT | لا | 12 |  | مدة الأثر بالأشهر (للعرض) |
+| OtherCountryMult | DECIMAL(5,3) | لا | 1 |  | مضاعف الضغط لبلد ليس له صف في fin.MacroScenarioCountry |
 | SortOrder | INT | لا |  |  |  |
 | CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
 | CreatedBy | BIGINT | نعم |  |  |  |
@@ -4725,7 +4728,26 @@
 
 **المفاتيح:** PK(MacroScenarioId) · UQ(Code) · UQ(IsResilienceBase) WHERE IsResilienceBase = 1
 
-**قيود:** `Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%'` · `StLinesWithdrawnPct BETWEEN 0 AND 100 AND PrivateArLossPct BETWEEN 0 AND 100 AND RateBp >= 0 AND BaseDsoDays >= 0`
+**قيود:** `Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%'` · `StLinesWithdrawnPct BETWEEN 0 AND 100 AND PrivateArLossPct BETWEEN 0 AND 100 AND RateBp >= 0 AND BaseDsoDays >= 0` · `UndrawnAvailablePct BETWEEN 0 AND 100 AND DurationMonths BETWEEN 1 AND 60 AND OtherCountryMult BETWEEN 0 AND 2`
+
+### `fin.MacroScenarioCountry` — The multiplier of a macro scenario's stress for a country it hits more or less than others; a country without a row takes the scenario's OtherCountryMult (docs/35 section 14, ADR 0020)
+
+*عالمي*
+
+| العمود | النوع | NULL | الافتراضي | المرجع | ملاحظة |
+|---|---|---|---|---|---|
+| **MacroScenarioCountryId** | INT IDENTITY | لا | | | مفتاح أساسي |
+| MacroScenarioId | INT | لا |  | fin.MacroScenario |  |
+| CountryId | INT | لا |  | ref.Country |  |
+| Multiplier | DECIMAL(5,3) | لا |  |  |  |
+| CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
+| CreatedBy | BIGINT | نعم |  |  |  |
+| UpdatedAt | DATETIME2(3) | نعم |  |  |  |
+| UpdatedBy | BIGINT | نعم |  |  |  |
+
+**المفاتيح:** PK(MacroScenarioCountryId) · UQ(MacroScenarioId, CountryId)
+
+**قيود:** `Multiplier BETWEEN 0 AND 2`
 
 ### `fin.MacroScenarioIntensity` — The intensity 0 to 1 of a driver in a macro scenario (docs/35 section 14)
 
@@ -5428,6 +5450,8 @@
 | RateBp | INT | نعم |  |  |  |
 | PrivateArLossPct | DECIMAL(9,4) | نعم |  |  |  |
 | InventoryWritedownPct | DECIMAL(9,4) | نعم |  |  |  |
+| UndrawnAvailablePct | DECIMAL(9,4) | نعم |  |  |  |
+| CountryMult | DECIMAL(5,3) | نعم |  |  |  |
 | RevenueAfter | DECIMAL(19,4) | نعم |  |  |  |
 | EbitdaAfter | DECIMAL(19,4) | نعم |  |  |  |
 | InventoryValueAfter | DECIMAL(19,4) | نعم |  |  |  |

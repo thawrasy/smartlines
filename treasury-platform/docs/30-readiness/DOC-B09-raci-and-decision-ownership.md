@@ -61,7 +61,7 @@ flowchart LR
 |---|---|---|---|---|
 | O-01 (erd_open_items) كلمة المرور | OWN | SEC | مقرَّر: Argon2id (ADR 0002) | لا شيء للبوابة |
 | O-02 (erd_open_items) التنفيذ على SQL Server 2025 | SA | DBA | منفَّذ: tools/ci/db_ci.sh يمر كاملًا على حاوية SQL Server 2025 (Ubuntu 24.04) في بيئة التطوير (tools/ci/db_ci.sh:51-93)، وعلى GitHub من ../.github/workflows/treasury-db-ci.yml (جذر المستودع)، وأول تشغيل أخضر 2026-10-12 (https://github.com/thawrasy/smartlines/actions/runs/38283663041؛ tools/dbgen/erd_open_items.py:22) | قبول التنفيذ في CI للبوابة، ونقل تشغيل الإنتاج إلى O-23 (DQ-B09-3) |
-| O-07 (erd_open_items) الأسئلة المفتوحة | OWN | PM | مفتوح | مالك وموعد لكل سؤال، وحسم أسئلة S0 التسعة (§7.4) |
+| O-07 (erd_open_items) الأسئلة المفتوحة | OWN | PM | ✅ مغلق: اعتمد المالك الافتراضيات الـ148 الباقية 2026-10-19، فالأسئلة الـ155 محسومة (`docs/31-owner-decisions.md` القرار 31) | لا شيء للبوابة |
 | O-14 (erd_open_items) بدء الشرائح | OWN | PM | مفتوح | إقفال بقية البنود ثم قرار البدء |
 | O-18 (erd_open_items) دخول المشترك المعلّق | OWN | DBA | مفتوح | اختيار (أ) أو (ب)، ثم مواءمة 030 والاختبار T27 |
 | نظام تشغيل طبقة التطبيق | OWN | SA | Windows Server وفق 01 §13 «قائم ومطروح للمراجعة بعد ADR 0001» (00-overview…:126، :226؛ 10-m0-m1…:147)؛ ADR 0001 غيّر مضيف القاعدة وحده (docs/adr/0001-schema-work-on-linux.md:3، :10) | تأكيد Windows Server أو تغييره في ADR، ثم DOC-B11 |
@@ -75,7 +75,7 @@ flowchart LR
 flowchart LR
   G1["O-01 كلمة المرور - مقرَّر"] --> S0["بدء S0"]
   G2["O-02 التنفيذ على SQL Server - منفَّذ في CI"] --> S0
-  G3["O-07 مالكو الأسئلة - مفتوح"] --> S0
+  G3["O-07 الأسئلة المفتوحة - مغلق"] --> S0
   G4["O-18 المشترك المعلّق - مفتوح"] --> S0
   G5["نظام تشغيل التطبيق - للمراجعة"] --> S0
   G6["حفظ المفاتيح - مفتوح"] --> S0

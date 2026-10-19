@@ -769,7 +769,7 @@ table fin.ShockDriver int global  # A driver of stress: private demand, governme
   check  Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%'
   check  RevenuePct >= 0 AND GrossMarginPp >= 0 AND DsoDays >= 0
 
-table fin.MacroScenario int global  # A macro stress scenario: the stagnant market, the financial crisis, a fiscal squeeze, a real estate correction, a regional conflict, an oil price collapse; the intensity of each driver and the financial conditions (docs/35 section 14, ADR 0019)
+table fin.MacroScenario int global  # A macro stress scenario: the stagnant market, the financial crisis, a fiscal squeeze, a real estate correction, a regional conflict, an oil price collapse, the Gulf conflict on the shipping routes; the intensity of each driver and the financial conditions (docs/35 section 14, ADR 0019)
   Code              ascii(30) req
   NameAr            str(200)  req
   NameEn            str(200)  req
@@ -781,11 +781,22 @@ table fin.MacroScenario int global  # A macro stress scenario: the stagnant mark
   PrivateArLossPct  dec(9,4)  req      # خسارة الذمم الخاصة فوق 180 يومًا قبل أثر الطلب
   BaseDsoDays       dec(9,2)  req
   IsResilienceBase  bool      req =0   # السيناريو الذي يقيس الصمود والنظرة (ركود السوق)
+  UndrawnAvailablePct dec(9,4) req =100  # ما يبقى متاحًا من الحدود الملتزمة غير المسحوبة (0: توقفها البنوك)
+  DurationMonths    int       req =12   # مدة الأثر بالأشهر (للعرض)
+  OtherCountryMult  dec(5,3)  req =1    # مضاعف الضغط لبلد ليس له صف في fin.MacroScenarioCountry
   SortOrder         int       req
   unique Code
   unique IsResilienceBase where IsResilienceBase = 1
   check  Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%'
   check  StLinesWithdrawnPct BETWEEN 0 AND 100 AND PrivateArLossPct BETWEEN 0 AND 100 AND RateBp >= 0 AND BaseDsoDays >= 0
+  check  UndrawnAvailablePct BETWEEN 0 AND 100 AND DurationMonths BETWEEN 1 AND 60 AND OtherCountryMult BETWEEN 0 AND 2
+
+table fin.MacroScenarioCountry int global  # The multiplier of a macro scenario's stress for a country it hits more or less than others; a country without a row takes the scenario's OtherCountryMult (docs/35 section 14, ADR 0020)
+  MacroScenarioId   ->fin.MacroScenario req
+  CountryId         ->ref.Country req
+  Multiplier        dec(5,3)  req
+  unique MacroScenarioId,CountryId
+  check  Multiplier BETWEEN 0 AND 2
 
 table fin.MacroScenarioIntensity int global  # The intensity 0 to 1 of a driver in a macro scenario (docs/35 section 14)
   MacroScenarioId   ->fin.MacroScenario req
@@ -1211,6 +1222,8 @@ table fin.CreditAssessmentScenario norv  # The assessment recomputed on the stat
   RateBp            int
   PrivateArLossPct  dec(9,4)
   InventoryWritedownPct dec(9,4)
+  UndrawnAvailablePct dec(9,4)
+  CountryMult       dec(5,3)
   RevenueAfter      money
   EbitdaAfter       money
   InventoryValueAfter money

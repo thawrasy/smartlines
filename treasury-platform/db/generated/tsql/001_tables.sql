@@ -5165,7 +5165,7 @@ CREATE TABLE [fin].[ShockDriver] (
     CONSTRAINT [CK_ShockDriver_2] CHECK (RevenuePct >= 0 AND GrossMarginPp >= 0 AND DsoDays >= 0)
 );
 GO
--- A macro stress scenario: the stagnant market, the financial crisis, a fiscal squeeze, a real estate correction, a regional conflict, an oil price collapse; the intensity of each driver and the financial conditions (docs/35 section 14, ADR 0019)
+-- A macro stress scenario: the stagnant market, the financial crisis, a fiscal squeeze, a real estate correction, a regional conflict, an oil price collapse, the Gulf conflict on the shipping routes; the intensity of each driver and the financial conditions (docs/35 section 14, ADR 0019)
 CREATE TABLE [fin].[MacroScenario] (
     [MacroScenarioId] INT IDENTITY(1,1) NOT NULL,
     [Code] VARCHAR(30) NOT NULL,
@@ -5179,6 +5179,9 @@ CREATE TABLE [fin].[MacroScenario] (
     [PrivateArLossPct] DECIMAL(9,4) NOT NULL,
     [BaseDsoDays] DECIMAL(9,2) NOT NULL,
     [IsResilienceBase] BIT NOT NULL CONSTRAINT [DF_MacroScenario_IsResilienceBase] DEFAULT 0,
+    [UndrawnAvailablePct] DECIMAL(9,4) NOT NULL CONSTRAINT [DF_MacroScenario_UndrawnAvailablePct] DEFAULT 100,
+    [DurationMonths] INT NOT NULL CONSTRAINT [DF_MacroScenario_DurationMonths] DEFAULT 12,
+    [OtherCountryMult] DECIMAL(5,3) NOT NULL CONSTRAINT [DF_MacroScenario_OtherCountryMult] DEFAULT 1,
     [SortOrder] INT NOT NULL,
     [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_MacroScenario_CreatedAt] DEFAULT SYSUTCDATETIME(),
     [CreatedBy] BIGINT NULL,
@@ -5188,7 +5191,23 @@ CREATE TABLE [fin].[MacroScenario] (
     CONSTRAINT [UQ_MacroScenario_Code] UNIQUE ([Code]),
     CONSTRAINT [CK_MacroScenario_1] CHECK (Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%'),
     CONSTRAINT [CK_MacroScenario_2] CHECK (StLinesWithdrawnPct BETWEEN 0 AND 100 AND PrivateArLossPct BETWEEN 0 AND 100 AND RateBp >= 0 AND BaseDsoDays >= 0),
+    CONSTRAINT [CK_MacroScenario_3] CHECK (UndrawnAvailablePct BETWEEN 0 AND 100 AND DurationMonths BETWEEN 1 AND 60 AND OtherCountryMult BETWEEN 0 AND 2),
     CONSTRAINT [CK_MacroScenario_InventorySeverity] CHECK ([InventorySeverity] IS NULL OR [InventorySeverity] IN ('STAGNANT', 'CRISIS'))
+);
+GO
+-- The multiplier of a macro scenario's stress for a country it hits more or less than others; a country without a row takes the scenario's OtherCountryMult (docs/35 section 14, ADR 0020)
+CREATE TABLE [fin].[MacroScenarioCountry] (
+    [MacroScenarioCountryId] INT IDENTITY(1,1) NOT NULL,
+    [MacroScenarioId] INT NOT NULL,
+    [CountryId] INT NOT NULL,
+    [Multiplier] DECIMAL(5,3) NOT NULL,
+    [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_MacroScenarioCountry_CreatedAt] DEFAULT SYSUTCDATETIME(),
+    [CreatedBy] BIGINT NULL,
+    [UpdatedAt] DATETIME2(3) NULL,
+    [UpdatedBy] BIGINT NULL,
+    CONSTRAINT [PK_MacroScenarioCountry] PRIMARY KEY CLUSTERED ([MacroScenarioCountryId]),
+    CONSTRAINT [UQ_MacroScenarioCountry_MacroScenarioId_CountryId] UNIQUE ([MacroScenarioId], [CountryId]),
+    CONSTRAINT [CK_MacroScenarioCountry_1] CHECK (Multiplier BETWEEN 0 AND 2)
 );
 GO
 -- The intensity 0 to 1 of a driver in a macro scenario (docs/35 section 14)
@@ -5872,6 +5891,8 @@ CREATE TABLE [fin].[CreditAssessmentScenario] (
     [RateBp] INT NULL,
     [PrivateArLossPct] DECIMAL(9,4) NULL,
     [InventoryWritedownPct] DECIMAL(9,4) NULL,
+    [UndrawnAvailablePct] DECIMAL(9,4) NULL,
+    [CountryMult] DECIMAL(5,3) NULL,
     [RevenueAfter] DECIMAL(19,4) NULL,
     [EbitdaAfter] DECIMAL(19,4) NULL,
     [InventoryValueAfter] DECIMAL(19,4) NULL,

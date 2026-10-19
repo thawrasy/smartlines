@@ -6,7 +6,7 @@
 | التاريخ | 2026-10-18 |
 | المنتج | منصة إدارة الخزينة متعددة المشتركين (TMP) — قاعدة البيانات `BankFas` |
 | المحرك المعتمد | **SQL Server 2025** (آخر إصدار؛ قاعدة سياسة الإصدارات في `01` §13) |
-| المرجع الهندسي | `db/model/*.model` (243 جدولًا، §1) — **الملفات المولَّدة لا تُعدَّل يدويًا** |
+| المرجع الهندسي | `db/model/*.model` (244 جدولًا، §1) — **الملفات المولَّدة لا تُعدَّل يدويًا** |
 | المخرجات | `db/generated/tsql/*` (SQL Server) · `db/static/*` (الأدوار والـRLS والجلسة والعروض والحراس) · `db/deploy.sql` · `21-data-dictionary.md` · `22-erd-by-schema.md` · `tools/dbgen/check_grants.py` (التحقق الثابت للصلاحيات) · `tools/dbgen/ddl_metrics.py` (أرقام هذه الوثيقة) |
 | المتطلبات | 490 متطلبًا وظيفيًا في `10-detailed-analysis/10…14` (فهرس: `10-detailed-analysis/91-requirements-index.md`) |
 
@@ -34,6 +34,7 @@
 | C-15 | التقييم الائتماني للميزانية على سلّم موديز (ADR 0017، `046_credit_assessment.sql`، `docs/35`): المنهجية بيانات عالمية للمنصة، والحساب في القاعدة، وتقرير بنقاط القوة والضعف والمخاطر (§11.5) | طلب المالك 2026-10-18، بمراجعة آلية مستقلة في دور محلل ائتمان (`docs/35` §13) |
 | C-16 | النسخة الثانية من التقييم (ADR 0018، `047_credit_engine.sql`، `docs/35` الإصدار 2.0): 157 بندًا معياريًا تُدرس بندًا بندًا، و112 مقياسًا، والربط بتسهيلات المنصة وضماناتها، والنشاط ومنتجاته وسيناريو السوق الراكد والأزمة، وعلاجات وخطط تقوية بقوائم متوازنة عند طلب العميل، والنظرة المستقبلية ومحفّزاتها (§11.5) | طلبات المالك الثلاثة 2026-10-19؛ المحتوى صاغه وراجعه وكلاء ذكاء اصطناعي لا محللون بشريون |
 | C-17 | الإصدار 2.1 من التقييم (ADR 0019): 16 عائلة قطاعية ببطاقاتها، و282 نشاطًا تفصيليًا بحساسيتها لسبعة محركات ضغط، و22 بلدًا عربيًا بمخاطرها وتصنيفها السيادي وسقفها ومدنها، ومرتكز من مخاطر البلد والنشاط، وستة سيناريوهات اقتصادية، وسلّم حجم من 10 ملايين إلى 10 مليارات (§11.5) | إجابات المالك 2026-10-19: الممارسة المعيارية لوكالات التصنيف؛ وتتحقق إدارة الخزينة من المعايرة |
+| C-18 | الإصدار 2.2 من التقييم (ADR 0020): سيناريو سابع للحدث الجاري (نزاع الخليج وممرات الملاحة) بمضاعف لكل بلد (`fin.MacroScenarioCountry`)، وما يبقى متاحًا من الحدود الملتزمة غير المسحوبة ومدة الأثر على `fin.MacroScenario` ونتيجة كل سيناريو؛ 244 جدولًا (§11.5) | قرار المالك 31 (2026-10-19): اعتماد الأسئلة المفتوحة وتفاصيل الحدث الجاري، وتوقف الحدود غير المسحوبة |
 
 **مرفوض:** اقتراح تقرير Technical Evaluation بـ.NET 9، لأن قرار المشروع `.NET 10 LTS` (`01` §13) ويبقى كما هو. **مؤجَّل:** أدوات الترحيل (O-2)، ومرساة سلسلة التدقيق (O-13)، وRPO/RTO (O-14)، ومكدّس الواجهات (خارج نطاق وثيقة القاعدة). **لم يُعتمد** الادعاء بأن القيود وحدها تضمن سلامة الحجز؛ الحجز يبقى ذريًا بالقفل في طبقة التطبيق (§7.1).
 
@@ -47,13 +48,13 @@
 
 | المؤشر | القيمة |
 |---|---|
-| جداول | **243** في 20 مخططًا |
-| أعمدة | 4,022 مُعرَّفة في النماذج + الأعمدة الآلية = **4,618** في DDL |
-| مفاتيح أجنبية | **892** = 204 إلى `plat.Tenant` (`TenantId`) + **564 مركّبة** `(TenantId, …)` بين جداول المشترك + 124 بسيطة نحو جداول عالمية/مختلطة؛ حذف متتالٍ واحد (§7) |
-| فهارس | 784 غير مجمّع (232 مصفّاة · 51 بأعمدة `INCLUDE`) |
-| قيود | 1,436 `CHECK` (قوائم قيم وتناسق حقول وتواريخ وأطوال الأغلفة المشفّرة) · 490 قيد `UNIQUE` + 151 فهرسًا فريدًا |
+| جداول | **244** في 20 مخططًا |
+| أعمدة | 4,034 مُعرَّفة في النماذج + الأعمدة الآلية = **4,631** في DDL |
+| مفاتيح أجنبية | **894** = 204 إلى `plat.Tenant` (`TenantId`) + **564 مركّبة** `(TenantId, …)` بين جداول المشترك + 126 بسيطة نحو جداول عالمية/مختلطة؛ حذف متتالٍ واحد (§7) |
+| فهارس | 785 غير مجمّع (232 مصفّاة · 51 بأعمدة `INCLUDE`) |
+| قيود | 1,438 `CHECK` (قوائم قيم وتناسق حقول وتواريخ وأطوال الأغلفة المشفّرة) · 491 قيد `UNIQUE` + 151 فهرسًا فريدًا |
 | جداول بمعرّف عام `PublicId` | 41 (جذور التجميعات المعرَّضة عبر API) |
-| جداول خاضعة لعزل الصفوف RLS | 202 (199 مملوكة للمشترك + 3 مختلطة، منها `aud.AuditLog` بسياسة خاصة؛ الـ41 العالمية خارجها) |
+| جداول خاضعة لعزل الصفوف RLS | 202 (199 مملوكة للمشترك + 3 مختلطة، منها `aud.AuditLog` بسياسة خاصة؛ الـ42 العالمية خارجها) |
 | أعمدة محجوبة عن دور التقارير | 31 |
 | جداول محجوبة كليًا عن تطبيق المشترك (`noapp`) | 8: العالمية المحجوبة الخمسة والداخلية الثلاثة (§3.3)؛ يقرأ التطبيق صف مشتركه ووحداته عبر `plat.v_CurrentTenant` و`plat.v_TenantModule` |
 
@@ -353,7 +354,7 @@
 | `cmp` | 2 — TermType, TermValue | م5 |
 | `col` | 7 — Collateral, CollateralLink, Guarantee, PromissoryNote, PromissoryNoteSigner, InsurancePolicyAssignment, ValuationSchedule | م5 |
 | `obl` | 9 — Obligation, ObligationCompany, ReportingObligation, ReportingInstance, Covenant, CovenantAccount, CovenantTest, **CovenantTestStatement**, ObligationBreach | م5 |
-| `fin` | 49 — LineCatalogItem, LineCatalogItemAlias, FinancialStatement, StatementLine, ConsolidationMember, StatementRatio, RevenueEstimate, AccountMonthlyStat, BankFlowEntry, MeasureFormula, **RatingGrade**, **CreditMetric**, **Scorecard**, **ScorecardMetric**, **ScorecardItemRule**, **ScorecardAdjustment**, **ScorecardParameter**, **ScorecardSubfactor**, **StandardLine**, **StandardLineTotal**, **IndustryProfile**, **ProductCategory**, **ShockDriver**, **MacroScenario**, **MacroScenarioIntensity**, **IndustrySensitivity**, **CountryRiskProfile**, **CountryRegion**, **RiskAnchor**, **CreditRemedy**, **CreditRemedyTrigger**, **CreditRemedyStep**, **StrengtheningPlan**, **StrengtheningPlanMember**, **CreditText**, **CreditAssessment**, **CreditAssessmentInput**, **CreditAssessmentFactor**, **CreditAssessmentFinding**, **CreditAssessmentGuarantor**, **CreditAssessmentBureau**, **CompanyProductLine**, **CreditAssessmentReclass**, **CreditAssessmentFacility**, **CreditAssessmentRemedy**, **CreditAssessmentScenario**, **CreditAssessmentPlan**, **CreditAssessmentPlanStep**, **CreditAssessmentTrigger** | م5 |
+| `fin` | 50 — LineCatalogItem, LineCatalogItemAlias, FinancialStatement, StatementLine, ConsolidationMember, StatementRatio, RevenueEstimate, AccountMonthlyStat, BankFlowEntry, MeasureFormula, **RatingGrade**, **CreditMetric**, **Scorecard**, **ScorecardMetric**, **ScorecardItemRule**, **ScorecardAdjustment**, **ScorecardParameter**, **ScorecardSubfactor**, **StandardLine**, **StandardLineTotal**, **IndustryProfile**, **ProductCategory**, **ShockDriver**, **MacroScenario**, **MacroScenarioIntensity, MacroScenarioCountry**, **IndustrySensitivity**, **CountryRiskProfile**, **CountryRegion**, **RiskAnchor**, **CreditRemedy**, **CreditRemedyTrigger**, **CreditRemedyStep**, **StrengtheningPlan**, **StrengtheningPlanMember**, **CreditText**, **CreditAssessment**, **CreditAssessmentInput**, **CreditAssessmentFactor**, **CreditAssessmentFinding**, **CreditAssessmentGuarantor**, **CreditAssessmentBureau**, **CompanyProductLine**, **CreditAssessmentReclass**, **CreditAssessmentFacility**, **CreditAssessmentRemedy**, **CreditAssessmentScenario**, **CreditAssessmentPlan**, **CreditAssessmentPlanStep**, **CreditAssessmentTrigger** | م5 |
 | `wfl` | 19 — RequestType, RequestTypeAudience, ExternalPhase, WorkflowTemplate, WorkflowStage, StageApprover, WorkflowTransition, WorkflowStageHook, TemplateField, TemplateAttachmentRule, Request, RequestComment, RequestAttachment, RequestExternalRef, RequestStageInstance, RequestApproval, RequestAction, HookExecution, UserDelegation | م6 |
 | `ntf` | 7 — NotificationEventType, NotificationRule, NotificationTemplate, NotificationPreference, DigestBatch, Notification, NotificationDelivery | م6 |
 | `lc` | 21 — LcFieldDefinition, LcFieldUcpRef, Counterparty, LcDocumentClause, LcDocumentClauseUcpRef, LcTerms, LcTermsDocument, LcChargesMatrix, LcFormTemplate, LcFormFieldMap, LetterOfCredit, LcExternalRef, LcAmendment, LcDrawing, LcSalesOrder, LcDrawingAllocation, LcDiscrepancy, ProformaInvoice, ProformaLine, LcTermsComparison, LcTermsComparisonLine | م7/م8 |
@@ -481,7 +482,7 @@
 
 | البند | التصميم | الفرض |
 |---|---|---|
-| المنهجية | `fin.RatingGrade` (21 درجة) و`StandardLine`/`StandardLineTotal` (157 بندًا معياريًا ومجاميعها) و`CreditMetric` (112 مقياسًا بنمط حسابها وحالاتها الحدية) و`Scorecard` بإصداراتها و`ScorecardMetric` و`ScorecardSubfactor` و`ScorecardParameter` و`ScorecardItemRule` و`ScorecardAdjustment`، و`ref.Industry` بالأقسام والفروع والأنشطة التفصيلية و`IndustryProfile` و`IndustrySensitivity` (86 فرعًا و282 نشاطًا بمخاطرها وحساسيتها لسبعة محركات)، و`ShockDriver` و`MacroScenario` و`MacroScenarioIntensity` (سبعة محركات وستة سيناريوهات)، و`CountryRiskProfile` و`CountryRegion` و`RiskAnchor` (22 بلدًا عربيًا وصف افتراضي بمخاطرها وتصنيفها السيادي وسقفها وتعرضها، و127 مدينة ومنطقة، ومرتكز المخاطر) و`ProductCategory` (15 فئة)، و`CreditRemedy` بمحفّزاتها وخطواتها (39 علاجًا)، و`StrengtheningPlan` وأعضاؤها (10 خطط)، و`CreditText`: **عالمية تملكها المنصة**، تبذرها `seed/104` المولَّدة من `tools/dbgen/credit_scorecard.json` | البطاقة تُعتمد كاملة ثم لا تتغير، ولا ما تستعمله من درجات ومقاييس ومعاملات وعوامل فرعية (50066، 50065) |
+| المنهجية | `fin.RatingGrade` (21 درجة) و`StandardLine`/`StandardLineTotal` (157 بندًا معياريًا ومجاميعها) و`CreditMetric` (112 مقياسًا بنمط حسابها وحالاتها الحدية) و`Scorecard` بإصداراتها و`ScorecardMetric` و`ScorecardSubfactor` و`ScorecardParameter` و`ScorecardItemRule` و`ScorecardAdjustment`، و`ref.Industry` بالأقسام والفروع والأنشطة التفصيلية و`IndustryProfile` و`IndustrySensitivity` (86 فرعًا و282 نشاطًا بمخاطرها وحساسيتها لسبعة محركات)، و`ShockDriver` و`MacroScenario` و`MacroScenarioIntensity` و`MacroScenarioCountry` (سبعة محركات وسبعة سيناريوهات ومضاعف كل بلد فيها)، و`CountryRiskProfile` و`CountryRegion` و`RiskAnchor` (22 بلدًا عربيًا وصف افتراضي بمخاطرها وتصنيفها السيادي وسقفها وتعرضها، و127 مدينة ومنطقة، ومرتكز المخاطر) و`ProductCategory` (15 فئة)، و`CreditRemedy` بمحفّزاتها وخطواتها (39 علاجًا)، و`StrengtheningPlan` وأعضاؤها (10 خطط)، و`CreditText`: **عالمية تملكها المنصة**، تبذرها `seed/104` المولَّدة من `tools/dbgen/credit_scorecard.json` | البطاقة تُعتمد كاملة ثم لا تتغير، ولا ما تستعمله من درجات ومقاييس ومعاملات وعوامل فرعية (50066، 50065) |
 | `fin.CreditAssessment` | تقييم قائمة معتمدة على بطاقة عائلة قطاعية: قائمة المقارنة والتاريخ والسعر وطلب خطط التقوية (`StrengtheningRequested`) وبلد السوق ومدينته (`MarketCountryId`، `MarketRegionCode`)، والنتائج (التغطية والاكتمال، والدرجات المالية والمؤشرة والمنفردة والنهائية ودرجة التسهيل، والسيولة، والصمود، ومخاطر البلد والنشاط ومرتكزهما وسقف البلد، والنظرة المستقبلية وقواعدها وهوامشها، والخلاصة، واللقطة، وبصمة المدخلات) | النتائج يكتبها الإجراء وحده (`DENY UPDATE` على أعمدتها لـ`tp_app`)؛ المسودة تُحسب، وتُقدَّم محسوبة على ما تحمله، ويعتمدها غير مُعِدّها، وبعدها لا تتغير (50063) |
 | المدخلات | `CreditAssessmentInput` (النوعي والعوامل الفرعية والدعم والتجاوز والمستندات وحجم السوق)، و`CreditAssessmentGuarantor`، و`CreditAssessmentBureau` (تقرير سمة)، و`fin.CompanyProductLine` (مزيج منتجات الشركة لسنتها) | في المسودة وحدها؛ والإخضاع أو قرار رأس المال أو التنازل لا يغيّر القراءة إلا بمستند (`EVIDENCE`) |
 | النتائج | `CreditAssessmentFactor` و`Finding` و`Reclass` (إعادة التبويب بسببها) و`Facility` (لقطة التسهيلات والضمانات على تاريخ التقييم) و`Remedy` و`Scenario` و`Plan` و`PlanStep` و`Trigger` | `DENY` كتابتها لـ`tp_app`، ولا تتغير بعد المسودة (قوادح `TR_<table>_DraftOnly`) |
@@ -564,9 +565,9 @@ SQL_USER=bankfas_monitor tools/dbgen/check_deployed.py --server <server>   # the
 
 | الفحص | النتيجة | ملاحظة |
 |---|---|---|
-| فحص النموذج (`dbgen check`) | **OK** — 243 جدولًا / 4,022 عمودًا؛ لا مراجع معلّقة؛ لا مخالفة لقواعد النطاق | التسمية والمراجع والمفاتيح المركّبة والأعمدة المطلوبة |
+| فحص النموذج (`dbgen check`) | **OK** — 244 جدولًا / 4,034 عمودًا؛ لا مراجع معلّقة؛ لا مخالفة لقواعد النطاق | التسمية والمراجع والمفاتيح المركّبة والأعمدة المطلوبة |
 | تنفيذ PostgreSQL 16 | **تشغيل سابق** — 194 جدولًا / 763 مفتاحًا أجنبيًا / 691 قيد فريد أو أساسي، قبل إضافة `sec.SessionBinding`؛ لم يُعَد على النموذج الحالي، ولا يدخل CI | يثبت **البنية المنطقية** فقط. **لا** يثبت صحة T-SQL |
-| التحقق الثابت من الصلاحيات (`check_grants.py`) | **OK** — 243 جدولًا، 326 منحة مولّدة، 122 منحة ثابتة، 31 عمودًا مقيّدًا، القواعد R1–R11؛ يعمل في الخطوة 3 من `db_ci.sh` | حُقنت ثلاث مخالفات متعمدة فاكتُشفت كلها (§9.3). **لا يثبت** أن المحرك ينفّذ المنح كما هي |
+| التحقق الثابت من الصلاحيات (`check_grants.py`) | **OK** — 244 جدولًا، 328 منحة مولّدة، 122 منحة ثابتة، 31 عمودًا مقيّدًا، القواعد R1–R11؛ يعمل في الخطوة 3 من `db_ci.sh` | حُقنت ثلاث مخالفات متعمدة فاكتُشفت كلها (§9.3). **لا يثبت** أن المحرك ينفّذ المنح كما هي |
 | التحقق من الإصلاحات (`check_review_fixes.py`) | **OK** — 75 من 75، في الخطوة 3 من `db_ci.sh` | يفحص أن كل إصلاح من DR-01 إلى DR-50 موجود في DDL المولَّد أو في الحارس الثابت (043، 044)، لا في الوثيقة وحدها |
 | فهرسة المفاتيح الأجنبية (`check_fk_indexes.py`) | **OK** — 578 مفهرسًا، 111 `noidx`، صفر بلا فهرس؛ الخطوة 3 | §8 |
 | تحليل T-SQL بـ `sqlglot` | الملفات `000–004`، `007`، `010`، `025`، `030`، `040`: **بلا أخطاء**؛ `005` و`006` و`020`: خطأ واحد لكل ملف عند عبارة `DENY` | المحلّل لا يدعم عبارة `DENY` بصيغتها الكاملة؛ الصيغة صحيحة في T-SQL. التحليل نحوي جزئي |

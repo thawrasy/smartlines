@@ -136,7 +136,7 @@ HEADER = f"""/* ================================================================
      fin.CreditMetric         the {len(M['metrics'])} metrics: definitions, patterns, units, directions, themes and texts
      ref.Industry             the {len(M['industries']['sections'])} sections, {len(M['industries']['divisions'])} divisions and {len(M['industries']['activities'])} activities, with their profiles
                               and their sensitivities to the {len(M['shock_drivers'])} drivers of stress
-     fin.MacroScenario        the {len(M['macro_scenarios'])} macro scenarios and the intensity of each driver
+     fin.MacroScenario        the {len(M['macro_scenarios'])} macro scenarios and the intensity of each driver; the multipliers of a scenario per country
      fin.CountryRiskProfile   the {len(M['country_risk']['countries'])} Arab countries and a default: country risk, sovereign rating, ceiling, exposures,
                               their {sum(len(c.get('regions') or []) for c in M['country_risk']['countries'])} regions, and the country and industry risk anchor
      fin.ProductCategory      the {len(M['product_categories'])} product categories
@@ -251,9 +251,23 @@ GO""")
     rows = [f"({a(d['code'])}, {q(d['ar'])}, {q(d['en'])}, {n(d['rev_pct'])}, {n(d['gm_pp'])}, {n(d['dso_days'])}, {i * 10})" for i, d in enumerate(M['shock_drivers'], 1)]
     L.append(merge('fin.ShockDriver', ['Code', 'NameAr', 'NameEn', 'RevenuePct', 'GrossMarginPp', 'DsoDays', 'SortOrder'], rows, ['Code']))
     rows = [f"({a(x['code'])}, {q(x['ar'])}, {q(x['en'])},\n     {q(x['desc_ar'])},\n     {q(x['desc_en'])}, {a(x['inventory'])}, {n(x['st_lines_withdrawn_pct'])}, "
-            f"{int(x['rate_bp'])}, {n(x['private_ar_loss_pct'])}, {n(x['base_dso_days'])}, {n(bool(x['resilience_base']))}, {i * 10})" for i, x in enumerate(M['macro_scenarios'], 1)]
+            f"{int(x['rate_bp'])}, {n(x['private_ar_loss_pct'])}, {n(x['base_dso_days'])}, {n(bool(x['resilience_base']))}, {n(x['undrawn_available_pct'])}, "
+            f"{int(x['duration_months'])}, {n(float(x['other_country_mult']))}, {i * 10})" for i, x in enumerate(M['macro_scenarios'], 1)]
     L.append(merge('fin.MacroScenario', ['Code', 'NameAr', 'NameEn', 'DescriptionAr', 'DescriptionEn', 'InventorySeverity', 'StLinesWithdrawnPct', 'RateBp',
-                                         'PrivateArLossPct', 'BaseDsoDays', 'IsResilienceBase', 'SortOrder'], rows, ['Code']))
+                                         'PrivateArLossPct', 'BaseDsoDays', 'IsResilienceBase', 'UndrawnAvailablePct', 'DurationMonths', 'OtherCountryMult',
+                                         'SortOrder'], rows, ['Code']))
+    rows = [f"({a(x['code'])}, {a(iso)}, {n(float(v))})" for x in M['macro_scenarios'] for iso, v in x['country_mult'].items()]
+    L.append(f"""MERGE fin.MacroScenarioCountry AS d
+USING (SELECT ms.MacroScenarioId, co.CountryId, v.Multiplier
+       FROM (VALUES
+{vals(rows)}
+            ) AS v (ScenarioCode, Iso2, Multiplier)
+       JOIN fin.MacroScenario AS ms ON ms.Code = v.ScenarioCode
+       JOIN ref.Country AS co ON co.Iso2 = v.Iso2) AS s
+   ON d.MacroScenarioId = s.MacroScenarioId AND d.CountryId = s.CountryId
+WHEN NOT MATCHED THEN
+    INSERT (MacroScenarioId, CountryId, Multiplier) VALUES (s.MacroScenarioId, s.CountryId, s.Multiplier);
+GO""")
     rows = [f"({a(x['code'])}, {a(d)}, {n(float(v))})" for x in M['macro_scenarios'] for d, v in x['intensity'].items()]
     L.append(f"""MERGE fin.MacroScenarioIntensity AS d
 USING (SELECT ms.MacroScenarioId, sd.ShockDriverId, v.Intensity

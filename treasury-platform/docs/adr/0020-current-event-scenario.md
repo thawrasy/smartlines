@@ -1,0 +1,53 @@
+# ADR 0020: A seventh macro scenario for the current event: the Gulf conflict on the shipping routes
+
+Status: decided by the database architect on the owner's answers of 2026-10-19 (docs/31-owner-decisions.md decision 31).
+The owner approved the proposed values EV-01 to EV-05 and answered EV-06 in their own words. The calibration (the
+intensities and the country multipliers) is this system's own and was not reviewed by an independent agent; the
+company's treasury department validates it with the rest of the methodology. Extends ADR 0019.
+
+## Context
+
+The owner asked for a scenario of a current event (docs/35 section 24). Its details, as answered on the questions page:
+- EV-01: a prolonged regional conflict in the Gulf reaching the shipping routes of the Strait of Hormuz and the Red Sea
+  for a full year;
+- EV-02: the six Gulf states, Jordan and Egypt are hit most, Bahrain, Kuwait and the UAE hardest;
+- EV-03: the stress is the disruption, not the oil price level;
+- EV-04: 12 months;
+- EV-05: tourism, aviation, hotels, shipping, import-dependent trade and imported building materials are hit hardest;
+- EV-06 (the owner's own answer): "the credit limit that has not been released stops".
+
+The six scenarios of ADR 0019 apply the same stress to every country through the country exposures, and none of them
+models a bank that keeps drawn lines but freezes the undrawn limits.
+
+## Decision
+
+1. **A country multiplier per scenario.** `fin.MacroScenarioCountry` holds the multiplier of a scenario's stress for a
+   country; a country without a row takes the scenario's `OtherCountryMult`. The multiplier scales every driver of the
+   stress, after the activity sensitivity, the country exposure and the region multiplier. The six scenarios of ADR
+   0019 have no rows and a multiplier of 1, so their results do not change.
+2. **Undrawn limits.** `fin.MacroScenario.UndrawnAvailablePct` is the share of the committed undrawn limits on the
+   platform that stays available in the scenario; the liquidity sources and the quantity `UNDRAWN_COMMITTED` read that
+   share. It is 100 in the six scenarios.
+3. **`GULF_SHIPPING_CONFLICT`**: conflict and imports at full intensity, demand and real estate 0.4, government
+   spending 0.2, credit 0.3, oil 0; inventory at its stagnant-market value; rates +150 basis points; private receivables
+   loss 8%; no drawn line withdrawn (0%) and no undrawn limit available (0%); 12 months (`DurationMonths`, shown only:
+   the stress applies to the statement's year as in the other scenarios). Country multipliers: Bahrain, Kuwait and the
+   UAE 1.3; Saudi Arabia, Qatar and Oman 1.0; Jordan and Egypt 0.9; any other country 0.5.
+4. **EV-06 is read as a freeze, not a withdrawal**: the banks stop the undrawn limits and keep the drawn ones. If the
+   owner also meant a withdrawal of part of the drawn lines, only `StLinesWithdrawnPct` of the scenario changes.
+5. **The sectors of EV-05 come from the sensitivities**: the activities most sensitive to conflict and imports lose
+   most; no separate sector list is kept, so a new activity is stressed by its own sensitivities.
+6. The scenario is not the resilience base; resilience and the outlook still read the stagnant market. The rule
+   `POS_RESILIENT` reads all seven scenarios.
+
+## Consequences
+
+- 244 tables: `fin.MacroScenarioCountry` is new; three columns on `fin.MacroScenario` (`UndrawnAvailablePct`,
+  `DurationMonths`, `OtherCountryMult`) and two on `fin.CreditAssessmentScenario` (`UndrawnAvailablePct`,
+  `CountryMult`), shown by `fin.v_CreditAssessmentScenarios`.
+- The engine (047) and the reference (`tools/dbgen/credit_reference.py`) apply the multiplier and the share of undrawn
+  limits; the generated cases compare both, and a new variant (V19, a staple food importer in Kuwait with committed
+  undrawn limits) reaches the freeze: in the Gulf scenario it falls to Caa1, against B3 had its limits stayed open.
+- Tests: CA12 counts the scenario and its eight country rows, CA14 reads seven scenarios; 140 engine cases (step 19d).
+- The 51 review cases have no reviewer range in the new scenario; docs/35 section 22 shows their grade in it as
+  "without a range".

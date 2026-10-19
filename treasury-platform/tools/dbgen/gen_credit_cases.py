@@ -8,7 +8,7 @@ period, the market size, a holding company), becomes one test of db/tests/credit
   CE  the core (fin.usp_CreditCore) on the statement: every named quantity, every metric with its state, the factors
       and their effective weights, every item level, the adjustments that apply, the grades, the liquidity label, the
       data completeness and the facility grade, as the reference computes them without scenarios or remedies;
-  CV  the evaluation (fin.usp_CreditEvaluate): the final grade with the six macro scenarios (their stress parameters
+  CV  the evaluation (fin.usp_CreditEvaluate): the final grade with the seven macro scenarios (their stress parameters
       from the drivers, the activity, the country and the region) and the
       resilience overlay, the grade each scenario gives, and every remedy with its pro-forma grade, the balance of the
       pro-forma balance sheet, and the strengthening plans.
@@ -51,6 +51,10 @@ VARIANTS = [
     ('V17_MICRO', 'G01_EXAMPLE', dict(scale=0.04), 'a very small company under the micro-size ceiling'),
     ('V18_JORDAN_TOURISM', 'S03_FASHION_RETAILER', dict(country='JO', region='AMM', industry='N7902', card='HOSPITALITY_TOURISM'),
      'an activity exposed to conflict in a country exposed to it'),
+    ('V19_KUWAIT_IMPORTER_FROZEN', 'S01_FOOD_DISTRIBUTOR',
+     dict(country='KW', industry='G463002', platform=dict(limits=400, outstanding=260, committed_undrawn=120, largest_lender_share_pct=60,
+                                                          expiring_12m_share_pct=50)),
+     'a staple food importer in a country the Gulf conflict hits hardest, with committed undrawn limits the banks stop in it'),
 ]
 
 
@@ -105,6 +109,8 @@ def cases():
             b.setdefault('current_default', False); b.setdefault('restructured', False); b.setdefault('lenders', 1)
         if 'market_size' in ch:
             ch['market_size'] = ch['market_size'] * SCALE
+        if 'platform' in ch:
+            ch['platform'] = {k: v * SCALE if k in ('limits', 'outstanding', 'committed_undrawn') else v for k, v in ch['platform'].items()}
         kw.update(ch)
         out.append((key, title, card, lines, kw))
     return out
@@ -273,9 +279,10 @@ def eval_case(i, key, title, card, lines, kw):
     for name, v in sorted((r.get('scenarios') or {}).items()):
         pm = v['params']
         b.append(insert('#eScen', ['Scenario', 'FinalNotch', 'NotchesLost', 'Liquidity', 'RevenuePct', 'DsoDays', 'StLinesWithdrawnPct', 'PrivateArLossPct',
-                                   'InventoryWritedownPct'],
+                                   'InventoryWritedownPct', 'UndrawnAvailablePct', 'CountryMult'],
                         [[s(name), num(v['notch']), num(v['lost']), s(v['liquidity']), num(pm['revenue_pct']), num(pm['dso_days']),
-                          num(pm['st_lines_withdrawn_pct']), num(pm['private_ar_loss_pct']), num(pm['inventory_writedown_pct'])]]).rstrip())
+                          num(pm['st_lines_withdrawn_pct']), num(pm['private_ar_loss_pct']), num(pm['inventory_writedown_pct']),
+                          num(pm['undrawn_available_pct']), num(pm['country_mult'])]]).rstrip())
     rows = []
     for rm in r.get('remedies', []):
         pf = rm.get('final')
@@ -332,7 +339,7 @@ CREATE TABLE #crMix (ProductCategoryId INT NOT NULL, RevenueSharePct FLOAT NOT N
 CREATE TABLE #evScen (Scenario VARCHAR(30) COLLATE DATABASE_DEFAULT PRIMARY KEY, State VARCHAR(20) COLLATE DATABASE_DEFAULT, FinalNotch INT, WeightedScore FLOAT,
     Liquidity VARCHAR(6) COLLATE DATABASE_DEFAULT, NotchesLost INT, Revenue FLOAT, Ebitda FLOAT, Inventory FLOAT, ArLoss FLOAT, InventoryWritedown FLOAT,
     ExtraFinanceCost FLOAT, ReceivablesStretch FLOAT, BalanceGap FLOAT, RevenuePct FLOAT, GrossMarginPp FLOAT, DsoDays FLOAT, StLinesWithdrawnPct FLOAT,
-    RateBp INT, PrivateArLossPct FLOAT, InventoryWritedownPct FLOAT);
+    RateBp INT, PrivateArLossPct FLOAT, InventoryWritedownPct FLOAT, UndrawnAvailablePct FLOAT, CountryMult FLOAT);
 CREATE TABLE #evRem (SeqNo INT PRIMARY KEY, RemedyId INT NOT NULL, TriggerCode VARCHAR(40) COLLATE DATABASE_DEFAULT, TriggerLevel VARCHAR(12) COLLATE DATABASE_DEFAULT,
     Moved FLOAT, FinalNotch INT, WeightedScore FLOAT, NotchesGained INT, BalanceGap FLOAT);
 CREATE TABLE #evPlan (PlanId INT PRIMARY KEY, StepCount INT, FinalNotch INT, FinalScore FLOAT, NotchesGained INT, IsBalanced BIT);
@@ -369,7 +376,8 @@ CREATE TABLE #eA (RuleCode VARCHAR(40) COLLATE DATABASE_DEFAULT PRIMARY KEY);
 CREATE TABLE #eEv (State VARCHAR(20) COLLATE DATABASE_DEFAULT, FinalNotch INT, Resilience VARCHAR(10) COLLATE DATABASE_DEFAULT,
     Outlook VARCHAR(10) COLLATE DATABASE_DEFAULT, OutlookRules VARCHAR(200) COLLATE DATABASE_DEFAULT);
 CREATE TABLE #eScen (Scenario VARCHAR(30) COLLATE DATABASE_DEFAULT PRIMARY KEY, FinalNotch INT, NotchesLost INT, Liquidity VARCHAR(6) COLLATE DATABASE_DEFAULT,
-    RevenuePct FLOAT, DsoDays FLOAT, StLinesWithdrawnPct FLOAT, PrivateArLossPct FLOAT, InventoryWritedownPct FLOAT);
+    RevenuePct FLOAT, DsoDays FLOAT, StLinesWithdrawnPct FLOAT, PrivateArLossPct FLOAT, InventoryWritedownPct FLOAT, UndrawnAvailablePct FLOAT,
+    CountryMult FLOAT);
 CREATE TABLE #eRem (Code VARCHAR(40) COLLATE DATABASE_DEFAULT PRIMARY KEY, TriggerCode VARCHAR(40) COLLATE DATABASE_DEFAULT, TriggerLevel VARCHAR(12) COLLATE DATABASE_DEFAULT,
     Moved FLOAT, FinalNotch INT, NotchesGained INT);
 CREATE TABLE #ePlan (Code VARCHAR(40) COLLATE DATABASE_DEFAULT PRIMARY KEY, FinalNotch INT, NotchesGained INT, Steps VARCHAR(1000) COLLATE DATABASE_DEFAULT, IsBalanced BIT);
@@ -408,7 +416,8 @@ BEGIN
         WHERE e.Scenario IS NULL OR x.Scenario IS NULL OR ISNULL(e.FinalNotch, 0) <> ISNULL(x.FinalNotch, 0) OR ISNULL(e.NotchesLost, 99) <> ISNULL(x.NotchesLost, 99)
            OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
            OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
-           OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6;
+           OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
+           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)

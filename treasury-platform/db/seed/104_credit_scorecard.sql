@@ -7,7 +7,7 @@
      fin.CreditMetric         the 112 metrics: definitions, patterns, units, directions, themes and texts
      ref.Industry             the 21 sections, 86 divisions and 282 activities, with their profiles
                               and their sensitivities to the 7 drivers of stress
-     fin.MacroScenario        the 6 macro scenarios and the intensity of each driver
+     fin.MacroScenario        the 7 macro scenarios and the intensity of each driver; the multipliers of a scenario per country
      fin.CountryRiskProfile   the 22 Arab countries and a default: country risk, sovereign rating, ceiling, exposures,
                               their 127 regions, and the country and industry risk anchor
      fin.ProductCategory      the 15 product categories
@@ -2400,27 +2400,48 @@ MERGE fin.MacroScenario AS d
 USING (VALUES
     ('STAGNANT_MARKET', N'ركود السوق', N'Stagnant market',
      N'تباطؤ الطلب سنة أو أكثر: مبيعات أقل وهوامش أضيق وتحصيل أبطأ ومخزون أبطأ بيعًا، دون أزمة مصرفية',
-     N'Demand slows for a year or more: lower sales, thinner margins, slower collection and inventory, without a banking crisis', 'STAGNANT', 10, 100, 5, 5, 1, 10),
+     N'Demand slows for a year or more: lower sales, thinner margins, slower collection and inventory, without a banking crisis', 'STAGNANT', 10, 100, 5, 5, 1, 100, 12, 1, 10),
     ('FINANCIAL_CRISIS', N'أزمة مالية', N'Financial crisis',
      N'أزمة مصرفية ومالية: تُسحب الخطوط قصيرة الأجل وترتفع الأسعار ويهبط الطلب وتتعثر الذمم الخاصة',
-     N'A banking and financial crisis: short-term lines are withdrawn, rates rise, demand falls and private receivables default', 'CRISIS', 40, 250, 15, 10, 0, 20),
+     N'A banking and financial crisis: short-term lines are withdrawn, rates rise, demand falls and private receivables default', 'CRISIS', 40, 250, 15, 10, 0, 100, 12, 1, 20),
     ('FISCAL_SQUEEZE', N'تقشف حكومي وعجز الميزانية', N'Fiscal squeeze',
      N'خفض الإنفاق الحكومي لعجز الميزانية: تأجيل المشاريع وتأخر المستحقات الحكومية وتباطؤ الاقتصاد المرتبط بها',
-     N'Government spending is cut to close a budget deficit: projects are postponed, government payments delayed and the linked economy slows', 'STAGNANT', 15, 75, 5, 5, 0, 30),
+     N'Government spending is cut to close a budget deficit: projects are postponed, government payments delayed and the linked economy slows', 'STAGNANT', 15, 75, 5, 5, 0, 100, 12, 1, 30),
     ('REAL_ESTATE_CORRECTION', N'تصحيح عقاري', N'Real estate correction',
      N'هبوط أسعار العقار وصفقاته والبيع على الخريطة والإيجارات، ويختلف بين مدينة وأخرى بمضاعف المنطقة',
-     N'Property prices, transactions, off-plan sales and rents fall, by more or less from one city to another with the region multiplier', 'STAGNANT', 15, 100, 8, 5, 0, 40),
+     N'Property prices, transactions, off-plan sales and rents fall, by more or less from one city to another with the region multiplier', 'STAGNANT', 15, 100, 8, 5, 0, 100, 12, 1, 40),
     ('REGIONAL_CONFLICT', N'نزاع إقليمي', N'Regional conflict',
      N'حرب أو نزاع في المنطقة: تتوقف السياحة والسفر وتتعطل طرق الإمداد وترتفع كلفة الاستيراد والتأمين وتضعف الثقة',
-     N'A war or conflict in the region: tourism and travel stop, supply routes are disrupted, import and insurance costs rise and confidence weakens', 'CRISIS', 20, 200, 10, 5, 0, 50),
+     N'A war or conflict in the region: tourism and travel stop, supply routes are disrupted, import and insurance costs rise and confidence weakens', 'CRISIS', 20, 200, 10, 5, 0, 100, 12, 1, 50),
     ('OIL_PRICE_COLLAPSE', N'انهيار أسعار النفط', N'Oil price collapse',
      N'هبوط حاد وطويل لسعر النفط: تتراجع إيرادات الدولة والسيولة المصرفية والإنفاق في الاقتصادات النفطية',
-     N'A sharp and lasting fall in the oil price: state revenue, bank liquidity and spending fall in the oil economies', 'STAGNANT', 20, 100, 8, 5, 0, 60)
-) AS s (Code, NameAr, NameEn, DescriptionAr, DescriptionEn, InventorySeverity, StLinesWithdrawnPct, RateBp, PrivateArLossPct, BaseDsoDays, IsResilienceBase, SortOrder)
+     N'A sharp and lasting fall in the oil price: state revenue, bank liquidity and spending fall in the oil economies', 'STAGNANT', 20, 100, 8, 5, 0, 100, 12, 1, 60),
+    ('GULF_SHIPPING_CONFLICT', N'نزاع الخليج وممرات الملاحة', N'Gulf conflict and shipping routes',
+     N'حدث جارٍ (قرار المالك 2026-10-19): نزاع إقليمي ممتد في الخليج يطال طرق الملاحة في مضيق هرمز والبحر الأحمر سنة كاملة. أشد البلدان تأثرًا البحرين والكويت والإمارات، ثم السعودية وقطر وعُمان، ثم الأردن ومصر. يُضغط أثر الاضطراب لا مستوى سعر النفط. وأشد القطاعات تأثرًا السياحة والطيران والفنادق والشحن البحري والتجارة المعتمدة على الاستيراد ومواد البناء المستوردة، من حساسيتها للنزاع والاستيراد. ولا تسحب البنوك الخطوط المستعملة، لكنها توقف الحدود غير المسحوبة، فلا يُحسب منها شيء في السيولة.',
+     N'A current event (owner''s decision of 2026-10-19): a prolonged regional conflict in the Gulf reaching the shipping routes of the Strait of Hormuz and the Red Sea for a full year. Bahrain, Kuwait and the UAE are hit hardest, then Saudi Arabia, Qatar and Oman, then Jordan and Egypt. The stress is the disruption, not the oil price level. Tourism, aviation, hotels, shipping, import-dependent trade and imported building materials are hit hardest, through their sensitivity to conflict and imports. Banks do not withdraw drawn lines but stop the undrawn limits, so none of them counts in liquidity.', 'STAGNANT', 0, 150, 8, 5, 0, 0, 12, 0.5, 70)
+) AS s (Code, NameAr, NameEn, DescriptionAr, DescriptionEn, InventorySeverity, StLinesWithdrawnPct, RateBp, PrivateArLossPct, BaseDsoDays, IsResilienceBase, UndrawnAvailablePct, DurationMonths, OtherCountryMult, SortOrder)
    ON d.Code = s.Code
 WHEN NOT MATCHED THEN
-    INSERT (Code, NameAr, NameEn, DescriptionAr, DescriptionEn, InventorySeverity, StLinesWithdrawnPct, RateBp, PrivateArLossPct, BaseDsoDays, IsResilienceBase, SortOrder)
-    VALUES (s.Code, s.NameAr, s.NameEn, s.DescriptionAr, s.DescriptionEn, s.InventorySeverity, s.StLinesWithdrawnPct, s.RateBp, s.PrivateArLossPct, s.BaseDsoDays, s.IsResilienceBase, s.SortOrder);
+    INSERT (Code, NameAr, NameEn, DescriptionAr, DescriptionEn, InventorySeverity, StLinesWithdrawnPct, RateBp, PrivateArLossPct, BaseDsoDays, IsResilienceBase, UndrawnAvailablePct, DurationMonths, OtherCountryMult, SortOrder)
+    VALUES (s.Code, s.NameAr, s.NameEn, s.DescriptionAr, s.DescriptionEn, s.InventorySeverity, s.StLinesWithdrawnPct, s.RateBp, s.PrivateArLossPct, s.BaseDsoDays, s.IsResilienceBase, s.UndrawnAvailablePct, s.DurationMonths, s.OtherCountryMult, s.SortOrder);
+GO
+MERGE fin.MacroScenarioCountry AS d
+USING (SELECT ms.MacroScenarioId, co.CountryId, v.Multiplier
+       FROM (VALUES
+    ('GULF_SHIPPING_CONFLICT', 'BH', 1.3),
+    ('GULF_SHIPPING_CONFLICT', 'KW', 1.3),
+    ('GULF_SHIPPING_CONFLICT', 'AE', 1.3),
+    ('GULF_SHIPPING_CONFLICT', 'SA', 1),
+    ('GULF_SHIPPING_CONFLICT', 'QA', 1),
+    ('GULF_SHIPPING_CONFLICT', 'OM', 1),
+    ('GULF_SHIPPING_CONFLICT', 'JO', 0.9),
+    ('GULF_SHIPPING_CONFLICT', 'EG', 0.9)
+            ) AS v (ScenarioCode, Iso2, Multiplier)
+       JOIN fin.MacroScenario AS ms ON ms.Code = v.ScenarioCode
+       JOIN ref.Country AS co ON co.Iso2 = v.Iso2) AS s
+   ON d.MacroScenarioId = s.MacroScenarioId AND d.CountryId = s.CountryId
+WHEN NOT MATCHED THEN
+    INSERT (MacroScenarioId, CountryId, Multiplier) VALUES (s.MacroScenarioId, s.CountryId, s.Multiplier);
 GO
 MERGE fin.MacroScenarioIntensity AS d
 USING (SELECT ms.MacroScenarioId, sd.ShockDriverId, v.Intensity
@@ -2466,7 +2487,14 @@ USING (SELECT ms.MacroScenarioId, sd.ShockDriverId, v.Intensity
     ('OIL_PRICE_COLLAPSE', 'CONFLICT', 0),
     ('OIL_PRICE_COLLAPSE', 'OIL', 1),
     ('OIL_PRICE_COLLAPSE', 'CREDIT', 0.4),
-    ('OIL_PRICE_COLLAPSE', 'IMPORT_FX', 0.1)
+    ('OIL_PRICE_COLLAPSE', 'IMPORT_FX', 0.1),
+    ('GULF_SHIPPING_CONFLICT', 'DEMAND', 0.4),
+    ('GULF_SHIPPING_CONFLICT', 'GOV_SPENDING', 0.2),
+    ('GULF_SHIPPING_CONFLICT', 'REAL_ESTATE', 0.4),
+    ('GULF_SHIPPING_CONFLICT', 'CONFLICT', 1),
+    ('GULF_SHIPPING_CONFLICT', 'OIL', 0),
+    ('GULF_SHIPPING_CONFLICT', 'CREDIT', 0.3),
+    ('GULF_SHIPPING_CONFLICT', 'IMPORT_FX', 1)
             ) AS v (ScenarioCode, DriverCode, Intensity)
        JOIN fin.MacroScenario AS ms ON ms.Code = v.ScenarioCode
        JOIN fin.ShockDriver AS sd ON sd.Code = v.DriverCode) AS s

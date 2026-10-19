@@ -586,6 +586,7 @@ CREATE NONCLUSTERED INDEX [IX_Scorecard_CurrencyId] ON [fin].[Scorecard] ([Curre
 CREATE NONCLUSTERED INDEX [IX_ScorecardMetric_MetricId] ON [fin].[ScorecardMetric] ([MetricId]);
 CREATE NONCLUSTERED INDEX [IX_ScorecardItemRule_MetricId] ON [fin].[ScorecardItemRule] ([MetricId]);
 CREATE UNIQUE NONCLUSTERED INDEX [UQ_MacroScenario_IsResilienceBase] ON [fin].[MacroScenario] ([IsResilienceBase]) WHERE IsResilienceBase = 1;
+CREATE NONCLUSTERED INDEX [IX_MacroScenarioCountry_CountryId] ON [fin].[MacroScenarioCountry] ([CountryId]);
 CREATE NONCLUSTERED INDEX [IX_MacroScenarioIntensity_ShockDriverId] ON [fin].[MacroScenarioIntensity] ([ShockDriverId]);
 CREATE NONCLUSTERED INDEX [IX_IndustrySensitivity_ShockDriverId] ON [fin].[IndustrySensitivity] ([ShockDriverId]);
 CREATE UNIQUE NONCLUSTERED INDEX [UQ_CountryRiskProfile_CountryId] ON [fin].[CountryRiskProfile] ([CountryId]) WHERE CountryId IS NOT NULL;

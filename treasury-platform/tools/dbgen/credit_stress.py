@@ -44,9 +44,10 @@ def run_scenarios():
         kw, lines = cr.case_args(c, 1e6)
         r = cr.assess(c['card'], lines, **kw, with_remedies=False)
         e = c['expected']
-        res = [('NORMAL', r.get('final'))] + [(x['code'], r['scenarios'][x['code']]['final']) for x in cr.SCENARIOS if x['code'] in e]
+        # every scenario's grade; a scenario added after the review (the Gulf conflict, ADR 0020) has no range of the reviewer
+        res = [('NORMAL', r.get('final'))] + [(x['code'], r['scenarios'][x['code']]['final']) for x in cr.SCENARIOS]
         acc = c.get('accepted_outside') or {}
-        ok = all(in_range(g, e[k]) or acc.get(k) == g for k, g in res)
+        ok = all(in_range(g, e[k]) or acc.get(k) == g for k, g in res if k in e)
         out.append(dict(key=c['key'], name=c['name_ar'], card=c['card'], industry=c['industry'], country=c.get('country', 'SA'), results=res, expected=e, accepted=acc, accepted_reason=c.get('accepted_reason'),
                         resilience=r.get('resilience'), ok=ok))
     return out
