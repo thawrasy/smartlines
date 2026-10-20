@@ -1,5 +1,15 @@
 %% م5 · البيانات المالية والأرصدة (11/13) — Financial statements & balances
 erDiagram
+  fin_ScorecardAdjustment["fin.ScorecardAdjustment"] {
+    int ScorecardAdjustmentId PK
+    int ScorecardId FK
+    int CapGradeId FK
+  }
+  fin_ScorecardItemRule["fin.ScorecardItemRule"] {
+    int ScorecardItemRuleId PK
+    int ScorecardId FK
+    int MetricId FK
+  }
   fin_ScorecardMetric["fin.ScorecardMetric"] {
     int ScorecardMetricId PK
     int ScorecardId FK
@@ -8,12 +18,4 @@ erDiagram
   fin_ScorecardParameter["fin.ScorecardParameter"] {
     int ScorecardParameterId PK
     int ScorecardId FK
-  }
-  fin_ScorecardSubfactor["fin.ScorecardSubfactor"] {
-    int ScorecardSubfactorId PK
-    int ScorecardId FK
-    int MetricId FK
-  }
-  fin_ShockDriver["fin.ShockDriver"] {
-    int ShockDriverId PK
   }

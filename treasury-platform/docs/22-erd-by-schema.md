@@ -515,9 +515,9 @@ erDiagram
 | ReportingInstance | SubmissionChannelUsedId | cat.LookupItem |
 | ReportingObligation | SubmissionChannelId | cat.LookupItem |
 
-## مخطط `fin` (50 جدولًا)
+## مخطط `fin` (52 جدولًا)
 
-(المخطط كبير؛ العلاقات الداخلية: 68)
+(المخطط كبير؛ العلاقات الداخلية: 74)
 
 | الجدول | العمود | يشير إلى |
 |---|---|---|
@@ -564,6 +564,9 @@ erDiagram
 | MeasureFormula | FacilityId | fac.Facility |
 | MeasureFormula | SourceDocumentId | doc.Document |
 | MeasureFormula | VerifiedBy | sec.AppUser |
+| PresentationVersion | ChosenBy | sec.AppUser |
+| PresentationVersion | PreparedBy | sec.AppUser |
+| PresentationVersionStep | DocumentId | doc.Document |
 | RevenueEstimate | ApprovedBy | sec.AppUser |
 | RevenueEstimate | CompanyId | org.Company |
 | RevenueEstimate | CurrencyId | ref.Currency |

@@ -4703,7 +4703,7 @@ CREATE TABLE [fin].[FinancialStatement] (
     [AuditOpinion] VARCHAR(11) NULL,
     [GoingConcernUncertainty] BIT NOT NULL CONSTRAINT [DF_FinancialStatement_GoingConcernUncertainty] DEFAULT 0,
     [VersionNo] INT NOT NULL CONSTRAINT [DF_FinancialStatement_VersionNo] DEFAULT 1,
-    [VersionReason] VARCHAR(10) NOT NULL CONSTRAINT [DF_FinancialStatement_VersionReason] DEFAULT 'ORIGINAL',
+    [VersionReason] VARCHAR(12) NOT NULL CONSTRAINT [DF_FinancialStatement_VersionReason] DEFAULT 'ORIGINAL',
     [SupersedesId] BIGINT NULL,
     [Status] VARCHAR(10) NOT NULL CONSTRAINT [DF_FinancialStatement_Status] DEFAULT 'DRAFT',
     [EntryMethod] VARCHAR(10) NOT NULL,
@@ -4742,7 +4742,7 @@ CREATE TABLE [fin].[FinancialStatement] (
     CONSTRAINT [CK_FinancialStatement_Basis] CHECK ([Basis] IS NULL OR [Basis] IN ('STANDALONE', 'CONSOLIDATED')),
     CONSTRAINT [CK_FinancialStatement_Assurance] CHECK ([Assurance] IS NULL OR [Assurance] IN ('AUDITED', 'REVIEWED', 'MANAGEMENT')),
     CONSTRAINT [CK_FinancialStatement_AuditOpinion] CHECK ([AuditOpinion] IS NULL OR [AuditOpinion] IN ('UNQUALIFIED', 'QUALIFIED', 'ADVERSE', 'DISCLAIMER')),
-    CONSTRAINT [CK_FinancialStatement_VersionReason] CHECK ([VersionReason] IS NULL OR [VersionReason] IN ('ORIGINAL', 'RESTATED', 'CORRECTION')),
+    CONSTRAINT [CK_FinancialStatement_VersionReason] CHECK ([VersionReason] IS NULL OR [VersionReason] IN ('ORIGINAL', 'RESTATED', 'CORRECTION', 'RESTRUCTURED')),
     CONSTRAINT [CK_FinancialStatement_Status] CHECK ([Status] IS NULL OR [Status] IN ('DRAFT', 'SUBMITTED', 'APPROVED', 'SUPERSEDED', 'REJECTED')),
     CONSTRAINT [CK_FinancialStatement_EntryMethod] CHECK ([EntryMethod] IS NULL OR [EntryMethod] IN ('MANUAL', 'PASTE'))
 );
@@ -5783,6 +5783,64 @@ CREATE TABLE [fin].[CreditAssessmentGuarantor] (
     CONSTRAINT [UQ_CreditAssessmentGuarantor_AssessmentId_PartyId] UNIQUE ([TenantId], [AssessmentId], [PartyId]),
     CONSTRAINT [CK_CreditAssessmentGuarantor_1] CHECK (NetWorth >= 0 AND LiquidAssets >= 0 AND GuaranteesGiven >= 0 AND GuaranteedAmount > 0),
     CONSTRAINT [CK_CreditAssessmentGuarantor_2] CHECK (LiquidAssets <= NetWorth)
+);
+GO
+-- An alternative presentation of a company's statement before its final approval: the remedies the company chose, applied in order to the statement and kept balanced, written as a new draft statement with a trial assessment to compare; chosen by someone other than its preparer, and only when every step rests on a document dated by the period end (docs/36 F2, ADR 0023)
+CREATE TABLE [fin].[PresentationVersion] (
+    [TenantId] INT NOT NULL,
+    [PresentationVersionId] BIGINT IDENTITY(1,1) NOT NULL,
+    [SourceStatementId] BIGINT NOT NULL,
+    [SourceAssessmentId] BIGINT NULL,
+    [NameAr] NVARCHAR(200) NOT NULL,
+    [Note] NVARCHAR(1000) NULL,
+    [Status] VARCHAR(10) NOT NULL CONSTRAINT [DF_PresentationVersion_Status] DEFAULT 'DRAFT',
+    [ResultStatementId] BIGINT NULL,
+    [TrialAssessmentId] BIGINT NULL,
+    [IsConvertible] BIT NULL,
+    [BalanceGap] DECIMAL(19,4) NULL,
+    [BuiltAt] DATETIME2(3) NULL,
+    [PreparedBy] BIGINT NOT NULL,
+    [ChosenBy] BIGINT NULL,
+    [ChosenOn] DATETIME2(3) NULL,
+    [PublicId] UNIQUEIDENTIFIER NOT NULL CONSTRAINT [DF_PresentationVersion_PublicId] DEFAULT NEWSEQUENTIALID(),
+    [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_PresentationVersion_CreatedAt] DEFAULT SYSUTCDATETIME(),
+    [CreatedBy] BIGINT NULL,
+    [UpdatedAt] DATETIME2(3) NULL,
+    [UpdatedBy] BIGINT NULL,
+    [RowVersion] ROWVERSION NOT NULL,
+    CONSTRAINT [PK_PresentationVersion] PRIMARY KEY CLUSTERED ([PresentationVersionId]),
+    CONSTRAINT [UQ_PresentationVersion_Tenant] UNIQUE ([TenantId], [PresentationVersionId]),
+    CONSTRAINT [UQ_PresentationVersion_PublicId] UNIQUE ([PublicId]),
+    CONSTRAINT [CK_PresentationVersion_1] CHECK (Status IN ('DRAFT','DISCARDED') OR (ResultStatementId IS NOT NULL AND BuiltAt IS NOT NULL AND IsConvertible IS NOT NULL)),
+    CONSTRAINT [CK_PresentationVersion_2] CHECK (Status <> 'CHOSEN' OR (ChosenBy IS NOT NULL AND ChosenOn IS NOT NULL AND IsConvertible = 1)),
+    CONSTRAINT [CK_PresentationVersion_3] CHECK (ChosenBy IS NULL OR ChosenBy <> PreparedBy),
+    CONSTRAINT [CK_PresentationVersion_Status] CHECK ([Status] IS NULL OR [Status] IN ('DRAFT', 'BUILT', 'CHOSEN', 'DISCARDED'))
+);
+GO
+-- A remedy of the methodology the company chose for a presentation version, in order, with the document that supports it; the amount it moved is written by the build (docs/36 F2, ADR 0023)
+CREATE TABLE [fin].[PresentationVersionStep] (
+    [TenantId] INT NOT NULL,
+    [PresentationVersionStepId] BIGINT IDENTITY(1,1) NOT NULL,
+    [VersionId] BIGINT NOT NULL,
+    [StepNo] INT NOT NULL,
+    [RemedyId] INT NOT NULL,
+    [ScalePct] DECIMAL(9,4) NOT NULL CONSTRAINT [DF_PresentationVersionStep_ScalePct] DEFAULT 100,
+    [DocumentId] BIGINT NULL,
+    [EvidenceDate] DATE NULL,
+    [Justification] NVARCHAR(1000) NOT NULL,
+    [MovedAmount] DECIMAL(19,4) NULL,
+    [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_PresentationVersionStep_CreatedAt] DEFAULT SYSUTCDATETIME(),
+    [CreatedBy] BIGINT NULL,
+    [UpdatedAt] DATETIME2(3) NULL,
+    [UpdatedBy] BIGINT NULL,
+    [RowVersion] ROWVERSION NOT NULL,
+    CONSTRAINT [PK_PresentationVersionStep] PRIMARY KEY CLUSTERED ([PresentationVersionStepId]),
+    CONSTRAINT [UQ_PresentationVersionStep_Tenant] UNIQUE ([TenantId], [PresentationVersionStepId]),
+    CONSTRAINT [UQ_PresentationVersionStep_VersionId_StepNo] UNIQUE ([TenantId], [VersionId], [StepNo]),
+    CONSTRAINT [UQ_PresentationVersionStep_VersionId_RemedyId] UNIQUE ([TenantId], [VersionId], [RemedyId]),
+    CONSTRAINT [CK_PresentationVersionStep_1] CHECK (ScalePct > 0 AND ScalePct <= 100),
+    CONSTRAINT [CK_PresentationVersionStep_2] CHECK ((DocumentId IS NULL AND EvidenceDate IS NULL) OR (DocumentId IS NOT NULL AND EvidenceDate IS NOT NULL)),
+    CONSTRAINT [CK_PresentationVersionStep_3] CHECK (StepNo >= 1)
 );
 GO
 -- A row of the reconciliation of the analytical statement: a standard adjustment that moved an amount of a reported line to an analytical bucket; written by fin.usp_ComputeCreditAssessment only (docs/35 section 6)

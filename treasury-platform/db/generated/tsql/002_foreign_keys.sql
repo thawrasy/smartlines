@@ -643,6 +643,17 @@ ALTER TABLE [fin].[CreditAssessmentGuarantor] ADD CONSTRAINT [FK_CreditAssessmen
 ALTER TABLE [fin].[CreditAssessmentGuarantor] ADD CONSTRAINT [FK_CreditAssessmentGuarantor_AssessmentId] FOREIGN KEY ([TenantId], [AssessmentId]) REFERENCES [fin].[CreditAssessment] ([TenantId], [CreditAssessmentId]);
 ALTER TABLE [fin].[CreditAssessmentGuarantor] ADD CONSTRAINT [FK_CreditAssessmentGuarantor_PartyId] FOREIGN KEY ([TenantId], [PartyId]) REFERENCES [pty].[Party] ([TenantId], [PartyId]);
 ALTER TABLE [fin].[CreditAssessmentGuarantor] ADD CONSTRAINT [FK_CreditAssessmentGuarantor_DocumentId] FOREIGN KEY ([TenantId], [DocumentId]) REFERENCES [doc].[Document] ([TenantId], [DocumentId]);
+ALTER TABLE [fin].[PresentationVersion] ADD CONSTRAINT [FK_PresentationVersion_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
+ALTER TABLE [fin].[PresentationVersion] ADD CONSTRAINT [FK_PresentationVersion_SourceStatementId] FOREIGN KEY ([TenantId], [SourceStatementId]) REFERENCES [fin].[FinancialStatement] ([TenantId], [FinancialStatementId]);
+ALTER TABLE [fin].[PresentationVersion] ADD CONSTRAINT [FK_PresentationVersion_SourceAssessmentId] FOREIGN KEY ([TenantId], [SourceAssessmentId]) REFERENCES [fin].[CreditAssessment] ([TenantId], [CreditAssessmentId]);
+ALTER TABLE [fin].[PresentationVersion] ADD CONSTRAINT [FK_PresentationVersion_ResultStatementId] FOREIGN KEY ([TenantId], [ResultStatementId]) REFERENCES [fin].[FinancialStatement] ([TenantId], [FinancialStatementId]);
+ALTER TABLE [fin].[PresentationVersion] ADD CONSTRAINT [FK_PresentationVersion_TrialAssessmentId] FOREIGN KEY ([TenantId], [TrialAssessmentId]) REFERENCES [fin].[CreditAssessment] ([TenantId], [CreditAssessmentId]);
+ALTER TABLE [fin].[PresentationVersion] ADD CONSTRAINT [FK_PresentationVersion_PreparedBy] FOREIGN KEY ([TenantId], [PreparedBy]) REFERENCES [sec].[AppUser] ([TenantId], [AppUserId]);
+ALTER TABLE [fin].[PresentationVersion] ADD CONSTRAINT [FK_PresentationVersion_ChosenBy] FOREIGN KEY ([TenantId], [ChosenBy]) REFERENCES [sec].[AppUser] ([TenantId], [AppUserId]);
+ALTER TABLE [fin].[PresentationVersionStep] ADD CONSTRAINT [FK_PresentationVersionStep_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
+ALTER TABLE [fin].[PresentationVersionStep] ADD CONSTRAINT [FK_PresentationVersionStep_VersionId] FOREIGN KEY ([TenantId], [VersionId]) REFERENCES [fin].[PresentationVersion] ([TenantId], [PresentationVersionId]);
+ALTER TABLE [fin].[PresentationVersionStep] ADD CONSTRAINT [FK_PresentationVersionStep_RemedyId] FOREIGN KEY ([RemedyId]) REFERENCES [fin].[CreditRemedy] ([CreditRemedyId]);
+ALTER TABLE [fin].[PresentationVersionStep] ADD CONSTRAINT [FK_PresentationVersionStep_DocumentId] FOREIGN KEY ([TenantId], [DocumentId]) REFERENCES [doc].[Document] ([TenantId], [DocumentId]);
 ALTER TABLE [fin].[CreditAssessmentReclass] ADD CONSTRAINT [FK_CreditAssessmentReclass_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
 ALTER TABLE [fin].[CreditAssessmentReclass] ADD CONSTRAINT [FK_CreditAssessmentReclass_AssessmentId] FOREIGN KEY ([TenantId], [AssessmentId]) REFERENCES [fin].[CreditAssessment] ([TenantId], [CreditAssessmentId]);
 ALTER TABLE [fin].[CreditAssessmentFacility] ADD CONSTRAINT [FK_CreditAssessmentFacility_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);

@@ -2,7 +2,7 @@
 
 > مُولَّد آليًا من نموذج البيانات بـ `tools/dbgen` — لا يُعدَّل يدويًا. الأعمدة المشتركة التي تضيفها اصطلاحات التوليد (TenantId، المعرّف، التدقيق) تظهر في كل جدول.
 
-**عدد الجداول: 245**
+**عدد الجداول: 247**
 
 | الوحدة | عدد الجداول |
 |---|---|
@@ -22,7 +22,7 @@
 | CMP | 2 |
 | COL | 7 |
 | OBL | 9 |
-| FIN | 50 |
+| FIN | 52 |
 | REQ | 8 |
 | WFL | 11 |
 | NTF | 7 |
@@ -4285,7 +4285,7 @@
 | AuditOpinion | VARCHAR(11) | نعم |  |  | رأي المراجع للقائمة المدققة enum: UNQUALIFIED, QUALIFIED, ADVERSE, DISCLAIMER |
 | GoingConcernUncertainty | BIT | لا | 0 |  | فقرة شك جوهري في الاستمرارية في تقرير المراجع (التقييم الائتماني، docs/35 §7) |
 | VersionNo | INT | لا | 1 |  |  |
-| VersionReason | VARCHAR(10) | لا | ORIGINAL |  | سبب الإصدار إلزامي (BR-FIN-004) enum: ORIGINAL, RESTATED, CORRECTION |
+| VersionReason | VARCHAR(12) | لا | ORIGINAL |  | سبب الإصدار إلزامي (BR-FIN-004)؛ RESTRUCTURED: نسخة عرض اختارتها الشركة (ADR 0023) enum: ORIGINAL, RESTATED, CORRECTION, RESTRUCTURED |
 | SupersedesId | BIGINT | نعم |  | fin.FinancialStatement (via CompanyId,Basis,Assurance,PeriodType,PeriodEnd) | الإصدار السابق للشركة والسلسلة نفسها؛ المدققة لا تحل محل الإدارية (قرار المالك 2026-10-13، DR-34) |
 | Status | VARCHAR(10) | لا | DRAFT |  | enum: DRAFT, SUBMITTED, APPROVED, SUPERSEDED, REJECTED |
 | EntryMethod | VARCHAR(10) | لا |  |  | enum: MANUAL, PASTE |
@@ -5328,6 +5328,62 @@
 **المفاتيح:** PK(CreditAssessmentGuarantorId) · UQ(TenantId, AssessmentId, PartyId)
 
 **قيود:** `NetWorth >= 0 AND LiquidAssets >= 0 AND GuaranteesGiven >= 0 AND GuaranteedAmount > 0` · `LiquidAssets <= NetWorth`
+
+### `fin.PresentationVersion` — An alternative presentation of a company's statement before its final approval: the remedies the company chose, applied in order to the statement and kept balanced, written as a new draft statement with a trial assessment to compare; chosen by someone other than its preparer, and only when every step rests on a document dated by the period end (docs/36 F2, ADR 0023)
+
+*مملوك للمشترك*
+
+| العمود | النوع | NULL | الافتراضي | المرجع | ملاحظة |
+|---|---|---|---|---|---|
+| TenantId | INT | لا | | plat.Tenant | عزل المشترك |
+| **PresentationVersionId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
+| SourceStatementId | BIGINT | لا |  | fin.FinancialStatement |  |
+| SourceAssessmentId | BIGINT | نعم |  | fin.CreditAssessment | التقييم الذي يُقارن به ومنه تُنسخ مدخلات التقييم التجريبي |
+| NameAr | NVARCHAR(200) | لا |  |  |  |
+| Note | NVARCHAR(1000) | نعم |  |  |  |
+| Status | VARCHAR(10) | لا | DRAFT |  | enum: DRAFT, BUILT, CHOSEN, DISCARDED |
+| ResultStatementId | BIGINT | نعم |  | fin.FinancialStatement | القائمة المسودة التي يكتبها البناء |
+| TrialAssessmentId | BIGINT | نعم |  | fin.CreditAssessment | التقييم التجريبي للقائمة الناتجة |
+| IsConvertible | BIT | نعم |  |  | كل خطوة بمستند مؤرخ في نهاية الفترة أو قبلها |
+| BalanceGap | DECIMAL(19,4) | نعم |  |  | فرق التوازن بعد الخطوات (صفر) |
+| BuiltAt | DATETIME2(3) | نعم |  |  |  |
+| PreparedBy | BIGINT | لا |  | sec.AppUser |  |
+| ChosenBy | BIGINT | نعم |  | sec.AppUser |  |
+| ChosenOn | DATETIME2(3) | نعم |  |  |  |
+| PublicId | UNIQUEIDENTIFIER | لا | NEWSEQUENTIALID() |  |  |
+| CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
+| CreatedBy | BIGINT | نعم |  |  |  |
+| UpdatedAt | DATETIME2(3) | نعم |  |  |  |
+| UpdatedBy | BIGINT | نعم |  |  |  |
+
+**المفاتيح:** PK(PresentationVersionId) · UQ(PublicId) · UQ(TenantId, ResultStatementId) WHERE ResultStatementId IS NOT NULL
+
+**قيود:** `Status IN ('DRAFT','DISCARDED') OR (ResultStatementId IS NOT NULL AND BuiltAt IS NOT NULL AND IsConvertible IS NOT NULL)` · `Status <> 'CHOSEN' OR (ChosenBy IS NOT NULL AND ChosenOn IS NOT NULL AND IsConvertible = 1)` · `ChosenBy IS NULL OR ChosenBy <> PreparedBy`
+
+### `fin.PresentationVersionStep` — A remedy of the methodology the company chose for a presentation version, in order, with the document that supports it; the amount it moved is written by the build (docs/36 F2, ADR 0023)
+
+*مملوك للمشترك*
+
+| العمود | النوع | NULL | الافتراضي | المرجع | ملاحظة |
+|---|---|---|---|---|---|
+| TenantId | INT | لا | | plat.Tenant | عزل المشترك |
+| **PresentationVersionStepId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
+| VersionId | BIGINT | لا |  | fin.PresentationVersion |  |
+| StepNo | INT | لا |  |  |  |
+| RemedyId | INT | لا |  | fin.CreditRemedy |  |
+| ScalePct | DECIMAL(9,4) | لا | 100 |  | نسبة ما يُنفذ من الحل |
+| DocumentId | BIGINT | نعم |  | doc.Document | القرار أو العقد أو الاتفاق الذي يسند الخطوة |
+| EvidenceDate | DATE | نعم |  |  | تاريخ المستند |
+| Justification | NVARCHAR(1000) | لا |  |  |  |
+| MovedAmount | DECIMAL(19,4) | نعم |  |  | ما نقلته الخطوة؛ يكتبه البناء |
+| CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
+| CreatedBy | BIGINT | نعم |  |  |  |
+| UpdatedAt | DATETIME2(3) | نعم |  |  |  |
+| UpdatedBy | BIGINT | نعم |  |  |  |
+
+**المفاتيح:** PK(PresentationVersionStepId) · UQ(TenantId, VersionId, StepNo) · UQ(TenantId, VersionId, RemedyId)
+
+**قيود:** `ScalePct > 0 AND ScalePct <= 100` · `(DocumentId IS NULL AND EvidenceDate IS NULL) OR (DocumentId IS NOT NULL AND EvidenceDate IS NOT NULL)` · `StepNo >= 1`
 
 ### `fin.CreditAssessmentReclass` — A row of the reconciliation of the analytical statement: a standard adjustment that moved an amount of a reported line to an analytical bucket; written by fin.usp_ComputeCreditAssessment only (docs/35 section 6)
 

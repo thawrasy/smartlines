@@ -452,7 +452,7 @@ table fin.FinancialStatement public  # Financial statement header; highly confid
   AuditOpinion      enum{UNQUALIFIED,QUALIFIED,ADVERSE,DISCLAIMER}   # رأي المراجع للقائمة المدققة
   GoingConcernUncertainty bool req =0   # فقرة شك جوهري في الاستمرارية في تقرير المراجع (التقييم الائتماني، docs/35 §7)
   VersionNo         int        req =1
-  VersionReason     enum{ORIGINAL,RESTATED,CORRECTION} req =ORIGINAL   # سبب الإصدار إلزامي (BR-FIN-004)
+  VersionReason     enum{ORIGINAL,RESTATED,CORRECTION,RESTRUCTURED} req =ORIGINAL   # سبب الإصدار إلزامي (BR-FIN-004)؛ RESTRUCTURED: نسخة عرض اختارتها الشركة (ADR 0023)
   SupersedesId      ->fin.FinancialStatement via=CompanyId,Basis,Assurance,PeriodType,PeriodEnd   # الإصدار السابق للشركة والسلسلة نفسها؛ المدققة لا تحل محل الإدارية (قرار المالك 2026-10-13، DR-34)
   Status            enum{DRAFT,SUBMITTED,APPROVED,SUPERSEDED,REJECTED} req =DRAFT
   EntryMethod       enum{MANUAL,PASTE} req
@@ -1132,6 +1132,42 @@ table fin.CreditAssessmentGuarantor deletable  # A guarantor of the company's fa
   unique AssessmentId,PartyId
   check  NetWorth >= 0 AND LiquidAssets >= 0 AND GuaranteesGiven >= 0 AND GuaranteedAmount > 0
   check  LiquidAssets <= NetWorth
+
+table fin.PresentationVersion public  # An alternative presentation of a company's statement before its final approval: the remedies the company chose, applied in order to the statement and kept balanced, written as a new draft statement with a trial assessment to compare; chosen by someone other than its preparer, and only when every step rests on a document dated by the period end (docs/36 F2, ADR 0023)
+  SourceStatementId ->fin.FinancialStatement req
+  SourceAssessmentId ->fin.CreditAssessment noidx   # التقييم الذي يُقارن به ومنه تُنسخ مدخلات التقييم التجريبي
+  NameAr            str(200)  req
+  Note              str(1000)
+  Status            enum{DRAFT,BUILT,CHOSEN,DISCARDED} req =DRAFT
+  ResultStatementId ->fin.FinancialStatement noidx   # القائمة المسودة التي يكتبها البناء
+  TrialAssessmentId ->fin.CreditAssessment noidx     # التقييم التجريبي للقائمة الناتجة
+  IsConvertible     bool                 # كل خطوة بمستند مؤرخ في نهاية الفترة أو قبلها
+  BalanceGap        money                # فرق التوازن بعد الخطوات (صفر)
+  BuiltAt           ts
+  PreparedBy        ->sec.AppUser req
+  ChosenBy          ->sec.AppUser
+  ChosenOn          ts
+  unique PublicId
+  unique ResultStatementId where ResultStatementId IS NOT NULL
+  index  SourceStatementId,Status
+  check  Status IN ('DRAFT','DISCARDED') OR (ResultStatementId IS NOT NULL AND BuiltAt IS NOT NULL AND IsConvertible IS NOT NULL)
+  check  Status <> 'CHOSEN' OR (ChosenBy IS NOT NULL AND ChosenOn IS NOT NULL AND IsConvertible = 1)
+  check  ChosenBy IS NULL OR ChosenBy <> PreparedBy   # المُعِدّ ≠ من يختار (قرار المالك 34)
+
+table fin.PresentationVersionStep  # A remedy of the methodology the company chose for a presentation version, in order, with the document that supports it; the amount it moved is written by the build (docs/36 F2, ADR 0023)
+  VersionId         ->fin.PresentationVersion req
+  StepNo            int       req
+  RemedyId          ->fin.CreditRemedy req noidx
+  ScalePct          dec(9,4)  req =100   # نسبة ما يُنفذ من الحل
+  DocumentId        ->doc.Document noidx  # القرار أو العقد أو الاتفاق الذي يسند الخطوة
+  EvidenceDate      date                  # تاريخ المستند
+  Justification     str(1000) req
+  MovedAmount       money                 # ما نقلته الخطوة؛ يكتبه البناء
+  unique VersionId,StepNo
+  unique VersionId,RemedyId
+  check  ScalePct > 0 AND ScalePct <= 100
+  check  (DocumentId IS NULL AND EvidenceDate IS NULL) OR (DocumentId IS NOT NULL AND EvidenceDate IS NOT NULL)
+  check  StepNo >= 1
 
 table fin.CreditAssessmentReclass norv  # A row of the reconciliation of the analytical statement: a standard adjustment that moved an amount of a reported line to an analytical bucket; written by fin.usp_ComputeCreditAssessment only (docs/35 section 6)
   AssessmentId      ->fin.CreditAssessment req

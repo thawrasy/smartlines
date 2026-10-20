@@ -410,6 +410,10 @@ GRANT SELECT, INSERT, UPDATE ON [fin].[CreditAssessmentFactor] TO [tp_app];
 GRANT SELECT, INSERT, UPDATE ON [fin].[CreditAssessmentFinding] TO [tp_app];
 -- fin.CreditAssessmentGuarantor
 GRANT SELECT, INSERT, UPDATE ON [fin].[CreditAssessmentGuarantor] TO [tp_app];
+-- fin.PresentationVersion
+GRANT SELECT, INSERT, UPDATE ON [fin].[PresentationVersion] TO [tp_app];
+-- fin.PresentationVersionStep
+GRANT SELECT, INSERT, UPDATE ON [fin].[PresentationVersionStep] TO [tp_app];
 -- fin.CreditAssessmentReclass
 GRANT SELECT, INSERT, UPDATE ON [fin].[CreditAssessmentReclass] TO [tp_app];
 -- fin.CreditAssessmentFacility

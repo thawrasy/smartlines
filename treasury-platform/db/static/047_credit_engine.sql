@@ -843,8 +843,8 @@ GO
 /* A remedy's steps on #crL (credit_reference.apply_steps): each step moves its reference line (read before the remedy,
    from @Base) times its share from the lines it decreases to the lines it increases, capped by the smallest balance
    sheet LINE it decreases; the balance sheet totals are rebuilt and the income statement totals stay. The amount
-   moved is returned. */
-CREATE OR ALTER PROCEDURE fin.usp_CreditApplyRemedy @RemedyId INT, @Moved FLOAT OUTPUT
+   moved is returned. A presentation version may apply a share of the remedy (@Scale, ADR 0023). */
+CREATE OR ALTER PROCEDURE fin.usp_CreditApplyRemedy @RemedyId INT, @Moved FLOAT OUTPUT, @Scale FLOAT = 1
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -858,7 +858,7 @@ BEGIN
         DECLARE @dec TABLE (Code VARCHAR(40) COLLATE DATABASE_DEFAULT PRIMARY KEY);
         DECLARE @inc TABLE (Code VARCHAR(40) COLLATE DATABASE_DEFAULT PRIMARY KEY);
         DELETE @dec; DELETE @inc;
-        SELECT @amt = ISNULL(b.Amount, 0) * st.Pct / 100
+        SELECT @amt = ISNULL(b.Amount, 0) * st.Pct / 100 * @Scale
         FROM fin.CreditRemedyStep AS st LEFT JOIN @base AS b ON b.Code = st.RefLine
         WHERE st.RemedyId = @RemedyId AND st.StepNo = @n;
         IF @amt IS NOT NULL

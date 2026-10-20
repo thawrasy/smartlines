@@ -5,7 +5,7 @@
 | الحالة | **مسودة للتقييم (الإصدار 0.4)** — تصميم قاعدة البيانات مع مخططات ERD مهنية (تدوين Crow's Foot) ومواصفات الجداول والعلاقات، مُولَّدة من النموذج |
 | التاريخ | 2026-10-18 |
 | المحرك المعتمد | **SQL Server 2025** |
-| المرجع | `db/model/*.model` (الجداول 245 · المخططات 20، من `tools/dbgen/ddl_metrics.py`) — الملفات المولَّدة لا تُعدَّل يدويًا |
+| المرجع | `db/model/*.model` (الجداول 247 · المخططات 20، من `tools/dbgen/ddl_metrics.py`) — الملفات المولَّدة لا تُعدَّل يدويًا |
 | الدعم | `tools/dbgen/erd_mermaid.py` (المخططات) · `tools/dbgen/build_erd_doc.py` · `tools/dbgen/check_grants.py` · `tools/dbgen/check_review_fixes.py` · `tools/dbgen/ddl_metrics.py` (الأرقام) |
 
 ## 0. سجل التعديلات (الإصداران 0.2 و0.3)
@@ -34,6 +34,7 @@
 | C-18 | الإصدار 2.2 من التقييم (ADR 0020): سيناريو سابع للحدث الجاري (نزاع الخليج وممرات الملاحة) بمضاعف لكل بلد (`fin.MacroScenarioCountry`)، وموقف البنك في كل سيناريو (ما يُوقف من الحدود غير المسحوبة، وهامشه ورسومه على التسهيلات التي تتجدد، بعامل من مخاطر القطاع والبلد) ومدة الأثر على `fin.MacroScenario` ونتيجة كل سيناريو؛ 244 جدولًا (§11.5) | قرار المالك 31 (2026-10-19): اعتماد الأسئلة المفتوحة وتفاصيل الحدث الجاري، وتوقف الحدود غير المسحوبة؛ والقرار 32: موقف البنك |
 | C-19 | قرار البنك الفعلي على التسهيل (ADR 0021): `fac.FacilityLenderDecision` بتاريخه ونفاذه ومستنده، ويقرؤه التقييم مع التسهيل فيحل محل تقدير موقف البنك لذلك التسهيل؛ أربعة أعمدة في لقطة التسهيل؛ 245 جدولًا (§11.5) | قرار المالك 33 (2026-10-19) |
 | C-20 | التقييم التجريبي قبل اعتماد القوائم (ADR 0022): عمود `IsTrial` في `fin.CreditAssessment`؛ يقرأ قائمة مسودة أو مقدّمة، ويبقى مسودة، ويحفظ أثره بنود القائمة وحالتها (§11.5) | قرار المالك 34 (2026-10-20): النظام للشركة لا للبنك (`docs/36`) |
+| C-21 | نسخ العرض البديلة للقائمة (ADR 0023): `fin.PresentationVersion` و`fin.PresentationVersionStep`، والبرنامج 048 (البناء والاختيار والمقارنة والحراس)، وسبب الإصدار `RESTRUCTURED`؛ 247 جدولًا (§11.5) | قرار المالك 34، المرحلة ج (2026-10-20) |
 
 **مرفوض:** اقتراح تقرير Technical Evaluation بـ.NET 9، لأن قرار المشروع `.NET 10 LTS` (`01` §13) ويبقى كما هو. **مؤجَّل:** أدوات الترحيل (O-2)، ومرساة سلسلة التدقيق (O-13)، وRPO/RTO (O-14)، ومكدّس الواجهات (خارج نطاق وثيقة القاعدة). **لم يُعتمد** الادعاء بأن القيود وحدها تضمن سلامة الحجز؛ الحجز يبقى ذريًا بالقفل في طبقة التطبيق (§7.1).
 
@@ -47,13 +48,13 @@
 
 | المؤشر | القيمة |
 |---|---|
-| جداول | **245** في 20 مخططًا |
-| أعمدة | 4,065 مُعرَّفة في النماذج + الأعمدة الآلية = **4,665** في DDL |
-| مفاتيح أجنبية | **901** = 205 إلى `plat.Tenant` (`TenantId`) + **570 مركّبة** `(TenantId, …)` بين جداول المشترك + 126 بسيطة نحو جداول عالمية/مختلطة؛ حذف متتالٍ واحد (§7) |
-| فهارس | 788 غير مجمّع (232 مصفّاة · 51 بأعمدة `INCLUDE`) |
-| قيود | 1,449 `CHECK` (قوائم قيم وتناسق حقول وتواريخ وأطوال الأغلفة المشفّرة) · 493 قيد `UNIQUE` + 151 فهرسًا فريدًا |
-| جداول بمعرّف عام `PublicId` | 41 (جذور التجميعات المعرَّضة عبر API) |
-| جداول خاضعة لعزل الصفوف RLS | 203 (200 مملوكة للمشترك + 3 مختلطة، منها `aud.AuditLog` بسياسة خاصة؛ الـ42 العالمية خارجها) |
+| جداول | **247** في 20 مخططًا |
+| أعمدة | 4,095 مُعرَّفة في النماذج + الأعمدة الآلية = **4,701** في DDL |
+| مفاتيح أجنبية | **912** = 207 إلى `plat.Tenant` (`TenantId`) + **578 مركّبة** `(TenantId, …)` بين جداول المشترك + 127 بسيطة نحو جداول عالمية/مختلطة؛ حذف متتالٍ واحد (§7) |
+| فهارس | 792 غير مجمّع (232 مصفّاة · 51 بأعمدة `INCLUDE`) |
+| قيود | 1,456 `CHECK` (قوائم قيم وتناسق حقول وتواريخ وأطوال الأغلفة المشفّرة) · 498 قيد `UNIQUE` + 152 فهرسًا فريدًا |
+| جداول بمعرّف عام `PublicId` | 42 (جذور التجميعات المعرَّضة عبر API) |
+| جداول خاضعة لعزل الصفوف RLS | 205 (202 مملوكة للمشترك + 3 مختلطة، منها `aud.AuditLog` بسياسة خاصة؛ الـ42 العالمية خارجها) |
 | أعمدة محجوبة عن دور التقارير | 31 |
 | جداول محجوبة كليًا عن تطبيق المشترك (`noapp`) | 8: العالمية المحجوبة الخمسة والداخلية الثلاثة (§3.3)؛ يقرأ التطبيق صف مشتركه ووحداته عبر `plat.v_CurrentTenant` و`plat.v_TenantModule` |
 
@@ -1859,9 +1860,9 @@
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
 | `fin.MeasureFormula` | Measure formula: a template or a facility-agreement version with revisions; never executed as text (FR-FIN-011, BR-FIN-009, section 12) | MeasureFormulaId | 6 | 4 | 13 | 21 |
+| `fin.PresentationVersion` | An alternative presentation of a company's statement before its final approval: the remedies the company chose, applied in order to the statement and kept balanced, written as a new draft statement with a trial assessment to compare; chosen by someone other than its preparer, and only when every step rests on a document dated by the period end (docs/36 F2, ADR 0023) | PresentationVersionId | 6 | 3 | 3 | 11 |
+| `fin.PresentationVersionStep` | A remedy of the methodology the company chose for a presentation version, in order, with the document that supports it; the amount it moved is written by the build (docs/36 F2, ADR 0023) | PresentationVersionStepId | 3 | 3 | 3 | 8 |
 | `fin.ProductCategory` | A category of products or services and its credit behaviour: cash-flow quality, revenue sensitivity, inventory sale value and time to sell in normal, stagnant and crisis markets (docs/35 section 5) | ProductCategoryId | 0 | 1 | 3 | 15 |
-| `fin.RatingGrade` | The 21 grades of the Moody's long-term scale, their range on the scorecard continuum and their risk band (docs/35 section 2, BR-FIN-018) | RatingGradeId | 0 | 2 | 3 | 13 |
-| `fin.RevenueEstimate` | Manual revenue estimate for a fiscal year, used by a revenue-share covenant with RevenueBasisRule MANUAL_ESTIMATE (Q-FIN-05, BR-FIN-008, self-review B4) | RevenueEstimateId | 5 | 3 | 4 | 10 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
@@ -1873,11 +1874,15 @@
 | `fin.MeasureFormula.SourceDocumentId` | `doc.Document` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `fin.MeasureFormula.VerifiedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `fin.MeasureFormula.ConflictId` | `fac.ValueConflict` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
-| `fin.RevenueEstimate.CompanyId` | `org.Company` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
-| `fin.RevenueEstimate.CurrencyId` | `ref.Currency` | 1 : N | إلزامي | مرجع عام | قيد | — |
-| `fin.RevenueEstimate.DocumentId` | `doc.Document` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
-| `fin.RevenueEstimate.PreparedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
-| `fin.RevenueEstimate.ApprovedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `fin.PresentationVersion.SourceStatementId` | `fin.FinancialStatement` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
+| `fin.PresentationVersion.SourceAssessmentId` | `fin.CreditAssessment` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `fin.PresentationVersion.ResultStatementId` | `fin.FinancialStatement` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `fin.PresentationVersion.TrialAssessmentId` | `fin.CreditAssessment` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `fin.PresentationVersion.PreparedBy` | `sec.AppUser` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
+| `fin.PresentationVersion.ChosenBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `fin.PresentationVersionStep.VersionId` | `fin.PresentationVersion` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
+| `fin.PresentationVersionStep.RemedyId` | `fin.CreditRemedy` | 1 : N | إلزامي | مرجع عام | قيد | — |
+| `fin.PresentationVersionStep.DocumentId` | `doc.Document` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 
 #### م5 · البيانات المالية والأرصدة (10/13)
 
@@ -1889,20 +1894,21 @@
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
+| `fin.RatingGrade` | The 21 grades of the Moody's long-term scale, their range on the scorecard continuum and their risk band (docs/35 section 2, BR-FIN-018) | RatingGradeId | 0 | 2 | 3 | 13 |
+| `fin.RevenueEstimate` | Manual revenue estimate for a fiscal year, used by a revenue-share covenant with RevenueBasisRule MANUAL_ESTIMATE (Q-FIN-05, BR-FIN-008, self-review B4) | RevenueEstimateId | 5 | 3 | 4 | 10 |
 | `fin.RiskAnchor` | The anchor of a company's business risk from its country risk and its industry risk, a notch of the 21-grade scale: the computed sector risk sub-factor and the centre of the expected range (docs/35 section 13) | RiskAnchorId | 0 | 1 | 1 | 6 |
 | `fin.Scorecard` | A sector scorecard of the credit assessment and its version; approved, it never changes and a change is a new version (docs/35 section 5, BR-FIN-023) | ScorecardId | 1 | 2 | 7 | 16 |
-| `fin.ScorecardAdjustment` | An adjustment of a scorecard: notches down, a standalone cap or an absolute cap on the best grade, applied in that order around group support and the override (docs/35 section 7) | ScorecardAdjustmentId | 2 | 1 | 4 | 12 |
-| `fin.ScorecardItemRule` | A balance-sheet item rule of a scorecard: the item, its metric and the thresholds of LOW, MODERATE, ELEVATED, HIGH and CRITICAL; a value on a threshold belongs to the worse level (docs/35 section 6) | ScorecardItemRuleId | 2 | 1 | 1 | 10 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
 | الطفل (الجدول.العمود) | الأب | العلاقة | الإلزام | النطاق | الحذف | أعمدة النطاق |
 |---|---|---|---|---|---|---|
+| `fin.RevenueEstimate.CompanyId` | `org.Company` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
+| `fin.RevenueEstimate.CurrencyId` | `ref.Currency` | 1 : N | إلزامي | مرجع عام | قيد | — |
+| `fin.RevenueEstimate.DocumentId` | `doc.Document` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `fin.RevenueEstimate.PreparedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `fin.RevenueEstimate.ApprovedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `fin.Scorecard.CurrencyId` | `ref.Currency` | 1 : N | إلزامي | عام | قيد | — |
-| `fin.ScorecardAdjustment.ScorecardId` | `fin.Scorecard` | 1 : N | إلزامي | عام | قيد | — |
-| `fin.ScorecardAdjustment.CapGradeId` | `fin.RatingGrade` | 1 : N | اختياري | عام | قيد | — |
-| `fin.ScorecardItemRule.ScorecardId` | `fin.Scorecard` | 1 : N | إلزامي | عام | قيد | — |
-| `fin.ScorecardItemRule.MetricId` | `fin.CreditMetric` | 1 : N | إلزامي | عام | قيد | — |
 
 #### م5 · البيانات المالية والأرصدة (11/13)
 
@@ -1914,20 +1920,22 @@
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
+| `fin.ScorecardAdjustment` | An adjustment of a scorecard: notches down, a standalone cap or an absolute cap on the best grade, applied in that order around group support and the override (docs/35 section 7) | ScorecardAdjustmentId | 2 | 1 | 4 | 12 |
+| `fin.ScorecardItemRule` | A balance-sheet item rule of a scorecard: the item, its metric and the thresholds of LOW, MODERATE, ELEVATED, HIGH and CRITICAL; a value on a threshold belongs to the worse level (docs/35 section 6) | ScorecardItemRuleId | 2 | 1 | 1 | 10 |
 | `fin.ScorecardMetric` | A metric of a scorecard: its factor, its weight and the nine boundaries of its grid (best cap, Aaa\|Aa, Aa\|A, A\|Baa, Baa\|Ba, Ba\|B, B\|Caa, Caa\|Ca, worst cap); a qualitative metric has no grid (docs/35 section 5) | ScorecardMetricId | 2 | 1 | 2 | 15 |
 | `fin.ScorecardParameter` | A parameter of a scorecard version: a haircut of the break-up test, a collateral haircut, a band of the loss given default, a liquidity threshold, a cost rule; frozen with its scorecard (docs/35 sections 5, 9 and 10) | ScorecardParameterId | 1 | 1 | 0 | 7 |
-| `fin.ScorecardSubfactor` | A sub-factor of a qualitative factor of a scorecard, with its grading guide; the factor's grade is the average of the graded sub-factors when the analyst grades them (docs/35 section 5) | ScorecardSubfactorId | 2 | 1 | 0 | 8 |
-| `fin.ShockDriver` | A driver of stress: private demand, government spending, real estate, conflict, oil, credit, imports and currency; its effect at full intensity on revenue, gross margin and collection days (docs/35 section 14, ADR 0019) | ShockDriverId | 0 | 1 | 2 | 10 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
 | الطفل (الجدول.العمود) | الأب | العلاقة | الإلزام | النطاق | الحذف | أعمدة النطاق |
 |---|---|---|---|---|---|---|
+| `fin.ScorecardAdjustment.ScorecardId` | `fin.Scorecard` | 1 : N | إلزامي | عام | قيد | — |
+| `fin.ScorecardAdjustment.CapGradeId` | `fin.RatingGrade` | 1 : N | اختياري | عام | قيد | — |
+| `fin.ScorecardItemRule.ScorecardId` | `fin.Scorecard` | 1 : N | إلزامي | عام | قيد | — |
+| `fin.ScorecardItemRule.MetricId` | `fin.CreditMetric` | 1 : N | إلزامي | عام | قيد | — |
 | `fin.ScorecardMetric.ScorecardId` | `fin.Scorecard` | 1 : N | إلزامي | عام | قيد | — |
 | `fin.ScorecardMetric.MetricId` | `fin.CreditMetric` | 1 : N | إلزامي | عام | قيد | — |
 | `fin.ScorecardParameter.ScorecardId` | `fin.Scorecard` | 1 : N | إلزامي | عام | قيد | — |
-| `fin.ScorecardSubfactor.ScorecardId` | `fin.Scorecard` | 1 : N | إلزامي | عام | قيد | — |
-| `fin.ScorecardSubfactor.MetricId` | `fin.CreditMetric` | 1 : N | إلزامي | عام | قيد | — |
 
 #### م5 · البيانات المالية والأرصدة (12/13)
 
@@ -1939,10 +1947,32 @@
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
+| `fin.ScorecardSubfactor` | A sub-factor of a qualitative factor of a scorecard, with its grading guide; the factor's grade is the average of the graded sub-factors when the analyst grades them (docs/35 section 5) | ScorecardSubfactorId | 2 | 1 | 0 | 8 |
+| `fin.ShockDriver` | A driver of stress: private demand, government spending, real estate, conflict, oil, credit, imports and currency; its effect at full intensity on revenue, gross margin and collection days (docs/35 section 14, ADR 0019) | ShockDriverId | 0 | 1 | 2 | 10 |
 | `fin.StandardLine` | The standard statement line catalogue of the platform: every point of the statements the credit assessment reads, its kind and the line it breaks down; installed into a tenant's catalogue by fin.usp_InstallStandardLines (docs/35 section 4, FR-FIN-001) | StandardLineId | 0 | 1 | 4 | 12 |
 | `fin.StandardLineTotal` | The components of a standard total and their sign, so a total is recomputed after a pro-forma change (docs/35 section 12) | StandardLineTotalId | 0 | 1 | 2 | 6 |
+
+**العلاقات (المفاتيح الأجنبية)**
+
+| الطفل (الجدول.العمود) | الأب | العلاقة | الإلزام | النطاق | الحذف | أعمدة النطاق |
+|---|---|---|---|---|---|---|
+| `fin.ScorecardSubfactor.ScorecardId` | `fin.Scorecard` | 1 : N | إلزامي | عام | قيد | — |
+| `fin.ScorecardSubfactor.MetricId` | `fin.CreditMetric` | 1 : N | إلزامي | عام | قيد | — |
+
+#### م5 · البيانات المالية والأرصدة (13/13)
+
+*Financial statements & balances* — 4 جدولًا
+
+![م5 · البيانات المالية والأرصدة (13/13)](diagrams/erd/m5_financials_13.png)
+
+**مواصفات الجداول**
+
+| الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
+|---|---|---|---|---|---|---|
 | `fin.StatementLine` | Statement line in the header currency; stored value = input x UnitScale; Variance is derived; highly confidential (BR-FIN-001/002) | StatementLineId | 2 | 2 | 0 | 5 |
 | `fin.StatementRatio` | An analysis measure computed on an approved statement, for the study of the balance sheet; written by the engine (FR-FIN-016, BR-FIN-014) | StatementRatioId | 2 | 2 | 1 | 9 |
+| `fin.StrengtheningPlan` | A ready-made plan to strengthen the statements: a package of remedies applied one after another, or the best plan the engine builds step by step from the remedies the findings call for (docs/35 section 12) | StrengtheningPlanId | 0 | 1 | 2 | 12 |
+| `fin.StrengtheningPlanMember` | A remedy of a package plan, in the order the plan applies it | StrengtheningPlanMemberId | 2 | 2 | 0 | 4 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
@@ -1952,24 +1982,6 @@
 | `fin.StatementLine.LineCatalogItemId` | `fin.LineCatalogItem` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `fin.StatementRatio.StatementId` | `fin.FinancialStatement` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `fin.StatementRatio.FormulaId` | `fin.MeasureFormula` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
-
-#### م5 · البيانات المالية والأرصدة (13/13)
-
-*Financial statements & balances* — 2 جدولًا
-
-![م5 · البيانات المالية والأرصدة (13/13)](diagrams/erd/m5_financials_13.png)
-
-**مواصفات الجداول**
-
-| الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
-|---|---|---|---|---|---|---|
-| `fin.StrengtheningPlan` | A ready-made plan to strengthen the statements: a package of remedies applied one after another, or the best plan the engine builds step by step from the remedies the findings call for (docs/35 section 12) | StrengtheningPlanId | 0 | 1 | 2 | 12 |
-| `fin.StrengtheningPlanMember` | A remedy of a package plan, in the order the plan applies it | StrengtheningPlanMemberId | 2 | 2 | 0 | 4 |
-
-**العلاقات (المفاتيح الأجنبية)**
-
-| الطفل (الجدول.العمود) | الأب | العلاقة | الإلزام | النطاق | الحذف | أعمدة النطاق |
-|---|---|---|---|---|---|---|
 | `fin.StrengtheningPlanMember.PlanId` | `fin.StrengtheningPlan` | 1 : N | إلزامي | عام | قيد | — |
 | `fin.StrengtheningPlanMember.RemedyId` | `fin.CreditRemedy` | 1 : N | إلزامي | عام | قيد | — |
 
@@ -2584,9 +2596,9 @@ SQL_USER=bankfas_monitor tools/dbgen/check_deployed.py --server <server>   # the
 
 | الفحص | النتيجة | ملاحظة |
 |---|---|---|
-| فحص النموذج (`dbgen check`) | **OK** — 245 جدولًا / 4,065 عمودًا؛ لا مراجع معلّقة؛ لا مخالفة لقواعد النطاق | التسمية والمراجع والمفاتيح المركّبة والأعمدة المطلوبة |
+| فحص النموذج (`dbgen check`) | **OK** — 247 جدولًا / 4,095 عمودًا؛ لا مراجع معلّقة؛ لا مخالفة لقواعد النطاق | التسمية والمراجع والمفاتيح المركّبة والأعمدة المطلوبة |
 | تنفيذ PostgreSQL 16 | **تشغيل سابق** — 194 جدولًا / 763 مفتاحًا أجنبيًا / 691 قيد فريد أو أساسي، قبل إضافة `sec.SessionBinding`؛ لم يُعَد على النموذج الحالي، ولا يدخل CI | يثبت **البنية المنطقية** فقط. **لا** يثبت صحة T-SQL |
-| التحقق الثابت من الصلاحيات (`check_grants.py`) | **OK** — 245 جدولًا، 329 منحة مولّدة، 122 منحة ثابتة، 31 عمودًا مقيّدًا، القواعد R1–R11؛ يعمل في الخطوة 3 من `db_ci.sh` | حُقنت ثلاث مخالفات متعمدة فاكتُشفت كلها (§9.3). **لا يثبت** أن المحرك ينفّذ المنح كما هي |
+| التحقق الثابت من الصلاحيات (`check_grants.py`) | **OK** — 247 جدولًا، 331 منحة مولّدة، 127 منحة ثابتة، 31 عمودًا مقيّدًا، القواعد R1–R11؛ يعمل في الخطوة 3 من `db_ci.sh` | حُقنت ثلاث مخالفات متعمدة فاكتُشفت كلها (§9.3). **لا يثبت** أن المحرك ينفّذ المنح كما هي |
 | التحقق من الإصلاحات (`check_review_fixes.py`) | **OK** — 75 من 75، في الخطوة 3 من `db_ci.sh` | يفحص أن كل إصلاح من DR-01 إلى DR-50 موجود في DDL المولَّد أو في الحارس الثابت (043، 044)، لا في الوثيقة وحدها |
 | فهرسة المفاتيح الأجنبية (`check_fk_indexes.py`) | **OK** — 578 مفهرسًا، 111 `noidx`، صفر بلا فهرس؛ الخطوة 3 | §8 |
 | تحليل T-SQL بـ `sqlglot` | الملفات `000–004`، `007`، `010`، `025`، `030`، `040`: **بلا أخطاء**؛ `005` و`006` و`020`: خطأ واحد لكل ملف عند عبارة `DENY` | المحلّل لا يدعم عبارة `DENY` بصيغتها الكاملة؛ الصيغة صحيحة في T-SQL. التحليل نحوي جزئي |

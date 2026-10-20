@@ -1,5 +1,15 @@
 %% م5 · البيانات المالية والأرصدة (13/13) — Financial statements & balances
 erDiagram
+  fin_StatementLine["fin.StatementLine"] {
+    bigint StatementLineId PK
+    bigint StatementId FK
+    int LineCatalogItemId FK
+  }
+  fin_StatementRatio["fin.StatementRatio"] {
+    bigint StatementRatioId PK
+    bigint StatementId FK
+    bigint FormulaId FK
+  }
   fin_StrengtheningPlan["fin.StrengtheningPlan"] {
     int StrengtheningPlanId PK
   }

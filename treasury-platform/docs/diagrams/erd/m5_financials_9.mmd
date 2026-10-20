@@ -6,18 +6,23 @@ erDiagram
     bigint BaseTemplateId FK
     bigint ApprovedBy FK
   }
+  fin_PresentationVersion["fin.PresentationVersion"] {
+    bigint PresentationVersionId PK
+    bigint SourceStatementId FK
+    bigint SourceAssessmentId FK
+    bigint ResultStatementId FK
+    bigint TrialAssessmentId FK
+    bigint PreparedBy FK
+    bigint ChosenBy FK
+  }
+  fin_PresentationVersionStep["fin.PresentationVersionStep"] {
+    bigint PresentationVersionStepId PK
+    bigint VersionId FK
+    int RemedyId FK
+    bigint DocumentId FK
+  }
   fin_ProductCategory["fin.ProductCategory"] {
     int ProductCategoryId PK
   }
-  fin_RatingGrade["fin.RatingGrade"] {
-    int RatingGradeId PK
-  }
-  fin_RevenueEstimate["fin.RevenueEstimate"] {
-    bigint RevenueEstimateId PK
-    bigint CompanyId FK
-    int CurrencyId FK
-    bigint DocumentId FK
-    bigint PreparedBy FK
-    bigint ApprovedBy FK
-  }
   fin_MeasureFormula |o--o{ fin_MeasureFormula : "BaseTemplateId"
+  fin_PresentationVersion ||--o{ fin_PresentationVersionStep : "VersionId"

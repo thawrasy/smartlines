@@ -1085,7 +1085,77 @@ IF @got = '1:50064 2:0=Ba2 1 DRAFT 1 noted 3:0=Ba2 1 0 Ba2 1 4:50063 5:0=Ba2 Ba2
     PRINT 'PASS CA18: a trial assessment reads a statement before its final approval, follows its changes and stays a draft; an official one needs the approved statement';
 ELSE PRINT CONCAT('FAIL CA18: ', @got, ' (expected 1:50064 2:0=Ba2 1 DRAFT 1 noted 3:0=Ba2 1 0 Ba2 1 4:50063 5:0=Ba2 Ba2 0)');
 GO
-DROP PROCEDURE #TrialCase, #LenderCase, #CountryCase, #HashCase, #PlatformCase, #CPlatform, #CardCase, #CovCase, #CCov, #LifeCase, #SupportCase, #HoldAssessment, #AdjustCase, #DataCase,
+/* CA19 (FR-FIN-036, BR-FIN-037, ADR 0023): presentation versions of IND's draft statement for 2025, compared with
+   its trial assessment. Version A subordinates the amounts due to related parties (an agreement of 2025-12-15) and
+   retains the dividends (a resolution of 2026-02-10, after the period end); version B takes the same steps with both
+   documents dated by the period end. (1) A is built: balanced, its moves written, not convertible, its trial
+   assessment computed beside the source; (2) B is convertible, and its preparer cannot choose it (50090); (3) another
+   user chooses B: B's draft replaces the source in the series and A is discarded; (4) A's draft is not submitted, its
+   version not being chosen (50090); (5) a line of B's draft does not change by hand (50090); (6) the steps of a built
+   version do not change (50090). */
+CREATE PROCEDURE #VersionCase @Case INT, @Out NVARCHAR(1000) OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @s BIGINT, @a BIGINT, @va BIGINT, @vb BIGINT, @t INT = (SELECT v FROM #C WHERE k = 't'), @u1 BIGINT = (SELECT v FROM #C WHERE k = 'u1'),
+            @u2 BIGINT = (SELECT v FROM #C WHERE k = 'u2'), @ind BIGINT = (SELECT v FROM #C WHERE k = 'ind'),
+            @sub INT = (SELECT CreditRemedyId FROM fin.CreditRemedy WHERE Code = 'CONVERT_DUE_TO_RELATED_TO_SUB'),
+            @ret INT = (SELECT CreditRemedyId FROM fin.CreditRemedy WHERE Code = 'RETAIN_EARNINGS');
+    ALTER TABLE fin.PresentationVersionStep NOCHECK CONSTRAINT FK_PresentationVersionStep_DocumentId;
+    ALTER TABLE fin.CreditAssessmentInput NOCHECK CONSTRAINT FK_CreditAssessmentInput_DocumentId;
+    EXEC #CStmt @ind, '2025-12-31', @Approve = 0;
+    SELECT @s = v FROM #C WHERE k = 's';
+    EXEC #CAssess @s;
+    SELECT @a = v FROM #C WHERE k = 'a';
+    UPDATE fin.CreditAssessment SET IsTrial = 1 WHERE CreditAssessmentId = @a;
+    EXEC fin.usp_ComputeCreditAssessment @a;
+    INSERT fin.PresentationVersion (TenantId, SourceStatementId, SourceAssessmentId, NameAr, PreparedBy) VALUES (@t, @s, @a, N'النسخة أ', @u1);
+    SET @va = SCOPE_IDENTITY();
+    INSERT fin.PresentationVersionStep (TenantId, VersionId, StepNo, RemedyId, DocumentId, EvidenceDate, Justification)
+    VALUES (@t, @va, 1, @sub, 1, '2025-12-15', N'اتفاقية مساندة موقعة من الشركاء'), (@t, @va, 2, @ret, 1, '2026-02-10', N'قرار الجمعية بعدم التوزيع');
+    INSERT fin.PresentationVersion (TenantId, SourceStatementId, SourceAssessmentId, NameAr, PreparedBy) VALUES (@t, @s, @a, N'النسخة ب', @u1);
+    SET @vb = SCOPE_IDENTITY();
+    INSERT fin.PresentationVersionStep (TenantId, VersionId, StepNo, RemedyId, DocumentId, EvidenceDate, Justification)
+    VALUES (@t, @vb, 1, @sub, 1, '2025-12-15', N'اتفاقية مساندة موقعة من الشركاء'), (@t, @vb, 2, @ret, 1, '2025-12-20', N'قرار الشركاء بعدم التوزيع');
+    EXEC fin.usp_BuildPresentationVersion @va;
+    EXEC fin.usp_BuildPresentationVersion @vb;
+    IF @Case = 1
+        SELECT @Out = CONCAT(c.Status, ' ', c.IsConvertible, ' ', CAST(c.BalanceGap AS INT), ' ', c.SourceGrade, '>', c.VersionGrade, ' ', c.NotchesGained, ' ', c.StepCount, ' ',
+                             (SELECT COUNT(*) FROM fin.PresentationVersionStep WHERE VersionId = @va AND MovedAmount > 0), ' ',
+                             (SELECT STRING_AGG(CONCAT(LineCode, ':', CAST(Change / 1000000 AS INT)), ',') WITHIN GROUP (ORDER BY LineCode)
+                              FROM fin.v_PresentationVersionLines WHERE PresentationVersionId = @va AND Change <> 0 AND LineCode IN ('DUE_TO_RELATED', 'SHAREHOLDER_LOANS_SUB')))
+        FROM fin.v_PresentationComparison AS c WHERE c.PresentationVersionId = @va;
+    IF @Case = 2
+    BEGIN
+        SELECT @Out = CONCAT((SELECT IsConvertible FROM fin.PresentationVersion WHERE PresentationVersionId = @vb), ' ');
+        EXEC fin.usp_ChoosePresentationVersion @vb;
+    END;
+    IF @Case = 3
+    BEGIN
+        EXEC #CBind @t, @u2;
+        EXEC fin.usp_ChoosePresentationVersion @vb;
+        SELECT @Out = CONCAT((SELECT Status FROM fin.PresentationVersion WHERE PresentationVersionId = @vb), ' ',
+                             (SELECT Status FROM fin.PresentationVersion WHERE PresentationVersionId = @va), ' ',
+                             (SELECT CASE WHEN s2.SupersedesId = @s AND s2.VersionReason = 'RESTRUCTURED' AND s2.Status = 'DRAFT' THEN 'replaces' ELSE 'no' END
+                              FROM fin.PresentationVersion AS v JOIN fin.FinancialStatement AS s2 ON s2.FinancialStatementId = v.ResultStatementId
+                              WHERE v.PresentationVersionId = @vb));
+    END;
+    IF @Case = 4
+        UPDATE s2 SET Status = 'SUBMITTED' FROM fin.FinancialStatement AS s2 JOIN fin.PresentationVersion AS v ON v.ResultStatementId = s2.FinancialStatementId
+        WHERE v.PresentationVersionId = @va;
+    IF @Case = 5
+        UPDATE ln SET EnteredAmount = EnteredAmount + 1 FROM fin.StatementLine AS ln JOIN fin.PresentationVersion AS v ON v.ResultStatementId = ln.StatementId
+        WHERE v.PresentationVersionId = @vb;
+    IF @Case = 6 DELETE fin.PresentationVersionStep WHERE VersionId = @vb AND StepNo = 2;
+END;
+GO
+DECLARE @got NVARCHAR(2000);
+EXEC #CCases '#VersionCase', 1, 6, @got OUTPUT;
+IF @got = '1:0=BUILT 0 0 Ba2>Ba2 0 2 2 DUE_TO_RELATED:-10,SHAREHOLDER_LOANS_SUB:10 2:50090 3:0=CHOSEN DISCARDED replaces 4:50090 5:50090 6:50090'
+    PRINT 'PASS CA19: a presentation version applies the chosen remedies balanced, is compared with its source, becomes the statement only when chosen by another user on documents of the period, and its draft and steps are fixed';
+ELSE PRINT CONCAT('FAIL CA19: ', @got, ' (expected 1:0=BUILT 0 0 Ba2>Ba2 0 2 2 DUE_TO_RELATED:-10,SHAREHOLDER_LOANS_SUB:10 2:50090 3:0=CHOSEN DISCARDED replaces 4:50090 5:50090 6:50090)');
+GO
+DROP PROCEDURE #VersionCase, #TrialCase, #LenderCase, #CountryCase, #HashCase, #PlatformCase, #CPlatform, #CardCase, #CovCase, #CCov, #LifeCase, #SupportCase, #HoldAssessment, #AdjustCase, #DataCase,
                #CoverageCase, #CHead, #CGrade, #CCases, #CAssess, #Crd, #CStmt, #CBase, #CBind;
 DROP TABLE #C;
 DROP USER [tp_test_crdapp];
