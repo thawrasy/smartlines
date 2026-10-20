@@ -28,6 +28,8 @@
         the readiness file, budgets and the lender's ratings
    CA23 the early warning job and its notification requests
    CA24 the message templates of the early warning in Arabic and English (the tenant pack NTF.BASE)
+   CA25 the endorsement of an approved assessment for use outside the company, from outside its line
+   CA26 the calibration of the company's assessments against its lenders' ratings over time
 
    Run against a deployed BankFas database that holds no real data, with a sysadmin login:
        sqlcmd -S <server> -U sa -C -I -b -i db/tests/credit_assessment_tests.sql
@@ -1122,7 +1124,7 @@ GO
    assessment computed beside the source; (2) B is convertible, and its preparer cannot choose it (50090); (3) another
    user chooses B: B's draft replaces the source in the series and A is discarded; (4) A's draft is not submitted, its
    version not being chosen (50090); (5) a line of B's draft does not change by hand (50090); (6) the steps of a built
-   version do not change (50090). */
+   version do not change (50090); (7) another user cannot choose B without saying why (50090, ADR 0029). */
 CREATE PROCEDURE #VersionCase @Case INT, @Out NVARCHAR(1000) OUTPUT
 AS
 BEGIN
@@ -1158,12 +1160,12 @@ BEGIN
     IF @Case = 2
     BEGIN
         SELECT @Out = CONCAT((SELECT IsConvertible FROM fin.PresentationVersion WHERE PresentationVersionId = @vb), ' ');
-        EXEC fin.usp_ChoosePresentationVersion @vb;
+        EXEC fin.usp_ChoosePresentationVersion @vb, N'test: the stronger presentation';
     END;
     IF @Case = 3
     BEGIN
         EXEC #CBind @t, @u2;
-        EXEC fin.usp_ChoosePresentationVersion @vb;
+        EXEC fin.usp_ChoosePresentationVersion @vb, N'test: the stronger presentation';
         SELECT @Out = CONCAT((SELECT Status FROM fin.PresentationVersion WHERE PresentationVersionId = @vb), ' ',
                              (SELECT Status FROM fin.PresentationVersion WHERE PresentationVersionId = @va), ' ',
                              (SELECT CASE WHEN s2.SupersedesId = @s AND s2.VersionReason = 'RESTRUCTURED' AND s2.Status = 'DRAFT' THEN 'replaces' ELSE 'no' END
@@ -1177,13 +1179,14 @@ BEGIN
         UPDATE ln SET EnteredAmount = EnteredAmount + 1 FROM fin.StatementLine AS ln JOIN fin.PresentationVersion AS v ON v.ResultStatementId = ln.StatementId
         WHERE v.PresentationVersionId = @vb;
     IF @Case = 6 DELETE fin.PresentationVersionStep WHERE VersionId = @vb AND StepNo = 2;
+    IF @Case = 7 BEGIN EXEC #CBind @t, @u2; EXEC fin.usp_ChoosePresentationVersion @vb, N'  '; END;   -- chosen without a reason (ADR 0029)
 END;
 GO
 DECLARE @got NVARCHAR(2000);
-EXEC #CCases '#VersionCase', 1, 6, @got OUTPUT;
-IF @got = '1:0=BUILT 0 0 Ba2>Ba2 0 2 2 DUE_TO_RELATED:-10,SHAREHOLDER_LOANS_SUB:10 2:50090 3:0=CHOSEN DISCARDED replaces 4:50090 5:50090 6:50090'
-    PRINT 'PASS CA19: a presentation version applies the chosen remedies balanced, is compared with its source, becomes the statement only when chosen by another user on documents of the period, and its draft and steps are fixed';
-ELSE PRINT CONCAT('FAIL CA19: ', @got, ' (expected 1:0=BUILT 0 0 Ba2>Ba2 0 2 2 DUE_TO_RELATED:-10,SHAREHOLDER_LOANS_SUB:10 2:50090 3:0=CHOSEN DISCARDED replaces 4:50090 5:50090 6:50090)');
+EXEC #CCases '#VersionCase', 1, 7, @got OUTPUT;
+IF @got = '1:0=BUILT 0 0 Ba2>Ba2 0 2 2 DUE_TO_RELATED:-10,SHAREHOLDER_LOANS_SUB:10 2:50090 3:0=CHOSEN DISCARDED replaces 4:50090 5:50090 6:50090 7:50090'
+    PRINT 'PASS CA19: a presentation version applies the chosen remedies balanced, is compared with its source, becomes the statement only when chosen by another user with a reason on documents of the period, and its draft and steps are fixed';
+ELSE PRINT CONCAT('FAIL CA19: ', @got, ' (expected 1:0=BUILT 0 0 Ba2>Ba2 0 2 2 DUE_TO_RELATED:-10,SHAREHOLDER_LOANS_SUB:10 2:50090 3:0=CHOSEN DISCARDED replaces 4:50090 5:50090 6:50090 7:50090)');
 GO
 /* CA20 (FR-FIN-037, BR-FIN-038, ADR 0024): the readiness file of IND's assessment of 2026-04-30, with the lead time
    of six months. (1) IND's only facility expires on 2026-09-30: its renewal is a lender date 153 days ahead, RED, as
@@ -1596,7 +1599,100 @@ IF @got = N'1:0=FIN.READINESS_RED LIQUIDITY_SGL4 | إنذار أحمر: تجدي
     PRINT 'PASS CA24: the messages of the early warning are filled from the templates of the pack NTF.BASE in Arabic and English, red and amber, within their lengths';
 ELSE PRINT CONCAT('FAIL CA24: ', @got, N' (expected 1:0=FIN.READINESS_RED LIQUIDITY_SGL4 | إنذار أحمر: تجديد التسهيل FAC-26-301 في D 2:0=FIN.READINESS_RED LIQUIDITY_SGL4 | Red warning: renewal of facility FAC-26-301 on D 3:0=FIN.READINESS_RED LIQUIDITY_SGL4 | جاهزية صناعية لهذا الموعد حمراء. السبب: السيولة SGL-4: مصادرها لا تغطي ما يستحق خلال السنة. / درجة التقييم الداخلي للشركة Ba3 والسيولة SGL-4. 4:0=FIN.READINESS_AMBER LIQUIDITY_SGL3 | تنبيه أصفر: اختبار التعهد تعهدات مالية في D 5:0=8 rendered 0 bad | RED:COVENANT_TEST,RED:RENEWAL | rules FIN.READINESS_AMBER:3,FIN.READINESS_RED:3)');
 GO
-DROP PROCEDURE #MessageCase, #CRender, #CNtfPack, #WarnCase, #CJob, #LenderRatingCase, #BudgetCase, #ReadyCase, #VersionCase, #TrialCase, #LenderCase, #CountryCase, #HashCase, #PlatformCase, #CPlatform, #CardCase, #CovCase, #CCov, #LifeCase, #SupportCase, #HoldAssessment, #AdjustCase, #DataCase,
+/* CA25 (FR-FIN-042, BR-FIN-043, ADR 0029): IND's assessment of 2025, approved by u2, endorsed for use outside the
+   company. (1) The internal auditor u3 (AU, fin.credit.endorse) endorses it with its reason: ENDORSED; before, the
+   report said INTERNAL_ONLY; (2) a user who holds fin.credit.endorse and fin.credit.assess is in the line and is
+   refused (50093); (3) so is the approver given fin.credit.endorse (50093); (4) a submitted assessment is not endorsed
+   (50093); (5) an endorsement without a reason is refused (50093); (6) a second endorsement is refused (50093); (7) the
+   application cannot change an endorsement directly (230). */
+CREATE PROCEDURE #EndorseCase @Case INT, @Out NVARCHAR(1000) OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @s BIGINT, @a BIGINT, @t INT = (SELECT v FROM #C WHERE k = 't'), @ind BIGINT = (SELECT v FROM #C WHERE k = 'ind'),
+            @u1 BIGINT = (SELECT v FROM #C WHERE k = 'u1'), @u2 BIGINT = (SELECT v FROM #C WHERE k = 'u2'), @u3 BIGINT, @u4 BIGINT,
+            @rAU BIGINT, @rFA BIGINT, @rTM BIGINT, @before VARCHAR(20), @e1 INT, @e2 INT,
+            @pw VARCHAR(255) = '$argon2id$v=19$m=65536,t=3,p=4$c2FsdA$aGFzaA';
+    EXEC #CBind @t, 0;
+    INSERT sec.AppUser (TenantId, Email, DisplayNameEn, Status, PasswordHash) VALUES (@t, N'au@crd.invalid', N'Internal auditor', 'ACTIVE', @pw);
+    SET @u3 = SCOPE_IDENTITY();
+    INSERT sec.AppUser (TenantId, Email, DisplayNameEn, Status, PasswordHash) VALUES (@t, N'fa2@crd.invalid', N'Analyst and endorser', 'ACTIVE', @pw);
+    SET @u4 = SCOPE_IDENTITY();
+    INSERT sec.Role (TenantId, Code, NameAr, NameEn, IsSystem, SeedKey)
+    VALUES (@t, 'AU', N'مدقق', N'Auditor', 1, 'ROLE.AU'), (@t, 'FA', N'محلل مالي', N'Financial analyst', 1, 'ROLE.FA'), (@t, 'TM', N'مدير الخزينة', N'Treasury manager', 1, 'ROLE.TM');
+    SELECT @rAU = RoleId FROM sec.Role WHERE TenantId = @t AND Code = 'AU';
+    SELECT @rFA = RoleId FROM sec.Role WHERE TenantId = @t AND Code = 'FA';
+    SELECT @rTM = RoleId FROM sec.Role WHERE TenantId = @t AND Code = 'TM';
+    INSERT sec.RolePermission (TenantId, RoleId, PermissionId)
+    SELECT @t, @rAU, PermissionId FROM sec.Permission WHERE Code = 'fin.credit.endorse'
+    UNION ALL SELECT @t, @rFA, PermissionId FROM sec.Permission WHERE Code = 'fin.credit.assess'
+    UNION ALL SELECT @t, @rTM, PermissionId FROM sec.Permission WHERE Code IN ('fin.credit.assess', 'fin.credit.approve');
+    INSERT sec.UserRole (TenantId, UserId, RoleId) VALUES (@t, @u3, @rAU), (@t, @u4, @rAU), (@t, @u4, @rFA), (@t, @u2, @rTM);
+    IF @Case = 3 INSERT sec.UserRole (TenantId, UserId, RoleId) VALUES (@t, @u2, @rAU);
+    EXEC #CBind @t, @u1;
+    EXEC #CStmt @ind, '2025-12-31';
+    SELECT @s = v FROM #C WHERE k = 's';
+    EXEC #CAssess @s;
+    SELECT @a = v FROM #C WHERE k = 'a';
+    EXEC fin.usp_ComputeCreditAssessment @a;
+    UPDATE fin.CreditAssessment SET Status = 'SUBMITTED', PreparedOn = SYSUTCDATETIME() WHERE CreditAssessmentId = @a;
+    IF @Case <> 4 UPDATE fin.CreditAssessment SET Status = 'APPROVED', ApprovedBy = @u2, ApprovedOn = SYSUTCDATETIME() WHERE CreditAssessmentId = @a;
+    SET @before = (SELECT UseScope FROM fin.v_CreditAssessmentReport WHERE CreditAssessmentId = @a);
+    DECLARE @who BIGINT = CASE @Case WHEN 2 THEN @u4 WHEN 3 THEN @u2 ELSE @u3 END;
+    EXEC #CBind @t, @who;
+    EXECUTE AS USER = N'tp_test_crdapp';
+    IF @Case = 5 EXEC fin.usp_EndorseCreditAssessment @a, N' ';
+    ELSE EXEC fin.usp_EndorseCreditAssessment @a, N'Shown to the lender for the renewal of 2026';
+    IF @Case = 7
+    BEGIN TRY UPDATE fin.CreditAssessment SET EndorsementNote = N'changed' WHERE CreditAssessmentId = @a; SET @e2 = 0; END TRY BEGIN CATCH SET @e2 = ERROR_NUMBER(); END CATCH;
+    IF @Case = 6 EXEC fin.usp_EndorseCreditAssessment @a, N'again';
+    REVERT;
+    SELECT @Out = CONCAT(@before, '>', r.UseScope, ' ', CASE WHEN r.EndorsedBy = @u3 THEN 'u3' ELSE 'other' END, ' ', r.EndorsementNote,
+                         CASE WHEN @Case = 7 THEN CONCAT(' ', @e2) END)
+    FROM fin.v_CreditAssessmentReport AS r WHERE r.CreditAssessmentId = @a;
+END;
+GO
+DECLARE @got NVARCHAR(2000);
+EXEC #CCases '#EndorseCase', 1, 7, @got OUTPUT;
+IF @got = N'1:0=INTERNAL_ONLY>ENDORSED u3 Shown to the lender for the renewal of 2026 2:50093 3:50093 4:50093 5:50093 6:50093 7:0=INTERNAL_ONLY>ENDORSED u3 Shown to the lender for the renewal of 2026 230'
+    PRINT 'PASS CA25: an approved assessment is shown outside the company only once endorsed, with a reason, by someone outside the line that prepared and approved it';
+ELSE PRINT CONCAT('FAIL CA25: ', @got, N' (expected 1:0=INTERNAL_ONLY>ENDORSED u3 Shown to the lender for the renewal of 2026 2:50093 3:50093 4:50093 5:50093 6:50093 7:0=INTERNAL_ONLY>ENDORSED u3 Shown to the lender for the renewal of 2026 230)');
+GO
+/* CA26 (FR-FIN-043, BR-FIN-045, ADR 0029): IND's official assessment of 2026-04-30 (Ba2) beside the ratings its
+   lenders communicated after it. (1) Bank 1 rates IND B1, Ba3 and B1 (two, one and two notches more severe) and bank 2
+   Ba2: the company rates itself above its lenders, OPTIMISTIC, for all lenders and for bank 1; bank 2 alone has too few
+   ratings; (2) three ratings above the assessment (Baa3, Ba1, Ba2): CONSERVATIVE; (3) one above, one below, one
+   level: ALIGNED. Each row: lenders:ratings:mean gap:recent mean:latest gap:bias. */
+CREATE PROCEDURE #CalibrationCase @Case INT, @Out NVARCHAR(1000) OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @s BIGINT, @a BIGINT, @t INT = (SELECT v FROM #C WHERE k = 't'), @ind BIGINT = (SELECT v FROM #C WHERE k = 'ind');
+    ALTER TABLE fin.LenderRating NOCHECK CONSTRAINT FK_LenderRating_LenderInstitutionId;
+    EXEC #CStmt @ind, '2025-12-31';
+    SELECT @s = v FROM #C WHERE k = 's';
+    EXEC #CAssess @s;
+    SELECT @a = v FROM #C WHERE k = 'a';
+    EXEC fin.usp_ComputeCreditAssessment @a;
+    INSERT fin.LenderRating (TenantId, CompanyId, LenderInstitutionId, RatingDate, GradeId, MappingKind, LenderReasons, NoSourceReason)
+    SELECT @t, @ind, v.Lender, v.RatingDate, (SELECT RatingGradeId FROM fin.RatingGrade WHERE Code = v.Grade COLLATE DATABASE_DEFAULT),
+           'GIVEN_BY_LENDER', N'خطاب البنك', N'test fixture'
+    FROM (VALUES (1, 1, '2026-05-01', 'B1'), (1, 1, '2026-06-01', 'Ba3'), (1, 1, '2026-07-01', 'B1'), (1, 2, '2026-08-01', 'Ba2'),
+                 (2, 1, '2026-05-01', 'Baa3'), (2, 1, '2026-06-01', 'Ba1'), (2, 1, '2026-07-01', 'Ba2'),
+                 (3, 1, '2026-05-01', 'Ba1'), (3, 1, '2026-06-01', 'Ba3'), (3, 1, '2026-07-01', 'Ba2')) AS v (CaseNo, Lender, RatingDate, Grade)
+    WHERE v.CaseNo = @Case;
+    SET @Out = (SELECT STRING_AGG(CONCAT(CASE WHEN AllLenders = 1 THEN 'ALL' ELSE CONCAT('L', LenderInstitutionId) END, ':', Ratings, ':', MeanGapNotches, ':',
+                                         RecentMeanGapNotches, ':', LatestGapNotches, ':', Bias), ' ') WITHIN GROUP (ORDER BY AllLenders DESC, LenderInstitutionId)
+                FROM fin.v_LenderRatingCalibration WHERE TenantId = @t AND CompanyId = @ind);
+END;
+GO
+DECLARE @got NVARCHAR(2000);
+EXEC #CCases '#CalibrationCase', 1, 3, @got OUTPUT;
+IF @got = N'1:0=ALL:4:1.25:1.00:0:OPTIMISTIC L1:3:1.67:1.67:2:OPTIMISTIC L2:1:0.00:0.00:0:INSUFFICIENT 2:0=ALL:3:-1.00:-1.00:0:CONSERVATIVE L1:3:-1.00:-1.00:0:CONSERVATIVE 3:0=ALL:3:0.00:0.00:0:ALIGNED L1:3:0.00:0.00:0:ALIGNED'
+    PRINT 'PASS CA26: the company''s assessments are compared with its lenders'' ratings over time, for all lenders and for each, with the bias they show';
+ELSE PRINT CONCAT('FAIL CA26: ', @got, N' (expected 1:0=ALL:4:1.25:1.00:0:OPTIMISTIC L1:3:1.67:1.67:2:OPTIMISTIC L2:1:0.00:0.00:0:INSUFFICIENT 2:0=ALL:3:-1.00:-1.00:0:CONSERVATIVE L1:3:-1.00:-1.00:0:CONSERVATIVE 3:0=ALL:3:0.00:0.00:0:ALIGNED L1:3:0.00:0.00:0:ALIGNED)');
+GO
+DROP PROCEDURE #CalibrationCase, #EndorseCase, #MessageCase, #CRender, #CNtfPack, #WarnCase, #CJob, #LenderRatingCase, #BudgetCase, #ReadyCase, #VersionCase, #TrialCase, #LenderCase, #CountryCase, #HashCase, #PlatformCase, #CPlatform, #CardCase, #CovCase, #CCov, #LifeCase, #SupportCase, #HoldAssessment, #AdjustCase, #DataCase,
                #CoverageCase, #CHead, #CGrade, #CCases, #CAssess, #Crd, #CStmt, #CBase, #CBind;
 DROP TABLE #C;
 DROP USER [tp_test_crdapp];

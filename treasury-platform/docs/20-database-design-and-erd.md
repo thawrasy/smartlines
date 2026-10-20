@@ -40,6 +40,7 @@
 | C-24 | التصنيف الذي يبلغ به البنك (ADR 0026): `fin.LenderRating` وواجهتا المقارنة وموضع الافتراق في 049، ويدخل في جاهزية التجديد؛ 248 جدولًا (§11.5) | قرار المالك 34، المرحلة و (2026-10-20) |
 | C-25 | مهمة إشعارات الإنذار المبكر (ADR 0027): `fin.EarlyWarningAlert` والمهمة `JOB-FIN-READINESS` والإجراء `fin.usp_RunEarlyWarnings` في 051، ودالة الإنذار بتاريخ في 049؛ 249 جدولًا (§11.5) | طلب المالك (2026-10-20) |
 | C-26 | قوالب رسائل الإنذار بالعربية والإنجليزية (ADR 0028): حدثان أحمر وأصفر، وسبب الجاهزية `ReasonCode` في 049 وفي `fin.EarlyWarningAlert`، وقيم القوالب في `fin.v_EarlyWarningMessageValues` (051)، وأول حزمة للمشترك `db/seed/packs/NTF.BASE/v1` يفحصها `tools/dbgen/ntf_pack.py` | طلب المالك (2026-10-20) |
+| C-27 | ضوابط المراجعة المعمارية 3.0 (ADR 0029): تصديق التقييم للاستعمال خارج الشركة (`EndorsedBy` و`EndorsedOn` و`EndorsementNote` والإجراء في 052 والصلاحية `fin.credit.endorse`)، وسبب الاختيار `ChoiceReason` على نسخة العرض، والمعايرة المتراكمة `fin.v_LenderRatingCalibration` | طلب المالك (2026-10-20)، `docs/37` |
 
 **مرفوض:** اقتراح تقرير Technical Evaluation بـ.NET 9، لأن قرار المشروع `.NET 10 LTS` (`01` §13) ويبقى كما هو. **مؤجَّل:** أدوات الترحيل (O-2)، ومرساة سلسلة التدقيق (O-13)، وRPO/RTO (O-14)، ومكدّس الواجهات (خارج نطاق وثيقة القاعدة). **لم يُعتمد** الادعاء بأن القيود وحدها تضمن سلامة الحجز؛ الحجز يبقى ذريًا بالقفل في طبقة التطبيق (§7.1).
 
@@ -54,10 +55,10 @@
 | المؤشر | القيمة |
 |---|---|
 | جداول | **249** في 20 مخططًا |
-| أعمدة | 4,128 مُعرَّفة في النماذج + الأعمدة الآلية = **4,739** في DDL |
-| مفاتيح أجنبية | **922** = 209 إلى `plat.Tenant` (`TenantId`) + **585 مركّبة** `(TenantId, …)` بين جداول المشترك + 128 بسيطة نحو جداول عالمية/مختلطة؛ حذف متتالٍ واحد (§7) |
+| أعمدة | 4,132 مُعرَّفة في النماذج + الأعمدة الآلية = **4,743** في DDL |
+| مفاتيح أجنبية | **923** = 209 إلى `plat.Tenant` (`TenantId`) + **586 مركّبة** `(TenantId, …)` بين جداول المشترك + 128 بسيطة نحو جداول عالمية/مختلطة؛ حذف متتالٍ واحد (§7) |
 | فهارس | 797 غير مجمّع (233 مصفّاة · 51 بأعمدة `INCLUDE`) |
-| قيود | 1,468 `CHECK` (قوائم قيم وتناسق حقول وتواريخ وأطوال الأغلفة المشفّرة) · 503 قيد `UNIQUE` + 152 فهرسًا فريدًا |
+| قيود | 1,471 `CHECK` (قوائم قيم وتناسق حقول وتواريخ وأطوال الأغلفة المشفّرة) · 503 قيد `UNIQUE` + 152 فهرسًا فريدًا |
 | جداول بمعرّف عام `PublicId` | 42 (جذور التجميعات المعرَّضة عبر API) |
 | جداول خاضعة لعزل الصفوف RLS | 207 (204 مملوكة للمشترك + 3 مختلطة، منها `aud.AuditLog` بسياسة خاصة؛ الـ42 العالمية خارجها) |
 | أعمدة محجوبة عن دور التقارير | 31 |
@@ -1650,7 +1651,7 @@
 |---|---|---|---|---|---|---|
 | `fin.CountryRegion` | A city or region of a country and how much more or less its property falls, and how exposed it is to conflict, than its country (docs/35 section 14) | CountryRegionId | 1 | 1 | 2 | 9 |
 | `fin.CountryRiskProfile` | The credit risk of a country for its companies: country risk 1 to 6, the published sovereign rating and its date, the ceiling of a company's grade, and the country's exposure to each driver of stress; one default row for a country without a profile (docs/35 section 13, ADR 0019) | CountryRiskProfileId | 3 | 2 | 4 | 15 |
-| `fin.CreditAssessment` | Credit assessment of an approved statement on a sector scorecard: the study of the balance sheet with a grade on the Moody's scale, its strengths, weaknesses and risks; written as a draft, computed by the database, approved by someone else (FR-FIN-020 to FR-FIN-024, BR-FIN-018 to BR-FIN-024; owner request 2026-10-18) | CreditAssessmentId | 17 | 3 | 15 | 40 |
+| `fin.CreditAssessment` | Credit assessment of an approved statement on a sector scorecard: the study of the balance sheet with a grade on the Moody's scale, its strengths, weaknesses and risks; written as a draft, computed by the database, approved by someone else (FR-FIN-020 to FR-FIN-024, BR-FIN-018 to BR-FIN-024; owner request 2026-10-18) | CreditAssessmentId | 18 | 3 | 17 | 42 |
 | `fin.CreditAssessmentBureau` | The company's SIMAH commercial credit report the analyst read: exposure at all lenders, payment behaviour, defaults, bounced cheques, judgments (docs/35 section 10); changes only while the assessment is a draft | CreditAssessmentBureauId | 2 | 2 | 3 | 18 |
 
 **العلاقات (المفاتيح الأجنبية)**
@@ -1674,6 +1675,7 @@
 | `fin.CreditAssessment.FacilityGradeId` | `fin.RatingGrade` | 1 : N | اختياري | مرجع عام | قيد | — |
 | `fin.CreditAssessment.PreparedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `fin.CreditAssessment.ApprovedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
+| `fin.CreditAssessment.EndorsedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `fin.CreditAssessment.IndustryId` | `ref.Industry` | 1 : N | اختياري | مرجع عام | قيد | — |
 | `fin.CreditAssessment.MarketCountryId` | `ref.Country` | 1 : N | اختياري | مرجع عام | قيد | — |
 | `fin.CreditAssessment.AnchorGradeId` | `fin.RatingGrade` | 1 : N | اختياري | مرجع عام | قيد | — |
@@ -1871,7 +1873,7 @@
 | `fin.MacroScenarioCountry` | The multiplier of a macro scenario's stress for a country it hits more or less than others; a country without a row takes the scenario's OtherCountryMult (docs/35 section 14, ADR 0020) | MacroScenarioCountryId | 2 | 1 | 1 | 4 |
 | `fin.MacroScenarioIntensity` | The intensity 0 to 1 of a driver in a macro scenario (docs/35 section 14) | MacroScenarioIntensityId | 2 | 1 | 1 | 4 |
 | `fin.MeasureFormula` | Measure formula: a template or a facility-agreement version with revisions; never executed as text (FR-FIN-011, BR-FIN-009, section 12) | MeasureFormulaId | 6 | 4 | 13 | 21 |
-| `fin.PresentationVersion` | An alternative presentation of a company's statement before its final approval: the remedies the company chose, applied in order to the statement and kept balanced, written as a new draft statement with a trial assessment to compare; chosen by someone other than its preparer, and only when every step rests on a document dated by the period end (docs/36 F2, ADR 0023) | PresentationVersionId | 6 | 3 | 3 | 11 |
+| `fin.PresentationVersion` | An alternative presentation of a company's statement before its final approval: the remedies the company chose, applied in order to the statement and kept balanced, written as a new draft statement with a trial assessment to compare; chosen by someone other than its preparer, and only when every step rests on a document dated by the period end (docs/36 F2, ADR 0023) | PresentationVersionId | 6 | 3 | 4 | 12 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
@@ -2615,7 +2617,7 @@ SQL_USER=bankfas_monitor tools/dbgen/check_deployed.py --server <server>   # the
 
 | المرحلة | المحتوى | الآلية |
 |---|---|---|
-| **عالمي** | `ref.Country/Currency/Incoterm` وصفوف المنصة في `ref.UcpArticle`، `plat.Plan/PlanModule`، `sec.Permission` (بما فيها `req.treasury.close`)، `cfg.SettingDefinition`، `cfg.JobDefinition`، `plat.ReservedSubdomain` | سكربتات بذور عند النشر (`db/seed/100` إلى `103`) بإدراج آمن لإعادة التشغيل تتحقق منه الخطوة 4b في CI. هذه الجداول **يكتبها `tp_platform` فقط**، وصفوف المنصة في الجداول المختلطة يكتبها السكربت بمستخدم مؤقت من `tp_platform` يُحذف بعده. أنواع الأحداث `ntf.NotificationEventType` وتعريفات حقول الاعتماد مملوكة للمشترك في النموذج، فتُبذر في حزمتي المشترك NTF.BASE وLC.BASE لا هنا (DOC-B05 §5.1). **منفّذ:** `db/seed/100` (تسعة إعدادات: سبعة أمنية وبداية يوم العمل ونهايته؛ 32 مهمة؛ الباقة STANDARD بوحداتها التسع؛ 23 عنوانًا محجوزًا)، و`101` (249 دولة و157 عملة بإصدار ISO مسجَّل، DQ-B05-5)، و`102` (142 صلاحية منها `fin.stats.confirm` لتأكيد التدفقات، ADR 0016، و`fin.credit.assess` و`fin.credit.approve` للتقييم الائتماني، ADR 0017؛ خمس منها مقفلة على TM وFO، DQ-F07-1 وDQ-F09-1)؛ المولِّدان `tools/dbgen/gen_iso_seed.py` و`gen_permission_seed.py`، و`103` (16 قاعدة Incoterms منها 5 قديمة LEGACY، ومواد UCP 600 الـ39 صفوفَ منصة بحالة UNVERIFIED حتى يتحقق مختص، O-06) (ADR 0005)، و`104` (سلّم موديز بـ21 درجة، و157 بندًا معياريًا، و112 مقياسًا، و16 بطاقة عائلة قطاعية معتمدة بأوزانها وشبكاتها و134 قاعدة بنود لكل منها و45 تعديلًا، و86 فرعًا و282 نشاطًا تفصيليًا بحساسيتها لسبعة محركات، و22 بلدًا عربيًا بمدنها ومرتكز المخاطر، وستة سيناريوهات اقتصادية، و15 فئة منتجات، و39 علاجًا، و10 خطط تقوية، ADR 0017 إلى 0019). البذر العالمي في الوثائق مكتمل؛ والعطل الرسمية يدخلها المشغّل (FR-PLT-035) |
+| **عالمي** | `ref.Country/Currency/Incoterm` وصفوف المنصة في `ref.UcpArticle`، `plat.Plan/PlanModule`، `sec.Permission` (بما فيها `req.treasury.close`)، `cfg.SettingDefinition`، `cfg.JobDefinition`، `plat.ReservedSubdomain` | سكربتات بذور عند النشر (`db/seed/100` إلى `103`) بإدراج آمن لإعادة التشغيل تتحقق منه الخطوة 4b في CI. هذه الجداول **يكتبها `tp_platform` فقط**، وصفوف المنصة في الجداول المختلطة يكتبها السكربت بمستخدم مؤقت من `tp_platform` يُحذف بعده. أنواع الأحداث `ntf.NotificationEventType` وتعريفات حقول الاعتماد مملوكة للمشترك في النموذج، فتُبذر في حزمتي المشترك NTF.BASE وLC.BASE لا هنا (DOC-B05 §5.1). **منفّذ:** `db/seed/100` (تسعة إعدادات: سبعة أمنية وبداية يوم العمل ونهايته؛ 32 مهمة؛ الباقة STANDARD بوحداتها التسع؛ 23 عنوانًا محجوزًا)، و`101` (249 دولة و157 عملة بإصدار ISO مسجَّل، DQ-B05-5)، و`102` (143 صلاحية منها `fin.stats.confirm` لتأكيد التدفقات، ADR 0016، و`fin.credit.assess` و`fin.credit.approve` للتقييم الائتماني، ADR 0017؛ خمس منها مقفلة على TM وFO، DQ-F07-1 وDQ-F09-1)؛ المولِّدان `tools/dbgen/gen_iso_seed.py` و`gen_permission_seed.py`، و`103` (16 قاعدة Incoterms منها 5 قديمة LEGACY، ومواد UCP 600 الـ39 صفوفَ منصة بحالة UNVERIFIED حتى يتحقق مختص، O-06) (ADR 0005)، و`104` (سلّم موديز بـ21 درجة، و157 بندًا معياريًا، و112 مقياسًا، و16 بطاقة عائلة قطاعية معتمدة بأوزانها وشبكاتها و134 قاعدة بنود لكل منها و45 تعديلًا، و86 فرعًا و282 نشاطًا تفصيليًا بحساسيتها لسبعة محركات، و22 بلدًا عربيًا بمدنها ومرتكز المخاطر، وستة سيناريوهات اقتصادية، و15 فئة منتجات، و39 علاجًا، و10 خطط تقوية، ADR 0017 إلى 0019). البذر العالمي في الوثائق مكتمل؛ والعطل الرسمية يدخلها المشغّل (FR-PLT-035) |
 | **إجراء تهيئة المشترك** (إجراء منصة واحد) | ينشئ داخل معاملة واحدة: صف المشترك، **حساب الخدمة `IsSystemUser`**، **مستخدم المدير الأول**، ونسخ كتالوجات النظام لهذا المشترك (§11.3)، والأدوار القياسية وربطها بالصلاحيات، وقوالب دورات العمل، وتعريفات الترقيم (`req:<TypeCode>` و`PROFORMA` بلا فجوات)، وملفات KYC المسبقة، وقواعد الإشعارات، ووحدات الاشتراك في `plat.TenantModule` | **منفّذ بمرحلتين (ADR 0004):** `plat.usp_CreateTenant` ينشئ المشترك ووحداته وحساب الخدمة والمدير الأول المدعو في معاملة واحدة، ثم تبذر مهمة التهيئة الحزم في التطبيق وتدعو المدير الأول (`sec.usp_InviteFirstAdministrator`) |
 | **مفتاح مفقود** | قائمة `AUTHORISATION_BASIS` في `cat.LookupList` لأسس التفويض (طلبها مؤلفو النماذج) | تُضاف لبذور المشترك |
 
@@ -2627,9 +2629,9 @@ SQL_USER=bankfas_monitor tools/dbgen/check_deployed.py --server <server>   # the
 
 | الفحص | النتيجة | ملاحظة |
 |---|---|---|
-| فحص النموذج (`dbgen check`) | **OK** — 249 جدولًا / 4,128 عمودًا؛ لا مراجع معلّقة؛ لا مخالفة لقواعد النطاق | التسمية والمراجع والمفاتيح المركّبة والأعمدة المطلوبة |
+| فحص النموذج (`dbgen check`) | **OK** — 249 جدولًا / 4,132 عمودًا؛ لا مراجع معلّقة؛ لا مخالفة لقواعد النطاق | التسمية والمراجع والمفاتيح المركّبة والأعمدة المطلوبة |
 | تنفيذ PostgreSQL 16 | **تشغيل سابق** — 194 جدولًا / 763 مفتاحًا أجنبيًا / 691 قيد فريد أو أساسي، قبل إضافة `sec.SessionBinding`؛ لم يُعَد على النموذج الحالي، ولا يدخل CI | يثبت **البنية المنطقية** فقط. **لا** يثبت صحة T-SQL |
-| التحقق الثابت من الصلاحيات (`check_grants.py`) | **OK** — 249 جدولًا، 334 منحة مولّدة، 138 منحة ثابتة، 31 عمودًا مقيّدًا، القواعد R1–R11؛ يعمل في الخطوة 3 من `db_ci.sh` | حُقنت ثلاث مخالفات متعمدة فاكتُشفت كلها (§9.3). **لا يثبت** أن المحرك ينفّذ المنح كما هي |
+| التحقق الثابت من الصلاحيات (`check_grants.py`) | **OK** — 249 جدولًا، 334 منحة مولّدة، 140 منحة ثابتة، 31 عمودًا مقيّدًا، القواعد R1–R11؛ يعمل في الخطوة 3 من `db_ci.sh` | حُقنت ثلاث مخالفات متعمدة فاكتُشفت كلها (§9.3). **لا يثبت** أن المحرك ينفّذ المنح كما هي |
 | التحقق من الإصلاحات (`check_review_fixes.py`) | **OK** — 75 من 75، في الخطوة 3 من `db_ci.sh` | يفحص أن كل إصلاح من DR-01 إلى DR-50 موجود في DDL المولَّد أو في الحارس الثابت (043، 044)، لا في الوثيقة وحدها |
 | فهرسة المفاتيح الأجنبية (`check_fk_indexes.py`) | **OK** — 578 مفهرسًا، 111 `noidx`، صفر بلا فهرس؛ الخطوة 3 | §8 |
 | تحليل T-SQL بـ `sqlglot` | الملفات `000–004`، `007`، `010`، `025`، `030`، `040`: **بلا أخطاء**؛ `005` و`006` و`020`: خطأ واحد لكل ملف عند عبارة `DENY` | المحلّل لا يدعم عبارة `DENY` بصيغتها الكاملة؛ الصيغة صحيحة في T-SQL. التحليل نحوي جزئي |

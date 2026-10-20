@@ -538,6 +538,7 @@ erDiagram
 | CountryRiskProfile | CountryId | ref.Country |
 | CreditAssessment | ApprovedBy | sec.AppUser |
 | CreditAssessment | CompanyId | org.Company |
+| CreditAssessment | EndorsedBy | sec.AppUser |
 | CreditAssessment | IndustryId | ref.Industry |
 | CreditAssessment | MarketCountryId | ref.Country |
 | CreditAssessment | PreparedBy | sec.AppUser |

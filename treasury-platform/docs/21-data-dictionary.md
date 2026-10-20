@@ -5191,6 +5191,9 @@
 | ApprovedBy | BIGINT | نعم |  | sec.AppUser |  |
 | ApprovedOn | DATETIME2(3) | نعم |  |  |  |
 | RejectionReason | NVARCHAR(500) | نعم |  |  |  |
+| EndorsedBy | BIGINT | نعم |  | sec.AppUser | تصديق الاستعمال خارج الشركة: من خارج خط الإعداد والاعتماد (fin.credit.endorse، ADR 0029) |
+| EndorsedOn | DATETIME2(3) | نعم |  |  |  |
+| EndorsementNote | NVARCHAR(1000) | نعم |  |  | سبب التصديق ونطاقه: لمن يُعرض ولأي غرض |
 | IndustryId | INT | نعم |  | ref.Industry | النشاط الذي قرأه التقييم (من الشركة عند الحساب) |
 | SectorPosition | VARCHAR(10) | نعم |  |  | الدرجة مقابل المدى المتوقع لقطاعها enum: ABOVE, WITHIN, BELOW |
 | Resilience | VARCHAR(10) | نعم |  |  | من سيناريو ركود السوق (docs/35 §13) enum: RESILIENT, MODERATE, VULNERABLE |
@@ -5214,7 +5217,7 @@
 
 **المفاتيح:** PK(CreditAssessmentId) · UQ(PublicId) · UQ(TenantId, StatementId) WHERE Status = 'APPROVED'
 
-**قيود:** `FxRateToScorecard IS NULL OR FxRateToScorecard > 0` · `PriorStatementId IS NULL OR PriorStatementId <> StatementId` · `(ResultState IS NULL AND FinancialScore IS NULL AND WeightedScore IS NULL AND IndicatedGradeId IS NULL AND FinalGradeId IS NULL) OR (ResultState IS NOT NULL AND ComputedAt IS NOT NULL AND InputsHash IS NOT NULL AND CoveragePct IS NOT NULL AND ((ResultState = 'INSUFFICIENT_DATA' AND FinancialScore IS NULL AND WeightedScore IS NULL AND IndicatedGradeId IS NULL AND FinalGradeId IS NULL) OR (ResultState = 'INDICATIVE' AND FinancialScore IS NOT NULL AND FinancialGradeId IS NOT NULL AND WeightedScore IS NULL AND FinalGradeId IS NULL) OR (ResultState = 'RATED' AND FinancialScore IS NOT NULL AND WeightedScore IS NOT NULL AND IndicatedGradeId IS NOT NULL AND StandaloneGradeId IS NOT NULL AND FinalGradeId IS NOT NULL)))` · `WeightedScore IS NULL OR (WeightedScore >= 0.5 AND WeightedScore <= 20.5)` · `FinancialScore IS NULL OR (FinancialScore >= 0.5 AND FinancialScore <= 20.5)` · `CoveragePct IS NULL OR (CoveragePct >= 0 AND CoveragePct <= 100)` · `SupportNotches IS NULL OR SupportNotches BETWEEN 0 AND 2` · `OverrideNotches IS NULL OR OverrideNotches BETWEEN -2 AND 1` · `Status NOT IN ('SUBMITTED','APPROVED','SUPERSEDED') OR (ResultState IS NOT NULL AND ResultState = 'RATED' AND PreparedBy IS NOT NULL AND PreparedOn IS NOT NULL)` · `Status NOT IN ('APPROVED','SUPERSEDED') OR (ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)` · `ApprovedBy IS NULL OR PreparedBy IS NULL OR ApprovedBy <> PreparedBy` · `Status <> 'REJECTED' OR RejectionReason IS NOT NULL` · `MarketRegionCode IS NULL OR MarketRegionCode COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%'` · `CountryRisk IS NULL OR CountryRisk BETWEEN 1 AND 6` · `IndustryRisk IS NULL OR IndustryRisk BETWEEN 1 AND 6`
+**قيود:** `FxRateToScorecard IS NULL OR FxRateToScorecard > 0` · `PriorStatementId IS NULL OR PriorStatementId <> StatementId` · `(ResultState IS NULL AND FinancialScore IS NULL AND WeightedScore IS NULL AND IndicatedGradeId IS NULL AND FinalGradeId IS NULL) OR (ResultState IS NOT NULL AND ComputedAt IS NOT NULL AND InputsHash IS NOT NULL AND CoveragePct IS NOT NULL AND ((ResultState = 'INSUFFICIENT_DATA' AND FinancialScore IS NULL AND WeightedScore IS NULL AND IndicatedGradeId IS NULL AND FinalGradeId IS NULL) OR (ResultState = 'INDICATIVE' AND FinancialScore IS NOT NULL AND FinancialGradeId IS NOT NULL AND WeightedScore IS NULL AND FinalGradeId IS NULL) OR (ResultState = 'RATED' AND FinancialScore IS NOT NULL AND WeightedScore IS NOT NULL AND IndicatedGradeId IS NOT NULL AND StandaloneGradeId IS NOT NULL AND FinalGradeId IS NOT NULL)))` · `WeightedScore IS NULL OR (WeightedScore >= 0.5 AND WeightedScore <= 20.5)` · `FinancialScore IS NULL OR (FinancialScore >= 0.5 AND FinancialScore <= 20.5)` · `CoveragePct IS NULL OR (CoveragePct >= 0 AND CoveragePct <= 100)` · `SupportNotches IS NULL OR SupportNotches BETWEEN 0 AND 2` · `OverrideNotches IS NULL OR OverrideNotches BETWEEN -2 AND 1` · `Status NOT IN ('SUBMITTED','APPROVED','SUPERSEDED') OR (ResultState IS NOT NULL AND ResultState = 'RATED' AND PreparedBy IS NOT NULL AND PreparedOn IS NOT NULL)` · `Status NOT IN ('APPROVED','SUPERSEDED') OR (ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)` · `ApprovedBy IS NULL OR PreparedBy IS NULL OR ApprovedBy <> PreparedBy` · `Status <> 'REJECTED' OR RejectionReason IS NOT NULL` · `(EndorsedBy IS NULL AND EndorsedOn IS NULL AND EndorsementNote IS NULL) OR (EndorsedBy IS NOT NULL AND EndorsedOn IS NOT NULL AND EndorsementNote IS NOT NULL AND Status IN ('APPROVED','SUPERSEDED') AND IsTrial = 0)` · `EndorsedBy IS NULL OR (EndorsedBy <> PreparedBy AND EndorsedBy <> ApprovedBy)` · `MarketRegionCode IS NULL OR MarketRegionCode COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%'` · `CountryRisk IS NULL OR CountryRisk BETWEEN 1 AND 6` · `IndustryRisk IS NULL OR IndustryRisk BETWEEN 1 AND 6`
 
 ### `fin.CreditAssessmentInput` — The analyst's inputs to an assessment: the grade of a qualitative factor, group support or an override, each with its justification; they change only while the assessment is a draft (BR-FIN-021, BR-FIN-022)
 
@@ -5407,6 +5410,7 @@
 | PreparedBy | BIGINT | لا |  | sec.AppUser |  |
 | ChosenBy | BIGINT | نعم |  | sec.AppUser |  |
 | ChosenOn | DATETIME2(3) | نعم |  |  |  |
+| ChoiceReason | NVARCHAR(1000) | نعم |  |  | لماذا اختيرت هذه النسخة (إلزامي عند الاختيار، ADR 0029) |
 | PublicId | UNIQUEIDENTIFIER | لا | NEWSEQUENTIALID() |  |  |
 | CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
 | CreatedBy | BIGINT | نعم |  |  |  |
@@ -5415,7 +5419,7 @@
 
 **المفاتيح:** PK(PresentationVersionId) · UQ(PublicId) · UQ(TenantId, ResultStatementId) WHERE ResultStatementId IS NOT NULL
 
-**قيود:** `Status IN ('DRAFT','DISCARDED') OR (ResultStatementId IS NOT NULL AND BuiltAt IS NOT NULL AND IsConvertible IS NOT NULL)` · `Status <> 'CHOSEN' OR (ChosenBy IS NOT NULL AND ChosenOn IS NOT NULL AND IsConvertible = 1)` · `ChosenBy IS NULL OR ChosenBy <> PreparedBy`
+**قيود:** `Status IN ('DRAFT','DISCARDED') OR (ResultStatementId IS NOT NULL AND BuiltAt IS NOT NULL AND IsConvertible IS NOT NULL)` · `Status <> 'CHOSEN' OR (ChosenBy IS NOT NULL AND ChosenOn IS NOT NULL AND IsConvertible = 1 AND ChoiceReason IS NOT NULL)` · `ChoiceReason IS NULL OR ChosenBy IS NOT NULL` · `ChosenBy IS NULL OR ChosenBy <> PreparedBy`
 
 ### `fin.PresentationVersionStep` — A remedy of the methodology the company chose for a presentation version, in order, with the document that supports it; the amount it moved is written by the build (docs/36 F2, ADR 0023)
 

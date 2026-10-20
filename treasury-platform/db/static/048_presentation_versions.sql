@@ -215,9 +215,9 @@ BEGIN
     COMMIT;
 END;
 GO
-/* The choice: someone other than the preparer chooses a built, convertible version; its draft replaces the source in
-   the series, and the other built versions of the source are discarded. */
-CREATE OR ALTER PROCEDURE fin.usp_ChoosePresentationVersion @VersionId BIGINT
+/* The choice: someone other than the preparer chooses a built, convertible version, and says why (ADR 0029); its
+   draft replaces the source in the series, and the other built versions of the source are discarded. */
+CREATE OR ALTER PROCEDURE fin.usp_ChoosePresentationVersion @VersionId BIGINT, @Reason NVARCHAR(1000)
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -230,7 +230,8 @@ BEGIN
     IF @status <> 'BUILT' THROW 50090, 'Only a built presentation version is chosen (BR-FIN-037)', 1;
     IF @conv = 0 THROW 50090, 'A presentation version is chosen only when every step rests on a document dated by the period end (BR-FIN-037)', 1;
     IF @user IS NULL OR @user = @preparer THROW 50090, 'A presentation version is chosen by someone other than its preparer (BR-FIN-037)', 1;
-    UPDATE fin.PresentationVersion SET Status = 'CHOSEN', ChosenBy = @user, ChosenOn = SYSUTCDATETIME(), UpdatedAt = SYSUTCDATETIME(), UpdatedBy = @user
+    IF NULLIF(LTRIM(RTRIM(@Reason)), N'') IS NULL THROW 50090, 'A presentation version is chosen with the reason for the choice (ADR 0029)', 1;
+    UPDATE fin.PresentationVersion SET Status = 'CHOSEN', ChosenBy = @user, ChosenOn = SYSUTCDATETIME(), ChoiceReason = LTRIM(RTRIM(@Reason)), UpdatedAt = SYSUTCDATETIME(), UpdatedBy = @user
     WHERE TenantId = @tenant AND PresentationVersionId = @VersionId;
     UPDATE fin.PresentationVersion SET Status = 'DISCARDED', UpdatedAt = SYSUTCDATETIME(), UpdatedBy = @user
     WHERE TenantId = @tenant AND SourceStatementId = @src AND Status = 'BUILT' AND PresentationVersionId <> @VersionId;
@@ -277,7 +278,7 @@ JOIN fin.LineCatalogItem AS li ON li.TenantId = b.TenantId AND li.LineCatalogIte
 LEFT JOIN fin.StatementLine AS a ON a.TenantId = v.TenantId AND a.StatementId = v.SourceStatementId AND a.LineCatalogItemId = b.LineCatalogItemId;
 GO
 -- The results of a version and the amount a step moved are written by the build only.
-DENY UPDATE ON [fin].[PresentationVersion] ([ResultStatementId], [TrialAssessmentId], [IsConvertible], [BalanceGap], [BuiltAt], [ChosenBy], [ChosenOn]) TO [tp_app];
+DENY UPDATE ON [fin].[PresentationVersion] ([ResultStatementId], [TrialAssessmentId], [IsConvertible], [BalanceGap], [BuiltAt], [ChosenBy], [ChosenOn], [ChoiceReason]) TO [tp_app];
 DENY UPDATE ON [fin].[PresentationVersionStep] ([MovedAmount]) TO [tp_app];
 GRANT EXECUTE ON fin.usp_BuildPresentationVersion TO [tp_app];
 GRANT EXECUTE ON fin.usp_ChoosePresentationVersion TO [tp_app];

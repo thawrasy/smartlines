@@ -620,6 +620,7 @@ ALTER TABLE [fin].[CreditAssessment] ADD CONSTRAINT [FK_CreditAssessment_FinalGr
 ALTER TABLE [fin].[CreditAssessment] ADD CONSTRAINT [FK_CreditAssessment_FacilityGradeId] FOREIGN KEY ([FacilityGradeId]) REFERENCES [fin].[RatingGrade] ([RatingGradeId]);
 ALTER TABLE [fin].[CreditAssessment] ADD CONSTRAINT [FK_CreditAssessment_PreparedBy] FOREIGN KEY ([TenantId], [PreparedBy]) REFERENCES [sec].[AppUser] ([TenantId], [AppUserId]);
 ALTER TABLE [fin].[CreditAssessment] ADD CONSTRAINT [FK_CreditAssessment_ApprovedBy] FOREIGN KEY ([TenantId], [ApprovedBy]) REFERENCES [sec].[AppUser] ([TenantId], [AppUserId]);
+ALTER TABLE [fin].[CreditAssessment] ADD CONSTRAINT [FK_CreditAssessment_EndorsedBy] FOREIGN KEY ([TenantId], [EndorsedBy]) REFERENCES [sec].[AppUser] ([TenantId], [AppUserId]);
 ALTER TABLE [fin].[CreditAssessment] ADD CONSTRAINT [FK_CreditAssessment_IndustryId] FOREIGN KEY ([IndustryId]) REFERENCES [ref].[Industry] ([IndustryId]);
 ALTER TABLE [fin].[CreditAssessment] ADD CONSTRAINT [FK_CreditAssessment_MarketCountryId] FOREIGN KEY ([MarketCountryId]) REFERENCES [ref].[Country] ([CountryId]);
 ALTER TABLE [fin].[CreditAssessment] ADD CONSTRAINT [FK_CreditAssessment_AnchorGradeId] FOREIGN KEY ([AnchorGradeId]) REFERENCES [fin].[RatingGrade] ([RatingGradeId]);

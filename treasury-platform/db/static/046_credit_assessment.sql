@@ -88,7 +88,8 @@ GO
    is named in @may. The results are written by fin.usp_ComputeCreditAssessment only: the application role is
    denied UPDATE on them (end of this script) and a new row carries none. */
 DECLARE @may TABLE (name SYSNAME PRIMARY KEY);
-INSERT @may VALUES (N'Status'), (N'ApprovedBy'), (N'ApprovedOn'), (N'RejectionReason'), (N'UpdatedAt'), (N'UpdatedBy');
+INSERT @may VALUES (N'Status'), (N'ApprovedBy'), (N'ApprovedOn'), (N'RejectionReason'), (N'UpdatedAt'), (N'UpdatedBy'),
+                   (N'EndorsedBy'), (N'EndorsedOn'), (N'EndorsementNote');   -- the endorsement of 052, once, by its procedure (ADR 0029)
 DECLARE @fi NVARCHAR(MAX), @fd NVARCHAR(MAX), @sql NVARCHAR(MAX);
 SELECT @fi = STRING_AGG(CONVERT(NVARCHAR(MAX), N'i.' + QUOTENAME(c.name)), N', ') WITHIN GROUP (ORDER BY c.column_id),
        @fd = STRING_AGG(CONVERT(NVARCHAR(MAX), N'd.' + QUOTENAME(c.name)), N', ') WITHIN GROUP (ORDER BY c.column_id)
@@ -118,6 +119,11 @@ BEGIN
                                OR (d.Status = ''REJECTED'' AND i.Status = ''DRAFT'') OR (d.Status = ''APPROVED'' AND i.Status = ''SUPERSEDED'')))
                   OR (d.CreditAssessmentId IS NOT NULL AND d.Status <> ''DRAFT'' AND EXISTS (SELECT ' + @fi + N' EXCEPT SELECT ' + @fd + N')))
         THROW 50063, ''A credit assessment is written as a draft and changes only as a draft; its status moves DRAFT, SUBMITTED, APPROVED or REJECTED, SUPERSEDED (BR-FIN-024)'', 1;
+    -- The endorsement for use outside the company is given once and stays (ADR 0029); the application cannot write it.
+    IF EXISTS (SELECT 1 FROM inserted AS i JOIN deleted AS d ON d.CreditAssessmentId = i.CreditAssessmentId
+               WHERE d.EndorsedBy IS NOT NULL AND (ISNULL(i.EndorsedBy, -1) <> d.EndorsedBy OR ISNULL(i.EndorsedOn, ''19000101'') <> d.EndorsedOn
+                                                   OR ISNULL(i.EndorsementNote, N'''') <> d.EndorsementNote))
+        THROW 50063, ''An endorsement of an assessment is given once and does not change (ADR 0029)'', 1;
     -- A trial assessment is computed and computed again on a statement before its approval; it stays a draft.
     IF EXISTS (SELECT 1 FROM inserted AS i WHERE i.IsTrial = 1 AND i.Status <> ''DRAFT'')
         THROW 50063, ''A trial assessment stays a draft: it is computed on a statement before its final approval and is not submitted (BR-FIN-036)'', 1;

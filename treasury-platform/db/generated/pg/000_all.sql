@@ -5225,6 +5225,9 @@ CREATE TABLE "fin"."CreditAssessment" (
   "ApprovedBy" bigint NULL,
   "ApprovedOn" timestamp(3) NULL,
   "RejectionReason" varchar(500) NULL,
+  "EndorsedBy" bigint NULL,
+  "EndorsedOn" timestamp(3) NULL,
+  "EndorsementNote" varchar(1000) NULL,
   "IndustryId" integer NULL,
   "SectorPosition" varchar(10) NULL,
   "Resilience" varchar(10) NULL,
@@ -5262,9 +5265,11 @@ CREATE TABLE "fin"."CreditAssessment" (
   CONSTRAINT "CK_CreditAssessment_10" CHECK ("Status" NOT IN ('APPROVED','SUPERSEDED') OR ("ApprovedBy" IS NOT NULL AND "ApprovedOn" IS NOT NULL)),
   CONSTRAINT "CK_CreditAssessment_11" CHECK ("ApprovedBy" IS NULL OR "PreparedBy" IS NULL OR "ApprovedBy" <> "PreparedBy"),
   CONSTRAINT "CK_CreditAssessment_12" CHECK ("Status" <> 'REJECTED' OR "RejectionReason" IS NOT NULL),
-  CONSTRAINT "CK_CreditAssessment_13" CHECK ("MarketRegionCode" IS NULL OR "MarketRegionCode" NOT LIKE '%[^A-Z0-9_]%'),
-  CONSTRAINT "CK_CreditAssessment_14" CHECK ("CountryRisk" IS NULL OR "CountryRisk" BETWEEN 1 AND 6),
-  CONSTRAINT "CK_CreditAssessment_15" CHECK ("IndustryRisk" IS NULL OR "IndustryRisk" BETWEEN 1 AND 6),
+  CONSTRAINT "CK_CreditAssessment_13" CHECK (("EndorsedBy" IS NULL AND "EndorsedOn" IS NULL AND "EndorsementNote" IS NULL) OR ("EndorsedBy" IS NOT NULL AND "EndorsedOn" IS NOT NULL AND "EndorsementNote" IS NOT NULL AND "Status" IN ('APPROVED','SUPERSEDED') AND "IsTrial" = 0)),
+  CONSTRAINT "CK_CreditAssessment_14" CHECK ("EndorsedBy" IS NULL OR ("EndorsedBy" <> "PreparedBy" AND "EndorsedBy" <> "ApprovedBy")),
+  CONSTRAINT "CK_CreditAssessment_15" CHECK ("MarketRegionCode" IS NULL OR "MarketRegionCode" NOT LIKE '%[^A-Z0-9_]%'),
+  CONSTRAINT "CK_CreditAssessment_16" CHECK ("CountryRisk" IS NULL OR "CountryRisk" BETWEEN 1 AND 6),
+  CONSTRAINT "CK_CreditAssessment_17" CHECK ("IndustryRisk" IS NULL OR "IndustryRisk" BETWEEN 1 AND 6),
   CONSTRAINT "CK_CreditAssessment_Status" CHECK ("Status" IS NULL OR "Status" IN ('DRAFT', 'SUBMITTED', 'APPROVED', 'REJECTED', 'SUPERSEDED')),
   CONSTRAINT "CK_CreditAssessment_ResultState" CHECK ("ResultState" IS NULL OR "ResultState" IN ('RATED', 'INDICATIVE', 'INSUFFICIENT_DATA')),
   CONSTRAINT "CK_CreditAssessment_SectorPosition" CHECK ("SectorPosition" IS NULL OR "SectorPosition" IN ('ABOVE', 'WITHIN', 'BELOW')),
@@ -5453,6 +5458,7 @@ CREATE TABLE "fin"."PresentationVersion" (
   "PreparedBy" bigint NOT NULL,
   "ChosenBy" bigint NULL,
   "ChosenOn" timestamp(3) NULL,
+  "ChoiceReason" varchar(1000) NULL,
   "PublicId" uuid NOT NULL DEFAULT gen_random_uuid(),
   "CreatedAt" timestamp(3) NOT NULL DEFAULT (now() at time zone 'utc'),
   "CreatedBy" bigint NULL,
@@ -5462,8 +5468,9 @@ CREATE TABLE "fin"."PresentationVersion" (
   CONSTRAINT "UQ_PresentationVersion_Tenant" UNIQUE ("TenantId", "PresentationVersionId"),
   CONSTRAINT "UQ_PresentationVersion_PublicId" UNIQUE ("PublicId"),
   CONSTRAINT "CK_PresentationVersion_1" CHECK ("Status" IN ('DRAFT','DISCARDED') OR ("ResultStatementId" IS NOT NULL AND "BuiltAt" IS NOT NULL AND "IsConvertible" IS NOT NULL)),
-  CONSTRAINT "CK_PresentationVersion_2" CHECK ("Status" <> 'CHOSEN' OR ("ChosenBy" IS NOT NULL AND "ChosenOn" IS NOT NULL AND "IsConvertible" = 1)),
-  CONSTRAINT "CK_PresentationVersion_3" CHECK ("ChosenBy" IS NULL OR "ChosenBy" <> "PreparedBy"),
+  CONSTRAINT "CK_PresentationVersion_2" CHECK ("Status" <> 'CHOSEN' OR ("ChosenBy" IS NOT NULL AND "ChosenOn" IS NOT NULL AND "IsConvertible" = 1 AND "ChoiceReason" IS NOT NULL)),
+  CONSTRAINT "CK_PresentationVersion_3" CHECK ("ChoiceReason" IS NULL OR "ChosenBy" IS NOT NULL),
+  CONSTRAINT "CK_PresentationVersion_4" CHECK ("ChosenBy" IS NULL OR "ChosenBy" <> "PreparedBy"),
   CONSTRAINT "CK_PresentationVersion_Status" CHECK ("Status" IS NULL OR "Status" IN ('DRAFT', 'BUILT', 'CHOSEN', 'DISCARDED'))
 );
 CREATE TABLE "fin"."PresentationVersionStep" (
@@ -8099,6 +8106,7 @@ ALTER TABLE "fin"."CreditAssessment" ADD CONSTRAINT "FK_CreditAssessment_FinalGr
 ALTER TABLE "fin"."CreditAssessment" ADD CONSTRAINT "FK_CreditAssessment_FacilityGradeId" FOREIGN KEY ("FacilityGradeId") REFERENCES "fin"."RatingGrade" ("RatingGradeId");
 ALTER TABLE "fin"."CreditAssessment" ADD CONSTRAINT "FK_CreditAssessment_PreparedBy" FOREIGN KEY ("TenantId", "PreparedBy") REFERENCES "sec"."AppUser" ("TenantId", "AppUserId");
 ALTER TABLE "fin"."CreditAssessment" ADD CONSTRAINT "FK_CreditAssessment_ApprovedBy" FOREIGN KEY ("TenantId", "ApprovedBy") REFERENCES "sec"."AppUser" ("TenantId", "AppUserId");
+ALTER TABLE "fin"."CreditAssessment" ADD CONSTRAINT "FK_CreditAssessment_EndorsedBy" FOREIGN KEY ("TenantId", "EndorsedBy") REFERENCES "sec"."AppUser" ("TenantId", "AppUserId");
 ALTER TABLE "fin"."CreditAssessment" ADD CONSTRAINT "FK_CreditAssessment_IndustryId" FOREIGN KEY ("IndustryId") REFERENCES "ref"."Industry" ("IndustryId");
 ALTER TABLE "fin"."CreditAssessment" ADD CONSTRAINT "FK_CreditAssessment_MarketCountryId" FOREIGN KEY ("MarketCountryId") REFERENCES "ref"."Country" ("CountryId");
 ALTER TABLE "fin"."CreditAssessment" ADD CONSTRAINT "FK_CreditAssessment_AnchorGradeId" FOREIGN KEY ("AnchorGradeId") REFERENCES "fin"."RatingGrade" ("RatingGradeId");

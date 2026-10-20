@@ -1032,6 +1032,9 @@ table fin.CreditAssessment public  # Credit assessment of an approved statement 
   ApprovedBy        ->sec.AppUser
   ApprovedOn        ts
   RejectionReason   str(500)
+  EndorsedBy        ->sec.AppUser noidx   # تصديق الاستعمال خارج الشركة: من خارج خط الإعداد والاعتماد (fin.credit.endorse، ADR 0029)
+  EndorsedOn        ts
+  EndorsementNote   str(1000)            # سبب التصديق ونطاقه: لمن يُعرض ولأي غرض
   IndustryId        ->ref.Industry noidx   # النشاط الذي قرأه التقييم (من الشركة عند الحساب)
   SectorPosition    enum{ABOVE,WITHIN,BELOW}   # الدرجة مقابل المدى المتوقع لقطاعها
   Resilience        enum{RESILIENT,MODERATE,VULNERABLE}   # من سيناريو ركود السوق (docs/35 §13)
@@ -1062,6 +1065,8 @@ table fin.CreditAssessment public  # Credit assessment of an approved statement 
   check  Status NOT IN ('APPROVED','SUPERSEDED') OR (ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)
   check  ApprovedBy IS NULL OR PreparedBy IS NULL OR ApprovedBy <> PreparedBy   # المُعِدّ ≠ المعتمِد
   check  Status <> 'REJECTED' OR RejectionReason IS NOT NULL
+  check  (EndorsedBy IS NULL AND EndorsedOn IS NULL AND EndorsementNote IS NULL) OR (EndorsedBy IS NOT NULL AND EndorsedOn IS NOT NULL AND EndorsementNote IS NOT NULL AND Status IN ('APPROVED','SUPERSEDED') AND IsTrial = 0)   # يُصدَّق المعتمد بسبب (ADR 0029)
+  check  EndorsedBy IS NULL OR (EndorsedBy <> PreparedBy AND EndorsedBy <> ApprovedBy)   # المصدِّق غير المُعِدّ والمعتمِد
   check  MarketRegionCode IS NULL OR MarketRegionCode COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%'
   check  CountryRisk IS NULL OR CountryRisk BETWEEN 1 AND 6
   check  IndustryRisk IS NULL OR IndustryRisk BETWEEN 1 AND 6
@@ -1178,11 +1183,13 @@ table fin.PresentationVersion public  # An alternative presentation of a company
   PreparedBy        ->sec.AppUser req
   ChosenBy          ->sec.AppUser
   ChosenOn          ts
+  ChoiceReason      str(1000)            # لماذا اختيرت هذه النسخة (إلزامي عند الاختيار، ADR 0029)
   unique PublicId
   unique ResultStatementId where ResultStatementId IS NOT NULL
   index  SourceStatementId,Status
   check  Status IN ('DRAFT','DISCARDED') OR (ResultStatementId IS NOT NULL AND BuiltAt IS NOT NULL AND IsConvertible IS NOT NULL)
-  check  Status <> 'CHOSEN' OR (ChosenBy IS NOT NULL AND ChosenOn IS NOT NULL AND IsConvertible = 1)
+  check  Status <> 'CHOSEN' OR (ChosenBy IS NOT NULL AND ChosenOn IS NOT NULL AND IsConvertible = 1 AND ChoiceReason IS NOT NULL)
+  check  ChoiceReason IS NULL OR ChosenBy IS NOT NULL
   check  ChosenBy IS NULL OR ChosenBy <> PreparedBy   # المُعِدّ ≠ من يختار (قرار المالك 34)
 
 table fin.PresentationVersionStep  # A remedy of the methodology the company chose for a presentation version, in order, with the document that supports it; the amount it moved is written by the build (docs/36 F2, ADR 0023)
