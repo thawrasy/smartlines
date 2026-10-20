@@ -193,8 +193,8 @@ sq -d BankFas -i db/seed/102_permissions.sql >/dev/null
 sq -d BankFas -i db/seed/103_lc_reference.sql >/dev/null
 sq -d BankFas -i db/seed/104_credit_scorecard.sql >/dev/null
 seed_after="$(seed_state)"
-if [ "$seed_before" != "$seed_after" ] || [ "$seed_before" != "9/32/1/9/23/249/157/142/16/39/21/112/16/3130/0" ]; then
-    echo "platform seed is not safe to run again, or incomplete: settings/jobs/plans/plan modules/reserved/countries/currencies/permissions/Incoterms/unverified UCP articles/grades/credit metrics/approved scorecards/scorecard rows/updated before $seed_before, after $seed_after (expected 9/32/1/9/23/249/157/142/16/39/21/112/16/3130/0)"
+if [ "$seed_before" != "$seed_after" ] || [ "$seed_before" != "10/32/1/9/23/249/157/142/16/39/21/112/16/3130/0" ]; then
+    echo "platform seed is not safe to run again, or incomplete: settings/jobs/plans/plan modules/reserved/countries/currencies/permissions/Incoterms/unverified UCP articles/grades/credit metrics/approved scorecards/scorecard rows/updated before $seed_before, after $seed_after (expected 10/32/1/9/23/249/157/142/16/39/21/112/16/3130/0)"
     exit 1
 fi
 echo "platform seed unchanged on a second run ($seed_after)"
@@ -500,7 +500,7 @@ if [ "$fs_pass" -ne 11 ]; then
     exit 1
 fi
 echo "financial statements tests: $fs_pass passed"
-echo "== 19c. the credit assessment on the Moody's scale through the tables (db/tests/credit_assessment_tests.sql, 046, 047, ADR 0017 to ADR 0023)"
+echo "== 19c. the credit assessment on the Moody's scale through the tables (db/tests/credit_assessment_tests.sql, 046, 047, ADR 0017 to ADR 0024)"
 sq -i db/tests/credit_assessment_tests.sql > "$TMP/crd.out" 2>&1 || {
     cat "$TMP/crd.out"
     echo "credit assessment test run failed"
@@ -512,16 +512,17 @@ if grep -qaE "$FAIL_RE" "$TMP/crd.out"; then
     exit 1
 fi
 ca_pass=$(grep -oaE "$PASS_RE" "$TMP/crd.out" | sort -u | wc -l)
-# 19 cases: CA1 the continuum, its inverse and the item levels, CA2 the worked example through the tables equal to
+# 20 cases: CA1 the continuum, its inverse and the item levels, CA2 the worked example through the tables equal to
 # tools/dbgen/credit_reference.py, CA3 coverage, indicative grades and sub-factors, CA4 the data requested, CA5-CA6 the
 # adjustments, group support and the override, CA7 the life of an assessment and what the application cannot write,
 # CA8 the report, CA9 covenants, breaches and bank flows, CA10 the methodology fixed once approved, CA11 isolation,
 # CA12 the seed, CA13 facilities, collateral, guarantors and the bureau report, CA14 activity, products, scenarios and
 # strengthening plans, CA15 the hash of what was read, CA16 the market country and city and the detailed activity
 # (owner requests of 2026-10-18 and 2026-10-19, ADR 0019), CA17 the lender's actual decision on a facility (ADR 0021), CA18 the trial assessment of a statement before
-# its approval (ADR 0022), CA19 the presentation versions of a statement (ADR 0023).
-if [ "$ca_pass" -ne 19 ]; then
-    echo "expected 19 PASS, found $ca_pass"
+# its approval (ADR 0022), CA19 the presentation versions of a statement (ADR 0023),
+# CA20 the readiness file, its timeline and the early warning (ADR 0024).
+if [ "$ca_pass" -ne 20 ]; then
+    echo "expected 20 PASS, found $ca_pass"
     exit 1
 fi
 echo "credit assessment tests: $ca_pass passed"

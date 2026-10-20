@@ -815,7 +815,7 @@ GO
    @Limit million SAR, an active utilisation of @Used million, and its collateral: a property covering @Property million
    and the joint guarantee of an individual partner covering the whole limit; the partner as guarantor with a net worth
    statement; and, when @Bureau = 1, a SIMAH report of the company. */
-CREATE PROCEDURE #CPlatform @Limit INT = 300, @Used INT = 250, @Property INT = 200, @Bureau BIT = 0
+CREATE PROCEDURE #CPlatform @Limit INT = 300, @Used INT = 250, @Property INT = 200, @Bureau BIT = 0, @Expiry DATE = '2027-12-31'
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -829,7 +829,7 @@ BEGIN
     ALTER TABLE fin.CreditAssessmentBureau NOCHECK CONSTRAINT FK_CreditAssessmentBureau_DocumentId;
     ALTER TABLE fin.CreditAssessmentFacility NOCHECK CONSTRAINT FK_CreditAssessmentFacility_LenderInstitutionId;
     INSERT fac.Facility (TenantId, FacilityNo, BorrowerCompanyId, FacilityTypeId, CurrencyId, TotalAmount, PrecedenceLanguage, EffectiveFrom, ExpiryDate)
-    VALUES (@t, 'FAC-26-301', @ind, 1, @cur, @Limit * 1000000.0, 'EN', '2026-01-01', '2027-12-31');
+    VALUES (@t, 'FAC-26-301', @ind, 1, @cur, @Limit * 1000000.0, 'EN', '2026-01-01', @Expiry);
     SET @f = SCOPE_IDENTITY();
     INSERT fac.FacilityLender (TenantId, FacilityId, InstitutionId, Roles, SharePct, FromRevision) VALUES (@t, @f, 1, 'SOLE', 100, 1);
     INSERT fac.Limit (TenantId, FacilityId, LimitTypeId, Code, NameAr, AmountBasis, Amount, IsRevolving, IsCommitted, FromRevision, NoSourceReason)
@@ -1155,7 +1155,63 @@ IF @got = '1:0=BUILT 0 0 Ba2>Ba2 0 2 2 DUE_TO_RELATED:-10,SHAREHOLDER_LOANS_SUB:
     PRINT 'PASS CA19: a presentation version applies the chosen remedies balanced, is compared with its source, becomes the statement only when chosen by another user on documents of the period, and its draft and steps are fixed';
 ELSE PRINT CONCAT('FAIL CA19: ', @got, ' (expected 1:0=BUILT 0 0 Ba2>Ba2 0 2 2 DUE_TO_RELATED:-10,SHAREHOLDER_LOANS_SUB:10 2:50090 3:0=CHOSEN DISCARDED replaces 4:50090 5:50090 6:50090)');
 GO
-DROP PROCEDURE #VersionCase, #TrialCase, #LenderCase, #CountryCase, #HashCase, #PlatformCase, #CPlatform, #CardCase, #CovCase, #CCov, #LifeCase, #SupportCase, #HoldAssessment, #AdjustCase, #DataCase,
+/* CA20 (FR-FIN-037, BR-FIN-038, ADR 0024): the readiness file of IND's assessment of 2026-04-30, with the lead time
+   of six months. (1) IND's only facility expires on 2026-09-30: its renewal is a lender date 153 days ahead, RED, as
+   a facility ending within the year gives no renewal to the liquidity (SGL-4, docs/35 section 10); (2) its lender
+   notified that it will not renew it: RED with the notice; (3) a covenant test due on
+   2026-07-31 whose last test was a breach: RED; (4) with a lead time of two months the renewal falls outside the
+   file; (5) the timeline: the remedies before the fiscal year end 2026-12-31, the requests before 2026-08-31 (the
+   renewal less 30 days), the bureau report asked for; (6) today, a facility expiring in three months raises an early
+   warning on the latest assessment. */
+CREATE PROCEDURE #ReadyCase @Case INT, @Out NVARCHAR(1000) OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @s BIGINT, @a BIGINT, @f BIGINT, @t INT = (SELECT v FROM #C WHERE k = 't'), @ind BIGINT = (SELECT v FROM #C WHERE k = 'ind'),
+            @today DATE = CAST(SYSUTCDATETIME() AS DATE);
+    EXEC #CStmt @ind, '2025-12-31';
+    SELECT @s = v FROM #C WHERE k = 's';
+    IF @Case = 6 EXEC #CAssess @s, @AsOf = @today; ELSE EXEC #CAssess @s;
+    SELECT @a = v FROM #C WHERE k = 'a';
+    IF @Case IN (1, 2, 4, 5) EXEC #CPlatform @Expiry = '2026-09-30';
+    IF @Case = 6 BEGIN DECLARE @e DATE = DATEADD(DAY, 90, @today); EXEC #CPlatform @Expiry = @e; END;
+    IF @Case = 2
+    BEGIN
+        SET @f = (SELECT FacilityId FROM fac.Facility WHERE TenantId = @t AND FacilityNo = 'FAC-26-301');
+        INSERT fac.FacilityLenderDecision (TenantId, FacilityId, DecisionDate, EffectiveDate, LimitAction, NoSourceReason)
+        VALUES (@t, @f, '2026-03-01', '2026-03-15', 'NOT_RENEWED', N'test fixture');
+    END;
+    IF @Case = 3
+    BEGIN
+        EXEC #CCov;
+        DECLARE @cv BIGINT = (SELECT TOP (1) CovenantId FROM obl.Covenant WHERE TenantId = @t AND MeasureKind = 'RATIO');
+        INSERT obl.CovenantTest (TenantId, CovenantId, CovenantRootId, PeriodStart, PeriodEnd, DueDate, Method)
+        VALUES (@t, @cv, (SELECT RootId FROM obl.Covenant WHERE CovenantId = @cv), '2026-01-01', '2026-06-30', '2026-07-31', 'AUTO');
+    END;
+    IF @Case = 4 INSERT cfg.TenantSetting (TenantId, [Key], ValueJson) VALUES (@t, 'fin.readiness.lead_months', N'2');
+    EXEC fin.usp_ComputeCreditAssessment @a;
+    IF @Case IN (1, 2, 3, 4)
+        SET @Out = ISNULL((SELECT STRING_AGG(CONCAT(EventKind, ':', CONVERT(CHAR(10), EventDate, 23), ':', DaysLeft, ':', LiquidityLabel, ':',
+                                                  ISNULL(LimitAction, '-'), ':', Readiness), ',')
+                                  WITHIN GROUP (ORDER BY EventDate)
+                           FROM fin.v_CreditReadinessEvents WHERE AssessmentId = @a), N'none');
+    IF @Case = 5
+        SELECT @Out = CONCAT('P', (SELECT COUNT(*) FROM fin.v_CreditReadinessActions WHERE AssessmentId = @a AND Phase = 'BEFORE_PERIOD_END'), ':',
+                             (SELECT CONVERT(CHAR(10), MIN(Deadline), 23) FROM fin.v_CreditReadinessActions WHERE AssessmentId = @a AND Phase = 'BEFORE_PERIOD_END'),
+                             ' S', (SELECT COUNT(*) FROM fin.v_CreditReadinessActions WHERE AssessmentId = @a AND Phase = 'BEFORE_SUBMISSION'), ':',
+                             (SELECT CONVERT(CHAR(10), MIN(Deadline), 23) FROM fin.v_CreditReadinessActions WHERE AssessmentId = @a AND Phase = 'BEFORE_SUBMISSION'),
+                             ' B', (SELECT COUNT(*) FROM fin.v_CreditReadinessRequests WHERE AssessmentId = @a AND RequestKind = 'BUREAU'));
+    IF @Case = 6
+        SELECT @Out = CONCAT(COUNT(*), ' ', MIN(EventKind), ' ', MIN(DaysLeft)) FROM fin.v_CreditEarlyWarnings WHERE AssessmentId = @a;
+END;
+GO
+DECLARE @got NVARCHAR(2000);
+EXEC #CCases '#ReadyCase', 1, 6, @got OUTPUT;
+IF @got = '1:0=RENEWAL:2026-09-30:153:SGL-4:-:RED 2:0=RENEWAL:2026-09-30:153:SGL-4:NOT_RENEWED:RED 3:0=COVENANT_TEST:2026-07-31:92:SGL-3:-:RED 4:0=none 5:0=P12:2026-12-31 S14:2026-08-31 B1 6:0=1 RENEWAL 90'
+    PRINT 'PASS CA20: the readiness file lists the lender dates in the lead time with their readiness, the timeline of actions and requests, and the early warning of today';
+ELSE PRINT CONCAT('FAIL CA20: ', @got, ' (expected 1:0=RENEWAL:2026-09-30:153:SGL-4:-:RED 2:0=RENEWAL:2026-09-30:153:SGL-4:NOT_RENEWED:RED 3:0=COVENANT_TEST:2026-07-31:92:SGL-3:-:RED 4:0=none 5:0=P12:2026-12-31 S14:2026-08-31 B1 6:0=1 RENEWAL 90)');
+GO
+DROP PROCEDURE #ReadyCase, #VersionCase, #TrialCase, #LenderCase, #CountryCase, #HashCase, #PlatformCase, #CPlatform, #CardCase, #CovCase, #CCov, #LifeCase, #SupportCase, #HoldAssessment, #AdjustCase, #DataCase,
                #CoverageCase, #CHead, #CGrade, #CCases, #CAssess, #Crd, #CStmt, #CBase, #CBind;
 DROP TABLE #C;
 DROP USER [tp_test_crdapp];
