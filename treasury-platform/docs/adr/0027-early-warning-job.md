@@ -1,6 +1,7 @@
 # ADR 0027: The early warning job and its notifications
 
-Status: decided by the database architect on the owner's request of 2026-10-20 to build the notification job of the
+Status: decided by the database architect; the single event FIN.READINESS_WARNING was split into FIN.READINESS_RED
+and FIN.READINESS_AMBER by ADR 0028, which also adds the reason and the message templates. Originally decided on the owner's request of 2026-10-20 to build the notification job of the
 early warning (docs/36-internal-perspective-study.md gap F4, phase D follow-up). Builds on ADR 0024 (the readiness file
 and the early warning view) and on the notification path of DOC-F17 (the outbox, the notification builder, the jobs).
 

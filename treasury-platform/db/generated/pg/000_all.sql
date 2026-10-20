@@ -5423,6 +5423,7 @@ CREATE TABLE "fin"."EarlyWarningAlert" (
   "EventDate" date NOT NULL,
   "Stage" varchar(10) NOT NULL,
   "Readiness" varchar(10) NOT NULL,
+  "ReasonCode" varchar(30) NOT NULL,
   "IssuedOn" date NOT NULL,
   "MessageId" uuid NOT NULL,
   "CreatedAt" timestamp(3) NOT NULL DEFAULT (now() at time zone 'utc'),

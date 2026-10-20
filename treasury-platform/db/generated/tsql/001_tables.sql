@@ -5825,7 +5825,7 @@ CREATE TABLE [fin].[LenderRating] (
     CONSTRAINT [CK_LenderRating_Confidence] CHECK ([Confidence] IS NULL OR [Confidence] IN ('CONFIRMED_AGAINST_ORIGINAL', 'READ_FROM_SCAN_UNVERIFIED', 'ENTERED_NO_DOCUMENT'))
 );
 GO
--- An early warning the job JOB-FIN-READINESS issued: a lender date of the company within the lead time that is not ready, once per stage of the time left and readiness, so a run after a stop or a second run of the day repeats nothing; written by the database only, with the notification request in the outbox (docs/36 F4, ADR 0027)
+-- An early warning the job JOB-FIN-READINESS issued: a lender date of the company within the lead time that is not ready, once per stage of the time left and readiness, so a run after a stop or a second run of the day repeats nothing; written by the database only, with the notification request in the outbox, FIN.READINESS_RED or FIN.READINESS_AMBER (docs/36 F4, ADR 0027, ADR 0028)
 CREATE TABLE [fin].[EarlyWarningAlert] (
     [TenantId] INT NOT NULL,
     [EarlyWarningAlertId] BIGINT IDENTITY(1,1) NOT NULL,
@@ -5836,6 +5836,7 @@ CREATE TABLE [fin].[EarlyWarningAlert] (
     [EventDate] DATE NOT NULL,
     [Stage] VARCHAR(10) NOT NULL,
     [Readiness] VARCHAR(10) NOT NULL,
+    [ReasonCode] VARCHAR(30) NOT NULL,
     [IssuedOn] DATE NOT NULL,
     [MessageId] UNIQUEIDENTIFIER NOT NULL,
     [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_EarlyWarningAlert_CreatedAt] DEFAULT SYSUTCDATETIME(),

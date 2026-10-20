@@ -39,6 +39,7 @@
 | C-23 | القوائم التقديرية (ADR 0025): عمود `Nature` (ACTUAL/BUDGET) في `fin.FinancialStatement` ومفتاح السلسلة به؛ الموازنة مسودة تُقيَّم تجريبيًا؛ واجهتا المقارنة في 049 | قرار المالك 34، المرحلة هـ (2026-10-20) |
 | C-24 | التصنيف الذي يبلغ به البنك (ADR 0026): `fin.LenderRating` وواجهتا المقارنة وموضع الافتراق في 049، ويدخل في جاهزية التجديد؛ 248 جدولًا (§11.5) | قرار المالك 34، المرحلة و (2026-10-20) |
 | C-25 | مهمة إشعارات الإنذار المبكر (ADR 0027): `fin.EarlyWarningAlert` والمهمة `JOB-FIN-READINESS` والإجراء `fin.usp_RunEarlyWarnings` في 051، ودالة الإنذار بتاريخ في 049؛ 249 جدولًا (§11.5) | طلب المالك (2026-10-20) |
+| C-26 | قوالب رسائل الإنذار بالعربية والإنجليزية (ADR 0028): حدثان أحمر وأصفر، وسبب الجاهزية `ReasonCode` في 049 وفي `fin.EarlyWarningAlert`، وقيم القوالب في `fin.v_EarlyWarningMessageValues` (051)، وأول حزمة للمشترك `db/seed/packs/NTF.BASE/v1` يفحصها `tools/dbgen/ntf_pack.py` | طلب المالك (2026-10-20) |
 
 **مرفوض:** اقتراح تقرير Technical Evaluation بـ.NET 9، لأن قرار المشروع `.NET 10 LTS` (`01` §13) ويبقى كما هو. **مؤجَّل:** أدوات الترحيل (O-2)، ومرساة سلسلة التدقيق (O-13)، وRPO/RTO (O-14)، ومكدّس الواجهات (خارج نطاق وثيقة القاعدة). **لم يُعتمد** الادعاء بأن القيود وحدها تضمن سلامة الحجز؛ الحجز يبقى ذريًا بالقفل في طبقة التطبيق (§7.1).
 
@@ -53,7 +54,7 @@
 | المؤشر | القيمة |
 |---|---|
 | جداول | **249** في 20 مخططًا |
-| أعمدة | 4,127 مُعرَّفة في النماذج + الأعمدة الآلية = **4,738** في DDL |
+| أعمدة | 4,128 مُعرَّفة في النماذج + الأعمدة الآلية = **4,739** في DDL |
 | مفاتيح أجنبية | **922** = 209 إلى `plat.Tenant` (`TenantId`) + **585 مركّبة** `(TenantId, …)` بين جداول المشترك + 128 بسيطة نحو جداول عالمية/مختلطة؛ حذف متتالٍ واحد (§7) |
 | فهارس | 797 غير مجمّع (233 مصفّاة · 51 بأعمدة `INCLUDE`) |
 | قيود | 1,468 `CHECK` (قوائم قيم وتناسق حقول وتواريخ وأطوال الأغلفة المشفّرة) · 503 قيد `UNIQUE` + 152 فهرسًا فريدًا |
@@ -1808,7 +1809,7 @@
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `fin.EarlyWarningAlert` | An early warning the job JOB-FIN-READINESS issued: a lender date of the company within the lead time that is not ready, once per stage of the time left and readiness, so a run after a stop or a second run of the day repeats nothing; written by the database only, with the notification request in the outbox (docs/36 F4, ADR 0027) | EarlyWarningAlertId | 2 | 3 | 0 | 8 |
+| `fin.EarlyWarningAlert` | An early warning the job JOB-FIN-READINESS issued: a lender date of the company within the lead time that is not ready, once per stage of the time left and readiness, so a run after a stop or a second run of the day repeats nothing; written by the database only, with the notification request in the outbox, FIN.READINESS_RED or FIN.READINESS_AMBER (docs/36 F4, ADR 0027, ADR 0028) | EarlyWarningAlertId | 2 | 3 | 0 | 9 |
 | `fin.FinancialStatement` | Financial statement header; highly confidential (FR-FIN-002/005/006, BR-FIN-001..004, section 8) | FinancialStatementId | 6 | 8 | 13 | 23 |
 | `fin.IndustryProfile` | The credit profile of an activity or a division: its sector family scorecard, industry risk, cyclicality, its ceiling, the extra data it must give and the products it usually sells; the expected grade range comes from the country and industry risk anchor (docs/35 section 13, ADR 0019) | IndustryProfileId | 2 | 1 | 1 | 10 |
 | `fin.IndustrySensitivity` | The sensitivity 0 (none) to 5 (extreme) of an activity to a driver of stress (docs/35 section 14) | IndustrySensitivityId | 2 | 1 | 1 | 4 |
@@ -2626,9 +2627,9 @@ SQL_USER=bankfas_monitor tools/dbgen/check_deployed.py --server <server>   # the
 
 | الفحص | النتيجة | ملاحظة |
 |---|---|---|
-| فحص النموذج (`dbgen check`) | **OK** — 249 جدولًا / 4,127 عمودًا؛ لا مراجع معلّقة؛ لا مخالفة لقواعد النطاق | التسمية والمراجع والمفاتيح المركّبة والأعمدة المطلوبة |
+| فحص النموذج (`dbgen check`) | **OK** — 249 جدولًا / 4,128 عمودًا؛ لا مراجع معلّقة؛ لا مخالفة لقواعد النطاق | التسمية والمراجع والمفاتيح المركّبة والأعمدة المطلوبة |
 | تنفيذ PostgreSQL 16 | **تشغيل سابق** — 194 جدولًا / 763 مفتاحًا أجنبيًا / 691 قيد فريد أو أساسي، قبل إضافة `sec.SessionBinding`؛ لم يُعَد على النموذج الحالي، ولا يدخل CI | يثبت **البنية المنطقية** فقط. **لا** يثبت صحة T-SQL |
-| التحقق الثابت من الصلاحيات (`check_grants.py`) | **OK** — 249 جدولًا، 334 منحة مولّدة، 137 منحة ثابتة، 31 عمودًا مقيّدًا، القواعد R1–R11؛ يعمل في الخطوة 3 من `db_ci.sh` | حُقنت ثلاث مخالفات متعمدة فاكتُشفت كلها (§9.3). **لا يثبت** أن المحرك ينفّذ المنح كما هي |
+| التحقق الثابت من الصلاحيات (`check_grants.py`) | **OK** — 249 جدولًا، 334 منحة مولّدة، 138 منحة ثابتة، 31 عمودًا مقيّدًا، القواعد R1–R11؛ يعمل في الخطوة 3 من `db_ci.sh` | حُقنت ثلاث مخالفات متعمدة فاكتُشفت كلها (§9.3). **لا يثبت** أن المحرك ينفّذ المنح كما هي |
 | التحقق من الإصلاحات (`check_review_fixes.py`) | **OK** — 75 من 75، في الخطوة 3 من `db_ci.sh` | يفحص أن كل إصلاح من DR-01 إلى DR-50 موجود في DDL المولَّد أو في الحارس الثابت (043، 044)، لا في الوثيقة وحدها |
 | فهرسة المفاتيح الأجنبية (`check_fk_indexes.py`) | **OK** — 578 مفهرسًا، 111 `noidx`، صفر بلا فهرس؛ الخطوة 3 | §8 |
 | تحليل T-SQL بـ `sqlglot` | الملفات `000–004`، `007`، `010`، `025`، `030`، `040`: **بلا أخطاء**؛ `005` و`006` و`020`: خطأ واحد لكل ملف عند عبارة `DENY` | المحلّل لا يدعم عبارة `DENY` بصيغتها الكاملة؛ الصيغة صحيحة في T-SQL. التحليل نحوي جزئي |

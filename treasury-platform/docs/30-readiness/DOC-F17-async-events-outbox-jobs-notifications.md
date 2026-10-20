@@ -188,7 +188,7 @@ stateDiagram-v2
 | JOB-PLT-EXPORT (أُضيفت 2026-10-13، ADR 0008) | مشترك، ومسموحة في SUSPENDED وCLOSED خلال النافذة | عند وجود طلب معتمد | بناء الحزمة المختومة: APPROVED إلى RUNNING إلى READY أو FAILED | DataExportJobId | FR-PLT-039، DQ-F04-8 |
 | JOB-PLT-OUTBOX-PURGE وJOB-PLT-JOBRUN-PURGE 🟡 | مشترك | أسبوعيًا | حذف DELIVERED بعد 30 يومًا، وJobRun بعد 90 يومًا | (المهمة، الأسبوع) | §4.7، §5.7 |
 | JOB-PLT-RECONCILE (أُضيفت 2026-10-13، ADR 0011؛ ✅ اعتمدها المالك 2026-10-14) | مشترك | ليلية 🟡 | تقرأ `wfl.RequestCopyDrift` و`lc.ProformaTotalsDrift`؛ كل صف حادثة تُبلَّغ ولا تُصلَح آليًا (DR-44، DR-41) | (المشترك، التاريخ) | 044_entry_guards.sql |
-| JOB-FIN-READINESS (أُضيفت 2026-10-20، ADR 0027) | مشترك | 05:20 | الإنذار المبكر: `fin.usp_RunEarlyWarnings` يكتب `fin.EarlyWarningAlert` وصف `notification.requested` بالحدث FIN.READINESS_WARNING في معاملة واحدة | (الشركة، نوع الموعد، المرجع، التاريخ، المرحلة، الجاهزية) | 051_early_warning_job.sql |
+| JOB-FIN-READINESS (أُضيفت 2026-10-20، ADR 0027) | مشترك | 05:20 | الإنذار المبكر: `fin.usp_RunEarlyWarnings` يكتب `fin.EarlyWarningAlert` وصف `notification.requested` بالحدث FIN.READINESS_RED أو FIN.READINESS_AMBER في معاملة واحدة، وقيم قوالب الرسالة في `fin.v_EarlyWarningMessageValues` (ADR 0028) | (الشركة، نوع الموعد، المرجع، التاريخ، المرحلة، الجاهزية) | 051_early_warning_job.sql |
 
 المهمة اليومية لإطار FR-PLT-038 هي JOB-NTF-EXPIRY نفسها 🟡: تستدعي كل مزوّدي `IExpiryProvider` (FR-NTF-017، 13-m6:216)، ومنها مزوّدات 10 و11 و12 و14. ويقترح تعليق النموذج اسم EXPIRY_ALERTS (10.model:555)، فنوحّد على JOB-NTF-EXPIRY (DQ-F17-2).
 

@@ -1149,7 +1149,7 @@ table fin.LenderRating src  # A rating of the company that a lender communicated
   check  SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')   # ختم المصدر (BR-FAC-018)
   check  Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)
 
-table fin.EarlyWarningAlert append  # An early warning the job JOB-FIN-READINESS issued: a lender date of the company within the lead time that is not ready, once per stage of the time left and readiness, so a run after a stop or a second run of the day repeats nothing; written by the database only, with the notification request in the outbox (docs/36 F4, ADR 0027)
+table fin.EarlyWarningAlert append  # An early warning the job JOB-FIN-READINESS issued: a lender date of the company within the lead time that is not ready, once per stage of the time left and readiness, so a run after a stop or a second run of the day repeats nothing; written by the database only, with the notification request in the outbox, FIN.READINESS_RED or FIN.READINESS_AMBER (docs/36 F4, ADR 0027, ADR 0028)
   CompanyId     ->org.Company req
   AssessmentId  ->fin.CreditAssessment req noidx   # التقييم الذي قرأته المهمة: آخر تقييم محسوب لقائمة فعلية
   EventKind     enum{RENEWAL,COVENANT_TEST,REPORTING} req
@@ -1157,6 +1157,7 @@ table fin.EarlyWarningAlert append  # An early warning the job JOB-FIN-READINESS
   EventDate     date       req   # موعد جهة التمويل وقت الإنذار: تغيّره يعيد الإنذارات من أولها
   Stage         enum{LEAD,D90,D30,D7} req   # ما بقي من الوقت: داخل مهلة الإعداد، ثم 90 و30 و7 أيام
   Readiness     enum{AMBER,RED} req
+  ReasonCode    ascii(30)  req   # أول قاعدة حددت الجاهزية (049)، ونصها في رسالة الإنذار (ADR 0028)
   IssuedOn      date       req   # يوم التشغيل بتوقيت المشترك
   MessageId     guid       req   # صف طلب الإشعار في cfg.OutboxEvent
   unique CompanyId,EventKind,RefId,EventDate,Stage,Readiness

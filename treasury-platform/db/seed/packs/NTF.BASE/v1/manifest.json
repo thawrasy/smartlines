@@ -1,0 +1,35 @@
+{
+  "PackKey": "NTF.BASE",
+  "SeedVersion": 1,
+  "Slice": "S1",
+  "Status": "DRAFT: written by an AI agent, to be approved by the treasury and the owner (DOC-B05 section 5, X-SEC-7)",
+  "Tables": [
+    "ntf.NotificationEventType.csv",
+    "ntf.NotificationRule.csv",
+    "ntf.NotificationTemplate.csv"
+  ],
+  "References": {
+    "RoleSeedKey": "sec.Role.SeedKey of the pack CORE.ROLES",
+    "EventTypeCode": "ntf.NotificationEventType.Code of this pack"
+  },
+  "Placeholders": {
+    "source": "fin.v_EarlyWarningMessageValues (db/static/051), by the MessageId of the notification request; a placeholder with Ar and En columns takes the column of the template's language",
+    "map": {
+      "companyName": "CompanyName",
+      "eventLabel": "EventLabel",
+      "reference": "Reference",
+      "eventDate": "EventDate",
+      "daysLeft": "DaysLeft",
+      "stageLabel": "StageLabel",
+      "reason": "Reason",
+      "grade": "Grade",
+      "liquidity": "Liquidity",
+      "leadMonths": "LeadMonths"
+    }
+  },
+  "Content": "The events FIN.READINESS_RED and FIN.READINESS_AMBER of the early warning (ADR 0027, ADR 0028); the other events of spec 13 section 9.2 join this pack later.",
+  "Sources": [
+    "docs/10-detailed-analysis/13-m6-workflow-engine-notifications.md section 9.2",
+    "docs/adr/0028-early-warning-message-templates.md"
+  ]
+}

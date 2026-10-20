@@ -1,0 +1,45 @@
+EventTypeCode,Channel,Lang,SubjectTemplate,BodyTemplate,IsTenantOverride
+FIN.READINESS_RED,IN_APP,ar,إنذار أحمر: {eventLabel} {reference} في {eventDate},{companyName} غير جاهزة لموعد {eventLabel} {reference} في {eventDate} ({stageLabel}، الأيام الباقية: {daysLeft}). السبب: {reason}. درجة التقييم {grade} والسيولة {liquidity}. افتح ملف الجاهزية لترى ما ستطلبه جهة التمويل والإجراءات قبل الموعد.,0
+FIN.READINESS_RED,IN_APP,en,Red warning: {eventLabel} {reference} on {eventDate},"{companyName} is not ready for the {eventLabel} {reference} on {eventDate} ({stageLabel}, days left: {daysLeft}). Reason: {reason}. Assessment grade {grade}, liquidity {liquidity}. Open the readiness file to see what the lender will ask for and the actions due before the date.",0
+FIN.READINESS_RED,EMAIL,ar,إنذار أحمر من BankFas: {companyName} غير جاهزة لموعد {eventLabel} {reference},"موعد {eventLabel} {reference} في {eventDate}، والأيام الباقية: {daysLeft} ({stageLabel}).
+
+جاهزية {companyName} لهذا الموعد حمراء. السبب: {reason}.
+درجة التقييم الداخلي للشركة {grade} والسيولة {liquidity}.
+
+ما يُنصح به قبل الموعد:
+1. راجع في ملف الجاهزية ما ستطلبه جهة التمويل على الأغلب، وجهّز مستنداته.
+2. نفّذ الحلول ذات الأثر قبل نهاية الفترة المالية، فالحل لا يُحتسب إلا بمستند مؤرخ قبل نهايتها.
+3. تواصل مع جهة التمويل مبكرًا بخطة واضحة، ولا تنتظر طلبها.
+
+يصلك هذا الإنذار عند دخول الموعد مدة التنبيه (بالأشهر: {leadMonths})، ثم عند 90 و30 و7 أيام، ومرة إن ساءت الجاهزية. والدرجة معايرة النظام الداخلية للشركة، لا تصنيف جهة التمويل.
+افتح ملف الجاهزية من الرابط في هذه الرسالة؛ ويلزم الدخول إلى المنصة.",0
+FIN.READINESS_RED,EMAIL,en,BankFas red warning: {companyName} is not ready for the {eventLabel} {reference},"The {eventLabel} {reference} is on {eventDate}; days left: {daysLeft} ({stageLabel}).
+
+The readiness of {companyName} for this date is red. Reason: {reason}.
+The company's internal assessment grade is {grade}, its liquidity {liquidity}.
+
+Recommended before the date:
+1. Review in the readiness file what the lender will most likely ask for, and prepare its documents.
+2. Carry out the remedies with an effect before the fiscal period ends: a remedy counts only on a document dated by its end.
+3. Contact the lender early with a clear plan; do not wait for its request.
+
+This warning comes when the date enters the lead time ({leadMonths} months), then at 90, 30 and 7 days, and once if the readiness worsens. The grade is the system's internal calibration for the company, not the lender's rating.
+Open the readiness file from the link in this message; signing in to the platform is required.",0
+FIN.READINESS_AMBER,IN_APP,ar,تنبيه أصفر: {eventLabel} {reference} في {eventDate},جاهزية {companyName} لموعد {eventLabel} {reference} في {eventDate} ناقصة ({stageLabel}، الأيام الباقية: {daysLeft}). السبب: {reason}. درجة التقييم {grade} والسيولة {liquidity}. في ملف الجاهزية ما يمكن تداركه قبل الموعد.,0
+FIN.READINESS_AMBER,IN_APP,en,Amber warning: {eventLabel} {reference} on {eventDate},"{companyName} is not fully ready for the {eventLabel} {reference} on {eventDate} ({stageLabel}, days left: {daysLeft}). Reason: {reason}. Assessment grade {grade}, liquidity {liquidity}. The readiness file shows what can still be fixed before the date.",0
+FIN.READINESS_AMBER,EMAIL,ar,تنبيه أصفر من BankFas: جاهزية {companyName} لموعد {eventLabel} {reference} ناقصة,"موعد {eventLabel} {reference} في {eventDate}، والأيام الباقية: {daysLeft} ({stageLabel}).
+
+جاهزية {companyName} لهذا الموعد صفراء. السبب: {reason}.
+درجة التقييم الداخلي للشركة {grade} والسيولة {liquidity}.
+
+الوقت يتسع للتدارك: راجع في ملف الجاهزية الطلبات المتوقعة والحلول ومواعيدها، فإن ساءت الجاهزية إلى الأحمر وصلك إنذار.
+
+الدرجة معايرة النظام الداخلية للشركة، لا تصنيف جهة التمويل. افتح ملف الجاهزية من الرابط في هذه الرسالة؛ ويلزم الدخول إلى المنصة.",0
+FIN.READINESS_AMBER,EMAIL,en,BankFas amber warning: {companyName} is not fully ready for the {eventLabel} {reference},"The {eventLabel} {reference} is on {eventDate}; days left: {daysLeft} ({stageLabel}).
+
+The readiness of {companyName} for this date is amber. Reason: {reason}.
+The company's internal assessment grade is {grade}, its liquidity {liquidity}.
+
+There is time to act: review in the readiness file the expected requests, the remedies and their deadlines. If the readiness worsens to red, you will receive a warning.
+
+The grade is the system's internal calibration for the company, not the lender's rating. Open the readiness file from the link in this message; signing in to the platform is required.",0

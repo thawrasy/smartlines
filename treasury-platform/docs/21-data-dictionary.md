@@ -5363,7 +5363,7 @@
 
 **قيود:** `MappingKind = 'GIVEN_BY_LENDER' OR LenderGradeLabel IS NOT NULL` · `SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')` · `Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)` · `OriginalText IS NULL OR (OriginalText COLLATE Arabic_100_BIN2 NOT LIKE '%[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]%' AND OriginalText COLLATE Arabic_100_BIN2 NOT LIKE '%[A-Za-z][A-Za-z][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9]%')` · `SourceDocumentId IS NOT NULL OR (NoSourceReason IS NOT NULL AND LEN(LTRIM(RTRIM(NoSourceReason))) > 0)`
 
-### `fin.EarlyWarningAlert` — An early warning the job JOB-FIN-READINESS issued: a lender date of the company within the lead time that is not ready, once per stage of the time left and readiness, so a run after a stop or a second run of the day repeats nothing; written by the database only, with the notification request in the outbox (docs/36 F4, ADR 0027)
+### `fin.EarlyWarningAlert` — An early warning the job JOB-FIN-READINESS issued: a lender date of the company within the lead time that is not ready, once per stage of the time left and readiness, so a run after a stop or a second run of the day repeats nothing; written by the database only, with the notification request in the outbox, FIN.READINESS_RED or FIN.READINESS_AMBER (docs/36 F4, ADR 0027, ADR 0028)
 
 *مملوك للمشترك*
 
@@ -5378,6 +5378,7 @@
 | EventDate | DATE | لا |  |  | موعد جهة التمويل وقت الإنذار: تغيّره يعيد الإنذارات من أولها |
 | Stage | VARCHAR(10) | لا |  |  | ما بقي من الوقت: داخل مهلة الإعداد، ثم 90 و30 و7 أيام enum: LEAD, D90, D30, D7 |
 | Readiness | VARCHAR(10) | لا |  |  | enum: AMBER, RED |
+| ReasonCode | VARCHAR(30) | لا |  |  | أول قاعدة حددت الجاهزية (049)، ونصها في رسالة الإنذار (ADR 0028) |
 | IssuedOn | DATE | لا |  |  | يوم التشغيل بتوقيت المشترك |
 | MessageId | UNIQUEIDENTIFIER | لا |  |  | صف طلب الإشعار في cfg.OutboxEvent |
 | CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |

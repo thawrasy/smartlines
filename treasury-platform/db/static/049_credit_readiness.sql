@@ -97,7 +97,22 @@ SELECT e.TenantId, e.AssessmentId, e.CompanyId, e.IsTrial, e.FinalGrade, e.Liqui
             WHEN e.LiquidityLabel = 'SGL-3' OR e.Outlook = 'NEGATIVE' OR e.CriticalRisks > 0 OR e.DataRequests > 0
                  OR (e.EventKind = 'COVENANT_TEST' AND e.LastHeadroomPct < e.EarlyWarningPct)
                  OR (e.EventKind = 'RENEWAL' AND e.LenderNotch - e.FinalNotch >= 2) THEN 'AMBER'
-            ELSE 'GREEN' END AS Readiness
+            ELSE 'GREEN' END AS Readiness,
+       -- the first rule that set the readiness, in the order above: the reason the message gives (051, ADR 0028)
+       CASE WHEN ISNULL(e.ResultState, '') <> 'RATED' THEN 'NOT_RATED'
+            WHEN e.LiquidityLabel = 'SGL-4' THEN 'LIQUIDITY_SGL4'
+            WHEN e.FinalNotch >= 16 THEN 'GRADE_B3'
+            WHEN e.EventKind = 'COVENANT_TEST' AND e.LastResult = 'BREACH' THEN 'COVENANT_BREACH'
+            WHEN e.EventKind = 'COVENANT_TEST' AND e.LastHeadroomPct < 0 THEN 'HEADROOM_NEGATIVE'
+            WHEN e.EventKind = 'RENEWAL' AND e.LimitAction IN ('UNDRAWN_STOPPED', 'LIMIT_REDUCED', 'NOT_RENEWED') THEN 'LENDER_ACTION'
+            WHEN e.EventKind = 'RENEWAL' AND e.LenderNotch >= 16 THEN 'LENDER_RATING_B3'
+            WHEN e.LiquidityLabel = 'SGL-3' THEN 'LIQUIDITY_SGL3'
+            WHEN e.Outlook = 'NEGATIVE' THEN 'OUTLOOK_NEGATIVE'
+            WHEN e.CriticalRisks > 0 THEN 'CRITICAL_RISK'
+            WHEN e.DataRequests > 0 THEN 'DATA_MISSING'
+            WHEN e.EventKind = 'COVENANT_TEST' AND e.LastHeadroomPct < e.EarlyWarningPct THEN 'HEADROOM_LOW'
+            WHEN e.EventKind = 'RENEWAL' AND e.LenderNotch - e.FinalNotch >= 2 THEN 'LENDER_RATING_GAP'
+            END AS ReasonCode
 FROM e;
 GO
 CREATE OR ALTER VIEW fin.v_CreditReadinessEvents
