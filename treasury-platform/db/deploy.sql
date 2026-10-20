@@ -56,6 +56,7 @@ GO
 :r static/050_fac_share_rule.sql
 :r static/051_early_warning_job.sql
 :r static/052_review_controls.sql
+:r static/053_period_close.sql
 :r static/090_readonly_denies.sql
 :r seed/100_platform_global.sql
 :r seed/101_iso_reference.sql

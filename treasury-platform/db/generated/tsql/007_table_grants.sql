@@ -418,6 +418,8 @@ GRANT SELECT, INSERT ON [fin].[EarlyWarningAlert] TO [tp_app];
 GRANT SELECT, INSERT ON [fin].[AssessmentEvidencePack] TO [tp_app];
 -- fin.ReceivableLossRate
 GRANT SELECT, INSERT, UPDATE ON [fin].[ReceivableLossRate] TO [tp_app];
+-- fin.ReportingPeriodLock
+GRANT SELECT, INSERT, UPDATE ON [fin].[ReportingPeriodLock] TO [tp_app];
 -- fin.PresentationVersion
 GRANT SELECT, INSERT, UPDATE ON [fin].[PresentationVersion] TO [tp_app];
 -- fin.PresentationVersionStep

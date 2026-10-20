@@ -515,7 +515,7 @@ erDiagram
 | ReportingInstance | SubmissionChannelUsedId | cat.LookupItem |
 | ReportingObligation | SubmissionChannelId | cat.LookupItem |
 
-## مخطط `fin` (56 جدولًا)
+## مخطط `fin` (57 جدولًا)
 
 (المخطط كبير؛ العلاقات الداخلية: 77)
 
@@ -580,6 +580,9 @@ erDiagram
 | PresentationVersion | PreparedBy | sec.AppUser |
 | PresentationVersionStep | DocumentId | doc.Document |
 | ReceivableLossRate | ApprovedBy | sec.AppUser |
+| ReportingPeriodLock | CompanyId | org.Company |
+| ReportingPeriodLock | LockedBy | sec.AppUser |
+| ReportingPeriodLock | ReopenedBy | sec.AppUser |
 | RevenueEstimate | ApprovedBy | sec.AppUser |
 | RevenueEstimate | CompanyId | org.Company |
 | RevenueEstimate | CurrencyId | ref.Currency |

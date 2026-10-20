@@ -5919,6 +5919,32 @@ CREATE TABLE [fin].[ReceivableLossRate] (
     CONSTRAINT [CK_ReceivableLossRate_Status] CHECK ([Status] IS NULL OR [Status] IN ('DRAFT', 'APPROVED'))
 );
 GO
+-- The close of a company's reporting periods: through LockedThrough no actual statement, version, monthly balance or bank flow of the company is added, changed or removed; locked once its figures are approved or confirmed, reopened with a reason by someone other than the one who locked it (optional for each company; docs/38 item 2, ADR 0031)
+CREATE TABLE [fin].[ReportingPeriodLock] (
+    [TenantId] INT NOT NULL,
+    [ReportingPeriodLockId] BIGINT IDENTITY(1,1) NOT NULL,
+    [CompanyId] BIGINT NOT NULL,
+    [LockedThrough] DATE NOT NULL,
+    [Status] VARCHAR(10) NOT NULL CONSTRAINT [DF_ReportingPeriodLock_Status] DEFAULT 'LOCKED',
+    [LockReason] NVARCHAR(500) NOT NULL,
+    [LockedBy] BIGINT NOT NULL,
+    [LockedOn] DATETIME2(3) NOT NULL,
+    [ReopenedBy] BIGINT NULL,
+    [ReopenedOn] DATETIME2(3) NULL,
+    [ReopenReason] NVARCHAR(500) NULL,
+    [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_ReportingPeriodLock_CreatedAt] DEFAULT SYSUTCDATETIME(),
+    [CreatedBy] BIGINT NULL,
+    [UpdatedAt] DATETIME2(3) NULL,
+    [UpdatedBy] BIGINT NULL,
+    [RowVersion] ROWVERSION NOT NULL,
+    CONSTRAINT [PK_ReportingPeriodLock] PRIMARY KEY CLUSTERED ([ReportingPeriodLockId]),
+    CONSTRAINT [UQ_ReportingPeriodLock_Tenant] UNIQUE ([TenantId], [ReportingPeriodLockId]),
+    CONSTRAINT [CK_ReportingPeriodLock_1] CHECK ((Status = 'LOCKED' AND ReopenedBy IS NULL AND ReopenedOn IS NULL AND ReopenReason IS NULL) OR (Status = 'REOPENED' AND ReopenedBy IS NOT NULL AND ReopenedOn IS NOT NULL AND ReopenReason IS NOT NULL)),
+    CONSTRAINT [CK_ReportingPeriodLock_2] CHECK (ReopenedBy IS NULL OR ReopenedBy <> LockedBy),
+    CONSTRAINT [CK_ReportingPeriodLock_3] CHECK (ReopenedOn IS NULL OR ReopenedOn >= LockedOn),
+    CONSTRAINT [CK_ReportingPeriodLock_Status] CHECK ([Status] IS NULL OR [Status] IN ('LOCKED', 'REOPENED'))
+);
+GO
 -- An alternative presentation of a company's statement before its final approval: the remedies the company chose, applied in order to the statement and kept balanced, written as a new draft statement with a trial assessment to compare; chosen by someone other than its preparer, and only when every step rests on a document dated by the period end (docs/36 F2, ADR 0023)
 CREATE TABLE [fin].[PresentationVersion] (
     [TenantId] INT NOT NULL,

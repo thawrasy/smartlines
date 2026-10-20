@@ -1213,6 +1213,22 @@ table fin.ReceivableLossRate int  # The loss rate of a receivables ageing bucket
   check  LossRatePct >= 0 AND LossRatePct <= 100
   check  (Status = 'DRAFT' AND ApprovedBy IS NULL AND ApprovedOn IS NULL) OR (Status = 'APPROVED' AND ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)
 
+table fin.ReportingPeriodLock  # The close of a company's reporting periods: through LockedThrough no actual statement, version, monthly balance or bank flow of the company is added, changed or removed; locked once its figures are approved or confirmed, reopened with a reason by someone other than the one who locked it (optional for each company; docs/38 item 2, ADR 0031)
+  CompanyId     ->org.Company req
+  LockedThrough date       req   # نهاية آخر فترة مقفلة: كل ما تاريخه حتى هذا اليوم مقفل
+  Status        enum{LOCKED,REOPENED} req =LOCKED
+  LockReason    str(500)   req   # مثل: إقفال سنة 2025 بعد اعتماد القوائم المدققة
+  LockedBy      ->sec.AppUser req noidx
+  LockedOn      ts         req
+  ReopenedBy    ->sec.AppUser noidx
+  ReopenedOn    ts
+  ReopenReason  str(500)
+  unique CompanyId,LockedThrough where Status = 'LOCKED'
+  index  CompanyId,Status include LockedThrough
+  check  (Status = 'LOCKED' AND ReopenedBy IS NULL AND ReopenedOn IS NULL AND ReopenReason IS NULL) OR (Status = 'REOPENED' AND ReopenedBy IS NOT NULL AND ReopenedOn IS NOT NULL AND ReopenReason IS NOT NULL)
+  check  ReopenedBy IS NULL OR ReopenedBy <> LockedBy   # يعيد الفتح غير من أقفل
+  check  ReopenedOn IS NULL OR ReopenedOn >= LockedOn
+
 table fin.PresentationVersion public  # An alternative presentation of a company's statement before its final approval: the remedies the company chose, applied in order to the statement and kept balanced, written as a new draft statement with a trial assessment to compare; chosen by someone other than its preparer, and only when every step rests on a document dated by the period end (docs/36 F2, ADR 0023)
   SourceStatementId ->fin.FinancialStatement req
   SourceAssessmentId ->fin.CreditAssessment noidx   # التقييم الذي يُقارن به ومنه تُنسخ مدخلات التقييم التجريبي

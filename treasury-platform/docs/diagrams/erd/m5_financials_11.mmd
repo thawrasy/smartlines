@@ -1,8 +1,14 @@
-%% م5 · البيانات المالية والأرصدة (11/14) — Financial statements & balances
+%% م5 · البيانات المالية والأرصدة (11/15) — Financial statements & balances
 erDiagram
   fin_ReceivableLossRate["fin.ReceivableLossRate"] {
     int ReceivableLossRateId PK
     bigint ApprovedBy FK
+  }
+  fin_ReportingPeriodLock["fin.ReportingPeriodLock"] {
+    bigint ReportingPeriodLockId PK
+    bigint CompanyId FK
+    bigint LockedBy FK
+    bigint ReopenedBy FK
   }
   fin_RevenueEstimate["fin.RevenueEstimate"] {
     bigint RevenueEstimateId PK
@@ -14,8 +20,4 @@ erDiagram
   }
   fin_RiskAnchor["fin.RiskAnchor"] {
     int RiskAnchorId PK
-  }
-  fin_Scorecard["fin.Scorecard"] {
-    int ScorecardId PK
-    int CurrencyId FK
   }

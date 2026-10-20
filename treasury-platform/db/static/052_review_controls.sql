@@ -228,6 +228,11 @@ BEGIN
         (SELECT * FROM fin.v_LenderRatingComparison WHERE TenantId = @t AND CompanyId = @company ORDER BY RatingDate, LenderRatingId FOR JSON PATH) AS lenderRatings,
         (SELECT * FROM fin.v_LenderRatingCalibration WHERE TenantId = @t AND CompanyId = @company ORDER BY AllLenders DESC, LenderInstitutionId FOR JSON PATH) AS calibration,
         JSON_QUERY((SELECT * FROM fin.v_ReceivableProvisionCheck WHERE TenantId = @t AND StatementId = @stmt FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)) AS provisionCheck,
+        JSON_QUERY((SELECT CONVERT(CHAR(10), MAX(l.LockedThrough), 23) AS lockedThrough,
+                           CAST(CASE WHEN MAX(l.LockedThrough) >= (SELECT PeriodEnd FROM fin.FinancialStatement WHERE TenantId = @t AND FinancialStatementId = @stmt)
+                                     THEN 1 ELSE 0 END AS BIT) AS statementPeriodClosed
+                    FROM fin.ReportingPeriodLock AS l WHERE l.TenantId = @t AND l.CompanyId = @company AND l.Status = 'LOCKED'
+                    FOR JSON PATH, WITHOUT_ARRAY_WRAPPER, INCLUDE_NULL_VALUES)) AS periodClose,   -- 053, ADR 0031
         (SELECT l.AuditLogId, l.OccurredAt, l.Action, l.ActorType, l.ActorId, l.EntityType, l.EntityId
          FROM aud.AuditLog AS l
          WHERE l.TenantId = @t AND l.Action <> 'EVIDENCE_PACK_BUILT'   -- the packs themselves are in fin.AssessmentEvidencePack

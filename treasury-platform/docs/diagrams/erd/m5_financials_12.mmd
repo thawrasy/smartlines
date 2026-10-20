@@ -1,5 +1,9 @@
-%% م5 · البيانات المالية والأرصدة (12/14) — Financial statements & balances
+%% م5 · البيانات المالية والأرصدة (12/15) — Financial statements & balances
 erDiagram
+  fin_Scorecard["fin.Scorecard"] {
+    int ScorecardId PK
+    int CurrencyId FK
+  }
   fin_ScorecardAdjustment["fin.ScorecardAdjustment"] {
     int ScorecardAdjustmentId PK
     int ScorecardId FK
@@ -15,7 +19,6 @@ erDiagram
     int ScorecardId FK
     int MetricId FK
   }
-  fin_ScorecardParameter["fin.ScorecardParameter"] {
-    int ScorecardParameterId PK
-    int ScorecardId FK
-  }
+  fin_Scorecard ||--o{ fin_ScorecardAdjustment : "ScorecardId"
+  fin_Scorecard ||--o{ fin_ScorecardItemRule : "ScorecardId"
+  fin_Scorecard ||--o{ fin_ScorecardMetric : "ScorecardId"

@@ -1719,7 +1719,8 @@ BEGIN
     INSERT sec.RolePermission (TenantId, RoleId, PermissionId)
     SELECT @t, r.RoleId, p.PermissionId
     FROM sec.Role AS r JOIN (VALUES ('AU', 'fin.credit.endorse'), ('FA', 'fin.credit.assess'), ('TE', 'fin.stats.confirm'),
-                                    ('TM', 'fin.credit.assess'), ('TM', 'fin.credit.approve'), ('TM', 'fin.stats.confirm')) AS m (RoleCode, PermCode)
+                                    ('TM', 'fin.credit.assess'), ('TM', 'fin.credit.approve'), ('TM', 'fin.stats.confirm'),
+                                    ('TM', 'fin.period.lock'), ('TE', 'fin.period.lock')) AS m (RoleCode, PermCode)
          ON m.RoleCode = r.Code COLLATE DATABASE_DEFAULT
     JOIN sec.Permission AS p ON p.Code = m.PermCode COLLATE DATABASE_DEFAULT
     WHERE r.TenantId = @t;
@@ -1937,7 +1938,75 @@ IF @got = N'1:0=SHORTFALL PROVISIONAL 9.90 2.00 7.90 | ECL_SHORTFALL 2:0=ADEQUAT
     PRINT 'PASS CA30: the provision matrix of the receivables ageing is compared with the recorded allowance, on provisional or approved rates, and a shortfall is asked about';
 ELSE PRINT CONCAT('FAIL CA30: ', @got, N' (expected 1:0=SHORTFALL PROVISIONAL 9.90 2.00 7.90 | ECL_SHORTFALL 2:0=ADEQUATE APPROVED 9.90 9.50 0.40 | none 3:0=no row 4:0=NO_RATES MISSING  2.00  | none)');
 GO
-DROP PROCEDURE #ProvisionCase, #CalReadyCase, #EvidenceCase, #FreezeCase, #CApproved, #CControls, #CalibrationCase, #EndorseCase, #MessageCase, #CRender, #CNtfPack, #WarnCase, #CJob, #LenderRatingCase, #BudgetCase, #ReadyCase, #VersionCase, #TrialCase, #LenderCase, #CountryCase, #HashCase, #PlatformCase, #CPlatform, #CardCase, #CovCase, #CCov, #LifeCase, #SupportCase, #HoldAssessment, #AdjustCase, #DataCase,
+/* CA31 (FR-FIN-049, BR-FIN-050, ADR 0031): IND closes its periods through 2025-12-31, its statements of 2024 and 2025
+   approved and its flows of 2026 confirmed. (1) u2 closes them: the close, its audit row and the company's current
+   close; (2) a close while a statement of the period is still a draft is refused
+   (50097); (3) a bank flow of 2026, after the close, is still entered; (4) a bank flow of November 2025 is refused
+   (50096); (5) the one who closed cannot reopen (50097); (6) u5 reopens with a reason: REOPENED, audited, and the new
+   statement of 2025 is entered; (7) a user without fin.period.lock cannot close (50097); (8) the application cannot write
+   the close directly (229); (9) after the close a new statement of 2025 (the management accounts) is refused (50096). */
+CREATE PROCEDURE #CloseCase @Case INT, @Out NVARCHAR(1000) OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @t INT = (SELECT v FROM #C WHERE k = 't'), @ind BIGINT = (SELECT v FROM #C WHERE k = 'ind'), @u1 BIGINT = (SELECT v FROM #C WHERE k = 'u1'),
+            @u2 BIGINT = (SELECT v FROM #C WHERE k = 'u2'), @u5 BIGINT, @lock BIGINT, @e INT, @lst INT, @kind INT,
+            @cur INT = (SELECT CurrencyId FROM ref.Currency WHERE Code = 'SAR');
+    EXEC #CControls;
+    SELECT @u5 = v FROM #C WHERE k = 'u5';
+    EXEC #CStmt @ind, '2025-12-31';
+    IF @Case = 2 EXEC #CStmt @ind, '2025-06-30', @Approve = 0, @PeriodType = 'SEMIANNUAL';
+    EXEC #CCov;
+    SELECT @lst = FlowKindListId, @kind = FlowKindId FROM fin.BankFlowEntry WHERE TenantId = @t AND CompanyId = @ind AND Status = 'CONFIRMED';
+    IF @Case <> 7
+    BEGIN
+        EXEC #CBind @t, @u2;
+        EXEC fin.usp_LockReportingPeriod @ind, '2025-12-31', N'test: the audited statements of 2025 are approved', @lock OUTPUT;
+    END;
+    IF @Case = 1
+    BEGIN
+        SELECT @Out = CONCAT(Status, ' ', CONVERT(CHAR(10), LockedThrough, 23), ' ', (SELECT COUNT(*) FROM aud.AuditLog WHERE TenantId = @t AND Action = 'PERIOD_LOCKED' AND EntityId = @ind),
+                             ' ', (SELECT CONVERT(CHAR(10), LockedThrough, 23) FROM fin.v_ReportingPeriodStatus WHERE CompanyId = @ind))
+        FROM fin.ReportingPeriodLock WHERE ReportingPeriodLockId = @lock;
+    END;
+    IF @Case = 9 BEGIN EXEC #CBind @t, @u1; EXEC #CStmt @ind, '2025-12-31', N'REVENUE=901', @Assurance = 'MANAGEMENT', @Approve = 0; END;
+    IF @Case IN (3, 4)
+    BEGIN
+        EXEC #CBind @t, @u1;
+        INSERT fin.BankFlowEntry (TenantId, CompanyId, InstitutionId, MonthEnd, FlowKindListId, FlowKindId, Amount, CurrencyId, EnteredBy, Status)
+        VALUES (@t, @ind, 1, CASE @Case WHEN 3 THEN '2026-05-31' ELSE '2025-11-30' END, @lst, @kind, 1000000, @cur, @u1, 'DRAFT');
+        SET @Out = CONCAT((SELECT COUNT(*) FROM fin.BankFlowEntry WHERE TenantId = @t AND CompanyId = @ind), ' flows');
+    END;
+    IF @Case = 5 EXEC fin.usp_ReopenReportingPeriod @lock, N'test: a restatement';
+    IF @Case = 6
+    BEGIN
+        EXEC #CBind @t, @u5;
+        EXEC fin.usp_ReopenReportingPeriod @lock, N'test: the auditor asked for a restatement';
+        EXEC #CBind @t, @u1;
+        EXEC #CStmt @ind, '2025-12-31', N'REVENUE=901', @Assurance = 'MANAGEMENT', @Approve = 0;
+        SELECT @Out = CONCAT(Status, ' ', CASE WHEN ReopenedBy = @u5 THEN 'u5' ELSE 'other' END, ' ',
+                             (SELECT COUNT(*) FROM aud.AuditLog WHERE TenantId = @t AND Action = 'PERIOD_REOPENED' AND EntityId = @ind), ' ',
+                             (SELECT COUNT(*) FROM fin.FinancialStatement WHERE TenantId = @t AND CompanyId = @ind AND PeriodEnd = '2025-12-31'), ' ',
+                             ISNULL((SELECT CONVERT(VARCHAR(10), LockedThrough, 23) FROM fin.v_ReportingPeriodStatus WHERE CompanyId = @ind), 'open'))
+        FROM fin.ReportingPeriodLock WHERE ReportingPeriodLockId = @lock;
+    END;
+    IF @Case = 7 BEGIN EXEC #CBind @t, @u1; EXEC fin.usp_LockReportingPeriod @ind, '2025-12-31', N'test'; END;
+    IF @Case = 8
+    BEGIN
+        EXECUTE AS USER = N'tp_test_crdapp';
+        BEGIN TRY UPDATE fin.ReportingPeriodLock SET LockReason = N'x' WHERE ReportingPeriodLockId = @lock; SET @e = 0; END TRY BEGIN CATCH SET @e = ERROR_NUMBER(); END CATCH;
+        REVERT;
+        SET @Out = CAST(@e AS VARCHAR(10));
+    END;
+END;
+GO
+DECLARE @got NVARCHAR(2000);
+EXEC #CCases '#CloseCase', 1, 9, @got OUTPUT;
+IF @got = N'1:0=LOCKED 2025-12-31 1 2025-12-31 2:50097 3:0=3 flows 4:50096 5:50097 6:0=REOPENED u5 1 2 open 7:50097 8:0=229 9:50096'
+    PRINT 'PASS CA31: a company closes its periods once its figures are approved and confirmed; nothing of a closed period changes until another user reopens it with a reason';
+ELSE PRINT CONCAT('FAIL CA31: ', @got, N' (expected 1:0=LOCKED 2025-12-31 1 2025-12-31 2:50097 3:0=3 flows 4:50096 5:50097 6:0=REOPENED u5 1 2 open 7:50097 8:0=229 9:50096)');
+GO
+DROP PROCEDURE #CloseCase, #ProvisionCase, #CalReadyCase, #EvidenceCase, #FreezeCase, #CApproved, #CControls, #CalibrationCase, #EndorseCase, #MessageCase, #CRender, #CNtfPack, #WarnCase, #CJob, #LenderRatingCase, #BudgetCase, #ReadyCase, #VersionCase, #TrialCase, #LenderCase, #CountryCase, #HashCase, #PlatformCase, #CPlatform, #CardCase, #CovCase, #CCov, #LifeCase, #SupportCase, #HoldAssessment, #AdjustCase, #DataCase,
                #CoverageCase, #CHead, #CGrade, #CCases, #CAssess, #Crd, #CStmt, #CBase, #CBind;
 DROP TABLE #C;
 DROP USER [tp_test_crdapp];

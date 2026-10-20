@@ -613,6 +613,8 @@ CREATE NONCLUSTERED INDEX [IX_LenderRating_ConflictId] ON [fin].[LenderRating] (
 CREATE NONCLUSTERED INDEX [IX_EarlyWarningAlert_CompanyId_IssuedOn] ON [fin].[EarlyWarningAlert] ([TenantId], [CompanyId], [IssuedOn]);
 CREATE NONCLUSTERED INDEX [IX_AssessmentEvidencePack_AssessmentId_CreatedAt] ON [fin].[AssessmentEvidencePack] ([TenantId], [AssessmentId], [CreatedAt]);
 CREATE UNIQUE NONCLUSTERED INDEX [UQ_ReceivableLossRate_SeedKey] ON [fin].[ReceivableLossRate] ([TenantId], [SeedKey]) WHERE SeedKey IS NOT NULL;
+CREATE UNIQUE NONCLUSTERED INDEX [UQ_ReportingPeriodLock_CompanyId_LockedThrough] ON [fin].[ReportingPeriodLock] ([TenantId], [CompanyId], [LockedThrough]) WHERE Status = 'LOCKED';
+CREATE NONCLUSTERED INDEX [IX_ReportingPeriodLock_CompanyId_Status] ON [fin].[ReportingPeriodLock] ([TenantId], [CompanyId], [Status]) INCLUDE ([LockedThrough]);
 CREATE UNIQUE NONCLUSTERED INDEX [UQ_PresentationVersion_ResultStatementId] ON [fin].[PresentationVersion] ([TenantId], [ResultStatementId]) WHERE ResultStatementId IS NOT NULL;
 CREATE NONCLUSTERED INDEX [IX_PresentationVersion_SourceStatementId_Status] ON [fin].[PresentationVersion] ([TenantId], [SourceStatementId], [Status]);
 CREATE NONCLUSTERED INDEX [IX_PresentationVersion_PreparedBy] ON [fin].[PresentationVersion] ([TenantId], [PreparedBy]);

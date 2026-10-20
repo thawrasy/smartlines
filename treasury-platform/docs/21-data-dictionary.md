@@ -2,7 +2,7 @@
 
 > مُولَّد آليًا من نموذج البيانات بـ `tools/dbgen` — لا يُعدَّل يدويًا. الأعمدة المشتركة التي تضيفها اصطلاحات التوليد (TenantId، المعرّف، التدقيق) تظهر في كل جدول.
 
-**عدد الجداول: 251**
+**عدد الجداول: 252**
 
 | الوحدة | عدد الجداول |
 |---|---|
@@ -22,7 +22,7 @@
 | CMP | 2 |
 | COL | 7 |
 | OBL | 9 |
-| FIN | 56 |
+| FIN | 57 |
 | REQ | 8 |
 | WFL | 11 |
 | NTF | 7 |
@@ -5447,6 +5447,32 @@
 **المفاتيح:** PK(ReceivableLossRateId) · UQ(TenantId, BucketCode, EffectiveFrom) · UQ(TenantId, SeedKey) WHERE SeedKey IS NOT NULL
 
 **قيود:** `LossRatePct >= 0 AND LossRatePct <= 100` · `(Status = 'DRAFT' AND ApprovedBy IS NULL AND ApprovedOn IS NULL) OR (Status = 'APPROVED' AND ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)`
+
+### `fin.ReportingPeriodLock` — The close of a company's reporting periods: through LockedThrough no actual statement, version, monthly balance or bank flow of the company is added, changed or removed; locked once its figures are approved or confirmed, reopened with a reason by someone other than the one who locked it (optional for each company; docs/38 item 2, ADR 0031)
+
+*مملوك للمشترك*
+
+| العمود | النوع | NULL | الافتراضي | المرجع | ملاحظة |
+|---|---|---|---|---|---|
+| TenantId | INT | لا | | plat.Tenant | عزل المشترك |
+| **ReportingPeriodLockId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
+| CompanyId | BIGINT | لا |  | org.Company |  |
+| LockedThrough | DATE | لا |  |  | نهاية آخر فترة مقفلة: كل ما تاريخه حتى هذا اليوم مقفل |
+| Status | VARCHAR(10) | لا | LOCKED |  | enum: LOCKED, REOPENED |
+| LockReason | NVARCHAR(500) | لا |  |  | مثل: إقفال سنة 2025 بعد اعتماد القوائم المدققة |
+| LockedBy | BIGINT | لا |  | sec.AppUser |  |
+| LockedOn | DATETIME2(3) | لا |  |  |  |
+| ReopenedBy | BIGINT | نعم |  | sec.AppUser |  |
+| ReopenedOn | DATETIME2(3) | نعم |  |  |  |
+| ReopenReason | NVARCHAR(500) | نعم |  |  |  |
+| CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
+| CreatedBy | BIGINT | نعم |  |  |  |
+| UpdatedAt | DATETIME2(3) | نعم |  |  |  |
+| UpdatedBy | BIGINT | نعم |  |  |  |
+
+**المفاتيح:** PK(ReportingPeriodLockId) · UQ(TenantId, CompanyId, LockedThrough) WHERE Status = 'LOCKED'
+
+**قيود:** `(Status = 'LOCKED' AND ReopenedBy IS NULL AND ReopenedOn IS NULL AND ReopenReason IS NULL) OR (Status = 'REOPENED' AND ReopenedBy IS NOT NULL AND ReopenedOn IS NOT NULL AND ReopenReason IS NOT NULL)` · `ReopenedBy IS NULL OR ReopenedBy <> LockedBy` · `ReopenedOn IS NULL OR ReopenedOn >= LockedOn`
 
 ### `fin.PresentationVersion` — An alternative presentation of a company's statement before its final approval: the remedies the company chose, applied in order to the statement and kept balanced, written as a new draft statement with a trial assessment to compare; chosen by someone other than its preparer, and only when every step rests on a document dated by the period end (docs/36 F2, ADR 0023)
 

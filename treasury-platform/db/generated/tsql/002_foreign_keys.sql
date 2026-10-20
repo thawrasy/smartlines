@@ -663,6 +663,10 @@ ALTER TABLE [fin].[AssessmentEvidencePack] ADD CONSTRAINT [FK_AssessmentEvidence
 ALTER TABLE [fin].[AssessmentEvidencePack] ADD CONSTRAINT [FK_AssessmentEvidencePack_GeneratedBy] FOREIGN KEY ([TenantId], [GeneratedBy]) REFERENCES [sec].[AppUser] ([TenantId], [AppUserId]);
 ALTER TABLE [fin].[ReceivableLossRate] ADD CONSTRAINT [FK_ReceivableLossRate_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
 ALTER TABLE [fin].[ReceivableLossRate] ADD CONSTRAINT [FK_ReceivableLossRate_ApprovedBy] FOREIGN KEY ([TenantId], [ApprovedBy]) REFERENCES [sec].[AppUser] ([TenantId], [AppUserId]);
+ALTER TABLE [fin].[ReportingPeriodLock] ADD CONSTRAINT [FK_ReportingPeriodLock_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
+ALTER TABLE [fin].[ReportingPeriodLock] ADD CONSTRAINT [FK_ReportingPeriodLock_CompanyId] FOREIGN KEY ([TenantId], [CompanyId]) REFERENCES [org].[Company] ([TenantId], [CompanyId]);
+ALTER TABLE [fin].[ReportingPeriodLock] ADD CONSTRAINT [FK_ReportingPeriodLock_LockedBy] FOREIGN KEY ([TenantId], [LockedBy]) REFERENCES [sec].[AppUser] ([TenantId], [AppUserId]);
+ALTER TABLE [fin].[ReportingPeriodLock] ADD CONSTRAINT [FK_ReportingPeriodLock_ReopenedBy] FOREIGN KEY ([TenantId], [ReopenedBy]) REFERENCES [sec].[AppUser] ([TenantId], [AppUserId]);
 ALTER TABLE [fin].[PresentationVersion] ADD CONSTRAINT [FK_PresentationVersion_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
 ALTER TABLE [fin].[PresentationVersion] ADD CONSTRAINT [FK_PresentationVersion_SourceStatementId] FOREIGN KEY ([TenantId], [SourceStatementId]) REFERENCES [fin].[FinancialStatement] ([TenantId], [FinancialStatementId]);
 ALTER TABLE [fin].[PresentationVersion] ADD CONSTRAINT [FK_PresentationVersion_SourceAssessmentId] FOREIGN KEY ([TenantId], [SourceAssessmentId]) REFERENCES [fin].[CreditAssessment] ([TenantId], [CreditAssessmentId]);
