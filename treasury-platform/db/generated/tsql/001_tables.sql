@@ -5788,6 +5788,43 @@ CREATE TABLE [fin].[CreditAssessmentGuarantor] (
     CONSTRAINT [CK_CreditAssessmentGuarantor_2] CHECK (LiquidAssets <= NetWorth)
 );
 GO
+-- A rating of the company that a lender communicated to it: the lender's own grade and its equivalent on the 21-grade scale (given by the lender or mapped by the treasury), with what the lender said; compared with the company's assessment of that date (docs/36 F6, ADR 0026)
+CREATE TABLE [fin].[LenderRating] (
+    [TenantId] INT NOT NULL,
+    [LenderRatingId] BIGINT IDENTITY(1,1) NOT NULL,
+    [CompanyId] BIGINT NOT NULL,
+    [LenderInstitutionId] BIGINT NOT NULL,
+    [RatingDate] DATE NOT NULL,
+    [LenderGradeLabel] NVARCHAR(40) NULL,
+    [GradeId] INT NOT NULL,
+    [MappingKind] VARCHAR(18) NOT NULL,
+    [LenderReasons] NVARCHAR(2000) NULL,
+    [SourceDocumentId] BIGINT NULL,
+    [SourcePage] VARCHAR(40) NULL,
+    [ReadFromScan] BIT NOT NULL CONSTRAINT [DF_LenderRating_ReadFromScan] DEFAULT 0,
+    [OriginalText] NVARCHAR(2000) NULL,
+    [NoSourceReason] NVARCHAR(300) NULL,
+    [Confidence] VARCHAR(26) NOT NULL CONSTRAINT [DF_LenderRating_Confidence] DEFAULT 'ENTERED_NO_DOCUMENT',
+    [VerifiedBy] BIGINT NULL,
+    [VerifiedOn] DATETIME2(3) NULL,
+    [ConflictId] BIGINT NULL,
+    [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_LenderRating_CreatedAt] DEFAULT SYSUTCDATETIME(),
+    [CreatedBy] BIGINT NULL,
+    [UpdatedAt] DATETIME2(3) NULL,
+    [UpdatedBy] BIGINT NULL,
+    [RowVersion] ROWVERSION NOT NULL,
+    CONSTRAINT [PK_LenderRating] PRIMARY KEY CLUSTERED ([LenderRatingId]),
+    CONSTRAINT [UQ_LenderRating_Tenant] UNIQUE ([TenantId], [LenderRatingId]),
+    CONSTRAINT [UQ_LenderRating_CompanyId_LenderInstitutionId_RatingDate] UNIQUE ([TenantId], [CompanyId], [LenderInstitutionId], [RatingDate]),
+    CONSTRAINT [CK_LenderRating_1] CHECK (MappingKind = 'GIVEN_BY_LENDER' OR LenderGradeLabel IS NOT NULL),
+    CONSTRAINT [CK_LenderRating_2] CHECK (SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')),
+    CONSTRAINT [CK_LenderRating_3] CHECK (Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)),
+    CONSTRAINT [CK_LenderRating_4] CHECK (OriginalText IS NULL OR (OriginalText COLLATE Arabic_100_BIN2 NOT LIKE '%[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]%' AND OriginalText COLLATE Arabic_100_BIN2 NOT LIKE '%[A-Za-z][A-Za-z][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9]%')),
+    CONSTRAINT [CK_LenderRating_5] CHECK (SourceDocumentId IS NOT NULL OR (NoSourceReason IS NOT NULL AND LEN(LTRIM(RTRIM(NoSourceReason))) > 0)),
+    CONSTRAINT [CK_LenderRating_MappingKind] CHECK ([MappingKind] IS NULL OR [MappingKind] IN ('GIVEN_BY_LENDER', 'MAPPED_BY_TREASURY')),
+    CONSTRAINT [CK_LenderRating_Confidence] CHECK ([Confidence] IS NULL OR [Confidence] IN ('CONFIRMED_AGAINST_ORIGINAL', 'READ_FROM_SCAN_UNVERIFIED', 'ENTERED_NO_DOCUMENT'))
+);
+GO
 -- An alternative presentation of a company's statement before its final approval: the remedies the company chose, applied in order to the statement and kept balanced, written as a new draft statement with a trial assessment to compare; chosen by someone other than its preparer, and only when every step rests on a document dated by the period end (docs/36 F2, ADR 0023)
 CREATE TABLE [fin].[PresentationVersion] (
     [TenantId] INT NOT NULL,

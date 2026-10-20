@@ -606,6 +606,10 @@ CREATE NONCLUSTERED INDEX [IX_CreditAssessmentInput_DocumentId] ON [fin].[Credit
 CREATE NONCLUSTERED INDEX [IX_CreditAssessmentInput_EnteredBy] ON [fin].[CreditAssessmentInput] ([TenantId], [EnteredBy]);
 CREATE NONCLUSTERED INDEX [IX_CreditAssessmentGuarantor_PartyId] ON [fin].[CreditAssessmentGuarantor] ([TenantId], [PartyId]);
 CREATE NONCLUSTERED INDEX [IX_CreditAssessmentGuarantor_DocumentId] ON [fin].[CreditAssessmentGuarantor] ([TenantId], [DocumentId]);
+CREATE NONCLUSTERED INDEX [IX_LenderRating_CompanyId_RatingDate] ON [fin].[LenderRating] ([TenantId], [CompanyId], [RatingDate]);
+CREATE NONCLUSTERED INDEX [IX_LenderRating_SourceDocumentId] ON [fin].[LenderRating] ([TenantId], [SourceDocumentId]);
+CREATE NONCLUSTERED INDEX [IX_LenderRating_VerifiedBy] ON [fin].[LenderRating] ([TenantId], [VerifiedBy]);
+CREATE NONCLUSTERED INDEX [IX_LenderRating_ConflictId] ON [fin].[LenderRating] ([TenantId], [ConflictId]);
 CREATE UNIQUE NONCLUSTERED INDEX [UQ_PresentationVersion_ResultStatementId] ON [fin].[PresentationVersion] ([TenantId], [ResultStatementId]) WHERE ResultStatementId IS NOT NULL;
 CREATE NONCLUSTERED INDEX [IX_PresentationVersion_SourceStatementId_Status] ON [fin].[PresentationVersion] ([TenantId], [SourceStatementId], [Status]);
 CREATE NONCLUSTERED INDEX [IX_PresentationVersion_PreparedBy] ON [fin].[PresentationVersion] ([TenantId], [PreparedBy]);

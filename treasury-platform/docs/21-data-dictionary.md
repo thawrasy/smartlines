@@ -2,7 +2,7 @@
 
 > مُولَّد آليًا من نموذج البيانات بـ `tools/dbgen` — لا يُعدَّل يدويًا. الأعمدة المشتركة التي تضيفها اصطلاحات التوليد (TenantId، المعرّف، التدقيق) تظهر في كل جدول.
 
-**عدد الجداول: 247**
+**عدد الجداول: 248**
 
 | الوحدة | عدد الجداول |
 |---|---|
@@ -22,7 +22,7 @@
 | CMP | 2 |
 | COL | 7 |
 | OBL | 9 |
-| FIN | 52 |
+| FIN | 53 |
 | REQ | 8 |
 | WFL | 11 |
 | NTF | 7 |
@@ -5329,6 +5329,39 @@
 **المفاتيح:** PK(CreditAssessmentGuarantorId) · UQ(TenantId, AssessmentId, PartyId)
 
 **قيود:** `NetWorth >= 0 AND LiquidAssets >= 0 AND GuaranteesGiven >= 0 AND GuaranteedAmount > 0` · `LiquidAssets <= NetWorth`
+
+### `fin.LenderRating` — A rating of the company that a lender communicated to it: the lender's own grade and its equivalent on the 21-grade scale (given by the lender or mapped by the treasury), with what the lender said; compared with the company's assessment of that date (docs/36 F6, ADR 0026)
+
+*مملوك للمشترك · بمصدر*
+
+| العمود | النوع | NULL | الافتراضي | المرجع | ملاحظة |
+|---|---|---|---|---|---|
+| TenantId | INT | لا | | plat.Tenant | عزل المشترك |
+| **LenderRatingId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
+| CompanyId | BIGINT | لا |  | org.Company |  |
+| LenderInstitutionId | BIGINT | لا |  | ins.Institution |  |
+| RatingDate | DATE | لا |  |  |  |
+| LenderGradeLabel | NVARCHAR(40) | نعم |  |  | درجة البنك بتسميته الداخلية إن كانت له |
+| GradeId | INT | لا |  | fin.RatingGrade | مقابلها على سلّم الإحدى والعشرين درجة |
+| MappingKind | VARCHAR(18) | لا |  |  | enum: GIVEN_BY_LENDER, MAPPED_BY_TREASURY |
+| LenderReasons | NVARCHAR(2000) | نعم |  |  | ما ذكره البنك من أسباب |
+| SourceDocumentId | BIGINT | نعم |  | doc.Document |  |
+| SourcePage | VARCHAR(40) | نعم |  |  |  |
+| ReadFromScan | BIT | لا | 0 |  |  |
+| OriginalText | NVARCHAR(2000) | نعم |  |  | 🔒 confidential |
+| NoSourceReason | NVARCHAR(300) | نعم |  |  |  |
+| Confidence | VARCHAR(26) | لا | ENTERED_NO_DOCUMENT |  | enum: CONFIRMED_AGAINST_ORIGINAL, READ_FROM_SCAN_UNVERIFIED, ENTERED_NO_DOCUMENT |
+| VerifiedBy | BIGINT | نعم |  | sec.AppUser |  |
+| VerifiedOn | DATETIME2(3) | نعم |  |  |  |
+| ConflictId | BIGINT | نعم |  | fac.ValueConflict |  |
+| CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
+| CreatedBy | BIGINT | نعم |  |  |  |
+| UpdatedAt | DATETIME2(3) | نعم |  |  |  |
+| UpdatedBy | BIGINT | نعم |  |  |  |
+
+**المفاتيح:** PK(LenderRatingId) · UQ(TenantId, CompanyId, LenderInstitutionId, RatingDate)
+
+**قيود:** `MappingKind = 'GIVEN_BY_LENDER' OR LenderGradeLabel IS NOT NULL` · `SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')` · `Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)` · `OriginalText IS NULL OR (OriginalText COLLATE Arabic_100_BIN2 NOT LIKE '%[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]%' AND OriginalText COLLATE Arabic_100_BIN2 NOT LIKE '%[A-Za-z][A-Za-z][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9]%')` · `SourceDocumentId IS NOT NULL OR (NoSourceReason IS NOT NULL AND LEN(LTRIM(RTRIM(NoSourceReason))) > 0)`
 
 ### `fin.PresentationVersion` — An alternative presentation of a company's statement before its final approval: the remedies the company chose, applied in order to the statement and kept balanced, written as a new draft statement with a trial assessment to compare; chosen by someone other than its preparer, and only when every step rests on a document dated by the period end (docs/36 F2, ADR 0023)
 

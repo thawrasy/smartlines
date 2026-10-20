@@ -18,6 +18,9 @@
      fin.v_CreditEarlyWarnings      today, for the latest computed assessment of an actual statement of each company
                                     (a budget looks ahead and does not raise warnings, ADR 0025): every lender date
                                     within the lead time whose readiness is not GREEN.
+   Two views compare the ratings a lender communicated with the assessment (ADR 0026, FR-FIN-039, BR-FIN-040):
+     fin.v_LenderRatingComparison   each lender rating beside the assessment of its date, with the gap in notches;
+     fin.v_LenderRatingGapDrivers   where they part: the metrics on the side of the gap, the adjustments and ceilings.
    Two more views compare a budget statement with the actual ones (ADR 0025, FR-FIN-038, BR-FIN-039):
      fin.v_BudgetComparison         a budget's trial assessment beside the latest assessment of an earlier actual
                                     statement of its company, with the notches the plan gains or loses;
@@ -25,9 +28,11 @@
    Readiness of a date (BR-FIN-038):
      RED   the assessment is not rated, its liquidity is SGL-4 or its grade B3 or worse; or, for a covenant test, the
            last test was a breach or its headroom is below zero; or, for a renewal, the lender has notified a stop,
-           a reduction or no renewal of the facility (ADR 0021);
+           a reduction or no renewal of the facility (ADR 0021), or the lender's latest rating of the company is B3
+           or worse (ADR 0026);
      AMBER its liquidity is SGL-3, its outlook negative, a critical risk is open or a disclosure is missing; or, for a
-           covenant test, the last headroom is below the covenant's early warning (10% when not set);
+           covenant test, the last headroom is below the covenant's early warning (10% when not set); or, for a
+           renewal, the lender's latest rating is two notches or more below the assessment's grade (ADR 0026);
      GREEN otherwise. */
 SET NOCOUNT ON;
 SET ANSI_NULLS ON; SET QUOTED_IDENTIFIER ON; SET ANSI_PADDING ON; SET ANSI_WARNINGS ON; SET ARITHABORT ON; SET CONCAT_NULL_YIELDS_NULL ON; SET NUMERIC_ROUNDABORT OFF;
@@ -51,16 +56,20 @@ CREATE OR ALTER FUNCTION fin.fn_CreditReadinessEvents (@AsOf DATE)
 RETURNS TABLE
 AS RETURN
 WITH e AS (
-    -- a facility that expires: its renewal, with what its lender notified
+    -- a facility that expires: its renewal, with what its lender notified and the latest rating it communicated
     SELECT b.*, 'RENEWAL' AS EventKind, f.ExpiryDate AS EventDate, f.FacilityId, CAST(f.FacilityId AS BIGINT) AS RefId, fa.FacilityNo AS Reference,
-           f.LimitAction, CAST(NULL AS VARCHAR(30)) AS LastResult, CAST(NULL AS DECIMAL(19,6)) AS LastHeadroomPct, CAST(NULL AS DECIMAL(19,6)) AS EarlyWarningPct
+           f.LimitAction, CAST(NULL AS VARCHAR(30)) AS LastResult, CAST(NULL AS DECIMAL(19,6)) AS LastHeadroomPct, CAST(NULL AS DECIMAL(19,6)) AS EarlyWarningPct,
+           lr.Code AS LenderGrade, CAST(lr.NotchNo AS INT) AS LenderNotch
     FROM fin.fn_CreditReadinessBase(@AsOf) AS b
     JOIN fin.CreditAssessmentFacility AS f ON f.TenantId = b.TenantId AND f.AssessmentId = b.AssessmentId
     JOIN fac.Facility AS fa ON fa.TenantId = f.TenantId AND fa.FacilityId = f.FacilityId
+    OUTER APPLY (SELECT TOP (1) g.Code, g.NotchNo FROM fin.LenderRating AS r JOIN fin.RatingGrade AS g ON g.RatingGradeId = r.GradeId
+                 WHERE r.TenantId = b.TenantId AND r.CompanyId = b.CompanyId AND r.LenderInstitutionId = f.LenderInstitutionId AND r.RatingDate <= b.FromDate
+                 ORDER BY r.RatingDate DESC) AS lr
     WHERE f.ExpiryDate BETWEEN b.FromDate AND b.ToDate
     UNION ALL
     -- a scheduled covenant test of the company, with the last result and headroom of its covenant
-    SELECT b.*, 'COVENANT_TEST', t.DueDate, o.FacilityId, t.CovenantTestId, o.TitleAr, NULL, lt.Result, lt.HeadroomPct, ISNULL(c.EarlyWarningPct, 10)
+    SELECT b.*, 'COVENANT_TEST', t.DueDate, o.FacilityId, t.CovenantTestId, o.TitleAr, NULL, lt.Result, lt.HeadroomPct, ISNULL(c.EarlyWarningPct, 10), NULL, NULL
     FROM fin.fn_CreditReadinessBase(@AsOf) AS b
     JOIN obl.Covenant AS c ON c.TenantId = b.TenantId AND c.TestedCompanyId = b.CompanyId
     JOIN obl.Obligation AS o ON o.TenantId = c.TenantId AND o.ObligationId = c.ObligationId
@@ -71,7 +80,7 @@ WITH e AS (
     WHERE t.DueDate BETWEEN b.FromDate AND b.ToDate
     UNION ALL
     -- a scheduled report to a lender on a facility of the company (the audited statements, a valuation...)
-    SELECT b.*, 'REPORTING', ri.DueDate, o.FacilityId, ri.ReportingInstanceId, o.TitleAr, NULL, NULL, NULL, NULL
+    SELECT b.*, 'REPORTING', ri.DueDate, o.FacilityId, ri.ReportingInstanceId, o.TitleAr, NULL, NULL, NULL, NULL, NULL, NULL
     FROM fin.fn_CreditReadinessBase(@AsOf) AS b
     JOIN fac.Facility AS fa ON fa.TenantId = b.TenantId AND fa.BorrowerCompanyId = b.CompanyId
     JOIN obl.Obligation AS o ON o.TenantId = fa.TenantId AND o.FacilityId = fa.FacilityId
@@ -80,11 +89,13 @@ WITH e AS (
     WHERE ri.DueDate BETWEEN b.FromDate AND b.ToDate)
 SELECT e.TenantId, e.AssessmentId, e.CompanyId, e.IsTrial, e.FinalGrade, e.LiquidityLabel, e.Outlook, e.LeadMonths, e.EventKind, e.EventDate,
        DATEDIFF(DAY, e.FromDate, e.EventDate) AS DaysLeft, e.FacilityId, e.RefId, e.Reference, e.LimitAction, e.LastResult, e.LastHeadroomPct,
+       e.LenderGrade,
        CASE WHEN ISNULL(e.ResultState, '') <> 'RATED' OR e.LiquidityLabel = 'SGL-4' OR e.FinalNotch >= 16
                  OR (e.EventKind = 'COVENANT_TEST' AND (e.LastResult = 'BREACH' OR e.LastHeadroomPct < 0))
-                 OR (e.EventKind = 'RENEWAL' AND e.LimitAction IN ('UNDRAWN_STOPPED', 'LIMIT_REDUCED', 'NOT_RENEWED')) THEN 'RED'
+                 OR (e.EventKind = 'RENEWAL' AND (e.LimitAction IN ('UNDRAWN_STOPPED', 'LIMIT_REDUCED', 'NOT_RENEWED') OR e.LenderNotch >= 16)) THEN 'RED'
             WHEN e.LiquidityLabel = 'SGL-3' OR e.Outlook = 'NEGATIVE' OR e.CriticalRisks > 0 OR e.DataRequests > 0
-                 OR (e.EventKind = 'COVENANT_TEST' AND e.LastHeadroomPct < e.EarlyWarningPct) THEN 'AMBER'
+                 OR (e.EventKind = 'COVENANT_TEST' AND e.LastHeadroomPct < e.EarlyWarningPct)
+                 OR (e.EventKind = 'RENEWAL' AND e.LenderNotch - e.FinalNotch >= 2) THEN 'AMBER'
             ELSE 'GREEN' END AS Readiness
 FROM e;
 GO
@@ -190,6 +201,61 @@ LEFT JOIN fin.RatingGrade AS ag ON ag.RatingGradeId = af.GradeId;
 GO
 GRANT SELECT ON fin.v_BudgetComparison TO [tp_app];
 GRANT SELECT ON fin.v_BudgetFactorComparison TO [tp_app];
+GO
+/* Each rating a lender communicated beside the company's assessment of that date (ADR 0026): the latest computed
+   assessment of an actual statement on or before the rating date (else the earliest after it), and the gap in notches
+   (positive: the lender is more severe than the assessment). */
+CREATE OR ALTER VIEW fin.v_LenderRatingComparison
+AS
+SELECT r.TenantId, r.LenderRatingId, r.CompanyId, r.LenderInstitutionId, r.RatingDate, r.LenderGradeLabel, lg.Code AS LenderGrade, r.MappingKind,
+       r.LenderReasons, a.CreditAssessmentId AS AssessmentId, a.AssessmentDate, a.Grade AS AssessmentGrade, a.FacilityGrade,
+       CAST(lg.NotchNo AS INT) - CAST(a.NotchNo AS INT) AS GapNotches,
+       CASE WHEN a.NotchNo IS NULL THEN 'NO_ASSESSMENT' WHEN lg.NotchNo > a.NotchNo THEN 'LENDER_MORE_SEVERE'
+            WHEN lg.NotchNo < a.NotchNo THEN 'LENDER_MORE_FAVOURABLE' ELSE 'SAME' END AS Direction
+FROM fin.LenderRating AS r
+JOIN fin.RatingGrade AS lg ON lg.RatingGradeId = r.GradeId
+OUTER APPLY (SELECT TOP (1) x.CreditAssessmentId, x.AssessmentDate, g.Code AS Grade, g.NotchNo, fg.Code AS FacilityGrade
+             FROM fin.CreditAssessment AS x
+             JOIN fin.FinancialStatement AS s ON s.TenantId = x.TenantId AND s.FinancialStatementId = x.StatementId AND s.Nature = 'ACTUAL'
+             JOIN fin.RatingGrade AS g ON g.RatingGradeId = x.FinalGradeId
+             LEFT JOIN fin.RatingGrade AS fg ON fg.RatingGradeId = x.FacilityGradeId
+             WHERE x.TenantId = r.TenantId AND x.CompanyId = r.CompanyId AND x.ComputedAt IS NOT NULL AND x.Status IN ('DRAFT', 'SUBMITTED', 'APPROVED')
+             ORDER BY CASE WHEN x.AssessmentDate <= r.RatingDate THEN 0 ELSE 1 END,
+                      CASE WHEN x.AssessmentDate <= r.RatingDate THEN DATEDIFF(DAY, x.AssessmentDate, r.RatingDate) ELSE DATEDIFF(DAY, r.RatingDate, x.AssessmentDate) END,
+                      CASE x.Status WHEN 'APPROVED' THEN 0 WHEN 'SUBMITTED' THEN 1 ELSE 2 END, x.ComputedAt DESC) AS a;
+GO
+/* Where the assessment and the lender part (ADR 0026): when the lender is more favourable, the metrics the assessment
+   grades worse than the lender's grade; when it is more severe, the metrics the assessment grades better; each with
+   its weight and how far it is from the lender's grade; then every adjustment and ceiling the assessment applied,
+   which a lender may weigh otherwise. */
+CREATE OR ALTER VIEW fin.v_LenderRatingGapDrivers
+AS
+SELECT c.TenantId, c.LenderRatingId, c.AssessmentId, 'METRIC' AS DriverKind, f.FactorCode, m.Code AS Code, m.NameAr, m.NameEn, g.Code AS AssessmentGrade,
+       f.Weight, CAST(g.NotchNo AS INT) - CAST(lg.NotchNo AS INT) AS NotchesFromLender,
+       f.Weight * ABS(CAST(g.NotchNo AS INT) - CAST(lg.NotchNo AS INT)) AS Pull
+FROM fin.v_LenderRatingComparison AS c
+JOIN fin.LenderRating AS r ON r.TenantId = c.TenantId AND r.LenderRatingId = c.LenderRatingId
+JOIN fin.RatingGrade AS lg ON lg.RatingGradeId = r.GradeId
+JOIN fin.CreditAssessmentFactor AS f ON f.TenantId = c.TenantId AND f.AssessmentId = c.AssessmentId
+JOIN fin.CreditMetric AS m ON m.CreditMetricId = f.MetricId
+JOIN fin.RatingGrade AS g ON g.RatingGradeId = f.GradeId
+WHERE (c.Direction = 'LENDER_MORE_FAVOURABLE' AND g.NotchNo > lg.NotchNo) OR (c.Direction = 'LENDER_MORE_SEVERE' AND g.NotchNo < lg.NotchNo)
+UNION ALL
+SELECT c.TenantId, c.LenderRatingId, c.AssessmentId, 'ADJUSTMENT', NULL, x.RuleCode, x.TextAr, x.TextEn, NULL, NULL, x.Notches, NULL
+FROM fin.v_LenderRatingComparison AS c
+JOIN fin.CreditAssessmentFinding AS x ON x.TenantId = c.TenantId AND x.AssessmentId = c.AssessmentId AND x.Kind = 'ADJUSTMENT'
+WHERE c.Direction IN ('LENDER_MORE_FAVOURABLE', 'LENDER_MORE_SEVERE')
+UNION ALL
+SELECT c.TenantId, c.LenderRatingId, c.AssessmentId, 'CEILING', NULL, 'CAP', N'سقف طبّقه التقييم على الدرجة', N'A ceiling the assessment applied to the grade',
+       cg.Code, NULL, NULL, NULL
+FROM fin.v_LenderRatingComparison AS c
+JOIN fin.CreditAssessment AS a ON a.TenantId = c.TenantId AND a.CreditAssessmentId = c.AssessmentId
+JOIN fin.RatingGrade AS cg ON cg.RatingGradeId = a.CapGradeId
+WHERE c.Direction IN ('LENDER_MORE_FAVOURABLE', 'LENDER_MORE_SEVERE');
+GO
+GRANT SELECT ON fin.v_LenderRatingComparison TO [tp_app];
+GRANT SELECT ON fin.v_LenderRatingGapDrivers TO [tp_app];
+GO
 GRANT SELECT ON fin.v_CreditReadinessEvents TO [tp_app];
 GRANT SELECT ON fin.v_CreditReadinessRequests TO [tp_app];
 GRANT SELECT ON fin.v_CreditReadinessActions TO [tp_app];

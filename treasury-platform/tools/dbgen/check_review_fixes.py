@@ -136,7 +136,7 @@ checks['DR-28 every revisioned table has a stable node identity, one open row pe
     and fk_has(t, 'SupersedesId', 'InheritedRootId') for sch, t in rev_tables)
 checks['DR-28 revision integrity at approval (044)'] = 'TR_Facility_RevisionIntegrity' in entry and 'TR_FacilityRevision_ApprovedFinal' in entry
 redacted = re.findall(r"CHECK \((\w+) IS NULL OR \(\1 COLLATE Arabic_100_BIN2 NOT LIKE '%\[0-9\]", tb)
-checks['DR-31 agreement text refuses an unmasked IBAN or account number (15 columns)'] = sorted(set(redacted)) == ['CandidateAOriginalText', 'CandidateBOriginalText', 'ClauseText', 'OriginalText'] and len(redacted) == 15
+checks['DR-31 agreement text refuses an unmasked IBAN or account number (16 columns)'] = sorted(set(redacted)) == ['CandidateAOriginalText', 'CandidateBOriginalText', 'ClauseText', 'OriginalText'] and len(redacted) == 16
 checks['DR-36 collateral versions: root, one current approved and one draft, release document, link to the root'] = (
     fk_has('Collateral', 'SupersedesId', 'InheritedRootId') and 'UQ_Collateral_RootId]' in ix and 'UQ_Collateral_RootId_Status]' in ix
     and has_check('col', 'Collateral', 'ReleaseDocumentId IS NOT NULL') and "'SUPERSEDED'" in block('col', 'Collateral')

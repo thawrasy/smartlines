@@ -1265,7 +1265,46 @@ IF @got = '1:50064 2:547 3:0=Ba2 Ba2 0 noted 4:0=Ba2 Ba3 -1 BALANCE_SHEET_QUALIT
     PRINT 'PASS CA21: a budget is assessed by a trial only and stays a draft, compared with the actual year metric by metric, and raises no early warning';
 ELSE PRINT CONCAT('FAIL CA21: ', @got, ' (expected 1:50064 2:547 3:0=Ba2 Ba2 0 noted 4:0=Ba2 Ba3 -1 BALANCE_SHEET_QUALITY 5:0=events 1 warnings 0)');
 GO
-DROP PROCEDURE #BudgetCase, #ReadyCase, #VersionCase, #TrialCase, #LenderCase, #CountryCase, #HashCase, #PlatformCase, #CPlatform, #CardCase, #CovCase, #CCov, #LifeCase, #SupportCase, #HoldAssessment, #AdjustCase, #DataCase,
+/* CA22 (FR-FIN-039, BR-FIN-040, ADR 0026): the ratings a lender communicated to IND beside its official assessment of
+   2026-04-30 (Ba2). (1) Bank 1 rates IND Ba1 on 2026-05-15: one notch more favourable, the metrics the assessment
+   grades worse than Ba1 listed with the one that pulls most; (2) it rates IND B1 on its own scale (R6), mapped by the
+   treasury: two notches more severe, the metrics graded better than B1 listed; (3) a rating mapped by the treasury
+   keeps the lender's own label (547 without it); (4) the lender's latest rating, B3, shows on the renewal of its
+   facility in the readiness file; (5) a rating at the assessment's grade is the same and lists no driver. */
+CREATE PROCEDURE #LenderRatingCase @Case INT, @Out NVARCHAR(1000) OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @s BIGINT, @a BIGINT, @r BIGINT, @t INT = (SELECT v FROM #C WHERE k = 't'), @ind BIGINT = (SELECT v FROM #C WHERE k = 'ind');
+    ALTER TABLE fin.LenderRating NOCHECK CONSTRAINT FK_LenderRating_LenderInstitutionId;
+    EXEC #CStmt @ind, '2025-12-31';
+    SELECT @s = v FROM #C WHERE k = 's';
+    EXEC #CAssess @s;
+    SELECT @a = v FROM #C WHERE k = 'a';
+    IF @Case = 4 EXEC #CPlatform @Expiry = '2026-09-30';
+    EXEC fin.usp_ComputeCreditAssessment @a;
+    INSERT fin.LenderRating (TenantId, CompanyId, LenderInstitutionId, RatingDate, LenderGradeLabel, GradeId, MappingKind, LenderReasons, NoSourceReason)
+    SELECT @t, @ind, 1, CASE @Case WHEN 4 THEN '2026-04-01' ELSE '2026-05-15' END,
+           CASE @Case WHEN 2 THEN N'R6' ELSE NULL END,
+           (SELECT RatingGradeId FROM fin.RatingGrade WHERE Code = CASE @Case WHEN 1 THEN 'Ba1' WHEN 2 THEN 'B1' WHEN 3 THEN 'B1' WHEN 4 THEN 'B3' ELSE 'Ba2' END),
+           CASE WHEN @Case IN (2, 3) THEN 'MAPPED_BY_TREASURY' ELSE 'GIVEN_BY_LENDER' END, N'خطاب البنك بنتيجة المراجعة السنوية', N'test fixture';
+    SET @r = SCOPE_IDENTITY();
+    IF @Case IN (1, 2, 5)
+        SELECT @Out = CONCAT(c.LenderGrade, ' ', c.AssessmentGrade, ' ', c.GapNotches, ' ', c.Direction, ' ',
+                             (SELECT COUNT(*) FROM fin.v_LenderRatingGapDrivers WHERE LenderRatingId = @r AND DriverKind = 'METRIC'), ' ',
+                             ISNULL((SELECT TOP (1) Code FROM fin.v_LenderRatingGapDrivers WHERE LenderRatingId = @r AND DriverKind = 'METRIC' ORDER BY Pull DESC, Code), '-'))
+        FROM fin.v_LenderRatingComparison AS c WHERE c.LenderRatingId = @r;
+    IF @Case = 4
+        SET @Out = (SELECT STRING_AGG(CONCAT(EventKind, ':', LenderGrade, ':', Readiness), ',') FROM fin.v_CreditReadinessEvents WHERE AssessmentId = @a);
+END;
+GO
+DECLARE @got NVARCHAR(2000);
+EXEC #CCases '#LenderRatingCase', 1, 5, @got OUTPUT;
+IF @got = '1:0=Ba1 Ba2 -1 LENDER_MORE_FAVOURABLE 2 REVENUE_SIZE 2:0=B1 Ba2 2 LENDER_MORE_SEVERE 15 DEBT_TO_EBITDA 3:547 4:0=RENEWAL:B3:RED 5:0=Ba2 Ba2 0 SAME 0 -'
+    PRINT 'PASS CA22: a rating a lender communicated is compared with the assessment of its date, where they part is listed, and it reaches the readiness of the lender''s renewals';
+ELSE PRINT CONCAT('FAIL CA22: ', @got, ' (expected 1:0=Ba1 Ba2 -1 LENDER_MORE_FAVOURABLE 2 REVENUE_SIZE 2:0=B1 Ba2 2 LENDER_MORE_SEVERE 15 DEBT_TO_EBITDA 3:547 4:0=RENEWAL:B3:RED 5:0=Ba2 Ba2 0 SAME 0 -)');
+GO
+DROP PROCEDURE #LenderRatingCase, #BudgetCase, #ReadyCase, #VersionCase, #TrialCase, #LenderCase, #CountryCase, #HashCase, #PlatformCase, #CPlatform, #CardCase, #CovCase, #CCov, #LifeCase, #SupportCase, #HoldAssessment, #AdjustCase, #DataCase,
                #CoverageCase, #CHead, #CGrade, #CCases, #CAssess, #Crd, #CStmt, #CBase, #CBind;
 DROP TABLE #C;
 DROP USER [tp_test_crdapp];

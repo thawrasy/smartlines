@@ -1,5 +1,8 @@
-%% م5 · البيانات المالية والأرصدة (10/13) — Financial statements & balances
+%% م5 · البيانات المالية والأرصدة (10/14) — Financial statements & balances
 erDiagram
+  fin_ProductCategory["fin.ProductCategory"] {
+    int ProductCategoryId PK
+  }
   fin_RatingGrade["fin.RatingGrade"] {
     int RatingGradeId PK
   }
@@ -13,8 +16,4 @@ erDiagram
   }
   fin_RiskAnchor["fin.RiskAnchor"] {
     int RiskAnchorId PK
-  }
-  fin_Scorecard["fin.Scorecard"] {
-    int ScorecardId PK
-    int CurrencyId FK
   }

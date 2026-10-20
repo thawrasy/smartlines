@@ -1,4 +1,4 @@
-%% م5 · البيانات المالية والأرصدة (7/13) — Financial statements & balances
+%% م5 · البيانات المالية والأرصدة (7/14) — Financial statements & balances
 erDiagram
   fin_FinancialStatement["fin.FinancialStatement"] {
     bigint FinancialStatementId PK
@@ -17,6 +17,9 @@ erDiagram
     int IndustryId FK
     int ShockDriverId FK
   }
-  fin_LineCatalogItem["fin.LineCatalogItem"] {
-    int LineCatalogItemId PK
+  fin_LenderRating["fin.LenderRating"] {
+    bigint LenderRatingId PK
+    bigint CompanyId FK
+    bigint LenderInstitutionId FK
+    int GradeId FK
   }

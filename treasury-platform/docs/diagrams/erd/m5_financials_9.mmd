@@ -1,5 +1,10 @@
-%% م5 · البيانات المالية والأرصدة (9/13) — Financial statements & balances
+%% م5 · البيانات المالية والأرصدة (9/14) — Financial statements & balances
 erDiagram
+  fin_MacroScenarioIntensity["fin.MacroScenarioIntensity"] {
+    int MacroScenarioIntensityId PK
+    int MacroScenarioId FK
+    int ShockDriverId FK
+  }
   fin_MeasureFormula["fin.MeasureFormula"] {
     bigint MeasureFormulaId PK
     bigint FacilityId FK
@@ -20,9 +25,6 @@ erDiagram
     bigint VersionId FK
     int RemedyId FK
     bigint DocumentId FK
-  }
-  fin_ProductCategory["fin.ProductCategory"] {
-    int ProductCategoryId PK
   }
   fin_MeasureFormula |o--o{ fin_MeasureFormula : "BaseTemplateId"
   fin_PresentationVersion ||--o{ fin_PresentationVersionStep : "VersionId"
