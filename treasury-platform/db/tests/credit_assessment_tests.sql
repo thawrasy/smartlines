@@ -1038,7 +1038,54 @@ IF @got = '1:0=Ba2 SGL-2 | -/-/- | 60.00 262.50 25.00 Caa2 2:0=Ba2 SGL-3 | UNDRA
     PRINT 'PASS CA17: the actual decision of the lender on a facility replaces the estimate of the scenarios for it: a stopped or reduced limit, a repayment due, a new margin and fees';
 ELSE PRINT CONCAT('FAIL CA17: ', @got, ' (expected 1:0=Ba2 SGL-2 | -/-/- | 60.00 262.50 25.00 Caa2 2:0=Ba2 SGL-3 | UNDRAWN_STOPPED/250/0 | 0.00 0.00 25.00 Caa2 3:0=Ba3 SGL-4 | LIMIT_REDUCED/200/0 | 0.00 0.00 25.00 Caa2 4:0=Ba2 SGL-2 | MAINTAINED/300/175 | 0.00 0.00 25.00 Caa1 5:0=Ba2 SGL-2 | -/-/- | 60.00 262.50 25.00 Caa2)');
 GO
-DROP PROCEDURE #LenderCase, #CountryCase, #HashCase, #PlatformCase, #CPlatform, #CardCase, #CovCase, #CCov, #LifeCase, #SupportCase, #HoldAssessment, #AdjustCase, #DataCase,
+/* CA18 (FR-FIN-035, BR-FIN-036, ADR 0022): the trial assessment of a statement before its final approval. (1) An
+   assessment of a draft statement is refused (50064); (2) a trial assessment of the same draft is computed, with the
+   trial noted in its summary; (3) a line of the draft changed after the computation makes the trial no longer
+   current, and computing it again makes it current with the new figures; (4) a trial assessment is not submitted
+   (50063); (5) a trial and an official assessment of the same approved statement give the same grade. */
+CREATE PROCEDURE #TrialCase @Case INT, @Out NVARCHAR(1000) OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @s BIGINT, @a BIGINT, @b BIGINT, @g1 NVARCHAR(10), @c1 BIT, @g2 NVARCHAR(10), @c2 BIT, @tr BIT, @t INT = (SELECT v FROM #C WHERE k = 't'), @ind BIGINT = (SELECT v FROM #C WHERE k = 'ind');
+    IF @Case = 5 EXEC #CStmt @ind, '2025-12-31'; ELSE EXEC #CStmt @ind, '2025-12-31', @Approve = 0;
+    SELECT @s = v FROM #C WHERE k = 's';
+    EXEC #CAssess @s;
+    SELECT @a = v FROM #C WHERE k = 'a';
+    IF @Case = 1 BEGIN EXEC fin.usp_ComputeCreditAssessment @a; RETURN; END;
+    UPDATE fin.CreditAssessment SET IsTrial = 1 WHERE CreditAssessmentId = @a;
+    EXEC fin.usp_ComputeCreditAssessment @a;
+    SELECT @g1 = CONVERT(NVARCHAR(10), FinalGrade) COLLATE Arabic_100_CI_AS_SC, @c1 = IsCurrent FROM fin.v_CreditAssessmentReport WHERE CreditAssessmentId = @a;
+    IF @Case = 2
+        SELECT @Out = CONCAT(FinalGrade, ' ', IsTrial, ' ', StatementStatus, ' ', IsCurrent, ' ', CASE WHEN SummaryAr LIKE N'تقييم تجريبي%' THEN 'noted' ELSE 'not noted' END)
+        FROM fin.v_CreditAssessmentReport WHERE CreditAssessmentId = @a;
+    IF @Case = 3
+    BEGIN
+        UPDATE ln SET EnteredAmount = EnteredAmount * 3 FROM fin.StatementLine AS ln JOIN fin.LineCatalogItem AS li ON li.TenantId = ln.TenantId AND li.LineCatalogItemId = ln.LineCatalogItemId
+        WHERE ln.TenantId = @t AND ln.StatementId = @s AND li.Code = 'CASH' COLLATE Arabic_100_CI_AS_SC;
+        SELECT @c2 = IsCurrent FROM fin.v_CreditAssessmentReport WHERE CreditAssessmentId = @a;
+        EXEC fin.usp_ComputeCreditAssessment @a;
+        SELECT @g2 = CONVERT(NVARCHAR(10), FinalGrade) COLLATE Arabic_100_CI_AS_SC, @tr = IsCurrent FROM fin.v_CreditAssessmentReport WHERE CreditAssessmentId = @a;
+        SET @Out = CONCAT(@g1, N' ', @c1, N' ', @c2, N' ', @g2, N' ', @tr);
+    END;
+    IF @Case = 4 UPDATE fin.CreditAssessment SET Status = 'SUBMITTED', PreparedOn = SYSUTCDATETIME() WHERE CreditAssessmentId = @a;
+    IF @Case = 5
+    BEGIN
+        EXEC #CAssess @s;
+        SELECT @b = v FROM #C WHERE k = 'a';
+        EXEC fin.usp_ComputeCreditAssessment @b;
+        SELECT @g2 = CONVERT(NVARCHAR(10), FinalGrade) COLLATE Arabic_100_CI_AS_SC, @tr = IsTrial FROM fin.v_CreditAssessmentReport WHERE CreditAssessmentId = @b;
+        SET @Out = CONCAT(@g1, N' ', @g2, N' ', @tr);
+    END;
+END;
+GO
+DECLARE @got NVARCHAR(2000);
+EXEC #CCases '#TrialCase', 1, 5, @got OUTPUT;
+IF @got = '1:50064 2:0=Ba2 1 DRAFT 1 noted 3:0=Ba2 1 0 Ba2 1 4:50063 5:0=Ba2 Ba2 0'
+    PRINT 'PASS CA18: a trial assessment reads a statement before its final approval, follows its changes and stays a draft; an official one needs the approved statement';
+ELSE PRINT CONCAT('FAIL CA18: ', @got, ' (expected 1:50064 2:0=Ba2 1 DRAFT 1 noted 3:0=Ba2 1 0 Ba2 1 4:50063 5:0=Ba2 Ba2 0)');
+GO
+DROP PROCEDURE #TrialCase, #LenderCase, #CountryCase, #HashCase, #PlatformCase, #CPlatform, #CardCase, #CovCase, #CCov, #LifeCase, #SupportCase, #HoldAssessment, #AdjustCase, #DataCase,
                #CoverageCase, #CHead, #CGrade, #CCases, #CAssess, #Crd, #CStmt, #CBase, #CBind;
 DROP TABLE #C;
 DROP USER [tp_test_crdapp];

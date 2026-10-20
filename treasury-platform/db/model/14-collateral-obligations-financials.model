@@ -1038,6 +1038,7 @@ table fin.CreditAssessment public  # Credit assessment of an approved statement 
   UpHeadroom        dec(9,4)            # المسافة من المجموع المرجح إلى الدرجة الأعلى
   DownHeadroom      dec(9,4)            # المسافة إلى الدرجة الأدنى
   StrengtheningRequested bool req =0    # طلب العميل خطط تقوية القوائم (docs/35 §12)
+  IsTrial           bool      req =0    # تقييم تجريبي: يقرأ قائمة مسودة أو مقدّمة قبل اعتمادها، ويُحسب ويُعاد ولا يُقدَّم (ADR 0022، BR-FIN-036)
   MarketCountryId   ->ref.Country noidx   # بلد السوق الرئيسي؛ فارغ = بلد تأسيس الشركة (ADR 0019)
   MarketRegionCode  ascii(10)           # المدينة أو المنطقة الرئيسية من fin.CountryRegion، للعقار والمقاولات خاصة
   CountryRisk       tinyint             # من هنا: يكتبها الإجراء؛ مخاطر البلد التي قرأها التقييم

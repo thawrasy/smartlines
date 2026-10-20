@@ -1430,12 +1430,13 @@ BEGIN
             @status VARCHAR(10), @wantPlans BIT, @user BIGINT = CAST(SESSION_CONTEXT(N'UserId') AS BIGINT);
     DECLARE @pt VARCHAR(10), @pe DATE, @fy INT, @basis VARCHAR(12), @assurance VARCHAR(10), @opinion VARCHAR(11), @goingConcern BIT, @cur INT,
             @sstatus VARCHAR(10), @versionReason VARCHAR(10), @supersedes BIGINT, @isHolding BIT, @industry INT, @ppt VARCHAR(10), @cardStatus VARCHAR(8),
-            @cardCur INT, @supportAge INT, @cardCode VARCHAR(40), @cardVer INT, @minCov DECIMAL(5,2), @fx FLOAT, @country INT, @region VARCHAR(10);
+            @cardCur INT, @supportAge INT, @cardCode VARCHAR(40), @cardVer INT, @minCov DECIMAL(5,2), @fx FLOAT, @country INT, @region VARCHAR(10),
+            @trial BIT;
 
     BEGIN TRANSACTION;
     SELECT @tenant = TenantId, @company = CompanyId, @stmt = StatementId, @priorIn = PriorStatementId, @card = ScorecardId,
            @asOf = AssessmentDate, @fxIn = FxRateToScorecard, @status = Status, @wantPlans = StrengtheningRequested,
-           @country = MarketCountryId, @region = MarketRegionCode
+           @country = MarketCountryId, @region = MarketRegionCode, @trial = IsTrial
     FROM fin.CreditAssessment WITH (UPDLOCK, HOLDLOCK)
     WHERE CreditAssessmentId = @AssessmentId;                       -- the row filter shows the bound tenant's only
     IF @tenant IS NULL THROW 50064, 'No credit assessment with this id for this tenant', 1;
@@ -1447,7 +1448,9 @@ BEGIN
     FROM fin.FinancialStatement AS s
     JOIN org.Company AS c ON c.TenantId = s.TenantId AND c.CompanyId = s.CompanyId
     WHERE s.TenantId = @tenant AND s.FinancialStatementId = @stmt;
-    IF @sstatus <> 'APPROVED' THROW 50064, 'An assessment reads an approved statement (BR-FIN-019)', 1;
+    -- a trial assessment reads the statement before its final approval, while it is a draft or submitted (ADR 0022)
+    IF @sstatus <> 'APPROVED' AND NOT (@trial = 1 AND @sstatus IN ('DRAFT', 'SUBMITTED'))
+        THROW 50064, 'An assessment reads an approved statement; a trial assessment also reads a draft or submitted one (BR-FIN-019, BR-FIN-036)', 1;
     SELECT @cardStatus = Status, @cardCur = CurrencyId, @supportAge = SupportMaxAgeMonths, @cardCode = Code, @cardVer = VersionNo, @minCov = MinCoveragePct
     FROM fin.Scorecard WHERE ScorecardId = @card;
     IF @cardStatus <> 'APPROVED' THROW 50064, 'An assessment uses an approved scorecard (BR-FIN-023)', 1;
@@ -1880,7 +1883,7 @@ BEGIN
             @olEn NVARCHAR(40) = (SELECT NameEn FROM fin.CreditText WHERE Domain = 'OUTLOOK_VIEW' AND Code = @outlook);
     DECLARE @cS INT = (SELECT COUNT(*) FROM @x WHERE Kind = 'STRENGTH'), @cW INT = (SELECT COUNT(*) FROM @x WHERE Kind = 'WATCH'),
             @cK INT = (SELECT COUNT(*) FROM @x WHERE Kind = 'WEAKNESS'), @cR INT = (SELECT COUNT(*) FROM @x WHERE Kind = 'CRITICAL_RISK');
-    DECLARE @sumAr NVARCHAR(1000) = CASE
+    DECLARE @sumAr NVARCHAR(1000) = CONCAT(CASE WHEN @trial = 1 THEN N'تقييم تجريبي على قائمة لم تُعتمد نهائيًا: ' END, CASE
             WHEN @state = 'RATED' THEN
             CONCAT(N'الدرجة النهائية ', @fg, N' (مخاطر ', CASE @rb WHEN 'LOW' THEN N'منخفضة' WHEN 'MODERATE' THEN N'معتدلة' WHEN 'SUBSTANTIAL' THEN N'جوهرية'
                    WHEN 'HIGH' THEN N'مرتفعة' ELSE N'مرتفعة جدًا' END, N')، النظرة ', @ol, N'؛ المؤشرة ', @ig, N' بمجموع ', FORMAT(@agg, 'N2', 'en-US'),
@@ -1888,16 +1891,16 @@ BEGIN
                    N'؛ السيولة ', @liq, N'، واكتمال الإفصاح ', FORMAT(@comp, 'N0', 'en-US'), N'%. نقاط القوة ', @cS, N'، ونقاط المراقبة ', @cW,
                    N'، ونقاط الضعف ', @cK, N'، والمخاطر الحرجة ', @cR, N'.')
             WHEN @state = 'INDICATIVE' THEN
-            CONCAT(N'درجة مالية استرشادية ', @fing, N' بمجموع ', FORMAT(@finScore, 'N2', 'en-US'), N'، ولا درجة نهائية قبل أن يُدخل المحلل العوامل النوعية.')
-            ELSE CONCAT(N'لا درجة: المقاييس الكمية ذات الدرجة تغطي ', FORMAT(@coverage, 'N0', 'en-US'), N'% من أوزانها، والحد الأدنى ', FORMAT(@minCov, 'N0', 'en-US'), N'%.') END;
-    DECLARE @sumEn NVARCHAR(1000) = CASE
+            CONCAT(N'درجة مالية استرشادية ', @fing, N' بمجموع ', FORMAT(@finScore, 'N2', 'en-US'), N'، ولا درجة نهائية قبل أن يُدخل معدّ التقييم العوامل النوعية.')
+            ELSE CONCAT(N'لا درجة: المقاييس الكمية ذات الدرجة تغطي ', FORMAT(@coverage, 'N0', 'en-US'), N'% من أوزانها، والحد الأدنى ', FORMAT(@minCov, 'N0', 'en-US'), N'%.') END);
+    DECLARE @sumEn NVARCHAR(1000) = CONCAT(CASE WHEN @trial = 1 THEN N'Trial assessment of a statement not yet finally approved: ' END, CASE
             WHEN @state = 'RATED' THEN
             CONCAT(N'Final grade ', @fg, N' (', LOWER(REPLACE(@rb, '_', ' ')), N' risk), outlook ', LOWER(@olEn), N'; indicated ', @ig, N' at ', FORMAT(@agg, 'N2', 'en-US'),
                    N', standalone ', @sg, N', financial only ', @fing, CASE WHEN @facg IS NOT NULL THEN CONCAT(N', facility grade ', @facg) END, N'; liquidity ', @liq,
                    N', disclosure ', FORMAT(@comp, 'N0', 'en-US'), N'%. ', @cS, N' strengths, ', @cW, N' points to watch, ', @cK, N' weaknesses, ', @cR, N' critical risks.')
             WHEN @state = 'INDICATIVE' THEN
-            CONCAT(N'Indicative financial grade ', @fing, N' at ', FORMAT(@finScore, 'N2', 'en-US'), N'; no final grade until the analyst grades the qualitative factors.')
-            ELSE CONCAT(N'Not rated: the scored quantitative metrics cover ', FORMAT(@coverage, 'N0', 'en-US'), N'% of their weights, below the minimum of ', FORMAT(@minCov, 'N0', 'en-US'), N'%.') END;
+            CONCAT(N'Indicative financial grade ', @fing, N' at ', FORMAT(@finScore, 'N2', 'en-US'), N'; no final grade until the preparer grades the qualitative factors.')
+            ELSE CONCAT(N'Not rated: the scored quantitative metrics cover ', FORMAT(@coverage, 'N0', 'en-US'), N'% of their weights, below the minimum of ', FORMAT(@minCov, 'N0', 'en-US'), N'%.') END);
 
     DECLARE @snapshot NVARCHAR(MAX) = (
         SELECT @cardCode AS scorecard, @cardVer AS scorecardVersion, @stmt AS statementId, @prior AS priorStatementId, @pt AS periodType, @fx AS fxRate,
@@ -2011,7 +2014,7 @@ SELECT a.TenantId, a.CreditAssessmentId, a.PublicId, a.CompanyId, co.NameAr AS C
        a.StatementId, s.Basis, s.PeriodType, s.PeriodStart, s.PeriodEnd, s.FiscalYear, s.Assurance, s.AuditorName, s.AuditOpinion,
        s.VersionNo AS StatementVersionNo, s.Status AS StatementStatus, a.PriorStatementId, a.UsedPriorStatementId,
        sc.Code AS ScorecardCode, sc.VersionNo AS ScorecardVersionNo, sc.NameAr AS ScorecardNameAr, sc.NameEn AS ScorecardNameEn,
-       a.AssessmentDate, a.FxRateToScorecard, a.Status, a.ResultState, a.CoveragePct, a.FinancialScore, fng.Code AS FinancialGrade, a.WeightedScore,
+       a.AssessmentDate, a.FxRateToScorecard, a.Status, a.IsTrial, a.ResultState, a.CoveragePct, a.FinancialScore, fng.Code AS FinancialGrade, a.WeightedScore,
        ig.Code AS IndicatedGrade, a.AdjustmentNotches, cg.Code AS CapGrade, sg.Code AS StandaloneGrade, a.SupportNotches, a.OverrideNotches,
        fg.Code AS FinalGrade, fg.NotchNo AS FinalNotch, fg.Category AS FinalCategory, fg.RiskBand, fg.IsInvestmentGrade, fg.FitchEquivalent AS FitchGrade,
        fg.DescriptionAr AS FinalGradeDescriptionAr, fg.DescriptionEn AS FinalGradeDescriptionEn,

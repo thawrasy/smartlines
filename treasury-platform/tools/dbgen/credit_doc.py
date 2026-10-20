@@ -246,7 +246,7 @@ def doc_tables(M):
     rows = []
     for x in r['rows']:
         md = metric[x['m']]
-        val = 'تقدير المحلل' if x['qual'] else ('لا يُحسب' if x['st'] == 'NOT_COMPUTABLE' else ('طرف الخط' if x['v'] is None else num(round(x['v'], 2))))
+        val = 'تقدير معدّ التقييم' if x['qual'] else ('لا يُحسب' if x['st'] == 'NOT_COMPUTABLE' else ('طرف الخط' if x['v'] is None else num(round(x['v'], 2))))
         rows.append([md['ar'], val, '—' if x['score'] is None else f"{x['score']:.4f}", '—' if x['score'] is None else cr.GR[cr.notch_of(x['score']) - 1],
                      num(x['w']), f"{x['eff']:.2f}", '—' if x['score'] is None else f"{x['score'] * x['eff'] / tot:.4f}"])
     rows.append(['**المجموع الموزون**', '', f"**{r['aggregate']:.4f}**", f"**{r['indicated']}**", '100', '100', ''])

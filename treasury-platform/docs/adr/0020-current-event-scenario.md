@@ -81,3 +81,7 @@ models a bank that keeps drawn lines but freezes the undrawn limits.
 - Tests: CA12 counts the scenario and its eight country rows, CA14 reads seven scenarios; 140 engine cases (step 19d).
 - The 51 review cases have no reviewer range in the new scenario; docs/35 section 22 shows their grade in it as
   "without a range".
+
+Note (2026-10-20): the platform serves companies, not banks (docs/31 decision 34, docs/36). The lender's stance is
+read as what the company expects of its lenders in a crisis, to build its liquidity buffer before it happens; the
+computation is unchanged.

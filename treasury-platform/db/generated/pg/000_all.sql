@@ -5231,6 +5231,8 @@ CREATE TABLE "fin"."CreditAssessment" (
   "DownHeadroom" numeric(9,4) NULL,
   "StrengtheningRequested" smallint NOT NULL DEFAULT 0,
   CHECK ("StrengtheningRequested" IS NULL OR "StrengtheningRequested" IN (0,1)),
+  "IsTrial" smallint NOT NULL DEFAULT 0,
+  CHECK ("IsTrial" IS NULL OR "IsTrial" IN (0,1)),
   "MarketCountryId" integer NULL,
   "MarketRegionCode" varchar(10) NULL,
   "CountryRisk" smallint NULL,

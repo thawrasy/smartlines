@@ -26,7 +26,8 @@
      - an assessment is written as a draft, computed while a draft, submitted only computed on what it holds now
        (the hash of its statement, comparison statement, scorecard, date, rate and inputs), and approved by someone
        other than its preparer; after the draft nothing but its status and approval changes (50063);
-     - it reads an approved statement and an approved scorecard; a rate is given when their currencies differ; a
+     - it reads an approved statement and an approved scorecard (a trial assessment also a draft or submitted
+       statement, and stays a draft, ADR 0022); a rate is given when their currencies differ; a
        comparison statement is approved, of the same company and basis, and earlier (50064);
      - the analyst's inputs change only while the assessment is a draft: a qualitative factor of its scorecard,
        within the scorecard's bound of the financial grade unless a document supports it; group support from the
@@ -44,7 +45,8 @@ GO
    date, rate, the analyst's inputs, the guarantors, the bureau report, whether strengthening plans were asked for, and
    the company's activity and product lines of the statement's year. The approved statements, the scorecard and the
    parent's approved assessment do not change, so a submission whose hash differs from the computed one was changed
-   after its computation. */
+   after its computation. A trial assessment reads a statement that may still change, so its hash also holds the
+   statement's lines and status (ADR 0022). */
 CREATE OR ALTER FUNCTION fin.fn_CreditAssessmentInputsHash (@TenantId INT, @AssessmentId BIGINT)
 RETURNS TABLE
 AS RETURN
@@ -73,9 +75,13 @@ SELECT CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', CONCAT(
             JOIN fin.FinancialStatement AS s ON s.TenantId = a.TenantId AND s.FinancialStatementId = a.StatementId
             WHERE pl.TenantId = a.TenantId AND pl.CompanyId = a.CompanyId AND pl.FiscalYear = s.FiscalYear
             ORDER BY pl.CompanyProductLineId
-            FOR JSON PATH))), 2) AS InputsHash
+            FOR JSON PATH), '|',
+           CASE WHEN a.IsTrial = 1 THEN CONCAT(st.Status, '|',
+                (SELECT ln.LineCatalogItemId, ln.EnteredAmount, ln.ComputedAmount FROM fin.StatementLine AS ln
+                 WHERE ln.TenantId = a.TenantId AND ln.StatementId = a.StatementId ORDER BY ln.LineCatalogItemId FOR JSON PATH)) END)), 2) AS InputsHash
 FROM fin.CreditAssessment AS a
 JOIN org.Company AS co ON co.TenantId = a.TenantId AND co.CompanyId = a.CompanyId
+JOIN fin.FinancialStatement AS st ON st.TenantId = a.TenantId AND st.FinancialStatementId = a.StatementId
 WHERE a.TenantId = @TenantId AND a.CreditAssessmentId = @AssessmentId;
 GO
 /* The assessment header. Built from the table's columns, so a column added later is frozen after the draft unless it
@@ -112,6 +118,9 @@ BEGIN
                                OR (d.Status = ''REJECTED'' AND i.Status = ''DRAFT'') OR (d.Status = ''APPROVED'' AND i.Status = ''SUPERSEDED'')))
                   OR (d.CreditAssessmentId IS NOT NULL AND d.Status <> ''DRAFT'' AND EXISTS (SELECT ' + @fi + N' EXCEPT SELECT ' + @fd + N')))
         THROW 50063, ''A credit assessment is written as a draft and changes only as a draft; its status moves DRAFT, SUBMITTED, APPROVED or REJECTED, SUPERSEDED (BR-FIN-024)'', 1;
+    -- A trial assessment is computed and computed again on a statement before its approval; it stays a draft.
+    IF EXISTS (SELECT 1 FROM inserted AS i WHERE i.IsTrial = 1 AND i.Status <> ''DRAFT'')
+        THROW 50063, ''A trial assessment stays a draft: it is computed on a statement before its final approval and is not submitted (BR-FIN-036)'', 1;
     -- Submitted: computed on what it holds now, on a statement and a scorecard still approved.
     IF EXISTS (SELECT 1 FROM inserted AS i
                JOIN deleted AS d ON d.CreditAssessmentId = i.CreditAssessmentId

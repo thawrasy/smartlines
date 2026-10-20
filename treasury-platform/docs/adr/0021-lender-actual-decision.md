@@ -35,3 +35,6 @@ own criteria, and asked that a lender's actual decision be entered for each faci
   a decision effective after the assessment date) and the engine case V20; 142 engine cases.
 - The decisions are not in the hash of the assessment's inputs, like the facilities themselves: a decision recorded
   after a computation is read at the next computation.
+
+Note (2026-10-20): from the company's side (docs/31 decision 34, docs/36), the decision is what a lender has notified
+the company, recorded by its treasury with the document; the computation is unchanged.

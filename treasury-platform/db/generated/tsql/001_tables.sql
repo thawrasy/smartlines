@@ -5629,6 +5629,7 @@ CREATE TABLE [fin].[CreditAssessment] (
     [UpHeadroom] DECIMAL(9,4) NULL,
     [DownHeadroom] DECIMAL(9,4) NULL,
     [StrengtheningRequested] BIT NOT NULL CONSTRAINT [DF_CreditAssessment_StrengtheningRequested] DEFAULT 0,
+    [IsTrial] BIT NOT NULL CONSTRAINT [DF_CreditAssessment_IsTrial] DEFAULT 0,
     [MarketCountryId] INT NULL,
     [MarketRegionCode] VARCHAR(10) NULL,
     [CountryRisk] TINYINT NULL,

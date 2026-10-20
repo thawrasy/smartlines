@@ -500,7 +500,7 @@ if [ "$fs_pass" -ne 11 ]; then
     exit 1
 fi
 echo "financial statements tests: $fs_pass passed"
-echo "== 19c. the credit assessment on the Moody's scale through the tables (db/tests/credit_assessment_tests.sql, 046, 047, ADR 0017 to ADR 0021)"
+echo "== 19c. the credit assessment on the Moody's scale through the tables (db/tests/credit_assessment_tests.sql, 046, 047, ADR 0017 to ADR 0022)"
 sq -i db/tests/credit_assessment_tests.sql > "$TMP/crd.out" 2>&1 || {
     cat "$TMP/crd.out"
     echo "credit assessment test run failed"
@@ -512,15 +512,16 @@ if grep -qaE "$FAIL_RE" "$TMP/crd.out"; then
     exit 1
 fi
 ca_pass=$(grep -oaE "$PASS_RE" "$TMP/crd.out" | sort -u | wc -l)
-# 17 cases: CA1 the continuum, its inverse and the item levels, CA2 the worked example through the tables equal to
+# 18 cases: CA1 the continuum, its inverse and the item levels, CA2 the worked example through the tables equal to
 # tools/dbgen/credit_reference.py, CA3 coverage, indicative grades and sub-factors, CA4 the data requested, CA5-CA6 the
 # adjustments, group support and the override, CA7 the life of an assessment and what the application cannot write,
 # CA8 the report, CA9 covenants, breaches and bank flows, CA10 the methodology fixed once approved, CA11 isolation,
 # CA12 the seed, CA13 facilities, collateral, guarantors and the bureau report, CA14 activity, products, scenarios and
 # strengthening plans, CA15 the hash of what was read, CA16 the market country and city and the detailed activity
-# (owner requests of 2026-10-18 and 2026-10-19, ADR 0019), CA17 the lender's actual decision on a facility (ADR 0021).
-if [ "$ca_pass" -ne 17 ]; then
-    echo "expected 17 PASS, found $ca_pass"
+# (owner requests of 2026-10-18 and 2026-10-19, ADR 0019), CA17 the lender's actual decision on a facility (ADR 0021), CA18 the trial assessment of a statement before
+# its approval (ADR 0022).
+if [ "$ca_pass" -ne 18 ]; then
+    echo "expected 18 PASS, found $ca_pass"
     exit 1
 fi
 echo "credit assessment tests: $ca_pass passed"
