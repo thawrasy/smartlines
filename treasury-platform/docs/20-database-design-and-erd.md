@@ -36,6 +36,7 @@
 | C-20 | التقييم التجريبي قبل اعتماد القوائم (ADR 0022): عمود `IsTrial` في `fin.CreditAssessment`؛ يقرأ قائمة مسودة أو مقدّمة، ويبقى مسودة، ويحفظ أثره بنود القائمة وحالتها (§11.5) | قرار المالك 34 (2026-10-20): النظام للشركة لا للبنك (`docs/36`) |
 | C-21 | نسخ العرض البديلة للقائمة (ADR 0023): `fin.PresentationVersion` و`fin.PresentationVersionStep`، والبرنامج 048 (البناء والاختيار والمقارنة والحراس)، وسبب الإصدار `RESTRUCTURED`؛ 247 جدولًا (§11.5) | قرار المالك 34، المرحلة ج (2026-10-20) |
 | C-22 | ملف الجاهزية قبل جهة التمويل والإنذار المبكر (ADR 0024): البرنامج 049 بدالتين وأربع واجهات (المواعيد وجاهزيتها، والطلبات، والجدول الزمني، والإنذار اليومي)، والإعداد `fin.readiness.lead_months`؛ بلا جداول جديدة | قرار المالك 34، المرحلة د (2026-10-20) |
+| C-23 | القوائم التقديرية (ADR 0025): عمود `Nature` (ACTUAL/BUDGET) في `fin.FinancialStatement` ومفتاح السلسلة به؛ الموازنة مسودة تُقيَّم تجريبيًا؛ واجهتا المقارنة في 049 | قرار المالك 34، المرحلة هـ (2026-10-20) |
 
 **مرفوض:** اقتراح تقرير Technical Evaluation بـ.NET 9، لأن قرار المشروع `.NET 10 LTS` (`01` §13) ويبقى كما هو. **مؤجَّل:** أدوات الترحيل (O-2)، ومرساة سلسلة التدقيق (O-13)، وRPO/RTO (O-14)، ومكدّس الواجهات (خارج نطاق وثيقة القاعدة). **لم يُعتمد** الادعاء بأن القيود وحدها تضمن سلامة الحجز؛ الحجز يبقى ذريًا بالقفل في طبقة التطبيق (§7.1).
 
@@ -1805,7 +1806,7 @@
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `fin.FinancialStatement` | Financial statement header; highly confidential (FR-FIN-002/005/006, BR-FIN-001..004, section 8) | FinancialStatementId | 6 | 8 | 12 | 22 |
+| `fin.FinancialStatement` | Financial statement header; highly confidential (FR-FIN-002/005/006, BR-FIN-001..004, section 8) | FinancialStatementId | 6 | 8 | 13 | 23 |
 | `fin.IndustryProfile` | The credit profile of an activity or a division: its sector family scorecard, industry risk, cyclicality, its ceiling, the extra data it must give and the products it usually sells; the expected grade range comes from the country and industry risk anchor (docs/35 section 13, ADR 0019) | IndustryProfileId | 2 | 1 | 1 | 10 |
 | `fin.IndustrySensitivity` | The sensitivity 0 (none) to 5 (extreme) of an activity to a driver of stress (docs/35 section 14) | IndustrySensitivityId | 2 | 1 | 1 | 4 |
 | `fin.LineCatalogItem` | Standard statement line item; 51 items seeded, twelve of them for the credit assessment; system items used in formulas cannot be deleted (FR-FIN-001, FR-FIN-020, CatalogBase) | LineCatalogItemId | 0 | 3 | 5 | 17 |
@@ -1816,7 +1817,7 @@
 |---|---|---|---|---|---|---|
 | `fin.FinancialStatement.CompanyId` | `org.Company` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `fin.FinancialStatement.CurrencyId` | `ref.Currency` | 1 : N | إلزامي | مرجع عام | قيد | — |
-| `fin.FinancialStatement.SupersedesId` | `fin.FinancialStatement` | 1 : N | اختياري | مشترك · مركّب | قيد | CompanyId, Basis, Assurance, PeriodType, PeriodEnd |
+| `fin.FinancialStatement.SupersedesId` | `fin.FinancialStatement` | 1 : N | اختياري | مشترك · مركّب | قيد | CompanyId, Basis, Assurance, PeriodType, PeriodEnd, Nature |
 | `fin.FinancialStatement.SourceDocumentId` | `doc.Document` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `fin.FinancialStatement.PreparedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `fin.FinancialStatement.ApprovedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |

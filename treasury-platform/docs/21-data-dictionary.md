@@ -4278,6 +4278,7 @@
 | FiscalYear | INT | لا |  |  |  |
 | Basis | VARCHAR(12) | لا |  |  | enum: STANDALONE, CONSOLIDATED |
 | Assurance | VARCHAR(10) | لا |  |  | enum: AUDITED, REVIEWED, MANAGEMENT |
+| Nature | VARCHAR(10) | لا | ACTUAL |  | BUDGET: قائمة تقديرية (موازنة أو خطة) تُقيَّم تقييمًا تجريبيًا وتبقى مسودة (ADR 0025) enum: ACTUAL, BUDGET |
 | CurrencyId | INT | لا |  | ref.Currency |  |
 | UnitScale | INT | لا | 1 |  | المدخل بوحدة 1/1000/1000000 والمخزَّن مضروب فيها (BR-FIN-002) |
 | AccountingStandard | NVARCHAR(100) | نعم |  |  |  |
@@ -4286,7 +4287,7 @@
 | GoingConcernUncertainty | BIT | لا | 0 |  | فقرة شك جوهري في الاستمرارية في تقرير المراجع (التقييم الائتماني، docs/35 §7) |
 | VersionNo | INT | لا | 1 |  |  |
 | VersionReason | VARCHAR(12) | لا | ORIGINAL |  | سبب الإصدار إلزامي (BR-FIN-004)؛ RESTRUCTURED: نسخة عرض اختارتها الشركة (ADR 0023) enum: ORIGINAL, RESTATED, CORRECTION, RESTRUCTURED |
-| SupersedesId | BIGINT | نعم |  | fin.FinancialStatement (via CompanyId,Basis,Assurance,PeriodType,PeriodEnd) | الإصدار السابق للشركة والسلسلة نفسها؛ المدققة لا تحل محل الإدارية (قرار المالك 2026-10-13، DR-34) |
+| SupersedesId | BIGINT | نعم |  | fin.FinancialStatement (via CompanyId,Basis,Assurance,PeriodType,PeriodEnd,Nature) | الإصدار السابق للشركة والسلسلة نفسها؛ المدققة لا تحل محل الإدارية (قرار المالك 2026-10-13، DR-34) |
 | Status | VARCHAR(10) | لا | DRAFT |  | enum: DRAFT, SUBMITTED, APPROVED, SUPERSEDED, REJECTED |
 | EntryMethod | VARCHAR(10) | لا |  |  | enum: MANUAL, PASTE |
 | BalanceReason | NVARCHAR(500) | نعم |  |  | سبب عدم التوازن للتقديم؛ BalanceDifference مشتق (FR-FIN-004) |
@@ -4301,9 +4302,9 @@
 | UpdatedAt | DATETIME2(3) | نعم |  |  |  |
 | UpdatedBy | BIGINT | نعم |  |  |  |
 
-**المفاتيح:** PK(FinancialStatementId) · UQ(PublicId) · UQ(TenantId, CompanyId, PeriodType, PeriodEnd, Basis, Assurance, VersionNo) · UQ(TenantId, CompanyId, Basis, Assurance, PeriodType, PeriodEnd) WHERE Status = 'APPROVED' · UQ(TenantId, SupersedesId) WHERE SupersedesId IS NOT NULL AND Status <> 'REJECTED'
+**المفاتيح:** PK(FinancialStatementId) · UQ(PublicId) · UQ(TenantId, CompanyId, PeriodType, PeriodEnd, Basis, Assurance, Nature, VersionNo) · UQ(TenantId, CompanyId, Basis, Assurance, PeriodType, PeriodEnd) WHERE Status = 'APPROVED' · UQ(TenantId, SupersedesId) WHERE SupersedesId IS NOT NULL AND Status <> 'REJECTED'
 
-**قيود:** `UnitScale IN (1,1000,1000000)` · `PeriodStart IS NULL OR PeriodEnd >= PeriodStart` · `FiscalYear BETWEEN 1900 AND 2200` · `VersionNo >= 1` · `VersionReason <> 'ORIGINAL' OR SupersedesId IS NULL` · `SupersedesId IS NULL OR (VersionNo > 1 AND VersionReason <> 'ORIGINAL' AND SupersedesId <> FinancialStatementId)` · `Status NOT IN ('SUBMITTED','APPROVED','SUPERSEDED') OR (PreparedBy IS NOT NULL AND PreparedOn IS NOT NULL)` · `Status NOT IN ('APPROVED','SUPERSEDED') OR (ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)` · `ApprovedBy IS NULL OR PreparedBy IS NULL OR ApprovedBy <> PreparedBy` · `Status = 'DRAFT' OR Assurance <> 'AUDITED' OR (AuditorName IS NOT NULL AND AuditOpinion IS NOT NULL)` · `AuditOpinion IS NULL OR Assurance = 'AUDITED'` · `GoingConcernUncertainty = 0 OR Assurance IN ('AUDITED','REVIEWED')`
+**قيود:** `UnitScale IN (1,1000,1000000)` · `PeriodStart IS NULL OR PeriodEnd >= PeriodStart` · `FiscalYear BETWEEN 1900 AND 2200` · `VersionNo >= 1` · `VersionReason <> 'ORIGINAL' OR SupersedesId IS NULL` · `SupersedesId IS NULL OR (VersionNo > 1 AND VersionReason <> 'ORIGINAL' AND SupersedesId <> FinancialStatementId)` · `Status NOT IN ('SUBMITTED','APPROVED','SUPERSEDED') OR (PreparedBy IS NOT NULL AND PreparedOn IS NOT NULL)` · `Status NOT IN ('APPROVED','SUPERSEDED') OR (ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)` · `ApprovedBy IS NULL OR PreparedBy IS NULL OR ApprovedBy <> PreparedBy` · `Status = 'DRAFT' OR Assurance <> 'AUDITED' OR (AuditorName IS NOT NULL AND AuditOpinion IS NOT NULL)` · `AuditOpinion IS NULL OR Assurance = 'AUDITED'` · `GoingConcernUncertainty = 0 OR Assurance IN ('AUDITED','REVIEWED')` · `Nature = 'ACTUAL' OR (Assurance = 'MANAGEMENT' AND Status = 'DRAFT' AND AuditOpinion IS NULL)`
 
 ### `fin.StatementLine` — Statement line in the header currency; stored value = input x UnitScale; Variance is derived; highly confidential (BR-FIN-001/002)
 

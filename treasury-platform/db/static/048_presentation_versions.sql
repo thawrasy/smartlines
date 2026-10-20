@@ -140,13 +140,13 @@ BEGIN
 
     -- the new draft of the series, with the source lines and the changed amounts
     DECLARE @new BIGINT;
-    INSERT fin.FinancialStatement (TenantId, CompanyId, PeriodType, PeriodStart, PeriodEnd, FiscalYear, Basis, Assurance, CurrencyId, UnitScale, AccountingStandard,
+    INSERT fin.FinancialStatement (TenantId, CompanyId, PeriodType, PeriodStart, PeriodEnd, FiscalYear, Basis, Assurance, Nature, CurrencyId, UnitScale, AccountingStandard,
                                    AuditorName, AuditOpinion, GoingConcernUncertainty, VersionNo, VersionReason, Status, EntryMethod, BalanceReason, PreparedBy, PreparedOn)
-    SELECT s.TenantId, s.CompanyId, s.PeriodType, s.PeriodStart, s.PeriodEnd, s.FiscalYear, s.Basis, s.Assurance, s.CurrencyId, s.UnitScale, s.AccountingStandard,
+    SELECT s.TenantId, s.CompanyId, s.PeriodType, s.PeriodStart, s.PeriodEnd, s.FiscalYear, s.Basis, s.Assurance, s.Nature, s.CurrencyId, s.UnitScale, s.AccountingStandard,
            s.AuditorName, s.AuditOpinion, s.GoingConcernUncertainty,
            (SELECT MAX(x.VersionNo) + 1 FROM fin.FinancialStatement AS x WITH (UPDLOCK, HOLDLOCK)
             WHERE x.TenantId = s.TenantId AND x.CompanyId = s.CompanyId AND x.PeriodType = s.PeriodType AND x.PeriodEnd = s.PeriodEnd AND x.Basis = s.Basis
-              AND x.Assurance = s.Assurance),
+              AND x.Assurance = s.Assurance AND x.Nature = s.Nature),
            'RESTRUCTURED', 'DRAFT', 'MANUAL', s.BalanceReason, @preparer, SYSUTCDATETIME()
     FROM fin.FinancialStatement AS s WHERE s.TenantId = @tenant AND s.FinancialStatementId = @src;
     SET @new = SCOPE_IDENTITY();
@@ -245,7 +245,7 @@ AS
 SELECT v.TenantId, v.PresentationVersionId, v.PublicId, v.NameAr, v.Status, v.SourceStatementId, v.ResultStatementId, v.IsConvertible, v.BalanceGap,
        v.SourceAssessmentId, sg.Code AS SourceGrade, sa.WeightedScore AS SourceScore, sa.LiquidityLabel AS SourceLiquidity,
        v.TrialAssessmentId, tg.Code AS VersionGrade, ta.WeightedScore AS VersionScore, ta.LiquidityLabel AS VersionLiquidity,
-       sg.NotchNo - tg.NotchNo AS NotchesGained, v.PreparedBy, v.ChosenBy, v.ChosenOn,
+       CAST(sg.NotchNo AS INT) - CAST(tg.NotchNo AS INT) AS NotchesGained, v.PreparedBy, v.ChosenBy, v.ChosenOn,
        (SELECT COUNT(*) FROM fin.PresentationVersionStep AS st WHERE st.TenantId = v.TenantId AND st.VersionId = v.PresentationVersionId) AS StepCount
 FROM fin.PresentationVersion AS v
 LEFT JOIN fin.CreditAssessment AS sa ON sa.TenantId = v.TenantId AND sa.CreditAssessmentId = v.SourceAssessmentId

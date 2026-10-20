@@ -552,7 +552,7 @@ CREATE NONCLUSTERED INDEX [IX_FinancialStatement_CompanyId_Basis_PeriodEnd] ON [
 CREATE NONCLUSTERED INDEX [IX_FinancialStatement_CompanyId_FiscalYear_PeriodType] ON [fin].[FinancialStatement] ([TenantId], [CompanyId], [FiscalYear], [PeriodType]) INCLUDE ([Status]);
 CREATE NONCLUSTERED INDEX [IX_FinancialStatement_Status_CompanyId] ON [fin].[FinancialStatement] ([TenantId], [Status], [CompanyId]) INCLUDE ([PeriodEnd]) WHERE Status = 'SUBMITTED';
 CREATE NONCLUSTERED INDEX [IX_FinancialStatement_CurrencyId] ON [fin].[FinancialStatement] ([TenantId], [CurrencyId]);
-CREATE NONCLUSTERED INDEX [IX_FinancialStatement_SupersedesId] ON [fin].[FinancialStatement] ([TenantId], [CompanyId], [Basis], [Assurance], [PeriodType], [PeriodEnd], [SupersedesId]);
+CREATE NONCLUSTERED INDEX [IX_FinancialStatement_SupersedesId] ON [fin].[FinancialStatement] ([TenantId], [CompanyId], [Basis], [Assurance], [PeriodType], [PeriodEnd], [Nature], [SupersedesId]);
 CREATE NONCLUSTERED INDEX [IX_FinancialStatement_SourceDocumentId] ON [fin].[FinancialStatement] ([TenantId], [SourceDocumentId]);
 CREATE NONCLUSTERED INDEX [IX_FinancialStatement_PreparedBy] ON [fin].[FinancialStatement] ([TenantId], [PreparedBy]);
 CREATE NONCLUSTERED INDEX [IX_FinancialStatement_ApprovedBy] ON [fin].[FinancialStatement] ([TenantId], [ApprovedBy]);

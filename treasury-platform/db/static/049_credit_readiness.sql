@@ -15,8 +15,13 @@
      fin.v_CreditReadinessActions   the timeline: the remedies by their effect, before the period end (a remedy is
                                     booked in the period only on a document dated by its end, ADR 0023), then the
                                     requests before the first lender date less 30 days;
-     fin.v_CreditEarlyWarnings      today, for the latest computed assessment of each company: every lender date
+     fin.v_CreditEarlyWarnings      today, for the latest computed assessment of an actual statement of each company
+                                    (a budget looks ahead and does not raise warnings, ADR 0025): every lender date
                                     within the lead time whose readiness is not GREEN.
+   Two more views compare a budget statement with the actual ones (ADR 0025, FR-FIN-038, BR-FIN-039):
+     fin.v_BudgetComparison         a budget's trial assessment beside the latest assessment of an earlier actual
+                                    statement of its company, with the notches the plan gains or loses;
+     fin.v_BudgetFactorComparison   each metric of the budget beside the same metric of the actual.
    Readiness of a date (BR-FIN-038):
      RED   the assessment is not rated, its liquidity is SGL-4 or its grade B3 or worse; or, for a covenant test, the
            last test was a breach or its headroom is below zero; or, for a renewal, the lender has notified a stop,
@@ -142,10 +147,49 @@ SELECT ev.*, DATEADD(MONTH, -ev.LeadMonths, ev.EventDate) AS WarnFrom
 FROM fin.fn_CreditReadinessEvents(CAST(SYSUTCDATETIME() AS DATE)) AS ev
 WHERE ev.Readiness <> 'GREEN'
   AND ev.AssessmentId = (SELECT TOP (1) a.CreditAssessmentId FROM fin.CreditAssessment AS a
+                         JOIN fin.FinancialStatement AS s ON s.TenantId = a.TenantId AND s.FinancialStatementId = a.StatementId AND s.Nature = 'ACTUAL'
                          WHERE a.TenantId = ev.TenantId AND a.CompanyId = ev.CompanyId AND a.ComputedAt IS NOT NULL
                            AND a.Status IN ('DRAFT', 'SUBMITTED', 'APPROVED')
                          ORDER BY a.ComputedAt DESC, a.CreditAssessmentId DESC);
 GO
+/* A budget beside the latest assessment of an actual statement of its company (ADR 0025): the grade, score,
+   liquidity, outlook and critical risks of each, and the notches the plan gains (positive) or loses (negative). */
+CREATE OR ALTER VIEW fin.v_BudgetComparison
+AS
+SELECT b.TenantId, b.CreditAssessmentId AS BudgetAssessmentId, b.CompanyId, bs.FinancialStatementId AS BudgetStatementId, bs.PeriodEnd AS BudgetPeriodEnd,
+       bg.Code AS BudgetGrade, b.WeightedScore AS BudgetScore, b.LiquidityLabel AS BudgetLiquidity, b.Outlook AS BudgetOutlook,
+       (SELECT COUNT(*) FROM fin.CreditAssessmentFinding AS x WHERE x.TenantId = b.TenantId AND x.AssessmentId = b.CreditAssessmentId AND x.Kind = 'CRITICAL_RISK') AS BudgetCriticalRisks,
+       ba.CreditAssessmentId AS ActualAssessmentId, ba.PeriodEnd AS ActualPeriodEnd, ba.Grade AS ActualGrade, ba.WeightedScore AS ActualScore,
+       ba.LiquidityLabel AS ActualLiquidity, ba.Outlook AS ActualOutlook, ba.CriticalRisks AS ActualCriticalRisks,
+       CAST(ba.NotchNo AS INT) - CAST(bg.NotchNo AS INT) AS NotchesChange
+FROM fin.CreditAssessment AS b
+JOIN fin.FinancialStatement AS bs ON bs.TenantId = b.TenantId AND bs.FinancialStatementId = b.StatementId AND bs.Nature = 'BUDGET'
+LEFT JOIN fin.RatingGrade AS bg ON bg.RatingGradeId = b.FinalGradeId
+OUTER APPLY (SELECT TOP (1) a.CreditAssessmentId, s.PeriodEnd, g.Code AS Grade, g.NotchNo, a.WeightedScore, a.LiquidityLabel, a.Outlook,
+                    (SELECT COUNT(*) FROM fin.CreditAssessmentFinding AS x WHERE x.TenantId = a.TenantId AND x.AssessmentId = a.CreditAssessmentId AND x.Kind = 'CRITICAL_RISK') AS CriticalRisks
+             FROM fin.CreditAssessment AS a
+             JOIN fin.FinancialStatement AS s ON s.TenantId = a.TenantId AND s.FinancialStatementId = a.StatementId AND s.Nature = 'ACTUAL'
+             LEFT JOIN fin.RatingGrade AS g ON g.RatingGradeId = a.FinalGradeId
+             WHERE a.TenantId = b.TenantId AND a.CompanyId = b.CompanyId AND a.ComputedAt IS NOT NULL AND a.Status IN ('DRAFT', 'SUBMITTED', 'APPROVED')
+               AND s.PeriodEnd < bs.PeriodEnd
+             ORDER BY s.PeriodEnd DESC, CASE a.Status WHEN 'APPROVED' THEN 0 WHEN 'SUBMITTED' THEN 1 ELSE 2 END, a.ComputedAt DESC) AS ba
+WHERE b.ComputedAt IS NOT NULL;
+GO
+/* Each scorecard metric of a budget beside the same metric of its actual comparison. */
+CREATE OR ALTER VIEW fin.v_BudgetFactorComparison
+AS
+SELECT c.TenantId, c.BudgetAssessmentId, c.ActualAssessmentId, m.Code AS MetricCode, m.NameAr AS MetricNameAr, m.NameEn AS MetricNameEn, bf.FactorCode,
+       bf.Weight, af.Value AS ActualValue, bf.Value AS BudgetValue, af.Score AS ActualScore, bf.Score AS BudgetScore,
+       ag.Code AS ActualGrade, bg.Code AS BudgetGrade, af.Score - bf.Score AS ScoreGain
+FROM fin.v_BudgetComparison AS c
+JOIN fin.CreditAssessmentFactor AS bf ON bf.TenantId = c.TenantId AND bf.AssessmentId = c.BudgetAssessmentId
+JOIN fin.CreditMetric AS m ON m.CreditMetricId = bf.MetricId
+LEFT JOIN fin.CreditAssessmentFactor AS af ON af.TenantId = c.TenantId AND af.AssessmentId = c.ActualAssessmentId AND af.MetricId = bf.MetricId
+LEFT JOIN fin.RatingGrade AS bg ON bg.RatingGradeId = bf.GradeId
+LEFT JOIN fin.RatingGrade AS ag ON ag.RatingGradeId = af.GradeId;
+GO
+GRANT SELECT ON fin.v_BudgetComparison TO [tp_app];
+GRANT SELECT ON fin.v_BudgetFactorComparison TO [tp_app];
 GRANT SELECT ON fin.v_CreditReadinessEvents TO [tp_app];
 GRANT SELECT ON fin.v_CreditReadinessRequests TO [tp_app];
 GRANT SELECT ON fin.v_CreditReadinessActions TO [tp_app];

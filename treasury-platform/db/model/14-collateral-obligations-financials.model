@@ -445,6 +445,7 @@ table fin.FinancialStatement public  # Financial statement header; highly confid
   FiscalYear        int        req
   Basis             enum{STANDALONE,CONSOLIDATED} req
   Assurance         enum{AUDITED,REVIEWED,MANAGEMENT} req
+  Nature            enum{ACTUAL,BUDGET} req =ACTUAL   # BUDGET: قائمة تقديرية (موازنة أو خطة) تُقيَّم تقييمًا تجريبيًا وتبقى مسودة (ADR 0025)
   CurrencyId        ->ref.Currency req
   UnitScale         int        req =1   # المدخل بوحدة 1/1000/1000000 والمخزَّن مضروب فيها (BR-FIN-002)
   AccountingStandard str(100)
@@ -453,7 +454,7 @@ table fin.FinancialStatement public  # Financial statement header; highly confid
   GoingConcernUncertainty bool req =0   # فقرة شك جوهري في الاستمرارية في تقرير المراجع (التقييم الائتماني، docs/35 §7)
   VersionNo         int        req =1
   VersionReason     enum{ORIGINAL,RESTATED,CORRECTION,RESTRUCTURED} req =ORIGINAL   # سبب الإصدار إلزامي (BR-FIN-004)؛ RESTRUCTURED: نسخة عرض اختارتها الشركة (ADR 0023)
-  SupersedesId      ->fin.FinancialStatement via=CompanyId,Basis,Assurance,PeriodType,PeriodEnd   # الإصدار السابق للشركة والسلسلة نفسها؛ المدققة لا تحل محل الإدارية (قرار المالك 2026-10-13، DR-34)
+  SupersedesId      ->fin.FinancialStatement via=CompanyId,Basis,Assurance,PeriodType,PeriodEnd,Nature   # الإصدار السابق للشركة والسلسلة نفسها؛ المدققة لا تحل محل الإدارية (قرار المالك 2026-10-13، DR-34)
   Status            enum{DRAFT,SUBMITTED,APPROVED,SUPERSEDED,REJECTED} req =DRAFT
   EntryMethod       enum{MANUAL,PASTE} req
   BalanceReason     str(500)         # سبب عدم التوازن للتقديم؛ BalanceDifference مشتق (FR-FIN-004)
@@ -463,7 +464,7 @@ table fin.FinancialStatement public  # Financial statement header; highly confid
   ApprovedBy        ->sec.AppUser
   ApprovedOn        ts
   unique PublicId
-  unique CompanyId,PeriodType,PeriodEnd,Basis,Assurance,VersionNo   # تكرار (شركة، فترة، أساس، تأكيد، إصدار) مرفوض (FR-FIN-002)
+  unique CompanyId,PeriodType,PeriodEnd,Basis,Assurance,Nature,VersionNo   # تكرار (شركة، فترة، أساس، تأكيد، طبيعة، إصدار) مرفوض (FR-FIN-002)؛ للموازنة سلسلتها
   unique CompanyId,Basis,Assurance,PeriodType,PeriodEnd where Status = 'APPROVED'   # معتمد واحد: الأحدث يُسقط السابق (BR-FIN-004)
   unique SupersedesId where SupersedesId IS NOT NULL AND Status <> 'REJECTED'   # خلف حي واحد لكل إصدار (DR-34)
   index  CompanyId,Basis,PeriodEnd include Assurance,VersionNo,PeriodType,FiscalYear where Status = 'APPROVED'   # اختيار القائمة لاختبار (BR-FIN-003)
@@ -481,6 +482,7 @@ table fin.FinancialStatement public  # Financial statement header; highly confid
   check  Status = 'DRAFT' OR Assurance <> 'AUDITED' OR (AuditorName IS NOT NULL AND AuditOpinion IS NOT NULL)   # المدققة تُقدَّم بمراجعها ورأيه (BR-FIN-012)
   check  AuditOpinion IS NULL OR Assurance = 'AUDITED'
   check  GoingConcernUncertainty = 0 OR Assurance IN ('AUDITED','REVIEWED')
+  check  Nature = 'ACTUAL' OR (Assurance = 'MANAGEMENT' AND Status = 'DRAFT' AND AuditOpinion IS NULL)   # الموازنة إعداد الإدارة، مسودة لا تُقدَّم ولا تُعتمد (BR-FIN-039)
 
 table fin.StatementLine  # Statement line in the header currency; stored value = input x UnitScale; Variance is derived; highly confidential (BR-FIN-001/002)
   StatementId        ->fin.FinancialStatement req

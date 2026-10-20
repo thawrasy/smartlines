@@ -4364,6 +4364,7 @@ CREATE TABLE "fin"."FinancialStatement" (
   "FiscalYear" integer NOT NULL,
   "Basis" varchar(12) NOT NULL,
   "Assurance" varchar(10) NOT NULL,
+  "Nature" varchar(10) NOT NULL DEFAULT 'ACTUAL',
   "CurrencyId" integer NOT NULL,
   "UnitScale" integer NOT NULL DEFAULT 1,
   "AccountingStandard" varchar(100) NULL,
@@ -4391,9 +4392,9 @@ CREATE TABLE "fin"."FinancialStatement" (
   CONSTRAINT "UQ_FinancialStatement_Tenant" UNIQUE ("TenantId", "FinancialStatementId"),
   CONSTRAINT "UQ_FinancialStatement_Scope_Basis" UNIQUE ("TenantId", "Basis", "FinancialStatementId"),
   CONSTRAINT "UQ_FinancialStatement_Scope_CompanyId" UNIQUE ("TenantId", "CompanyId", "FinancialStatementId"),
-  CONSTRAINT "UQ_FinancialStatement_Scope_CompanyId_Basis_Assura_9e701452" UNIQUE ("TenantId", "CompanyId", "Basis", "Assurance", "PeriodType", "PeriodEnd", "FinancialStatementId"),
+  CONSTRAINT "UQ_FinancialStatement_Scope_CompanyId_Basis_Assura_3d2b2f98" UNIQUE ("TenantId", "CompanyId", "Basis", "Assurance", "PeriodType", "PeriodEnd", "Nature", "FinancialStatementId"),
   CONSTRAINT "UQ_FinancialStatement_PublicId" UNIQUE ("PublicId"),
-  CONSTRAINT "UQ_FinancialStatement_CompanyId_PeriodType_PeriodE_b1c7254d" UNIQUE ("TenantId", "CompanyId", "PeriodType", "PeriodEnd", "Basis", "Assurance", "VersionNo"),
+  CONSTRAINT "UQ_FinancialStatement_CompanyId_PeriodType_PeriodE_98e21575" UNIQUE ("TenantId", "CompanyId", "PeriodType", "PeriodEnd", "Basis", "Assurance", "Nature", "VersionNo"),
   CONSTRAINT "CK_FinancialStatement_1" CHECK ("UnitScale" IN (1,1000,1000000)),
   CONSTRAINT "CK_FinancialStatement_2" CHECK ("PeriodStart" IS NULL OR "PeriodEnd" >= "PeriodStart"),
   CONSTRAINT "CK_FinancialStatement_3" CHECK ("FiscalYear" BETWEEN 1900 AND 2200),
@@ -4406,9 +4407,11 @@ CREATE TABLE "fin"."FinancialStatement" (
   CONSTRAINT "CK_FinancialStatement_10" CHECK ("Status" = 'DRAFT' OR "Assurance" <> 'AUDITED' OR ("AuditorName" IS NOT NULL AND "AuditOpinion" IS NOT NULL)),
   CONSTRAINT "CK_FinancialStatement_11" CHECK ("AuditOpinion" IS NULL OR "Assurance" = 'AUDITED'),
   CONSTRAINT "CK_FinancialStatement_12" CHECK ("GoingConcernUncertainty" = 0 OR "Assurance" IN ('AUDITED','REVIEWED')),
+  CONSTRAINT "CK_FinancialStatement_13" CHECK ("Nature" = 'ACTUAL' OR ("Assurance" = 'MANAGEMENT' AND "Status" = 'DRAFT' AND "AuditOpinion" IS NULL)),
   CONSTRAINT "CK_FinancialStatement_PeriodType" CHECK ("PeriodType" IS NULL OR "PeriodType" IN ('ANNUAL', 'SEMIANNUAL', 'QUARTERLY', 'MONTHLY')),
   CONSTRAINT "CK_FinancialStatement_Basis" CHECK ("Basis" IS NULL OR "Basis" IN ('STANDALONE', 'CONSOLIDATED')),
   CONSTRAINT "CK_FinancialStatement_Assurance" CHECK ("Assurance" IS NULL OR "Assurance" IN ('AUDITED', 'REVIEWED', 'MANAGEMENT')),
+  CONSTRAINT "CK_FinancialStatement_Nature" CHECK ("Nature" IS NULL OR "Nature" IN ('ACTUAL', 'BUDGET')),
   CONSTRAINT "CK_FinancialStatement_AuditOpinion" CHECK ("AuditOpinion" IS NULL OR "AuditOpinion" IN ('UNQUALIFIED', 'QUALIFIED', 'ADVERSE', 'DISCLAIMER')),
   CONSTRAINT "CK_FinancialStatement_VersionReason" CHECK ("VersionReason" IS NULL OR "VersionReason" IN ('ORIGINAL', 'RESTATED', 'CORRECTION', 'RESTRUCTURED')),
   CONSTRAINT "CK_FinancialStatement_Status" CHECK ("Status" IS NULL OR "Status" IN ('DRAFT', 'SUBMITTED', 'APPROVED', 'SUPERSEDED', 'REJECTED')),
@@ -7958,7 +7961,7 @@ ALTER TABLE "fin"."LineCatalogItemAlias" ADD CONSTRAINT "FK_LineCatalogItemAlias
 ALTER TABLE "fin"."FinancialStatement" ADD CONSTRAINT "FK_FinancialStatement_Tenant" FOREIGN KEY ("TenantId") REFERENCES "plat"."Tenant" ("TenantId");
 ALTER TABLE "fin"."FinancialStatement" ADD CONSTRAINT "FK_FinancialStatement_CompanyId" FOREIGN KEY ("TenantId", "CompanyId") REFERENCES "org"."Company" ("TenantId", "CompanyId");
 ALTER TABLE "fin"."FinancialStatement" ADD CONSTRAINT "FK_FinancialStatement_CurrencyId" FOREIGN KEY ("CurrencyId") REFERENCES "ref"."Currency" ("CurrencyId");
-ALTER TABLE "fin"."FinancialStatement" ADD CONSTRAINT "FK_FinancialStatement_SupersedesId" FOREIGN KEY ("TenantId", "CompanyId", "Basis", "Assurance", "PeriodType", "PeriodEnd", "SupersedesId") REFERENCES "fin"."FinancialStatement" ("TenantId", "CompanyId", "Basis", "Assurance", "PeriodType", "PeriodEnd", "FinancialStatementId");
+ALTER TABLE "fin"."FinancialStatement" ADD CONSTRAINT "FK_FinancialStatement_SupersedesId" FOREIGN KEY ("TenantId", "CompanyId", "Basis", "Assurance", "PeriodType", "PeriodEnd", "Nature", "SupersedesId") REFERENCES "fin"."FinancialStatement" ("TenantId", "CompanyId", "Basis", "Assurance", "PeriodType", "PeriodEnd", "Nature", "FinancialStatementId");
 ALTER TABLE "fin"."FinancialStatement" ADD CONSTRAINT "FK_FinancialStatement_SourceDocumentId" FOREIGN KEY ("TenantId", "SourceDocumentId") REFERENCES "doc"."Document" ("TenantId", "DocumentId");
 ALTER TABLE "fin"."FinancialStatement" ADD CONSTRAINT "FK_FinancialStatement_PreparedBy" FOREIGN KEY ("TenantId", "PreparedBy") REFERENCES "sec"."AppUser" ("TenantId", "AppUserId");
 ALTER TABLE "fin"."FinancialStatement" ADD CONSTRAINT "FK_FinancialStatement_ApprovedBy" FOREIGN KEY ("TenantId", "ApprovedBy") REFERENCES "sec"."AppUser" ("TenantId", "AppUserId");
@@ -8882,7 +8885,7 @@ CREATE INDEX "IX_FinancialStatement_CompanyId_Basis_PeriodEnd" ON "fin"."Financi
 CREATE INDEX "IX_FinancialStatement_CompanyId_FiscalYear_PeriodType" ON "fin"."FinancialStatement" ("TenantId", "CompanyId", "FiscalYear", "PeriodType");
 CREATE INDEX "IX_FinancialStatement_Status_CompanyId" ON "fin"."FinancialStatement" ("TenantId", "Status", "CompanyId") WHERE "Status" = 'SUBMITTED';
 CREATE INDEX "IX_FinancialStatement_CurrencyId" ON "fin"."FinancialStatement" ("TenantId", "CurrencyId");
-CREATE INDEX "IX_FinancialStatement_SupersedesId" ON "fin"."FinancialStatement" ("TenantId", "CompanyId", "Basis", "Assurance", "PeriodType", "PeriodEnd", "SupersedesId");
+CREATE INDEX "IX_FinancialStatement_SupersedesId" ON "fin"."FinancialStatement" ("TenantId", "CompanyId", "Basis", "Assurance", "PeriodType", "PeriodEnd", "Nature", "SupersedesId");
 CREATE INDEX "IX_FinancialStatement_SourceDocumentId" ON "fin"."FinancialStatement" ("TenantId", "SourceDocumentId");
 CREATE INDEX "IX_FinancialStatement_PreparedBy" ON "fin"."FinancialStatement" ("TenantId", "PreparedBy");
 CREATE INDEX "IX_FinancialStatement_ApprovedBy" ON "fin"."FinancialStatement" ("TenantId", "ApprovedBy");

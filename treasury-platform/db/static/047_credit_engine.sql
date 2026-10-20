@@ -1431,7 +1431,7 @@ BEGIN
     DECLARE @pt VARCHAR(10), @pe DATE, @fy INT, @basis VARCHAR(12), @assurance VARCHAR(10), @opinion VARCHAR(11), @goingConcern BIT, @cur INT,
             @sstatus VARCHAR(10), @versionReason VARCHAR(10), @supersedes BIGINT, @isHolding BIT, @industry INT, @ppt VARCHAR(10), @cardStatus VARCHAR(8),
             @cardCur INT, @supportAge INT, @cardCode VARCHAR(40), @cardVer INT, @minCov DECIMAL(5,2), @fx FLOAT, @country INT, @region VARCHAR(10),
-            @trial BIT;
+            @trial BIT, @nature VARCHAR(10);
 
     BEGIN TRANSACTION;
     SELECT @tenant = TenantId, @company = CompanyId, @stmt = StatementId, @priorIn = PriorStatementId, @card = ScorecardId,
@@ -1444,13 +1444,15 @@ BEGIN
 
     SELECT @pt = s.PeriodType, @pe = s.PeriodEnd, @fy = s.FiscalYear, @basis = s.Basis, @assurance = s.Assurance, @opinion = s.AuditOpinion,
            @goingConcern = s.GoingConcernUncertainty, @cur = s.CurrencyId, @sstatus = s.Status, @versionReason = s.VersionReason,
-           @supersedes = s.SupersedesId, @isHolding = c.IsHolding, @industry = c.IndustryId, @country = ISNULL(@country, c.CountryId)
+           @supersedes = s.SupersedesId, @nature = s.Nature, @isHolding = c.IsHolding, @industry = c.IndustryId, @country = ISNULL(@country, c.CountryId)
     FROM fin.FinancialStatement AS s
     JOIN org.Company AS c ON c.TenantId = s.TenantId AND c.CompanyId = s.CompanyId
     WHERE s.TenantId = @tenant AND s.FinancialStatementId = @stmt;
     -- a trial assessment reads the statement before its final approval, while it is a draft or submitted (ADR 0022)
     IF @sstatus <> 'APPROVED' AND NOT (@trial = 1 AND @sstatus IN ('DRAFT', 'SUBMITTED'))
         THROW 50064, 'An assessment reads an approved statement; a trial assessment also reads a draft or submitted one (BR-FIN-019, BR-FIN-036)', 1;
+    -- a budget is assessed by a trial only, against actual statements (ADR 0025)
+    IF @nature = 'BUDGET' AND @trial = 0 THROW 50064, 'A budget statement is assessed by a trial assessment only (BR-FIN-039)', 1;
     SELECT @cardStatus = Status, @cardCur = CurrencyId, @supportAge = SupportMaxAgeMonths, @cardCode = Code, @cardVer = VersionNo, @minCov = MinCoveragePct
     FROM fin.Scorecard WHERE ScorecardId = @card;
     IF @cardStatus <> 'APPROVED' THROW 50064, 'An assessment uses an approved scorecard (BR-FIN-023)', 1;
@@ -1464,14 +1466,19 @@ BEGIN
     BEGIN
         SELECT @prior = FinancialStatementId, @ppt = PeriodType FROM fin.FinancialStatement
         WHERE TenantId = @tenant AND FinancialStatementId = @priorIn AND CompanyId = @company AND Basis = @basis
-          AND Status = 'APPROVED' AND PeriodEnd < @pe;
+          AND Status = 'APPROVED' AND Nature = 'ACTUAL' AND PeriodEnd < @pe;
         IF @prior IS NULL THROW 50064, 'The comparison statement is an approved, earlier statement of the same company and basis (BR-FIN-019)', 1;
     END
     ELSE
         SELECT TOP (1) @prior = FinancialStatementId, @ppt = PeriodType FROM fin.FinancialStatement
-        WHERE TenantId = @tenant AND CompanyId = @company AND Basis = @basis AND PeriodType = @pt AND Status = 'APPROVED'
+        WHERE TenantId = @tenant AND CompanyId = @company AND Basis = @basis AND PeriodType = @pt AND Status = 'APPROVED' AND Nature = 'ACTUAL'
           AND PeriodEnd = EOMONTH(@pe, -12)
         ORDER BY CASE Assurance WHEN 'AUDITED' THEN 0 WHEN 'REVIEWED' THEN 1 ELSE 2 END, VersionNo DESC;
+    -- A budget is read with the assurance, opinion and going concern of the actual statement it is compared with, so
+    -- the comparison shows the plan alone and not the budget being the management's (ADR 0025).
+    IF @nature = 'BUDGET' AND @prior IS NOT NULL
+        SELECT @assurance = Assurance, @opinion = ISNULL(AuditOpinion, 'UNQUALIFIED'), @goingConcern = GoingConcernUncertainty
+        FROM fin.FinancialStatement WHERE TenantId = @tenant AND FinancialStatementId = @prior;
 
     -- The engine's tables.
     CREATE TABLE #crX (ScorecardId INT, PeriodType VARCHAR(10) COLLATE DATABASE_DEFAULT, PriorPeriodType VARCHAR(10) COLLATE DATABASE_DEFAULT, HasPrior BIT,
@@ -1883,7 +1890,7 @@ BEGIN
             @olEn NVARCHAR(40) = (SELECT NameEn FROM fin.CreditText WHERE Domain = 'OUTLOOK_VIEW' AND Code = @outlook);
     DECLARE @cS INT = (SELECT COUNT(*) FROM @x WHERE Kind = 'STRENGTH'), @cW INT = (SELECT COUNT(*) FROM @x WHERE Kind = 'WATCH'),
             @cK INT = (SELECT COUNT(*) FROM @x WHERE Kind = 'WEAKNESS'), @cR INT = (SELECT COUNT(*) FROM @x WHERE Kind = 'CRITICAL_RISK');
-    DECLARE @sumAr NVARCHAR(1000) = CONCAT(CASE WHEN @trial = 1 THEN N'تقييم تجريبي على قائمة لم تُعتمد نهائيًا: ' END, CASE
+    DECLARE @sumAr NVARCHAR(1000) = CONCAT(CASE WHEN @nature = 'BUDGET' THEN N'تقييم تجريبي لقائمة تقديرية (موازنة): ' WHEN @trial = 1 THEN N'تقييم تجريبي على قائمة لم تُعتمد نهائيًا: ' END, CASE
             WHEN @state = 'RATED' THEN
             CONCAT(N'الدرجة النهائية ', @fg, N' (مخاطر ', CASE @rb WHEN 'LOW' THEN N'منخفضة' WHEN 'MODERATE' THEN N'معتدلة' WHEN 'SUBSTANTIAL' THEN N'جوهرية'
                    WHEN 'HIGH' THEN N'مرتفعة' ELSE N'مرتفعة جدًا' END, N')، النظرة ', @ol, N'؛ المؤشرة ', @ig, N' بمجموع ', FORMAT(@agg, 'N2', 'en-US'),
@@ -1893,7 +1900,7 @@ BEGIN
             WHEN @state = 'INDICATIVE' THEN
             CONCAT(N'درجة مالية استرشادية ', @fing, N' بمجموع ', FORMAT(@finScore, 'N2', 'en-US'), N'، ولا درجة نهائية قبل أن يُدخل معدّ التقييم العوامل النوعية.')
             ELSE CONCAT(N'لا درجة: المقاييس الكمية ذات الدرجة تغطي ', FORMAT(@coverage, 'N0', 'en-US'), N'% من أوزانها، والحد الأدنى ', FORMAT(@minCov, 'N0', 'en-US'), N'%.') END);
-    DECLARE @sumEn NVARCHAR(1000) = CONCAT(CASE WHEN @trial = 1 THEN N'Trial assessment of a statement not yet finally approved: ' END, CASE
+    DECLARE @sumEn NVARCHAR(1000) = CONCAT(CASE WHEN @nature = 'BUDGET' THEN N'Trial assessment of a budget statement: ' WHEN @trial = 1 THEN N'Trial assessment of a statement not yet finally approved: ' END, CASE
             WHEN @state = 'RATED' THEN
             CONCAT(N'Final grade ', @fg, N' (', LOWER(REPLACE(@rb, '_', ' ')), N' risk), outlook ', LOWER(@olEn), N'; indicated ', @ig, N' at ', FORMAT(@agg, 'N2', 'en-US'),
                    N', standalone ', @sg, N', financial only ', @fing, CASE WHEN @facg IS NOT NULL THEN CONCAT(N', facility grade ', @facg) END, N'; liquidity ', @liq,
@@ -2012,7 +2019,7 @@ CREATE OR ALTER VIEW fin.v_CreditAssessmentReport
 AS
 SELECT a.TenantId, a.CreditAssessmentId, a.PublicId, a.CompanyId, co.NameAr AS CompanyNameAr, co.NameEn AS CompanyNameEn, co.IsHolding,
        a.StatementId, s.Basis, s.PeriodType, s.PeriodStart, s.PeriodEnd, s.FiscalYear, s.Assurance, s.AuditorName, s.AuditOpinion,
-       s.VersionNo AS StatementVersionNo, s.Status AS StatementStatus, a.PriorStatementId, a.UsedPriorStatementId,
+       s.VersionNo AS StatementVersionNo, s.Status AS StatementStatus, s.Nature AS StatementNature, a.PriorStatementId, a.UsedPriorStatementId,
        sc.Code AS ScorecardCode, sc.VersionNo AS ScorecardVersionNo, sc.NameAr AS ScorecardNameAr, sc.NameEn AS ScorecardNameEn,
        a.AssessmentDate, a.FxRateToScorecard, a.Status, a.IsTrial, a.ResultState, a.CoveragePct, a.FinancialScore, fng.Code AS FinancialGrade, a.WeightedScore,
        ig.Code AS IndicatedGrade, a.AdjustmentNotches, cg.Code AS CapGrade, sg.Code AS StandaloneGrade, a.SupportNotches, a.OverrideNotches,

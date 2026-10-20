@@ -1211,7 +1211,61 @@ IF @got = '1:0=RENEWAL:2026-09-30:153:SGL-4:-:RED 2:0=RENEWAL:2026-09-30:153:SGL
     PRINT 'PASS CA20: the readiness file lists the lender dates in the lead time with their readiness, the timeline of actions and requests, and the early warning of today';
 ELSE PRINT CONCAT('FAIL CA20: ', @got, ' (expected 1:0=RENEWAL:2026-09-30:153:SGL-4:-:RED 2:0=RENEWAL:2026-09-30:153:SGL-4:NOT_RENEWED:RED 3:0=COVENANT_TEST:2026-07-31:92:SGL-3:-:RED 4:0=none 5:0=P12:2026-12-31 S14:2026-08-31 B1 6:0=1 RENEWAL 90)');
 GO
-DROP PROCEDURE #ReadyCase, #VersionCase, #TrialCase, #LenderCase, #CountryCase, #HashCase, #PlatformCase, #CPlatform, #CardCase, #CovCase, #CCov, #LifeCase, #SupportCase, #HoldAssessment, #AdjustCase, #DataCase,
+/* CA21 (FR-FIN-038, BR-FIN-039, ADR 0025): IND's budget for 2026, a management statement, beside its actual statement
+   of 2025 and the official assessment of it. (1) An official assessment of the budget is refused (50064); (2) the
+   budget is not submitted, it stays a draft (547); (3) a budget equal to the actual year gives a trial assessment
+   noted as a budget, at the actual grade (read with the actual statement's assurance, so the plan alone shows);
+   (4) a budget that borrows 300 million more to buy fixed assets loses notches, and its largest loss shows on the
+   factor that moved most; (5) a budget raises no early warning: its lender dates are listed,
+   but the warnings read the assessments of actual statements only. */
+CREATE PROCEDURE #BudgetCase @Case INT, @Out NVARCHAR(1000) OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @s BIGINT, @a BIGINT, @b BIGINT, @ba BIGINT, @t INT = (SELECT v FROM #C WHERE k = 't'), @ind BIGINT = (SELECT v FROM #C WHERE k = 'ind'),
+            @today DATE = CAST(SYSUTCDATETIME() AS DATE);
+    -- the actual year 2025, approved, and its official assessment (not computed in case 5)
+    EXEC #CStmt @ind, '2025-12-31';
+    SELECT @s = v FROM #C WHERE k = 's';
+    EXEC #CAssess @s;
+    SELECT @a = v FROM #C WHERE k = 'a';
+    IF @Case <> 5 EXEC fin.usp_ComputeCreditAssessment @a;
+    -- the budget of 2026: the same lines, totals left to the engine
+    EXEC #CStmt @ind, '2026-12-31', @Assurance = 'MANAGEMENT', @Approve = 0;
+    SELECT @b = v FROM #C WHERE k = 's';
+    UPDATE fin.FinancialStatement SET Nature = 'BUDGET' WHERE FinancialStatementId = @b;
+    DELETE ln FROM fin.StatementLine AS ln JOIN fin.LineCatalogItem AS li ON li.TenantId = ln.TenantId AND li.LineCatalogItemId = ln.LineCatalogItemId
+    WHERE ln.StatementId = @b AND li.Code IN (SELECT TotalCode FROM fin.StandardLineTotal);
+    IF @Case = 4
+        UPDATE ln SET EnteredAmount = EnteredAmount + 300000000
+        FROM fin.StatementLine AS ln JOIN fin.LineCatalogItem AS li ON li.TenantId = ln.TenantId AND li.LineCatalogItemId = ln.LineCatalogItemId
+        WHERE ln.StatementId = @b AND li.Code IN ('LT_LOANS' COLLATE Arabic_100_CI_AS_SC, 'PPE' COLLATE Arabic_100_CI_AS_SC);
+    IF @Case = 2 BEGIN UPDATE fin.FinancialStatement SET Status = 'SUBMITTED' WHERE FinancialStatementId = @b; RETURN; END;
+    IF @Case = 5 EXEC #CAssess @b, @AsOf = @today; ELSE EXEC #CAssess @b;
+    SELECT @ba = v FROM #C WHERE k = 'a';
+    IF @Case = 5 BEGIN DECLARE @e DATE = DATEADD(DAY, 90, @today); EXEC #CPlatform @Expiry = @e; END;
+    IF @Case <> 1 UPDATE fin.CreditAssessment SET IsTrial = 1 WHERE CreditAssessmentId = @ba;
+    EXEC fin.usp_ComputeCreditAssessment @ba;
+    IF @Case = 3
+        SELECT @Out = CONCAT(c.ActualGrade, ' ', c.BudgetGrade, ' ', c.NotchesChange, ' ',
+                             CASE WHEN (SELECT SummaryAr FROM fin.CreditAssessment WHERE CreditAssessmentId = @ba) LIKE N'تقييم تجريبي لقائمة تقديرية%' THEN 'noted' ELSE 'not noted' END)
+        FROM fin.v_BudgetComparison AS c WHERE c.BudgetAssessmentId = @ba;
+    IF @Case = 4
+        SELECT @Out = CONCAT(c.ActualGrade, ' ', c.BudgetGrade, ' ', c.NotchesChange, ' ',
+                             (SELECT TOP (1) f.FactorCode FROM fin.v_BudgetFactorComparison AS f WHERE f.BudgetAssessmentId = @ba ORDER BY f.ScoreGain * f.Weight, f.MetricCode))
+        FROM fin.v_BudgetComparison AS c WHERE c.BudgetAssessmentId = @ba;
+    IF @Case = 5
+        SET @Out = CONCAT('events ', (SELECT COUNT(*) FROM fin.fn_CreditReadinessEvents(@today) WHERE AssessmentId = @ba),
+                          ' warnings ', (SELECT COUNT(*) FROM fin.v_CreditEarlyWarnings WHERE CompanyId = @ind));
+END;
+GO
+DECLARE @got NVARCHAR(2000);
+EXEC #CCases '#BudgetCase', 1, 5, @got OUTPUT;
+IF @got = '1:50064 2:547 3:0=Ba2 Ba2 0 noted 4:0=Ba2 Ba3 -1 BALANCE_SHEET_QUALITY 5:0=events 1 warnings 0'
+    PRINT 'PASS CA21: a budget is assessed by a trial only and stays a draft, compared with the actual year metric by metric, and raises no early warning';
+ELSE PRINT CONCAT('FAIL CA21: ', @got, ' (expected 1:50064 2:547 3:0=Ba2 Ba2 0 noted 4:0=Ba2 Ba3 -1 BALANCE_SHEET_QUALITY 5:0=events 1 warnings 0)');
+GO
+DROP PROCEDURE #BudgetCase, #ReadyCase, #VersionCase, #TrialCase, #LenderCase, #CountryCase, #HashCase, #PlatformCase, #CPlatform, #CardCase, #CovCase, #CCov, #LifeCase, #SupportCase, #HoldAssessment, #AdjustCase, #DataCase,
                #CoverageCase, #CHead, #CGrade, #CCases, #CAssess, #Crd, #CStmt, #CBase, #CBind;
 DROP TABLE #C;
 DROP USER [tp_test_crdapp];
