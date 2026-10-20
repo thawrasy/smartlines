@@ -1240,9 +1240,9 @@ END;
 GO
 DECLARE @got NVARCHAR(2000);
 EXEC #CCases '#ReadyCase', 1, 6, @got OUTPUT;
-IF @got = '1:0=RENEWAL:2026-09-30:153:SGL-4:-:RED 2:0=RENEWAL:2026-09-30:153:SGL-4:NOT_RENEWED:RED 3:0=COVENANT_TEST:2026-07-31:92:SGL-3:-:RED 4:0=none 5:0=P12:2026-12-31 S14:2026-08-31 B1 6:0=1 RENEWAL 90'
+IF @got = '1:0=RENEWAL:2026-09-30:153:SGL-4:-:RED 2:0=RENEWAL:2026-09-30:153:SGL-4:NOT_RENEWED:RED 3:0=COVENANT_TEST:2026-07-31:92:SGL-3:-:RED 4:0=none 5:0=P12:2026-12-31 S15:2026-08-31 B1 6:0=1 RENEWAL 90'
     PRINT 'PASS CA20: the readiness file lists the lender dates in the lead time with their readiness, the timeline of actions and requests, and the early warning of today';
-ELSE PRINT CONCAT('FAIL CA20: ', @got, ' (expected 1:0=RENEWAL:2026-09-30:153:SGL-4:-:RED 2:0=RENEWAL:2026-09-30:153:SGL-4:NOT_RENEWED:RED 3:0=COVENANT_TEST:2026-07-31:92:SGL-3:-:RED 4:0=none 5:0=P12:2026-12-31 S14:2026-08-31 B1 6:0=1 RENEWAL 90)');
+ELSE PRINT CONCAT('FAIL CA20: ', @got, ' (expected 1:0=RENEWAL:2026-09-30:153:SGL-4:-:RED 2:0=RENEWAL:2026-09-30:153:SGL-4:NOT_RENEWED:RED 3:0=COVENANT_TEST:2026-07-31:92:SGL-3:-:RED 4:0=none 5:0=P12:2026-12-31 S15:2026-08-31 B1 6:0=1 RENEWAL 90)');
 GO
 /* CA21 (FR-FIN-038, BR-FIN-039, ADR 0025): IND's budget for 2026, a management statement, beside its actual statement
    of 2025 and the official assessment of it. (1) An official assessment of the budget is refused (50064); (2) the
@@ -1468,6 +1468,13 @@ BEGIN
     SELECT @t, e.NotificationEventTypeId, N'ROLE', r.RoleId, 1, 0, 1, N'NTF.FIN.READINESS_AMBER.FO' FROM ntf.NotificationEventType AS e JOIN sec.Role AS r ON r.TenantId = e.TenantId AND r.SeedKey = N'ROLE.FO' WHERE e.TenantId = @t AND e.Code = N'FIN.READINESS_AMBER';
     INSERT ntf.NotificationRule (TenantId, EventTypeId, RecipientKind, RoleId, RequireCompanyScope, IsMandatory, IsActive, SeedKey)
     SELECT @t, e.NotificationEventTypeId, N'ROLE', r.RoleId, 1, 0, 1, N'NTF.FIN.READINESS_AMBER.FA' FROM ntf.NotificationEventType AS e JOIN sec.Role AS r ON r.TenantId = e.TenantId AND r.SeedKey = N'ROLE.FA' WHERE e.TenantId = @t AND e.Code = N'FIN.READINESS_AMBER';
+    INSERT ntf.NotificationRule (TenantId, EventTypeId, RecipientKind, PermissionId, RequireCompanyScope, IsMandatory, IsActive, SeedKey)
+    SELECT @t, e.NotificationEventTypeId, N'PERMISSION', p.PermissionId, 1, 0, 1, N'NTF.FIN.READINESS_RED.ENDORSERS' FROM ntf.NotificationEventType AS e CROSS JOIN sec.Permission AS p WHERE e.TenantId = @t AND e.Code = N'FIN.READINESS_RED' AND p.Code = N'fin.credit.endorse';
+    INSERT fin.ReceivableLossRate (TenantId, BucketCode, LossRatePct, EffectiveFrom, Status, Note, SeedKey) VALUES (@t, N'AR_AGE_0_90', 1.0000, N'2000-01-01', N'DRAFT', N'Current receivables up to 90 days', N'FIN.PROVISION.AR_AGE_0_90');
+    INSERT fin.ReceivableLossRate (TenantId, BucketCode, LossRatePct, EffectiveFrom, Status, Note, SeedKey) VALUES (@t, N'AR_AGE_91_180', 5.0000, N'2000-01-01', N'DRAFT', N'91 to 180 days', N'FIN.PROVISION.AR_AGE_91_180');
+    INSERT fin.ReceivableLossRate (TenantId, BucketCode, LossRatePct, EffectiveFrom, Status, Note, SeedKey) VALUES (@t, N'AR_AGE_181_365', 20.0000, N'2000-01-01', N'DRAFT', N'181 days to a year', N'FIN.PROVISION.AR_AGE_181_365');
+    INSERT fin.ReceivableLossRate (TenantId, BucketCode, LossRatePct, EffectiveFrom, Status, Note, SeedKey) VALUES (@t, N'AR_AGE_OVER_365', 50.0000, N'2000-01-01', N'DRAFT', N'Over a year, private debtors', N'FIN.PROVISION.AR_AGE_OVER_365');
+    INSERT fin.ReceivableLossRate (TenantId, BucketCode, LossRatePct, EffectiveFrom, Status, Note, SeedKey) VALUES (@t, N'AR_AGE_OVER_365_GOV', 10.0000, N'2000-01-01', N'DRAFT', N'Over a year, government debtors: slow but rarely lost', N'FIN.PROVISION.AR_AGE_OVER_365_GOV');
     INSERT ntf.NotificationTemplate (TenantId, EventTypeId, Channel, Lang, SubjectTemplate, BodyTemplate, IsTenantOverride)
     SELECT @t, NotificationEventTypeId, N'IN_APP', N'ar', N'إنذار أحمر: {eventLabel} {reference} في {eventDate}', N'{companyName} غير جاهزة لموعد {eventLabel} {reference} في {eventDate} ({stageLabel}، الأيام الباقية: {daysLeft}). السبب: {reason}. درجة التقييم {grade} والسيولة {liquidity}. افتح ملف الجاهزية لترى ما ستطلبه جهة التمويل والإجراءات قبل الموعد.', 0 FROM ntf.NotificationEventType WHERE TenantId = @t AND Code = N'FIN.READINESS_RED';
     INSERT ntf.NotificationTemplate (TenantId, EventTypeId, Channel, Lang, SubjectTemplate, BodyTemplate, IsTenantOverride)
@@ -1521,7 +1528,7 @@ GO
    Arabic email gives the reason, the grade and the lead time; (4) an AMBER covenant test is the event
    FIN.READINESS_AMBER for the reason LIQUIDITY_SGL3, with the covenant's title; (5) all eight messages of the two
    warnings are filled (no placeholder left), the subjects fit 300 characters and the bodies 2000, and each event has
-   its rules for TM, FO and FA. The date of each message is shown as D. */
+   its rules for TM, FO and FA, and the red one for the endorsers too (ADR 0030). The date of each message is shown as D. */
 CREATE PROCEDURE #MessageCase @Case INT, @Out NVARCHAR(1000) OUTPUT
 AS
 BEGIN
@@ -1595,9 +1602,9 @@ END;
 GO
 DECLARE @got NVARCHAR(2000);
 EXEC #CCases '#MessageCase', 1, 5, @got OUTPUT;
-IF @got = N'1:0=FIN.READINESS_RED LIQUIDITY_SGL4 | إنذار أحمر: تجديد التسهيل FAC-26-301 في D 2:0=FIN.READINESS_RED LIQUIDITY_SGL4 | Red warning: renewal of facility FAC-26-301 on D 3:0=FIN.READINESS_RED LIQUIDITY_SGL4 | جاهزية صناعية لهذا الموعد حمراء. السبب: السيولة SGL-4: مصادرها لا تغطي ما يستحق خلال السنة. / درجة التقييم الداخلي للشركة Ba3 والسيولة SGL-4. 4:0=FIN.READINESS_AMBER LIQUIDITY_SGL3 | تنبيه أصفر: اختبار التعهد تعهدات مالية في D 5:0=8 rendered 0 bad | RED:COVENANT_TEST,RED:RENEWAL | rules FIN.READINESS_AMBER:3,FIN.READINESS_RED:3'
+IF @got = N'1:0=FIN.READINESS_RED LIQUIDITY_SGL4 | إنذار أحمر: تجديد التسهيل FAC-26-301 في D 2:0=FIN.READINESS_RED LIQUIDITY_SGL4 | Red warning: renewal of facility FAC-26-301 on D 3:0=FIN.READINESS_RED LIQUIDITY_SGL4 | جاهزية صناعية لهذا الموعد حمراء. السبب: السيولة SGL-4: مصادرها لا تغطي ما يستحق خلال السنة. / درجة التقييم الداخلي للشركة Ba3 والسيولة SGL-4. 4:0=FIN.READINESS_AMBER LIQUIDITY_SGL3 | تنبيه أصفر: اختبار التعهد تعهدات مالية في D 5:0=8 rendered 0 bad | RED:COVENANT_TEST,RED:RENEWAL | rules FIN.READINESS_AMBER:3,FIN.READINESS_RED:4'
     PRINT 'PASS CA24: the messages of the early warning are filled from the templates of the pack NTF.BASE in Arabic and English, red and amber, within their lengths';
-ELSE PRINT CONCAT('FAIL CA24: ', @got, N' (expected 1:0=FIN.READINESS_RED LIQUIDITY_SGL4 | إنذار أحمر: تجديد التسهيل FAC-26-301 في D 2:0=FIN.READINESS_RED LIQUIDITY_SGL4 | Red warning: renewal of facility FAC-26-301 on D 3:0=FIN.READINESS_RED LIQUIDITY_SGL4 | جاهزية صناعية لهذا الموعد حمراء. السبب: السيولة SGL-4: مصادرها لا تغطي ما يستحق خلال السنة. / درجة التقييم الداخلي للشركة Ba3 والسيولة SGL-4. 4:0=FIN.READINESS_AMBER LIQUIDITY_SGL3 | تنبيه أصفر: اختبار التعهد تعهدات مالية في D 5:0=8 rendered 0 bad | RED:COVENANT_TEST,RED:RENEWAL | rules FIN.READINESS_AMBER:3,FIN.READINESS_RED:3)');
+ELSE PRINT CONCAT('FAIL CA24: ', @got, N' (expected 1:0=FIN.READINESS_RED LIQUIDITY_SGL4 | إنذار أحمر: تجديد التسهيل FAC-26-301 في D 2:0=FIN.READINESS_RED LIQUIDITY_SGL4 | Red warning: renewal of facility FAC-26-301 on D 3:0=FIN.READINESS_RED LIQUIDITY_SGL4 | جاهزية صناعية لهذا الموعد حمراء. السبب: السيولة SGL-4: مصادرها لا تغطي ما يستحق خلال السنة. / درجة التقييم الداخلي للشركة Ba3 والسيولة SGL-4. 4:0=FIN.READINESS_AMBER LIQUIDITY_SGL3 | تنبيه أصفر: اختبار التعهد تعهدات مالية في D 5:0=8 rendered 0 bad | RED:COVENANT_TEST,RED:RENEWAL | rules FIN.READINESS_AMBER:3,FIN.READINESS_RED:4)');
 GO
 /* CA25 (FR-FIN-042, BR-FIN-043, ADR 0029): IND's assessment of 2025, approved by u2, endorsed for use outside the
    company. (1) The internal auditor u3 (AU, fin.credit.endorse) endorses it with its reason: ENDORSED; before, the
@@ -1692,7 +1699,245 @@ IF @got = N'1:0=ALL:4:1.25:1.00:0:OPTIMISTIC L1:3:1.67:1.67:2:OPTIMISTIC L2:1:0.
     PRINT 'PASS CA26: the company''s assessments are compared with its lenders'' ratings over time, for all lenders and for each, with the bias they show';
 ELSE PRINT CONCAT('FAIL CA26: ', @got, N' (expected 1:0=ALL:4:1.25:1.00:0:OPTIMISTIC L1:3:1.67:1.67:2:OPTIMISTIC L2:1:0.00:0.00:0:INSUFFICIENT 2:0=ALL:3:-1.00:-1.00:0:CONSERVATIVE L1:3:-1.00:-1.00:0:CONSERVATIVE 3:0=ALL:3:0.00:0.00:0:ALIGNED L1:3:0.00:0.00:0:ALIGNED)');
 GO
-DROP PROCEDURE #CalibrationCase, #EndorseCase, #MessageCase, #CRender, #CNtfPack, #WarnCase, #CJob, #LenderRatingCase, #BudgetCase, #ReadyCase, #VersionCase, #TrialCase, #LenderCase, #CountryCase, #HashCase, #PlatformCase, #CPlatform, #CardCase, #CovCase, #CCov, #LifeCase, #SupportCase, #HoldAssessment, #AdjustCase, #DataCase,
+/* Roles for the review controls: u3 an internal auditor (AU: fin.credit.endorse), u4 an analyst (FA: fin.credit.assess),
+   u5 a second confirmer (TE: fin.stats.confirm), u2 the treasury manager (TM: assess, approve, fin.stats.confirm). */
+CREATE PROCEDURE #CControls
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @t INT = (SELECT v FROM #C WHERE k = 't'), @u1 BIGINT = (SELECT v FROM #C WHERE k = 'u1'), @u2 BIGINT = (SELECT v FROM #C WHERE k = 'u2'),
+            @u3 BIGINT, @u4 BIGINT, @u5 BIGINT, @pw VARCHAR(255) = '$argon2id$v=19$m=65536,t=3,p=4$c2FsdA$aGFzaA';
+    EXEC #CBind @t, 0;
+    INSERT sec.AppUser (TenantId, Email, DisplayNameEn, Status, PasswordHash)
+    VALUES (@t, N'au3@crd.invalid', N'Internal auditor', 'ACTIVE', @pw), (@t, N'fa4@crd.invalid', N'Analyst', 'ACTIVE', @pw), (@t, N'te5@crd.invalid', N'Second confirmer', 'ACTIVE', @pw);
+    SELECT @u3 = AppUserId FROM sec.AppUser WHERE TenantId = @t AND Email = N'au3@crd.invalid';
+    SELECT @u4 = AppUserId FROM sec.AppUser WHERE TenantId = @t AND Email = N'fa4@crd.invalid';
+    SELECT @u5 = AppUserId FROM sec.AppUser WHERE TenantId = @t AND Email = N'te5@crd.invalid';
+    INSERT sec.Role (TenantId, Code, NameAr, NameEn, IsSystem, SeedKey)
+    SELECT @t, v.Code, v.Code, v.Code, 1, CONCAT('ROLE.', v.Code) FROM (VALUES ('AU'), ('FA'), ('TE'), ('TM')) AS v (Code)
+    WHERE NOT EXISTS (SELECT 1 FROM sec.Role AS r WHERE r.TenantId = @t AND r.Code = v.Code);
+    INSERT sec.RolePermission (TenantId, RoleId, PermissionId)
+    SELECT @t, r.RoleId, p.PermissionId
+    FROM sec.Role AS r JOIN (VALUES ('AU', 'fin.credit.endorse'), ('FA', 'fin.credit.assess'), ('TE', 'fin.stats.confirm'),
+                                    ('TM', 'fin.credit.assess'), ('TM', 'fin.credit.approve'), ('TM', 'fin.stats.confirm')) AS m (RoleCode, PermCode)
+         ON m.RoleCode = r.Code COLLATE DATABASE_DEFAULT
+    JOIN sec.Permission AS p ON p.Code = m.PermCode COLLATE DATABASE_DEFAULT
+    WHERE r.TenantId = @t;
+    INSERT sec.UserRole (TenantId, UserId, RoleId)
+    SELECT @t, x.UserId, r.RoleId FROM (VALUES (@u3, 'AU'), (@u4, 'FA'), (@u5, 'TE'), (@u2, 'TM')) AS x (UserId, RoleCode)
+    JOIN sec.Role AS r ON r.TenantId = @t AND r.Code = x.RoleCode COLLATE DATABASE_DEFAULT;
+    INSERT #C (k, v) VALUES ('u3', @u3), ('u4', @u4), ('u5', @u5);
+    EXEC #CBind @t, @u1;
+END;
+GO
+/* IND's 2025 statement computed, submitted by u1 and approved by u2; endorsed by u3 when @Endorse = 1 ('a' in #C). */
+CREATE PROCEDURE #CApproved @Endorse BIT = 0, @Override NVARCHAR(MAX) = N''
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @s BIGINT, @a BIGINT, @t INT = (SELECT v FROM #C WHERE k = 't'), @ind BIGINT = (SELECT v FROM #C WHERE k = 'ind'),
+            @u1 BIGINT = (SELECT v FROM #C WHERE k = 'u1'), @u2 BIGINT = (SELECT v FROM #C WHERE k = 'u2'), @u3 BIGINT = (SELECT v FROM #C WHERE k = 'u3');
+    EXEC #CStmt @ind, '2025-12-31', @Override;
+    SELECT @s = v FROM #C WHERE k = 's';
+    EXEC #CAssess @s;
+    SELECT @a = v FROM #C WHERE k = 'a';
+    EXEC fin.usp_ComputeCreditAssessment @a;
+    UPDATE fin.CreditAssessment SET Status = 'SUBMITTED', PreparedOn = SYSUTCDATETIME() WHERE CreditAssessmentId = @a;
+    UPDATE fin.CreditAssessment SET Status = 'APPROVED', ApprovedBy = @u2, ApprovedOn = SYSUTCDATETIME() WHERE CreditAssessmentId = @a;
+    IF @Endorse = 1
+    BEGIN
+        EXEC #CBind @t, @u3;
+        EXEC fin.usp_EndorseCreditAssessment @a, N'For the external auditor of 2025';
+        EXEC #CBind @t, @u1;
+    END;
+END;
+GO
+/* CA27 (FR-FIN-045, BR-FIN-048, ADR 0030): IND's confirmed flows to bank 1 (entered by u1, confirmed by u2) and a
+   confirmed balance of an account. (1) A confirmed flow does not change (50094); (2) nor is it deleted (50094);
+   (3) its author cannot reopen it (50094); (4) u5, who holds fin.stats.confirm, reopens it with a reason: a draft
+   again, reopened once, audited, and the draft then changes; (5) the application cannot write the reopening
+   columns directly (230); (6) a confirmed balance does not change (50094); (7) a reopening without a reason is refused
+   (50094); (8) a confirmed balance is reopened like a flow. */
+CREATE PROCEDURE #FreezeCase @Case INT, @Out NVARCHAR(1000) OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @t INT = (SELECT v FROM #C WHERE k = 't'), @ind BIGINT = (SELECT v FROM #C WHERE k = 'ind'), @u1 BIGINT = (SELECT v FROM #C WHERE k = 'u1'),
+            @u2 BIGINT = (SELECT v FROM #C WHERE k = 'u2'), @u5 BIGINT, @f BIGINT, @m BIGINT, @e INT, @cur INT = (SELECT CurrencyId FROM ref.Currency WHERE Code = 'SAR');
+    EXEC #CControls;
+    SELECT @u5 = v FROM #C WHERE k = 'u5';
+    EXEC #CStmt @ind, '2025-12-31';
+    EXEC #CCov;
+    SET @f = (SELECT TOP (1) BankFlowEntryId FROM fin.BankFlowEntry WHERE TenantId = @t AND Status = 'CONFIRMED' ORDER BY MonthEnd);
+    IF @Case IN (6, 7, 8)
+    BEGIN
+        ALTER TABLE fin.AccountMonthlyStat NOCHECK CONSTRAINT FK_AccountMonthlyStat_BankAccountId;
+        INSERT fin.AccountMonthlyStat (TenantId, BankAccountId, MonthEnd, AvgDailyBalance, EndBalance, SourceKind, Status, EnteredBy, ConfirmedBy, ConfirmedOn)
+        VALUES (@t, 1, '2026-01-31', 5000000, 5200000, 'BANK_STATEMENT', 'CONFIRMED', @u1, @u2, SYSUTCDATETIME());
+        SET @m = SCOPE_IDENTITY();
+    END;
+    IF @Case = 1 UPDATE fin.BankFlowEntry SET Amount = Amount + 1 WHERE BankFlowEntryId = @f;
+    IF @Case = 2 DELETE fin.BankFlowEntry WHERE BankFlowEntryId = @f;
+    IF @Case = 3
+    BEGIN   -- the author holds fin.stats.confirm too, and is still refused
+        INSERT sec.UserRole (TenantId, UserId, RoleId) SELECT @t, @u1, RoleId FROM sec.Role WHERE TenantId = @t AND Code = 'TE';
+        EXEC fin.usp_ReopenMonthlyFigure 'FLOW', @f, N'test: the bank corrected its advice';
+    END;
+    IF @Case = 4
+    BEGIN
+        EXEC #CBind @t, @u5;
+        EXEC fin.usp_ReopenMonthlyFigure 'FLOW', @f, N'test: the bank corrected its advice';
+        UPDATE fin.BankFlowEntry SET Amount = 900000 WHERE BankFlowEntryId = @f;
+        SELECT @Out = CONCAT(Status, ' ', ReopenCount, ' ', CASE WHEN LastReopenedBy = @u5 THEN 'u5' ELSE 'other' END, ' ', CAST(Amount AS INT), ' ',
+                             (SELECT COUNT(*) FROM aud.AuditLog WHERE TenantId = @t AND Action = 'MONTHLY_FIGURE_REOPENED' AND EntityId = @f))
+        FROM fin.BankFlowEntry WHERE BankFlowEntryId = @f;
+    END;
+    IF @Case = 5
+    BEGIN
+        EXECUTE AS USER = N'tp_test_crdapp';
+        BEGIN TRY UPDATE fin.BankFlowEntry SET ReopenCount = 1 WHERE BankFlowEntryId = @f; SET @e = 0; END TRY BEGIN CATCH SET @e = ERROR_NUMBER(); END CATCH;
+        REVERT;
+        SET @Out = CAST(@e AS VARCHAR(10));
+    END;
+    IF @Case = 6 UPDATE fin.AccountMonthlyStat SET EndBalance = 1 WHERE AccountMonthlyStatId = @m;
+    IF @Case = 8
+    BEGIN
+        EXEC #CBind @t, @u5;
+        EXEC fin.usp_ReopenMonthlyFigure 'BALANCE', @m, N'test: a late bank statement';
+        SELECT @Out = CONCAT(Status, ' ', ReopenCount, ' ', LastReopenReason) FROM fin.AccountMonthlyStat WHERE AccountMonthlyStatId = @m;
+    END;
+    IF @Case = 7 BEGIN EXEC #CBind @t, @u5; EXEC fin.usp_ReopenMonthlyFigure 'BALANCE', @m, N' '; END;
+END;
+GO
+DECLARE @got NVARCHAR(2000);
+EXEC #CCases '#FreezeCase', 1, 8, @got OUTPUT;
+IF @got = N'1:50094 2:50094 3:50094 4:0=DRAFT 1 u5 900000 1 5:0=230 6:50094 7:50094 8:0=DRAFT 1 test: a late bank statement'
+    PRINT 'PASS CA27: a confirmed monthly balance or bank flow neither changes nor is deleted, and is reopened with a reason by someone other than its author';
+ELSE PRINT CONCAT('FAIL CA27: ', @got, N' (expected 1:50094 2:50094 3:50094 4:0=DRAFT 1 u5 900000 1 5:0=230 6:50094 7:50094 8:0=DRAFT 1 test: a late bank statement)');
+GO
+/* CA28 (FR-FIN-046, BR-FIN-049, ADR 0030): the evidence pack of IND's endorsed assessment. (1) u3 builds it for the
+   external auditor: one JSON document with the report (ENDORSED, with the calibration of the day), the statement
+   versions and lines, its SHA-256 logged and audited; (2) built again, the same content gives the same hash;
+   (3) an assessment approved but not endorsed gives no pack (50095); (4) nor a pack without a purpose (50095);
+   (5) nor a user without fin.credit.endorse or fin.credit.approve (50095); (6) the application cannot write the log
+   (229). */
+CREATE PROCEDURE #EvidenceCase @Case INT, @Out NVARCHAR(1000) OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @t INT = (SELECT v FROM #C WHERE k = 't'), @a BIGINT, @u3 BIGINT, @u4 BIGINT, @pack NVARCHAR(MAX), @h VARBINARY(32), @h2 VARBINARY(32),
+            @e INT, @endorse BIT = CASE WHEN @Case = 3 THEN 0 ELSE 1 END;
+    EXEC #CControls;
+    SELECT @u3 = v FROM #C WHERE k = 'u3'; SELECT @u4 = v FROM #C WHERE k = 'u4';
+    EXEC #CApproved @Endorse = @endorse;
+    SELECT @a = v FROM #C WHERE k = 'a';
+    EXEC #CBind @t, @u3;
+    IF @Case = 5 EXEC #CBind @t, @u4;
+    EXECUTE AS USER = N'tp_test_crdapp';
+    IF @Case = 4 EXEC fin.usp_BuildAssessmentEvidencePack @a, N' ', @pack OUTPUT, @h OUTPUT;
+    ELSE IF @Case <> 6 EXEC fin.usp_BuildAssessmentEvidencePack @a, N'For the external auditor of 2025', @pack OUTPUT, @h OUTPUT;
+    IF @Case = 2 EXEC fin.usp_BuildAssessmentEvidencePack @a, N'For bank 1, renewal of 2026', NULL, @h2 OUTPUT;
+    IF @Case = 6
+    BEGIN TRY
+        INSERT fin.AssessmentEvidencePack (TenantId, AssessmentId, Purpose, Sha256, ContentChars, GeneratedBy) VALUES (@t, @a, N'x', 0x00, 1, @u3);
+        SET @e = 0;
+    END TRY BEGIN CATCH SET @e = ERROR_NUMBER(); END CATCH;
+    REVERT;
+    IF @Case = 1
+        SET @Out = CONCAT(JSON_VALUE(@pack, '$.format'), ' | ', JSON_VALUE(@pack, '$.assessment.UseScope'), ' ', JSON_VALUE(@pack, '$.assessment.EndorsedBias'), ' ',
+                          JSON_VALUE(@pack, '$.assessment.EndorsedRatings'), ' | versions ', (SELECT COUNT(*) FROM OPENJSON(@pack, '$.statementVersions')),
+                          ' lines ', (SELECT COUNT(*) FROM OPENJSON(@pack, '$.statementLines')), ' factors ', (SELECT COUNT(*) FROM OPENJSON(@pack, '$.factors')),
+                          ' | ', CASE WHEN @h = HASHBYTES('SHA2_256', @pack) THEN 'hash' ELSE 'nohash' END, ' ',
+                          (SELECT COUNT(*) FROM fin.AssessmentEvidencePack WHERE TenantId = @t AND AssessmentId = @a AND Sha256 = @h), ' ',
+                          (SELECT COUNT(*) FROM aud.AuditLog WHERE TenantId = @t AND Action = 'EVIDENCE_PACK_BUILT' AND EntityId = @a));
+    IF @Case = 2 SET @Out = CONCAT(CASE WHEN @h = @h2 THEN 'same' ELSE 'differs' END, ' ', (SELECT COUNT(*) FROM fin.AssessmentEvidencePack WHERE TenantId = @t AND AssessmentId = @a));
+    IF @Case = 6 SET @Out = CAST(@e AS VARCHAR(10));
+END;
+GO
+DECLARE @got NVARCHAR(2000);
+EXEC #CCases '#EvidenceCase', 1, 6, @got OUTPUT;
+IF @got = N'1:0=BankFas assessment evidence pack v1 | ENDORSED INSUFFICIENT 0 | versions 1 lines 47 factors 17 | hash 1 1 2:0=same 2 3:50095 4:50095 5:50095 6:0=229'
+    PRINT 'PASS CA28: an endorsed assessment leaves the company in one sealed evidence pack whose hash is logged, and only an endorsed one, with a purpose, by an endorser or an approver';
+ELSE PRINT CONCAT('FAIL CA28: ', @got, N' (expected 1:0=BankFas assessment evidence pack v1 | ENDORSED INSUFFICIENT 0 | versions 1 lines 47 factors 17 | hash 1 1 2:0=same 2 3:50095 4:50095 5:50095 6:0=229)');
+GO
+/* CA29 (FR-FIN-047, BR-FIN-046, ADR 0030): the calibration in IND's readiness file of 2026-04-30, a covenant test due
+   on 2026-06-30. The assessment is made clean by the test (liquidity SGL-2, a stable outlook, no critical risk and no
+   data missing) so that only the calibration speaks, and the lenders' ratings are set from its own grade. (1) No
+   lender rating: the test is GREEN and the lenders are asked for a rating (NO_LENDER_RATING); (2) bank 1 rated IND one
+   notch below the assessment three times in early 2026: AMBER, CALIBRATION_OPTIMISTIC, nothing asked; (3) a single
+   rating at the assessment's grade in December 2024, older than 12 months: AMBER, CALIBRATION_STALE, and a new rating
+   asked (LENDER_RATING_STALE); (4) with the calibration age set to 24 months the same rating is recent: GREEN, nothing
+   asked. */
+CREATE PROCEDURE #CalReadyCase @Case INT, @Out NVARCHAR(1000) OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @s BIGINT, @a BIGINT, @t INT = (SELECT v FROM #C WHERE k = 't'), @ind BIGINT = (SELECT v FROM #C WHERE k = 'ind'), @notch INT;
+    ALTER TABLE fin.LenderRating NOCHECK CONSTRAINT FK_LenderRating_LenderInstitutionId;
+    EXEC #CStmt @ind, '2025-12-31';
+    SELECT @s = v FROM #C WHERE k = 's';
+    EXEC #CCov;
+    DECLARE @cv BIGINT = (SELECT TOP (1) CovenantId FROM obl.Covenant WHERE TenantId = @t AND MeasureKind = 'FLOW_VOLUME');
+    INSERT obl.CovenantTest (TenantId, CovenantId, CovenantRootId, PeriodStart, PeriodEnd, DueDate, Method)
+    VALUES (@t, @cv, (SELECT RootId FROM obl.Covenant WHERE CovenantId = @cv), '2026-01-01', '2026-05-31', '2026-06-30', 'AUTO');
+    EXEC #CAssess @s;
+    SELECT @a = v FROM #C WHERE k = 'a';
+    EXEC fin.usp_ComputeCreditAssessment @a;
+    -- a clean assessment, so that the calibration alone moves the readiness (the draft's results, written here as sa)
+    UPDATE fin.CreditAssessment SET LiquidityLabel = 'SGL-2', Outlook = 'STABLE' WHERE CreditAssessmentId = @a;
+    DELETE fin.CreditAssessmentFinding WHERE AssessmentId = @a AND (Kind = 'CRITICAL_RISK' OR Source = 'DATA');
+    SET @notch = (SELECT g.NotchNo FROM fin.CreditAssessment AS x JOIN fin.RatingGrade AS g ON g.RatingGradeId = x.FinalGradeId WHERE x.CreditAssessmentId = @a);
+    INSERT fin.LenderRating (TenantId, CompanyId, LenderInstitutionId, RatingDate, GradeId, MappingKind, LenderReasons, NoSourceReason)
+    SELECT @t, @ind, 1, v.RatingDate, (SELECT RatingGradeId FROM fin.RatingGrade WHERE NotchNo = @notch + v.Step), 'GIVEN_BY_LENDER', N'خطاب البنك', N'test fixture'
+    FROM (VALUES (2, '2026-01-15', 1), (2, '2026-02-15', 1), (2, '2026-03-15', 1), (3, '2024-12-01', 0), (4, '2024-12-01', 0)) AS v (CaseNo, RatingDate, Step)
+    WHERE v.CaseNo = @Case;
+    IF @Case = 4 INSERT cfg.TenantSetting (TenantId, [Key], ValueJson) VALUES (@t, 'fin.calibration.max_age_months', N'24');
+    SET @Out = CONCAT((SELECT STRING_AGG(CONCAT(EventKind, ':', Readiness, ':', ISNULL(ReasonCode, '-')), ',') WITHIN GROUP (ORDER BY EventDate)
+                       FROM fin.v_CreditReadinessEvents WHERE AssessmentId = @a),
+                      ' | ', ISNULL((SELECT STRING_AGG(Code, ',') FROM fin.v_CreditReadinessRequests WHERE AssessmentId = @a AND RequestKind = 'CALIBRATION'), 'none'));
+END;
+GO
+DECLARE @got NVARCHAR(2000);
+EXEC #CCases '#CalReadyCase', 1, 4, @got OUTPUT;
+IF @got = N'1:0=COVENANT_TEST:GREEN:- | NO_LENDER_RATING 2:0=COVENANT_TEST:AMBER:CALIBRATION_OPTIMISTIC | none 3:0=COVENANT_TEST:AMBER:CALIBRATION_STALE | LENDER_RATING_STALE 4:0=COVENANT_TEST:GREEN:- | none'
+    PRINT 'PASS CA29: an optimistic or stale calibration against the lenders turns a lender date AMBER, and the readiness file asks for a lender rating when none is recent';
+ELSE PRINT CONCAT('FAIL CA29: ', @got, N' (expected 1:0=COVENANT_TEST:GREEN:- | NO_LENDER_RATING 2:0=COVENANT_TEST:AMBER:CALIBRATION_OPTIMISTIC | none 3:0=COVENANT_TEST:AMBER:CALIBRATION_STALE | LENDER_RATING_STALE 4:0=COVENANT_TEST:GREEN:- | none)');
+GO
+/* CA30 (FR-FIN-048, BR-FIN-047, ADR 0030): the provision matrix of IND's receivables (SAR millions: 100 up to 90 days,
+   30 to 180, 20 to a year, 10 over a year of which 4 government), the pack's default rates 1, 5, 20, 50 and 10 percent:
+   expected 9.9. (1) A recorded allowance of 2 is a SHORTFALL of 7.9 on provisional rates, and the readiness asks for
+   an explanation (ECL_SHORTFALL); (2) with the rates approved by the treasury and an allowance of 9.5: ADEQUATE on
+   approved rates; (3) a statement without an ageing or an allowance has no check; (4) without rates: NO_RATES, nothing
+   expected. */
+CREATE PROCEDURE #ProvisionCase @Case INT, @Out NVARCHAR(1000) OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @s BIGINT, @a BIGINT, @t INT = (SELECT v FROM #C WHERE k = 't'), @ind BIGINT = (SELECT v FROM #C WHERE k = 'ind'), @u2 BIGINT = (SELECT v FROM #C WHERE k = 'u2'),
+            @ov NVARCHAR(400) = CASE WHEN @Case = 3 THEN N'' ELSE CONCAT(N'AR_AGE_0_90=100;AR_AGE_91_180=30;AR_AGE_181_365=20;AR_AGE_OVER_365=10;AR_AGE_OVER_365_GOV=4;AR_ECL_ALLOWANCE=',
+                                                                         CASE WHEN @Case = 2 THEN N'9.5' ELSE N'2' END) END;
+    EXEC #CNtfPack;
+    IF @Case = 2 UPDATE fin.ReceivableLossRate SET Status = 'APPROVED', ApprovedBy = @u2, ApprovedOn = SYSUTCDATETIME() WHERE TenantId = @t;
+    IF @Case = 4 DELETE fin.ReceivableLossRate WHERE TenantId = @t;
+    EXEC #CStmt @ind, '2025-12-31', @ov;
+    SELECT @s = v FROM #C WHERE k = 's';
+    EXEC #CAssess @s;
+    SELECT @a = v FROM #C WHERE k = 'a';
+    EXEC fin.usp_ComputeCreditAssessment @a;
+    SELECT @Out = CONCAT(Status, ' ', RatesStatus, ' ', CAST(ExpectedAllowance / 1000000 AS DECIMAL(9,2)), ' ', CAST(RecordedAllowance / 1000000 AS DECIMAL(9,2)), ' ',
+                         CAST(Shortfall / 1000000 AS DECIMAL(9,2)), ' | ',
+                         ISNULL((SELECT STRING_AGG(Code, ',') FROM fin.v_CreditReadinessRequests WHERE AssessmentId = @a AND RequestKind = 'PROVISION'), 'none'))
+    FROM fin.v_ReceivableProvisionCheck WHERE StatementId = @s;
+    IF @Out IS NULL SET @Out = N'no row';
+END;
+GO
+DECLARE @got NVARCHAR(2000);
+EXEC #CCases '#ProvisionCase', 1, 4, @got OUTPUT;
+IF @got = N'1:0=SHORTFALL PROVISIONAL 9.90 2.00 7.90 | ECL_SHORTFALL 2:0=ADEQUATE APPROVED 9.90 9.50 0.40 | none 3:0=no row 4:0=NO_RATES MISSING  2.00  | none'
+    PRINT 'PASS CA30: the provision matrix of the receivables ageing is compared with the recorded allowance, on provisional or approved rates, and a shortfall is asked about';
+ELSE PRINT CONCAT('FAIL CA30: ', @got, N' (expected 1:0=SHORTFALL PROVISIONAL 9.90 2.00 7.90 | ECL_SHORTFALL 2:0=ADEQUATE APPROVED 9.90 9.50 0.40 | none 3:0=no row 4:0=NO_RATES MISSING  2.00  | none)');
+GO
+DROP PROCEDURE #ProvisionCase, #CalReadyCase, #EvidenceCase, #FreezeCase, #CApproved, #CControls, #CalibrationCase, #EndorseCase, #MessageCase, #CRender, #CNtfPack, #WarnCase, #CJob, #LenderRatingCase, #BudgetCase, #ReadyCase, #VersionCase, #TrialCase, #LenderCase, #CountryCase, #HashCase, #PlatformCase, #CPlatform, #CardCase, #CovCase, #CCov, #LifeCase, #SupportCase, #HoldAssessment, #AdjustCase, #DataCase,
                #CoverageCase, #CHead, #CGrade, #CCases, #CAssess, #Crd, #CStmt, #CBase, #CBind;
 DROP TABLE #C;
 DROP USER [tp_test_crdapp];

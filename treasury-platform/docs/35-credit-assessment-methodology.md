@@ -8,7 +8,7 @@
 | مصدر الحقيقة | `tools/dbgen/credit_scorecard.json`: كل رقم في هذه الوثيقة منه، والجداول بين علامات `gen:` يكتبها `tools/dbgen/gen_credit_seed.py --doc` بواسطة `tools/dbgen/credit_doc.py` |
 | التنفيذ | `db/static/047_credit_engine.sql` (المحرك والحساب والتقرير)، و`db/static/046_credit_assessment.sql` (الحراس)، و`db/seed/104_credit_scorecard.sql` (المنهجية بذرةً للمنصة) |
 | التحقق | `tools/dbgen/credit_reference.py` يحسب الشيء نفسه بلغة Python؛ و`db/tests/credit_engine_cases.sql` (142 حالة، الخطوة 19d) يقارن المحرك بالمرجع رقمًا برقم؛ واختبارات CA1 إلى CA22 (الخطوة 19c) تمر بالجداول؛ و`tools/dbgen/credit_stress.py` يمرر 51 حالة مراجعة (الخطوة 3) |
-| القرارات المعمارية | `docs/adr/0017-credit-assessment.md` و`docs/adr/0018-credit-assessment-v2.md` و`docs/adr/0019-credit-assessment-sector-country.md` و`docs/adr/0020-current-event-scenario.md` و`docs/adr/0021-lender-actual-decision.md` و`docs/adr/0022-trial-assessment.md` و`docs/adr/0023-presentation-versions.md` و`docs/adr/0024-readiness-file-and-early-warning.md` و`docs/adr/0025-budget-statements.md` و`docs/adr/0026-lender-ratings.md` و`docs/adr/0027-early-warning-job.md` و`docs/adr/0028-early-warning-message-templates.md` و`docs/adr/0029-review-v3-controls.md` |
+| القرارات المعمارية | `docs/adr/0017-credit-assessment.md` و`docs/adr/0018-credit-assessment-v2.md` و`docs/adr/0019-credit-assessment-sector-country.md` و`docs/adr/0020-current-event-scenario.md` و`docs/adr/0021-lender-actual-decision.md` و`docs/adr/0022-trial-assessment.md` و`docs/adr/0023-presentation-versions.md` و`docs/adr/0024-readiness-file-and-early-warning.md` و`docs/adr/0025-budget-statements.md` و`docs/adr/0026-lender-ratings.md` و`docs/adr/0027-early-warning-job.md` و`docs/adr/0028-early-warning-message-templates.md` و`docs/adr/0029-review-v3-controls.md` و`docs/adr/0030-review-v4-controls.md` |
 
 ## 1. الغرض والنطاق
 
@@ -2519,6 +2519,8 @@
 - **الإنذار المبكر:** كل يوم، لآخر تقييم محسوب لكل شركة، كل موعد في المدة جاهزيته غير خضراء (`fin.v_CreditEarlyWarnings`).
 - **إشعارات الإنذار المبكر (ADR 0027):** ترسلها مهمة يومية `JOB-FIN-READINESS` في 05:20 بتوقيت المشترك، فلا يلزم أن يفتح أحد ملف الجاهزية. يصل الإنذار بكل موعد مرة عند دخوله المدة، ثم عند 90 و30 و7 أيام، ومرة أخرى في المرحلة نفسها إن ساءت جاهزيته من الأصفر إلى الأحمر. والأحمر بشدة عالية. ولا يتكرر الإنذار بإعادة التشغيل، والمهمة بعد توقف أيامًا ترسل المرحلة الحالية وحدها. ويُكتب كل إنذار في `fin.EarlyWarningAlert` مع طلب إشعار في صندوق Outbox في معاملة واحدة، فيحل منشئ الإشعارات مستلميه (TM وFO وFA ضمن نطاق الشركة).
 - **رسائل الإنذار (ADR 0028):** حدثان: الأحمر `FIN.READINESS_RED` بشدة عالية وإلزامي ويصل بالبريد أيضًا، والأصفر `FIN.READINESS_AMBER` في التطبيق ويجوز جمعه في الملخص اليومي. والرسالة بلغة المستلم، العربية أو الإنجليزية. تذكر نوع الموعد ومرجعه وتاريخه والأيام الباقية، وسبب الجاهزية (أول قاعدة حددتها)، ودرجة التقييم وسيولته. ورسالة البريد تضيف ثلاث خطوات قبل الموعد، وتنبّه إلى أن الدرجة معايرة النظام الداخلية لا تصنيف جهة التمويل. والقوالب في حزمة المشترك `NTF.BASE`.
+- **المعايرة في الجاهزية (ADR 0030):** إن كانت الشركة تقيّم نفسها أعلى من جهاتها بدرجة فأكثر في المتوسط، أو كان آخر تصنيف لجهة تمويل أقدم من 12 شهرًا (إعداد لكل شركة)، صار الموعد أصفر بعد كل الأسباب الأخرى. وإن لم يكن للشركة تصنيف حديث طلب ملف الجاهزية تصنيفًا من جهاتها.
+- **مصفوفة مخصص الذمم (ADR 0030):** المخصص المتوقع من أعمار الذمم بنسب تعتمدها الخزينة، بجانب المخصص المسجَّل. وإن قل المسجَّل عن 90% من المتوقع طلب الملف تفسيره. والفحص لا يغيّر الدرجة.
 
 ### 15.3 تقييم القوائم التقديرية (الموازنة) قبل تنفيذ الخطة (ADR 0025)
 

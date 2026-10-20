@@ -515,14 +515,18 @@ erDiagram
 | ReportingInstance | SubmissionChannelUsedId | cat.LookupItem |
 | ReportingObligation | SubmissionChannelId | cat.LookupItem |
 
-## مخطط `fin` (54 جدولًا)
+## مخطط `fin` (56 جدولًا)
 
-(المخطط كبير؛ العلاقات الداخلية: 76)
+(المخطط كبير؛ العلاقات الداخلية: 77)
 
 | الجدول | العمود | يشير إلى |
 |---|---|---|
 | AccountMonthlyStat | BankAccountId | acc.BankAccount |
+| AccountMonthlyStat | ConfirmedBy | sec.AppUser |
 | AccountMonthlyStat | DocumentId | doc.Document |
+| AccountMonthlyStat | EnteredBy | sec.AppUser |
+| AccountMonthlyStat | LastReopenedBy | sec.AppUser |
+| AssessmentEvidencePack | GeneratedBy | sec.AppUser |
 | BankFlowEntry | CompanyId | org.Company |
 | BankFlowEntry | ConfirmedBy | sec.AppUser |
 | BankFlowEntry | CurrencyId | ref.Currency |
@@ -532,6 +536,7 @@ erDiagram
 | BankFlowEntry | FlowKindId | cat.LookupItem |
 | BankFlowEntry | FlowKindListId | cat.LookupList |
 | BankFlowEntry | InstitutionId | ins.Institution |
+| BankFlowEntry | LastReopenedBy | sec.AppUser |
 | CompanyProductLine | CompanyId | org.Company |
 | ConsolidationMember | MemberCompanyId | org.Company |
 | CountryRegion | CountryId | ref.Country |
@@ -574,6 +579,7 @@ erDiagram
 | PresentationVersion | ChosenBy | sec.AppUser |
 | PresentationVersion | PreparedBy | sec.AppUser |
 | PresentationVersionStep | DocumentId | doc.Document |
+| ReceivableLossRate | ApprovedBy | sec.AppUser |
 | RevenueEstimate | ApprovedBy | sec.AppUser |
 | RevenueEstimate | CompanyId | org.Company |
 | RevenueEstimate | CurrencyId | ref.Currency |

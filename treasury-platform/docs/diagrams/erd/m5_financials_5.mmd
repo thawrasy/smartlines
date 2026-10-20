@@ -1,5 +1,9 @@
 %% م5 · البيانات المالية والأرصدة (5/14) — Financial statements & balances
 erDiagram
+  fin_CreditAssessmentReclass["fin.CreditAssessmentReclass"] {
+    bigint CreditAssessmentReclassId PK
+    bigint AssessmentId FK
+  }
   fin_CreditAssessmentRemedy["fin.CreditAssessmentRemedy"] {
     bigint CreditAssessmentRemedyId PK
     bigint AssessmentId FK
@@ -17,7 +21,3 @@ erDiagram
     bigint AssessmentId FK
     int MetricId FK
   }
-  fin_CreditMetric["fin.CreditMetric"] {
-    int CreditMetricId PK
-  }
-  fin_CreditMetric ||--o{ fin_CreditAssessmentTrigger : "MetricId"

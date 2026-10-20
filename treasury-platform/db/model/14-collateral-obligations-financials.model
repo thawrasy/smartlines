@@ -555,11 +555,22 @@ table fin.AccountMonthlyStat public  # Monthly balance of an account in the acco
   SourceRef         str(100)
   DocumentId        ->doc.Document
   Note              str(500)
-  Status            enum{DRAFT,CONFIRMED} req =DRAFT
+  Status            enum{DRAFT,CONFIRMED} req =DRAFT   # المؤكَّد لا يتغير ولا يُحذف إلا بإعادة فتح (ADR 0030)
+  EnteredBy         ->sec.AppUser noidx
+  ConfirmedBy       ->sec.AppUser noidx
+  ConfirmedOn       ts
+  ReopenCount       int        req =0   # مرات إعادة فتح المؤكَّد: يعيده مسودة بسبب، بيد غير المُدخِل (052، ADR 0030)
+  LastReopenedBy    ->sec.AppUser noidx
+  LastReopenedOn    ts
+  LastReopenReason  str(500)
   unique PublicId
   unique BankAccountId,MonthEnd
   check  DAY(DATEADD(DAY, 1, MonthEnd)) = 1   # نهاية الشهر فعلًا (DR-37)
   index  MonthEnd,Status include BankAccountId   # مصفوفة الأرصدة ونقص الشهر السابق (R-FIN-02، NTF-FIN-01)
+  check  (Status = 'DRAFT' AND ConfirmedBy IS NULL AND ConfirmedOn IS NULL) OR (Status = 'CONFIRMED' AND ConfirmedBy IS NOT NULL AND ConfirmedOn IS NOT NULL)
+  check  ConfirmedBy IS NULL OR EnteredBy IS NULL OR ConfirmedBy <> EnteredBy   # المُدخِل ≠ المؤكِّد
+  check  ReopenCount >= 0 AND (ReopenCount = 0 OR (LastReopenedBy IS NOT NULL AND LastReopenedOn IS NOT NULL AND LastReopenReason IS NOT NULL))
+  check  LastReopenedBy IS NULL OR EnteredBy IS NULL OR LastReopenedBy <> EnteredBy   # يعيد فتحه غير المُدخِل
 
 table fin.BankFlowEntry public  # Amount transferred to the bank in a month; annual totals are computed automatically (FR-FIN-009/010, BR-FIN-007/008)
   CompanyId     ->org.Company req
@@ -577,6 +588,10 @@ table fin.BankFlowEntry public  # Amount transferred to the bank in a month; ann
   EnteredBy     ->sec.AppUser
   ConfirmedBy   ->sec.AppUser
   ConfirmedOn   ts
+  ReopenCount       int        req =0   # مرات إعادة فتح المؤكَّد: يعيده مسودة بسبب، بيد غير المُدخِل (052، ADR 0030)
+  LastReopenedBy    ->sec.AppUser noidx
+  LastReopenedOn    ts
+  LastReopenReason  str(500)
   unique PublicId
   unique CompanyId,InstitutionId,FacilityId,MonthEnd,FlowKindId   # تكرار (شركة، بنك، تسهيل، شهر) مرفوض (FR-FIN-009)
   check  DAY(DATEADD(DAY, 1, MonthEnd)) = 1   # نهاية الشهر فعلًا (DR-37)
@@ -585,6 +600,8 @@ table fin.BankFlowEntry public  # Amount transferred to the bank in a month; ann
   check  FlowKindListCode = 'FLOW_KIND'
   check  (Status = 'DRAFT' AND ConfirmedBy IS NULL AND ConfirmedOn IS NULL) OR (Status = 'CONFIRMED' AND ConfirmedBy IS NOT NULL AND ConfirmedOn IS NOT NULL)
   check  ConfirmedBy IS NULL OR EnteredBy IS NULL OR ConfirmedBy <> EnteredBy   # المُدخِل ≠ المؤكِّد
+  check  ReopenCount >= 0 AND (ReopenCount = 0 OR (LastReopenedBy IS NOT NULL AND LastReopenedOn IS NOT NULL AND LastReopenReason IS NOT NULL))
+  check  LastReopenedBy IS NULL OR EnteredBy IS NULL OR LastReopenedBy <> EnteredBy   # يعيد فتحه غير المُدخِل
 
 table fin.MeasureFormula src  # Measure formula: a template or a facility-agreement version with revisions; never executed as text (FR-FIN-011, BR-FIN-009, section 12)
   Code            ascii(60)  req
@@ -1035,6 +1052,9 @@ table fin.CreditAssessment public  # Credit assessment of an approved statement 
   EndorsedBy        ->sec.AppUser noidx   # تصديق الاستعمال خارج الشركة: من خارج خط الإعداد والاعتماد (fin.credit.endorse، ADR 0029)
   EndorsedOn        ts
   EndorsementNote   str(1000)            # سبب التصديق ونطاقه: لمن يُعرض ولأي غرض
+  EndorsedBias      enum{INSUFFICIENT,OPTIMISTIC,CONSERVATIVE,ALIGNED}   # ميل الشركة مقابل جهاتها يوم التصديق (ADR 0030)
+  EndorsedRatings   int                  # عدد التصنيفات المقارنة يومها
+  EndorsedLastRatingDate date            # تاريخ آخر تصنيف لجهة تمويل يومها
   IndustryId        ->ref.Industry noidx   # النشاط الذي قرأه التقييم (من الشركة عند الحساب)
   SectorPosition    enum{ABOVE,WITHIN,BELOW}   # الدرجة مقابل المدى المتوقع لقطاعها
   Resilience        enum{RESILIENT,MODERATE,VULNERABLE}   # من سيناريو ركود السوق (docs/35 §13)
@@ -1067,6 +1087,7 @@ table fin.CreditAssessment public  # Credit assessment of an approved statement 
   check  Status <> 'REJECTED' OR RejectionReason IS NOT NULL
   check  (EndorsedBy IS NULL AND EndorsedOn IS NULL AND EndorsementNote IS NULL) OR (EndorsedBy IS NOT NULL AND EndorsedOn IS NOT NULL AND EndorsementNote IS NOT NULL AND Status IN ('APPROVED','SUPERSEDED') AND IsTrial = 0)   # يُصدَّق المعتمد بسبب (ADR 0029)
   check  EndorsedBy IS NULL OR (EndorsedBy <> PreparedBy AND EndorsedBy <> ApprovedBy)   # المصدِّق غير المُعِدّ والمعتمِد
+  check  (EndorsedBy IS NULL AND EndorsedBias IS NULL AND EndorsedRatings IS NULL AND EndorsedLastRatingDate IS NULL) OR (EndorsedBy IS NOT NULL AND EndorsedBias IS NOT NULL AND EndorsedRatings IS NOT NULL)
   check  MarketRegionCode IS NULL OR MarketRegionCode COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%'
   check  CountryRisk IS NULL OR CountryRisk BETWEEN 1 AND 6
   check  IndustryRisk IS NULL OR IndustryRisk BETWEEN 1 AND 6
@@ -1168,6 +1189,29 @@ table fin.EarlyWarningAlert append  # An early warning the job JOB-FIN-READINESS
   unique CompanyId,EventKind,RefId,EventDate,Stage,Readiness
   unique MessageId
   index  CompanyId,IssuedOn
+
+table fin.AssessmentEvidencePack append  # A sealed evidence pack of an endorsed assessment, built for an auditor or a lender: the assessment, its statement versions and lines, findings, reconciliation, calibration and audit rows in one JSON document whose SHA-256 is kept here; the same content gives the same hash (ADR 0030)
+  AssessmentId  ->fin.CreditAssessment req
+  Purpose       str(500)   req   # لمن ولأي غرض: المدقق الخارجي لسنة 2025، أو البنك لتجديد 2026
+  Sha256        bin(32)    req   # بصمة نص JSON بترميز UTF-16LE كما تعيده القاعدة
+  ContentChars  int        req
+  GeneratedBy   ->sec.AppUser req noidx
+  index  AssessmentId,CreatedAt
+  check  ContentChars > 0
+
+table fin.ReceivableLossRate int  # The loss rate of a receivables ageing bucket for the provision matrix the company compares its recorded allowance with (IFRS 9 simplified approach; owner decision 35, ADR 0030); the defaults of the pack FIN.PROVISION are for the treasury to approve or change
+  BucketCode    enum{AR_AGE_0_90,AR_AGE_91_180,AR_AGE_181_365,AR_AGE_OVER_365,AR_AGE_OVER_365_GOV} req
+  LossRatePct   dec(7,4)   req
+  EffectiveFrom date       req
+  Status        enum{DRAFT,APPROVED} req =DRAFT
+  ApprovedBy    ->sec.AppUser noidx
+  ApprovedOn    ts
+  Note          str(500)
+  SeedKey       ascii(80)
+  unique BucketCode,EffectiveFrom
+  unique SeedKey where SeedKey IS NOT NULL
+  check  LossRatePct >= 0 AND LossRatePct <= 100
+  check  (Status = 'DRAFT' AND ApprovedBy IS NULL AND ApprovedOn IS NULL) OR (Status = 'APPROVED' AND ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)
 
 table fin.PresentationVersion public  # An alternative presentation of a company's statement before its final approval: the remedies the company chose, applied in order to the statement and kept balanced, written as a new draft statement with a trial assessment to compare; chosen by someone other than its preparer, and only when every step rests on a document dated by the period end (docs/36 F2, ADR 0023)
   SourceStatementId ->fin.FinancialStatement req

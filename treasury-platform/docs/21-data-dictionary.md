@@ -2,7 +2,7 @@
 
 > مُولَّد آليًا من نموذج البيانات بـ `tools/dbgen` — لا يُعدَّل يدويًا. الأعمدة المشتركة التي تضيفها اصطلاحات التوليد (TenantId، المعرّف، التدقيق) تظهر في كل جدول.
 
-**عدد الجداول: 249**
+**عدد الجداول: 251**
 
 | الوحدة | عدد الجداول |
 |---|---|
@@ -22,7 +22,7 @@
 | CMP | 2 |
 | COL | 7 |
 | OBL | 9 |
-| FIN | 54 |
+| FIN | 56 |
 | REQ | 8 |
 | WFL | 11 |
 | NTF | 7 |
@@ -4423,7 +4423,14 @@
 | SourceRef | NVARCHAR(100) | نعم |  |  |  |
 | DocumentId | BIGINT | نعم |  | doc.Document |  |
 | Note | NVARCHAR(500) | نعم |  |  |  |
-| Status | VARCHAR(10) | لا | DRAFT |  | enum: DRAFT, CONFIRMED |
+| Status | VARCHAR(10) | لا | DRAFT |  | المؤكَّد لا يتغير ولا يُحذف إلا بإعادة فتح (ADR 0030) enum: DRAFT, CONFIRMED |
+| EnteredBy | BIGINT | نعم |  | sec.AppUser |  |
+| ConfirmedBy | BIGINT | نعم |  | sec.AppUser |  |
+| ConfirmedOn | DATETIME2(3) | نعم |  |  |  |
+| ReopenCount | INT | لا | 0 |  | مرات إعادة فتح المؤكَّد: يعيده مسودة بسبب، بيد غير المُدخِل (052، ADR 0030) |
+| LastReopenedBy | BIGINT | نعم |  | sec.AppUser |  |
+| LastReopenedOn | DATETIME2(3) | نعم |  |  |  |
+| LastReopenReason | NVARCHAR(500) | نعم |  |  |  |
 | PublicId | UNIQUEIDENTIFIER | لا | NEWSEQUENTIALID() |  |  |
 | CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
 | CreatedBy | BIGINT | نعم |  |  |  |
@@ -4432,7 +4439,7 @@
 
 **المفاتيح:** PK(AccountMonthlyStatId) · UQ(PublicId) · UQ(TenantId, BankAccountId, MonthEnd)
 
-**قيود:** `DAY(DATEADD(DAY, 1, MonthEnd)) = 1`
+**قيود:** `DAY(DATEADD(DAY, 1, MonthEnd)) = 1` · `(Status = 'DRAFT' AND ConfirmedBy IS NULL AND ConfirmedOn IS NULL) OR (Status = 'CONFIRMED' AND ConfirmedBy IS NOT NULL AND ConfirmedOn IS NOT NULL)` · `ConfirmedBy IS NULL OR EnteredBy IS NULL OR ConfirmedBy <> EnteredBy` · `ReopenCount >= 0 AND (ReopenCount = 0 OR (LastReopenedBy IS NOT NULL AND LastReopenedOn IS NOT NULL AND LastReopenReason IS NOT NULL))` · `LastReopenedBy IS NULL OR EnteredBy IS NULL OR LastReopenedBy <> EnteredBy`
 
 ### `fin.BankFlowEntry` — Amount transferred to the bank in a month; annual totals are computed automatically (FR-FIN-009/010, BR-FIN-007/008)
 
@@ -4457,6 +4464,10 @@
 | EnteredBy | BIGINT | نعم |  | sec.AppUser |  |
 | ConfirmedBy | BIGINT | نعم |  | sec.AppUser |  |
 | ConfirmedOn | DATETIME2(3) | نعم |  |  |  |
+| ReopenCount | INT | لا | 0 |  | مرات إعادة فتح المؤكَّد: يعيده مسودة بسبب، بيد غير المُدخِل (052، ADR 0030) |
+| LastReopenedBy | BIGINT | نعم |  | sec.AppUser |  |
+| LastReopenedOn | DATETIME2(3) | نعم |  |  |  |
+| LastReopenReason | NVARCHAR(500) | نعم |  |  |  |
 | PublicId | UNIQUEIDENTIFIER | لا | NEWSEQUENTIALID() |  |  |
 | CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
 | CreatedBy | BIGINT | نعم |  |  |  |
@@ -4465,7 +4476,7 @@
 
 **المفاتيح:** PK(BankFlowEntryId) · UQ(PublicId) · UQ(TenantId, CompanyId, InstitutionId, FacilityId, MonthEnd, FlowKindId)
 
-**قيود:** `DAY(DATEADD(DAY, 1, MonthEnd)) = 1` · `Amount >= 0` · `FlowKindListCode = 'FLOW_KIND'` · `(Status = 'DRAFT' AND ConfirmedBy IS NULL AND ConfirmedOn IS NULL) OR (Status = 'CONFIRMED' AND ConfirmedBy IS NOT NULL AND ConfirmedOn IS NOT NULL)` · `ConfirmedBy IS NULL OR EnteredBy IS NULL OR ConfirmedBy <> EnteredBy`
+**قيود:** `DAY(DATEADD(DAY, 1, MonthEnd)) = 1` · `Amount >= 0` · `FlowKindListCode = 'FLOW_KIND'` · `(Status = 'DRAFT' AND ConfirmedBy IS NULL AND ConfirmedOn IS NULL) OR (Status = 'CONFIRMED' AND ConfirmedBy IS NOT NULL AND ConfirmedOn IS NOT NULL)` · `ConfirmedBy IS NULL OR EnteredBy IS NULL OR ConfirmedBy <> EnteredBy` · `ReopenCount >= 0 AND (ReopenCount = 0 OR (LastReopenedBy IS NOT NULL AND LastReopenedOn IS NOT NULL AND LastReopenReason IS NOT NULL))` · `LastReopenedBy IS NULL OR EnteredBy IS NULL OR LastReopenedBy <> EnteredBy`
 
 ### `fin.MeasureFormula` — Measure formula: a template or a facility-agreement version with revisions; never executed as text (FR-FIN-011, BR-FIN-009, section 12)
 
@@ -5194,6 +5205,9 @@
 | EndorsedBy | BIGINT | نعم |  | sec.AppUser | تصديق الاستعمال خارج الشركة: من خارج خط الإعداد والاعتماد (fin.credit.endorse، ADR 0029) |
 | EndorsedOn | DATETIME2(3) | نعم |  |  |  |
 | EndorsementNote | NVARCHAR(1000) | نعم |  |  | سبب التصديق ونطاقه: لمن يُعرض ولأي غرض |
+| EndorsedBias | VARCHAR(12) | نعم |  |  | ميل الشركة مقابل جهاتها يوم التصديق (ADR 0030) enum: INSUFFICIENT, OPTIMISTIC, CONSERVATIVE, ALIGNED |
+| EndorsedRatings | INT | نعم |  |  | عدد التصنيفات المقارنة يومها |
+| EndorsedLastRatingDate | DATE | نعم |  |  | تاريخ آخر تصنيف لجهة تمويل يومها |
 | IndustryId | INT | نعم |  | ref.Industry | النشاط الذي قرأه التقييم (من الشركة عند الحساب) |
 | SectorPosition | VARCHAR(10) | نعم |  |  | الدرجة مقابل المدى المتوقع لقطاعها enum: ABOVE, WITHIN, BELOW |
 | Resilience | VARCHAR(10) | نعم |  |  | من سيناريو ركود السوق (docs/35 §13) enum: RESILIENT, MODERATE, VULNERABLE |
@@ -5217,7 +5231,7 @@
 
 **المفاتيح:** PK(CreditAssessmentId) · UQ(PublicId) · UQ(TenantId, StatementId) WHERE Status = 'APPROVED'
 
-**قيود:** `FxRateToScorecard IS NULL OR FxRateToScorecard > 0` · `PriorStatementId IS NULL OR PriorStatementId <> StatementId` · `(ResultState IS NULL AND FinancialScore IS NULL AND WeightedScore IS NULL AND IndicatedGradeId IS NULL AND FinalGradeId IS NULL) OR (ResultState IS NOT NULL AND ComputedAt IS NOT NULL AND InputsHash IS NOT NULL AND CoveragePct IS NOT NULL AND ((ResultState = 'INSUFFICIENT_DATA' AND FinancialScore IS NULL AND WeightedScore IS NULL AND IndicatedGradeId IS NULL AND FinalGradeId IS NULL) OR (ResultState = 'INDICATIVE' AND FinancialScore IS NOT NULL AND FinancialGradeId IS NOT NULL AND WeightedScore IS NULL AND FinalGradeId IS NULL) OR (ResultState = 'RATED' AND FinancialScore IS NOT NULL AND WeightedScore IS NOT NULL AND IndicatedGradeId IS NOT NULL AND StandaloneGradeId IS NOT NULL AND FinalGradeId IS NOT NULL)))` · `WeightedScore IS NULL OR (WeightedScore >= 0.5 AND WeightedScore <= 20.5)` · `FinancialScore IS NULL OR (FinancialScore >= 0.5 AND FinancialScore <= 20.5)` · `CoveragePct IS NULL OR (CoveragePct >= 0 AND CoveragePct <= 100)` · `SupportNotches IS NULL OR SupportNotches BETWEEN 0 AND 2` · `OverrideNotches IS NULL OR OverrideNotches BETWEEN -2 AND 1` · `Status NOT IN ('SUBMITTED','APPROVED','SUPERSEDED') OR (ResultState IS NOT NULL AND ResultState = 'RATED' AND PreparedBy IS NOT NULL AND PreparedOn IS NOT NULL)` · `Status NOT IN ('APPROVED','SUPERSEDED') OR (ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)` · `ApprovedBy IS NULL OR PreparedBy IS NULL OR ApprovedBy <> PreparedBy` · `Status <> 'REJECTED' OR RejectionReason IS NOT NULL` · `(EndorsedBy IS NULL AND EndorsedOn IS NULL AND EndorsementNote IS NULL) OR (EndorsedBy IS NOT NULL AND EndorsedOn IS NOT NULL AND EndorsementNote IS NOT NULL AND Status IN ('APPROVED','SUPERSEDED') AND IsTrial = 0)` · `EndorsedBy IS NULL OR (EndorsedBy <> PreparedBy AND EndorsedBy <> ApprovedBy)` · `MarketRegionCode IS NULL OR MarketRegionCode COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%'` · `CountryRisk IS NULL OR CountryRisk BETWEEN 1 AND 6` · `IndustryRisk IS NULL OR IndustryRisk BETWEEN 1 AND 6`
+**قيود:** `FxRateToScorecard IS NULL OR FxRateToScorecard > 0` · `PriorStatementId IS NULL OR PriorStatementId <> StatementId` · `(ResultState IS NULL AND FinancialScore IS NULL AND WeightedScore IS NULL AND IndicatedGradeId IS NULL AND FinalGradeId IS NULL) OR (ResultState IS NOT NULL AND ComputedAt IS NOT NULL AND InputsHash IS NOT NULL AND CoveragePct IS NOT NULL AND ((ResultState = 'INSUFFICIENT_DATA' AND FinancialScore IS NULL AND WeightedScore IS NULL AND IndicatedGradeId IS NULL AND FinalGradeId IS NULL) OR (ResultState = 'INDICATIVE' AND FinancialScore IS NOT NULL AND FinancialGradeId IS NOT NULL AND WeightedScore IS NULL AND FinalGradeId IS NULL) OR (ResultState = 'RATED' AND FinancialScore IS NOT NULL AND WeightedScore IS NOT NULL AND IndicatedGradeId IS NOT NULL AND StandaloneGradeId IS NOT NULL AND FinalGradeId IS NOT NULL)))` · `WeightedScore IS NULL OR (WeightedScore >= 0.5 AND WeightedScore <= 20.5)` · `FinancialScore IS NULL OR (FinancialScore >= 0.5 AND FinancialScore <= 20.5)` · `CoveragePct IS NULL OR (CoveragePct >= 0 AND CoveragePct <= 100)` · `SupportNotches IS NULL OR SupportNotches BETWEEN 0 AND 2` · `OverrideNotches IS NULL OR OverrideNotches BETWEEN -2 AND 1` · `Status NOT IN ('SUBMITTED','APPROVED','SUPERSEDED') OR (ResultState IS NOT NULL AND ResultState = 'RATED' AND PreparedBy IS NOT NULL AND PreparedOn IS NOT NULL)` · `Status NOT IN ('APPROVED','SUPERSEDED') OR (ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)` · `ApprovedBy IS NULL OR PreparedBy IS NULL OR ApprovedBy <> PreparedBy` · `Status <> 'REJECTED' OR RejectionReason IS NOT NULL` · `(EndorsedBy IS NULL AND EndorsedOn IS NULL AND EndorsementNote IS NULL) OR (EndorsedBy IS NOT NULL AND EndorsedOn IS NOT NULL AND EndorsementNote IS NOT NULL AND Status IN ('APPROVED','SUPERSEDED') AND IsTrial = 0)` · `EndorsedBy IS NULL OR (EndorsedBy <> PreparedBy AND EndorsedBy <> ApprovedBy)` · `(EndorsedBy IS NULL AND EndorsedBias IS NULL AND EndorsedRatings IS NULL AND EndorsedLastRatingDate IS NULL) OR (EndorsedBy IS NOT NULL AND EndorsedBias IS NOT NULL AND EndorsedRatings IS NOT NULL)` · `MarketRegionCode IS NULL OR MarketRegionCode COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%'` · `CountryRisk IS NULL OR CountryRisk BETWEEN 1 AND 6` · `IndustryRisk IS NULL OR IndustryRisk BETWEEN 1 AND 6`
 
 ### `fin.CreditAssessmentInput` — The analyst's inputs to an assessment: the grade of a qualitative factor, group support or an override, each with its justification; they change only while the assessment is a draft (BR-FIN-021, BR-FIN-022)
 
@@ -5388,6 +5402,51 @@
 | CreatedBy | BIGINT | نعم |  |  |  |
 
 **المفاتيح:** PK(EarlyWarningAlertId) · UQ(TenantId, CompanyId, EventKind, RefId, EventDate, Stage, Readiness) · UQ(TenantId, MessageId)
+
+### `fin.AssessmentEvidencePack` — A sealed evidence pack of an endorsed assessment, built for an auditor or a lender: the assessment, its statement versions and lines, findings, reconciliation, calibration and audit rows in one JSON document whose SHA-256 is kept here; the same content gives the same hash (ADR 0030)
+
+*مملوك للمشترك*
+
+| العمود | النوع | NULL | الافتراضي | المرجع | ملاحظة |
+|---|---|---|---|---|---|
+| TenantId | INT | لا | | plat.Tenant | عزل المشترك |
+| **AssessmentEvidencePackId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
+| AssessmentId | BIGINT | لا |  | fin.CreditAssessment |  |
+| Purpose | NVARCHAR(500) | لا |  |  | لمن ولأي غرض: المدقق الخارجي لسنة 2025، أو البنك لتجديد 2026 |
+| Sha256 | VARBINARY(32) | لا |  |  | بصمة نص JSON بترميز UTF-16LE كما تعيده القاعدة |
+| ContentChars | INT | لا |  |  |  |
+| GeneratedBy | BIGINT | لا |  | sec.AppUser |  |
+| CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
+| CreatedBy | BIGINT | نعم |  |  |  |
+
+**المفاتيح:** PK(AssessmentEvidencePackId)
+
+**قيود:** `ContentChars > 0`
+
+### `fin.ReceivableLossRate` — The loss rate of a receivables ageing bucket for the provision matrix the company compares its recorded allowance with (IFRS 9 simplified approach; owner decision 35, ADR 0030); the defaults of the pack FIN.PROVISION are for the treasury to approve or change
+
+*مملوك للمشترك*
+
+| العمود | النوع | NULL | الافتراضي | المرجع | ملاحظة |
+|---|---|---|---|---|---|
+| TenantId | INT | لا | | plat.Tenant | عزل المشترك |
+| **ReceivableLossRateId** | INT IDENTITY | لا | | | مفتاح أساسي |
+| BucketCode | VARCHAR(19) | لا |  |  | enum: AR_AGE_0_90, AR_AGE_91_180, AR_AGE_181_365, AR_AGE_OVER_365, AR_AGE_OVER_365_GOV |
+| LossRatePct | DECIMAL(7,4) | لا |  |  |  |
+| EffectiveFrom | DATE | لا |  |  |  |
+| Status | VARCHAR(10) | لا | DRAFT |  | enum: DRAFT, APPROVED |
+| ApprovedBy | BIGINT | نعم |  | sec.AppUser |  |
+| ApprovedOn | DATETIME2(3) | نعم |  |  |  |
+| Note | NVARCHAR(500) | نعم |  |  |  |
+| SeedKey | VARCHAR(80) | نعم |  |  |  |
+| CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
+| CreatedBy | BIGINT | نعم |  |  |  |
+| UpdatedAt | DATETIME2(3) | نعم |  |  |  |
+| UpdatedBy | BIGINT | نعم |  |  |  |
+
+**المفاتيح:** PK(ReceivableLossRateId) · UQ(TenantId, BucketCode, EffectiveFrom) · UQ(TenantId, SeedKey) WHERE SeedKey IS NOT NULL
+
+**قيود:** `LossRatePct >= 0 AND LossRatePct <= 100` · `(Status = 'DRAFT' AND ApprovedBy IS NULL AND ApprovedOn IS NULL) OR (Status = 'APPROVED' AND ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)`
 
 ### `fin.PresentationVersion` — An alternative presentation of a company's statement before its final approval: the remedies the company chose, applied in order to the statement and kept balanced, written as a new draft statement with a trial assessment to compare; chosen by someone other than its preparer, and only when every step rests on a document dated by the period end (docs/36 F2, ADR 0023)
 

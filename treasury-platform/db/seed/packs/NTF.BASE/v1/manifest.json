@@ -2,7 +2,7 @@
   "PackKey": "NTF.BASE",
   "SeedVersion": 1,
   "Slice": "S1",
-  "Status": "DRAFT: written by an AI agent, to be approved by the treasury and the owner (DOC-B05 section 5, X-SEC-7)",
+  "Status": "APPROVED as the default by the owner (decision 35, 2026-10-20). The treasury, the authority for its text, may keep the default or override it per tenant (ntf.NotificationTemplate.IsTenantOverride = 1). Written by an AI agent.",
   "Tables": [
     "ntf.NotificationEventType.csv",
     "ntf.NotificationRule.csv",
@@ -10,7 +10,8 @@
   ],
   "References": {
     "RoleSeedKey": "sec.Role.SeedKey of the pack CORE.ROLES",
-    "EventTypeCode": "ntf.NotificationEventType.Code of this pack"
+    "EventTypeCode": "ntf.NotificationEventType.Code of this pack",
+    "PermissionCode": "sec.Permission.Code of db/seed/102_permissions.sql (RecipientKind PERMISSION)"
   },
   "Placeholders": {
     "source": "fin.v_EarlyWarningMessageValues (db/static/051), by the MessageId of the notification request; a placeholder with Ar and En columns takes the column of the template's language",
@@ -27,7 +28,7 @@
       "leadMonths": "LeadMonths"
     }
   },
-  "Content": "The events FIN.READINESS_RED and FIN.READINESS_AMBER of the early warning (ADR 0027, ADR 0028); the other events of spec 13 section 9.2 join this pack later.",
+  "Content": "The events FIN.READINESS_RED and FIN.READINESS_AMBER of the early warning (ADR 0027, ADR 0028); the red warning also reaches the holders of fin.credit.endorse, the endorsers outside the preparing line such as AU and RK (ADR 0030). The other events of spec 13 section 9.2 join this pack later.",
   "Sources": [
     "docs/10-detailed-analysis/13-m6-workflow-engine-notifications.md section 9.2",
     "docs/adr/0028-early-warning-message-templates.md"

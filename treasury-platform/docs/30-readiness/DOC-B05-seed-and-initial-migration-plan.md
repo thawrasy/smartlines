@@ -94,7 +94,7 @@ flowchart TD
 
 | الحزمة | الجداول | المحتوى والعدد | المصدر | الشريحة |
 |---|---|---|---|---|
-| CORE.ROLES | sec.Role، sec.RolePermission | أدوار النظام TA وTM وFO وTE وFA وRQ وAU، بـ IsSystem=1 وSeedKey | 12-m5…:46؛ 10-m0-m1…:39-70؛ db/model/10-platform.model:156-167 | S0 |
+| CORE.ROLES | sec.Role، sec.RolePermission | أدوار النظام TA وTM وFO وTE وFA وRQ وAU وRK (مسؤول المخاطر، قرار المالك 35)، بـ IsSystem=1 وSeedKey | 12-m5…:46؛ 10-m0-m1…:39-70؛ db/model/10-platform.model:156-167 | S0 |
 | CORE.NUMBERING | cfg.NumberSequenceDefinition | REQUEST وPROFORMA وغيرهما، بـ GapPolicy، وغير مفعّلة حتى يفعّلها TA 🟡 | db/model/10-platform.model:443-453؛ BR-ORG-001 | S0 |
 | CAT.DOCTYPES | cat.DocumentType | 42 نوعًا بأعلامها، ويُضاف النوع النظامي `DATA_EXPORT_PACKAGE` (عام، حساس، مقفل) لحزم التصدير، فتصير 43 (ADR 0008). ✅ وحزمة نوعٍ حساس تُكتب RESTRICTED ولو خلت من البيانات المقيّدة، كما يشترط 043 لوثائق الأنواع الحساسة (db/static/042_data_export.sql، المراجعة الذاتية A10، X7) | 11-m2-m4…:330؛ FR-CAT-018 (:181) | S0، لأن مخزن المستندات FR-PLT-028 في S0 |
 | CORE.DEPARTMENTS | org.Department | إدارة لكل Function: TREASURY وPROCUREMENT وSALES وFINANCE 🟡 | FR-PLT-008؛ FR-ORG-014 (10-m0-m1…:168)؛ 11-organization-party.model:56-68 | S1 |
@@ -103,7 +103,8 @@ flowchart TD
 | CAT.BANKING | cat.InstitutionType، AccountType، OperationType، OperationTypePowerType، ProductCategory، Product، FeeType، FinancingType، FacilityType، LimitType، CollateralType، ObligationType، BaseRate | 5، 8، 11، 13 صفًا، 8، 22، 19، 6، 6، 9، 9، 30، 9 | 11-m2-m4…:319-340 | S1 |
 | CAT.LOOKUPS | cat.LookupList، cat.LookupItem | UNIT_TYPE وCONTACT_ROLE وACCOUNT_PURPOSE وSIGNATURE_CLASS وAUTHORISATION_BASIS، ثم قوائم الاعتماد في S3 | 11-m2-m4…:320-349؛ docs/20-database-design.md:476 | S1، وقوائم LC في S3 |
 | CAT.CURRENCY | cat.TenantCurrency | SAR وUSD وEUR وGBP وAED مفعّلة | 11-m2-m4…:341؛ Q-CAT-08 | S1 |
-| NTF.BASE | ntf.NotificationEventType، ntf.NotificationRule، ntf.NotificationTemplate | رموز الأحداث في 13 §9.2 ومنها رموز 10-m0-m1…:539؛ الإصدار v1 في `db/seed/packs/NTF.BASE/v1/` (2026-10-20، ADR 0028): حدثا الإنذار المبكر وقواعدهما وثمانية قوالب بالعربية والإنجليزية، يفحصها `tools/dbgen/ntf_pack.py` | db/model/15-workflow-notifications.model:527-570 | S1 |
+| NTF.BASE | ntf.NotificationEventType، ntf.NotificationRule، ntf.NotificationTemplate | رموز الأحداث في 13 §9.2 ومنها رموز 10-m0-m1…:539؛ الإصدار v1 في `db/seed/packs/NTF.BASE/v1/` (2026-10-20، ADR 0028): حدثا الإنذار المبكر وقواعدهما وثمانية قوالب بالعربية والإنجليزية، يفحصها `tools/dbgen/ntf_pack.py`؛ واعتمدها المالك افتراضًا (القرار 35)، والخزينة تعدّل نصها أو تبقيه؛ والإنذار الأحمر يصل أيضًا حاملي `fin.credit.endorse` | db/model/15-workflow-notifications.model:527-570 | S1 |
+| FIN.PROVISION | fin.ReceivableLossRate | نسب خسارة افتراضية لمصفوفة مخصص الذمم: 1 و5 و20 و50%، و10% للحكومي فوق سنة، بحالة مسودة تعتمدها الخزينة؛ في `db/seed/packs/FIN.PROVISION/v1/` (ADR 0030) | القرار 35 (D4) | S2-ب |
 | PTY.KYC | pty.KycProfile، pty.KycProfileItem | ملفات KYC المسبقة من 05 §3؛ يُكتب كل ملف مسودة ثم بنوده ثم يُفعَّل، لأن بنود النسخة الفعّالة لا تتغير (ADR 0006) | db/model/11-organization-party.model:407-441 | S2 |
 | CMP.TERMS | cmp.TermType | مفاتيح الشروط القابلة للمقارنة | db/model/13-facilities-pricing-terms.model:542 | S2 |
 | FIN.LINES | fin.LineCatalogItem | 39 بندًا | db/model/14-collateral-obligations-financials.model:383 | S2-ب |
@@ -262,7 +263,7 @@ flowchart LR
 | DQ-B05-9 | سجل تشغيل الاستيراد | cfg.JobRun للتشغيل، والتقرير مستند في doc.Document، بلا جدول جديد | SA | §7.3 |
 | DQ-B05-10 | أداة ترحيل المخطط بين الإصدارات (O-2 في 20-database-design) | تُختار قبل أول نشر على بيانات حقيقية؛ المذكور في الوثيقة DbUp أو Flyway | DBA مع OPS | أول بيانات حقيقية |
 | DQ-B05-11 | حزم الدول (Q-CAT-01) | ✅ معتمد من المالك (2026-10-12): حزمة واحدة للسعودية والخليج | TRM | CAT.ORG وCAT.BANKING |
-| DQ-B05-12 | قوائم أدوار النظام ورموزها الموحدة | ✅ معتمد من المالك (2026-10-12): TA وTM وFO وTE وFA وRQ وAU كما في 12-m5…:46، وتُثبَّت في 10 §2 | OWN مع SEC | CORE.ROLES في S0 |
+| DQ-B05-12 | قوائم أدوار النظام ورموزها الموحدة | ✅ معتمد من المالك (2026-10-12): TA وTM وFO وTE وFA وRQ وAU كما في 12-m5…:46، وتُثبَّت في 10 §2؛ وأضاف المالك RK مسؤول المخاطر في 2026-10-20 (القرار 35) | OWN مع SEC | CORE.ROLES في S0 |
 
 ## 10. تعارضات وفجوات في المصادر
 

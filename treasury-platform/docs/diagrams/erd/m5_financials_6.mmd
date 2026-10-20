@@ -1,5 +1,8 @@
 %% م5 · البيانات المالية والأرصدة (6/14) — Financial statements & balances
 erDiagram
+  fin_CreditMetric["fin.CreditMetric"] {
+    int CreditMetricId PK
+  }
   fin_CreditRemedy["fin.CreditRemedy"] {
     int CreditRemedyId PK
   }
@@ -10,9 +13,6 @@ erDiagram
   fin_CreditRemedyTrigger["fin.CreditRemedyTrigger"] {
     int CreditRemedyTriggerId PK
     int RemedyId FK
-  }
-  fin_CreditText["fin.CreditText"] {
-    int CreditTextId PK
   }
   fin_CreditRemedy ||--o{ fin_CreditRemedyStep : "RemedyId"
   fin_CreditRemedy ||--o{ fin_CreditRemedyTrigger : "RemedyId"

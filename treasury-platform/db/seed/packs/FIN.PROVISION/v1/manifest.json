@@ -1,0 +1,14 @@
+{
+  "PackKey": "FIN.PROVISION",
+  "SeedVersion": 1,
+  "Slice": "S2-b",
+  "Status": "DRAFT: default loss rates for the provision matrix (owner decision 35); the treasury approves them or sets its own per tenant. Written by an AI agent as generic illustrative rates, not taken from any lender's or agency's tables.",
+  "Tables": [
+    "fin.ReceivableLossRate.csv"
+  ],
+  "Use": "fin.v_ReceivableProvisionCheck (db/static/049): the expected allowance from the ageing lines of a statement beside AR_ECL_ALLOWANCE; RatesStatus says PROVISIONAL until the treasury approves the rates.",
+  "Sources": [
+    "docs/adr/0030-review-v4-controls.md",
+    "docs/31-owner-decisions.md decision 35"
+  ]
+}

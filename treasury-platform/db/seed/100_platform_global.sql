@@ -25,6 +25,7 @@ USING (VALUES
     ('security.reveal.remask_seconds',       'INT', N'60', N'15', N'300', 1, N'Seconds a revealed identity number stays visible before it is masked again. Enforced by the application (BR-PTY-009, AC-PLT-19).'),
     ('work.start',                           'TIME', N'"08:00"', NULL, NULL, 0, N'Start of the working day in the tenant time zone, for AddBusinessHours (BR-PLT-014, BR-PLT-018).'),
     ('work.end',                             'TIME', N'"17:00"', NULL, NULL, 0, N'End of the working day in the tenant time zone; 4 to 12 hours after work.start (BR-PLT-018).'),
+    ('fin.calibration.max_age_months',       'INT', N'12', N'3',  N'36', 0, N'Months after which the latest rating a lender communicated no longer calibrates the company''s own assessment: the readiness turns AMBER (CALIBRATION_STALE) and the lenders are asked for a rating. Read by db/static/049 (BR-FIN-046, ADR 0030).'),
     ('fin.readiness.lead_months',            'INT', N'6',  N'1',  N'24', 0, N'Months before a renewal, a covenant test or a report to a lender that the readiness file and the early warning look ahead. Read by db/static/049 (BR-FIN-038, owner decision 34).')
 ) AS s ([Key], ValueType, DefaultValueJson, MinValueJson, MaxValueJson, IsSecurity, Description)
    ON d.[Key] = s.[Key]

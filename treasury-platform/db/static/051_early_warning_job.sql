@@ -127,7 +127,9 @@ JOIN (VALUES ('NOT_RATED', N'التقييم لم يصل إلى درجة لنقص
              ('CRITICAL_RISK', N'في التقييم خطر حرج مفتوح', N'the assessment has an open critical risk'),
              ('DATA_MISSING', N'بيانات أو إفصاحات ستطلبها جهة التمويل ناقصة', N'data or disclosures the lender will ask for are missing'),
              ('HEADROOM_LOW', N'هامش التعهد دون حد الإنذار المبكر', N'the covenant headroom is below its early warning'),
-             ('LENDER_RATING_GAP', N'تصنيف جهة التمويل أدنى من درجة التقييم بدرجتين أو أكثر', N'the lender''s rating is two notches or more below the assessment grade')
+             ('LENDER_RATING_GAP', N'تصنيف جهة التمويل أدنى من درجة التقييم بدرجتين أو أكثر', N'the lender''s rating is two notches or more below the assessment grade'),
+             ('CALIBRATION_OPTIMISTIC', N'تقييم الشركة أعلى من تصنيفات جهاتها بدرجة أو أكثر في المتوسط', N'the company rates itself one notch or more above its lenders on average'),
+             ('CALIBRATION_STALE', N'آخر تصنيف أبلغت به جهة تمويل أقدم من مدة المعايرة', N'the latest rating a lender communicated is older than the calibration age')
      ) AS r (ReasonCode, TextAr, TextEn) ON r.ReasonCode = w.ReasonCode;
 GO
 GRANT SELECT ON fin.v_EarlyWarningMessageValues TO [tp_app];

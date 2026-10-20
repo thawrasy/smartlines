@@ -54,6 +54,7 @@ DENY UPDATE ON [cfg].[SeedRun] TO [tp_app], [tp_platform];
 DENY UPDATE ON [fac].[LimitMovement] TO [tp_app], [tp_platform];
 DENY UPDATE ON [obl].[CovenantTestStatement] TO [tp_app], [tp_platform];
 DENY UPDATE ON [fin].[EarlyWarningAlert] TO [tp_app], [tp_platform];
+DENY UPDATE ON [fin].[AssessmentEvidencePack] TO [tp_app], [tp_platform];
 DENY UPDATE ON [wfl].[RequestAction] TO [tp_app], [tp_platform];
 DENY UPDATE ON [lc].[ProformaLine] TO [tp_app], [tp_platform];
 GO

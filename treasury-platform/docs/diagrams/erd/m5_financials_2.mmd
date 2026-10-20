@@ -1,5 +1,11 @@
 %% م5 · البيانات المالية والأرصدة (2/14) — Financial statements & balances
 erDiagram
+  fin_ConsolidationMember["fin.ConsolidationMember"] {
+    bigint ConsolidationMemberId PK
+    bigint StatementId FK
+    bigint MemberCompanyId FK
+    bigint MemberStatementId FK
+  }
   fin_CountryRegion["fin.CountryRegion"] {
     int CountryRegionId PK
     int CountryId FK
@@ -31,9 +37,3 @@ erDiagram
     int AnchorGradeId FK
     int CountryCeilingGradeId FK
   }
-  fin_CreditAssessmentBureau["fin.CreditAssessmentBureau"] {
-    bigint CreditAssessmentBureauId PK
-    bigint AssessmentId FK
-    bigint DocumentId FK
-  }
-  fin_CreditAssessment ||--o{ fin_CreditAssessmentBureau : "AssessmentId"

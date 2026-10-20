@@ -563,6 +563,9 @@ ALTER TABLE [fin].[RevenueEstimate] ADD CONSTRAINT [FK_RevenueEstimate_ApprovedB
 ALTER TABLE [fin].[AccountMonthlyStat] ADD CONSTRAINT [FK_AccountMonthlyStat_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
 ALTER TABLE [fin].[AccountMonthlyStat] ADD CONSTRAINT [FK_AccountMonthlyStat_BankAccountId] FOREIGN KEY ([TenantId], [BankAccountId]) REFERENCES [acc].[BankAccount] ([TenantId], [BankAccountId]);
 ALTER TABLE [fin].[AccountMonthlyStat] ADD CONSTRAINT [FK_AccountMonthlyStat_DocumentId] FOREIGN KEY ([TenantId], [DocumentId]) REFERENCES [doc].[Document] ([TenantId], [DocumentId]);
+ALTER TABLE [fin].[AccountMonthlyStat] ADD CONSTRAINT [FK_AccountMonthlyStat_EnteredBy] FOREIGN KEY ([TenantId], [EnteredBy]) REFERENCES [sec].[AppUser] ([TenantId], [AppUserId]);
+ALTER TABLE [fin].[AccountMonthlyStat] ADD CONSTRAINT [FK_AccountMonthlyStat_ConfirmedBy] FOREIGN KEY ([TenantId], [ConfirmedBy]) REFERENCES [sec].[AppUser] ([TenantId], [AppUserId]);
+ALTER TABLE [fin].[AccountMonthlyStat] ADD CONSTRAINT [FK_AccountMonthlyStat_LastReopenedBy] FOREIGN KEY ([TenantId], [LastReopenedBy]) REFERENCES [sec].[AppUser] ([TenantId], [AppUserId]);
 ALTER TABLE [fin].[BankFlowEntry] ADD CONSTRAINT [FK_BankFlowEntry_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
 ALTER TABLE [fin].[BankFlowEntry] ADD CONSTRAINT [FK_BankFlowEntry_CompanyId] FOREIGN KEY ([TenantId], [CompanyId]) REFERENCES [org].[Company] ([TenantId], [CompanyId]);
 ALTER TABLE [fin].[BankFlowEntry] ADD CONSTRAINT [FK_BankFlowEntry_InstitutionId] FOREIGN KEY ([TenantId], [InstitutionId]) REFERENCES [ins].[Institution] ([TenantId], [InstitutionId]);
@@ -573,6 +576,7 @@ ALTER TABLE [fin].[BankFlowEntry] ADD CONSTRAINT [FK_BankFlowEntry_CurrencyId] F
 ALTER TABLE [fin].[BankFlowEntry] ADD CONSTRAINT [FK_BankFlowEntry_DocumentId] FOREIGN KEY ([TenantId], [DocumentId]) REFERENCES [doc].[Document] ([TenantId], [DocumentId]);
 ALTER TABLE [fin].[BankFlowEntry] ADD CONSTRAINT [FK_BankFlowEntry_EnteredBy] FOREIGN KEY ([TenantId], [EnteredBy]) REFERENCES [sec].[AppUser] ([TenantId], [AppUserId]);
 ALTER TABLE [fin].[BankFlowEntry] ADD CONSTRAINT [FK_BankFlowEntry_ConfirmedBy] FOREIGN KEY ([TenantId], [ConfirmedBy]) REFERENCES [sec].[AppUser] ([TenantId], [AppUserId]);
+ALTER TABLE [fin].[BankFlowEntry] ADD CONSTRAINT [FK_BankFlowEntry_LastReopenedBy] FOREIGN KEY ([TenantId], [LastReopenedBy]) REFERENCES [sec].[AppUser] ([TenantId], [AppUserId]);
 ALTER TABLE [fin].[MeasureFormula] ADD CONSTRAINT [FK_MeasureFormula_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
 ALTER TABLE [fin].[MeasureFormula] ADD CONSTRAINT [FK_MeasureFormula_FacilityId] FOREIGN KEY ([TenantId], [FacilityId]) REFERENCES [fac].[Facility] ([TenantId], [FacilityId]);
 ALTER TABLE [fin].[MeasureFormula] ADD CONSTRAINT [FK_MeasureFormula_BaseTemplateId] FOREIGN KEY ([TenantId], [BaseTemplateId]) REFERENCES [fin].[MeasureFormula] ([TenantId], [MeasureFormulaId]);
@@ -654,6 +658,11 @@ ALTER TABLE [fin].[LenderRating] ADD CONSTRAINT [FK_LenderRating_ConflictId] FOR
 ALTER TABLE [fin].[EarlyWarningAlert] ADD CONSTRAINT [FK_EarlyWarningAlert_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
 ALTER TABLE [fin].[EarlyWarningAlert] ADD CONSTRAINT [FK_EarlyWarningAlert_CompanyId] FOREIGN KEY ([TenantId], [CompanyId]) REFERENCES [org].[Company] ([TenantId], [CompanyId]);
 ALTER TABLE [fin].[EarlyWarningAlert] ADD CONSTRAINT [FK_EarlyWarningAlert_AssessmentId] FOREIGN KEY ([TenantId], [AssessmentId]) REFERENCES [fin].[CreditAssessment] ([TenantId], [CreditAssessmentId]);
+ALTER TABLE [fin].[AssessmentEvidencePack] ADD CONSTRAINT [FK_AssessmentEvidencePack_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
+ALTER TABLE [fin].[AssessmentEvidencePack] ADD CONSTRAINT [FK_AssessmentEvidencePack_AssessmentId] FOREIGN KEY ([TenantId], [AssessmentId]) REFERENCES [fin].[CreditAssessment] ([TenantId], [CreditAssessmentId]);
+ALTER TABLE [fin].[AssessmentEvidencePack] ADD CONSTRAINT [FK_AssessmentEvidencePack_GeneratedBy] FOREIGN KEY ([TenantId], [GeneratedBy]) REFERENCES [sec].[AppUser] ([TenantId], [AppUserId]);
+ALTER TABLE [fin].[ReceivableLossRate] ADD CONSTRAINT [FK_ReceivableLossRate_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
+ALTER TABLE [fin].[ReceivableLossRate] ADD CONSTRAINT [FK_ReceivableLossRate_ApprovedBy] FOREIGN KEY ([TenantId], [ApprovedBy]) REFERENCES [sec].[AppUser] ([TenantId], [AppUserId]);
 ALTER TABLE [fin].[PresentationVersion] ADD CONSTRAINT [FK_PresentationVersion_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
 ALTER TABLE [fin].[PresentationVersion] ADD CONSTRAINT [FK_PresentationVersion_SourceStatementId] FOREIGN KEY ([TenantId], [SourceStatementId]) REFERENCES [fin].[FinancialStatement] ([TenantId], [FinancialStatementId]);
 ALTER TABLE [fin].[PresentationVersion] ADD CONSTRAINT [FK_PresentationVersion_SourceAssessmentId] FOREIGN KEY ([TenantId], [SourceAssessmentId]) REFERENCES [fin].[CreditAssessment] ([TenantId], [CreditAssessmentId]);

@@ -6,7 +6,7 @@
 | التاريخ | 2026-10-18 |
 | المنتج | منصة إدارة الخزينة متعددة المشتركين (TMP) — قاعدة البيانات `BankFas` |
 | المحرك المعتمد | **SQL Server 2025** (آخر إصدار؛ قاعدة سياسة الإصدارات في `01` §13) |
-| المرجع الهندسي | `db/model/*.model` (249 جدولًا، §1) — **الملفات المولَّدة لا تُعدَّل يدويًا** |
+| المرجع الهندسي | `db/model/*.model` (251 جدولًا، §1) — **الملفات المولَّدة لا تُعدَّل يدويًا** |
 | المخرجات | `db/generated/tsql/*` (SQL Server) · `db/static/*` (الأدوار والـRLS والجلسة والعروض والحراس) · `db/deploy.sql` · `21-data-dictionary.md` · `22-erd-by-schema.md` · `tools/dbgen/check_grants.py` (التحقق الثابت للصلاحيات) · `tools/dbgen/ddl_metrics.py` (أرقام هذه الوثيقة) |
 | المتطلبات | 490 متطلبًا وظيفيًا في `10-detailed-analysis/10…14` (فهرس: `10-detailed-analysis/91-requirements-index.md`) |
 
@@ -44,6 +44,7 @@
 | C-25 | مهمة إشعارات الإنذار المبكر (ADR 0027): `fin.EarlyWarningAlert` والمهمة `JOB-FIN-READINESS` والإجراء `fin.usp_RunEarlyWarnings` في 051، ودالة الإنذار بتاريخ في 049؛ 249 جدولًا (§11.5) | طلب المالك (2026-10-20) |
 | C-26 | قوالب رسائل الإنذار بالعربية والإنجليزية (ADR 0028): حدثان أحمر وأصفر، وسبب الجاهزية `ReasonCode` في 049 وفي `fin.EarlyWarningAlert`، وقيم القوالب في `fin.v_EarlyWarningMessageValues` (051)، وأول حزمة للمشترك `db/seed/packs/NTF.BASE/v1` يفحصها `tools/dbgen/ntf_pack.py` | طلب المالك (2026-10-20) |
 | C-27 | ضوابط المراجعة المعمارية 3.0 (ADR 0029): تصديق التقييم للاستعمال خارج الشركة (`EndorsedBy` و`EndorsedOn` و`EndorsementNote` والإجراء في 052 والصلاحية `fin.credit.endorse`)، وسبب الاختيار `ChoiceReason` على نسخة العرض، والمعايرة المتراكمة `fin.v_LenderRatingCalibration` | طلب المالك (2026-10-20)، `docs/37` |
+| C-28 | ضوابط دراسة المراجعة 4.0 (ADR 0030، القرار 35): تجميد الأرقام الشهرية المؤكدة وإعادة فتحها، و`fin.AssessmentEvidencePack` وحزمة الأدلة، والمعايرة في الجاهزية، وإنذار المصدِّقين، والدور RK، و`fin.ReceivableLossRate` و`fin.v_ReceivableProvisionCheck`؛ 251 جدولًا (§11.5) | قرار المالك 35 (2026-10-20)، `docs/38` |
 
 **مرفوض:** اقتراح تقرير Technical Evaluation بـ.NET 9، لأن قرار المشروع `.NET 10 LTS` (`01` §13) ويبقى كما هو. **مؤجَّل:** أدوات الترحيل (O-2)، ومرساة سلسلة التدقيق (O-13)، وRPO/RTO (O-14)، ومكدّس الواجهات (خارج نطاق وثيقة القاعدة). **لم يُعتمد** الادعاء بأن القيود وحدها تضمن سلامة الحجز؛ الحجز يبقى ذريًا بالقفل في طبقة التطبيق (§7.1).
 
@@ -57,13 +58,13 @@
 
 | المؤشر | القيمة |
 |---|---|
-| جداول | **249** في 20 مخططًا |
-| أعمدة | 4,132 مُعرَّفة في النماذج + الأعمدة الآلية = **4,743** في DDL |
-| مفاتيح أجنبية | **923** = 209 إلى `plat.Tenant` (`TenantId`) + **586 مركّبة** `(TenantId, …)` بين جداول المشترك + 128 بسيطة نحو جداول عالمية/مختلطة؛ حذف متتالٍ واحد (§7) |
-| فهارس | 797 غير مجمّع (233 مصفّاة · 51 بأعمدة `INCLUDE`) |
-| قيود | 1,471 `CHECK` (قوائم قيم وتناسق حقول وتواريخ وأطوال الأغلفة المشفّرة) · 503 قيد `UNIQUE` + 152 فهرسًا فريدًا |
+| جداول | **251** في 20 مخططًا |
+| أعمدة | 4,165 مُعرَّفة في النماذج + الأعمدة الآلية = **4,781** في DDL |
+| مفاتيح أجنبية | **932** = 211 إلى `plat.Tenant` (`TenantId`) + **593 مركّبة** `(TenantId, …)` بين جداول المشترك + 128 بسيطة نحو جداول عالمية/مختلطة؛ حذف متتالٍ واحد (§7) |
+| فهارس | 799 غير مجمّع (234 مصفّاة · 51 بأعمدة `INCLUDE`) |
+| قيود | 1,484 `CHECK` (قوائم قيم وتناسق حقول وتواريخ وأطوال الأغلفة المشفّرة) · 506 قيد `UNIQUE` + 153 فهرسًا فريدًا |
 | جداول بمعرّف عام `PublicId` | 42 (جذور التجميعات المعرَّضة عبر API) |
-| جداول خاضعة لعزل الصفوف RLS | 207 (204 مملوكة للمشترك + 3 مختلطة، منها `aud.AuditLog` بسياسة خاصة؛ الـ42 العالمية خارجها) |
+| جداول خاضعة لعزل الصفوف RLS | 209 (206 مملوكة للمشترك + 3 مختلطة، منها `aud.AuditLog` بسياسة خاصة؛ الـ42 العالمية خارجها) |
 | أعمدة محجوبة عن دور التقارير | 31 |
 | جداول محجوبة كليًا عن تطبيق المشترك (`noapp`) | 8: العالمية المحجوبة الخمسة والداخلية الثلاثة (§3.3)؛ يقرأ التطبيق صف مشتركه ووحداته عبر `plat.v_CurrentTenant` و`plat.v_TenantModule` |
 
@@ -363,7 +364,7 @@
 | `cmp` | 2 — TermType, TermValue | م5 |
 | `col` | 7 — Collateral, CollateralLink, Guarantee, PromissoryNote, PromissoryNoteSigner, InsurancePolicyAssignment, ValuationSchedule | م5 |
 | `obl` | 9 — Obligation, ObligationCompany, ReportingObligation, ReportingInstance, Covenant, CovenantAccount, CovenantTest, **CovenantTestStatement**, ObligationBreach | م5 |
-| `fin` | 54 — LineCatalogItem, LineCatalogItemAlias, FinancialStatement, StatementLine, ConsolidationMember, StatementRatio, RevenueEstimate, AccountMonthlyStat, BankFlowEntry, MeasureFormula, **RatingGrade**, **CreditMetric**, **Scorecard**, **ScorecardMetric**, **ScorecardItemRule**, **ScorecardAdjustment**, **ScorecardParameter**, **ScorecardSubfactor**, **StandardLine**, **StandardLineTotal**, **IndustryProfile**, **ProductCategory**, **ShockDriver**, **MacroScenario**, **MacroScenarioIntensity, MacroScenarioCountry, PresentationVersion, PresentationVersionStep, LenderRating**, **IndustrySensitivity**, **CountryRiskProfile**, **CountryRegion**, **RiskAnchor**, **CreditRemedy**, **CreditRemedyTrigger**, **CreditRemedyStep**, **StrengtheningPlan**, **StrengtheningPlanMember**, **CreditText**, **CreditAssessment**, **CreditAssessmentInput**, **CreditAssessmentFactor**, **CreditAssessmentFinding**, **CreditAssessmentGuarantor**, **CreditAssessmentBureau**, **CompanyProductLine**, **CreditAssessmentReclass**, **CreditAssessmentFacility**, **CreditAssessmentRemedy**, **CreditAssessmentScenario**, **CreditAssessmentPlan**, **CreditAssessmentPlanStep**, **CreditAssessmentTrigger**, **EarlyWarningAlert** | م5 |
+| `fin` | 56 — LineCatalogItem, LineCatalogItemAlias, FinancialStatement, StatementLine, ConsolidationMember, StatementRatio, RevenueEstimate, AccountMonthlyStat, BankFlowEntry, MeasureFormula, **RatingGrade**, **CreditMetric**, **Scorecard**, **ScorecardMetric**, **ScorecardItemRule**, **ScorecardAdjustment**, **ScorecardParameter**, **ScorecardSubfactor**, **StandardLine**, **StandardLineTotal**, **IndustryProfile**, **ProductCategory**, **ShockDriver**, **MacroScenario**, **MacroScenarioIntensity, MacroScenarioCountry, PresentationVersion, PresentationVersionStep, LenderRating**, **IndustrySensitivity**, **CountryRiskProfile**, **CountryRegion**, **RiskAnchor**, **CreditRemedy**, **CreditRemedyTrigger**, **CreditRemedyStep**, **StrengtheningPlan**, **StrengtheningPlanMember**, **CreditText**, **CreditAssessment**, **CreditAssessmentInput**, **CreditAssessmentFactor**, **CreditAssessmentFinding**, **CreditAssessmentGuarantor**, **CreditAssessmentBureau**, **CompanyProductLine**, **CreditAssessmentReclass**, **CreditAssessmentFacility**, **CreditAssessmentRemedy**, **CreditAssessmentScenario**, **CreditAssessmentPlan**, **CreditAssessmentPlanStep**, **CreditAssessmentTrigger**, **EarlyWarningAlert**, **AssessmentEvidencePack**, **ReceivableLossRate** | م5 |
 | `wfl` | 19 — RequestType, RequestTypeAudience, ExternalPhase, WorkflowTemplate, WorkflowStage, StageApprover, WorkflowTransition, WorkflowStageHook, TemplateField, TemplateAttachmentRule, Request, RequestComment, RequestAttachment, RequestExternalRef, RequestStageInstance, RequestApproval, RequestAction, HookExecution, UserDelegation | م6 |
 | `ntf` | 7 — NotificationEventType, NotificationRule, NotificationTemplate, NotificationPreference, DigestBatch, Notification, NotificationDelivery | م6 |
 | `lc` | 21 — LcFieldDefinition, LcFieldUcpRef, Counterparty, LcDocumentClause, LcDocumentClauseUcpRef, LcTerms, LcTermsDocument, LcChargesMatrix, LcFormTemplate, LcFormFieldMap, LetterOfCredit, LcExternalRef, LcAmendment, LcDrawing, LcSalesOrder, LcDrawingAllocation, LcDiscrepancy, ProformaInvoice, ProformaLine, LcTermsComparison, LcTermsComparisonLine | م7/م8 |
@@ -574,9 +575,9 @@ SQL_USER=bankfas_monitor tools/dbgen/check_deployed.py --server <server>   # the
 
 | الفحص | النتيجة | ملاحظة |
 |---|---|---|
-| فحص النموذج (`dbgen check`) | **OK** — 249 جدولًا / 4,132 عمودًا؛ لا مراجع معلّقة؛ لا مخالفة لقواعد النطاق | التسمية والمراجع والمفاتيح المركّبة والأعمدة المطلوبة |
+| فحص النموذج (`dbgen check`) | **OK** — 251 جدولًا / 4,165 عمودًا؛ لا مراجع معلّقة؛ لا مخالفة لقواعد النطاق | التسمية والمراجع والمفاتيح المركّبة والأعمدة المطلوبة |
 | تنفيذ PostgreSQL 16 | **تشغيل سابق** — 194 جدولًا / 763 مفتاحًا أجنبيًا / 691 قيد فريد أو أساسي، قبل إضافة `sec.SessionBinding`؛ لم يُعَد على النموذج الحالي، ولا يدخل CI | يثبت **البنية المنطقية** فقط. **لا** يثبت صحة T-SQL |
-| التحقق الثابت من الصلاحيات (`check_grants.py`) | **OK** — 249 جدولًا، 334 منحة مولّدة، 140 منحة ثابتة، 31 عمودًا مقيّدًا، القواعد R1–R11؛ يعمل في الخطوة 3 من `db_ci.sh` | حُقنت ثلاث مخالفات متعمدة فاكتُشفت كلها (§9.3). **لا يثبت** أن المحرك ينفّذ المنح كما هي |
+| التحقق الثابت من الصلاحيات (`check_grants.py`) | **OK** — 251 جدولًا، 337 منحة مولّدة، 144 منحة ثابتة، 31 عمودًا مقيّدًا، القواعد R1–R11؛ يعمل في الخطوة 3 من `db_ci.sh` | حُقنت ثلاث مخالفات متعمدة فاكتُشفت كلها (§9.3). **لا يثبت** أن المحرك ينفّذ المنح كما هي |
 | التحقق من الإصلاحات (`check_review_fixes.py`) | **OK** — 75 من 75، في الخطوة 3 من `db_ci.sh` | يفحص أن كل إصلاح من DR-01 إلى DR-50 موجود في DDL المولَّد أو في الحارس الثابت (043، 044)، لا في الوثيقة وحدها |
 | فهرسة المفاتيح الأجنبية (`check_fk_indexes.py`) | **OK** — 578 مفهرسًا، 111 `noidx`، صفر بلا فهرس؛ الخطوة 3 | §8 |
 | تحليل T-SQL بـ `sqlglot` | الملفات `000–004`، `007`، `010`، `025`، `030`، `040`: **بلا أخطاء**؛ `005` و`006` و`020`: خطأ واحد لكل ملف عند عبارة `DENY` | المحلّل لا يدعم عبارة `DENY` بصيغتها الكاملة؛ الصيغة صحيحة في T-SQL. التحليل نحوي جزئي |

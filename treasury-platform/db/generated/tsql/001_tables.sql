@@ -4874,6 +4874,13 @@ CREATE TABLE [fin].[AccountMonthlyStat] (
     [DocumentId] BIGINT NULL,
     [Note] NVARCHAR(500) NULL,
     [Status] VARCHAR(10) NOT NULL CONSTRAINT [DF_AccountMonthlyStat_Status] DEFAULT 'DRAFT',
+    [EnteredBy] BIGINT NULL,
+    [ConfirmedBy] BIGINT NULL,
+    [ConfirmedOn] DATETIME2(3) NULL,
+    [ReopenCount] INT NOT NULL CONSTRAINT [DF_AccountMonthlyStat_ReopenCount] DEFAULT 0,
+    [LastReopenedBy] BIGINT NULL,
+    [LastReopenedOn] DATETIME2(3) NULL,
+    [LastReopenReason] NVARCHAR(500) NULL,
     [PublicId] UNIQUEIDENTIFIER NOT NULL CONSTRAINT [DF_AccountMonthlyStat_PublicId] DEFAULT NEWSEQUENTIALID(),
     [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_AccountMonthlyStat_CreatedAt] DEFAULT SYSUTCDATETIME(),
     [CreatedBy] BIGINT NULL,
@@ -4885,6 +4892,10 @@ CREATE TABLE [fin].[AccountMonthlyStat] (
     CONSTRAINT [UQ_AccountMonthlyStat_PublicId] UNIQUE ([PublicId]),
     CONSTRAINT [UQ_AccountMonthlyStat_BankAccountId_MonthEnd] UNIQUE ([TenantId], [BankAccountId], [MonthEnd]),
     CONSTRAINT [CK_AccountMonthlyStat_1] CHECK (DAY(DATEADD(DAY, 1, MonthEnd)) = 1),
+    CONSTRAINT [CK_AccountMonthlyStat_2] CHECK ((Status = 'DRAFT' AND ConfirmedBy IS NULL AND ConfirmedOn IS NULL) OR (Status = 'CONFIRMED' AND ConfirmedBy IS NOT NULL AND ConfirmedOn IS NOT NULL)),
+    CONSTRAINT [CK_AccountMonthlyStat_3] CHECK (ConfirmedBy IS NULL OR EnteredBy IS NULL OR ConfirmedBy <> EnteredBy),
+    CONSTRAINT [CK_AccountMonthlyStat_4] CHECK (ReopenCount >= 0 AND (ReopenCount = 0 OR (LastReopenedBy IS NOT NULL AND LastReopenedOn IS NOT NULL AND LastReopenReason IS NOT NULL))),
+    CONSTRAINT [CK_AccountMonthlyStat_5] CHECK (LastReopenedBy IS NULL OR EnteredBy IS NULL OR LastReopenedBy <> EnteredBy),
     CONSTRAINT [CK_AccountMonthlyStat_SourceKind] CHECK ([SourceKind] IS NULL OR [SourceKind] IN ('BANK_STATEMENT', 'BANK_NOTICE', 'INTERNAL_CALC')),
     CONSTRAINT [CK_AccountMonthlyStat_Status] CHECK ([Status] IS NULL OR [Status] IN ('DRAFT', 'CONFIRMED'))
 );
@@ -4908,6 +4919,10 @@ CREATE TABLE [fin].[BankFlowEntry] (
     [EnteredBy] BIGINT NULL,
     [ConfirmedBy] BIGINT NULL,
     [ConfirmedOn] DATETIME2(3) NULL,
+    [ReopenCount] INT NOT NULL CONSTRAINT [DF_BankFlowEntry_ReopenCount] DEFAULT 0,
+    [LastReopenedBy] BIGINT NULL,
+    [LastReopenedOn] DATETIME2(3) NULL,
+    [LastReopenReason] NVARCHAR(500) NULL,
     [PublicId] UNIQUEIDENTIFIER NOT NULL CONSTRAINT [DF_BankFlowEntry_PublicId] DEFAULT NEWSEQUENTIALID(),
     [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_BankFlowEntry_CreatedAt] DEFAULT SYSUTCDATETIME(),
     [CreatedBy] BIGINT NULL,
@@ -4923,6 +4938,8 @@ CREATE TABLE [fin].[BankFlowEntry] (
     CONSTRAINT [CK_BankFlowEntry_3] CHECK (FlowKindListCode = 'FLOW_KIND'),
     CONSTRAINT [CK_BankFlowEntry_4] CHECK ((Status = 'DRAFT' AND ConfirmedBy IS NULL AND ConfirmedOn IS NULL) OR (Status = 'CONFIRMED' AND ConfirmedBy IS NOT NULL AND ConfirmedOn IS NOT NULL)),
     CONSTRAINT [CK_BankFlowEntry_5] CHECK (ConfirmedBy IS NULL OR EnteredBy IS NULL OR ConfirmedBy <> EnteredBy),
+    CONSTRAINT [CK_BankFlowEntry_6] CHECK (ReopenCount >= 0 AND (ReopenCount = 0 OR (LastReopenedBy IS NOT NULL AND LastReopenedOn IS NOT NULL AND LastReopenReason IS NOT NULL))),
+    CONSTRAINT [CK_BankFlowEntry_7] CHECK (LastReopenedBy IS NULL OR EnteredBy IS NULL OR LastReopenedBy <> EnteredBy),
     CONSTRAINT [CK_BankFlowEntry_Status] CHECK ([Status] IS NULL OR [Status] IN ('DRAFT', 'CONFIRMED'))
 );
 GO
@@ -5627,6 +5644,9 @@ CREATE TABLE [fin].[CreditAssessment] (
     [EndorsedBy] BIGINT NULL,
     [EndorsedOn] DATETIME2(3) NULL,
     [EndorsementNote] NVARCHAR(1000) NULL,
+    [EndorsedBias] VARCHAR(12) NULL,
+    [EndorsedRatings] INT NULL,
+    [EndorsedLastRatingDate] DATE NULL,
     [IndustryId] INT NULL,
     [SectorPosition] VARCHAR(10) NULL,
     [Resilience] VARCHAR(10) NULL,
@@ -5665,11 +5685,13 @@ CREATE TABLE [fin].[CreditAssessment] (
     CONSTRAINT [CK_CreditAssessment_12] CHECK (Status <> 'REJECTED' OR RejectionReason IS NOT NULL),
     CONSTRAINT [CK_CreditAssessment_13] CHECK ((EndorsedBy IS NULL AND EndorsedOn IS NULL AND EndorsementNote IS NULL) OR (EndorsedBy IS NOT NULL AND EndorsedOn IS NOT NULL AND EndorsementNote IS NOT NULL AND Status IN ('APPROVED','SUPERSEDED') AND IsTrial = 0)),
     CONSTRAINT [CK_CreditAssessment_14] CHECK (EndorsedBy IS NULL OR (EndorsedBy <> PreparedBy AND EndorsedBy <> ApprovedBy)),
-    CONSTRAINT [CK_CreditAssessment_15] CHECK (MarketRegionCode IS NULL OR MarketRegionCode COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%'),
-    CONSTRAINT [CK_CreditAssessment_16] CHECK (CountryRisk IS NULL OR CountryRisk BETWEEN 1 AND 6),
-    CONSTRAINT [CK_CreditAssessment_17] CHECK (IndustryRisk IS NULL OR IndustryRisk BETWEEN 1 AND 6),
+    CONSTRAINT [CK_CreditAssessment_15] CHECK ((EndorsedBy IS NULL AND EndorsedBias IS NULL AND EndorsedRatings IS NULL AND EndorsedLastRatingDate IS NULL) OR (EndorsedBy IS NOT NULL AND EndorsedBias IS NOT NULL AND EndorsedRatings IS NOT NULL)),
+    CONSTRAINT [CK_CreditAssessment_16] CHECK (MarketRegionCode IS NULL OR MarketRegionCode COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%'),
+    CONSTRAINT [CK_CreditAssessment_17] CHECK (CountryRisk IS NULL OR CountryRisk BETWEEN 1 AND 6),
+    CONSTRAINT [CK_CreditAssessment_18] CHECK (IndustryRisk IS NULL OR IndustryRisk BETWEEN 1 AND 6),
     CONSTRAINT [CK_CreditAssessment_Status] CHECK ([Status] IS NULL OR [Status] IN ('DRAFT', 'SUBMITTED', 'APPROVED', 'REJECTED', 'SUPERSEDED')),
     CONSTRAINT [CK_CreditAssessment_ResultState] CHECK ([ResultState] IS NULL OR [ResultState] IN ('RATED', 'INDICATIVE', 'INSUFFICIENT_DATA')),
+    CONSTRAINT [CK_CreditAssessment_EndorsedBias] CHECK ([EndorsedBias] IS NULL OR [EndorsedBias] IN ('INSUFFICIENT', 'OPTIMISTIC', 'CONSERVATIVE', 'ALIGNED')),
     CONSTRAINT [CK_CreditAssessment_SectorPosition] CHECK ([SectorPosition] IS NULL OR [SectorPosition] IN ('ABOVE', 'WITHIN', 'BELOW')),
     CONSTRAINT [CK_CreditAssessment_Resilience] CHECK ([Resilience] IS NULL OR [Resilience] IN ('RESILIENT', 'MODERATE', 'VULNERABLE')),
     CONSTRAINT [CK_CreditAssessment_Outlook] CHECK ([Outlook] IS NULL OR [Outlook] IN ('POSITIVE', 'STABLE', 'NEGATIVE', 'DEVELOPING')),
@@ -5853,6 +5875,48 @@ CREATE TABLE [fin].[EarlyWarningAlert] (
     CONSTRAINT [CK_EarlyWarningAlert_EventKind] CHECK ([EventKind] IS NULL OR [EventKind] IN ('RENEWAL', 'COVENANT_TEST', 'REPORTING')),
     CONSTRAINT [CK_EarlyWarningAlert_Stage] CHECK ([Stage] IS NULL OR [Stage] IN ('LEAD', 'D90', 'D30', 'D7')),
     CONSTRAINT [CK_EarlyWarningAlert_Readiness] CHECK ([Readiness] IS NULL OR [Readiness] IN ('AMBER', 'RED'))
+);
+GO
+-- A sealed evidence pack of an endorsed assessment, built for an auditor or a lender: the assessment, its statement versions and lines, findings, reconciliation, calibration and audit rows in one JSON document whose SHA-256 is kept here; the same content gives the same hash (ADR 0030)
+CREATE TABLE [fin].[AssessmentEvidencePack] (
+    [TenantId] INT NOT NULL,
+    [AssessmentEvidencePackId] BIGINT IDENTITY(1,1) NOT NULL,
+    [AssessmentId] BIGINT NOT NULL,
+    [Purpose] NVARCHAR(500) NOT NULL,
+    [Sha256] VARBINARY(32) NOT NULL,
+    [ContentChars] INT NOT NULL,
+    [GeneratedBy] BIGINT NOT NULL,
+    [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_AssessmentEvidencePack_CreatedAt] DEFAULT SYSUTCDATETIME(),
+    [CreatedBy] BIGINT NULL,
+    CONSTRAINT [PK_AssessmentEvidencePack] PRIMARY KEY CLUSTERED ([AssessmentEvidencePackId]),
+    CONSTRAINT [UQ_AssessmentEvidencePack_Tenant] UNIQUE ([TenantId], [AssessmentEvidencePackId]),
+    CONSTRAINT [CK_AssessmentEvidencePack_1] CHECK (ContentChars > 0)
+);
+GO
+-- The loss rate of a receivables ageing bucket for the provision matrix the company compares its recorded allowance with (IFRS 9 simplified approach; owner decision 35, ADR 0030); the defaults of the pack FIN.PROVISION are for the treasury to approve or change
+CREATE TABLE [fin].[ReceivableLossRate] (
+    [TenantId] INT NOT NULL,
+    [ReceivableLossRateId] INT IDENTITY(1,1) NOT NULL,
+    [BucketCode] VARCHAR(19) NOT NULL,
+    [LossRatePct] DECIMAL(7,4) NOT NULL,
+    [EffectiveFrom] DATE NOT NULL,
+    [Status] VARCHAR(10) NOT NULL CONSTRAINT [DF_ReceivableLossRate_Status] DEFAULT 'DRAFT',
+    [ApprovedBy] BIGINT NULL,
+    [ApprovedOn] DATETIME2(3) NULL,
+    [Note] NVARCHAR(500) NULL,
+    [SeedKey] VARCHAR(80) NULL,
+    [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_ReceivableLossRate_CreatedAt] DEFAULT SYSUTCDATETIME(),
+    [CreatedBy] BIGINT NULL,
+    [UpdatedAt] DATETIME2(3) NULL,
+    [UpdatedBy] BIGINT NULL,
+    [RowVersion] ROWVERSION NOT NULL,
+    CONSTRAINT [PK_ReceivableLossRate] PRIMARY KEY CLUSTERED ([ReceivableLossRateId]),
+    CONSTRAINT [UQ_ReceivableLossRate_Tenant] UNIQUE ([TenantId], [ReceivableLossRateId]),
+    CONSTRAINT [UQ_ReceivableLossRate_BucketCode_EffectiveFrom] UNIQUE ([TenantId], [BucketCode], [EffectiveFrom]),
+    CONSTRAINT [CK_ReceivableLossRate_1] CHECK (LossRatePct >= 0 AND LossRatePct <= 100),
+    CONSTRAINT [CK_ReceivableLossRate_2] CHECK ((Status = 'DRAFT' AND ApprovedBy IS NULL AND ApprovedOn IS NULL) OR (Status = 'APPROVED' AND ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)),
+    CONSTRAINT [CK_ReceivableLossRate_BucketCode] CHECK ([BucketCode] IS NULL OR [BucketCode] IN ('AR_AGE_0_90', 'AR_AGE_91_180', 'AR_AGE_181_365', 'AR_AGE_OVER_365', 'AR_AGE_OVER_365_GOV')),
+    CONSTRAINT [CK_ReceivableLossRate_Status] CHECK ([Status] IS NULL OR [Status] IN ('DRAFT', 'APPROVED'))
 );
 GO
 -- An alternative presentation of a company's statement before its final approval: the remedies the company chose, applied in order to the statement and kept balanced, written as a new draft statement with a trial assessment to compare; chosen by someone other than its preparer, and only when every step rests on a document dated by the period end (docs/36 F2, ADR 0023)

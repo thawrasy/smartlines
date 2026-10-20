@@ -4527,6 +4527,13 @@ CREATE TABLE "fin"."AccountMonthlyStat" (
   "DocumentId" bigint NULL,
   "Note" varchar(500) NULL,
   "Status" varchar(10) NOT NULL DEFAULT 'DRAFT',
+  "EnteredBy" bigint NULL,
+  "ConfirmedBy" bigint NULL,
+  "ConfirmedOn" timestamp(3) NULL,
+  "ReopenCount" integer NOT NULL DEFAULT 0,
+  "LastReopenedBy" bigint NULL,
+  "LastReopenedOn" timestamp(3) NULL,
+  "LastReopenReason" varchar(500) NULL,
   "PublicId" uuid NOT NULL DEFAULT gen_random_uuid(),
   "CreatedAt" timestamp(3) NOT NULL DEFAULT (now() at time zone 'utc'),
   "CreatedBy" bigint NULL,
@@ -4537,6 +4544,10 @@ CREATE TABLE "fin"."AccountMonthlyStat" (
   CONSTRAINT "UQ_AccountMonthlyStat_PublicId" UNIQUE ("PublicId"),
   CONSTRAINT "UQ_AccountMonthlyStat_BankAccountId_MonthEnd" UNIQUE ("TenantId", "BankAccountId", "MonthEnd"),
   CONSTRAINT "CK_AccountMonthlyStat_1" CHECK ("DAY"("DATEADD"("DAY", 1, "MonthEnd")) = 1),
+  CONSTRAINT "CK_AccountMonthlyStat_2" CHECK (("Status" = 'DRAFT' AND "ConfirmedBy" IS NULL AND "ConfirmedOn" IS NULL) OR ("Status" = 'CONFIRMED' AND "ConfirmedBy" IS NOT NULL AND "ConfirmedOn" IS NOT NULL)),
+  CONSTRAINT "CK_AccountMonthlyStat_3" CHECK ("ConfirmedBy" IS NULL OR "EnteredBy" IS NULL OR "ConfirmedBy" <> "EnteredBy"),
+  CONSTRAINT "CK_AccountMonthlyStat_4" CHECK ("ReopenCount" >= 0 AND ("ReopenCount" = 0 OR ("LastReopenedBy" IS NOT NULL AND "LastReopenedOn" IS NOT NULL AND "LastReopenReason" IS NOT NULL))),
+  CONSTRAINT "CK_AccountMonthlyStat_5" CHECK ("LastReopenedBy" IS NULL OR "EnteredBy" IS NULL OR "LastReopenedBy" <> "EnteredBy"),
   CONSTRAINT "CK_AccountMonthlyStat_SourceKind" CHECK ("SourceKind" IS NULL OR "SourceKind" IN ('BANK_STATEMENT', 'BANK_NOTICE', 'INTERNAL_CALC')),
   CONSTRAINT "CK_AccountMonthlyStat_Status" CHECK ("Status" IS NULL OR "Status" IN ('DRAFT', 'CONFIRMED'))
 );
@@ -4558,6 +4569,10 @@ CREATE TABLE "fin"."BankFlowEntry" (
   "EnteredBy" bigint NULL,
   "ConfirmedBy" bigint NULL,
   "ConfirmedOn" timestamp(3) NULL,
+  "ReopenCount" integer NOT NULL DEFAULT 0,
+  "LastReopenedBy" bigint NULL,
+  "LastReopenedOn" timestamp(3) NULL,
+  "LastReopenReason" varchar(500) NULL,
   "PublicId" uuid NOT NULL DEFAULT gen_random_uuid(),
   "CreatedAt" timestamp(3) NOT NULL DEFAULT (now() at time zone 'utc'),
   "CreatedBy" bigint NULL,
@@ -4572,6 +4587,8 @@ CREATE TABLE "fin"."BankFlowEntry" (
   CONSTRAINT "CK_BankFlowEntry_3" CHECK ("FlowKindListCode" = 'FLOW_KIND'),
   CONSTRAINT "CK_BankFlowEntry_4" CHECK (("Status" = 'DRAFT' AND "ConfirmedBy" IS NULL AND "ConfirmedOn" IS NULL) OR ("Status" = 'CONFIRMED' AND "ConfirmedBy" IS NOT NULL AND "ConfirmedOn" IS NOT NULL)),
   CONSTRAINT "CK_BankFlowEntry_5" CHECK ("ConfirmedBy" IS NULL OR "EnteredBy" IS NULL OR "ConfirmedBy" <> "EnteredBy"),
+  CONSTRAINT "CK_BankFlowEntry_6" CHECK ("ReopenCount" >= 0 AND ("ReopenCount" = 0 OR ("LastReopenedBy" IS NOT NULL AND "LastReopenedOn" IS NOT NULL AND "LastReopenReason" IS NOT NULL))),
+  CONSTRAINT "CK_BankFlowEntry_7" CHECK ("LastReopenedBy" IS NULL OR "EnteredBy" IS NULL OR "LastReopenedBy" <> "EnteredBy"),
   CONSTRAINT "CK_BankFlowEntry_Status" CHECK ("Status" IS NULL OR "Status" IN ('DRAFT', 'CONFIRMED'))
 );
 CREATE TABLE "fin"."MeasureFormula" (
@@ -5228,6 +5245,9 @@ CREATE TABLE "fin"."CreditAssessment" (
   "EndorsedBy" bigint NULL,
   "EndorsedOn" timestamp(3) NULL,
   "EndorsementNote" varchar(1000) NULL,
+  "EndorsedBias" varchar(12) NULL,
+  "EndorsedRatings" integer NULL,
+  "EndorsedLastRatingDate" date NULL,
   "IndustryId" integer NULL,
   "SectorPosition" varchar(10) NULL,
   "Resilience" varchar(10) NULL,
@@ -5267,11 +5287,13 @@ CREATE TABLE "fin"."CreditAssessment" (
   CONSTRAINT "CK_CreditAssessment_12" CHECK ("Status" <> 'REJECTED' OR "RejectionReason" IS NOT NULL),
   CONSTRAINT "CK_CreditAssessment_13" CHECK (("EndorsedBy" IS NULL AND "EndorsedOn" IS NULL AND "EndorsementNote" IS NULL) OR ("EndorsedBy" IS NOT NULL AND "EndorsedOn" IS NOT NULL AND "EndorsementNote" IS NOT NULL AND "Status" IN ('APPROVED','SUPERSEDED') AND "IsTrial" = 0)),
   CONSTRAINT "CK_CreditAssessment_14" CHECK ("EndorsedBy" IS NULL OR ("EndorsedBy" <> "PreparedBy" AND "EndorsedBy" <> "ApprovedBy")),
-  CONSTRAINT "CK_CreditAssessment_15" CHECK ("MarketRegionCode" IS NULL OR "MarketRegionCode" NOT LIKE '%[^A-Z0-9_]%'),
-  CONSTRAINT "CK_CreditAssessment_16" CHECK ("CountryRisk" IS NULL OR "CountryRisk" BETWEEN 1 AND 6),
-  CONSTRAINT "CK_CreditAssessment_17" CHECK ("IndustryRisk" IS NULL OR "IndustryRisk" BETWEEN 1 AND 6),
+  CONSTRAINT "CK_CreditAssessment_15" CHECK (("EndorsedBy" IS NULL AND "EndorsedBias" IS NULL AND "EndorsedRatings" IS NULL AND "EndorsedLastRatingDate" IS NULL) OR ("EndorsedBy" IS NOT NULL AND "EndorsedBias" IS NOT NULL AND "EndorsedRatings" IS NOT NULL)),
+  CONSTRAINT "CK_CreditAssessment_16" CHECK ("MarketRegionCode" IS NULL OR "MarketRegionCode" NOT LIKE '%[^A-Z0-9_]%'),
+  CONSTRAINT "CK_CreditAssessment_17" CHECK ("CountryRisk" IS NULL OR "CountryRisk" BETWEEN 1 AND 6),
+  CONSTRAINT "CK_CreditAssessment_18" CHECK ("IndustryRisk" IS NULL OR "IndustryRisk" BETWEEN 1 AND 6),
   CONSTRAINT "CK_CreditAssessment_Status" CHECK ("Status" IS NULL OR "Status" IN ('DRAFT', 'SUBMITTED', 'APPROVED', 'REJECTED', 'SUPERSEDED')),
   CONSTRAINT "CK_CreditAssessment_ResultState" CHECK ("ResultState" IS NULL OR "ResultState" IN ('RATED', 'INDICATIVE', 'INSUFFICIENT_DATA')),
+  CONSTRAINT "CK_CreditAssessment_EndorsedBias" CHECK ("EndorsedBias" IS NULL OR "EndorsedBias" IN ('INSUFFICIENT', 'OPTIMISTIC', 'CONSERVATIVE', 'ALIGNED')),
   CONSTRAINT "CK_CreditAssessment_SectorPosition" CHECK ("SectorPosition" IS NULL OR "SectorPosition" IN ('ABOVE', 'WITHIN', 'BELOW')),
   CONSTRAINT "CK_CreditAssessment_Resilience" CHECK ("Resilience" IS NULL OR "Resilience" IN ('RESILIENT', 'MODERATE', 'VULNERABLE')),
   CONSTRAINT "CK_CreditAssessment_Outlook" CHECK ("Outlook" IS NULL OR "Outlook" IN ('POSITIVE', 'STABLE', 'NEGATIVE', 'DEVELOPING'))
@@ -5440,6 +5462,43 @@ CREATE TABLE "fin"."EarlyWarningAlert" (
   CONSTRAINT "CK_EarlyWarningAlert_EventKind" CHECK ("EventKind" IS NULL OR "EventKind" IN ('RENEWAL', 'COVENANT_TEST', 'REPORTING')),
   CONSTRAINT "CK_EarlyWarningAlert_Stage" CHECK ("Stage" IS NULL OR "Stage" IN ('LEAD', 'D90', 'D30', 'D7')),
   CONSTRAINT "CK_EarlyWarningAlert_Readiness" CHECK ("Readiness" IS NULL OR "Readiness" IN ('AMBER', 'RED'))
+);
+CREATE TABLE "fin"."AssessmentEvidencePack" (
+  "TenantId" integer NOT NULL,
+  "AssessmentEvidencePackId" bigint GENERATED BY DEFAULT AS IDENTITY NOT NULL,
+  "AssessmentId" bigint NOT NULL,
+  "Purpose" varchar(500) NOT NULL,
+  "Sha256" bytea NOT NULL,
+  "ContentChars" integer NOT NULL,
+  "GeneratedBy" bigint NOT NULL,
+  "CreatedAt" timestamp(3) NOT NULL DEFAULT (now() at time zone 'utc'),
+  "CreatedBy" bigint NULL,
+  PRIMARY KEY ("AssessmentEvidencePackId"),
+  CONSTRAINT "UQ_AssessmentEvidencePack_Tenant" UNIQUE ("TenantId", "AssessmentEvidencePackId"),
+  CONSTRAINT "CK_AssessmentEvidencePack_1" CHECK ("ContentChars" > 0)
+);
+CREATE TABLE "fin"."ReceivableLossRate" (
+  "TenantId" integer NOT NULL,
+  "ReceivableLossRateId" integer GENERATED BY DEFAULT AS IDENTITY NOT NULL,
+  "BucketCode" varchar(19) NOT NULL,
+  "LossRatePct" numeric(7,4) NOT NULL,
+  "EffectiveFrom" date NOT NULL,
+  "Status" varchar(10) NOT NULL DEFAULT 'DRAFT',
+  "ApprovedBy" bigint NULL,
+  "ApprovedOn" timestamp(3) NULL,
+  "Note" varchar(500) NULL,
+  "SeedKey" varchar(80) NULL,
+  "CreatedAt" timestamp(3) NOT NULL DEFAULT (now() at time zone 'utc'),
+  "CreatedBy" bigint NULL,
+  "UpdatedAt" timestamp(3) NULL,
+  "UpdatedBy" bigint NULL,
+  PRIMARY KEY ("ReceivableLossRateId"),
+  CONSTRAINT "UQ_ReceivableLossRate_Tenant" UNIQUE ("TenantId", "ReceivableLossRateId"),
+  CONSTRAINT "UQ_ReceivableLossRate_BucketCode_EffectiveFrom" UNIQUE ("TenantId", "BucketCode", "EffectiveFrom"),
+  CONSTRAINT "CK_ReceivableLossRate_1" CHECK ("LossRatePct" >= 0 AND "LossRatePct" <= 100),
+  CONSTRAINT "CK_ReceivableLossRate_2" CHECK (("Status" = 'DRAFT' AND "ApprovedBy" IS NULL AND "ApprovedOn" IS NULL) OR ("Status" = 'APPROVED' AND "ApprovedBy" IS NOT NULL AND "ApprovedOn" IS NOT NULL)),
+  CONSTRAINT "CK_ReceivableLossRate_BucketCode" CHECK ("BucketCode" IS NULL OR "BucketCode" IN ('AR_AGE_0_90', 'AR_AGE_91_180', 'AR_AGE_181_365', 'AR_AGE_OVER_365', 'AR_AGE_OVER_365_GOV')),
+  CONSTRAINT "CK_ReceivableLossRate_Status" CHECK ("Status" IS NULL OR "Status" IN ('DRAFT', 'APPROVED'))
 );
 CREATE TABLE "fin"."PresentationVersion" (
   "TenantId" integer NOT NULL,
@@ -8049,6 +8108,9 @@ ALTER TABLE "fin"."RevenueEstimate" ADD CONSTRAINT "FK_RevenueEstimate_ApprovedB
 ALTER TABLE "fin"."AccountMonthlyStat" ADD CONSTRAINT "FK_AccountMonthlyStat_Tenant" FOREIGN KEY ("TenantId") REFERENCES "plat"."Tenant" ("TenantId");
 ALTER TABLE "fin"."AccountMonthlyStat" ADD CONSTRAINT "FK_AccountMonthlyStat_BankAccountId" FOREIGN KEY ("TenantId", "BankAccountId") REFERENCES "acc"."BankAccount" ("TenantId", "BankAccountId");
 ALTER TABLE "fin"."AccountMonthlyStat" ADD CONSTRAINT "FK_AccountMonthlyStat_DocumentId" FOREIGN KEY ("TenantId", "DocumentId") REFERENCES "doc"."Document" ("TenantId", "DocumentId");
+ALTER TABLE "fin"."AccountMonthlyStat" ADD CONSTRAINT "FK_AccountMonthlyStat_EnteredBy" FOREIGN KEY ("TenantId", "EnteredBy") REFERENCES "sec"."AppUser" ("TenantId", "AppUserId");
+ALTER TABLE "fin"."AccountMonthlyStat" ADD CONSTRAINT "FK_AccountMonthlyStat_ConfirmedBy" FOREIGN KEY ("TenantId", "ConfirmedBy") REFERENCES "sec"."AppUser" ("TenantId", "AppUserId");
+ALTER TABLE "fin"."AccountMonthlyStat" ADD CONSTRAINT "FK_AccountMonthlyStat_LastReopenedBy" FOREIGN KEY ("TenantId", "LastReopenedBy") REFERENCES "sec"."AppUser" ("TenantId", "AppUserId");
 ALTER TABLE "fin"."BankFlowEntry" ADD CONSTRAINT "FK_BankFlowEntry_Tenant" FOREIGN KEY ("TenantId") REFERENCES "plat"."Tenant" ("TenantId");
 ALTER TABLE "fin"."BankFlowEntry" ADD CONSTRAINT "FK_BankFlowEntry_CompanyId" FOREIGN KEY ("TenantId", "CompanyId") REFERENCES "org"."Company" ("TenantId", "CompanyId");
 ALTER TABLE "fin"."BankFlowEntry" ADD CONSTRAINT "FK_BankFlowEntry_InstitutionId" FOREIGN KEY ("TenantId", "InstitutionId") REFERENCES "ins"."Institution" ("TenantId", "InstitutionId");
@@ -8059,6 +8121,7 @@ ALTER TABLE "fin"."BankFlowEntry" ADD CONSTRAINT "FK_BankFlowEntry_CurrencyId" F
 ALTER TABLE "fin"."BankFlowEntry" ADD CONSTRAINT "FK_BankFlowEntry_DocumentId" FOREIGN KEY ("TenantId", "DocumentId") REFERENCES "doc"."Document" ("TenantId", "DocumentId");
 ALTER TABLE "fin"."BankFlowEntry" ADD CONSTRAINT "FK_BankFlowEntry_EnteredBy" FOREIGN KEY ("TenantId", "EnteredBy") REFERENCES "sec"."AppUser" ("TenantId", "AppUserId");
 ALTER TABLE "fin"."BankFlowEntry" ADD CONSTRAINT "FK_BankFlowEntry_ConfirmedBy" FOREIGN KEY ("TenantId", "ConfirmedBy") REFERENCES "sec"."AppUser" ("TenantId", "AppUserId");
+ALTER TABLE "fin"."BankFlowEntry" ADD CONSTRAINT "FK_BankFlowEntry_LastReopenedBy" FOREIGN KEY ("TenantId", "LastReopenedBy") REFERENCES "sec"."AppUser" ("TenantId", "AppUserId");
 ALTER TABLE "fin"."MeasureFormula" ADD CONSTRAINT "FK_MeasureFormula_Tenant" FOREIGN KEY ("TenantId") REFERENCES "plat"."Tenant" ("TenantId");
 ALTER TABLE "fin"."MeasureFormula" ADD CONSTRAINT "FK_MeasureFormula_FacilityId" FOREIGN KEY ("TenantId", "FacilityId") REFERENCES "fac"."Facility" ("TenantId", "FacilityId");
 ALTER TABLE "fin"."MeasureFormula" ADD CONSTRAINT "FK_MeasureFormula_BaseTemplateId" FOREIGN KEY ("TenantId", "BaseTemplateId") REFERENCES "fin"."MeasureFormula" ("TenantId", "MeasureFormulaId");
@@ -8140,6 +8203,11 @@ ALTER TABLE "fin"."LenderRating" ADD CONSTRAINT "FK_LenderRating_ConflictId" FOR
 ALTER TABLE "fin"."EarlyWarningAlert" ADD CONSTRAINT "FK_EarlyWarningAlert_Tenant" FOREIGN KEY ("TenantId") REFERENCES "plat"."Tenant" ("TenantId");
 ALTER TABLE "fin"."EarlyWarningAlert" ADD CONSTRAINT "FK_EarlyWarningAlert_CompanyId" FOREIGN KEY ("TenantId", "CompanyId") REFERENCES "org"."Company" ("TenantId", "CompanyId");
 ALTER TABLE "fin"."EarlyWarningAlert" ADD CONSTRAINT "FK_EarlyWarningAlert_AssessmentId" FOREIGN KEY ("TenantId", "AssessmentId") REFERENCES "fin"."CreditAssessment" ("TenantId", "CreditAssessmentId");
+ALTER TABLE "fin"."AssessmentEvidencePack" ADD CONSTRAINT "FK_AssessmentEvidencePack_Tenant" FOREIGN KEY ("TenantId") REFERENCES "plat"."Tenant" ("TenantId");
+ALTER TABLE "fin"."AssessmentEvidencePack" ADD CONSTRAINT "FK_AssessmentEvidencePack_AssessmentId" FOREIGN KEY ("TenantId", "AssessmentId") REFERENCES "fin"."CreditAssessment" ("TenantId", "CreditAssessmentId");
+ALTER TABLE "fin"."AssessmentEvidencePack" ADD CONSTRAINT "FK_AssessmentEvidencePack_GeneratedBy" FOREIGN KEY ("TenantId", "GeneratedBy") REFERENCES "sec"."AppUser" ("TenantId", "AppUserId");
+ALTER TABLE "fin"."ReceivableLossRate" ADD CONSTRAINT "FK_ReceivableLossRate_Tenant" FOREIGN KEY ("TenantId") REFERENCES "plat"."Tenant" ("TenantId");
+ALTER TABLE "fin"."ReceivableLossRate" ADD CONSTRAINT "FK_ReceivableLossRate_ApprovedBy" FOREIGN KEY ("TenantId", "ApprovedBy") REFERENCES "sec"."AppUser" ("TenantId", "AppUserId");
 ALTER TABLE "fin"."PresentationVersion" ADD CONSTRAINT "FK_PresentationVersion_Tenant" FOREIGN KEY ("TenantId") REFERENCES "plat"."Tenant" ("TenantId");
 ALTER TABLE "fin"."PresentationVersion" ADD CONSTRAINT "FK_PresentationVersion_SourceStatementId" FOREIGN KEY ("TenantId", "SourceStatementId") REFERENCES "fin"."FinancialStatement" ("TenantId", "FinancialStatementId");
 ALTER TABLE "fin"."PresentationVersion" ADD CONSTRAINT "FK_PresentationVersion_SourceAssessmentId" FOREIGN KEY ("TenantId", "SourceAssessmentId") REFERENCES "fin"."CreditAssessment" ("TenantId", "CreditAssessmentId");
@@ -9020,6 +9088,8 @@ CREATE INDEX "IX_LenderRating_SourceDocumentId" ON "fin"."LenderRating" ("Tenant
 CREATE INDEX "IX_LenderRating_VerifiedBy" ON "fin"."LenderRating" ("TenantId", "VerifiedBy");
 CREATE INDEX "IX_LenderRating_ConflictId" ON "fin"."LenderRating" ("TenantId", "ConflictId");
 CREATE INDEX "IX_EarlyWarningAlert_CompanyId_IssuedOn" ON "fin"."EarlyWarningAlert" ("TenantId", "CompanyId", "IssuedOn");
+CREATE INDEX "IX_AssessmentEvidencePack_AssessmentId_CreatedAt" ON "fin"."AssessmentEvidencePack" ("TenantId", "AssessmentId", "CreatedAt");
+CREATE UNIQUE INDEX "UQ_ReceivableLossRate_SeedKey" ON "fin"."ReceivableLossRate" ("TenantId", "SeedKey") WHERE "SeedKey" IS NOT NULL;
 CREATE UNIQUE INDEX "UQ_PresentationVersion_ResultStatementId" ON "fin"."PresentationVersion" ("TenantId", "ResultStatementId") WHERE "ResultStatementId" IS NOT NULL;
 CREATE INDEX "IX_PresentationVersion_SourceStatementId_Status" ON "fin"."PresentationVersion" ("TenantId", "SourceStatementId", "Status");
 CREATE INDEX "IX_PresentationVersion_PreparedBy" ON "fin"."PresentationVersion" ("TenantId", "PreparedBy");

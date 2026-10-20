@@ -1,5 +1,10 @@
 %% م5 · البيانات المالية والأرصدة (3/14) — Financial statements & balances
 erDiagram
+  fin_CreditAssessmentBureau["fin.CreditAssessmentBureau"] {
+    bigint CreditAssessmentBureauId PK
+    bigint AssessmentId FK
+    bigint DocumentId FK
+  }
   fin_CreditAssessmentFacility["fin.CreditAssessmentFacility"] {
     bigint CreditAssessmentFacilityId PK
     bigint AssessmentId FK
@@ -17,10 +22,4 @@ erDiagram
   fin_CreditAssessmentFinding["fin.CreditAssessmentFinding"] {
     bigint CreditAssessmentFindingId PK
     bigint AssessmentId FK
-  }
-  fin_CreditAssessmentGuarantor["fin.CreditAssessmentGuarantor"] {
-    bigint CreditAssessmentGuarantorId PK
-    bigint AssessmentId FK
-    bigint PartyId FK
-    bigint DocumentId FK
   }

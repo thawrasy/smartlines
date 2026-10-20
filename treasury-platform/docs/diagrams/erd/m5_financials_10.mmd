@@ -1,5 +1,14 @@
 %% م5 · البيانات المالية والأرصدة (10/14) — Financial statements & balances
 erDiagram
+  fin_PresentationVersion["fin.PresentationVersion"] {
+    bigint PresentationVersionId PK
+    bigint SourceStatementId FK
+    bigint SourceAssessmentId FK
+    bigint ResultStatementId FK
+    bigint TrialAssessmentId FK
+    bigint PreparedBy FK
+    bigint ChosenBy FK
+  }
   fin_PresentationVersionStep["fin.PresentationVersionStep"] {
     bigint PresentationVersionStepId PK
     bigint VersionId FK
@@ -12,11 +21,4 @@ erDiagram
   fin_RatingGrade["fin.RatingGrade"] {
     int RatingGradeId PK
   }
-  fin_RevenueEstimate["fin.RevenueEstimate"] {
-    bigint RevenueEstimateId PK
-    bigint CompanyId FK
-    int CurrencyId FK
-    bigint DocumentId FK
-    bigint PreparedBy FK
-    bigint ApprovedBy FK
-  }
+  fin_PresentationVersion ||--o{ fin_PresentationVersionStep : "VersionId"

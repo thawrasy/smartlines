@@ -4,6 +4,14 @@ erDiagram
     bigint AccountMonthlyStatId PK
     bigint BankAccountId FK
     bigint DocumentId FK
+    bigint EnteredBy FK
+    bigint ConfirmedBy FK
+    bigint LastReopenedBy FK
+  }
+  fin_AssessmentEvidencePack["fin.AssessmentEvidencePack"] {
+    bigint AssessmentEvidencePackId PK
+    bigint AssessmentId FK
+    bigint GeneratedBy FK
   }
   fin_BankFlowEntry["fin.BankFlowEntry"] {
     bigint BankFlowEntryId PK
@@ -16,15 +24,10 @@ erDiagram
     bigint DocumentId FK
     bigint EnteredBy FK
     bigint ConfirmedBy FK
+    bigint LastReopenedBy FK
   }
   fin_CompanyProductLine["fin.CompanyProductLine"] {
     bigint CompanyProductLineId PK
     bigint CompanyId FK
     int ProductCategoryId FK
-  }
-  fin_ConsolidationMember["fin.ConsolidationMember"] {
-    bigint ConsolidationMemberId PK
-    bigint StatementId FK
-    bigint MemberCompanyId FK
-    bigint MemberStatementId FK
   }

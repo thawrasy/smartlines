@@ -2039,7 +2039,7 @@ SELECT a.TenantId, a.CreditAssessmentId, a.PublicId, a.CompanyId, co.NameAr AS C
        n.Strengths, n.PointsToWatch, n.Weaknesses, n.CriticalRisks, n.DataRequests,
        a.SummaryAr, a.SummaryEn, sc.DisclaimerAr, sc.DisclaimerEn,
        CAST(CASE WHEN a.ComputedAt IS NOT NULL AND a.InputsHash = h.InputsHash THEN 1 ELSE 0 END AS BIT) AS IsCurrent,
-       a.ComputedAt, a.PreparedBy, a.PreparedOn, a.ApprovedBy, a.ApprovedOn, a.RejectionReason, a.EndorsedBy, a.EndorsedOn, a.EndorsementNote,
+       a.ComputedAt, a.PreparedBy, a.PreparedOn, a.ApprovedBy, a.ApprovedOn, a.RejectionReason, a.EndorsedBy, a.EndorsedOn, a.EndorsementNote, a.EndorsedBias, a.EndorsedRatings, a.EndorsedLastRatingDate,
        CASE WHEN a.EndorsedBy IS NOT NULL THEN 'ENDORSED' ELSE 'INTERNAL_ONLY' END AS UseScope   -- shown outside the company only when endorsed (052, ADR 0029)
 FROM fin.CreditAssessment AS a
 JOIN org.Company AS co ON co.TenantId = a.TenantId AND co.CompanyId = a.CompanyId

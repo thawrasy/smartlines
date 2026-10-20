@@ -1,5 +1,8 @@
 %% م5 · البيانات المالية والأرصدة (9/14) — Financial statements & balances
 erDiagram
+  fin_MacroScenario["fin.MacroScenario"] {
+    int MacroScenarioId PK
+  }
   fin_MacroScenarioCountry["fin.MacroScenarioCountry"] {
     int MacroScenarioCountryId PK
     int MacroScenarioId FK
@@ -16,13 +19,6 @@ erDiagram
     bigint BaseTemplateId FK
     bigint ApprovedBy FK
   }
-  fin_PresentationVersion["fin.PresentationVersion"] {
-    bigint PresentationVersionId PK
-    bigint SourceStatementId FK
-    bigint SourceAssessmentId FK
-    bigint ResultStatementId FK
-    bigint TrialAssessmentId FK
-    bigint PreparedBy FK
-    bigint ChosenBy FK
-  }
+  fin_MacroScenario ||--o{ fin_MacroScenarioCountry : "MacroScenarioId"
+  fin_MacroScenario ||--o{ fin_MacroScenarioIntensity : "MacroScenarioId"
   fin_MeasureFormula |o--o{ fin_MeasureFormula : "BaseTemplateId"
