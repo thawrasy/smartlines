@@ -5825,6 +5825,30 @@ CREATE TABLE [fin].[LenderRating] (
     CONSTRAINT [CK_LenderRating_Confidence] CHECK ([Confidence] IS NULL OR [Confidence] IN ('CONFIRMED_AGAINST_ORIGINAL', 'READ_FROM_SCAN_UNVERIFIED', 'ENTERED_NO_DOCUMENT'))
 );
 GO
+-- An early warning the job JOB-FIN-READINESS issued: a lender date of the company within the lead time that is not ready, once per stage of the time left and readiness, so a run after a stop or a second run of the day repeats nothing; written by the database only, with the notification request in the outbox (docs/36 F4, ADR 0027)
+CREATE TABLE [fin].[EarlyWarningAlert] (
+    [TenantId] INT NOT NULL,
+    [EarlyWarningAlertId] BIGINT IDENTITY(1,1) NOT NULL,
+    [CompanyId] BIGINT NOT NULL,
+    [AssessmentId] BIGINT NOT NULL,
+    [EventKind] VARCHAR(13) NOT NULL,
+    [RefId] BIGINT NOT NULL,
+    [EventDate] DATE NOT NULL,
+    [Stage] VARCHAR(10) NOT NULL,
+    [Readiness] VARCHAR(10) NOT NULL,
+    [IssuedOn] DATE NOT NULL,
+    [MessageId] UNIQUEIDENTIFIER NOT NULL,
+    [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_EarlyWarningAlert_CreatedAt] DEFAULT SYSUTCDATETIME(),
+    [CreatedBy] BIGINT NULL,
+    CONSTRAINT [PK_EarlyWarningAlert] PRIMARY KEY CLUSTERED ([EarlyWarningAlertId]),
+    CONSTRAINT [UQ_EarlyWarningAlert_Tenant] UNIQUE ([TenantId], [EarlyWarningAlertId]),
+    CONSTRAINT [UQ_EarlyWarningAlert_CompanyId_EventKind_RefId_EventDate_Stage_Readiness] UNIQUE ([TenantId], [CompanyId], [EventKind], [RefId], [EventDate], [Stage], [Readiness]),
+    CONSTRAINT [UQ_EarlyWarningAlert_MessageId] UNIQUE ([TenantId], [MessageId]),
+    CONSTRAINT [CK_EarlyWarningAlert_EventKind] CHECK ([EventKind] IS NULL OR [EventKind] IN ('RENEWAL', 'COVENANT_TEST', 'REPORTING')),
+    CONSTRAINT [CK_EarlyWarningAlert_Stage] CHECK ([Stage] IS NULL OR [Stage] IN ('LEAD', 'D90', 'D30', 'D7')),
+    CONSTRAINT [CK_EarlyWarningAlert_Readiness] CHECK ([Readiness] IS NULL OR [Readiness] IN ('AMBER', 'RED'))
+);
+GO
 -- An alternative presentation of a company's statement before its final approval: the remedies the company chose, applied in order to the statement and kept balanced, written as a new draft statement with a trial assessment to compare; chosen by someone other than its preparer, and only when every step rests on a document dated by the period end (docs/36 F2, ADR 0023)
 CREATE TABLE [fin].[PresentationVersion] (
     [TenantId] INT NOT NULL,

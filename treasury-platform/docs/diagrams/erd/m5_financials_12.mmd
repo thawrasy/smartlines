@@ -1,5 +1,10 @@
 %% م5 · البيانات المالية والأرصدة (12/14) — Financial statements & balances
 erDiagram
+  fin_ScorecardMetric["fin.ScorecardMetric"] {
+    int ScorecardMetricId PK
+    int ScorecardId FK
+    int MetricId FK
+  }
   fin_ScorecardParameter["fin.ScorecardParameter"] {
     int ScorecardParameterId PK
     int ScorecardId FK
@@ -11,7 +16,4 @@ erDiagram
   }
   fin_ShockDriver["fin.ShockDriver"] {
     int ShockDriverId PK
-  }
-  fin_StandardLine["fin.StandardLine"] {
-    int StandardLineId PK
   }

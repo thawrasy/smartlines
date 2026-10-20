@@ -1,5 +1,11 @@
 %% م5 · البيانات المالية والأرصدة (8/14) — Financial statements & balances
 erDiagram
+  fin_LenderRating["fin.LenderRating"] {
+    bigint LenderRatingId PK
+    bigint CompanyId FK
+    bigint LenderInstitutionId FK
+    int GradeId FK
+  }
   fin_LineCatalogItem["fin.LineCatalogItem"] {
     int LineCatalogItemId PK
   }
@@ -10,10 +16,4 @@ erDiagram
   fin_MacroScenario["fin.MacroScenario"] {
     int MacroScenarioId PK
   }
-  fin_MacroScenarioCountry["fin.MacroScenarioCountry"] {
-    int MacroScenarioCountryId PK
-    int MacroScenarioId FK
-    int CountryId FK
-  }
   fin_LineCatalogItem ||--o{ fin_LineCatalogItemAlias : "LineCatalogItemId"
-  fin_MacroScenario ||--o{ fin_MacroScenarioCountry : "MacroScenarioId"

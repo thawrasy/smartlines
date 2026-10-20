@@ -57,6 +57,7 @@ USING (VALUES
     ('JOB-FAC-RESERVATION', 'TENANT', 'TRIAL,ACTIVE', N'Reservation expiry and T-7 and T-1 alerts, hourly.'),
     ('JOB-OBL-CALENDAR', 'TENANT', 'TRIAL,ACTIVE', N'Obligation calendar items, nightly.'),
     ('JOB-FIN-EVAL', 'TENANT', 'TRIAL,ACTIVE', N'Financial statement evaluation, nightly.'),
+    ('JOB-FIN-READINESS', 'TENANT', 'TRIAL,ACTIVE', N'Early warning of lender dates not ready, daily 05:20 after JOB-FIN-EVAL and JOB-OBL-CALENDAR, through fin.usp_RunEarlyWarnings (051, ADR 0027).'),
     ('JOB-COL-DUE', 'TENANT', 'TRIAL,ACTIVE', N'Collateral due items, nightly.'),
     ('JOB-CMP-SYNC', 'TENANT', 'TRIAL,ACTIVE', N'Comparison projection sync, nightly.'),
     ('JOB-PLT-RECONCILE', 'TENANT', 'TRIAL,ACTIVE', N'Reads wfl.RequestCopyDrift and lc.ProformaTotalsDrift, nightly; a row is an incident (DR-44, DR-41).'),

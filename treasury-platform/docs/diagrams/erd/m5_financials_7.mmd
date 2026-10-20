@@ -1,5 +1,10 @@
 %% م5 · البيانات المالية والأرصدة (7/14) — Financial statements & balances
 erDiagram
+  fin_EarlyWarningAlert["fin.EarlyWarningAlert"] {
+    bigint EarlyWarningAlertId PK
+    bigint CompanyId FK
+    bigint AssessmentId FK
+  }
   fin_FinancialStatement["fin.FinancialStatement"] {
     bigint FinancialStatementId PK
     bigint CompanyId FK
@@ -16,10 +21,4 @@ erDiagram
     int IndustrySensitivityId PK
     int IndustryId FK
     int ShockDriverId FK
-  }
-  fin_LenderRating["fin.LenderRating"] {
-    bigint LenderRatingId PK
-    bigint CompanyId FK
-    bigint LenderInstitutionId FK
-    int GradeId FK
   }

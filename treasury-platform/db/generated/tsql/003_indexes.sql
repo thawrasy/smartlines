@@ -610,6 +610,7 @@ CREATE NONCLUSTERED INDEX [IX_LenderRating_CompanyId_RatingDate] ON [fin].[Lende
 CREATE NONCLUSTERED INDEX [IX_LenderRating_SourceDocumentId] ON [fin].[LenderRating] ([TenantId], [SourceDocumentId]);
 CREATE NONCLUSTERED INDEX [IX_LenderRating_VerifiedBy] ON [fin].[LenderRating] ([TenantId], [VerifiedBy]);
 CREATE NONCLUSTERED INDEX [IX_LenderRating_ConflictId] ON [fin].[LenderRating] ([TenantId], [ConflictId]);
+CREATE NONCLUSTERED INDEX [IX_EarlyWarningAlert_CompanyId_IssuedOn] ON [fin].[EarlyWarningAlert] ([TenantId], [CompanyId], [IssuedOn]);
 CREATE UNIQUE NONCLUSTERED INDEX [UQ_PresentationVersion_ResultStatementId] ON [fin].[PresentationVersion] ([TenantId], [ResultStatementId]) WHERE ResultStatementId IS NOT NULL;
 CREATE NONCLUSTERED INDEX [IX_PresentationVersion_SourceStatementId_Status] ON [fin].[PresentationVersion] ([TenantId], [SourceStatementId], [Status]);
 CREATE NONCLUSTERED INDEX [IX_PresentationVersion_PreparedBy] ON [fin].[PresentationVersion] ([TenantId], [PreparedBy]);

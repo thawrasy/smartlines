@@ -153,6 +153,7 @@ INSERT #rls_tables VALUES (N'fin', N'CreditAssessmentFactor', 0);
 INSERT #rls_tables VALUES (N'fin', N'CreditAssessmentFinding', 0);
 INSERT #rls_tables VALUES (N'fin', N'CreditAssessmentGuarantor', 0);
 INSERT #rls_tables VALUES (N'fin', N'LenderRating', 0);
+INSERT #rls_tables VALUES (N'fin', N'EarlyWarningAlert', 0);
 INSERT #rls_tables VALUES (N'fin', N'PresentationVersion', 0);
 INSERT #rls_tables VALUES (N'fin', N'PresentationVersionStep', 0);
 INSERT #rls_tables VALUES (N'fin', N'CreditAssessmentReclass', 0);

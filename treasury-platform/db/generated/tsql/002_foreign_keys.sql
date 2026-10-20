@@ -650,6 +650,9 @@ ALTER TABLE [fin].[LenderRating] ADD CONSTRAINT [FK_LenderRating_GradeId] FOREIG
 ALTER TABLE [fin].[LenderRating] ADD CONSTRAINT [FK_LenderRating_SourceDocumentId] FOREIGN KEY ([TenantId], [SourceDocumentId]) REFERENCES [doc].[Document] ([TenantId], [DocumentId]);
 ALTER TABLE [fin].[LenderRating] ADD CONSTRAINT [FK_LenderRating_VerifiedBy] FOREIGN KEY ([TenantId], [VerifiedBy]) REFERENCES [sec].[AppUser] ([TenantId], [AppUserId]);
 ALTER TABLE [fin].[LenderRating] ADD CONSTRAINT [FK_LenderRating_ConflictId] FOREIGN KEY ([TenantId], [ConflictId]) REFERENCES [fac].[ValueConflict] ([TenantId], [ValueConflictId]);
+ALTER TABLE [fin].[EarlyWarningAlert] ADD CONSTRAINT [FK_EarlyWarningAlert_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
+ALTER TABLE [fin].[EarlyWarningAlert] ADD CONSTRAINT [FK_EarlyWarningAlert_CompanyId] FOREIGN KEY ([TenantId], [CompanyId]) REFERENCES [org].[Company] ([TenantId], [CompanyId]);
+ALTER TABLE [fin].[EarlyWarningAlert] ADD CONSTRAINT [FK_EarlyWarningAlert_AssessmentId] FOREIGN KEY ([TenantId], [AssessmentId]) REFERENCES [fin].[CreditAssessment] ([TenantId], [CreditAssessmentId]);
 ALTER TABLE [fin].[PresentationVersion] ADD CONSTRAINT [FK_PresentationVersion_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
 ALTER TABLE [fin].[PresentationVersion] ADD CONSTRAINT [FK_PresentationVersion_SourceStatementId] FOREIGN KEY ([TenantId], [SourceStatementId]) REFERENCES [fin].[FinancialStatement] ([TenantId], [FinancialStatementId]);
 ALTER TABLE [fin].[PresentationVersion] ADD CONSTRAINT [FK_PresentationVersion_SourceAssessmentId] FOREIGN KEY ([TenantId], [SourceAssessmentId]) REFERENCES [fin].[CreditAssessment] ([TenantId], [CreditAssessmentId]);

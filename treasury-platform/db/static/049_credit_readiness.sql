@@ -17,7 +17,8 @@
                                     requests before the first lender date less 30 days;
      fin.v_CreditEarlyWarnings      today, for the latest computed assessment of an actual statement of each company
                                     (a budget looks ahead and does not raise warnings, ADR 0025): every lender date
-                                    within the lead time whose readiness is not GREEN.
+                                    within the lead time whose readiness is not GREEN, with the stage of the time left;
+                                    fin.fn_CreditEarlyWarnings gives the same on any date, for the job of 051.
    Two views compare the ratings a lender communicated with the assessment (ADR 0026, FR-FIN-039, BR-FIN-040):
      fin.v_LenderRatingComparison   each lender rating beside the assessment of its date, with the gap in notches;
      fin.v_LenderRatingGapDrivers   where they part: the metrics on the side of the gap, the adjustments and ceilings.
@@ -151,17 +152,26 @@ FROM b
 JOIN fin.v_CreditReadinessRequests AS q ON q.TenantId = b.TenantId AND q.AssessmentId = b.AssessmentId
 WHERE q.RequestKind <> 'EVIDENCE';
 GO
-/* Today, for the latest computed assessment of each company, every lender date within the lead time that is not ready. */
-CREATE OR ALTER VIEW fin.v_CreditEarlyWarnings
-AS
-SELECT ev.*, DATEADD(MONTH, -ev.LeadMonths, ev.EventDate) AS WarnFrom
-FROM fin.fn_CreditReadinessEvents(CAST(SYSUTCDATETIME() AS DATE)) AS ev
+/* On @AsOf, for the latest computed assessment of each company, every lender date within the lead time that is not
+   ready, with the stage of the time left (the lead time, then 90, 30 and 7 days) that the early warning job reads
+   (051, ADR 0027). */
+CREATE OR ALTER FUNCTION fin.fn_CreditEarlyWarnings (@AsOf DATE)
+RETURNS TABLE
+AS RETURN
+SELECT ev.*, DATEADD(MONTH, -ev.LeadMonths, ev.EventDate) AS WarnFrom,
+       CASE WHEN ev.DaysLeft <= 7 THEN 'D7' WHEN ev.DaysLeft <= 30 THEN 'D30' WHEN ev.DaysLeft <= 90 THEN 'D90' ELSE 'LEAD' END AS Stage
+FROM fin.fn_CreditReadinessEvents(@AsOf) AS ev
 WHERE ev.Readiness <> 'GREEN'
   AND ev.AssessmentId = (SELECT TOP (1) a.CreditAssessmentId FROM fin.CreditAssessment AS a
                          JOIN fin.FinancialStatement AS s ON s.TenantId = a.TenantId AND s.FinancialStatementId = a.StatementId AND s.Nature = 'ACTUAL'
                          WHERE a.TenantId = ev.TenantId AND a.CompanyId = ev.CompanyId AND a.ComputedAt IS NOT NULL
                            AND a.Status IN ('DRAFT', 'SUBMITTED', 'APPROVED')
                          ORDER BY a.ComputedAt DESC, a.CreditAssessmentId DESC);
+GO
+/* Today's early warnings. */
+CREATE OR ALTER VIEW fin.v_CreditEarlyWarnings
+AS
+SELECT * FROM fin.fn_CreditEarlyWarnings(CAST(SYSUTCDATETIME() AS DATE));
 GO
 /* A budget beside the latest assessment of an actual statement of its company (ADR 0025): the grade, score,
    liquidity, outlook and critical risks of each, and the notches the plan gains (positive) or loses (negative). */

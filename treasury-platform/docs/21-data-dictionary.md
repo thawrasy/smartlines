@@ -2,7 +2,7 @@
 
 > مُولَّد آليًا من نموذج البيانات بـ `tools/dbgen` — لا يُعدَّل يدويًا. الأعمدة المشتركة التي تضيفها اصطلاحات التوليد (TenantId، المعرّف، التدقيق) تظهر في كل جدول.
 
-**عدد الجداول: 248**
+**عدد الجداول: 249**
 
 | الوحدة | عدد الجداول |
 |---|---|
@@ -22,7 +22,7 @@
 | CMP | 2 |
 | COL | 7 |
 | OBL | 9 |
-| FIN | 53 |
+| FIN | 54 |
 | REQ | 8 |
 | WFL | 11 |
 | NTF | 7 |
@@ -5362,6 +5362,28 @@
 **المفاتيح:** PK(LenderRatingId) · UQ(TenantId, CompanyId, LenderInstitutionId, RatingDate)
 
 **قيود:** `MappingKind = 'GIVEN_BY_LENDER' OR LenderGradeLabel IS NOT NULL` · `SourceDocumentId IS NOT NULL AND SourcePage IS NOT NULL OR (SourceDocumentId IS NULL AND Confidence = 'ENTERED_NO_DOCUMENT')` · `Confidence <> 'CONFIRMED_AGAINST_ORIGINAL' OR (VerifiedBy IS NOT NULL AND VerifiedOn IS NOT NULL)` · `OriginalText IS NULL OR (OriginalText COLLATE Arabic_100_BIN2 NOT LIKE '%[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]%' AND OriginalText COLLATE Arabic_100_BIN2 NOT LIKE '%[A-Za-z][A-Za-z][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9] [0-9][0-9][0-9][0-9]%')` · `SourceDocumentId IS NOT NULL OR (NoSourceReason IS NOT NULL AND LEN(LTRIM(RTRIM(NoSourceReason))) > 0)`
+
+### `fin.EarlyWarningAlert` — An early warning the job JOB-FIN-READINESS issued: a lender date of the company within the lead time that is not ready, once per stage of the time left and readiness, so a run after a stop or a second run of the day repeats nothing; written by the database only, with the notification request in the outbox (docs/36 F4, ADR 0027)
+
+*مملوك للمشترك*
+
+| العمود | النوع | NULL | الافتراضي | المرجع | ملاحظة |
+|---|---|---|---|---|---|
+| TenantId | INT | لا | | plat.Tenant | عزل المشترك |
+| **EarlyWarningAlertId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
+| CompanyId | BIGINT | لا |  | org.Company |  |
+| AssessmentId | BIGINT | لا |  | fin.CreditAssessment | التقييم الذي قرأته المهمة: آخر تقييم محسوب لقائمة فعلية |
+| EventKind | VARCHAR(13) | لا |  |  | enum: RENEWAL, COVENANT_TEST, REPORTING |
+| RefId | BIGINT | لا |  |  | التسهيل أو اختبار التعهد أو موعد التقرير |
+| EventDate | DATE | لا |  |  | موعد جهة التمويل وقت الإنذار: تغيّره يعيد الإنذارات من أولها |
+| Stage | VARCHAR(10) | لا |  |  | ما بقي من الوقت: داخل مهلة الإعداد، ثم 90 و30 و7 أيام enum: LEAD, D90, D30, D7 |
+| Readiness | VARCHAR(10) | لا |  |  | enum: AMBER, RED |
+| IssuedOn | DATE | لا |  |  | يوم التشغيل بتوقيت المشترك |
+| MessageId | UNIQUEIDENTIFIER | لا |  |  | صف طلب الإشعار في cfg.OutboxEvent |
+| CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
+| CreatedBy | BIGINT | نعم |  |  |  |
+
+**المفاتيح:** PK(EarlyWarningAlertId) · UQ(TenantId, CompanyId, EventKind, RefId, EventDate, Stage, Readiness) · UQ(TenantId, MessageId)
 
 ### `fin.PresentationVersion` — An alternative presentation of a company's statement before its final approval: the remedies the company chose, applied in order to the statement and kept balanced, written as a new draft statement with a trial assessment to compare; chosen by someone other than its preparer, and only when every step rests on a document dated by the period end (docs/36 F2, ADR 0023)
 

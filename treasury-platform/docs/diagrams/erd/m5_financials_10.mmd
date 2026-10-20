@@ -1,5 +1,11 @@
 %% م5 · البيانات المالية والأرصدة (10/14) — Financial statements & balances
 erDiagram
+  fin_PresentationVersionStep["fin.PresentationVersionStep"] {
+    bigint PresentationVersionStepId PK
+    bigint VersionId FK
+    int RemedyId FK
+    bigint DocumentId FK
+  }
   fin_ProductCategory["fin.ProductCategory"] {
     int ProductCategoryId PK
   }
@@ -13,7 +19,4 @@ erDiagram
     bigint DocumentId FK
     bigint PreparedBy FK
     bigint ApprovedBy FK
-  }
-  fin_RiskAnchor["fin.RiskAnchor"] {
-    int RiskAnchorId PK
   }

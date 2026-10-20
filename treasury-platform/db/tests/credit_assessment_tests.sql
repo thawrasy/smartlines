@@ -24,6 +24,9 @@
         strengthening plans with a balanced balance sheet at every step
    CA15 what the computation read: the guarantors, the bureau report and the product lines are in its hash
    CA16 the market country and city and the detailed activity: the anchor, the country ceiling, the requests, the stress
+   CA17 to CA22 the company's perspective (docs/36): the lender's decisions, trial assessments, presentation versions,
+        the readiness file, budgets and the lender's ratings
+   CA23 the early warning job and its notification requests
 
    Run against a deployed BankFas database that holds no real data, with a sysadmin login:
        sqlcmd -S <server> -U sa -C -I -b -i db/tests/credit_assessment_tests.sql
@@ -39,6 +42,11 @@ BEGIN
     CREATE USER [tp_test_crdapp] WITHOUT LOGIN;
     ALTER ROLE [tp_app] ADD MEMBER [tp_test_crdapp];
 END;
+IF USER_ID(N'tp_test_crdjob') IS NULL
+BEGIN
+    CREATE USER [tp_test_crdjob] WITHOUT LOGIN;
+    ALTER ROLE [tp_jobs] ADD MEMBER [tp_test_crdjob];
+END;
 GO
 CREATE TABLE #C (k VARCHAR(20) PRIMARY KEY, v BIGINT NOT NULL);
 GO
@@ -52,6 +60,27 @@ BEGIN
     EXEC sys.sp_set_session_context @key = N'TenantId', @value = @TenantId;
     EXEC sys.sp_set_session_context @key = N'UserId', @value = @UserId;
     EXEC sys.sp_set_session_context @key = N'BindingToken', @value = @token;
+    EXEC sys.sp_set_session_context @key = N'JobKey', @value = NULL;
+END;
+GO
+-- Binds the connection as the tenant's service account for the early warning job, as sec.usp_SetJobContext does (037).
+CREATE PROCEDURE #CJob
+AS
+BEGIN
+    DECLARE @t INT = (SELECT v FROM #C WHERE k = 't'), @svc BIGINT, @token UNIQUEIDENTIFIER = NEWID();
+    SET @svc = (SELECT AppUserId FROM sec.AppUser WHERE TenantId = @t AND IsSystemUser = 1);
+    IF @svc IS NULL
+    BEGIN
+        INSERT sec.AppUser (TenantId, Email, DisplayNameEn, Status, IsSystemUser) VALUES (@t, N'service@crd.invalid', N'Service', 'ACTIVE', 1);
+        SET @svc = SCOPE_IDENTITY();
+    END;
+    DELETE FROM sec.SessionBinding WHERE SessionId = @@SPID;
+    INSERT sec.SessionBinding (SessionId, BoundTenantId, BoundUserId, BindingToken, BindingKind)
+    VALUES (@@SPID, @t, @svc, @token, 'JOB');
+    EXEC sys.sp_set_session_context @key = N'TenantId', @value = @t;
+    EXEC sys.sp_set_session_context @key = N'UserId', @value = @svc;
+    EXEC sys.sp_set_session_context @key = N'BindingToken', @value = @token;
+    EXEC sys.sp_set_session_context @key = N'JobKey', @value = 'JOB-FIN-READINESS';
 END;
 GO
 -- The worked example's 2025 lines in SAR millions (docs/35 section 14).
@@ -1304,8 +1333,117 @@ IF @got = '1:0=Ba1 Ba2 -1 LENDER_MORE_FAVOURABLE 2 REVENUE_SIZE 2:0=B1 Ba2 2 LEN
     PRINT 'PASS CA22: a rating a lender communicated is compared with the assessment of its date, where they part is listed, and it reaches the readiness of the lender''s renewals';
 ELSE PRINT CONCAT('FAIL CA22: ', @got, ' (expected 1:0=Ba1 Ba2 -1 LENDER_MORE_FAVOURABLE 2 REVENUE_SIZE 2:0=B1 Ba2 2 LENDER_MORE_SEVERE 15 DEBT_TO_EBITDA 3:547 4:0=RENEWAL:B3:RED 5:0=Ba2 Ba2 0 SAME 0 -)');
 GO
-DROP PROCEDURE #LenderRatingCase, #BudgetCase, #ReadyCase, #VersionCase, #TrialCase, #LenderCase, #CountryCase, #HashCase, #PlatformCase, #CPlatform, #CardCase, #CovCase, #CCov, #LifeCase, #SupportCase, #HoldAssessment, #AdjustCase, #DataCase,
+/* CA23 (FR-FIN-040, BR-FIN-041, ADR 0027): the early warning job JOB-FIN-READINESS on IND's assessment of today.
+   (1) A facility expiring in 100 days is a RED renewal in the lead time: one warning LEAD RED, its notification
+   request in the outbox with the same MessageId, the event code, HIGH severity, the assessment as the target and the
+   dedup key; (2) a second run of the day issues nothing; (3) a run on the eve with 31 days left issues D90, the run
+   of today with 30 days left D30 (a stop of several days issues the current stage only); (4) a covenant test in 50
+   days is AMBER (SGL-3); when a facility expiring within the year turns the liquidity to SGL-4 it worsens to RED in
+   the same stage and warns again; (5) the procedure refuses a user binding and a run date that is not today (50092),
+   and the application cannot write the log (229). */
+CREATE PROCEDURE #WarnCase @Case INT, @Out NVARCHAR(1000) OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @s BIGINT, @a BIGINT, @f BIGINT, @n1 INT, @n2 INT, @t INT = (SELECT v FROM #C WHERE k = 't'), @ind BIGINT = (SELECT v FROM #C WHERE k = 'ind'),
+            @u1 BIGINT = (SELECT v FROM #C WHERE k = 'u1'), @d DATE = CAST(SYSUTCDATETIME() AS DATE), @e DATE, @e1 INT, @e2 INT, @e3 INT, @r1 VARCHAR(200);
+    EXEC #CStmt @ind, '2025-12-31';
+    SELECT @s = v FROM #C WHERE k = 's';
+    EXEC #CAssess @s, @AsOf = @d;
+    SELECT @a = v FROM #C WHERE k = 'a';
+    IF @Case IN (1, 2, 5) BEGIN SET @e = DATEADD(DAY, 100, @d); EXEC #CPlatform @Expiry = @e; END;
+    IF @Case = 3 BEGIN SET @e = DATEADD(DAY, 30, @d); EXEC #CPlatform @Expiry = @e; END;
+    IF @Case = 4
+    BEGIN
+        EXEC #CCov;
+        DECLARE @cv BIGINT = (SELECT TOP (1) CovenantId FROM obl.Covenant WHERE TenantId = @t AND MeasureKind = 'FLOW_VOLUME');
+        SET @e = DATEADD(DAY, 50, @d);
+        INSERT obl.CovenantTest (TenantId, CovenantId, CovenantRootId, PeriodStart, PeriodEnd, DueDate, Method)
+        VALUES (@t, @cv, (SELECT RootId FROM obl.Covenant WHERE CovenantId = @cv), '2026-01-01', DATEADD(DAY, -30, @e), @e, 'AUTO');
+    END;
+    EXEC fin.usp_ComputeCreditAssessment @a;
+    SET @f = (SELECT FacilityId FROM fac.Facility WHERE TenantId = @t AND FacilityNo = 'FAC-26-301');
+    IF @Case IN (1, 2)
+    BEGIN
+        EXEC #CJob;
+        EXECUTE AS USER = N'tp_test_crdjob';
+        EXEC fin.usp_RunEarlyWarnings @d, @n1 OUTPUT;
+        IF @Case = 2 EXEC fin.usp_RunEarlyWarnings @d, @n2 OUTPUT;
+        REVERT;
+        IF @Case = 1
+            SELECT @Out = CONCAT(@n1, ' ', w.EventKind, ' ', w.Stage, ' ', w.Readiness, ' ', o.EventName, ' ', JSON_VALUE(o.PayloadJson, '$.eventCode'), ' ',
+                                 JSON_VALUE(o.PayloadJson, '$.severity'), ' ',
+                                 CASE WHEN JSON_VALUE(o.PayloadJson, '$.dedupKey') = CONCAT('FIN.READINESS_WARNING:RENEWAL:', @f, ':LEAD.RED:', CONVERT(CHAR(8), @e, 112))
+                                      THEN 'key' ELSE JSON_VALUE(o.PayloadJson, '$.dedupKey') END, ' ',
+                                 CASE WHEN JSON_VALUE(o.PayloadJson, '$.targetId') = CAST(@a AS VARCHAR(20)) AND w.RefId = @f AND w.IssuedOn = @d THEN 'target' ELSE 'other' END)
+            FROM fin.EarlyWarningAlert AS w
+            JOIN cfg.OutboxEvent AS o ON o.TenantId = w.TenantId AND o.MessageId = w.MessageId
+            WHERE w.TenantId = @t;
+        IF @Case = 2
+            SET @Out = CONCAT(@n1, ' ', @n2, ' ', (SELECT COUNT(*) FROM fin.EarlyWarningAlert WHERE TenantId = @t), ' ',
+                              (SELECT COUNT(*) FROM cfg.OutboxEvent WHERE TenantId = @t AND EventName = 'notification.requested'));
+    END;
+    IF @Case = 3
+    BEGIN
+        DECLARE @eve DATE = DATEADD(DAY, -1, @d);
+        EXEC #CJob;
+        EXECUTE AS USER = N'tp_test_crdjob';
+        EXEC fin.usp_RunEarlyWarnings @eve, @n1 OUTPUT;
+        EXEC fin.usp_RunEarlyWarnings @d, @n2 OUTPUT;
+        REVERT;
+        SET @Out = CONCAT(@n1, ' ', (SELECT Stage FROM fin.EarlyWarningAlert WHERE TenantId = @t AND IssuedOn = @eve), ' ',
+                          @n2, ' ', (SELECT Stage FROM fin.EarlyWarningAlert WHERE TenantId = @t AND IssuedOn = @d), ' ',
+                          (SELECT COUNT(*) FROM fin.EarlyWarningAlert WHERE TenantId = @t));
+    END;
+    IF @Case = 4
+    BEGIN
+        EXEC #CJob;
+        EXECUTE AS USER = N'tp_test_crdjob';
+        EXEC fin.usp_RunEarlyWarnings @d, @n1 OUTPUT;
+        REVERT;
+        SET @r1 = (SELECT STRING_AGG(CONCAT(EventKind, ':', Stage, ':', Readiness), ',') FROM fin.EarlyWarningAlert WHERE TenantId = @t);
+        EXEC #CBind @t, @u1;
+        SET @e = DATEADD(DAY, 200, @d);
+        EXEC #CPlatform @Expiry = @e;
+        EXEC fin.usp_ComputeCreditAssessment @a;
+        EXEC #CJob;
+        EXECUTE AS USER = N'tp_test_crdjob';
+        EXEC fin.usp_RunEarlyWarnings @d, @n2 OUTPUT;
+        REVERT;
+        SET @Out = CONCAT(@n1, ' ', @r1, ' ', @n2, ' ',
+                          (SELECT STRING_AGG(CONCAT(EventKind, ':', Stage, ':', Readiness), ',') WITHIN GROUP (ORDER BY EarlyWarningAlertId) FROM fin.EarlyWarningAlert WHERE TenantId = @t));
+    END;
+    IF @Case = 5
+    BEGIN
+        EXECUTE AS USER = N'tp_test_crdjob';
+        BEGIN TRY EXEC fin.usp_RunEarlyWarnings @d; SET @e1 = 0; END TRY BEGIN CATCH SET @e1 = ERROR_NUMBER(); END CATCH;
+        REVERT;
+        EXEC #CJob;
+        SET @e = DATEADD(DAY, 5, @d);
+        EXECUTE AS USER = N'tp_test_crdjob';
+        BEGIN TRY EXEC fin.usp_RunEarlyWarnings @e; SET @e2 = 0; END TRY BEGIN CATCH SET @e2 = ERROR_NUMBER(); END CATCH;
+        REVERT;
+        EXEC #CBind @t, @u1;
+        EXECUTE AS USER = N'tp_test_crdapp';
+        BEGIN TRY
+            INSERT fin.EarlyWarningAlert (TenantId, CompanyId, AssessmentId, EventKind, RefId, EventDate, Stage, Readiness, IssuedOn, MessageId)
+            VALUES (@t, @ind, @a, 'RENEWAL', @f, DATEADD(DAY, 100, @d), 'LEAD', 'RED', @d, NEWID());
+            SET @e3 = 0;
+        END TRY BEGIN CATCH SET @e3 = ERROR_NUMBER(); END CATCH;
+        REVERT;
+        SET @Out = CONCAT(@e1, ' ', @e2, ' ', @e3);
+    END;
+END;
+GO
+DECLARE @got NVARCHAR(2000);
+EXEC #CCases '#WarnCase', 1, 5, @got OUTPUT;
+IF @got = '1:0=1 RENEWAL LEAD RED notification.requested FIN.READINESS_WARNING HIGH key target 2:0=1 0 1 1 3:0=1 D90 1 D30 2 4:0=1 COVENANT_TEST:D90:AMBER 1 COVENANT_TEST:D90:AMBER,COVENANT_TEST:D90:RED 5:0=50092 50092 229'
+    PRINT 'PASS CA23: the early warning job issues each lender date not ready once per stage and readiness, with its notification request in the outbox, and only as the job';
+ELSE PRINT CONCAT('FAIL CA23: ', @got, ' (expected 1:0=1 RENEWAL LEAD RED notification.requested FIN.READINESS_WARNING HIGH key target 2:0=1 0 1 1 3:0=1 D90 1 D30 2 4:0=1 COVENANT_TEST:D90:AMBER 1 COVENANT_TEST:D90:AMBER,COVENANT_TEST:D90:RED 5:0=50092 50092 229)');
+GO
+DROP PROCEDURE #WarnCase, #CJob, #LenderRatingCase, #BudgetCase, #ReadyCase, #VersionCase, #TrialCase, #LenderCase, #CountryCase, #HashCase, #PlatformCase, #CPlatform, #CardCase, #CovCase, #CCov, #LifeCase, #SupportCase, #HoldAssessment, #AdjustCase, #DataCase,
                #CoverageCase, #CHead, #CGrade, #CCases, #CAssess, #Crd, #CStmt, #CBase, #CBind;
 DROP TABLE #C;
 DROP USER [tp_test_crdapp];
+DROP USER [tp_test_crdjob];
 GO

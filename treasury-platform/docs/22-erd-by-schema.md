@@ -515,9 +515,9 @@ erDiagram
 | ReportingInstance | SubmissionChannelUsedId | cat.LookupItem |
 | ReportingObligation | SubmissionChannelId | cat.LookupItem |
 
-## مخطط `fin` (53 جدولًا)
+## مخطط `fin` (54 جدولًا)
 
-(المخطط كبير؛ العلاقات الداخلية: 75)
+(المخطط كبير؛ العلاقات الداخلية: 76)
 
 | الجدول | العمود | يشير إلى |
 |---|---|---|
@@ -551,6 +551,7 @@ erDiagram
 | CreditAssessmentInput | CurrencyId | ref.Currency |
 | CreditAssessmentInput | DocumentId | doc.Document |
 | CreditAssessmentInput | EnteredBy | sec.AppUser |
+| EarlyWarningAlert | CompanyId | org.Company |
 | FinancialStatement | ApprovedBy | sec.AppUser |
 | FinancialStatement | CompanyId | org.Company |
 | FinancialStatement | CurrencyId | ref.Currency |

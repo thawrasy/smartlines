@@ -188,6 +188,7 @@ stateDiagram-v2
 | JOB-PLT-EXPORT (أُضيفت 2026-10-13، ADR 0008) | مشترك، ومسموحة في SUSPENDED وCLOSED خلال النافذة | عند وجود طلب معتمد | بناء الحزمة المختومة: APPROVED إلى RUNNING إلى READY أو FAILED | DataExportJobId | FR-PLT-039، DQ-F04-8 |
 | JOB-PLT-OUTBOX-PURGE وJOB-PLT-JOBRUN-PURGE 🟡 | مشترك | أسبوعيًا | حذف DELIVERED بعد 30 يومًا، وJobRun بعد 90 يومًا | (المهمة، الأسبوع) | §4.7، §5.7 |
 | JOB-PLT-RECONCILE (أُضيفت 2026-10-13، ADR 0011؛ ✅ اعتمدها المالك 2026-10-14) | مشترك | ليلية 🟡 | تقرأ `wfl.RequestCopyDrift` و`lc.ProformaTotalsDrift`؛ كل صف حادثة تُبلَّغ ولا تُصلَح آليًا (DR-44، DR-41) | (المشترك، التاريخ) | 044_entry_guards.sql |
+| JOB-FIN-READINESS (أُضيفت 2026-10-20، ADR 0027) | مشترك | 05:20 | الإنذار المبكر: `fin.usp_RunEarlyWarnings` يكتب `fin.EarlyWarningAlert` وصف `notification.requested` بالحدث FIN.READINESS_WARNING في معاملة واحدة | (الشركة، نوع الموعد، المرجع، التاريخ، المرحلة، الجاهزية) | 051_early_warning_job.sql |
 
 المهمة اليومية لإطار FR-PLT-038 هي JOB-NTF-EXPIRY نفسها 🟡: تستدعي كل مزوّدي `IExpiryProvider` (FR-NTF-017، 13-m6:216)، ومنها مزوّدات 10 و11 و12 و14. ويقترح تعليق النموذج اسم EXPIRY_ALERTS (10.model:555)، فنوحّد على JOB-NTF-EXPIRY (DQ-F17-2).
 
@@ -200,13 +201,14 @@ flowchart TB
   C["04:30 JOB-FIN-EVAL<br/>تقييم البيانات المالية"]
   D["05:00 JOB-OBL-CALENDAR<br/>بنود الالتزامات"]
   E["05:15 JOB-FAC-VALIDITY<br/>مؤشر السريان"]
+  E2["05:20 JOB-FIN-READINESS<br/>الإنذار المبكر"]
   F["05:30 JOB-NTF-EXPIRY<br/>كل مزوّدي الانتهاء"]
   G["05:45 JOB-LC-EXPIRY<br/>تغيير الحالة وفك غير المسحوب"]
   H["06:00 JOB-WFL-STALE"]
   I["06:15 JOB-LC-MATURITY"]
   J["06:30 JOB-LCE-NOLC"]
   K["07:30 JOB-NTF-DIGEST<br/>آخر السلسلة"]
-  A --> B --> C --> D --> E --> F --> G --> H --> I --> J --> K
+  A --> B --> C --> D --> E --> E2 --> F --> G --> H --> I --> J --> K
 ```
 
 المواعيد 02:00 و05:30 و05:45 و06:00 و06:15 و06:30 و07:30 من المصادر (13-m6:640-644؛ 14-m7-m8:615-618). الباقية مقترحة.
