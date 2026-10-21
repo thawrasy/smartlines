@@ -1,0 +1,6 @@
+RUN|started|2026-10-21T11:17:50Z
+RUN|commit|1abef42
+RUN|server|17.0.5015.4 Enterprise Developer Edition (64-bit)
+RUN|host|4 cpu, 15 GB memory
+RUN|sizes|full 3, light 297, companies 200, years 5, audit 50000, sessions 50000, light audit 2000
+RUN|deploy seconds|21

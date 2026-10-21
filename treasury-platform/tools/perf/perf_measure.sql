@@ -161,13 +161,13 @@ SET @t0 = SYSUTCDATETIME();
 INSERT @anchors EXEC aud.usp_TakeAuditAnchors @JobKey = 'JOB-PLT-AUDIT-CHAIN', @StoreRef = N'perf';
 INSERT #S VALUES ('J3', DATEDIFF_BIG(MICROSECOND, @t0, SYSUTCDATETIME()));
 GO
-/* J4: the daily chain check from the anchor (055): an anchor of the tenant, a day of 500 more audit rows, then the
+/* J4: the daily chain check from the anchor (055): the tenant's latest anchor, a day of 500 more audit rows, then the
    anchor's row and the rows after it verified, three runs. */
 DECLARE @t INT = (SELECT v FROM #P WHERE k = 't'), @u1 BIGINT = (SELECT v FROM #P WHERE k = 'u1'), @i INT = 0, @t0 DATETIME2(7), @seq BIGINT,
         @h VARBINARY(32), @st VARCHAR(20), @bad BIGINT, @rows BIGINT;
-DECLARE @anchors TABLE (ChainKey INT, ChainSeq BIGINT, RowHash CHAR(64), TakenAt CHAR(23));
-INSERT @anchors EXEC aud.usp_TakeAuditAnchors @JobKey = 'JOB-PLT-AUDIT-CHAIN', @StoreRef = N'perf';
-SELECT @seq = ChainSeq, @h = CONVERT(VARBINARY(32), RowHash, 2) FROM @anchors WHERE ChainKey = @t;
+-- the tenant's latest anchor (J3 has just taken it; its copy in the database stands for the one kept outside)
+SELECT TOP (1) @seq = ChainSeq, @h = RowHash FROM aud.AuditChainAnchor WHERE ChainKey = @t ORDER BY ChainSeq DESC;
+IF @seq IS NULL THROW 50990, 'J4 needs an anchor of the measured tenant', 1;
 EXEC #Bind @t, @u1;
 WHILE @i < 500
 BEGIN
