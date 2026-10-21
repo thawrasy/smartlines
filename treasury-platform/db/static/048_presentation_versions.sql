@@ -15,7 +15,13 @@
      - the draft of a version is not submitted unless its version was chosen, and its lines do not change by hand
        (the steps are its reconciliation), 50090;
      - the version's results are written by the build only (the application role is denied UPDATE on them).
-   The view fin.v_PresentationComparison sets each version beside its source. */
+   The view fin.v_PresentationComparison sets each version beside its source.
+   Since ADR 0037 (the internal review of 2026-10-21, lens E, findings 1 and 7): a version starts from a draft or a
+   submitted statement only, never from an approved one (owner decision 34: a company restructures its presentation
+   before the final approval; an approved, perhaps audited, statement keeps its assurance, auditor and opinion and is
+   corrected by a new version of its own, 045), 50090; the build is run by the version's preparer, the user bound to
+   the session, holder of fin.stmt.enter (and of fin.credit.assess when it computes a trial assessment), and the
+   choice by a holder of fin.stmt.approve, 50170 and 50171 (058). */
 SET NOCOUNT ON;
 SET ANSI_NULLS ON; SET QUOTED_IDENTIFIER ON; SET ANSI_PADDING ON; SET ANSI_WARNINGS ON; SET ARITHABORT ON; SET CONCAT_NULL_YIELDS_NULL ON; SET NUMERIC_ROUNDABORT OFF;
 GO
@@ -35,12 +41,14 @@ BEGIN
                       AND (i.SourceStatementId <> d.SourceStatementId OR ISNULL(i.SourceAssessmentId, -1) <> ISNULL(d.SourceAssessmentId, -1)
                            OR i.PreparedBy <> d.PreparedBy)))
         THROW 50090, 'A presentation version is written as a draft, built by the database, then chosen or discarded (BR-FIN-037)', 1;
-    -- the source is a statement of the tenant still live, and the source assessment reads it
+    -- the source is a statement of the tenant before its final approval (a draft or a submitted one, ADR 0037), and
+    -- the source assessment reads it; a discarded version keeps its history
     IF EXISTS (SELECT 1 FROM inserted AS i
                JOIN fin.FinancialStatement AS s ON s.TenantId = i.TenantId AND s.FinancialStatementId = i.SourceStatementId
                LEFT JOIN fin.CreditAssessment AS a ON a.TenantId = i.TenantId AND a.CreditAssessmentId = i.SourceAssessmentId
-               WHERE s.Status IN ('REJECTED', 'SUPERSEDED') OR (i.SourceAssessmentId IS NOT NULL AND (a.CreditAssessmentId IS NULL OR a.StatementId <> i.SourceStatementId)))
-        THROW 50090, 'A presentation version starts from a live statement, and its source assessment is an assessment of that statement (BR-FIN-037)', 1;
+               WHERE (i.Status IN ('DRAFT', 'BUILT', 'CHOSEN') AND s.Status NOT IN ('DRAFT', 'SUBMITTED'))
+                  OR (i.SourceAssessmentId IS NOT NULL AND (a.CreditAssessmentId IS NULL OR a.StatementId <> i.SourceStatementId)))
+        THROW 50090, 'A presentation version starts from a statement before its final approval (a draft or a submitted one), and its source assessment is an assessment of that statement (BR-FIN-037, ADR 0037)', 1;
 END;
 GO
 CREATE OR ALTER TRIGGER fin.TR_PresentationVersionStep_DraftOnly ON fin.PresentationVersionStep
@@ -93,6 +101,14 @@ BEGIN
     FROM fin.PresentationVersion WITH (UPDLOCK, HOLDLOCK) WHERE PresentationVersionId = @VersionId;   -- the row filter shows the bound tenant's only
     IF @tenant IS NULL THROW 50091, 'No presentation version with this id for this tenant', 1;
     IF @status <> 'DRAFT' THROW 50090, 'Only a draft presentation version is built (BR-FIN-037)', 1;
+    -- built by its preparer, who enters statements and, for the trial, assessments (ADR 0037)
+    IF @user IS NULL OR @user <> @preparer OR NOT EXISTS (SELECT 1 FROM sec.fn_BoundAsUser(@tenant, 1))
+        THROW 50170, 'A presentation version is built by its preparer, the user bound to the session (ADR 0037)', 1;
+    IF NOT EXISTS (SELECT 1 FROM sec.fn_UserHasPermission(@tenant, @user, 'fin.stmt.enter'))
+       OR (@srcA IS NOT NULL AND NOT EXISTS (SELECT 1 FROM sec.fn_UserHasPermission(@tenant, @user, 'fin.credit.assess')))
+        THROW 50171, 'Building a presentation version needs fin.stmt.enter, and fin.credit.assess for its trial assessment (ADR 0037)', 1;
+    IF (SELECT Status FROM fin.FinancialStatement WITH (UPDLOCK, HOLDLOCK) WHERE TenantId = @tenant AND FinancialStatementId = @src) NOT IN ('DRAFT', 'SUBMITTED')
+        THROW 50090, 'A presentation version is built on a statement before its final approval (a draft or a submitted one) (BR-FIN-037, ADR 0037)', 1;
     IF NOT EXISTS (SELECT 1 FROM fin.PresentationVersionStep WHERE TenantId = @tenant AND VersionId = @VersionId)
         THROW 50091, 'A presentation version is built from at least one step', 1;
     DECLARE @pe DATE = (SELECT PeriodEnd FROM fin.FinancialStatement WHERE TenantId = @tenant AND FinancialStatementId = @src);
@@ -184,7 +200,7 @@ BEGIN
         INSERT fin.CreditAssessmentInput (TenantId, AssessmentId, Kind, MetricId, SubfactorId, Amount, CurrencyId, Rate, EvidenceCode, GradeId, Notches,
                                           ParentAssessmentId, Justification, DocumentId, EnteredBy)
         SELECT TenantId, @trial, Kind, MetricId, SubfactorId, Amount, CurrencyId, Rate, EvidenceCode, GradeId, Notches, ParentAssessmentId, Justification,
-               DocumentId, EnteredBy
+               DocumentId, @user   -- the trial's inputs are the builder's (058, ADR 0037)
         FROM fin.CreditAssessmentInput WHERE TenantId = @tenant AND AssessmentId = @srcA;
         INSERT fin.CreditAssessmentInput (TenantId, AssessmentId, Kind, EvidenceCode, Justification, DocumentId, EnteredBy)
         SELECT @tenant, @trial, 'EVIDENCE', r.SetsEvidence, st.Justification, st.DocumentId, @preparer
@@ -230,6 +246,10 @@ BEGIN
     IF @status <> 'BUILT' THROW 50090, 'Only a built presentation version is chosen (BR-FIN-037)', 1;
     IF @conv = 0 THROW 50090, 'A presentation version is chosen only when every step rests on a document dated by the period end (BR-FIN-037)', 1;
     IF @user IS NULL OR @user = @preparer THROW 50090, 'A presentation version is chosen by someone other than its preparer (BR-FIN-037)', 1;
+    IF NOT EXISTS (SELECT 1 FROM sec.fn_BoundAsUser(@tenant, 1))
+        THROW 50170, 'A presentation version is chosen by the user bound to the session (ADR 0037)', 1;
+    IF NOT EXISTS (SELECT 1 FROM sec.fn_UserHasPermission(@tenant, @user, 'fin.stmt.approve'))
+        THROW 50171, 'Choosing a presentation version needs fin.stmt.approve (ADR 0037)', 1;
     IF NULLIF(LTRIM(RTRIM(@Reason)), N'') IS NULL THROW 50090, 'A presentation version is chosen with the reason for the choice (ADR 0029)', 1;
     UPDATE fin.PresentationVersion SET Status = 'CHOSEN', ChosenBy = @user, ChosenOn = SYSUTCDATETIME(), ChoiceReason = LTRIM(RTRIM(@Reason)), UpdatedAt = SYSUTCDATETIME(), UpdatedBy = @user
     WHERE TenantId = @tenant AND PresentationVersionId = @VersionId;

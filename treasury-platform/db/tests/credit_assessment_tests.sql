@@ -66,6 +66,33 @@ BEGIN
     EXEC sys.sp_set_session_context @key = N'JobKey', @value = NULL;
 END;
 GO
+/* The maker and the checker are the user bound to the session (058, ADR 0037): an approval is made bound as the
+   approver u2, and the binding of the caller is restored after it. */
+CREATE PROCEDURE #CAs @UserId BIGINT
+AS
+BEGIN
+    DECLARE @t INT = (SELECT v FROM #C WHERE k = 't');
+    EXEC #CBind @t, @UserId;
+END;
+GO
+CREATE PROCEDURE #CApproveS @Statement BIGINT
+AS
+BEGIN
+    DECLARE @was BIGINT = CAST(SESSION_CONTEXT(N'UserId') AS BIGINT), @u2 BIGINT = (SELECT v FROM #C WHERE k = 'u2');
+    EXEC #CAs @u2;
+    UPDATE fin.FinancialStatement SET Status = 'APPROVED', ApprovedBy = @u2, ApprovedOn = SYSUTCDATETIME() WHERE FinancialStatementId = @Statement;
+    EXEC #CAs @was;
+END;
+GO
+CREATE PROCEDURE #CApproveA @Assessment BIGINT
+AS
+BEGIN
+    DECLARE @was BIGINT = CAST(SESSION_CONTEXT(N'UserId') AS BIGINT), @u2 BIGINT = (SELECT v FROM #C WHERE k = 'u2');
+    EXEC #CAs @u2;
+    UPDATE fin.CreditAssessment SET Status = 'APPROVED', ApprovedBy = @u2, ApprovedOn = SYSUTCDATETIME() WHERE CreditAssessmentId = @Assessment;
+    EXEC #CAs @was;
+END;
+GO
 -- Binds the connection as the tenant's service account for the early warning job, as sec.usp_SetJobContext does (037).
 CREATE PROCEDURE #CJob
 AS
@@ -130,7 +157,7 @@ BEGIN
     IF @Approve = 1
     BEGIN
         UPDATE fin.FinancialStatement SET Status = 'SUBMITTED' WHERE FinancialStatementId = @s;
-        UPDATE fin.FinancialStatement SET Status = 'APPROVED', ApprovedBy = @u2, ApprovedOn = SYSUTCDATETIME() WHERE FinancialStatementId = @s;
+        EXEC #CApproveS @s;
     END;
     DELETE FROM #C WHERE k = 's';
     INSERT #C (k, v) VALUES ('s', @s);
@@ -151,6 +178,16 @@ BEGIN
     SET @u1 = SCOPE_IDENTITY();
     INSERT sec.AppUser (TenantId, Email, DisplayNameEn, Status, PasswordHash) VALUES (@t, N'tm@crd.invalid', N'Approver', 'ACTIVE', @pw);
     SET @u2 = SCOPE_IDENTITY();
+    -- the analyst u1 prepares, enters and computes; the approver u2 approves and confirms (058, ADR 0037)
+    INSERT sec.Role (TenantId, Code, NameAr, NameEn) VALUES (@t, 'T_MAKER', N'مُعِدّ', N'Maker'), (@t, 'T_CHECKER', N'معتمِد', N'Checker');
+    INSERT sec.RolePermission (TenantId, RoleId, PermissionId)
+    SELECT @t, r.RoleId, p.PermissionId
+    FROM sec.Role AS r JOIN sec.Permission AS p
+      ON (r.Code = 'T_MAKER' AND p.Code IN ('fin.stmt.enter', 'fin.credit.assess', 'fin.stats.enter', 'fin.formula.manage'))
+      OR (r.Code = 'T_CHECKER' AND p.Code IN ('fin.stmt.approve', 'fin.credit.approve', 'fin.stats.confirm', 'fin.formula.approve'))
+    WHERE r.TenantId = @t;
+    INSERT sec.UserRole (TenantId, UserId, RoleId)
+    SELECT @t, CASE r.Code WHEN 'T_MAKER' THEN @u1 ELSE @u2 END, r.RoleId FROM sec.Role AS r WHERE r.TenantId = @t AND r.Code IN ('T_MAKER', 'T_CHECKER');
     EXEC #CBind @t, @u1;
     ALTER TABLE org.Company NOCHECK CONSTRAINT FK_Company_LegalEntityTypeId;
     INSERT pty.Party (TenantId, PartyCode, Kind, NameEn) VALUES (@t, 'P-HOLD', 'ORGANIZATION', N'Holding'), (@t, 'P-IND', 'ORGANIZATION', N'Industrial'),
@@ -459,14 +496,14 @@ BEGIN
     INSERT fin.ConsolidationMember (TenantId, StatementId, MemberCompanyId, Role, Method, OwnershipPct)
     VALUES (@t, @s, @hold, 'PARENT', 'FULL', NULL), (@t, @s, @ind, 'SUBSIDIARY', 'FULL', 100);
     UPDATE fin.FinancialStatement SET Status = 'SUBMITTED' WHERE FinancialStatementId = @s;
-    UPDATE fin.FinancialStatement SET Status = 'APPROVED', ApprovedBy = @u2, ApprovedOn = SYSUTCDATETIME() WHERE FinancialStatementId = @s;
+    EXEC #CApproveS @s;
     EXEC #CAssess @s, @AsOf = @AsOf, @Business = 'A3', @Policy = 'A3';
     SELECT @a = v FROM #C WHERE k = 'a';
     EXEC fin.usp_ComputeCreditAssessment @a;
     IF @Approve = 1
     BEGIN
         UPDATE fin.CreditAssessment SET Status = 'SUBMITTED', PreparedOn = SYSUTCDATETIME() WHERE CreditAssessmentId = @a;
-        UPDATE fin.CreditAssessment SET Status = 'APPROVED', ApprovedBy = @u2, ApprovedOn = SYSUTCDATETIME() WHERE CreditAssessmentId = @a;
+        EXEC #CApproveA @a;
     END;
     DELETE FROM #C WHERE k = 'ha';
     INSERT #C (k, v) VALUES ('ha', @a);
@@ -490,7 +527,7 @@ BEGIN
         SELECT @parent = v FROM #C WHERE k = 'a';
         EXEC fin.usp_ComputeCreditAssessment @parent;
         UPDATE fin.CreditAssessment SET Status = 'SUBMITTED', PreparedOn = SYSUTCDATETIME() WHERE CreditAssessmentId = @parent;
-        UPDATE fin.CreditAssessment SET Status = 'APPROVED', ApprovedBy = @u2, ApprovedOn = SYSUTCDATETIME() WHERE CreditAssessmentId = @parent;
+        EXEC #CApproveA @parent;
     END
     ELSE
     BEGIN
@@ -622,14 +659,14 @@ BEGIN
         IF @Case = 7 UPDATE fin.CreditAssessmentInput SET Justification = N'test: a justification changed after the computation' WHERE AssessmentId = @a;
         UPDATE fin.CreditAssessment SET Status = 'SUBMITTED', PreparedOn = SYSUTCDATETIME() WHERE CreditAssessmentId = @a;
         IF @Case = 8 UPDATE fin.CreditAssessment SET Status = 'APPROVED', ApprovedBy = @u1, ApprovedOn = SYSUTCDATETIME() WHERE CreditAssessmentId = @a;
-        IF @Case IN (9, 15) UPDATE fin.CreditAssessment SET Status = 'APPROVED', ApprovedBy = @u2, ApprovedOn = SYSUTCDATETIME() WHERE CreditAssessmentId = @a;
+        IF @Case IN (9, 15) EXEC #CApproveA @a;
         IF @Case = 9 SELECT @Out = Status FROM fin.CreditAssessment WHERE CreditAssessmentId = @a;
         IF @Case = 10
             INSERT fin.CreditAssessmentInput (TenantId, AssessmentId, Kind, Notches, Justification, EnteredBy) VALUES (@t, @a, 'OVERRIDE', 1, N'test: too late', @u1);
         IF @Case = 11 EXEC fin.usp_ComputeCreditAssessment @a;
         IF @Case = 12 UPDATE fin.CreditAssessment SET AssessmentDate = '2026-05-31' WHERE CreditAssessmentId = @a;
         IF @Case = 13 UPDATE fin.CreditAssessment SET Status = 'REJECTED' WHERE CreditAssessmentId = @a;
-        IF @Case = 14 UPDATE fin.CreditAssessment SET Status = 'REJECTED', RejectionReason = N'test: rejected' WHERE CreditAssessmentId = @a;
+        IF @Case = 14 BEGIN EXEC #CAs @u2; UPDATE fin.CreditAssessment SET Status = 'REJECTED', RejectionReason = N'test: rejected' WHERE CreditAssessmentId = @a; EXEC #CAs @u1; END;
         IF @Case = 14
         BEGIN
             UPDATE fin.CreditAssessment SET Status = 'DRAFT' WHERE CreditAssessmentId = @a;
@@ -647,7 +684,7 @@ BEGIN
             SELECT @b = v FROM #C WHERE k = 'a';
             EXEC fin.usp_ComputeCreditAssessment @b;
             UPDATE fin.CreditAssessment SET Status = 'SUBMITTED', PreparedOn = SYSUTCDATETIME() WHERE CreditAssessmentId = @b;
-            UPDATE fin.CreditAssessment SET Status = 'APPROVED', ApprovedBy = @u2, ApprovedOn = SYSUTCDATETIME() WHERE CreditAssessmentId = @b;
+            EXEC #CApproveA @b;
         END;
     END;
 END;
@@ -771,9 +808,15 @@ BEGIN
     INSERT obl.ObligationBreach (TenantId, ObligationId, ObligationRootId, Kind, CovenantTestId, CovenantRootId, TestPeriodEnd, DetectedOn, WaiverRef)
     VALUES (@t, @ob, (SELECT RootId FROM obl.Obligation WHERE ObligationId = @ob), 'COVENANT_BREACH', @ct, (SELECT RootId FROM obl.Covenant WHERE CovenantId = @crt),
             '2025-12-31', '2026-04-01', CASE WHEN @Waiver = 1 THEN N'W-2026-01' END);
-    INSERT fin.BankFlowEntry (TenantId, CompanyId, InstitutionId, MonthEnd, FlowKindListId, FlowKindId, Amount, CurrencyId, EnteredBy, Status, ConfirmedBy, ConfirmedOn)
-    VALUES (@t, @ind, 1, '2026-01-31', @lst, @kind, 1000000, @cur, @u1, 'CONFIRMED', @u2, SYSUTCDATETIME()),
-           (@t, @ind, 1, '2026-03-31', @lst, @kind, 1000000, @cur, @u1, 'CONFIRMED', @u2, SYSUTCDATETIME());
+    -- entered by the bound analyst, confirmed by the approver (058, ADR 0037)
+    DECLARE @was BIGINT = CAST(SESSION_CONTEXT(N'UserId') AS BIGINT);
+    EXEC #CAs @u1;
+    INSERT fin.BankFlowEntry (TenantId, CompanyId, InstitutionId, MonthEnd, FlowKindListId, FlowKindId, Amount, CurrencyId, EnteredBy)
+    VALUES (@t, @ind, 1, '2026-01-31', @lst, @kind, 1000000, @cur, @u1),
+           (@t, @ind, 1, '2026-03-31', @lst, @kind, 1000000, @cur, @u1);
+    EXEC #CAs @u2;
+    UPDATE fin.BankFlowEntry SET Status = 'CONFIRMED', ConfirmedBy = @u2, ConfirmedOn = SYSUTCDATETIME() WHERE TenantId = @t AND CompanyId = @ind AND Status = 'DRAFT';
+    EXEC #CAs @was;
 END;
 GO
 /* CA9 (FR-FIN-022, FR-FIN-018, docs/35 sections 8 and 9): the assessment reads the covenants and the bank flows. The
@@ -1742,7 +1785,7 @@ BEGIN
     SELECT @a = v FROM #C WHERE k = 'a';
     EXEC fin.usp_ComputeCreditAssessment @a;
     UPDATE fin.CreditAssessment SET Status = 'SUBMITTED', PreparedOn = SYSUTCDATETIME() WHERE CreditAssessmentId = @a;
-    IF @Case <> 4 UPDATE fin.CreditAssessment SET Status = 'APPROVED', ApprovedBy = @u2, ApprovedOn = SYSUTCDATETIME() WHERE CreditAssessmentId = @a;
+    IF @Case <> 4 EXEC #CApproveA @a;
     SET @before = (SELECT UseScope FROM fin.v_CreditAssessmentReport WHERE CreditAssessmentId = @a);
     DECLARE @who BIGINT = CASE @Case WHEN 2 THEN @u4 WHEN 3 THEN @u2 ELSE @u3 END;
     EXEC #CBind @t, @who;
@@ -1780,6 +1823,9 @@ BEGIN
     EXEC #CAssess @s;
     SELECT @a = v FROM #C WHERE k = 'a';
     EXEC fin.usp_ComputeCreditAssessment @a;
+    -- the calibration reads approved assessments only (ADR 0037)
+    UPDATE fin.CreditAssessment SET Status = 'SUBMITTED', PreparedOn = SYSUTCDATETIME() WHERE CreditAssessmentId = @a;
+    EXEC #CApproveA @a;
     INSERT fin.LenderRating (TenantId, CompanyId, LenderInstitutionId, RatingDate, GradeId, MappingKind, LenderReasons, NoSourceReason)
     SELECT @t, @ind, v.Lender, v.RatingDate, (SELECT RatingGradeId FROM fin.RatingGrade WHERE Code = v.Grade COLLATE DATABASE_DEFAULT),
            'GIVEN_BY_LENDER', N'خطاب البنك', N'test fixture'
@@ -1843,7 +1889,7 @@ BEGIN
     SELECT @a = v FROM #C WHERE k = 'a';
     EXEC fin.usp_ComputeCreditAssessment @a;
     UPDATE fin.CreditAssessment SET Status = 'SUBMITTED', PreparedOn = SYSUTCDATETIME() WHERE CreditAssessmentId = @a;
-    UPDATE fin.CreditAssessment SET Status = 'APPROVED', ApprovedBy = @u2, ApprovedOn = SYSUTCDATETIME() WHERE CreditAssessmentId = @a;
+    EXEC #CApproveA @a;
     IF @Endorse = 1
     BEGIN
         EXEC #CBind @t, @u3;
@@ -1872,9 +1918,12 @@ BEGIN
     IF @Case IN (6, 7, 8)
     BEGIN
         ALTER TABLE fin.AccountMonthlyStat NOCHECK CONSTRAINT FK_AccountMonthlyStat_BankAccountId;
-        INSERT fin.AccountMonthlyStat (TenantId, BankAccountId, MonthEnd, AvgDailyBalance, EndBalance, SourceKind, Status, EnteredBy, ConfirmedBy, ConfirmedOn)
-        VALUES (@t, 1, '2026-01-31', 5000000, 5200000, 'BANK_STATEMENT', 'CONFIRMED', @u1, @u2, SYSUTCDATETIME());
+        INSERT fin.AccountMonthlyStat (TenantId, BankAccountId, MonthEnd, AvgDailyBalance, EndBalance, SourceKind, EnteredBy)
+        VALUES (@t, 1, '2026-01-31', 5000000, 5200000, 'BANK_STATEMENT', @u1);
         SET @m = SCOPE_IDENTITY();
+        EXEC #CAs @u2;
+        UPDATE fin.AccountMonthlyStat SET Status = 'CONFIRMED', ConfirmedBy = @u2, ConfirmedOn = SYSUTCDATETIME() WHERE AccountMonthlyStatId = @m;
+        EXEC #CAs @u1;
     END;
     IF @Case = 1 UPDATE fin.BankFlowEntry SET Amount = Amount + 1 WHERE BankFlowEntryId = @f;
     IF @Case = 2 DELETE fin.BankFlowEntry WHERE BankFlowEntryId = @f;
@@ -1887,7 +1936,9 @@ BEGIN
     BEGIN
         EXEC #CBind @t, @u5;
         EXEC fin.usp_ReopenMonthlyFigure 'FLOW', @f, N'test: the bank corrected its advice';
-        UPDATE fin.BankFlowEntry SET Amount = 900000 WHERE BankFlowEntryId = @f;
+        -- the draft is then changed by an author, stamped as its editor (058, ADR 0037)
+        EXEC #CBind @t, @u1;
+        UPDATE fin.BankFlowEntry SET Amount = 900000, EnteredBy = @u1 WHERE BankFlowEntryId = @f;
         SELECT @Out = CONCAT(Status, ' ', ReopenCount, ' ', CASE WHEN LastReopenedBy = @u5 THEN 'u5' ELSE 'other' END, ' ', CAST(Amount AS INT), ' ',
                              (SELECT COUNT(*) FROM aud.AuditLog WHERE TenantId = @t AND Action = 'MONTHLY_FIGURE_REOPENED' AND EntityId = @f))
         FROM fin.BankFlowEntry WHERE BankFlowEntryId = @f;
@@ -1986,6 +2037,9 @@ BEGIN
     -- a clean assessment, so that the calibration alone moves the readiness (the draft's results, written here as sa)
     UPDATE fin.CreditAssessment SET LiquidityLabel = 'SGL-2', Outlook = 'STABLE' WHERE CreditAssessmentId = @a;
     DELETE fin.CreditAssessmentFinding WHERE AssessmentId = @a AND (Kind = 'CRITICAL_RISK' OR Source = 'DATA');
+    -- the calibration reads approved assessments only (ADR 0037)
+    UPDATE fin.CreditAssessment SET Status = 'SUBMITTED', PreparedOn = SYSUTCDATETIME() WHERE CreditAssessmentId = @a;
+    EXEC #CApproveA @a;
     SET @notch = (SELECT g.NotchNo FROM fin.CreditAssessment AS x JOIN fin.RatingGrade AS g ON g.RatingGradeId = x.FinalGradeId WHERE x.CreditAssessmentId = @a);
     INSERT fin.LenderRating (TenantId, CompanyId, LenderInstitutionId, RatingDate, GradeId, MappingKind, LenderReasons, NoSourceReason)
     SELECT @t, @ind, 1, v.RatingDate, (SELECT RatingGradeId FROM fin.RatingGrade WHERE NotchNo = @notch + v.Step), 'GIVEN_BY_LENDER', N'خطاب البنك', N'test fixture'
@@ -2003,7 +2057,7 @@ IF @got = N'1:0=COVENANT_TEST:GREEN:- | NO_LENDER_RATING 2:0=COVENANT_TEST:AMBER
     PRINT 'PASS CA29: an optimistic or stale calibration against the lenders turns a lender date AMBER, and the readiness file asks for a lender rating when none is recent';
 ELSE PRINT CONCAT('FAIL CA29: ', @got, N' (expected 1:0=COVENANT_TEST:GREEN:- | NO_LENDER_RATING 2:0=COVENANT_TEST:AMBER:CALIBRATION_OPTIMISTIC | none 3:0=COVENANT_TEST:AMBER:CALIBRATION_STALE | LENDER_RATING_STALE 4:0=COVENANT_TEST:GREEN:- | none)');
 GO
-/* CA30 (FR-FIN-048, BR-FIN-047, ADR 0030): the provision matrix of IND's receivables (SAR millions: 100 up to 90 days,
+/* CA30 (FR-FIN-048, BR-FIN-047, ADR 0030): the provision matrix of IND's gross receivables of 160 (SAR millions: 100 up to 90 days,
    30 to 180, 20 to a year, 10 over a year of which 4 government), the pack's default rates 1, 5, 20, 50 and 10 percent:
    expected 9.9. (1) A recorded allowance of 2 is a SHORTFALL of 7.9 on provisional rates, and the readiness asks for
    an explanation (ECL_SHORTFALL); (2) with the rates approved by the treasury and an allowance of 9.5: ADEQUATE on
@@ -2014,10 +2068,15 @@ AS
 BEGIN
     SET NOCOUNT ON;
     DECLARE @s BIGINT, @a BIGINT, @t INT = (SELECT v FROM #C WHERE k = 't'), @ind BIGINT = (SELECT v FROM #C WHERE k = 'ind'), @u2 BIGINT = (SELECT v FROM #C WHERE k = 'u2'),
-            @ov NVARCHAR(400) = CASE WHEN @Case = 3 THEN N'' ELSE CONCAT(N'AR_AGE_0_90=100;AR_AGE_91_180=30;AR_AGE_181_365=20;AR_AGE_OVER_365=10;AR_AGE_OVER_365_GOV=4;AR_ECL_ALLOWANCE=',
+            @u1 BIGINT = (SELECT v FROM #C WHERE k = 'u1'), @ov NVARCHAR(400) = CASE WHEN @Case = 3 THEN N'' ELSE CONCAT(N'AR_GROSS=160;AR_AGE_0_90=100;AR_AGE_91_180=30;AR_AGE_181_365=20;AR_AGE_OVER_365=10;AR_AGE_OVER_365_GOV=4;AR_ECL_ALLOWANCE=',
                                                                          CASE WHEN @Case = 2 THEN N'9.5' ELSE N'2' END) END;
     EXEC #CNtfPack;
-    IF @Case = 2 UPDATE fin.ReceivableLossRate SET Status = 'APPROVED', ApprovedBy = @u2, ApprovedOn = SYSUTCDATETIME() WHERE TenantId = @t;
+    IF @Case = 2
+    BEGIN   -- approved by the bound approver (058)
+        EXEC #CAs @u2;
+        UPDATE fin.ReceivableLossRate SET Status = 'APPROVED', ApprovedBy = @u2, ApprovedOn = SYSUTCDATETIME() WHERE TenantId = @t;
+        EXEC #CAs @u1;
+    END;
     IF @Case = 4 DELETE fin.ReceivableLossRate WHERE TenantId = @t;
     EXEC #CStmt @ind, '2025-12-31', @ov;
     SELECT @s = v FROM #C WHERE k = 's';
@@ -2106,7 +2165,7 @@ IF @got = N'1:0=LOCKED 2025-12-31 1 2025-12-31 2:50097 3:0=3 flows 4:50096 5:500
 ELSE PRINT CONCAT('FAIL CA31: ', @got, N' (expected 1:0=LOCKED 2025-12-31 1 2025-12-31 2:50097 3:0=3 flows 4:50096 5:50097 6:0=REOPENED u5 1 2 open 7:50097 8:0=229 9:50096)');
 GO
 DROP PROCEDURE #CloseCase, #ProvisionCase, #CalReadyCase, #EvidenceCase, #FreezeCase, #CApproved, #CControls, #CalibrationCase, #EndorseCase, #MessageCase, #CRender, #CNtfPack, #WarnCase, #CJob, #LenderRatingCase, #BudgetCase, #ReadyCase, #VersionCase, #TrialCase, #LenderCase, #CountryCase, #HashCase, #PlatformCase, #CPlatform, #CardCase, #CovCase, #CCov, #LifeCase, #SupportCase, #HoldAssessment, #AdjustCase, #DataCase,
-               #CoverageCase, #CHead, #CGrade, #CCases, #CAssess, #Crd, #CStmt, #CBase, #CBind;
+               #CoverageCase, #CHead, #CGrade, #CCases, #CAssess, #Crd, #CStmt, #CBase, #CApproveA, #CApproveS, #CAs, #CBind;
 DROP TABLE #C;
 DROP USER [tp_test_crdapp];
 DROP USER [tp_test_crdjob];

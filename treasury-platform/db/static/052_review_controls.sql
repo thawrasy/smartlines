@@ -6,8 +6,10 @@
       approved it endorses it:
         fin.usp_EndorseCreditAssessment  a user bound to the tenant who holds fin.credit.endorse and holds neither
                                          fin.credit.assess nor fin.credit.approve, and who is neither the preparer nor
-                                         the approver, endorses an approved assessment of an actual statement once,
-                                         with the reason and scope of the endorsement. Error 50093.
+                                         the approver of the assessment, nor the preparer or approver of its statement,
+                                         nor the user who chose the presentation version that became the statement
+                                         (ADR 0037), endorses an approved (not superseded) assessment of an actual
+                                         statement once, with the reason and scope of the endorsement. Error 50093.
       The default holder is AU (the internal auditor) by the role matrix of spec 12; the tenant may grant it to a
       CFO or an audit committee member instead. The report shows whether an assessment is endorsed
       (fin.v_CreditAssessmentReport.UseScope: ENDORSED or INTERNAL_ONLY).
@@ -28,10 +30,15 @@
       fin.BankFlowEntry is neither changed nor deleted (50094); fin.usp_ReopenMonthlyFigure returns it to DRAFT with
       a reason, by a user who holds fin.stats.confirm and did not enter it, counted and audited (MONTHLY_FIGURE_REOPENED).
    5. The evidence pack of an endorsed assessment (BR-FIN-049). fin.usp_BuildAssessmentEvidencePack gives one JSON
-      document: the report, the statement and its versions, its lines, the factors, findings, reconciliation, remedies,
-      scenarios, covenants, the calibration, the provision check and the audit rows of the assessment and statements.
-      Its SHA-256 is logged in fin.AssessmentEvidencePack with its purpose; the same content gives the same hash.
-      Error 50095. */
+      document of an endorsed assessment that is still the approved one (not superseded, not a trial): the report, the
+      hash of what the computation read (InputsHash) and its snapshot, the analyst's inputs (qualitative grades,
+      sub-factors, group support, override, market size, rates, evidence, each with its justification and the SHA-256
+      of its document's current version when one is stored), the guarantors and the bureau report, the facilities and
+      collateral the computation read, the scorecard by code and version with the SHA-256 of its weights, grids,
+      adjustments and parameters, the statement and its versions, its lines, the factors, findings, reconciliation,
+      remedies, scenarios, the covenant tests of the statement, the lender ratings and the calibration, the provision
+      check, the close of the period and the audit rows of the assessment and statements (ADR 0037). Its SHA-256 is
+      logged in fin.AssessmentEvidencePack with its purpose; the same content gives the same hash. Error 50095. */
 SET NOCOUNT ON;
 SET ANSI_NULLS ON; SET QUOTED_IDENTIFIER ON; SET ANSI_PADDING ON; SET ANSI_WARNINGS ON; SET ARITHABORT ON; SET CONCAT_NULL_YIELDS_NULL ON; SET NUMERIC_ROUNDABORT OFF;
 GO
@@ -43,7 +50,8 @@ BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
     DECLARE @t INT = CAST(SESSION_CONTEXT(N'TenantId') AS INT), @user BIGINT = CAST(SESSION_CONTEXT(N'UserId') AS BIGINT),
-            @status VARCHAR(10), @trial BIT, @prep BIGINT, @appr BIGINT, @endorsed BIGINT, @nature VARCHAR(6);
+            @status VARCHAR(10), @trial BIT, @prep BIGINT, @appr BIGINT, @endorsed BIGINT, @nature VARCHAR(6),
+            @sprep BIGINT, @sappr BIGINT, @chooser BIGINT;
     IF @t IS NULL OR @user IS NULL OR NOT EXISTS (SELECT 1 FROM sec.fn_BoundAsUser(@t, 0))
         THROW 50093, 'An assessment is endorsed by a user bound to its tenant', 1;
     IF NULLIF(LTRIM(RTRIM(@Note)), N'') IS NULL THROW 50093, 'An endorsement says why and for whom the assessment is shown outside the company', 1;
@@ -53,7 +61,10 @@ BEGIN
        OR EXISTS (SELECT 1 FROM sec.fn_UserHasPermission(@t, @user, 'fin.credit.approve'))
         THROW 50093, 'The endorser is outside the line that prepares and approves assessments (holds neither fin.credit.assess nor fin.credit.approve)', 1;
     BEGIN TRANSACTION;
-    SELECT @status = a.Status, @trial = a.IsTrial, @prep = a.PreparedBy, @appr = a.ApprovedBy, @endorsed = a.EndorsedBy, @nature = s.Nature
+    SELECT @status = a.Status, @trial = a.IsTrial, @prep = a.PreparedBy, @appr = a.ApprovedBy, @endorsed = a.EndorsedBy, @nature = s.Nature,
+           @sprep = s.PreparedBy, @sappr = s.ApprovedBy,
+           @chooser = (SELECT TOP (1) v.ChosenBy FROM fin.PresentationVersion AS v
+                       WHERE v.TenantId = s.TenantId AND v.ResultStatementId = s.FinancialStatementId AND v.Status = 'CHOSEN')
     FROM fin.CreditAssessment AS a WITH (UPDLOCK, HOLDLOCK)
     JOIN fin.FinancialStatement AS s ON s.TenantId = a.TenantId AND s.FinancialStatementId = a.StatementId
     WHERE a.TenantId = @t AND a.CreditAssessmentId = @AssessmentId;
@@ -62,6 +73,8 @@ BEGIN
         THROW 50093, 'Only an approved assessment of an actual statement is endorsed (a trial or a budget stays internal)', 1;
     IF @endorsed IS NOT NULL THROW 50093, 'The assessment is already endorsed', 1;
     IF @user IN (@prep, @appr) THROW 50093, 'The endorser is neither the preparer nor the approver of the assessment', 1;
+    IF @user IN (@sprep, @sappr) OR @user = @chooser
+        THROW 50093, 'The endorser neither prepared nor approved the statement, nor chose the presentation that became it (ADR 0037)', 1;
     -- the calibration of that day is kept with the endorsement and shown with the report (ADR 0030)
     UPDATE a SET EndorsedBy = @user, EndorsedOn = SYSUTCDATETIME(), EndorsementNote = LTRIM(RTRIM(@Note)),
                  EndorsedBias = ISNULL(c.Bias, 'INSUFFICIENT'), EndorsedRatings = ISNULL(c.Ratings, 0),
@@ -190,7 +203,7 @@ BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
     DECLARE @t INT = CAST(SESSION_CONTEXT(N'TenantId') AS INT), @user BIGINT = CAST(SESSION_CONTEXT(N'UserId') AS BIGINT),
-            @stmt BIGINT, @company BIGINT, @endorsed BIGINT, @id BIGINT;
+            @stmt BIGINT, @company BIGINT, @endorsed BIGINT, @id BIGINT, @status VARCHAR(10), @trial BIT, @card INT;
     SELECT @Pack = NULL, @Sha256 = NULL;
     IF @t IS NULL OR @user IS NULL OR NOT EXISTS (SELECT 1 FROM sec.fn_BoundAsUser(@t, 1))
         THROW 50095, 'An evidence pack is built by a user bound to the tenant', 1;
@@ -198,10 +211,12 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM sec.fn_UserHasPermission(@t, @user, 'fin.credit.endorse'))
        AND NOT EXISTS (SELECT 1 FROM sec.fn_UserHasPermission(@t, @user, 'fin.credit.approve'))
         THROW 50095, 'The permission fin.credit.endorse or fin.credit.approve is required', 1;
-    SELECT @stmt = StatementId, @company = CompanyId, @endorsed = EndorsedBy
+    SELECT @stmt = StatementId, @company = CompanyId, @endorsed = EndorsedBy, @status = Status, @trial = IsTrial, @card = ScorecardId
     FROM fin.CreditAssessment WHERE TenantId = @t AND CreditAssessmentId = @AssessmentId;
     IF @stmt IS NULL THROW 50095, 'No assessment with this id for this tenant', 1;
     IF @endorsed IS NULL THROW 50095, 'Only an endorsed assessment leaves the company in an evidence pack (BR-FIN-043)', 1;
+    IF @status <> 'APPROVED' OR @trial = 1
+        THROW 50095, 'An evidence pack is built of the approved assessment only; a superseded one has been replaced (ADR 0037)', 1;
     -- the statement and every version it supersedes
     DECLARE @chain TABLE (StatementId BIGINT PRIMARY KEY, Depth INT);
     WITH c AS (SELECT FinancialStatementId, SupersedesId, 0 AS Depth FROM fin.FinancialStatement WHERE TenantId = @t AND FinancialStatementId = @stmt
@@ -212,6 +227,42 @@ BEGIN
     SET @Pack = (SELECT
         'BankFas assessment evidence pack v1' AS format,
         JSON_QUERY((SELECT * FROM fin.v_CreditAssessmentReport WHERE TenantId = @t AND CreditAssessmentId = @AssessmentId FOR JSON PATH, WITHOUT_ARRAY_WRAPPER, INCLUDE_NULL_VALUES)) AS assessment,
+        -- what the computation read, as it recorded it (ADR 0037)
+        (SELECT InputsHash FROM fin.CreditAssessment WHERE TenantId = @t AND CreditAssessmentId = @AssessmentId) AS inputsHash,
+        JSON_QUERY((SELECT Snapshot FROM fin.CreditAssessment WHERE TenantId = @t AND CreditAssessmentId = @AssessmentId AND ISJSON(Snapshot) = 1)) AS snapshot,
+        (SELECT i.Kind, m.Code AS MetricCode, sf.Code AS SubfactorCode, g.Code AS Grade, i.Notches, i.ParentAssessmentId, i.Amount, cu.Code AS Currency, i.Rate,
+                i.EvidenceCode, i.Justification, i.DocumentId, CONVERT(VARCHAR(64), dv.Sha256, 2) AS DocumentSha256, i.EnteredBy
+         FROM fin.CreditAssessmentInput AS i
+         LEFT JOIN fin.CreditMetric AS m ON m.CreditMetricId = i.MetricId
+         LEFT JOIN fin.ScorecardSubfactor AS sf ON sf.ScorecardSubfactorId = i.SubfactorId
+         LEFT JOIN fin.RatingGrade AS g ON g.RatingGradeId = i.GradeId
+         LEFT JOIN ref.Currency AS cu ON cu.CurrencyId = i.CurrencyId
+         LEFT JOIN doc.Document AS d ON d.TenantId = i.TenantId AND d.DocumentId = i.DocumentId
+         LEFT JOIN doc.DocumentVersion AS dv ON dv.TenantId = d.TenantId AND dv.DocumentVersionId = d.CurrentVersionId
+         WHERE i.TenantId = @t AND i.AssessmentId = @AssessmentId
+         ORDER BY i.Kind, i.MetricId, i.SubfactorId, i.CurrencyId, i.EvidenceCode FOR JSON PATH, INCLUDE_NULL_VALUES) AS inputs,
+        (SELECT g.PartyId, g.NetWorth, g.LiquidAssets, g.GuaranteesGiven, g.GuaranteedAmount, g.AsOfDate, g.DocumentId, CONVERT(VARCHAR(64), dv.Sha256, 2) AS DocumentSha256
+         FROM fin.CreditAssessmentGuarantor AS g
+         LEFT JOIN doc.Document AS d ON d.TenantId = g.TenantId AND d.DocumentId = g.DocumentId
+         LEFT JOIN doc.DocumentVersion AS dv ON dv.TenantId = d.TenantId AND dv.DocumentVersionId = d.CurrentVersionId
+         WHERE g.TenantId = @t AND g.AssessmentId = @AssessmentId ORDER BY g.PartyId FOR JSON PATH) AS guarantors,
+        JSON_QUERY((SELECT b.ReportDate, b.DocumentId, CONVERT(VARCHAR(64), dv.Sha256, 2) AS DocumentSha256, b.TotalLimits, b.TotalOutstanding, b.LenderCount,
+                           b.WorstDpd12m, b.WorstDpd24m, b.CurrentDefault, b.Defaults24mCount, b.Defaults24mAmount, b.BouncedCheques12mCount,
+                           b.BouncedCheques12mAmount, b.JudgmentsCount, b.JudgmentsAmount, b.Inquiries6m, b.Restructured
+                    FROM fin.CreditAssessmentBureau AS b
+                    LEFT JOIN doc.Document AS d ON d.TenantId = b.TenantId AND d.DocumentId = b.DocumentId
+                    LEFT JOIN doc.DocumentVersion AS dv ON dv.TenantId = d.TenantId AND dv.DocumentVersionId = d.CurrentVersionId
+                    WHERE b.TenantId = @t AND b.AssessmentId = @AssessmentId FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)) AS bureau,
+        (SELECT * FROM fin.v_CreditAssessmentFacilities WHERE TenantId = @t AND AssessmentId = @AssessmentId ORDER BY FacilityId FOR JSON PATH) AS facilities,
+        -- the methodology by code and version, and the SHA-256 of its weights, grids, adjustments and parameters
+        JSON_QUERY((SELECT sc.Code, sc.VersionNo,
+                           CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', CONCAT(
+                               (SELECT sm.MetricId, sm.FactorCode, sm.Weight, sm.B0, sm.B1, sm.B2, sm.B3, sm.B4, sm.B5, sm.B6, sm.B7, sm.B8
+                                FROM fin.ScorecardMetric AS sm WHERE sm.ScorecardId = sc.ScorecardId ORDER BY sm.MetricId FOR JSON PATH), '|',
+                               (SELECT ad.RuleCode, ad.Stage, ad.Notches, ad.CapGradeId, ad.ParamValue, ad.IsActive FROM fin.ScorecardAdjustment AS ad WHERE ad.ScorecardId = sc.ScorecardId ORDER BY ad.RuleCode FOR JSON PATH), '|',
+                               (SELECT p.GroupCode, p.ParamKey, p.Value, p.Value2 FROM fin.ScorecardParameter AS p WHERE p.ScorecardId = sc.ScorecardId
+                                ORDER BY p.GroupCode, p.ParamKey FOR JSON PATH))), 2) AS MethodologySha256
+                    FROM fin.Scorecard AS sc WHERE sc.ScorecardId = @card FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)) AS scorecard,
         (SELECT s.FinancialStatementId AS statementId, s.VersionNo, s.VersionReason, s.SupersedesId, s.Status, s.Nature, s.Basis, s.PeriodType, s.PeriodEnd,
                 s.Assurance, s.AuditorName, s.AuditOpinion, s.PreparedBy, s.PreparedOn, s.ApprovedBy, s.ApprovedOn, ch.Depth
          FROM @chain AS ch JOIN fin.FinancialStatement AS s ON s.TenantId = @t AND s.FinancialStatementId = ch.StatementId
@@ -225,6 +276,7 @@ BEGIN
         (SELECT * FROM fin.v_CreditAssessmentReclass WHERE TenantId = @t AND AssessmentId = @AssessmentId ORDER BY SeqNo FOR JSON PATH) AS reconciliation,
         (SELECT * FROM fin.v_CreditAssessmentRemedies WHERE TenantId = @t AND AssessmentId = @AssessmentId ORDER BY SeqNo FOR JSON PATH) AS remedies,
         (SELECT * FROM fin.v_CreditAssessmentScenarios WHERE TenantId = @t AND AssessmentId = @AssessmentId ORDER BY SortOrder, Scenario FOR JSON PATH) AS scenarios,
+        (SELECT * FROM fin.v_CreditAssessmentCovenants WHERE TenantId = @t AND AssessmentId = @AssessmentId ORDER BY CovenantTestId FOR JSON PATH) AS covenants,
         (SELECT * FROM fin.v_LenderRatingComparison WHERE TenantId = @t AND CompanyId = @company ORDER BY RatingDate, LenderRatingId FOR JSON PATH) AS lenderRatings,
         (SELECT * FROM fin.v_LenderRatingCalibration WHERE TenantId = @t AND CompanyId = @company ORDER BY AllLenders DESC, LenderInstitutionId FOR JSON PATH) AS calibration,
         JSON_QUERY((SELECT * FROM fin.v_ReceivableProvisionCheck WHERE TenantId = @t AND StatementId = @stmt FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)) AS provisionCheck,

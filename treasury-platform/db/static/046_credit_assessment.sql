@@ -31,8 +31,8 @@
        comparison statement is approved, of the same company and basis, and earlier (50064);
      - the analyst's inputs change only while the assessment is a draft: a qualitative factor of its scorecard,
        within the scorecard's bound of the financial grade unless a document supports it; group support from the
-       approved assessment, of the twelve months before, of the parent or of a holding that consolidates the
-       company; an override of at most two notches down or one up, as the company assesses itself; each with a
+       approved assessment, of the twelve months before, of the parent or of a holding that controls the company and
+       consolidates it in full (a SUBSIDIARY unit with the method FULL, ADR 0037); an override of at most two notches down or one up, as the company assesses itself; each with a
        justification (50065);
      - a scorecard is written as a draft and approved whole (weights of 100, a grid for each quantitative metric that
        runs in its direction, none for a qualitative one); approved, it never changes and is only retired; nor do
@@ -41,9 +41,63 @@
 SET NOCOUNT ON;
 SET ANSI_NULLS ON; SET QUOTED_IDENTIFIER ON; SET ANSI_PADDING ON; SET ANSI_WARNINGS ON; SET ARITHABORT ON; SET CONCAT_NULL_YIELDS_NULL ON; SET NUMERIC_ROUNDABORT OFF;
 GO
+/* The digest of what the computation reads from the platform rather than from the assessment (ADR 0037, the internal
+   review of 2026-10-21, lens E, finding 11): the company's facilities with their lenders, limits, uses started by the
+   assessment date, the collateral linked to them and the lenders' decisions effective by then; the covenant breaches
+   of the company and its covenants; its bank flows to the assessment date and its revenue estimates; the covenant
+   tests that read the statement; and the country, region and activity profiles the methodology reads. A platform row
+   is taken by its row version (any change of it changes the digest), a global profile by its content. A change of any
+   of them after the computation makes the submission refuse the assessment until it is computed again. */
+CREATE OR ALTER FUNCTION fin.fn_CreditAssessmentPlatformDigest (@TenantId INT, @AssessmentId BIGINT)
+RETURNS TABLE
+AS RETURN
+SELECT CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', CONCAT(
+           (SELECT f.FacilityId, f.RowVersion,
+                   (SELECT x.FacilityLenderId, x.RowVersion FROM fac.FacilityLender AS x
+                    WHERE x.TenantId = f.TenantId AND x.FacilityId = f.FacilityId ORDER BY x.FacilityLenderId FOR JSON PATH) AS lenders,
+                   (SELECT x.LimitId, x.RowVersion FROM fac.Limit AS x
+                    WHERE x.TenantId = f.TenantId AND x.FacilityId = f.FacilityId ORDER BY x.LimitId FOR JSON PATH) AS limits,
+                   (SELECT x.UtilizationId, x.RowVersion FROM fac.Utilization AS x
+                    WHERE x.TenantId = f.TenantId AND x.FacilityId = f.FacilityId AND x.StartDate <= a.AssessmentDate ORDER BY x.UtilizationId FOR JSON PATH) AS uses,
+                   (SELECT k.CollateralLinkId, k.RowVersion, c.CollateralId, c.RowVersion AS CollateralVersion FROM col.CollateralLink AS k
+                    LEFT JOIN col.Collateral AS c ON c.TenantId = k.TenantId AND c.RootId = k.CollateralId
+                    WHERE k.TenantId = f.TenantId AND k.FacilityId = f.FacilityId ORDER BY k.CollateralLinkId, c.CollateralId FOR JSON PATH) AS collateral,
+                   (SELECT x.FacilityLenderDecisionId, x.RowVersion FROM fac.FacilityLenderDecision AS x
+                    WHERE x.TenantId = f.TenantId AND x.FacilityId = f.FacilityId AND x.EffectiveDate <= a.AssessmentDate ORDER BY x.FacilityLenderDecisionId FOR JSON PATH) AS decisions
+            FROM fac.Facility AS f
+            WHERE f.TenantId = a.TenantId AND f.BorrowerCompanyId = a.CompanyId
+            ORDER BY f.FacilityId
+            FOR JSON PATH), '|',
+           (SELECT b.ObligationBreachId, b.RowVersion FROM obl.ObligationBreach AS b
+            JOIN obl.Obligation AS o ON o.TenantId = b.TenantId AND o.ObligationId = b.ObligationId
+            LEFT JOIN fac.Facility AS fa ON fa.TenantId = o.TenantId AND fa.FacilityId = o.FacilityId
+            WHERE b.TenantId = a.TenantId
+              AND (fa.BorrowerCompanyId = a.CompanyId
+                   OR EXISTS (SELECT 1 FROM obl.Covenant AS c WHERE c.TenantId = b.TenantId AND c.RootId = b.CovenantRootId AND c.TestedCompanyId = a.CompanyId)
+                   OR EXISTS (SELECT 1 FROM obl.ObligationCompany AS oc WHERE oc.TenantId = o.TenantId AND oc.ObligationId = o.ObligationId AND oc.CompanyId = a.CompanyId))
+            ORDER BY b.ObligationBreachId FOR JSON PATH), '|',
+           (SELECT c.CovenantId, c.RowVersion FROM obl.Covenant AS c
+            WHERE c.TenantId = a.TenantId AND c.TestedCompanyId = a.CompanyId ORDER BY c.CovenantId FOR JSON PATH), '|',
+           (SELECT e.BankFlowEntryId, e.RowVersion FROM fin.BankFlowEntry AS e
+            WHERE e.TenantId = a.TenantId AND e.CompanyId = a.CompanyId AND e.MonthEnd <= EOMONTH(a.AssessmentDate) ORDER BY e.BankFlowEntryId FOR JSON PATH), '|',
+           (SELECT r.RevenueEstimateId, r.RowVersion FROM fin.RevenueEstimate AS r
+            WHERE r.TenantId = a.TenantId AND r.CompanyId = a.CompanyId ORDER BY r.RevenueEstimateId FOR JSON PATH), '|',
+           (SELECT t.CovenantTestId, t.RowVersion FROM obl.CovenantTestStatement AS ts
+            JOIN obl.CovenantTest AS t ON t.TenantId = ts.TenantId AND t.CovenantTestId = ts.CovenantTestId
+            WHERE ts.TenantId = a.TenantId AND ts.StatementId = a.StatementId ORDER BY t.CovenantTestId FOR JSON PATH), '|',
+           (SELECT p.* FROM fin.CountryRiskProfile AS p
+            WHERE p.CountryId IN (co.CountryId, a.MarketCountryId) OR p.IsDefault = 1 ORDER BY p.CountryRiskProfileId FOR JSON PATH), '|',
+           (SELECT g.* FROM fin.CountryRegion AS g
+            WHERE g.CountryId = ISNULL(a.MarketCountryId, co.CountryId) AND g.Code = a.MarketRegionCode FOR JSON PATH), '|',
+           (SELECT ip.* FROM fin.IndustryProfile AS ip WHERE ip.IndustryId = co.IndustryId FOR JSON PATH))), 2) AS PlatformDigest
+FROM fin.CreditAssessment AS a
+JOIN org.Company AS co ON co.TenantId = a.TenantId AND co.CompanyId = a.CompanyId
+WHERE a.TenantId = @TenantId AND a.CreditAssessmentId = @AssessmentId;
+GO
 /* The hash of what a computation reads from the assessment itself: its statement, comparison statement, scorecard,
    date, rate, the analyst's inputs, the guarantors, the bureau report, whether strengthening plans were asked for, and
-   the company's activity and product lines of the statement's year. The approved statements, the scorecard and the
+   the company's activity and product lines of the statement's year; and, since ADR 0037, the digest of what it reads
+   from the platform (above). The approved statements, the scorecard and the
    parent's approved assessment do not change, so a submission whose hash differs from the computed one was changed
    after its computation. A trial assessment reads a statement that may still change, so its hash also holds the
    statement's lines and status (ADR 0022). */
@@ -78,10 +132,12 @@ SELECT CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', CONCAT(
             FOR JSON PATH), '|',
            CASE WHEN a.IsTrial = 1 THEN CONCAT(st.Status, '|',
                 (SELECT ln.LineCatalogItemId, ln.EnteredAmount, ln.ComputedAmount FROM fin.StatementLine AS ln
-                 WHERE ln.TenantId = a.TenantId AND ln.StatementId = a.StatementId ORDER BY ln.LineCatalogItemId FOR JSON PATH)) END)), 2) AS InputsHash
+                 WHERE ln.TenantId = a.TenantId AND ln.StatementId = a.StatementId ORDER BY ln.LineCatalogItemId FOR JSON PATH)) END, '|',
+           pd.PlatformDigest)), 2) AS InputsHash
 FROM fin.CreditAssessment AS a
 JOIN org.Company AS co ON co.TenantId = a.TenantId AND co.CompanyId = a.CompanyId
 JOIN fin.FinancialStatement AS st ON st.TenantId = a.TenantId AND st.FinancialStatementId = a.StatementId
+CROSS APPLY fin.fn_CreditAssessmentPlatformDigest(a.TenantId, a.CreditAssessmentId) AS pd
 WHERE a.TenantId = @TenantId AND a.CreditAssessmentId = @AssessmentId;
 GO
 /* The assessment header. Built from the table's columns, so a column added later is frozen after the draft unless it
@@ -166,8 +222,9 @@ BEGIN
                WHERE i.Kind = 'SUBFACTOR'
                  AND NOT EXISTS (SELECT 1 FROM fin.ScorecardSubfactor AS x WHERE x.ScorecardSubfactorId = i.SubfactorId AND x.ScorecardId = a.ScorecardId))
         THROW 50065, 'A sub-factor grade is given to a sub-factor of the assessment''s scorecard (BR-FIN-021)', 1;
-    -- Group support comes from the approved, rated assessment of the company's parent, or of a holding whose
-    -- consolidated statement has the company as a unit.
+    -- Group support comes from the approved, rated assessment of the company's parent, or of a holding that controls
+    -- the company: its consolidated statement has the company as a SUBSIDIARY consolidated in full (ADR 0037); an
+    -- associate, a joint venture or a unit left out of the consolidation is an investment, not a parent.
     IF EXISTS (SELECT 1 FROM inserted AS i
                JOIN fin.CreditAssessment AS a ON a.TenantId = i.TenantId AND a.CreditAssessmentId = i.AssessmentId
                JOIN org.Company AS c ON c.TenantId = a.TenantId AND c.CompanyId = a.CompanyId
@@ -177,8 +234,8 @@ BEGIN
                       OR NOT (p.CompanyId = ISNULL(c.ParentCompanyId, -1)
                               OR EXISTS (SELECT 1 FROM fin.ConsolidationMember AS m
                                          WHERE m.TenantId = p.TenantId AND m.StatementId = p.StatementId AND m.MemberCompanyId = a.CompanyId
-                                           AND m.Role <> 'PARENT'))))
-        THROW 50065, 'Group support comes from the approved assessment of the parent, or of a holding that consolidates the company (BR-FIN-022)', 1;
+                                           AND m.Role = 'SUBSIDIARY' AND m.Method = 'FULL'))))
+        THROW 50065, 'Group support comes from the approved assessment of the parent, or of a holding that controls the company and consolidates it in full (BR-FIN-022, ADR 0037)', 1;
 END;
 GO
 -- The factors and findings of an assessment are written by the computation, while the assessment is a draft.

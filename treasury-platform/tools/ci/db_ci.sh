@@ -703,6 +703,27 @@ if [ "$cr_pass" -ne 9 ]; then
     exit 1
 fi
 echo "core roles tests: $cr_pass passed"
+echo "== 22f. the actors of the financial records and what a closed period freezes (db/tests/finance_controls_tests.sql, 058, ADR 0037)"
+sq -i db/tests/finance_controls_tests.sql > "$TMP/fin_controls.out" 2>&1 || {
+    cat "$TMP/fin_controls.out"
+    echo "finance controls test run failed"
+    exit 1
+}
+grep -av 'Null value is eliminated' "$TMP/fin_controls.out"
+if grep -qaE "$FAIL_RE" "$TMP/fin_controls.out"; then
+    echo "a finance controls test failed"
+    exit 1
+fi
+fc_pass=$(grep -oaE "$PASS_RE" "$TMP/fin_controls.out" | sort -u | wc -l)
+# 14 cases: FC1-FC3 the preparer, approver and chooser are the bound user with the permission of the act; FC4-FC6
+# monthly figures, revenue estimates and loss rates; FC7 a closed period frozen indirectly; FC8 ratings and product lines
+# once used; FC9 calibration and early warnings; FC10 the evidence pack; FC11 the platform data in the hash; FC12 group
+# support; FC13 the provision matrix; FC14 the endorser's independence.
+if [ "$fc_pass" -ne 14 ]; then
+    echo "expected 14 PASS, found $fc_pass"
+    exit 1
+fi
+echo "finance controls tests: $fc_pass passed"
 echo "== 23. nothing the tests switched off is left off, and no test data is left (self-review C10)"
 # The tests switch constraints and triggers off only inside their transactions, and make users without logins that
 # each test drops at its end: none may be left (counted before anything is dropped; internal review v6, B9). Then every
