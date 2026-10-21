@@ -291,10 +291,11 @@ if grep -qaE "$FAIL_RE" "$TMP/operator.out"; then
     exit 1
 fi
 op_pass=$(grep -oaE "$PASS_RE" "$TMP/operator.out" | sort -u | wc -l)
-# 12 cases: P1-P12 (ADR 0004: operator bootstrap, login, MFA, lockout, reset, status, direct rights; the support binding
-# and its audit row, ADR 0007; the operator's TOTP challenge, check outcome and MFA state per request, GAP-1, GAP-4, GAP-7).
-if [ "$op_pass" -ne 12 ]; then
-    echo "expected 12 PASS, found $op_pass"
+# 14 cases: P1-P14 (ADR 0004: operator bootstrap, login, MFA, lockout, reset, status, direct rights; the support binding
+# and its audit row, ADR 0007; the operator's TOTP challenge, check outcome and MFA state per request, GAP-1, GAP-4, GAP-7;
+# the support lists and the page log, GAP-5, GAP-6).
+if [ "$op_pass" -ne 14 ]; then
+    echo "expected 14 PASS, found $op_pass"
     exit 1
 fi
 echo "operator and support tests: $op_pass passed"
@@ -329,10 +330,10 @@ if grep -qaE "$FAIL_RE" "$TMP/onboarding.out"; then
     exit 1
 fi
 onb_pass=$(grep -oaE "$PASS_RE" "$TMP/onboarding.out" | sort -u | wc -l)
-# 6 cases: O1-O6 (ADR 0004: tenant creation, first administrator invitation, status changes, daily status jobs, a
-# running trial extended, GAP-10).
-if [ "$onb_pass" -ne 6 ]; then
-    echo "expected 6 PASS, found $onb_pass"
+# 7 cases: O1-O7 (ADR 0004: tenant creation, first administrator invitation, status changes, daily status jobs, a
+# running trial extended, GAP-10; the panel's counters and the invitation sent again, GAP-9).
+if [ "$onb_pass" -ne 7 ]; then
+    echo "expected 7 PASS, found $onb_pass"
     exit 1
 fi
 echo "tenant onboarding tests: $onb_pass passed"

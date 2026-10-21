@@ -268,6 +268,45 @@ IF @n = 1 AND @n2 = 1 AND @e1 = 50001
 ELSE PRINT 'FAIL O6: trial extension (' + CONCAT(@n, '/', @n2, '/', @e1) + ')';
 ROLLBACK TRANSACTION o6;
 
+/* O7: the panel reads a tenant's counters, never its data (FR-PLT-005, GAP-9), and an operator administrator sends
+   the first administrator's invitation again while it is unused: the onboarding event is pending again. Once the
+   administrator is active it is refused (50016); without an administrator session too (50021). */
+SAVE TRANSACTION o7;
+SELECT @e1 = NULL, @e2 = NULL, @t = NULL, @admin = NULL;
+DECLARE @cnt TABLE (UsersActive INT, UsersInvited INT, UsersBlocked INT, Roles INT, FirstAdminStatus VARCHAR(10), OnboardingStatus VARCHAR(10),
+                    InvitationSendStatus VARCHAR(10), PacksSeeded INT, LastLoginAt DATETIME2(3));
+EXECUTE AS USER = N'tp_test_panel';
+EXEC plat.usp_CreateTenant @OperatorSessionToken = @os1, @Code = 'counted', @NameAr = N'ع', @NameEn = N'Counted', @PlanId = @plan,
+     @HomeCountryId = 1, @TimeZone = 'UTC', @AdminEmail = N'admin@counted.invalid', @AdminDisplayName = N'Admin',
+     @TenantId = @t OUTPUT, @AdminUserId = @admin OUTPUT;
+INSERT @cnt EXEC plat.usp_GetTenantCounters @SessionToken = @os1, @TenantId = @t;
+REVERT;
+EXEC #JobBind @t, 'JOB-PLT-ONBOARD';                      -- the tenant's rows are under the row filters, also for sa
+UPDATE cfg.OutboxEvent SET Status = 'DELIVERED', DeliveredAt = SYSUTCDATETIME() WHERE TenantId = @t AND EventName = 'tenant.created';
+EXECUTE AS USER = N'tp_test_panel';
+EXEC plat.usp_ResendFirstAdminInvitation @SessionToken = @os1, @TenantId = @t;
+BEGIN TRY EXEC plat.usp_ResendFirstAdminInvitation @SessionToken = 0x00, @TenantId = @t; END TRY BEGIN CATCH SET @e2 = ERROR_NUMBER(); END CATCH;
+REVERT;
+SELECT @n = COUNT(*) FROM cfg.OutboxEvent WHERE TenantId = @t AND EventName = 'tenant.created' AND Status = 'PENDING' AND DeliveredAt IS NULL;
+ALTER TABLE sec.AppUser DISABLE TRIGGER ALL;
+UPDATE sec.AppUser SET Status = 'ACTIVE', PasswordHash = @pw1 WHERE AppUserId = @admin;
+ALTER TABLE sec.AppUser ENABLE TRIGGER ALL;
+EXECUTE AS USER = N'tp_test_panel';
+BEGIN TRY EXEC plat.usp_ResendFirstAdminInvitation @SessionToken = @os1, @TenantId = @t; END TRY BEGIN CATCH SET @e1 = ERROR_NUMBER(); END CATCH;
+REVERT;
+IF EXISTS (SELECT 1 FROM @cnt WHERE UsersInvited = 1 AND UsersActive = 0 AND FirstAdminStatus = 'INVITED' AND OnboardingStatus = 'PENDING')
+   AND @n = 1 AND @e1 = 50016 AND @e2 = 50021
+    PRINT 'PASS O7: the panel reads a tenant''s counters and sends the first invitation again while it is unused';
+ELSE
+BEGIN
+    DECLARE @cntText NVARCHAR(100) = (SELECT TOP (1) CONCAT(UsersInvited, '/', FirstAdminStatus, '/', OnboardingStatus) FROM @cnt);
+    PRINT 'FAIL O7: tenant counters or resend (' + CONCAT(@n, '/', @e1, '/', @e2, '/', @cntText) + ')';
+END;
+ROLLBACK TRANSACTION o7;
+DELETE FROM sec.SessionBinding WHERE SessionId = @@SPID;
+EXEC sys.sp_set_session_context @key = N'TenantId', @value = NULL;
+EXEC sys.sp_set_session_context @key = N'JobKey', @value = NULL;
+
 ROLLBACK TRANSACTION;
 GO
 PRINT 'Tenant onboarding tests finished; every change is rolled back.';

@@ -64,8 +64,10 @@ UserEndpoints.Map(portal);
 RoleEndpoints.Map(portal);
 MeEndpoints.Map(portal);
 ConfigEndpoints.Map(portal);
+SupportEndpoints.Map(portal);
 var panel = app.MapGroup("/api/v1/operator").AddEndpointFilter(SurfaceFilter(Surface.OperatorPanel));
 OperatorEndpoints.Map(panel);
+OperatorAdminEndpoints.Map(panel);
 
 // The built front end (app/web/dist, or wwwroot in a published build) for every path outside /api.
 var webRoot = app.Configuration["Web:Root"];

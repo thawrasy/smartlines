@@ -162,7 +162,7 @@ public static class OperatorEndpoints
     }
 
     /// <summary>The panel's session for this request, with its MFA check done; a connection as tp_platform.</summary>
-    private static async Task<(SqlConnection, OperatorSessionState)> OpenSessionAsync(HttpContext http, SqlConnectionFactory db)
+    internal static async Task<(SqlConnection, OperatorSessionState)> OpenSessionAsync(HttpContext http, SqlConnectionFactory db)
     {
         var token = Cookies.RequireSessionToken(http.Request);
         var c = await db.OpenAsync(DbLogin.Platform, http.RequestAborted);
@@ -185,7 +185,7 @@ public static class OperatorEndpoints
         }
     }
 
-    private static async Task StepUpAsync(SqlConnection c, string? code, IKeyWrapper keys, TimeProvider clock, HttpContext http)
+    internal static async Task StepUpAsync(SqlConnection c, string? code, IKeyWrapper keys, TimeProvider clock, HttpContext http)
     {
         if (!await CheckCodeAsync(c, Cookies.RequireSessionToken(http.Request), code, keys, clock, http))
             throw new ApiProblemException(403, "STEP_UP_REQUIRED", "Confirm with a fresh authenticator code.");

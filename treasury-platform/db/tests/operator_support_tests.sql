@@ -8,7 +8,7 @@
    One transaction with a savepoint per case, rolled back at the end. A successful binding makes the context
    read-only, so P8 checks the tenant-status rule by presetting the context: the procedure then stops at 50004
    only after every other check has passed. P10 is the one real support binding and runs last; P11 checks the
-   audit row it wrote (ADR 0007).
+   audit row it wrote (ADR 0007) and P13 the page rows (GAP-6). P14 lists the operators and grants (GAP-5).
    Each case prints one line that starts with PASS or FAIL.
    ============================================================================ */
 USE [BankFas];
@@ -360,6 +360,38 @@ DELETE FROM sec.SessionBinding WHERE SessionId = @@SPID;
 EXEC sys.sp_set_session_context @key = N'TenantId', @value = NULL;
 EXEC sys.sp_set_session_context @key = N'BindingToken', @value = NULL;
 
+/* P14: what the support screens read (GAP-5): a tenant administrator lists the ACTIVE operators (not before
+   binding), and the panel lists the started, unrevoked grants of its own operator only, with MFA done. */
+SAVE TRANSACTION p14;
+DECLARE @ops INT, @opsInactive INT, @grants INT, @grantOther INT;
+SELECT @e1 = NULL, @e2 = NULL;
+DECLARE @opList TABLE (OperatorId INT, PublicId UNIQUEIDENTIFIER, DisplayName NVARCHAR(200), Role VARCHAR(20));
+DECLARE @grList TABLE (SupportAccessGrantId BIGINT, TenantId INT, TenantPublicId UNIQUEIDENTIFIER, Code VARCHAR(30), NameEn NVARCHAR(200),
+                       NameAr NVARCHAR(200), TenantStatus VARCHAR(18), StartsAt DATETIME2(3), EndsAt DATETIME2(3), Reason NVARCHAR(500));
+DELETE FROM sec.SessionBinding WHERE SessionId = @@SPID;
+EXEC sys.sp_set_session_context @key = N'TenantId', @value = NULL;
+EXECUTE AS USER = N'tp_test_app';
+BEGIN TRY EXEC sec.usp_ListSupportOperators @TenantId = @tA; END TRY BEGIN CATCH SET @e1 = ERROR_NUMBER(); END CATCH;
+REVERT;
+EXEC #Bind @tA;
+EXECUTE AS USER = N'tp_test_app';
+INSERT @opList EXEC sec.usp_ListSupportOperators @TenantId = @tA;
+REVERT;
+SELECT @ops = COUNT(*) FROM @opList WHERE OperatorId IN (@op1, @op2, @op3);
+EXECUTE AS USER = N'tp_test_panel';
+INSERT @grList EXEC plat.usp_ListOperatorSupportGrants @SessionToken = @os3;
+BEGIN TRY EXEC plat.usp_ListOperatorSupportGrants @SessionToken = @os3u; END TRY BEGIN CATCH SET @e2 = ERROR_NUMBER(); END CATCH;
+REVERT;
+SELECT @grants = COUNT(*) FROM @grList WHERE SupportAccessGrantId = @gA AND Code = 'TST-SA';
+SELECT @grantOther = COUNT(*) FROM @grList WHERE SupportAccessGrantId IN (@gOther, @gRevoked);
+IF @e1 = 50003 AND @ops = 3 AND @grants = 1 AND @grantOther = 0 AND @e2 = 50003
+    PRINT 'PASS P14: the support screens list the active operators and the operator''s own live grants';
+ELSE PRINT 'FAIL P14: support lists (' + CONCAT(@e1, '/', @ops, '/', @grants, '/', @grantOther, '/', @e2) + ')';
+ROLLBACK TRANSACTION p14;
+DELETE FROM sec.SessionBinding WHERE SessionId = @@SPID;
+EXEC sys.sp_set_session_context @key = N'TenantId', @value = NULL;
+EXEC sys.sp_set_session_context @key = N'BindingToken', @value = NULL;
+
 /* P10: the real support binding (last, because it makes the context read-only): the support connection reads the
    granted tenant only, never a restricted column, writes nothing, and loses the rows when the grant is revoked. */
 SAVE TRANSACTION p10;
@@ -370,6 +402,8 @@ BEGIN TRY
     SELECT @n = COUNT(AppUserId) FROM sec.AppUser;                              -- the granted tenant's users
     SELECT @n2 = COUNT(AppUserId) FROM sec.AppUser WHERE TenantId <> @tA;       -- nobody else's
     SET @x = CAST(SESSION_CONTEXT(N'OperatorId') AS INT);
+    EXEC sec.usp_WriteSupportPageView @Page = 'users';                         -- P13: the page log (GAP-6)
+    EXEC sec.usp_WriteSupportPageView @Page = 'identity-reveal', @Refused = 1;
 END TRY
 BEGIN CATCH SET @e1 = ERROR_NUMBER(); END CATCH;
 BEGIN TRY SELECT TOP (1) @e3 = DATALENGTH(PasswordHash) FROM sec.AppUser; SET @e3 = NULL; END TRY BEGIN CATCH SET @e3 = ERROR_NUMBER(); END CATCH;
@@ -394,6 +428,19 @@ SELECT @auditRows = COUNT(*) FROM aud.AuditLog
 REVERT;
 IF @auditRows = 1 PRINT 'PASS P11: a support binding is audited in the tenant''s log with high severity, naming the operator and the grant';
 ELSE PRINT CONCAT('FAIL P11: support binding audit rows ', @auditRows);
+/* P13: each page a support binding shows is a row of the tenant's log naming the operator and the grant, and a
+   refused reveal is a HIGH row (GAP-6, FR-PLT-007, AC-PLT-8); a USER binding cannot write such a row. */
+DECLARE @pageRows INT, @deniedRows INT;
+SET @e5 = NULL;
+EXECUTE AS USER = N'tp_test_oread';
+SELECT @pageRows = COUNT(*) FROM aud.AuditLog
+ WHERE TenantId = @tA AND Action = 'SUPPORT_PAGE_VIEWED' AND Severity = 'INFO' AND ActorType = 'OPERATOR' AND EntityId = @gA
+   AND JSON_VALUE(AfterJson, '$.page') = 'users' AND ActorId = (SELECT PublicId FROM plat.PlatformOperator WHERE PlatformOperatorId = @op3);
+SELECT @deniedRows = COUNT(*) FROM aud.AuditLog
+ WHERE TenantId = @tA AND Action = 'SUPPORT_ACCESS_DENIED' AND Severity = 'HIGH' AND Result = 'DENIED' AND EntityId = @gA;
+REVERT;
+IF @pageRows = 1 AND @deniedRows = 1 PRINT 'PASS P13: support page views and refused reveals are rows of the tenant''s log';
+ELSE PRINT CONCAT('FAIL P13: support page log ', @pageRows, '/', @deniedRows);
 ROLLBACK TRANSACTION p10;
 
 ROLLBACK TRANSACTION;

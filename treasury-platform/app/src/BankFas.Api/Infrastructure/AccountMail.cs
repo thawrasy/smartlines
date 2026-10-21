@@ -13,7 +13,7 @@ namespace BankFas.Api.Infrastructure;
 /// to a server, so it does not reach proxy logs (DOC-S03 section 3). After an administrator's link, the result goes
 /// into sec.UserToken.SendStatus on the bound connection, and a failure is audited HIGH (AC-PLT-11).
 /// </summary>
-public sealed class AccountMail(IMailSender sender, IOptions<PortalOptions> portal)
+public sealed class AccountMail(IMailSender sender, IOptions<PortalOptions> portal, IOptions<HostOptions> hosts)
 {
     public static string PathFor(string purpose) => purpose switch
     {
@@ -43,6 +43,24 @@ public sealed class AccountMail(IMailSender sender, IOptions<PortalOptions> port
         catch (Exception ex) when (ex is IOException or InvalidOperationException or System.Net.Mail.SmtpException)
         {
             return ex.Message.Length > 500 ? ex.Message[..500] : ex.Message;
+        }
+    }
+
+    /// <summary>An operator's set-up link (invitation or reset), on the panel's host; returns null when it went, else the reason.</summary>
+    public async Task<string?> SendOperatorSetupAsync(string to, byte[] token, bool reset, CancellationToken ct)
+    {
+        var builder = new UriBuilder(portal.Value.Scheme, hosts.Value.Operator, portal.Value.Port ?? -1) { Path = "/setup", Fragment = "token=" + Base64Url.Encode(token) };
+        var text = reset
+            ? $"An administrator reset your BankFas operator account. Set your password and authenticator again within 24 hours: {builder.Uri}\r\n"
+            : $"You have been invited to the BankFas operator panel. Set your password and authenticator within 48 hours: {builder.Uri}\r\n";
+        try
+        {
+            await sender.SendAsync(new OutgoingMail(to, "Your BankFas operator account", text), ct);
+            return null;
+        }
+        catch (Exception ex) when (ex is IOException or InvalidOperationException or System.Net.Mail.SmtpException)
+        {
+            return ex.Message;
         }
     }
 
