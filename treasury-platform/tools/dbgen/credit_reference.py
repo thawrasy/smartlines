@@ -98,10 +98,12 @@ class Stmt:
     """The lines of a statement, stored in the currency unit (SAR). A LINE absent is zero; a TOTAL absent is the sum
     of its components (as the statement module computes it); a breakdown or disclosure (OF_WHICH, DETAIL, MEMO) absent is unknown, and an OF_WHICH larger than its
     parent by more than the tolerance is ignored and reported. Flows (income statement, cash flow) are annualised."""
-    def __init__(self, d, period_type='ANNUAL', tol=1.0):
+    def __init__(self, d, period_type='ANNUAL', tol=1.0, months=None):
         for k in d:
             assert k in LINES, f'unknown line {k}'
-        self.d, self.k = d, 12 / MONTHS[period_type]
+        # the months the statement covers, from its start and end dates when it has them, else from its period type
+        # (review E13: a year-to-date interim of nine months is annualised by 12/9, not by its type)
+        self.d, self.k = d, 12 / (months or MONTHS[period_type])
         self.inconsistent = []
         for c, v in d.items():
             x = LINES[c]
@@ -193,7 +195,7 @@ def analytical(card, s, p, ctx):
     hidden = 0.0
     if bu is not None:
         gap = bu['outstanding'] - bank_debt
-        recent = bu.get('months_after_period_end', 0) <= 6
+        recent = bu.get('months_after_period_end', 0) <= M['bureau']['hidden_debt_window_months']
         if bank_debt > 0 and gap / bank_debt * 100 > M['bureau']['hidden_debt_pct'] and recent:
             hidden = gap
         elif bank_debt == 0 and bu['outstanding'] > 0 and recent:
@@ -203,7 +205,12 @@ def analytical(card, s, p, ctx):
     quasi = s('TOTAL_EQUITY') + shl_sub_eq - cc_debt
     related = s('DUE_FROM_RELATED') + s.z('ADVANCES_TO_RELATED')
     over365, gov365 = s.z('AR_AGE_OVER_365'), s.z('AR_AGE_OVER_365_GOV')
-    impair_ar = max(0.0, over365 - gov365 - s.z('AR_ECL_ALLOWANCE'))
+    # the allowance for expected credit losses covers the receivables of every age: the share of it the private
+    # receivables over a year carry is their share of the gross receivables (review E14), not the whole allowance
+    gross_ar = s('AR_GROSS') if s.known('AR_GROSS') else s.z('AR') + s.z('AR_ECL_ALLOWANCE')
+    priv365 = max(0.0, over365 - gov365)
+    alloc365 = s.z('AR_ECL_ALLOWANCE') * priv365 / gross_ar if gross_ar > 0 else 0.0
+    impair_ar = max(0.0, priv365 - alloc365)
     slow = max(0.0, s.z('INV_SLOW_MOVING') - s.z('INV_PROVISION')) * P['inv_slow_haircut'] / 100
     reval = max(s('REVALUATION_RESERVE'), s.z('PPE_REVALUATION_SURPLUS'))
     for code, line, bucket, amt in (('ADJ_INTANGIBLES', 'INTANGIBLES', 'NOT_TNW', s('INTANGIBLES')), ('ADJ_REVALUATION', 'REVALUATION_RESERVE', 'NOT_TNW', reval),
@@ -224,7 +231,7 @@ def analytical(card, s, p, ctx):
     gov = s.z('AR_GOVERNMENT') + s.z('AR_SEMI_GOVERNMENT')
     relt = s.z('AR_RELATED_TRADE')
     if s.known('AR_AGE_OVER_365') and s.known('AR_AGE_181_365'):
-        ng365 = max(0.0, over365 - gov365 - s.z('AR_ECL_ALLOWANCE'))
+        ng365 = impair_ar
         a181 = s('AR_AGE_181_365')
         rest = max(0.0, ar - ng365 - gov365 - a181 - relt)
         gov_young = min(max(0.0, gov - gov365), rest)
@@ -649,7 +656,8 @@ def applied_adjustments(card, s, p, Q, m, ctx, opts):
         a = ADJ[code]
         out.append((code, a['n'] if n is None else n, a['cap'] if cap is None else cap, a['stage']))
     P = lambda code: ADJ[code]['p']
-    if opts['assurance'] == 'MANAGEMENT' and opts['period_type'] == 'ANNUAL': add('UNAUDITED_ANNUAL')
+    # a statement neither audited nor reviewed, annual or interim (review E13): one notch
+    if opts['assurance'] == 'MANAGEMENT': add('UNAUDITED_ANNUAL')
     if opts['opinion'] == 'QUALIFIED': add('AUDIT_QUALIFIED')
     if opts.get('statement_age_months') is not None and opts['statement_age_months'] > P('STALE_STATEMENT'): add('STALE_STATEMENT')
     if not Q['CF']: add('INCOMPLETE_STATEMENT')
@@ -770,11 +778,16 @@ def assess(card, cur, *, prior=None, period_type='ANNUAL', prior_period_type='AN
            going_concern=False, holding=False, basis=None, platform=None, support=None, parent_notch=None, override=0,
            guarantors=None, bureau=None, industry=None, product_mix=None, market_size=None, statement_age_months=None,
            restated_change_pct=None, flow_shortfall=False, rollover_factor=1.0, resilience_notch=False, proforma=False,
-           with_remedies=True, with_scenarios=True, with_plans=False, country='SA', region=None):
+           with_remedies=True, with_scenarios=True, with_plans=False, country='SA', region=None, period_months=None, prior_period_months=None):
     """cur and prior: lines in SAR. Returns the full result (docs/35 sections 3 to 14)."""
     c = CARDS[card]
-    s = Stmt(cur, period_type)
-    p = Stmt(prior, prior_period_type) if prior is not None else None
+    if (cur.get('AR_ECL_ALLOWANCE') or 0) < 0:
+        raise InputError('the allowance for expected credit losses is entered as a positive amount (review E14)')
+    # a bureau report older than the maximum age at the assessment date is not read (review E16)
+    if bureau is not None and (bureau.get('age_months') or 0) > M['bureau']['max_age_months']:
+        bureau = None
+    s = Stmt(cur, period_type, months=period_months)
+    p = Stmt(prior, prior_period_type, months=prior_period_months) if prior is not None else None
     holding_standalone = bool(holding) and (basis or 'STANDALONE') == 'STANDALONE'
     ctx = dict(evidence=set(ev), breach_at_period_end=breach_at_period_end, platform=platform, guarantors=guarantors, bureau=bureau,
                industry=industry, product_mix=product_mix, market_size=market_size, holding_standalone=holding_standalone,
@@ -854,7 +867,7 @@ def assess(card, cur, *, prior=None, period_type='ANNUAL', prior_period_type='AN
               going_concern=going_concern, holding=holding, basis=basis, platform=platform, support=support, parent_notch=parent_notch,
               override=override, guarantors=guarantors, bureau=bureau, industry=industry, product_mix=product_mix, market_size=market_size,
               statement_age_months=statement_age_months, restated_change_pct=restated_change_pct, flow_shortfall=flow_shortfall,
-              country=country, region=region)
+              country=country, region=region, period_months=period_months, prior_period_months=prior_period_months)
     if with_scenarios and not proforma and industry:
         sc = {}
         for name in [x['code'] for x in SCENARIOS]:
@@ -895,7 +908,7 @@ def _prior_metrics(card, kw):
     """The metrics of the comparison statement, for the trend of the outlook."""
     if kw.get('prior') is None:
         return None
-    s = Stmt(kw['prior'], kw.get('prior_period_type', 'ANNUAL'))
+    s = Stmt(kw['prior'], kw.get('prior_period_type', 'ANNUAL'), months=kw.get('prior_period_months'))
     ctx = dict(evidence=set(kw.get('ev') or ()), breach_at_period_end=False, platform=kw.get('platform'), guarantors=kw.get('guarantors'),
                bureau=None, industry=kw.get('industry'), product_mix=kw.get('product_mix'), market_size=kw.get('market_size'),
                holding_standalone=False, rollover_factor=1.0)

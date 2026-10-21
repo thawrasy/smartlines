@@ -1,5 +1,5 @@
 {
- "_about": "The credit assessment methodology of BankFas, version 2.1 (docs/35-credit-assessment-methodology.md, ADR 0017, ADR 0018 and ADR 0019): the standard statement lines, the metric dictionary with the pattern each metric is computed by, sixteen sector family scorecards (three base cards and thirteen that inherit their item rules and parameters) with weights, grids, item rules, parameters and qualitative sub-factors, the adjustments (notches, standalone caps, group support, the override, absolute caps), the facility grade (loss given default), the liquidity labels, the sections, divisions and detailed activities with their industry risk and sensitivities to seven drivers of stress, the Arab countries with their risk, sovereign rating, ceiling, exposures and regions, the country and industry risk anchor, six macro scenarios, the product categories, the credit bureau rules, the remedies with their pro-forma steps, the strengthening plans and the stress cases. Drafted and reviewed by separate AI agents in the role of senior analysts, not by a human (docs/35 section 22). credit_methodology.py expands it; gen_credit_seed.py writes db/seed/104_credit_scorecard.sql and the tables of docs/35; credit_reference.py computes an assessment independently of the database. The thresholds are this system's calibration by expert judgment on the Moody's 21-grade scale, not the grids of an agency; the company's treasury department validates them before use (docs/35 section 20).",
+ "_about": "The credit assessment methodology of BankFas, version 2.1 (docs/35-credit-assessment-methodology.md, ADR 0017, ADR 0018 and ADR 0019): the standard statement lines, the metric dictionary with the pattern each metric is computed by, sixteen sector family scorecards (three base cards and thirteen that inherit their item rules and parameters) with weights, grids, item rules, parameters and qualitative sub-factors, the adjustments (notches, standalone caps, group support, the override, absolute caps), the facility grade (loss given default), the liquidity labels, the sections, divisions and detailed activities with their industry risk and sensitivities to seven drivers of stress, the Arab countries with their risk, sovereign rating, ceiling, exposures and regions, the country and industry risk anchor, seven macro scenarios (six and the current-event scenario), the product categories, the credit bureau rules, the remedies with their pro-forma steps, the strengthening plans and the stress cases. Drafted and reviewed by separate AI agents in the role of senior analysts, not by a human (docs/35 section 22). credit_methodology.py expands it; gen_credit_seed.py writes db/seed/104_credit_scorecard.sql and the tables of docs/35; credit_reference.py computes an assessment independently of the database. The thresholds are this system's calibration by expert judgment on the Moody's 21-grade scale, not the grids of an agency; the company's treasury department validates them before use (docs/35 section 20).",
  "score_points": [
   0.5,
   1.5,
@@ -400,8 +400,8 @@
   ]
  },
  "disclaimer": [
-  "تقييم داخلي يعتمد سلّم موديز (Moody's) للتصنيف طويل الأجل وطريقة بطاقات التقييم المنشورة: درجة لكل مقياس على خط مستمر ووزن لكل عامل؛ والحدود معايرة بخبرة المحلل للسوق السعودية. ليس تصنيفًا صادرًا عن موديز ولا عن أي وكالة، ولا يحل محل التصنيف الداخلي للبنك.",
-  "An internal assessment on Moody's long-term rating scale and its published scorecard approach (a score per metric on a linear continuum, a weight per factor); the thresholds are calibrated by expert judgment for the Saudi market. It is not a rating issued by Moody's or any agency, and it does not replace a bank's internal rating."
+  "تقييم ذاتي داخلي تجريه الشركة على سلّم موديز (Moody's) للتصنيف طويل الأجل بطريقة بطاقات التقييم: درجة لكل مقياس على خط مستمر ووزن لكل عامل. الحدود والأوزان معايرة بالخبرة لا بالإحصاء، صاغها وراجعها وكلاء ذكاء اصطناعي، ولم يراجعها محلل بشري، وتتحقق منها إدارة الخزينة قبل استعمالها. ليس تصنيفًا صادرًا عن موديز ولا عن أي وكالة؛ ومقابل فيتش وتصنيف الاسترداد ونطاق الخسارة عند التعثر وتسمية السيولة فيه مقابلة داخلية استرشادية لا تصنيفات وكالات؛ ولا يحل محل التصنيف الداخلي لأي جهة تمويل.",
+  "An internal self-assessment by the company on Moody's long-term rating scale with a scorecard approach (a score per metric on a linear continuum, a weight per factor). The thresholds and weights are a judgmental, not a statistical, calibration, written and reviewed by AI agents and not reviewed by a human analyst; the treasury validates them before use. It is not a rating issued by Moody's or any agency; the Fitch equivalent, recovery rating, loss-given-default band and liquidity label it shows are an indicative internal mapping, not agency ratings; and it does not replace any lender's internal rating."
  ],
  "override": {
   "up": 1,
@@ -3232,7 +3232,7 @@
     "Receivables over a year are not liquidity; non-government ones are deducted from current assets."
    ],
    "solvency": [
-    "غير الحكومي منها بعد المخصص يُخصم من صافي الثروة الملموسة المعدلة.",
+    "غير الحكومي منها بعد حصته من المخصص يُخصم من صافي الثروة الملموسة المعدلة.",
     "The non-government part net of the allowance is deducted from adjusted tangible net worth."
    ],
    "theme": "RECEIVABLES",
@@ -4878,7 +4878,7 @@
    "dir": "HIGHER_BETTER",
    "ar": "التدفق المحتجز إلى صافي الدين",
    "en": "Retained cash flow / net debt",
-   "def": "التدفق المحتجز ÷ صافي الدين المعدل × 100 (منهج موديز). التدفق المحتجز = الأموال من العمليات − DIVIDENDS − PARTNER_DRAWINGS. صافي الدين = الدين المعدل − النقد المعدل − SHORT_TERM_INVESTMENTS. صافي دين غير موجب مع تدفق محتجز غير سالب: أفضل درجة؛ ومع تدفق سالب: لا يُحسب.",
+   "def": "التدفق المحتجز ÷ صافي الدين المعدل × 100 (على غرار تعريف وكالات التصنيف المنشور). التدفق المحتجز = الأموال من العمليات − DIVIDENDS − PARTNER_DRAWINGS. صافي الدين = الدين المعدل − النقد المعدل − SHORT_TERM_INVESTMENTS. صافي دين غير موجب مع تدفق محتجز غير سالب: أفضل درجة؛ ومع تدفق سالب: لا يُحسب.",
    "s": [
     "التدفق المحتجز يغطي {v}% من صافي الدين ({g})",
     "Retained cash flow covers {v}% of net debt ({g})"
@@ -4939,7 +4939,7 @@
    "dir": "LOWER_BETTER",
    "ar": "الخصوم المعدلة إلى صافي الثروة الملموسة المعدلة",
    "en": "Adjusted liabilities / adjusted TNW",
-   "def": "الخصوم المعدلة ÷ صافي الثروة الملموسة المعدلة. الخصوم المعدلة = TOTAL_LIABS − SHAREHOLDER_LOANS_SUB بمستند + CAPITAL_CONTRIBUTIONS بلا قرار + AR_FACTORED_RECOURSE. صافي الثروة الملموسة المعدلة = حقوق الملكية وشبهها − INTANGIBLES − الأعلى من REVALUATION_RESERVE وPPE_REVALUATION_SURPLUS − DUE_FROM_RELATED − ADVANCES_TO_RELATED − الذمم غير الحكومية فوق سنة بعد المخصص − صافي المخزون الراكد × inv_slow_haircut. أساس غير موجب: أسوأ درجة.",
+   "def": "الخصوم المعدلة ÷ صافي الثروة الملموسة المعدلة. الخصوم المعدلة = TOTAL_LIABS − SHAREHOLDER_LOANS_SUB بمستند + CAPITAL_CONTRIBUTIONS بلا قرار + AR_FACTORED_RECOURSE. صافي الثروة الملموسة المعدلة = حقوق الملكية وشبهها − INTANGIBLES − الأعلى من REVALUATION_RESERVE وPPE_REVALUATION_SURPLUS − DUE_FROM_RELATED − ADVANCES_TO_RELATED − الذمم غير الحكومية فوق سنة بعد حصتها من المخصص (بنسبتها من إجمالي الذمم) − صافي المخزون الراكد × inv_slow_haircut. أساس غير موجب: أسوأ درجة.",
    "s": [
     "هيكل رأس مال متين: الخصوم {v} مرة صافي الثروة",
     "Solid capital structure: liabilities {v} times net worth"
@@ -16452,11 +16452,11 @@
    "cap": null,
    "p": null,
    "stage": "NOTCH",
-   "ar": "قائمة سنوية غير مدققة",
-   "en": "Unaudited annual statement",
+   "ar": "قائمة غير مدققة",
+   "en": "Unaudited statement",
    "t": [
-    "قائمة سنوية إدارية غير مدققة: تنزيل درجة واحدة",
-    "Unaudited (management) annual statement: one notch down"
+    "قائمة إدارية غير مدققة ولا مراجَعة، سنوية أو مرحلية: تنزيل درجة واحدة",
+    "Management statement, neither audited nor reviewed, annual or interim: one notch down"
    ],
    "show": "ALWAYS"
   },
@@ -30939,6 +30939,7 @@
  "bureau": {
   "hidden_debt_pct": 15,
   "max_age_months": 3,
+  "hidden_debt_window_months": 6,
   "hidden_debt_rule": "Bureau outstanding (all banks and finance companies, funded facilities) is compared with the statement's adjusted bank debt (ST_LOANS + BANK_ACCEPTANCES + CURRENT_PORTION_LTD + LT_LOANS + AR_FACTORED_RECOURSE + SUPPLIER_FINANCE). If the bureau figure is more than 15% higher, and the report date is within 6 months after the period end, the difference is a finding (BUREAU_HIDDEN_DEBT) and a notch; a report dated more than 6 months after the period end gives a finding only (post-period borrowing). Lease liabilities and partners' accounts are not in SIMAH and are excluded from the comparison."
  },
  "fitch": {
@@ -37218,8 +37219,8 @@
    },
    {
     "code": "POS_RESILIENT",
-    "ar": "الشركة صامدة في ركود السوق، ولا تفقد في أي من السيناريوهات الستة أكثر من درجة، وسيولتها SGL-1",
-    "en": "The company is resilient in the stagnant market, loses at most one notch in each of the six scenarios, and its liquidity is SGL-1",
+    "ar": "الشركة صامدة في ركود السوق، ولا تفقد في أي من السيناريوهات السبعة أكثر من درجة، وسيولتها SGL-1",
+    "en": "The company is resilient in the stagnant market, loses at most one notch in each of the seven scenarios, and its liquidity is SGL-1",
     "direction": "POSITIVE"
    }
   ],
@@ -37395,8 +37396,8 @@
    "ar": "الذمم الخاصة فوق سنة غير ملموسة",
    "en": "Private receivables over a year are not tangible",
    "text": [
-    "الذمم الخاصة فوق سنة دون مخصص كافٍ تُطرح من صافي الثروة الملموسة.",
-    "Private receivables over a year without enough allowance are taken out of tangible net worth."
+    "الذمم الخاصة فوق سنة، بعد حصتها من المخصص بنسبتها من إجمالي الذمم، تُطرح من صافي الثروة الملموسة.",
+    "Private receivables over a year, after their share of the allowance (their share of the gross receivables), are taken out of tangible net worth."
    ]
   },
   {
@@ -37585,8 +37586,8 @@
    "ar": "تقرير سمة",
    "en": "SIMAH report",
    "text": [
-    "أرفق تقرير سمة التجاري للشركة (حديث لا يتجاوز ستة أشهر بعد نهاية الفترة).",
-    "Attach the company's SIMAH commercial report (no more than six months after the period end)."
+    "أرفق تقرير سمة التجاري للشركة، لا يتجاوز عمره ثلاثة أشهر في تاريخ التقييم (والأقدم لا يُقرأ)؛ ويُقارن دينه بالقوائم إن كان خلال ستة أشهر من نهاية الفترة.",
+    "Attach the company's SIMAH commercial report, no more than three months old on the assessment date (an older one is not read); its debt is compared with the statement when it is dated within six months of the period end."
    ]
   },
   {

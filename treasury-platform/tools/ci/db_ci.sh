@@ -545,6 +545,11 @@ sq -i db/tests/credit_engine_cases.sql > "$TMP/cre.out" 2>&1 || {
 grep -aE "$FAIL_RE" "$TMP/cre.out" && { echo "a credit engine case differs from the reference"; exit 1; }
 ce_pass=$(grep -oaE "$PASS_RE" "$TMP/cre.out" | sort -u | wc -l)
 ce_want=$(grep -c "^/\* C[EV][0-9]*:" db/tests/credit_engine_cases.sql)
+# a floor, so a generator that loses cases does not lower what is expected with them (review B2): 74 cases, CE and CV
+if [ "$ce_want" -lt 148 ]; then
+    echo "db/tests/credit_engine_cases.sql holds $ce_want cases, fewer than the 148 expected"
+    exit 1
+fi
 # each stress case and variant twice: the core (CE) and the whole evaluation with scenarios, remedies and plans (CV)
 if [ "$ce_pass" -ne "$ce_want" ]; then
     echo "expected $ce_want PASS, found $ce_pass"

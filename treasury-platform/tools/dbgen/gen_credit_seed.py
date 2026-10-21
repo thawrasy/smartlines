@@ -462,6 +462,7 @@ WHEN NOT MATCHED THEN
         prm = [('CARD', k, v, None) for k, v in sorted(c['params'].items())]
         prm += [('CARD', 'NOTCH_FLOOR', M['notch_floor'], None), ('CARD', 'SUBFACTOR_MINIMUM', M['subfactor_minimum'], None),
                 ('CARD', 'HIDDEN_DEBT_PCT', M['bureau']['hidden_debt_pct'], None), ('CARD', 'BUREAU_MAX_AGE_MONTHS', M['bureau']['max_age_months'], None),
+                ('CARD', 'HIDDEN_DEBT_WINDOW_MONTHS', M['bureau']['hidden_debt_window_months'], None),
                 ('CARD', 'LGD_MAX_UP', LG['max_up'], None), ('CARD', 'LGD_MAX_UP_NEAR_DEFAULT', LG['max_up_near_default'], None),
                 ('CARD', 'LGD_BEST_FACILITY_NOTCH', next(g['notch'] for g in M['grades'] if g['code'] == LG['best_facility_grade']), None),
                 ('SGL', 'SGL1', LQ['sgl'][0], None), ('SGL', 'SGL2', LQ['sgl'][1], None), ('SGL', 'SGL3', LQ['sgl'][2], None),

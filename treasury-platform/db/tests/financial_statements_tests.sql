@@ -354,8 +354,10 @@ ELSE PRINT CONCAT('FAIL FS6: case:error ', @got, ' (expected 1-2:547 3:50062 4-5
 GO
 /* FS7 (FR-FIN-018, BR-FIN-007, BR-FIN-016): on 2026-04-15 the flow covenant of 12,000,000 a fiscal year (to December)
    counts the confirmed flows of January to March to bank 1, at the bank's level or this facility's: 3 x 1,000,000;
-   April's 500,000 awaits confirmation; a flow to bank 2 and one given to another facility do not count. Remaining
-   9,000,000, 9,000,000 / 8 months = 1,125,000 a month, 25 percent, BEHIND (3/12 < 4/12). */
+   April's 500,000 awaits confirmation; a flow to bank 2 and one given to another facility do not count. Three months
+   of the window are complete (April is not yet): remaining 9,000,000, 9,000,000 / 9 months = 1,000,000 a month,
+   25 percent, ON_TRACK (3 of the 12,000,000 in 3 of 12 months; review E6: the month of the date is not counted as
+   elapsed). */
 DECLARE @t INT, @u1 BIGINT, @u2 BIGINT, @hold BIGINT, @cur INT, @lst INT, @kind INT, @f BIGINT, @cfl BIGINT, @f2 BIGINT, @ok INT = 0, @row NVARCHAR(400);
 BEGIN TRANSACTION;
 EXEC #Fin;
@@ -377,14 +379,18 @@ SELECT @row = CONCAT(WindowStart, '/', WindowEnd, '/', CAST(Achieved AS DECIMAL(
                      CAST(AchievementPct AS DECIMAL(9,2)), '/', PerformanceState)
 FROM fin.fn_BankFlowPerformance('2026-04-15') WHERE CovenantId = @cfl;
 WHILE @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
-IF @row = '2026-01-01/2026-12-31/3000000/500000/3/4/12/9000000/1125000/25.00/BEHIND'
+IF @row = '2026-01-01/2026-12-31/3000000/500000/3/3/12/9000000/1000000/25.00/ON_TRACK'
     PRINT 'PASS FS7: the flow covenant counts the confirmed flows of its window to the facility''s bank, with what remains and the rate it needs';
-ELSE PRINT CONCAT('FAIL FS7: ', @row, ' (expected 2026-01-01/2026-12-31/3000000/500000/3/4/12/9000000/1125000/25.00/BEHIND)');
+ELSE PRINT CONCAT('FAIL FS7: ', @row, ' (expected 2026-01-01/2026-12-31/3000000/500000/3/3/12/9000000/1000000/25.00/ON_TRACK)');
 GO
 /* FS8 (BR-FIN-008, Q-FIN-05): a share-of-revenue covenant of 15 percent reads the revenue of the holding's approved
    annual statement for the window's fiscal year (2025 here: 50,000,000, so 7,500,000 to route), or the approved
-   estimate when the covenant says MANUAL_ESTIMATE (40,000,000, so 6,000,000); without either it is NO_REVENUE. */
-DECLARE @t INT, @u1 BIGINT, @u2 BIGINT, @hold BIGINT, @cur INT, @ob BIGINT, @f BIGINT, @fp BIGINT, @c1 BIGINT, @c2 BIGINT, @r1 NVARCHAR(100), @r2 NVARCHAR(100), @r3 NVARCHAR(100);
+   estimate when the covenant says MANUAL_ESTIMATE (40,000,000, so 6,000,000); without either it is NO_REVENUE. A
+   quarterly covenant of 15 percent of the prior year's revenue asks for the share of the quarter's months, 3/12 of
+   7,500,000 = 1,875,000 (review E5), in the quarter of the fiscal year: April to June for a year to December, March to
+   May for a year to February (review E6). */
+DECLARE @t INT, @u1 BIGINT, @u2 BIGINT, @hold BIGINT, @cur INT, @ob BIGINT, @f BIGINT, @fp BIGINT, @c1 BIGINT, @c2 BIGINT, @c3 BIGINT, @r1 NVARCHAR(100), @r2 NVARCHAR(100),
+        @r3 NVARCHAR(100), @r4 NVARCHAR(100), @r5 NVARCHAR(100);
 BEGIN TRANSACTION;
 EXEC #Fin;
 SELECT @t = v FROM #F WHERE k = 't'; SELECT @u1 = v FROM #F WHERE k = 'u1'; SELECT @u2 = v FROM #F WHERE k = 'u2'; SELECT @hold = v FROM #F WHERE k = 'hold';
@@ -396,8 +402,10 @@ SET @fp = SCOPE_IDENTITY();
 INSERT obl.Covenant (TenantId, ObligationId, MeasureKind, FormulaId, FormulaResultUnit, FormulaUsesStatements, Operator, ThresholdState, ThresholdValue, ThresholdUnit,
                      TestFrequency, AnnualWindowBasis, StatementBasis, RequiredAssurance, RevenueBasisRule, TestedCompanyId, FirstTestPeriodEnd, ValidFrom, FromRevision)
 VALUES (@t, @ob, 'PERCENT_OF_REVENUE', @fp, 'PERCENT', 1, 'GE', 'SET', 15, 'PERCENT', 'ANNUAL', 'FISCAL_YEAR', 'STANDALONE', 'ANY', 'PRIOR_YEAR', @hold, '2026-12-31', '2025-01-01', 2),
-       (@t, @ob, 'PERCENT_OF_REVENUE', @fp, 'PERCENT', 1, 'GE', 'SET', 15, 'PERCENT', 'ANNUAL', 'FISCAL_YEAR', 'STANDALONE', 'ANY', 'MANUAL_ESTIMATE', @hold, '2026-12-31', '2025-02-01', 2);
-SELECT @c1 = CovenantId FROM obl.Covenant WHERE ObligationId = @ob AND RevenueBasisRule = 'PRIOR_YEAR';
+       (@t, @ob, 'PERCENT_OF_REVENUE', @fp, 'PERCENT', 1, 'GE', 'SET', 15, 'PERCENT', 'ANNUAL', 'FISCAL_YEAR', 'STANDALONE', 'ANY', 'MANUAL_ESTIMATE', @hold, '2026-12-31', '2025-02-01', 2),
+       (@t, @ob, 'PERCENT_OF_REVENUE', @fp, 'PERCENT', 1, 'GE', 'SET', 15, 'PERCENT', 'QUARTERLY', 'FISCAL_YEAR', 'STANDALONE', 'ANY', 'PRIOR_YEAR', @hold, '2026-06-30', '2025-03-01', 2);
+SELECT @c1 = CovenantId FROM obl.Covenant WHERE ObligationId = @ob AND RevenueBasisRule = 'PRIOR_YEAR' AND TestFrequency = 'ANNUAL';
+SELECT @c3 = CovenantId FROM obl.Covenant WHERE ObligationId = @ob AND RevenueBasisRule = 'PRIOR_YEAR' AND TestFrequency = 'QUARTERLY';
 SELECT @c2 = CovenantId FROM obl.Covenant WHERE ObligationId = @ob AND RevenueBasisRule = 'MANUAL_ESTIMATE';
 -- the two covenants join revision 2, approved
 INSERT fac.FacilityRevision (TenantId, FacilityId, RevisionNo, ReasonKind, Status, EffectiveOn, SubmittedBy, SubmittedOn, ApprovedBy, ApprovedOn)
@@ -408,10 +416,14 @@ INSERT fin.RevenueEstimate (TenantId, CompanyId, FiscalYear, Basis, Amount, Curr
 VALUES (@t, @hold, 2026, 'STANDALONE', 40000000, @cur, N'Approved budget 2026', 'APPROVED', @u1, @u2, SYSUTCDATETIME());
 SELECT @r1 = CONCAT(CAST(Revenue AS DECIMAL(19,0)), '/', CAST(Required AS DECIMAL(19,0)), '/', LEFT(RevenueSource, 9)) FROM fin.fn_BankFlowPerformance('2026-04-15') WHERE CovenantId = @c1;
 SELECT @r2 = CONCAT(CAST(Revenue AS DECIMAL(19,0)), '/', CAST(Required AS DECIMAL(19,0)), '/', LEFT(RevenueSource, 8)) FROM fin.fn_BankFlowPerformance('2026-04-15') WHERE CovenantId = @c2;
+SELECT @r4 = CONCAT(WindowStart, '/', WindowEnd, '/', MonthsInWindow, '/', CAST(Required AS DECIMAL(19,0))) FROM fin.fn_BankFlowPerformance('2026-04-15') WHERE CovenantId = @c3;
+UPDATE org.Company SET FiscalYearEndMonth = 2 WHERE CompanyId = @hold;
+SELECT @r5 = CONCAT(WindowStart, '/', WindowEnd) FROM fin.fn_BankFlowPerformance('2026-04-15') WHERE CovenantId = @c3;
 WHILE @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
-IF @r1 = '50000000/7500000/STATEMENT' AND @r2 = '40000000/6000000/ESTIMATE' AND @r3 = 'NO_REVENUE/'
-    PRINT 'PASS FS8: a share-of-revenue covenant reads the approved statement''s revenue or the approved estimate, as it says';
-ELSE PRINT CONCAT('FAIL FS8: prior year [', @r1, '], estimate [', @r2, '], no estimate yet [', @r3, ']');
+IF @r1 = '50000000/7500000/STATEMENT' AND @r2 = '40000000/6000000/ESTIMATE' AND @r3 = 'NO_REVENUE/' AND @r4 = '2026-04-01/2026-06-30/3/1875000'
+   AND @r5 = '2026-03-01/2026-05-31'
+    PRINT 'PASS FS8: a share-of-revenue covenant reads the approved statement''s revenue or the approved estimate, as it says, for the months of its window';
+ELSE PRINT CONCAT('FAIL FS8: prior year [', @r1, '], estimate [', @r2, '], no estimate yet [', @r3, '], quarterly [', @r4, '], fiscal year to February [', @r5, ']');
 GO
 /* FS9 (FR-FIN-016, BR-FIN-014): one analysis measure per statement and formula (2627); a DAYS formula is an analysis
    formula (547) and no covenant measures in days (547); a measure that could not be computed says why (547). */

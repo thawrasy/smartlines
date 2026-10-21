@@ -209,13 +209,18 @@ WHERE s.Basis = 'CONSOLIDATED';
 GO
 /* How a company keeps its flow covenants (FR-FIN-018, BR-FIN-007, BR-FIN-008, BR-FIN-016): for each covenant on
    liquidity routed to the bank, of an approved facility revision, valid on @AsOf, with a set threshold: its window
-   on @AsOf (the month, quarter or half of the date for those test frequencies; else the year of AnnualWindowBasis:
-   the fiscal year, the calendar year or the facility year; or the 12 months to @AsOf), the confirmed flows of the
-   window in the covenant's currency to the facility's banks (at the level of the bank or of this facility; flows
-   given to another facility count for that one), from the tested company or the companies the obligation applies
-   to; the amount still to route and the monthly rate it needs; and for a share of revenue, the revenue it is read
-   against (an approved annual statement of the fiscal year of the window, or the year before, or the approved
-   estimate, as the covenant says). Flows not yet confirmed and flows in another currency are shown apart. */
+   on @AsOf (the month of the date; the quarter or half of the company's fiscal year that holds it, counted from the
+   month after FiscalYearEndMonth; else the year of AnnualWindowBasis: the fiscal year, the calendar year or the
+   facility year; or the 12 months to @AsOf), the confirmed flows of the window in the covenant's currency to the
+   facility's banks (at the level of the bank or of this facility; flows given to another facility count for that
+   one), from the tested company or the companies the obligation applies to; the amount still to route and the monthly
+   rate it needs; and for a share of revenue, the revenue it is read against (an approved annual statement of the
+   fiscal year of the window, or the year before, or the approved estimate, as the covenant says), the required amount
+   being that share of the revenue of the months of the window (an annual revenue times the months of the window over
+   twelve, review E5). Flows not yet confirmed and flows in another currency are shown apart.
+   The pace (review E6): MonthsElapsed counts the months of the window already complete on @AsOf (to the end of the
+   month before it), AchievedElapsed the confirmed flows of those months, and the months still to route are the rest of
+   the window, the month of @AsOf included; ON_TRACK compares the two on that same basis. */
 CREATE OR ALTER FUNCTION fin.fn_BankFlowPerformance (@AsOf DATE)
 RETURNS TABLE
 AS
@@ -241,19 +246,21 @@ WITH cov AS (
                              ELSE EOMONTH(DATEFROMPARTS(YEAR(@AsOf) + 1, cov.FiscalYearEndMonth, 1)) END AS Fye,
                         DATEADD(YEAR, DATEDIFF(YEAR, cov.EffectiveFrom, @AsOf)
                                       - CASE WHEN DATEADD(YEAR, DATEDIFF(YEAR, cov.EffectiveFrom, @AsOf), cov.EffectiveFrom) > @AsOf THEN 1 ELSE 0 END,
-                                cov.EffectiveFrom) AS FacilityYearStart) AS y
+                                cov.EffectiveFrom) AS FacilityYearStart,
+                        -- the month of @AsOf in the fiscal year, 0 for its first month
+                        (MONTH(@AsOf) + 11 - cov.FiscalYearEndMonth) % 12 AS FiscalMonthNo) AS y
     CROSS APPLY (SELECT CASE
                           WHEN cov.TestFrequency = 'MONTHLY' THEN DATEFROMPARTS(YEAR(@AsOf), MONTH(@AsOf), 1)
-                          WHEN cov.TestFrequency = 'QUARTERLY' THEN DATEFROMPARTS(YEAR(@AsOf), 3 * ((MONTH(@AsOf) - 1) / 3) + 1, 1)
-                          WHEN cov.TestFrequency = 'SEMIANNUAL' THEN DATEFROMPARTS(YEAR(@AsOf), 6 * ((MONTH(@AsOf) - 1) / 6) + 1, 1)
+                          WHEN cov.TestFrequency = 'QUARTERLY' THEN DATEADD(MONTH, -(y.FiscalMonthNo % 3), DATEFROMPARTS(YEAR(@AsOf), MONTH(@AsOf), 1))
+                          WHEN cov.TestFrequency = 'SEMIANNUAL' THEN DATEADD(MONTH, -(y.FiscalMonthNo % 6), DATEFROMPARTS(YEAR(@AsOf), MONTH(@AsOf), 1))
                           WHEN cov.TestFrequency = 'ROLLING_12M' THEN DATEADD(DAY, 1, EOMONTH(@AsOf, -12))
                           WHEN cov.WindowBasis = 'CALENDAR_YEAR' THEN DATEFROMPARTS(YEAR(@AsOf), 1, 1)
                           WHEN cov.WindowBasis = 'FACILITY_YEAR' THEN y.FacilityYearStart
                           ELSE DATEADD(DAY, 1, EOMONTH(y.Fye, -12)) END AS WindowStart,
                         CASE
                           WHEN cov.TestFrequency = 'MONTHLY' THEN EOMONTH(@AsOf)
-                          WHEN cov.TestFrequency = 'QUARTERLY' THEN EOMONTH(DATEFROMPARTS(YEAR(@AsOf), 3 * ((MONTH(@AsOf) - 1) / 3) + 3, 1))
-                          WHEN cov.TestFrequency = 'SEMIANNUAL' THEN EOMONTH(DATEFROMPARTS(YEAR(@AsOf), 6 * ((MONTH(@AsOf) - 1) / 6) + 6, 1))
+                          WHEN cov.TestFrequency = 'QUARTERLY' THEN EOMONTH(@AsOf, 2 - y.FiscalMonthNo % 3)
+                          WHEN cov.TestFrequency = 'SEMIANNUAL' THEN EOMONTH(@AsOf, 5 - y.FiscalMonthNo % 6)
                           WHEN cov.TestFrequency = 'ROLLING_12M' THEN EOMONTH(@AsOf)
                           WHEN cov.WindowBasis = 'CALENDAR_YEAR' THEN DATEFROMPARTS(YEAR(@AsOf), 12, 31)
                           WHEN cov.WindowBasis = 'FACILITY_YEAR' THEN DATEADD(DAY, -1, DATEADD(YEAR, 1, y.FacilityYearStart))
@@ -264,7 +271,8 @@ WITH cov AS (
            SUM(CASE WHEN e.Status = 'CONFIRMED' AND e.CurrencyId = win.CurrencyId THEN e.Amount ELSE 0 END) AS Achieved,
            SUM(CASE WHEN e.Status = 'DRAFT' AND e.CurrencyId = win.CurrencyId THEN e.Amount ELSE 0 END) AS AwaitingConfirmation,
            SUM(CASE WHEN e.CurrencyId <> win.CurrencyId THEN 1 ELSE 0 END) AS OtherCurrencyEntries,
-           COUNT(DISTINCT CASE WHEN e.Status = 'CONFIRMED' THEN e.MonthEnd END) AS MonthsConfirmed
+           COUNT(DISTINCT CASE WHEN e.Status = 'CONFIRMED' THEN e.MonthEnd END) AS MonthsConfirmed,
+           SUM(CASE WHEN e.Status = 'CONFIRMED' AND e.CurrencyId = win.CurrencyId AND e.MonthEnd <= EOMONTH(@AsOf, -1) THEN e.Amount ELSE 0 END) AS AchievedElapsed
     FROM win
     JOIN fin.BankFlowEntry AS e ON e.TenantId = win.TenantId
      AND e.MonthEnd BETWEEN win.WindowStart AND CASE WHEN EOMONTH(@AsOf) < win.WindowEnd THEN EOMONTH(@AsOf) ELSE win.WindowEnd END
@@ -302,25 +310,28 @@ SELECT win.TenantId, win.CovenantId, win.CovenantRootId, win.ObligationId, win.F
        win.Operator, win.ThresholdValue, win.ThresholdUnit,
        ISNULL(fl.Achieved, 0) AS Achieved, ISNULL(fl.AwaitingConfirmation, 0) AS AwaitingConfirmation,
        ISNULL(fl.OtherCurrencyEntries, 0) AS OtherCurrencyEntries, ISNULL(fl.MonthsConfirmed, 0) AS MonthsConfirmed,
-       DATEDIFF(MONTH, win.WindowStart, CASE WHEN EOMONTH(@AsOf) < win.WindowEnd THEN EOMONTH(@AsOf) ELSE win.WindowEnd END) + 1 AS MonthsElapsed,
-       DATEDIFF(MONTH, win.WindowStart, win.WindowEnd) + 1 AS MonthsInWindow,
+       mo.Elapsed AS MonthsElapsed, mo.InWindow AS MonthsInWindow,
        rv.Revenue, rv.RevenueSource, req.Required,
        CASE WHEN req.Required IS NULL THEN NULL WHEN req.Required > ISNULL(fl.Achieved, 0) THEN req.Required - ISNULL(fl.Achieved, 0) ELSE 0 END AS Remaining,
-       CASE WHEN req.Required IS NULL OR req.Required <= ISNULL(fl.Achieved, 0) OR EOMONTH(@AsOf) >= win.WindowEnd THEN NULL
-            ELSE (req.Required - ISNULL(fl.Achieved, 0)) / NULLIF(DATEDIFF(MONTH, EOMONTH(@AsOf), win.WindowEnd), 0) END AS RequiredPerRemainingMonth,
+       CASE WHEN req.Required IS NULL OR req.Required <= ISNULL(fl.Achieved, 0) OR mo.InWindow - mo.Elapsed <= 0 THEN NULL
+            ELSE (req.Required - ISNULL(fl.Achieved, 0)) / (mo.InWindow - mo.Elapsed) END AS RequiredPerRemainingMonth,
        CASE WHEN req.Required IS NULL OR req.Required = 0 THEN NULL ELSE CAST(ISNULL(fl.Achieved, 0) * 100 / req.Required AS DECIMAL(19,4)) END AS AchievementPct,
        CASE WHEN win.MeasureKind = 'PERCENT_OF_REVENUE' AND rv.Revenue IS NULL THEN 'NO_REVENUE'
             WHEN ISNULL(fl.MonthsConfirmed, 0) = 0 THEN 'NO_DATA'
             WHEN ISNULL(fl.Achieved, 0) >= req.Required THEN 'MET'
-            WHEN ISNULL(fl.Achieved, 0) * (DATEDIFF(MONTH, win.WindowStart, win.WindowEnd) + 1)
-                 >= req.Required * (DATEDIFF(MONTH, win.WindowStart, CASE WHEN EOMONTH(@AsOf) < win.WindowEnd THEN EOMONTH(@AsOf) ELSE win.WindowEnd END) + 1)
-                 THEN 'ON_TRACK'
-            ELSE 'BEHIND' END AS PerformanceState
+            WHEN ISNULL(fl.AchievedElapsed, 0) * mo.InWindow >= req.Required * mo.Elapsed THEN 'ON_TRACK'
+            ELSE 'BEHIND' END AS PerformanceState,
+       ISNULL(fl.AchievedElapsed, 0) AS AchievedElapsed
 FROM win
 LEFT JOIN flows AS fl ON fl.TenantId = win.TenantId AND fl.CovenantId = win.CovenantId
 LEFT JOIN rev AS rv ON rv.TenantId = win.TenantId AND rv.CovenantId = win.CovenantId
+-- the months of the window, and those of it complete on @AsOf (none before its first month ends)
+CROSS APPLY (SELECT DATEDIFF(MONTH, win.WindowStart, win.WindowEnd) + 1 AS InWindow,
+                    CASE WHEN EOMONTH(@AsOf, -1) < win.WindowStart THEN 0
+                         ELSE DATEDIFF(MONTH, win.WindowStart, CASE WHEN EOMONTH(@AsOf, -1) < win.WindowEnd THEN EOMONTH(@AsOf, -1) ELSE win.WindowEnd END) + 1 END AS Elapsed) AS mo
 CROSS APPLY (SELECT CASE WHEN win.MeasureKind = 'FLOW_VOLUME' THEN win.ThresholdValue
-                         WHEN rv.Revenue IS NOT NULL THEN CAST(rv.Revenue * win.ThresholdValue / 100 AS DECIMAL(19,4)) END AS Required) AS req;
+                         WHEN rv.Revenue IS NOT NULL
+                         THEN CAST(rv.Revenue * win.ThresholdValue / 100 * (DATEDIFF(MONTH, win.WindowStart, win.WindowEnd) + 1) / 12.0 AS DECIMAL(19,4)) END AS Required) AS req;
 GO
 GRANT SELECT ON fin.v_StatementBreachReport TO [tp_app];
 GRANT SELECT ON fin.v_ConsolidationUnits TO [tp_app];

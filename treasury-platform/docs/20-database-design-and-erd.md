@@ -1943,7 +1943,7 @@
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `fin.ReceivableLossRate` | The loss rate of a receivables ageing bucket for the provision matrix the company compares its recorded allowance with (IFRS 9 simplified approach; owner decision 35, ADR 0030); the defaults of the pack FIN.PROVISION are for the treasury to approve or change | ReceivableLossRateId | 1 | 3 | 2 | 10 |
+| `fin.ReceivableLossRate` | The loss rate of a receivables ageing bucket for the provision matrix the company compares its recorded allowance with (a provision matrix in the manner of the simplified approach for trade receivables, a check of the allowance and not a measurement under IFRS 9; owner decision 35, ADR 0030); the defaults of the pack FIN.PROVISION are for the treasury to approve or change | ReceivableLossRateId | 1 | 3 | 2 | 10 |
 | `fin.ReportingPeriodLock` | The close of a company's reporting periods: through LockedThrough no actual statement, version, monthly balance or bank flow of the company is added, changed or removed; locked once its figures are approved or confirmed, reopened with a reason by someone other than the one who locked it (optional for each company; docs/38 item 2, ADR 0031) | ReportingPeriodLockId | 3 | 2 | 3 | 9 |
 | `fin.RevenueEstimate` | Manual revenue estimate for a fiscal year, used by a revenue-share covenant with RevenueBasisRule MANUAL_ESTIMATE (Q-FIN-05, BR-FIN-008, self-review B4) | RevenueEstimateId | 5 | 3 | 4 | 10 |
 | `fin.RiskAnchor` | The anchor of a company's business risk from its country risk and its industry risk, a notch of the 21-grade scale: the computed sector risk sub-factor and the centre of the expected range (docs/35 section 13) | RiskAnchorId | 0 | 1 | 1 | 6 |
