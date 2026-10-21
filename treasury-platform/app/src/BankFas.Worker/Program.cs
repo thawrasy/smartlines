@@ -13,9 +13,13 @@ builder.Services.Configure<PortalOptions>(builder.Configuration.GetSection(Porta
 builder.Services.AddSingleton<SqlConnectionFactory>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<IKeyWrapper>(_ => KeyWrapperFactory.Create(builder.Configuration, builder.Environment));
-builder.Services.AddSingleton<IMailSender>(_ => new FileDropMailSender(builder.Configuration["Mail:DropDirectory"]
-    ?? throw new InvalidOperationException("Mail:DropDirectory is not set; the SMTP relay comes with the hosting decision (docs/42).")));
+builder.Services.AddSingleton<BankFas.Core.Mail.IMailSender>(_ => BankFas.Core.Mail.MailSenders.Create(k => builder.Configuration[k],
+    () => builder.Configuration.GetSection("Mail:Smtp").Get<BankFas.Core.Mail.SmtpOptions>() ?? new()));
 builder.Services.AddSingleton(sp => sp.GetRequiredService<IOptions<PortalOptions>>().Value);
 builder.Services.AddSingleton<OnboardingJob>();
+builder.Services.AddSingleton<OutboxJob>();
+builder.Services.AddSingleton<OutboxPurgeJob>();
+builder.Services.AddSingleton<JobRunPurgeJob>();
+builder.Services.AddSingleton<TrialReminderJob>();
 builder.Services.AddHostedService<JobLoop>();
 builder.Build().Run();

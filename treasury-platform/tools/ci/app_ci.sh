@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Application CI (phase 2, ADR 0040): builds the .NET solution and the web front end, runs the unit tests, and runs the
-# integration tests against the BankFas database that tools/ci/db_ci.sh has just deployed. The tests connect with the
+# browser tests (tools/ci/e2e.sh) and the integration tests against the BankFas database that tools/ci/db_ci.sh has
+# just deployed. The tests connect with the
 # service logins of the deployment (provision_logins.sh, set a, secrets generated into a private temporary
 # directory) and stand in for the deployment's bootstrap of the first operator (sa, CI only). The logins are dropped
 # at the end. Run it after db_ci.sh, on the same throwaway server.
@@ -44,7 +45,7 @@ echo "== A1. build and unit tests (.NET)"
 echo "== A2. web front end: type check and build"
 (cd app/web && npm ci --no-audit --no-fund --loglevel=error && npm run build --silent)
 
-echo "== A3. integration tests against the deployed database"
+echo "== A3. service logins"
 SQLCMDPASSWORD="$SA_PASSWORD" SQL_SERVER="$SQL_SERVER" SQLCMD="$SQLCMD" BANKFAS_SECRETS_DIR="$SEC" BANKFAS_LOGIN_SET=a \
     BANKFAS_CHANGE_REF=CI-app bash tools/deploy/provision_logins.sh --generate > "$TMP/provision.out" 2>&1 || {
     cat "$TMP/provision.out"
@@ -53,6 +54,14 @@ SQLCMDPASSWORD="$SA_PASSWORD" SQL_SERVER="$SQL_SERVER" SQLCMD="$SQLCMD" BANKFAS_
 }
 printf '%s' "$SA_PASSWORD" > "$TMP/sa"
 chmod 600 "$TMP/sa"
-BANKFAS_IT_SERVER="$(echo "$SQL_SERVER" | sed 's/^localhost$/localhost,1433/')" BANKFAS_IT_SECRETS="$SEC" BANKFAS_IT_SA_FILE="$TMP/sa" \
+echo "== A4. browser tests (Playwright, Chromium)"
+CHROMIUM="${E2E_CHROMIUM:-}"
+if [ -z "$CHROMIUM" ] && [ -x /opt/pw-browsers/chromium ]; then CHROMIUM=/opt/pw-browsers/chromium; fi
+if [ -z "$CHROMIUM" ]; then (cd app/web && npx playwright install --with-deps chromium > "$TMP/pw-install.out" 2>&1); fi
+SA_PASSWORD="$SA_PASSWORD" SQL_SERVER="$SQL_SERVER" SQLCMD="$SQLCMD" BANKFAS_SECRETS_DIR="$SEC" E2E_WORK="$TMP/e2e" \
+    E2E_HANDOFF_FILE="$TMP/operator-link" E2E_CHROMIUM="$CHROMIUM" bash tools/ci/e2e.sh
+
+echo "== A5. integration tests against the deployed database"
+BANKFAS_IT_OPERATOR_LINK_FILE="$TMP/operator-link" BANKFAS_IT_SERVER="$(echo "$SQL_SERVER" | sed 's/^localhost$/localhost,1433/')" BANKFAS_IT_SECRETS="$SEC" BANKFAS_IT_SA_FILE="$TMP/sa" \
 BANKFAS_IT_REQUIRED=1 bash -c 'cd app && dotnet test --project tests/BankFas.IntegrationTests -c Release --no-build'
 echo "application CI passed"

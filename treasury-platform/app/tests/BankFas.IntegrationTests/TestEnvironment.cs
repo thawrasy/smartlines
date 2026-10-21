@@ -34,6 +34,20 @@ public sealed class TestEnvironment : WebApplicationFactory<Program>
     public const string OperatorHost = "admin." + Domain;
     public TestClock Clock { get; } = new();
     public string MailDir { get; } = Path.Combine(Path.GetTempPath(), "bankfas-it-mail-" + Guid.NewGuid().ToString("N"));
+
+    /// <summary>A password of the test leaked-password list, which holds this one range only (DQ-S04-1).</summary>
+    public const string LeakedPassword = "correct horse battery staple";
+
+    public string BreachedDir { get; } = WriteBreachedList();
+
+    private static string WriteBreachedList()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "bankfas-it-breached-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        var hash = BankFas.Core.Security.BreachedPasswords.Sha1Hex(LeakedPassword);
+        File.WriteAllText(Path.Combine(dir, hash[..5] + ".txt"), $"0018A45C4D1DEF81644B54AB7F969B88D65:3\r\n{hash[5..]}:2400\r\n");
+        return dir;
+    }
     private readonly string _masterKey = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
 
     public static string? DbServer => Environment.GetEnvironmentVariable("BANKFAS_IT_SERVER");
@@ -69,6 +83,8 @@ public sealed class TestEnvironment : WebApplicationFactory<Program>
             ["Keys:Provider"] = "local",
             ["RateLimits:Scale"] = "100",
             ["Mail:DropDirectory"] = MailDir,
+            ["Passwords:BreachedList:Directory"] = BreachedDir,
+            ["Passwords:BreachedList:AllowMissingRanges"] = "true",
             ["Keys:Local:Current"] = "local:it/1",
             ["Keys:Local:Keys:0:Ref"] = "local:it/1",
             ["Keys:Local:Keys:0:Key"] = _masterKey,
@@ -105,6 +121,28 @@ public sealed class TestEnvironment : WebApplicationFactory<Program>
         return match.Groups[1].Value;
     }
 
+    public SqlConnectionFactory Db => Services.GetRequiredService<SqlConnectionFactory>();
+
+    public IMailSender Mail => new FileDropMailSender(MailDir);
+
+    /// <summary>The number of mails sent to an address so far.</summary>
+    public int MailsTo(string email) => !Directory.Exists(MailDir) ? 0
+        : Directory.EnumerateFiles(MailDir, "*.eml").Count(f => File.ReadAllText(f).Contains("To: " + email, StringComparison.Ordinal));
+
+    /// <summary>A statement as sa, for what a test arranges outside the application (a date in the past).</summary>
+    public static async Task SaExecuteAsync(string sql, object? args = null)
+    {
+        var saFile = Environment.GetEnvironmentVariable("BANKFAS_IT_SA_FILE") ?? throw new InvalidOperationException("BANKFAS_IT_SA_FILE is not set.");
+        var cs = new SqlConnectionStringBuilder
+        {
+            DataSource = DbServer, InitialCatalog = "BankFas", UserID = "sa", Password = File.ReadAllText(saFile).Trim(),
+            Encrypt = SqlConnectionEncryptOption.Mandatory, TrustServerCertificate = true,
+        };
+        await using var c = new SqlConnection(cs.ConnectionString);
+        await c.OpenAsync();
+        await Dapper.SqlMapper.ExecuteAsync(c, sql, args);
+    }
+
     /// <summary>Stands in for the deployment: the first operator administrator's invitation, once per database.</summary>
     public static async Task<string?> BootstrapOperatorAsync(string email)
     {
@@ -131,6 +169,7 @@ public sealed class TestEnvironment : WebApplicationFactory<Program>
     {
         base.Dispose(disposing);
         if (disposing && Directory.Exists(MailDir)) Directory.Delete(MailDir, recursive: true);
+        if (disposing && Directory.Exists(BreachedDir)) Directory.Delete(BreachedDir, recursive: true);
     }
 }
 

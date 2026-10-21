@@ -1,15 +1,51 @@
-:root { font-family: system-ui, "Segoe UI", Tahoma, sans-serif; color: #1c2430; background: #f4f6f9; }
-main { max-width: 720px; margin: 3rem auto; padding: 0 1rem; }
-.card { background: #fff; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgb(0 0 0 / 10%); }
-h1 { font-size: 1.4rem; margin-top: 0; }
-label { display: block; margin: 0.75rem 0; }
-label span { display: block; font-size: 0.9rem; margin-bottom: 0.25rem; }
-input { width: 100%; box-sizing: border-box; padding: 0.5rem; border: 1px solid #b7c0cc; border-radius: 4px; font-size: 1rem; }
-button { margin-top: 0.75rem; padding: 0.5rem 1rem; border: 0; border-radius: 4px; background: #1d4f91; color: #fff; font-size: 1rem; cursor: pointer; }
-button:disabled { opacity: 0.6; }
-button.link { background: none; color: #1d4f91; padding: 0; margin-inline-start: 0; }
+/* BankFas S0 styles: logical properties only (margin-inline, text-align: start), so the same rules serve Arabic (RTL)
+   and English (LTR) (DOC-B07, NFR-I18N-02). The design system comes later; this keeps the screens usable and plain. */
+:root { font-family: system-ui, "Segoe UI", Tahoma, "Noto Naskh Arabic", sans-serif; color: #1c2430; background: #f4f6f9; line-height: 1.5; }
+body { margin: 0; }
+h1 { font-size: 1.35rem; margin-block: 0 1rem; }
+h2 { font-size: 1.1rem; margin-block: 0 0.75rem; }
+.card { background: #fff; border-radius: 8px; padding: 1.25rem 1.5rem; margin-block-end: 1.25rem; box-shadow: 0 1px 3px rgb(0 0 0 / 10%); }
+.auth { max-width: 460px; margin: 3rem auto; padding-inline: 1rem; }
+.auth-head { display: flex; justify-content: space-between; align-items: center; margin-block-end: 1rem; }
+.neutral { max-width: 460px; margin: 4rem auto; text-align: center; }
+.shell { display: grid; grid-template-columns: 220px 1fr; grid-template-rows: auto auto 1fr; min-height: 100vh; }
+.top { grid-column: 1 / -1; display: flex; gap: 1rem; align-items: center; padding: 0.75rem 1.25rem; background: #1d3557; color: #fff; }
+.top .muted { color: #cfd8e3; }
+.top button.link, .top .lang { color: #fff; }
+.grow { flex: 1; }
+.side { display: flex; flex-direction: column; padding: 1rem 0; background: #fff; border-inline-end: 1px solid #e3e7ee; }
+.side a { padding: 0.5rem 1.25rem; color: #1c2430; text-decoration: none; }
+.side a.active { background: #e8eef7; border-inline-start: 3px solid #1d4f91; font-weight: 600; }
+.content { padding: 1.25rem; overflow-x: auto; }
+.banner { grid-column: 1 / -1; margin: 0; background: #fff4cc; padding: 0.5rem 1.25rem; }
+label { display: block; margin-block: 0.6rem; }
+label span { display: block; font-size: 0.9rem; margin-block-end: 0.2rem; }
+label small, small { display: inline; }
+label.check { display: flex; gap: 0.5rem; align-items: center; margin-block: 0.3rem; }
+input, select { width: 100%; box-sizing: border-box; padding: 0.45rem 0.55rem; border: 1px solid #b7c0cc; border-radius: 4px; font: inherit; }
+label.check input { width: auto; }
+td input { min-width: 6rem; }
+fieldset { border: 1px solid #e3e7ee; border-radius: 6px; margin-block: 0.75rem; padding: 0.5rem 0.75rem; }
+legend { font-weight: 600; padding-inline: 0.25rem; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 0.75rem; }
+.filters { display: flex; flex-wrap: wrap; gap: 1rem; }
+.filters label { flex: 1 1 160px; }
+button { margin-block-start: 0.6rem; padding: 0.45rem 1rem; border: 0; border-radius: 4px; background: #1d4f91; color: #fff; font: inherit; cursor: pointer; }
+button.secondary { background: #e8eef7; color: #1d3557; }
+button:disabled { opacity: 0.6; cursor: default; }
+button.link { background: none; color: #1d4f91; padding: 0; margin: 0; }
+.actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.actions button { margin-block-start: 0; }
 .error { color: #a4161a; }
-.banner { background: #fff4cc; padding: 0.5rem; border-radius: 4px; }
-.secret code, .codes code { font-size: 1.1rem; letter-spacing: 0.05em; }
+.ok { color: #1b6b3a; }
+.muted { color: #5b6675; }
+.secret { text-align: center; }
+.secret img { display: block; margin: 0.5rem auto; }
+.secret code, .codes code { font-size: 1.05rem; letter-spacing: 0.05em; }
+.codes { columns: 2; }
+.checklist li.done { text-decoration: line-through; color: #5b6675; }
 table { width: 100%; border-collapse: collapse; }
-th, td { text-align: start; padding: 0.4rem; border-bottom: 1px solid #e3e7ee; }
+th, td { text-align: start; padding: 0.4rem; border-block-end: 1px solid #e3e7ee; vertical-align: top; }
+dialog { border: 0; border-radius: 8px; padding: 1.25rem 1.5rem; max-width: 420px; width: 90vw; box-shadow: 0 8px 30px rgb(0 0 0 / 25%); }
+dialog::backdrop { background: rgb(0 0 0 / 35%); }
+@media (max-width: 720px) { .shell { grid-template-columns: 1fr; } .side { flex-direction: row; flex-wrap: wrap; } }

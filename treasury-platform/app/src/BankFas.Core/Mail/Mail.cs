@@ -26,3 +26,46 @@ public sealed class FileDropMailSender(string directory) : IMailSender
         await File.WriteAllTextAsync(Path.Combine(directory, name), text, Encoding.UTF8, cancellationToken).ConfigureAwait(false);
     }
 }
+
+/// <summary>Configuration section "Mail:Smtp": the relay of the hosting provider (FR-PLT-013); the password from a file.</summary>
+public sealed class SmtpOptions
+{
+    public string Host { get; set; } = "";
+    public int Port { get; set; } = 587;
+    public string From { get; set; } = "no-reply@bankfas.com";
+    public string? Username { get; set; }
+    public string? PasswordFile { get; set; }
+}
+
+/// <summary>Sends through an SMTP relay with STARTTLS required; no message is sent in clear text.</summary>
+public sealed class SmtpMailSender(SmtpOptions options) : IMailSender
+{
+    public async Task SendAsync(OutgoingMail mail, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(mail);
+        using var client = new System.Net.Mail.SmtpClient(options.Host, options.Port) { EnableSsl = true, DeliveryMethod = System.Net.Mail.SmtpDeliveryMethod.Network };
+        if (!string.IsNullOrEmpty(options.Username))
+            client.Credentials = new System.Net.NetworkCredential(options.Username,
+                options.PasswordFile is null ? "" : (await File.ReadAllTextAsync(options.PasswordFile, cancellationToken).ConfigureAwait(false)).Trim());
+        using var message = new System.Net.Mail.MailMessage(options.From, mail.To, mail.Subject, mail.TextBody)
+        {
+            BodyEncoding = Encoding.UTF8, SubjectEncoding = Encoding.UTF8,
+        };
+        await client.SendMailAsync(message, cancellationToken).ConfigureAwait(false);
+    }
+}
+
+public static class MailSenders
+{
+    /// <summary>SMTP when "Mail:Smtp:Host" is set; otherwise the drop directory "Mail:DropDirectory" (development and tests).</summary>
+    public static IMailSender Create(Func<string, string?> setting, Func<SmtpOptions> smtp)
+    {
+        ArgumentNullException.ThrowIfNull(setting);
+        ArgumentNullException.ThrowIfNull(smtp);
+        if (!string.IsNullOrEmpty(setting("Mail:Smtp:Host"))) return new SmtpMailSender(smtp());
+        var drop = setting("Mail:DropDirectory");
+        return string.IsNullOrEmpty(drop)
+            ? throw new InvalidOperationException("Set Mail:Smtp:Host, or Mail:DropDirectory for development (docs/42).")
+            : new FileDropMailSender(drop);
+    }
+}

@@ -5,50 +5,58 @@ using Microsoft.Data.SqlClient;
 namespace BankFas.Worker;
 
 /// <summary>
-/// The S0 jobs (brief section 6): JOB-PLT-ONBOARD every 10 seconds, and the daily tenant transitions
-/// JOB-PLT-TRIAL-EXPIRE and JOB-PLT-ARCHIVE once a day (UTC, docs 038). A failed pass is logged and tried again on
-/// the next one; the database keeps every job safe to run twice.
+/// The S0 schedule (brief section 6): every 10 seconds JOB-PLT-ONBOARD and JOB-PLT-OUTBOX; once a day (UTC) the tenant
+/// transitions JOB-PLT-TRIAL-EXPIRE and JOB-PLT-ARCHIVE, the trial reminders, and the two purges, which themselves run
+/// at most weekly per tenant. A failed pass is logged and taken up again on the next one; every job is safe to run twice.
+/// One worker process in S0 (DOC-F17 section 3).
 /// </summary>
-public sealed partial class JobLoop(OnboardingJob onboarding, SqlConnectionFactory db, TimeProvider clock, ILogger<JobLoop> logger) : BackgroundService
+public sealed partial class JobLoop(OnboardingJob onboarding, OutboxJob outbox, TrialReminderJob reminders, OutboxPurgeJob outboxPurge,
+    JobRunPurgeJob runPurge, SqlConnectionFactory db, TimeProvider clock, ILogger<JobLoop> logger) : BackgroundService
 {
-    private readonly TimeProvider _clock = clock;
-    private DateOnly _transitionsDoneOn;
+    private DateOnly _dailyDoneOn;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(10), _clock);
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(10), clock);
         do
         {
-            try
+            await RunAsync("JOB-PLT-ONBOARD", () => onboarding.RunOnceAsync(stoppingToken));
+            await RunAsync("JOB-PLT-OUTBOX", () => outbox.RunOnceAsync(stoppingToken));
+            var today = DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime);
+            if (today != _dailyDoneOn)
             {
-                var delivered = await onboarding.RunOnceAsync(stoppingToken);
-                if (delivered > 0) LogOnboarded(logger, delivered);
-                var today = DateOnly.FromDateTime(_clock.GetUtcNow().UtcDateTime);
-                if (today != _transitionsDoneOn)
-                {
-                    await using var c = await db.OpenAsync(DbLogin.Jobs, stoppingToken);
-                    foreach (var job in new[] { "JOB-PLT-TRIAL-EXPIRE", "JOB-PLT-ARCHIVE" })
+                foreach (var job in new[] { "JOB-PLT-TRIAL-EXPIRE", "JOB-PLT-ARCHIVE" })
+                    await RunAsync(job, async () =>
                     {
+                        await using var c = await db.OpenAsync(DbLogin.Jobs, stoppingToken);
                         var (changed, failed) = await JobProcedures.RunTenantTransitionsAsync(c, job, stoppingToken);
-                        LogTransitions(logger, job, changed, failed);
-                    }
-                    _transitionsDoneOn = today;
-                }
-            }
-            catch (Exception ex) when (ex is SqlException or System.Security.Cryptography.CryptographicException or IOException or InvalidOperationException)
-            {
-                LogFailed(logger, ex);
+                        return changed + failed;
+                    });
+                await RunAsync(reminders.JobKey, () => reminders.RunOnceAsync(stoppingToken));
+                await RunAsync(outboxPurge.JobKey, () => outboxPurge.RunOnceAsync(stoppingToken));
+                await RunAsync(runPurge.JobKey, () => runPurge.RunOnceAsync(stoppingToken));
+                _dailyDoneOn = today;
             }
         }
         while (await timer.WaitForNextTickAsync(stoppingToken));
     }
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "Onboarded {Count} tenant(s)")]
-    private static partial void LogOnboarded(ILogger logger, int count);
+    private async Task RunAsync(string job, Func<Task<int>> pass)
+    {
+        try
+        {
+            var n = await pass();
+            if (n > 0) LogPass(logger, job, n);
+        }
+        catch (Exception ex) when (ex is SqlException or System.Security.Cryptography.CryptographicException or IOException or InvalidOperationException)
+        {
+            LogFailed(logger, job, ex);
+        }
+    }
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "{Job}: {Changed} changed, {Failed} failed")]
-    private static partial void LogTransitions(ILogger logger, string job, int changed, int failed);
+    [LoggerMessage(Level = LogLevel.Information, Message = "{Job}: {Count} tenant(s) or item(s) handled")]
+    private static partial void LogPass(ILogger logger, string job, int count);
 
-    [LoggerMessage(Level = LogLevel.Error, Message = "A job pass failed; it runs again on the next tick")]
-    private static partial void LogFailed(ILogger logger, Exception ex);
+    [LoggerMessage(Level = LogLevel.Error, Message = "{Job}: the pass failed; it runs again on the next tick")]
+    private static partial void LogFailed(ILogger logger, string job, Exception ex);
 }

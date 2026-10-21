@@ -120,13 +120,13 @@ public static class TenantAuthEndpoints
         return Results.Ok(new { nextStep = "DONE", recoveryCodes = codes });
     }
 
-    private static async Task<IResult> AcceptInvitationAsync(InvitationRequest body, HttpContext http, SqlConnectionFactory db)
+    private static async Task<IResult> AcceptInvitationAsync(InvitationRequest body, HttpContext http, SqlConnectionFactory db, BreachedPasswords breached)
     {
         var tenant = RequestContext.Of(http).RequireTenant();
         var link = SecureTokens.Parse(body.Token) ?? throw ApiProblemException.Invalid("LINK_INVALID", "This link has expired or has been used.");
         await using var c = await db.OpenAsync(DbLogin.App, http.RequestAborted);
         var policy = await TenantAuthProcedures.GetPasswordPolicyAsync(c, tenant.TenantId, http.RequestAborted);
-        PasswordRules.Check(body.Password, policy.MinLength, RequestContext.Of(http).TenantCode, tenant.NameEn);
+        PasswordRules.Check(breached, body.Password, policy.MinLength, RequestContext.Of(http).TenantCode, tenant.NameEn);
         await TenantAuthProcedures.CompleteInvitationAsync(c, tenant.TenantId, link, PasswordHasher.HashNew(body.Password!), http.RequestAborted);
         return Results.Ok(new { nextStep = "LOGIN" });
     }

@@ -1,139 +1,124 @@
-import { useEffect, useState } from 'react';
-import { Navigate, Route, Routes, useNavigate } from 'react-router-dom';
-import { api, ApiError } from '../api';
-import { Field, Form, SecretBox } from '../ui';
+import { createContext, useContext, useEffect, useState } from 'react';
+import { Navigate, NavLink, Route, Routes, useNavigate } from 'react-router-dom';
+import { api } from '../api';
+import { LangSwitch, useI18n } from '../i18n';
+import { StepUpProvider } from '../ui';
+import { Enrol, ForgotPassword, Invitation, Login, Mfa, ResetPassword, type Tenant } from './Auth';
+import { Audit, Jobs, Numbering, Settings, Support } from './Admin';
+import { Profile } from './Profile';
+import { RoleDetail, Roles } from './Roles';
+import { UserDetail, Users } from './Users';
 
-interface Tenant { code: string; nameEn: string; nameAr: string; status: string }
-interface Me {
-  user: { email: string; displayNameEn?: string; tenantNameEn: string; tenantStatus: string };
+export interface Me {
+  user: { id: string; email: string; displayNameEn?: string; displayNameAr?: string; preferredLanguage?: string; tenantNameEn: string; tenantNameAr: string; tenantStatus: string; tenantCode: string };
   permissions: string[]; modules: string[];
 }
-type Next = { nextStep: 'MFA_REQUIRED' | 'MFA_ENROLMENT_REQUIRED' | 'MFA_REENROLMENT_REQUIRED' | 'DONE' | 'LOGIN' };
 
-function route(next: Next['nextStep']): string {
-  switch (next) {
-    case 'MFA_REQUIRED': return '/mfa';
-    case 'MFA_ENROLMENT_REQUIRED': case 'MFA_REENROLMENT_REQUIRED': return '/mfa/enrol';
-    case 'LOGIN': return '/login';
-    default: return '/';
-  }
-}
+const MeCtx = createContext<Me | null>(null);
+export const useMe = () => useContext(MeCtx)!;
+export const can = (me: Me, p: string) => me.permissions.includes(p);
 
-// SCR-PLT-01 sign-in
-function Login({ tenant }: { tenant: Tenant }) {
+// The menu shows an item when the user holds its permission (DOC-B07 section 2); hiding it never replaces the API's 403.
+const menu: { to: string; label: string; permission?: string; anyOf?: string[] }[] = [
+  { to: '/', label: 'Home' },
+  { to: '/users', label: 'Users', permission: 'sec.user.manage' },
+  { to: '/roles', label: 'Roles', permission: 'sec.role.manage' },
+  { to: '/settings', label: 'Settings', permission: 'cfg.settings.manage' },
+  { to: '/support', label: 'Support access', permission: 'sec.support.grant' },
+  { to: '/numbering', label: 'Numbering', permission: 'cfg.numbering.manage' },
+  { to: '/audit', label: 'Audit log', anyOf: ['audit.view', 'audit.view.treasury'] },
+  { to: '/jobs', label: 'Background jobs', permission: 'cfg.jobs.view' },
+  { to: '/profile', label: 'My profile' },
+];
+
+function Shell() {
   const nav = useNavigate();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  return (
-    <Form title={`Sign in to ${tenant.nameEn}`} submit="Sign in" onSubmit={async () => {
-      const r = await api<Next>('POST', '/auth/login', { email, password });
-      nav(route(r.nextStep));
-    }}>
-      <Field label="E-mail" value={email} onChange={setEmail} type="email" autoComplete="username" />
-      <Field label="Password" value={password} onChange={setPassword} type="password" autoComplete="current-password" />
-    </Form>
-  );
-}
-
-// SCR-PLT-02 MFA check, with a recovery code instead
-function Mfa() {
-  const nav = useNavigate();
-  const [code, setCode] = useState('');
-  const [useRecovery, setUseRecovery] = useState(false);
-  return (
-    <Form title="Two-step verification" submit="Verify" onSubmit={async () => {
-      await api<Next>('POST', '/auth/mfa', useRecovery ? { recoveryCode: code } : { code });
-      nav('/');
-    }}>
-      <Field label={useRecovery ? 'Recovery code' : 'Code from your authenticator'} value={code} onChange={setCode} autoComplete="one-time-code" />
-      <button type="button" className="link" onClick={() => setUseRecovery(!useRecovery)}>
-        {useRecovery ? 'Use the authenticator code' : 'Use a recovery code'}
-      </button>
-    </Form>
-  );
-}
-
-// SCR-PLT-04 authenticator set-up and the ten recovery codes, shown once
-function Enrol() {
-  const nav = useNavigate();
-  const reenrolment = new URLSearchParams(window.location.hash.slice(1)).get('reenrol') ?? undefined;
-  const [setup, setSetup] = useState<{ secret: string; otpauthUri: string } | null>(null);
-  const [codes, setCodes] = useState<string[] | null>(null);
-  const [code, setCode] = useState('');
-  useEffect(() => {
-    api<{ secret: string; otpauthUri: string }>('POST', '/auth/mfa/enrolment', { reenrolmentToken: reenrolment })
-      .then(setSetup).catch(() => nav('/login'));
-  }, [nav, reenrolment]);
-  if (codes) {
-    return (
-      <section className="card">
-        <h1>Keep your recovery codes</h1>
-        <p>Each code works once if you lose your authenticator. They are not shown again.</p>
-        <ol className="codes">{codes.map(c => <li key={c}><code>{c}</code></li>)}</ol>
-        <button onClick={() => nav('/')}>I have saved them</button>
-      </section>
-    );
-  }
-  return (
-    <Form title="Set up your authenticator" submit="Confirm" onSubmit={async () => {
-      const r = await api<{ recoveryCodes: string[] }>('POST', '/auth/mfa/enrolment/complete', { code, reenrolmentToken: reenrolment });
-      setCodes(r.recoveryCodes);
-    }}>
-      {setup && <SecretBox secret={setup.secret} uri={setup.otpauthUri} />}
-      <Field label="6-digit code" value={code} onChange={setCode} autoComplete="one-time-code" />
-    </Form>
-  );
-}
-
-// SCR-PLT-07 invitation: the token is read from the fragment, which never reaches a server log
-function Invitation() {
-  const nav = useNavigate();
-  const [token] = useState(() => new URLSearchParams(window.location.hash.slice(1)).get('token') ?? '');
-  const [password, setPassword] = useState('');
-  const [again, setAgain] = useState('');
-  useEffect(() => { history.replaceState(null, '', '/invitation'); }, []);
-  return (
-    <Form title="Set your password" submit="Save password" onSubmit={async () => {
-      if (password !== again) throw new ApiError({ status: 422, code: 'MISMATCH', title: 'The two passwords differ.' });
-      await api<Next>('POST', '/auth/invitation', { token, password });
-      nav('/login');
-    }}>
-      <p>At least 12 characters. A long phrase is easier to remember than a complex word.</p>
-      <Field label="New password" value={password} onChange={setPassword} type="password" autoComplete="new-password" />
-      <Field label="Repeat the password" value={again} onChange={setAgain} type="password" autoComplete="new-password" />
-    </Form>
-  );
-}
-
-function Home() {
-  const nav = useNavigate();
+  const { t, lang, setLang } = useI18n();
   const [me, setMe] = useState<Me | null>(null);
-  useEffect(() => { api<Me>('GET', '/me').then(setMe).catch(() => nav('/login')); }, [nav]);
+  useEffect(() => {
+    api<Me>('GET', '/me').then(m => {
+      setMe(m);
+      if (m.user.preferredLanguage === 'ar' || m.user.preferredLanguage === 'en') setLang(m.user.preferredLanguage);
+    }).catch(() => nav('/login'));
+  }, [nav, setLang]);
   if (!me) return null;
+  const items = menu.filter(m => (!m.permission || can(me, m.permission)) && (!m.anyOf || m.anyOf.some(p => can(me, p))));
+  return (
+    <MeCtx.Provider value={me}>
+      <StepUpProvider>
+        <div className="shell">
+          <header className="top">
+            <strong>{lang === 'ar' ? me.user.tenantNameAr : me.user.tenantNameEn}</strong>
+            <span className="grow" />
+            <span className="muted">{me.user.email}</span>
+            <LangSwitch />
+            <button className="link" onClick={async () => { await api('POST', '/auth/logout', {}); nav('/login'); }}>{t('Sign out')}</button>
+          </header>
+          {me.user.tenantStatus !== 'ACTIVE' && me.user.tenantStatus !== 'TRIAL' && (
+            <p className="banner">{t('The account is {s}: you can read and export, not change.', { s: t(me.user.tenantStatus) })}</p>
+          )}
+          <nav className="side">{items.map(m => <NavLink key={m.to} to={m.to} end>{t(m.label)}</NavLink>)}</nav>
+          <main className="content">
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/users" element={<Users />} />
+              <Route path="/users/:id" element={<UserDetail />} />
+              <Route path="/roles" element={<Roles />} />
+              <Route path="/roles/:id" element={<RoleDetail />} />
+              <Route path="/settings" element={<Settings />} />
+              <Route path="/support" element={<Support />} />
+              <Route path="/numbering" element={<Numbering />} />
+              <Route path="/audit" element={<Audit />} />
+              <Route path="/jobs" element={<Jobs />} />
+              <Route path="/profile" element={<Profile />} />
+              <Route path="*" element={<Navigate to="/" />} />
+            </Routes>
+          </main>
+        </div>
+      </StepUpProvider>
+    </MeCtx.Provider>
+  );
+}
+
+// SCR-PLT-06: the first steps, from what the account holds
+function Home() {
+  const me = useMe();
+  const { t, lang } = useI18n();
+  const [users, setUsers] = useState<number | null>(null);
+  useEffect(() => {
+    if (can(me, 'sec.user.manage')) api<{ items: unknown[] }>('GET', '/users?limit=200').then(r => setUsers(r.items.length)).catch(() => setUsers(null));
+  }, [me]);
   return (
     <section className="card">
-      <h1>{me.user.tenantNameEn}</h1>
-      {me.user.tenantStatus !== 'ACTIVE' && <p className="banner">Account status: {me.user.tenantStatus}</p>}
-      <p>Signed in as {me.user.displayNameEn ?? me.user.email}</p>
-      <p>Modules: {me.modules.join(', ')}</p>
-      <button onClick={async () => { await api('POST', '/auth/logout', {}); nav('/login'); }}>Sign out</button>
+      <h1>{t('Welcome, {name}', { name: (lang === 'ar' ? me.user.displayNameAr : me.user.displayNameEn) ?? me.user.email })}</h1>
+      <p>{t('Account status')}: <strong>{t(me.user.tenantStatus)}</strong></p>
+      {can(me, 'sec.user.manage') && (
+        <ul className="checklist">
+          <li className={users !== null && users > 1 ? 'done' : ''}>{t('Invite your team')}</li>
+          <li>{t('Review the roles and their permissions')}</li>
+          <li>{t('Check the security settings')}</li>
+        </ul>
+      )}
+      <p className="muted">{t('Modules')}: {me.modules.join(' · ')}</p>
     </section>
   );
 }
 
 export function Portal() {
+  const { t } = useI18n();
   const [tenant, setTenant] = useState<Tenant | null | undefined>(undefined);
   useEffect(() => { api<Tenant>('GET', '/tenant').then(setTenant).catch(() => setTenant(null)); }, []);
   if (tenant === undefined) return null;
-  if (tenant === null) return <section className="card"><h1>BankFas</h1><p>This address is not available.</p></section>;
+  if (tenant === null) return <section className="card neutral"><h1>BankFas</h1><p>{t('This address is not available.')}</p></section>;
   return (
     <Routes>
       <Route path="/login" element={<Login tenant={tenant} />} />
-      <Route path="/mfa" element={<Mfa />} />
-      <Route path="/mfa/enrol" element={<Enrol />} />
-      <Route path="/invitation" element={<Invitation />} />
-      <Route path="/" element={<Home />} />
-      <Route path="*" element={<Navigate to="/" />} />
+      <Route path="/mfa" element={<Mfa tenant={tenant} />} />
+      <Route path="/mfa/enrol" element={<Enrol tenant={tenant} />} />
+      <Route path="/invitation" element={<Invitation tenant={tenant} />} />
+      <Route path="/forgot-password" element={<ForgotPassword tenant={tenant} />} />
+      <Route path="/reset-password" element={<ResetPassword tenant={tenant} />} />
+      <Route path="/*" element={<Shell />} />
     </Routes>
   );
 }

@@ -1,46 +1,140 @@
-import { useState, type FormEvent, type ReactNode } from 'react';
-import { message } from './api';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import QRCode from 'qrcode';
+import { ApiError, message } from './api';
+import { useI18n } from './i18n';
 
-// Small shared pieces: a form that shows the API's problem title, and a labelled input.
-export function Form({ title, submit, onSubmit, children }: {
-  title: string; submit: string; onSubmit: () => Promise<void>; children: ReactNode;
+// Shared pieces of both surfaces: a form that shows the API's problem title, fields, a table, the authenticator
+// set-up box with its QR code, and the step-up dialog for a fresh code before a sensitive action (DOC-S04 section 9).
+
+export function Form({ title, submit, onSubmit, children, className }: {
+  title?: string; submit: string; onSubmit: () => Promise<void>; children: ReactNode; className?: string;
 }) {
+  const { t } = useI18n();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   async function handle(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError(null);
-    try { await onSubmit(); } catch (err) { setError(message(err)); } finally { setBusy(false); }
+    try { await onSubmit(); } catch (err) { setError(t(message(err))); } finally { setBusy(false); }
   }
   return (
-    <form className="card" onSubmit={handle}>
-      <h1>{title}</h1>
+    <form className={className ?? 'card'} onSubmit={handle}>
+      {title && <h1>{t(title)}</h1>}
       {children}
       {error && <p role="alert" className="error">{error}</p>}
-      <button type="submit" disabled={busy}>{submit}</button>
+      <button type="submit" disabled={busy}>{t(submit)}</button>
     </form>
   );
 }
 
-export function Field({ label, value, onChange, type = 'text', autoComplete }: {
-  label: string; value: string; onChange: (v: string) => void; type?: string; autoComplete?: string;
+export function Field({ label, value, onChange, type = 'text', autoComplete, required = true, hint }: {
+  label: string; value: string; onChange: (v: string) => void; type?: string; autoComplete?: string; required?: boolean; hint?: string;
 }) {
+  const { t } = useI18n();
   return (
     <label>
-      <span>{label}</span>
-      <input type={type} value={value} autoComplete={autoComplete} onChange={e => onChange(e.target.value)} required />
+      <span>{t(label)}</span>
+      <input type={type} value={value} autoComplete={autoComplete} onChange={e => onChange(e.target.value)} required={required} dir="auto" />
+      {hint && <small>{t(hint)}</small>}
     </label>
   );
 }
 
-/** The secret and otpauth URI of an authenticator set-up (a QR code comes with the design system, docs/42). */
+export function Select({ label, value, onChange, options }: {
+  label: string; value: string; onChange: (v: string) => void; options: { value: string; label: string }[];
+}) {
+  const { t } = useI18n();
+  return (
+    <label>
+      <span>{t(label)}</span>
+      <select value={value} onChange={e => onChange(e.target.value)}>
+        {options.map(o => <option key={o.value} value={o.value}>{t(o.label)}</option>)}
+      </select>
+    </label>
+  );
+}
+
+export function Table<T>({ rows, columns, empty = 'Nothing here yet.' }: {
+  rows: T[]; columns: { header: string; cell: (r: T) => ReactNode }[]; empty?: string;
+}) {
+  const { t } = useI18n();
+  if (rows.length === 0) return <p className="muted">{t(empty)}</p>;
+  return (
+    <table>
+      <thead><tr>{columns.map(c => <th key={c.header}>{t(c.header)}</th>)}</tr></thead>
+      <tbody>{rows.map((r, i) => <tr key={i}>{columns.map(c => <td key={c.header}>{c.cell(r)}</td>)}</tr>)}</tbody>
+    </table>
+  );
+}
+
+export function Notice({ error, ok }: { error?: string | null; ok?: string | null }) {
+  const { t } = useI18n();
+  if (error) return <p role="alert" className="error">{t(error)}</p>;
+  if (ok) return <p role="status" className="ok">{t(ok)}</p>;
+  return null;
+}
+
+/** The secret of an authenticator set-up: a QR code of the otpauth URI, the key to type, and the link for this device. */
 export function SecretBox({ secret, uri }: { secret: string; uri: string }) {
+  const { t } = useI18n();
+  const [qr, setQr] = useState<string | null>(null);
+  useEffect(() => { QRCode.toDataURL(uri, { margin: 1, width: 192 }).then(setQr).catch(() => setQr(null)); }, [uri]);
   return (
     <div className="secret">
-      <p>Add this key to your authenticator app, then enter the 6-digit code it shows.</p>
-      <code>{secret.replace(/(.{4})/g, '$1 ').trim()}</code>
-      <p><a href={uri}>Open in authenticator app</a></p>
+      <p>{t('Scan the code with your authenticator app, or type the key, then enter the 6-digit code it shows.')}</p>
+      {qr && <img src={qr} width={192} height={192} alt={t('QR code for the authenticator app')} />}
+      <code dir="ltr">{secret.replace(/(.{4})/g, '$1 ').trim()}</code>
+      <p><a href={uri}>{t('Open in authenticator app')}</a></p>
     </div>
   );
+}
+
+// ---------- step-up ----------
+
+type AskCode = (reason: string) => Promise<string | null>;
+const StepUpCtx = createContext<AskCode>(async () => null);
+
+/** Provides useStepUp(): opens a dialog asking for a fresh authenticator code. */
+export function StepUpProvider({ children }: { children: ReactNode }) {
+  const { t } = useI18n();
+  const [ask, setAsk] = useState<{ reason: string; resolve: (c: string | null) => void } | null>(null);
+  const [code, setCode] = useState('');
+  const ref = useRef<HTMLDialogElement>(null);
+  const open = useCallback<AskCode>(reason => new Promise(resolve => { setCode(''); setAsk({ reason, resolve }); }), []);
+  useEffect(() => { if (ask) ref.current?.showModal(); else ref.current?.close(); }, [ask]);
+  const done = (value: string | null) => { ask?.resolve(value); setAsk(null); };
+  return (
+    <StepUpCtx.Provider value={open}>
+      {children}
+      <dialog ref={ref} onCancel={() => done(null)}>
+        <form method="dialog" onSubmit={e => { e.preventDefault(); done(code); }}>
+          <h2>{t('Confirm with your authenticator')}</h2>
+          <p>{ask ? t(ask.reason) : ''}</p>
+          <Field label="6-digit code" value={code} onChange={setCode} autoComplete="one-time-code" />
+          <div className="actions">
+            <button type="submit">{t('Confirm')}</button>
+            <button type="button" className="secondary" onClick={() => done(null)}>{t('Cancel')}</button>
+          </div>
+        </form>
+      </dialog>
+    </StepUpCtx.Provider>
+  );
+}
+
+export const useStepUp = () => useContext(StepUpCtx);
+
+/** Runs an action that may need a fresh code: asks for one and tries again when the API answers REAUTH_REQUIRED or STEP_UP_REQUIRED. */
+export function useWithStepUp() {
+  const ask = useStepUp();
+  return useCallback(async <T,>(reason: string, action: (code?: string) => Promise<T>): Promise<T | null> => {
+    try {
+      return await action();
+    } catch (e) {
+      if (!(e instanceof ApiError) || !['REAUTH_REQUIRED', 'STEP_UP_REQUIRED'].includes(e.problem.code)) throw e;
+      const code = await ask(reason);
+      if (!code) return null;
+      return await action(code);
+    }
+  }, [ask]);
 }

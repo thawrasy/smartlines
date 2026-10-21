@@ -19,8 +19,18 @@ builder.Services.AddSingleton<PendingSecretProtector>();
 builder.Services.AddSingleton<TenantKeyRing>();
 builder.Services.AddSingleton<OpaqueRefs>();
 builder.Services.AddSingleton<AccountMail>();
-builder.Services.AddSingleton<BankFas.Core.Mail.IMailSender>(_ => new BankFas.Core.Mail.FileDropMailSender(builder.Configuration["Mail:DropDirectory"]
-    ?? throw new InvalidOperationException("Mail:DropDirectory is not set; the SMTP relay comes with the hosting decision (docs/42).")));
+builder.Services.AddSingleton<BankFas.Core.Mail.IMailSender>(_ => BankFas.Core.Mail.MailSenders.Create(k => builder.Configuration[k],
+    () => builder.Configuration.GetSection("Mail:Smtp").Get<BankFas.Core.Mail.SmtpOptions>() ?? new()));
+// The leaked-password list (DQ-S04-1), opened right after the build so a server without it does not start; a partial
+// list is for tests only.
+builder.Services.AddSingleton(sp =>
+{
+    var config = sp.GetRequiredService<IConfiguration>();
+    var allowPartial = config.GetValue<bool>("Passwords:BreachedList:AllowMissingRanges");
+    if (allowPartial && !builder.Environment.IsDevelopment() && !builder.Environment.IsEnvironment("Testing"))
+        throw new InvalidOperationException("A partial leaked-password list is for development and tests only (DQ-S04-1).");
+    return new BankFas.Core.Security.BreachedPasswords(config["Passwords:BreachedList:Directory"] ?? "", allowPartial);
+});
 builder.Services.AddSingleton<IKeyWrapper>(sp => KeyWrapperFactory.Create(builder.Configuration, builder.Environment));
 builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase);
 
@@ -46,9 +56,21 @@ if (!builder.Environment.IsDevelopment() && !builder.Environment.IsEnvironment("
     throw new InvalidOperationException("Database:TrustServerCertificate and RateLimits:Scale are for development and tests only (ADR 0013).");
 
 var app = builder.Build();
+_ = app.Services.GetRequiredService<BankFas.Core.Security.BreachedPasswords>();
 app.UseMiddleware<SecurityHeadersMiddleware>();
 app.UseMiddleware<ProblemMiddleware>();
 app.UseMiddleware<HostRoutingMiddleware>();
+
+// The built front end (app/web/dist, or wwwroot in a published build): its files are served before routing, which
+// otherwise picks the index.html fallback for them too; every other path outside /api gets index.html.
+var webRoot = app.Configuration["Web:Root"];
+StaticFileOptions? webFiles = null;
+if (!string.IsNullOrEmpty(webRoot) && Directory.Exists(webRoot))
+{
+    webFiles = new StaticFileOptions { FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(Path.GetFullPath(webRoot)) };
+    app.UseStaticFiles(webFiles);
+}
+app.UseRouting();
 app.UseRateLimiter();
 app.UseWhen(ctx => ctx.Request.Path.StartsWithSegments("/api"), a => a.UseMiddleware<CsrfMiddleware>());
 app.UseMiddleware<IdempotencyMiddleware>();
@@ -69,14 +91,7 @@ var panel = app.MapGroup("/api/v1/operator").AddEndpointFilter(SurfaceFilter(Sur
 OperatorEndpoints.Map(panel);
 OperatorAdminEndpoints.Map(panel);
 
-// The built front end (app/web/dist, or wwwroot in a published build) for every path outside /api.
-var webRoot = app.Configuration["Web:Root"];
-if (!string.IsNullOrEmpty(webRoot) && Directory.Exists(webRoot))
-{
-    var files = new StaticFileOptions { FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(Path.GetFullPath(webRoot)) };
-    app.UseStaticFiles(files);
-    app.MapFallbackToFile("{*path:regex(^(?!api/|health/).*$)}", "index.html", files);
-}
+if (webFiles is not null) app.MapFallbackToFile("{*path:regex(^(?!api/|health/).*$)}", "index.html", webFiles);
 
 app.Run();
 

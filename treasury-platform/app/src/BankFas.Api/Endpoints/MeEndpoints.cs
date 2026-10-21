@@ -39,7 +39,7 @@ public static class MeEndpoints
         return Results.NoContent();
     }
 
-    private static async Task<IResult> ChangePasswordAsync(ChangePasswordRequest body, HttpContext http, SqlConnectionFactory db, TenantKeyRing keys, TimeProvider clock)
+    private static async Task<IResult> ChangePasswordAsync(ChangePasswordRequest body, HttpContext http, SqlConnectionFactory db, TenantKeyRing keys, TimeProvider clock, BreachedPasswords breached)
     {
         var rc = RequestContext.Of(http);
         var tenant = rc.RequireTenant();
@@ -53,7 +53,7 @@ public static class MeEndpoints
         // The change revokes the user's bindings, so it runs on an unbound connection (035).
         await using var c = await db.OpenAsync(DbLogin.App, http.RequestAborted);
         var policy = await TenantAuthProcedures.GetPasswordPolicyAsync(c, tenant.TenantId, http.RequestAborted);
-        PasswordRules.Check(body.NewPassword, policy.MinLength, rc.TenantCode, email.Split('@')[0], tenant.NameEn);
+        PasswordRules.Check(breached, body.NewPassword, policy.MinLength, rc.TenantCode, email.Split('@')[0], tenant.NameEn);
         var stored = await TenantAuthProcedures.GetPasswordParamsAsync(c, tenant.TenantId, email, http.RequestAborted);
         var currentHash = (stored is null ? null : PasswordHasher.HashWithStoredParameters(body.CurrentPassword, stored))
                           ?? PasswordHasher.HashForUnknownUser(body.CurrentPassword);
@@ -100,14 +100,14 @@ public static class MeEndpoints
         return Results.Accepted(value: new { message = "If the address belongs to an account, a link is on its way." });
     }
 
-    private static async Task<IResult> ResetAsync(ResetCompleteRequest body, HttpContext http, SqlConnectionFactory db)
+    private static async Task<IResult> ResetAsync(ResetCompleteRequest body, HttpContext http, SqlConnectionFactory db, BreachedPasswords breached)
     {
         var rc = RequestContext.Of(http);
         var tenant = rc.RequireTenant();
         var link = SecureTokens.Parse(body.Token) ?? throw ApiProblemException.Invalid("LINK_INVALID", "This link has expired or has been used.");
         await using var c = await db.OpenAsync(DbLogin.App, http.RequestAborted);
         var policy = await TenantAuthProcedures.GetPasswordPolicyAsync(c, tenant.TenantId, http.RequestAborted);
-        PasswordRules.Check(body.NewPassword, policy.MinLength, rc.TenantCode, tenant.NameEn);
+        PasswordRules.Check(breached, body.NewPassword, policy.MinLength, rc.TenantCode, tenant.NameEn);
         IReadOnlyList<string> history;
         try { history = await TenantAdminProcedures.GetPasswordHistoryParamsAsync(c, tenant.TenantId, null, link, http.RequestAborted); }
         catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number == DbErrors.NoValidSession)

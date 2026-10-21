@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Navigate, Route, Routes, useNavigate } from 'react-router-dom';
-import { api } from '../api';
-import { Field, Form, SecretBox } from '../ui';
+import { Link, Navigate, NavLink, Route, Routes, useNavigate, useParams } from 'react-router-dom';
+import { api, message } from '../api';
+import { LangSwitch, useFormat, useI18n } from '../i18n';
+import { Field, Form, Notice, SecretBox, Select, StepUpProvider, Table, useStepUp } from '../ui';
 
 interface TenantRow { id: string; code: string; nameEn: string; nameAr: string; status: string; trialEndsOn?: string; planCode: string }
+interface Me { email: string; displayName?: string; role: string }
 
-// SCR-PLT-51 operator set-up through the link: password and authenticator together
+// SCR-PLT-51: set-up through the link, then sign-in with the TOTP code
 function Setup() {
   const nav = useNavigate();
   const [token] = useState(() => new URLSearchParams(window.location.hash.slice(1)).get('token') ?? '');
@@ -17,88 +19,267 @@ function Setup() {
     api<{ secret: string; otpauthUri: string }>('POST', '/operator/auth/setup', { token }).then(setSetup).catch(() => setSetup(null));
   }, [token]);
   return (
-    <Form title="Set up your operator account" submit="Finish set-up" onSubmit={async () => {
-      await api('POST', '/operator/auth/setup/complete', { token, password, code });
-      nav('/login');
-    }}>
-      <Field label="Password (at least 14 characters)" value={password} onChange={setPassword} type="password" autoComplete="new-password" />
-      {setup && <SecretBox secret={setup.secret} uri={setup.otpauthUri} />}
-      <Field label="6-digit code" value={code} onChange={setCode} autoComplete="one-time-code" />
-    </Form>
+    <div className="auth">
+      <header className="auth-head"><strong>BankFas</strong><LangSwitch /></header>
+      <Form title="Set up your operator account" submit="Finish set-up" onSubmit={async () => {
+        await api('POST', '/operator/auth/setup/complete', { token, password, code });
+        nav('/login');
+      }}>
+        <Field label="Password (at least 14 characters)" value={password} onChange={setPassword} type="password" autoComplete="new-password" />
+        {setup && <SecretBox secret={setup.secret} uri={setup.otpauthUri} />}
+        <Field label="6-digit code" value={code} onChange={setCode} autoComplete="one-time-code" />
+      </Form>
+    </div>
   );
 }
 
-// SCR-PLT-51 operator sign-in, then the TOTP code
 function Login() {
   const nav = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
   const [step, setStep] = useState<'password' | 'mfa'>('password');
-  if (step === 'mfa') {
-    return (
-      <Form title="Two-step verification" submit="Verify" onSubmit={async () => {
-        await api('POST', '/operator/auth/mfa', { code });
-        nav('/');
-      }}>
-        <Field label="Code from your authenticator" value={code} onChange={setCode} autoComplete="one-time-code" />
-      </Form>
-    );
-  }
   return (
-    <Form title="BankFas operator panel" submit="Sign in" onSubmit={async () => {
-      await api('POST', '/operator/auth/login', { email, password });
-      setStep('mfa');
-    }}>
-      <Field label="E-mail" value={email} onChange={setEmail} type="email" autoComplete="username" />
-      <Field label="Password" value={password} onChange={setPassword} type="password" autoComplete="current-password" />
-    </Form>
+    <div className="auth">
+      <header className="auth-head"><strong>BankFas</strong><LangSwitch /></header>
+      {step === 'mfa'
+        ? <Form title="Two-step verification" submit="Verify" onSubmit={async () => { await api('POST', '/operator/auth/mfa', { code }); nav('/'); }}>
+            <Field label="Code from your authenticator" value={code} onChange={setCode} autoComplete="one-time-code" />
+          </Form>
+        : <Form title="BankFas operator panel" submit="Sign in" onSubmit={async () => { await api('POST', '/operator/auth/login', { email, password }); setStep('mfa'); }}>
+            <Field label="E-mail" value={email} onChange={setEmail} type="email" autoComplete="username" />
+            <Field label="Password" value={password} onChange={setPassword} type="password" autoComplete="current-password" />
+          </Form>}
+    </div>
   );
 }
 
-// SCR-PLT-53 new tenant; the fresh code is the step-up the database requires
-function NewTenant({ done }: { done: () => void }) {
-  const [f, setF] = useState({ code: '', nameEn: '', nameAr: '', homeCountryIso2: 'AE', timeZone: 'Asia/Dubai', adminEmail: '', adminDisplayName: '', mfaCode: '' });
+// SCR-PLT-52 and 53
+function Tenants({ me }: { me: Me }) {
+  const { t, lang } = useI18n();
+  const fmt = useFormat();
+  const ask = useStepUp();
+  const [rows, setRows] = useState<TenantRow[]>([]);
+  const [countries, setCountries] = useState<{ iso2: string; nameEn: string; nameAr: string }[]>([]);
+  const [f, setF] = useState({ code: '', nameEn: '', nameAr: '', homeCountryIso2: 'AE', timeZone: 'Asia/Dubai', defaultLanguage: 'en', adminEmail: '', adminDisplayName: '' });
   const set = (k: keyof typeof f) => (v: string) => setF({ ...f, [k]: v });
+  const load = useCallback(async () => setRows((await api<{ items: TenantRow[] }>('GET', '/operator/tenants')).items), []);
+  useEffect(() => {
+    void load();
+    api<{ items: { iso2: string; nameEn: string; nameAr: string }[] }>('GET', '/operator/countries').then(r => setCountries(r.items)).catch(() => setCountries([]));
+  }, [load]);
   return (
-    <Form title="New tenant" submit="Create tenant" onSubmit={async () => {
-      await api('POST', '/operator/tenants', { ...f, planCode: 'STANDARD', defaultLanguage: 'en' });
-      setF({ ...f, code: '', nameEn: '', nameAr: '', adminEmail: '', adminDisplayName: '', mfaCode: '' });
-      done();
-    }}>
-      <Field label="Sub-domain" value={f.code} onChange={set('code')} />
-      <Field label="Name (English)" value={f.nameEn} onChange={set('nameEn')} />
-      <Field label="Name (Arabic)" value={f.nameAr} onChange={set('nameAr')} />
-      <Field label="Home country (ISO code)" value={f.homeCountryIso2} onChange={set('homeCountryIso2')} />
-      <Field label="Time zone" value={f.timeZone} onChange={set('timeZone')} />
-      <Field label="First administrator's e-mail" value={f.adminEmail} onChange={set('adminEmail')} type="email" />
-      <Field label="First administrator's name" value={f.adminDisplayName} onChange={set('adminDisplayName')} />
-      <Field label="Fresh code from your authenticator" value={f.mfaCode} onChange={set('mfaCode')} autoComplete="one-time-code" />
-    </Form>
+    <>
+      <section className="card">
+        <h1>{t('Tenants')}</h1>
+        <Table rows={rows} columns={[
+          { header: 'Sub-domain', cell: r => <Link to={`/tenants/${r.id}`} dir="ltr">{r.code}</Link> },
+          { header: 'Name', cell: r => lang === 'ar' ? r.nameAr : r.nameEn },
+          { header: 'Status', cell: r => t(r.status) },
+          { header: 'Trial ends', cell: r => fmt.date(r.trialEndsOn) },
+          { header: 'Plan', cell: r => r.planCode },
+        ]} />
+      </section>
+      {me.role === 'OPERATOR_ADMIN' && (
+        <Form title="New tenant" submit="Create tenant" onSubmit={async () => {
+          const mfaCode = await ask('Creating a tenant needs a fresh code.');
+          if (!mfaCode) return;
+          await api('POST', '/operator/tenants', { ...f, planCode: 'STANDARD', mfaCode });
+          setF({ ...f, code: '', nameEn: '', nameAr: '', adminEmail: '', adminDisplayName: '' });
+          await load();
+        }}>
+          <Field label="Sub-domain" value={f.code} onChange={set('code')} hint="Lower-case letters, digits and hyphens; it cannot change after activation." />
+          <Field label="Name (English)" value={f.nameEn} onChange={set('nameEn')} />
+          <Field label="Name (Arabic)" value={f.nameAr} onChange={set('nameAr')} />
+          <Select label="Home country" value={f.homeCountryIso2} onChange={set('homeCountryIso2')}
+            options={countries.map(c => ({ value: c.iso2, label: lang === 'ar' ? c.nameAr : c.nameEn }))} />
+          <Field label="Time zone" value={f.timeZone} onChange={set('timeZone')} />
+          <Select label="Language" value={f.defaultLanguage} onChange={set('defaultLanguage')} options={[{ value: 'en', label: 'English' }, { value: 'ar', label: 'العربية' }]} />
+          <Field label="First administrator's e-mail" value={f.adminEmail} onChange={set('adminEmail')} type="email" />
+          <Field label="First administrator's name" value={f.adminDisplayName} onChange={set('adminDisplayName')} />
+        </Form>
+      )}
+    </>
   );
 }
 
-// SCR-PLT-52 tenants: statuses only, never business data (FR-PLT-005)
-function Tenants() {
-  const nav = useNavigate();
-  const [rows, setRows] = useState<TenantRow[] | null>(null);
-  const load = useCallback(() => {
-    api<{ items: TenantRow[] }>('GET', '/operator/tenants').then(r => setRows(r.items)).catch(() => nav('/login'));
-  }, [nav]);
-  useEffect(load, [load]);
-  if (!rows) return null;
+const MODULES = ['CORE', 'INSTITUTIONS', 'FACILITIES', 'COVENANTS', 'WORKFLOW', 'LC_PURCHASE', 'LC_SALES', 'REQUESTS', 'REPORTS'];
+
+// SCR-PLT-54: statuses and counters, never business data (FR-PLT-005)
+function TenantDetail({ me }: { me: Me }) {
+  const { id } = useParams();
+  const { t, lang } = useI18n();
+  const ask = useStepUp();
+  const [d, setD] = useState<{ tenant: Record<string, string>; counters: Record<string, string | number | null>; modules: { module: string; enabled: boolean }[] } | null>(null);
+  const [mods, setMods] = useState<string[]>([]);
+  const [action, setAction] = useState({ status: 'ACTIVE', reason: '', trialEndsOn: '' });
+  const [notice, setNotice] = useState<{ ok?: string; error?: string }>({});
+  const load = useCallback(async () => {
+    const r = await api<NonNullable<typeof d>>('GET', `/operator/tenants/${id}`);
+    setD(r);
+    setMods(r.modules.filter(m => m.enabled).map(m => m.module));
+  }, [id]);
+  useEffect(() => { void load(); }, [load]);
+  if (!d) return null;
+  const admin = me.role === 'OPERATOR_ADMIN';
   return (
-    <section>
-      <div className="card">
-        <h1>Tenants</h1>
-        <table>
-          <thead><tr><th>Sub-domain</th><th>Name</th><th>Status</th><th>Trial ends</th></tr></thead>
-          <tbody>{rows.map(t => <tr key={t.id}><td>{t.code}</td><td>{t.nameEn}</td><td>{t.status}</td><td>{t.trialEndsOn?.slice(0, 10) ?? ''}</td></tr>)}</tbody>
-        </table>
-        <button onClick={async () => { await api('POST', '/operator/auth/logout', {}); nav('/login'); }}>Sign out</button>
+    <>
+      <section className="card">
+        <h1>{lang === 'ar' ? d.tenant.nameAr : d.tenant.nameEn} <small dir="ltr">({d.tenant.code})</small></h1>
+        <p>{t('Status')}: <strong>{t(d.tenant.status ?? '')}</strong></p>
+        <Table rows={Object.entries(d.counters)} columns={[{ header: 'Counter', cell: ([k]) => t(k) }, { header: 'Value', cell: ([, v]) => String(v ?? '') }]} />
+        {admin && <button className="secondary" onClick={async () => {
+          setNotice({});
+          try { await api('POST', `/operator/tenants/${id}/actions/resend-invitation`, {}); setNotice({ ok: 'The onboarding job sends a new invitation within a minute.' }); }
+          catch (e) { setNotice({ error: message(e) }); }
+        }}>{t('Send the first invitation again')}</button>}
+        <Notice ok={notice.ok} error={notice.error} />
+      </section>
+      {admin && (
+        <>
+          <Form title="Modules" submit="Save modules" onSubmit={async () => { await api('PUT', `/operator/tenants/${id}/modules`, { modules: mods }); await load(); }}>
+            {MODULES.map(m => (
+              <label key={m} className="check">
+                <input type="checkbox" disabled={m === 'CORE'} checked={mods.includes(m)} onChange={e => setMods(e.target.checked ? [...mods, m] : mods.filter(x => x !== m))} />
+                {m}
+              </label>
+            ))}
+          </Form>
+          <Form title="Change the status" submit="Apply" onSubmit={async () => {
+            const mfaCode = await ask('A status change needs a fresh code.');
+            if (!mfaCode) return;
+            await api('POST', `/operator/tenants/${id}/status`, { status: action.status, reason: action.reason || undefined, trialEndsOn: action.trialEndsOn || undefined, mfaCode });
+            await load();
+          }}>
+            <Select label="New status" value={action.status} onChange={v => setAction({ ...action, status: v })}
+              options={['ACTIVE', 'TRIAL', 'SUSPENDED', 'CLOSED'].map(s => ({ value: s, label: s }))} />
+            <Field label="Reason (to suspend or close)" value={action.reason} onChange={v => setAction({ ...action, reason: v })} required={false} />
+            <Field label="Trial ends on (to extend the trial)" type="date" value={action.trialEndsOn} onChange={v => setAction({ ...action, trialEndsOn: v })} required={false} />
+          </Form>
+        </>
+      )}
+    </>
+  );
+}
+
+// SCR-PLT-56
+function Operators() {
+  const { t } = useI18n();
+  const fmt = useFormat();
+  const ask = useStepUp();
+  const [rows, setRows] = useState<{ id: string; email: string; displayName?: string; role: string; status: string; lastLoginAt?: string }[]>([]);
+  const [f, setF] = useState({ email: '', displayName: '', role: 'OPERATOR_SUPPORT' });
+  const [error, setError] = useState<string | null>(null);
+  const load = useCallback(async () => setRows((await api<{ items: typeof rows }>('GET', '/operator/operators')).items), []);
+  useEffect(() => { void load(); }, [load]);
+  const act = async (id: string, action: string) => {
+    setError(null);
+    const mfaCode = await ask('Changing an operator account needs a fresh code.');
+    if (!mfaCode) return;
+    try { await api('POST', `/operator/operators/${id}/actions/${action}`, { mfaCode }); await load(); } catch (e) { setError(message(e)); }
+  };
+  return (
+    <>
+      <section className="card">
+        <h1>{t('Operators')}</h1>
+        <Notice error={error} />
+        <Table rows={rows} columns={[
+          { header: 'E-mail', cell: o => <span dir="ltr">{o.email}</span> },
+          { header: 'Name', cell: o => o.displayName },
+          { header: 'Role', cell: o => t(o.role) },
+          { header: 'Status', cell: o => t(o.status) },
+          { header: 'Last sign-in', cell: o => fmt.dateTime(o.lastLoginAt) },
+          { header: '', cell: o => (
+            <span className="actions">
+              {o.status === 'ACTIVE' && <button className="link" onClick={() => void act(o.id, 'disable')}>{t('Disable')}</button>}
+              {o.status === 'DISABLED' && <button className="link" onClick={() => void act(o.id, 'enable')}>{t('Enable')}</button>}
+              {o.status === 'LOCKED' && <button className="link" onClick={() => void act(o.id, 'unlock')}>{t('Unlock')}</button>}
+              <button className="link" onClick={() => void act(o.id, 'reset')}>{t('Reset')}</button>
+            </span>
+          ) },
+        ]} />
+      </section>
+      <Form title="Invite an operator" submit="Send the invitation" onSubmit={async () => {
+        const mfaCode = await ask('Inviting an operator needs a fresh code.');
+        if (!mfaCode) return;
+        await api('POST', '/operator/operators', { ...f, mfaCode });
+        setF({ ...f, email: '', displayName: '' });
+        await load();
+      }}>
+        <Field label="E-mail" value={f.email} onChange={v => setF({ ...f, email: v })} type="email" />
+        <Field label="Name" value={f.displayName} onChange={v => setF({ ...f, displayName: v })} />
+        <Select label="Role" value={f.role} onChange={v => setF({ ...f, role: v })}
+          options={[{ value: 'OPERATOR_SUPPORT', label: 'OPERATOR_SUPPORT' }, { value: 'OPERATOR_ADMIN', label: 'OPERATOR_ADMIN' }]} />
+      </Form>
+    </>
+  );
+}
+
+// Support: the operator's live grants and the tenant's users through the support connection (AC-PLT-8)
+function Support() {
+  const { t } = useI18n();
+  const fmt = useFormat();
+  const [grants, setGrants] = useState<{ id: string; code: string; nameEn: string; endsAt: string; reason: string }[]>([]);
+  const [users, setUsers] = useState<{ tenant: string; items: { email: string; displayNameEn?: string; status: string }[] } | null>(null);
+  useEffect(() => { api<{ items: typeof grants }>('GET', '/operator/support/grants').then(r => setGrants(r.items)).catch(() => setGrants([])); }, []);
+  return (
+    <>
+      <section className="card">
+        <h1>{t('Support access')}</h1>
+        <p className="muted">{t("Every page you open is in the tenant's audit log.")}</p>
+        <Table rows={grants} empty="No tenant has given you access." columns={[
+          { header: 'Tenant', cell: g => <span dir="ltr">{g.code}</span> },
+          { header: 'Until', cell: g => fmt.dateTime(g.endsAt) },
+          { header: 'Reason', cell: g => g.reason },
+          { header: '', cell: g => <button className="link" onClick={async () => setUsers(await api('GET', `/operator/support/${g.id}/users`))}>{t('Users')}</button> },
+        ]} />
+      </section>
+      {users && (
+        <section className="card">
+          <h2>{t('Users')} · <span dir="ltr">{users.tenant}</span></h2>
+          <Table rows={users.items} columns={[
+            { header: 'E-mail', cell: u => <span dir="ltr">{u.email}</span> },
+            { header: 'Name', cell: u => u.displayNameEn },
+            { header: 'Status', cell: u => t(u.status) },
+          ]} />
+        </section>
+      )}
+    </>
+  );
+}
+
+function Shell() {
+  const nav = useNavigate();
+  const { t } = useI18n();
+  const [me, setMe] = useState<Me | null>(null);
+  useEffect(() => { api<Me>('GET', '/operator/me').then(setMe).catch(() => nav('/login')); }, [nav]);
+  if (!me) return null;
+  return (
+    <StepUpProvider>
+      <div className="shell">
+        <header className="top">
+          <strong>{t('BankFas operator panel')}</strong>
+          <span className="grow" />
+          <span className="muted" dir="ltr">{me.email}</span>
+          <LangSwitch />
+          <button className="link" onClick={async () => { await api('POST', '/operator/auth/logout', {}); nav('/login'); }}>{t('Sign out')}</button>
+        </header>
+        <nav className="side">
+          <NavLink to="/" end>{t('Tenants')}</NavLink>
+          {me.role === 'OPERATOR_ADMIN' && <NavLink to="/operators">{t('Operators')}</NavLink>}
+          <NavLink to="/support">{t('Support access')}</NavLink>
+        </nav>
+        <main className="content">
+          <Routes>
+            <Route path="/" element={<Tenants me={me} />} />
+            <Route path="/tenants/:id" element={<TenantDetail me={me} />} />
+            <Route path="/operators" element={<Operators />} />
+            <Route path="/support" element={<Support />} />
+            <Route path="*" element={<Navigate to="/" />} />
+          </Routes>
+        </main>
       </div>
-      <NewTenant done={load} />
-    </section>
+    </StepUpProvider>
   );
 }
 
@@ -107,8 +288,7 @@ export function Panel() {
     <Routes>
       <Route path="/setup" element={<Setup />} />
       <Route path="/login" element={<Login />} />
-      <Route path="/" element={<Tenants />} />
-      <Route path="*" element={<Navigate to="/" />} />
+      <Route path="/*" element={<Shell />} />
     </Routes>
   );
 }

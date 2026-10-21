@@ -9,7 +9,7 @@ GO
 CREATE OR ALTER VIEW plat.v_CurrentTenant
 AS
     SELECT t.TenantId, t.PublicId, t.Code, t.NameAr, t.NameEn, t.PlanId, t.Status,
-           t.HomeCountryId, t.DefaultLanguage, t.TimeZone
+           t.HomeCountryId, t.DefaultLanguage, t.TimeZone, t.TrialEndsOn   -- the trial end: the banner and the reminders (ADR 0040)
     FROM plat.Tenant AS t
     CROSS APPLY rls.fn_Bound(t.TenantId) AS bd          -- the connection must be bound to this tenant (O-16)
     WHERE t.TenantId = CAST(SESSION_CONTEXT(N'TenantId') AS INT);

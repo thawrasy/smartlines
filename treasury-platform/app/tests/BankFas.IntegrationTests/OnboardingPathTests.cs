@@ -28,7 +28,7 @@ public sealed class OnboardingPathTests(PlatformFixture f)
         Assert.Equal(401, (await other.PostProblemAsync("/api/v1/operator/auth/mfa", new { code = "000000" })).Status);
 
         // Creating a tenant takes a fresh code (step-up); without one it is refused.
-        var code = "it" + Guid.NewGuid().ToString("N")[..8];
+        var code = "ci-" + Guid.NewGuid().ToString("N")[..8];
         var adminEmail = $"admin@{code}.test.invalid";
         var tenantBody = new
         {
@@ -56,7 +56,7 @@ public sealed class OnboardingPathTests(PlatformFixture f)
 
         // The administrator accepts the invitation: a short password is refused, then the link sets the password once.
         Assert.Equal((422, "PASSWORD_WEAK"), await portal.PostProblemAsync("/api/v1/auth/invitation", new { token = invitation, password = "short" }));
-        const string password = "correct horse battery staple";
+        const string password = "a first administrator passphrase";
         await portal.PostOkAsync("/api/v1/auth/invitation", new { token = invitation, password });
         Assert.Equal((422, "LINK_INVALID"), await portal.PostProblemAsync("/api/v1/auth/invitation", new { token = invitation, password }));
 

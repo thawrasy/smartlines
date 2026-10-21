@@ -29,7 +29,11 @@ public sealed class PlatformFixture : IAsyncLifetime
             Unavailable = "No test database: set BANKFAS_IT_SERVER and BANKFAS_IT_SECRETS (tools/ci/app_ci.sh).";
             return;
         }
-        var link = await TestEnvironment.BootstrapOperatorAsync(OperatorEmail);
+        // After the browser tests (tools/ci/e2e.sh), their operator has invited this one; else this is the first.
+        var handoff = Environment.GetEnvironmentVariable("BANKFAS_IT_OPERATOR_LINK_FILE");
+        var link = !string.IsNullOrEmpty(handoff) && File.Exists(handoff)
+            ? File.ReadAllText(handoff).Trim()
+            : await TestEnvironment.BootstrapOperatorAsync(OperatorEmail);
         if (link is null)
         {
             Unavailable = "The database already has operators: deploy a fresh one (tools/ci/app_ci.sh).";
@@ -70,7 +74,7 @@ public sealed class PlatformFixture : IAsyncLifetime
     public async Task<TestTenant> CreateTenantAsync(string? name = null)
     {
         RequireDatabase();
-        var code = "it" + Guid.NewGuid().ToString("N")[..10];
+        var code = "ci-" + Guid.NewGuid().ToString("N")[..10];
         var adminEmail = $"admin@{code}.test.invalid";
         await Panel.PostOkAsync("/api/v1/operator/tenants", new
         {
@@ -80,7 +84,7 @@ public sealed class PlatformFixture : IAsyncLifetime
         var ct = TestContext.Current.CancellationToken;
         Assert.True(await Env.OnboardingJob().RunOnceAsync(ct) >= 1);
         var portal = await Env.BrowserAsync($"{code}.{TestEnvironment.Domain}");
-        const string password = "correct horse battery staple";
+        const string password = "a first administrator passphrase";
         await portal.PostOkAsync("/api/v1/auth/invitation", new { token = Env.LinkTokenSentTo(adminEmail), password });
         var secretAndCodes = await SignInFirstTimeAsync(portal, adminEmail, password);
         return new TestTenant(code, portal, adminEmail, password, secretAndCodes.Secret, secretAndCodes.Codes);

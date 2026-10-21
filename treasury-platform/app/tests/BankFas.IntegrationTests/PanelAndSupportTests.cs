@@ -16,7 +16,8 @@ public sealed class PanelAndSupportTests(PlatformFixture f)
         var t = await f.CreateTenantAsync();
         var p = t.Portal;
         var operators = await p.GetJsonAsync("/api/v1/support-operators");
-        var op = operators.GetProperty("items").EnumerateArray().First();
+        // The operator of these tests; the browser tests' operator is on the list too (tools/ci/e2e.sh).
+        var op = operators.GetProperty("items").EnumerateArray().First(o => o.GetProperty("displayName").GetString() == "Integration operator");
         Assert.False(op.TryGetProperty("email", out _));
         Assert.Equal((422, "VALIDATION_FAILED"), await p.PostProblemAsync("/api/v1/support-grants", new { operatorId = PlatformFixture.Id(op), hours = 100, reason = "x" }));
         var grant = await p.PostOkAsync("/api/v1/support-grants", new { operatorId = PlatformFixture.Id(op), hours = 2, reason = "Help with the set-up" });
@@ -57,7 +58,7 @@ public sealed class PanelAndSupportTests(PlatformFixture f)
         Assert.Equal((409, "LINK_NOT_ISSUABLE"), await f.Panel.PostProblemAsync($"/api/v1/operator/tenants/{id}/actions/resend-invitation", new { }));
 
         // A tenant whose administrator has not accepted yet gets a new link.
-        var code = "it" + Guid.NewGuid().ToString("N")[..10];
+        var code = "ci-" + Guid.NewGuid().ToString("N")[..10];
         var adminEmail = $"admin@{code}.test.invalid";
         var created = await f.Panel.PostOkAsync("/api/v1/operator/tenants", new
         {

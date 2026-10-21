@@ -159,6 +159,9 @@ public sealed class AccountAdministrationTests(PlatformFixture f)
         Assert.Equal(await unknown.Content.ReadAsStringAsync(ct), await known.Content.ReadAsStringAsync(ct));
         var link = f.Env.LinkTokenSentTo(t.AdminEmail);
 
+        // A leaked password is refused (DQ-S04-1), and the link still works after it.
+        Assert.Equal((422, "PASSWORD_BREACHED"), await anon.PostProblemAsync("/api/v1/auth/password-resets", new { token = link, newPassword = TestEnvironment.LeakedPassword }));
+
         // The current password cannot be reused; a new one works once and ends every session.
         Assert.Equal((422, "PASSWORD_REUSED"), await anon.PostProblemAsync("/api/v1/auth/password-resets", new { token = link, newPassword = t.AdminPassword }));
         const string reset = "a brand new reset passphrase";

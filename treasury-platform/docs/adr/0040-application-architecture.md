@@ -137,11 +137,53 @@ The integration test walks the S0 exit check (AC-PLT-5) end to end. It also chec
 replayed step, a missing step-up, a used link, a short password, a missing CSRF token, an unknown sub-domain, and the
 wrong surface.
 
+### 8. The rest of S0
+
+- **Users, roles and step-up.**
+  - The application keeps one active account administrator at least (GAP-14, 409 LAST_ACCOUNT_ADMIN).
+  - Giving TM or FO takes a fresh code and writes a HIGH audit row.
+  - A permission the platform locks is refused before the write (403 PERMISSION_LOCKED).
+  - Sensitive tenant actions take a fresh code in the same request and answer 401 REAUTH_REQUIRED without one. The
+    operator's answer 403 STEP_UP_REQUIRED, and a missing code counts towards the lockout.
+- **API conventions (DOC-B04).**
+  - ETag and If-Match: 428 without one, 409 VERSION_CONFLICT on a stale one.
+  - An Idempotency-Key on POST, kept 24 hours.
+  - Cursors and references protected with Data Protection.
+  - An unknown query parameter is 400 UNKNOWN_PARAMETER.
+- **Support and the panel (GAP-5, GAP-6).** `db/static/059_support_and_panel.sql` holds the support operators and
+  grants lists, the support page log (SUPPORT_PAGE_VIEWED, and SUPPORT_ACCESS_DENIED as HIGH), the tenant counters
+  and the resend of the first invitation.
+- **Jobs.**
+  - The outbox job claims batches of 50 with UPDLOCK and READPAST, in order per aggregate, on a 60-second lease,
+    with back-off and DEAD after five attempts.
+  - Weekly purges of the outbox and the job runs.
+  - Trial reminders at 7, 3 and 1 days, once each.
+  - An SMTP sender with STARTTLS when `Mail:Smtp:Host` is set.
+- **Links.** A link's token is in the URL fragment, built by `UriBuilder.Fragment`. The first version escaped the
+  `#`, which sent the token to the server; a unit test now pins it.
+- **The front end.**
+  - English keys with an Arabic dictionary (`web/src/ar.ts`), `dir="rtl"`, and CSS logical properties.
+  - The QR code is drawn in the browser (`qrcode`), so the secret does not leave the page.
+  - One dialog asks for the fresh code and retries the request.
+- **The leaked-password list (DQ-S04-1).**
+  - `BreachedPasswords` reads the published SHA-1 range files (`XXXXX.txt`, `SUFFIX:COUNT`) from a local directory.
+  - It checks the password as typed and in NFKC, on every password set by a user or an operator, after the cheaper
+    rules (422 PASSWORD_BREACHED).
+  - A missing directory stops the API at start-up, and a missing range refuses the password. A partial list is
+    allowed in Development and Testing only.
+- **Browser tests.**
+  - `tools/ci/e2e.sh` runs the API and the worker on HTTPS with a throwaway certificate, and maps `*.bankfas.test` to
+    127.0.0.1 in Chromium.
+  - It walks AC-PLT-5 in the browser, with the leaked-password refusal, the QR code and the switch to Arabic.
+  - Its operator invites the integration tests' operator, so both run on one fresh database.
+
 ## Consequences
 
-- **Still out of S0.** The breached-password list (DQ-S04-1) and a KMS product (DQ-S02-1) are not built yet; docs/42
-  lists every remaining S0 item.
+- **Decisions still open.** A KMS product (DQ-S02-1), the mail provider, the production domain, and the source and
+  refresh schedule of the leaked-password list are decisions outside the build; docs/42 section 9 lists them.
+- **A server needs the leaked-password list to start.** Deployment downloads it and refreshes it every three
+  months.
 - **A wrong TOTP code costs more.** A user's code without a step is now a failure. A client that sent `@Passed = 1`
   without a step loses that path. The application always sends the step.
-- **Gaps left for later.** GAP-5, 6, 9, 11, 12 and 14 to 17 stay as the brief describes them. They are taken up with
-  the screens that need them.
+- **Gaps left for later.** GAP-9, 11, 12 and 15 to 17 stay as the brief describes them. They are taken up with the
+  screens that need them.

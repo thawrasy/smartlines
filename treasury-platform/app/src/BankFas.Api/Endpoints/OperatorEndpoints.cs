@@ -80,11 +80,11 @@ public static class OperatorEndpoints
     }
 
     private static async Task<IResult> CompleteSetupAsync(OperatorSetupCompleteRequest body, HttpContext http, SqlConnectionFactory db,
-        PendingSecretProtector pending, IKeyWrapper keys, TimeProvider clock)
+        PendingSecretProtector pending, IKeyWrapper keys, TimeProvider clock, BreachedPasswords breached)
     {
         var link = SecureTokens.Parse(body.Token) ?? throw ApiProblemException.Invalid("LINK_INVALID", "This link has expired or has been used.");
         var secret = pending.Take(http.Request, link) ?? throw ApiProblemException.Invalid("ENROLMENT_EXPIRED", "Start the set-up again.");
-        PasswordRules.Check(body.Password, PasswordRules.OperatorMinLength);
+        PasswordRules.Check(breached, body.Password, PasswordRules.OperatorMinLength);
         var step = Totp.Verify(secret, body.Code, clock.GetUtcNow(), null) ?? throw new ApiProblemException(401, "MFA_INVALID", "The code is not valid.");
         var keyRef = keys.CurrentMasterKeyRef;
         var enc = keys.Wrap(keyRef, secret, SecretAad);

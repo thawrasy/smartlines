@@ -64,14 +64,14 @@ public sealed class PendingSecretProtector(IDataProtectionProvider provider)
 /// <summary>
 /// The password rules the application enforces (DOC-S04 section 4): at least the tenant's minimum (12 by default, 14
 /// for operators) and at most 128 code points after NFKC, any printable characters, and none of the obvious context
-/// words. The breached-password list (DQ-S04-1) is not in S0 (docs/42).
+/// words, and not on the list of leaked passwords (DQ-S04-1), which is checked last so that the cheap rules answer first.
 /// </summary>
 public static class PasswordRules
 {
     public const int MaxLength = 128;
     public const int OperatorMinLength = 14;
 
-    public static void Check(string? password, int minLength, params string?[] contextWords)
+    public static void Check(BreachedPasswords breached, string? password, int minLength, params string?[] contextWords)
     {
         if (password is null) throw ApiProblemException.Invalid("PASSWORD_WEAK", "Enter a password.");
         var normalised = PasswordHasher.Normalise(password);
@@ -86,6 +86,9 @@ public static class PasswordRules
             if (!string.IsNullOrWhiteSpace(word) && word.Length >= 4 && lower.Contains(word.ToLowerInvariant(), StringComparison.Ordinal))
                 throw ApiProblemException.Invalid("PASSWORD_WEAK", "Do not use your e-mail, your name or the account name in the password.");
         }
+        ArgumentNullException.ThrowIfNull(breached);
+        if (breached.Contains(password))
+            throw ApiProblemException.Invalid("PASSWORD_BREACHED", "This password is on a list of leaked passwords. Choose another.");
     }
 }
 

@@ -1,0 +1,171 @@
+import { useCallback, useEffect, useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
+import { api, apiWithETag, message } from '../api';
+import { useFormat, useI18n } from '../i18n';
+import { Field, Form, Notice, Select, Table, useWithStepUp } from '../ui';
+
+interface UserRow { id: string; email: string; displayNameEn?: string; displayNameAr?: string; status: string; mfaEnabled: boolean; lastLoginAt?: string; roles: string[]; companyScopeMode: string }
+interface RoleRow { id: string; code: string; nameEn: string; nameAr: string; isSystem: boolean; isActive: boolean }
+interface Session { id: string; createdAt: string; lastSeenAt: string; ipAddress?: string; userAgent?: string; mfaVerified: boolean }
+
+export function useRoles() {
+  const [roles, setRoles] = useState<RoleRow[]>([]);
+  useEffect(() => { api<{ items: RoleRow[] }>('GET', '/roles').then(r => setRoles(r.items)).catch(() => setRoles([])); }, []);
+  return roles;
+}
+
+function RolePicker({ roles, value, onChange }: { roles: RoleRow[]; value: string[]; onChange: (v: string[]) => void }) {
+  const { lang, t } = useI18n();
+  return (
+    <fieldset>
+      <legend>{t('Roles')}</legend>
+      {roles.filter(r => r.isActive).map(r => (
+        <label key={r.id} className="check">
+          <input type="checkbox" checked={value.includes(r.id)} onChange={e => onChange(e.target.checked ? [...value, r.id] : value.filter(x => x !== r.id))} />
+          {r.code} · {lang === 'ar' ? r.nameAr : r.nameEn}
+          {['TM', 'FO'].includes(r.code) && <small className="muted"> {t('(needs a fresh code)')}</small>}
+        </label>
+      ))}
+    </fieldset>
+  );
+}
+
+// SCR-PLT-07
+export function Users() {
+  const { t } = useI18n();
+  const fmt = useFormat();
+  const roles = useRoles();
+  const withStepUp = useWithStepUp();
+  const [rows, setRows] = useState<UserRow[]>([]);
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [q, setQ] = useState('');
+  const [status, setStatus] = useState('');
+  const [invite, setInvite] = useState({ email: '', displayNameEn: '', displayNameAr: '', roleIds: [] as string[] });
+  const [notice, setNotice] = useState<string | null>(null);
+  const load = useCallback(async (more?: string) => {
+    const params = new URLSearchParams({ limit: '50' });
+    if (q) params.set('q', q);
+    if (status) params.set('status', status);
+    if (more) params.set('cursor', more);
+    const r = await api<{ items: UserRow[]; nextCursor: string | null }>('GET', '/users?' + params.toString());
+    setRows(prev => more ? [...prev, ...r.items] : r.items);
+    setCursor(r.nextCursor);
+  }, [q, status]);
+  useEffect(() => { void load(); }, [load]);
+  return (
+    <>
+      <section className="card">
+        <h1>{t('Users')}</h1>
+        <div className="filters">
+          <Field label="Search" value={q} onChange={setQ} required={false} />
+          <Select label="Status" value={status} onChange={setStatus} options={[{ value: '', label: 'All' }, ...['ACTIVE', 'INVITED', 'LOCKED', 'DISABLED', 'ARCHIVED'].map(s => ({ value: s, label: s }))]} />
+        </div>
+        <Table rows={rows} columns={[
+          { header: 'Name', cell: u => <Link to={`/users/${u.id}`}>{u.displayNameEn ?? u.email}</Link> },
+          { header: 'E-mail', cell: u => <span dir="ltr">{u.email}</span> },
+          { header: 'Status', cell: u => t(u.status) },
+          { header: 'Roles', cell: u => u.roles.join(', ') },
+          { header: 'Last sign-in', cell: u => fmt.dateTime(u.lastLoginAt) },
+        ]} />
+        {cursor && <button className="secondary" onClick={() => void load(cursor)}>{t('Show more')}</button>}
+      </section>
+      <Form title="Invite a user" submit="Send the invitation" onSubmit={async () => {
+        const r = await withStepUp('Giving the TM or FO role needs a fresh code.', code =>
+          api<{ invitationSent: boolean }>('POST', '/users', { ...invite, stepUpCode: code }));
+        if (!r) return;
+        setNotice(r.invitationSent ? 'The invitation is on its way.' : 'The user is created but the e-mail failed; send it again from the user.');
+        setInvite({ email: '', displayNameEn: '', displayNameAr: '', roleIds: [] });
+        await load();
+      }}>
+        <Field label="E-mail" value={invite.email} onChange={v => setInvite({ ...invite, email: v })} type="email" />
+        <Field label="Name (English)" value={invite.displayNameEn} onChange={v => setInvite({ ...invite, displayNameEn: v })} />
+        <Field label="Name (Arabic)" value={invite.displayNameAr} onChange={v => setInvite({ ...invite, displayNameAr: v })} required={false} />
+        <RolePicker roles={roles} value={invite.roleIds} onChange={v => setInvite({ ...invite, roleIds: v })} />
+        <Notice ok={notice} />
+      </Form>
+    </>
+  );
+}
+
+// SCR-PLT-08 and SCR-PLT-10
+export function UserDetail() {
+  const { id } = useParams();
+  const { t } = useI18n();
+  const fmt = useFormat();
+  const roles = useRoles();
+  const withStepUp = useWithStepUp();
+  const [user, setUser] = useState<UserRow | null>(null);
+  const [etag, setEtag] = useState('');
+  const [names, setNames] = useState({ en: '', ar: '' });
+  const [picked, setPicked] = useState<string[]>([]);
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [reason, setReason] = useState('');
+  const [notice, setNotice] = useState<{ ok?: string; error?: string }>({});
+  const load = useCallback(async () => {
+    const { data, etag: tag } = await apiWithETag<{ user: UserRow }>(`/users/${id}`);
+    setUser(data.user);
+    setEtag(tag);
+    setNames({ en: data.user.displayNameEn ?? '', ar: data.user.displayNameAr ?? '' });
+    setSessions((await api<{ items: Session[] }>('GET', `/users/${id}/sessions`)).items);
+  }, [id]);
+  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { if (user && roles.length) setPicked(roles.filter(r => user.roles.includes(r.code)).map(r => r.id)); }, [user, roles]);
+  if (!user) return null;
+  const act = async (action: string, needsCode = false) => {
+    setNotice({});
+    try {
+      const run = (code?: string) => api('POST', `/users/${id}/actions/${action}`, { reason: reason || undefined, stepUpCode: code });
+      if (needsCode) await withStepUp('Resetting the authenticator needs a fresh code.', run); else await run();
+      setNotice({ ok: 'Done.' });
+      await load();
+    } catch (e) { setNotice({ error: message(e) }); }
+  };
+  return (
+    <>
+      <section className="card">
+        <h1>{user.displayNameEn ?? user.email}</h1>
+        <p><span dir="ltr">{user.email}</span> · {t(user.status)} · {t(user.mfaEnabled ? 'Authenticator set up' : 'No authenticator yet')}</p>
+        <Field label="Reason (for disable and authenticator reset)" value={reason} onChange={setReason} required={false} />
+        <div className="actions">
+          {user.status === 'ACTIVE' && <button className="secondary" onClick={() => void act('disable')}>{t('Disable')}</button>}
+          {user.status === 'DISABLED' && <button className="secondary" onClick={() => void act('enable')}>{t('Enable')}</button>}
+          {['INVITED', 'DISABLED'].includes(user.status) && <button className="secondary" onClick={() => void act('archive')}>{t('Archive')}</button>}
+          {user.status === 'LOCKED' && <button className="secondary" onClick={() => void act('unlock')}>{t('Unlock')}</button>}
+          {user.mfaEnabled && <button className="secondary" onClick={() => void act('reset-mfa', true)}>{t('Reset authenticator')}</button>}
+          {user.status === 'INVITED' && <button className="secondary" onClick={() => void act('resend-invitation')}>{t('Send the invitation again')}</button>}
+          {user.status === 'ACTIVE' && <button className="secondary" onClick={() => void act('send-password-reset')}>{t('Send a password reset link')}</button>}
+        </div>
+        <Notice ok={notice.ok} error={notice.error} />
+      </section>
+      <Form title="Details" submit="Save" onSubmit={async () => {
+        await api('PATCH', `/users/${id}`, { displayNameEn: names.en, displayNameAr: names.ar }, etag);
+        await load();
+      }}>
+        <Field label="Name (English)" value={names.en} onChange={v => setNames({ ...names, en: v })} />
+        <Field label="Name (Arabic)" value={names.ar} onChange={v => setNames({ ...names, ar: v })} required={false} />
+      </Form>
+      <Form title="Roles" submit="Save roles" onSubmit={async () => {
+        await withStepUp('Giving the TM or FO role needs a fresh code.', code => api('PUT', `/users/${id}/roles`, { roleIds: picked, stepUpCode: code }, etag));
+        await load();
+      }}>
+        <RolePicker roles={roles} value={picked} onChange={setPicked} />
+      </Form>
+      <Form title="Company scope" submit="Save scope" onSubmit={async () => {
+        await api('PUT', `/users/${id}/company-scope`, { mode: user.companyScopeMode === 'ALL' ? 'SELECTED' : 'ALL', companies: [] }, etag);
+        await load();
+      }}>
+        <p>{t(user.companyScopeMode === 'ALL' ? 'Sees every company.' : 'Sees only the companies chosen for them.')}</p>
+        <p className="muted">{t('Companies are added in the companies module (S1).')}</p>
+      </Form>
+      <section className="card">
+        <h2>{t('Sessions')}</h2>
+        <Table rows={sessions} empty="No open session." columns={[
+          { header: 'Started', cell: s => fmt.dateTime(s.createdAt) },
+          { header: 'Last seen', cell: s => fmt.dateTime(s.lastSeenAt) },
+          { header: 'Address', cell: s => <span dir="ltr">{s.ipAddress}</span> },
+          { header: '', cell: s => <button className="link" onClick={async () => { await api('DELETE', `/users/${id}/sessions/${s.id}`); await load(); }}>{t('End')}</button> },
+        ]} />
+      </section>
+    </>
+  );
+}
