@@ -15,8 +15,8 @@ case "$ci_host" in
            || ci_guard_refuse "CI drops BankFas: it runs only against a server on this machine, not $ci_host (set BANKFAS_CI_THROWAWAY_SERVER=1 for a throwaway server)" ;;
 esac
 # the T-SQL batch that refuses, before a DROP DATABASE, a BankFas that holds real tenants
-ci_guard_drop_sql() {
-    printf '%s\n' "IF DB_ID(N'BankFas') IS NOT NULL AND OBJECT_ID(N'BankFas.plat.Tenant') IS NOT NULL
-   AND EXISTS (SELECT 1 FROM [BankFas].plat.Tenant WHERE Code NOT LIKE N'perf-%')
-    THROW 50991, 'BankFas holds tenants that no CI or performance run made: this is not a throwaway server (ci_guard.sh, D10)', 1;"
+ci_guard_drop_sql() {   # dynamic, so that a server without BankFas compiles it (a fresh CI container)
+    printf '%s\n' "IF DB_ID(N'BankFas') IS NOT NULL
+    EXEC (N'IF OBJECT_ID(N''BankFas.plat.Tenant'') IS NOT NULL AND EXISTS (SELECT 1 FROM [BankFas].plat.Tenant WHERE Code NOT LIKE N''perf-%'')
+        THROW 50991, ''BankFas holds tenants that no CI or performance run made: this is not a throwaway server (ci_guard.sh, D10)'', 1;');"
 }
