@@ -103,7 +103,7 @@ check() {   # chain key: verify it against the store; prints one line, sets bad
     read -r seq hash taken <<< "$(awk -F'\t' -v k="$key" '$1 == k { print $2 "\t" $3 "\t" $4 }' "$WORK/latest")"
     read -r head first <<< "$(awk -F'\t' -v k="$key" '$1 == k { print $2 "\t" $4 }' "$WORK/chains")"
     if [ -z "$seq" ]; then
-        if [ "$cmd" = "verify" ] && [ -n "$first" ] && [ $(( now - $(epoch "$first") )) -gt $(( MAX_AGE_H * 3600 )) ]; then
+        if [ "$cmd" = "verify" ] && [ -n "$first" ] && [ $(( now - $(epoch "$first") )) -ge $(( MAX_AGE_H * 3600 )) ]; then
             echo "chain $key: NOT_ANCHORED (head ${head:-0}; first row $first, no anchor in the store)"; bad=1
         else
             echo "chain $key: new, not anchored yet (head ${head:-0})"
@@ -133,7 +133,7 @@ SQL
     status="${res%%|*}"
     # only verify judges the age: take is what makes the store current again, so it must not refuse for it
     if [ "$status" = "OK" ] && [ "$cmd" = "verify" ] && [ "${head:-0}" -gt "$seq" ] \
-       && [ $(( now - $(epoch "$taken") )) -gt $(( MAX_AGE_H * 3600 )) ]; then
+       && [ $(( now - $(epoch "$taken") )) -ge $(( MAX_AGE_H * 3600 )) ]; then
         status="STALE"; res="STALE|$seq|${res#*|*|}"
     fi
     echo "chain $key: $status (anchor ${seq:-none}; ${res#*|})"
