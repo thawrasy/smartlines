@@ -36,8 +36,12 @@ anchor verify "$STORE"; r1=$rc
 result "$([ "$r1" = "0" ] && grep -q '^chain 0: OK' "$TMP/a.out" && echo 1)" \
     "AA2: audit_anchor.sh verify checks each chain against its latest anchor" "exit $r1: $(tr '\n' ' ' < "$TMP/a.out")"
 
-# AA3: an administrator changes the first platform audit row, past the row filter: verify fails (exit 1, BROKEN at 1);
-# put back, it passes again.
+# AA3: an administrator changes the first platform audit row, past the row filter, without computing hashes again. The
+# daily check from the anchor reads only the anchor's row and after, so it passes (its known limit); the weekly full
+# check fails (exit 1, BROKEN at 1); put back, the full check passes again.
+# A new anchor first: on a fresh database the platform chain is short, and row 1 must lie before the latest anchor.
+sleep 1
+anchor take "$STORE"
 cat > "$TMP/tamper.sql" <<'SQL'
 SET NOCOUNT ON;
 ALTER SECURITY POLICY rls.TP_aud_AuditLog WITH (STATE = OFF);
@@ -45,9 +49,10 @@ UPDATE aud.AuditLog SET Action = Action + 'X' WHERE TenantId IS NULL AND ChainSe
 ALTER SECURITY POLICY rls.TP_aud_AuditLog WITH (STATE = ON);
 SQL
 "$SQLCMD" -S "$SQL_SERVER" -U sa -C -I -b -d BankFas -i "$TMP/tamper.sql" >/dev/null
-anchor verify "$STORE"; r1=$rc; grep -q '^chain 0: BROKEN (anchor [0-9]*; 1|' "$TMP/a.out" || r1=x
+anchor verify "$STORE"; r0=$rc
+anchor verify "$STORE" --full; r1=$rc; grep -q '^chain 0: BROKEN (anchor [0-9]*; 1|' "$TMP/a.out" || r1=x
 sed "s/SET Action = Action + 'X'/SET Action = LEFT(Action, LEN(Action) - 1)/" "$TMP/tamper.sql" > "$TMP/restore.sql"
 "$SQLCMD" -S "$SQL_SERVER" -U sa -C -I -b -d BankFas -i "$TMP/restore.sql" >/dev/null
-anchor verify "$STORE"; r2=$rc
-result "$([ "$r1/$r2" = "1/0" ] && echo 1)" \
-    "AA3: a changed platform audit row fails the verification against the anchor kept outside, and passes once put back" "exit $r1/$r2: $(tr '\n' ' ' < "$TMP/a.out")"
+anchor verify "$STORE" --full; r2=$rc
+result "$([ "$r0/$r1/$r2" = "0/1/0" ] && echo 1)" \
+    "AA3: an old audit row changed without its hash passes the daily check, fails the full check, and passes once put back" "exit $r0/$r1/$r2: $(tr '\n' ' ' < "$TMP/a.out")"

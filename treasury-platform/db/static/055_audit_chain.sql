@@ -23,7 +23,11 @@
      aud.usp_VerifyAuditChain    the same job: checks a chain against an anchor read back from that store. Every
                                  row's hash is computed again, each row must link to the one before it, the numbers run
                                  from 1 without a gap, no row of the chain is left without a number, the head matches
-                                 the last row, and the row at the anchor's number still has the anchor's hash. An
+                                 the last row, and the row at the anchor's number still has the anchor's hash. The
+                                 daily check runs from the anchor (@FromAnchor = 1): the anchor's row and the rows after
+                                 it, so its cost follows the day's rows, not the size of the log; a full check (weekly)
+                                 reads every row, since only it sees an old row changed without its hash computed
+                                 again (the performance run, docs/40: a full check costs about 33 microseconds a row). An
                                  administrator of the database can change rows and compute every hash again, but not
                                  the anchors held outside it: the first anchor after the change no longer matches.
                                  Rows removed after the last anchor are found by the next anchor only, so the job
@@ -140,7 +144,8 @@ CREATE OR ALTER PROCEDURE aud.usp_VerifyAuditChain
     @AnchorHash  VARBINARY(32) = NULL,
     @Status      VARCHAR(20) = NULL OUTPUT, -- OK, BROKEN, GAP, UNCHAINED, HEAD_MISMATCH, ANCHOR_MISMATCH, ANCHOR_MISSING
     @BadSeq      BIGINT = NULL OUTPUT,      -- the first number found wrong
-    @Rows        BIGINT = NULL OUTPUT
+    @Rows        BIGINT = NULL OUTPUT,
+    @FromAnchor  BIT = 0                    -- 1: the anchor's row and the rows after it only (the daily check)
 WITH EXECUTE AS N'tp_auth_exec'
 AS
 BEGIN
@@ -149,28 +154,43 @@ BEGIN
     IF @JobKey IS NULL OR @JobKey <> 'JOB-PLT-AUDIT-CHAIN'
        OR NOT EXISTS (SELECT 1 FROM cfg.JobDefinition WHERE JobKey = @JobKey AND Scope = 'PLATFORM' AND IsActive = 1)
         THROW 50099, 'The audit chain is verified by the job JOB-PLT-AUDIT-CHAIN', 1;
+    IF @FromAnchor = 1 AND @AnchorSeq IS NULL THROW 50099, 'A check from the anchor needs the anchor', 1;
     IF @ChainKey IS NULL OR @ChainKey < 0 THROW 50099, 'A chain key is a TenantId, or 0 for the platform events', 1;
     IF (@AnchorSeq IS NULL AND @AnchorHash IS NOT NULL) OR (@AnchorSeq IS NOT NULL AND @AnchorHash IS NULL) THROW 50099, 'An anchor is given with its number and its hash', 1;
     SELECT @Status = 'OK', @BadSeq = NULL, @Rows = 0;
-    DECLARE @headSeq BIGINT, @headHash VARBINARY(32), @after NVARCHAR(800), @maxSeq BIGINT, @unchained BIGINT;
+    DECLARE @headSeq BIGINT, @headHash VARBINARY(32), @after NVARCHAR(800), @maxSeq BIGINT, @unchained BIGINT,
+            @from BIGINT = CASE WHEN @FromAnchor = 1 THEN @AnchorSeq ELSE 1 END, @fromPrev VARBINARY(32), @fromId BIGINT;
     SELECT @headSeq = LastSeq, @headHash = LastHash FROM aud.AuditChainHead WHERE ChainKey = @ChainKey;
+    -- from the anchor: the row before it is taken as stored; a rewrite of the rows before the anchor that computes the
+    -- hashes again changes the anchor's row, which no longer matches the anchor kept outside
+    SELECT @fromPrev = RowHash FROM aud.AuditLog
+    WHERE (TenantId = @ChainKey OR (@ChainKey = 0 AND TenantId IS NULL)) AND ChainSeq = @from - 1 OPTION (RECOMPILE);
+    SELECT @fromId = AuditLogId FROM aud.AuditLog
+    WHERE (TenantId = @ChainKey OR (@ChainKey = 0 AND TenantId IS NULL)) AND ChainSeq = @from OPTION (RECOMPILE);
     SELECT x.ChainSeq, x.RowHash, x.PrevHash, LAG(x.RowHash) OVER (ORDER BY x.ChainSeq) AS PriorHash,
-           h.RowHash AS Computed, ROW_NUMBER() OVER (ORDER BY x.ChainSeq) AS Pos
+           h.RowHash AS Computed, ROW_NUMBER() OVER (ORDER BY x.ChainSeq) + @from - 1 AS Pos
     INTO #rows
     FROM aud.AuditLog AS a
     CROSS APPLY aud.fn_AuditCanonical(a.AuditLogId) AS x
     CROSS APPLY aud.fn_AuditRowHash(x.PrevHash, x.ChainSeq, x.Canonical) AS h
-    WHERE ISNULL(a.TenantId, 0) = @ChainKey AND a.ChainSeq IS NOT NULL;
+    -- a filter the index (TenantId, ChainSeq) can seek on; ISNULL(TenantId, 0) = @ChainKey would scan the whole log
+    -- (the performance run, docs/40)
+    WHERE (a.TenantId = @ChainKey OR (@ChainKey = 0 AND a.TenantId IS NULL)) AND a.ChainSeq >= @from
+    OPTION (RECOMPILE);
     SELECT @Rows = COUNT_BIG(*), @maxSeq = MAX(ChainSeq) FROM #rows;
-    SET @unchained = (SELECT COUNT_BIG(*) FROM aud.AuditLog WHERE ISNULL(TenantId, 0) = @ChainKey AND ChainSeq IS NULL);
+    -- rows without a number: all of the chain's, or those written after the anchor's row
+    SELECT @unchained = COUNT_BIG(*) FROM aud.AuditLog
+    WHERE (TenantId = @ChainKey OR (@ChainKey = 0 AND TenantId IS NULL)) AND ChainSeq IS NULL
+      AND (@FromAnchor = 0 OR AuditLogId > @fromId) OPTION (RECOMPILE);
     -- the first row whose number, link or hash is wrong
     SELECT TOP (1) @BadSeq = ChainSeq,
            @Status = CASE WHEN ChainSeq <> Pos THEN 'GAP' ELSE 'BROKEN' END
     FROM #rows
     WHERE ChainSeq <> Pos
        OR RowHash IS NULL OR RowHash <> Computed
-       OR (Pos = 1 AND PrevHash IS NOT NULL)
-       OR (Pos > 1 AND (PrevHash IS NULL OR PrevHash <> PriorHash))
+       OR (Pos = @from AND @from = 1 AND PrevHash IS NOT NULL)
+       OR (Pos = @from AND @from > 1 AND (PrevHash IS NULL OR PrevHash <> @fromPrev))
+       OR (Pos > @from AND (PrevHash IS NULL OR PrevHash <> PriorHash))
     ORDER BY ChainSeq;
     IF @Status = 'OK' AND @unchained > 0 SET @Status = 'UNCHAINED';
     IF @Status = 'OK' AND (ISNULL(@headSeq, 0) <> ISNULL(@maxSeq, 0)
@@ -183,7 +203,8 @@ BEGIN
         ELSE IF (SELECT RowHash FROM #rows WHERE ChainSeq = @AnchorSeq) <> @AnchorHash
             SELECT @Status = 'ANCHOR_MISMATCH', @BadSeq = @AnchorSeq;
     END;
-    SET @after = (SELECT @ChainKey AS chainKey, @Rows AS rowsChecked, @unchained AS unchained, @AnchorSeq AS anchorSeq,
+    SET @after = (SELECT @ChainKey AS chainKey, CASE WHEN @FromAnchor = 1 THEN 'FROM_ANCHOR' ELSE 'FULL' END AS mode,
+                         @Rows AS rowsChecked, @unchained AS unchained, @AnchorSeq AS anchorSeq,
                          @Status AS status, @BadSeq AS badSeq FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
     IF @Status = 'OK'
         EXEC aud.usp_WriteEvent @TenantId = NULL, @Action = 'AUDIT_CHAIN_VERIFIED', @Category = 'PLATFORM', @ActorType = 'JOB',

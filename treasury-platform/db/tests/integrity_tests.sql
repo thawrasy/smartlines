@@ -81,12 +81,12 @@ END;
 GO
 -- A job run of the chain procedures, as tp_jobs.
 CREATE PROCEDURE #Verify @ChainKey INT, @AnchorSeq BIGINT = NULL, @AnchorHash VARBINARY(32) = NULL,
-                         @Status VARCHAR(20) OUTPUT, @BadSeq BIGINT OUTPUT
+                         @Status VARCHAR(20) OUTPUT, @BadSeq BIGINT OUTPUT, @FromAnchor BIT = 0, @Rows BIGINT = NULL OUTPUT
 AS
 BEGIN
     EXECUTE AS USER = N'tp_test_ijob';
     EXEC aud.usp_VerifyAuditChain @JobKey = 'JOB-PLT-AUDIT-CHAIN', @ChainKey = @ChainKey, @AnchorSeq = @AnchorSeq,
-         @AnchorHash = @AnchorHash, @Status = @Status OUTPUT, @BadSeq = @BadSeq OUTPUT;
+         @AnchorHash = @AnchorHash, @Status = @Status OUTPUT, @BadSeq = @BadSeq OUTPUT, @Rows = @Rows OUTPUT, @FromAnchor = @FromAnchor;
     REVERT;
 END;
 GO
@@ -276,6 +276,23 @@ EXEC #Try N'DECLARE @t INT = (SELECT v FROM #K WHERE k = ''t'');
 IF @e = 0 AND @o = 'UNCHAINED' AND @e2 = 50099
     PRINT 'PASS AC5: a row written with the chain trigger off is reported (UNCHAINED) and cannot be chained afterwards (50099)';
 ELSE PRINT CONCAT('FAIL AC5: ', @e, ' ', @o, ', chain afterwards ', @e2);
+
+/* AC7: the daily check from the anchor reads the anchor's row and the rows after it only (2 of 3). An old row changed
+   without its hash computed again passes it (the limit of the daily check) and fails the full check (BROKEN at 1);
+   the same change with every hash computed again is caught from the anchor (ANCHOR_MISMATCH at 2). */
+EXEC #Try N'DECLARE @t INT = (SELECT v FROM #K WHERE k = ''t''), @h VARBINARY(32), @s1 VARCHAR(20), @b1 BIGINT, @n1 BIGINT, @s2 VARCHAR(20), @b2 BIGINT,
+                    @s3 VARCHAR(20), @b3 BIGINT, @s4 VARCHAR(20), @b4 BIGINT;
+    SET @h = (SELECT RowHash FROM aud.AuditLog WHERE TenantId = @t AND ChainSeq = 2);
+    EXEC #Verify @t, 2, @h, @s1 OUTPUT, @b1 OUTPUT, 1, @n1 OUTPUT;
+    UPDATE aud.AuditLog SET AfterJson = N''{"n":1}'' WHERE TenantId = @t AND ChainSeq = 1;
+    EXEC #Verify @t, 2, @h, @s2 OUTPUT, @b2 OUTPUT, 1;
+    EXEC #Verify @t, 2, @h, @s3 OUTPUT, @b3 OUTPUT;
+    EXEC #Rehash @t, 1;
+    EXEC #Verify @t, 2, @h, @s4 OUTPUT, @b4 OUTPUT, 1;
+    SET @out = CONCAT(@s1, '':'', @n1, ''/'', @s2, ''/'', @s3, '':'', @b3, ''/'', @s4, '':'', @b4);', @e OUTPUT, @o OUTPUT;
+IF @e = 0 AND @o = 'OK:2/OK/BROKEN:1/ANCHOR_MISMATCH:2'
+    PRINT 'PASS AC7: the daily check from the anchor reads only the new rows, still catches a rewrite with every hash again, and leaves old rows to the full check';
+ELSE PRINT CONCAT('FAIL AC7: ', @e, ' ', @o);
 
 /* AC6: only the job runs the chain procedures, with its own key: the tenant application has no right (229), and
    another job key is refused (50099). Nobody but the trigger and procedures writes the head or the anchors. */

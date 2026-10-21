@@ -629,11 +629,11 @@ if grep -qaE "$FAIL_RE" "$TMP/integrity.out"; then
     exit 1
 fi
 in_pass=$(grep -oaE "$PASS_RE" "$TMP/integrity.out" | sort -u | wc -l)
-# 12 cases: KG1-KG6 (DR-20: new rows on an ACTIVE key only, the key lifecycle, retirement only when unused, revocation
-# at once, every key column guarded) and AC1-AC6 (FR-PLT-025: the chain, the anchors, changed, removed and unchained
-# rows, the job's rights).
-if [ "$in_pass" -ne 12 ]; then
-    echo "expected 12 PASS, found $in_pass"
+# 13 cases: KG1-KG6 (DR-20: new rows on an ACTIVE key only, the key lifecycle, retirement only when unused, revocation
+# at once, every key column guarded) and AC1-AC7 (FR-PLT-025: the chain, the anchors, changed, removed and unchained
+# rows, the job's rights, the daily check from the anchor).
+if [ "$in_pass" -ne 13 ]; then
+    echo "expected 13 PASS, found $in_pass"
     exit 1
 fi
 echo "integrity tests: $in_pass passed"
@@ -645,8 +645,8 @@ if grep -qaE "$FAIL_RE" "$TMP/anchor.out"; then
     exit 1
 fi
 aa_pass=$(grep -oaE "$PASS_RE" "$TMP/anchor.out" | sort -u | wc -l)
-# 3 checks: AA1 (a new read-only file per run), AA2 (each chain verified against its latest anchor), AA3 (a changed row
-# fails the verification, and passes once put back).
+# 3 checks: AA1 (a new read-only file per run), AA2 (each chain verified against its latest anchor), AA3 (an old row
+# changed passes the daily check, fails the full check, and passes once put back).
 if [ "$aa_pass" -ne 3 ]; then
     echo "expected 3 PASS, found $aa_pass"
     exit 1
@@ -698,4 +698,21 @@ if [ "$left" != "0/0/0/0/0/0" ]; then
     exit 1
 fi
 echo "every key and check is trusted, every trigger and row filter is on, and no test user or tenant is left ($left)"
+echo "== 24. the performance scripts at small sizes (tools/perf/run_perf.sh, ADR 0036); it builds BankFas again, so it runs last"
+# The full measurement (300 tenants, three at the volume of NFR-SCL-02) takes about forty minutes and is run by hand
+# (docs/40); here the same scripts run on 1 full and 3 light tenants, so a change of the schema cannot break them unseen.
+SA_PASSWORD="$SA_PASSWORD" SQL_SERVER="$SQL_SERVER" SQLCMD="$SQLCMD" PERF_FULL=1 PERF_LIGHT=3 PERF_COMPANIES=10 PERF_YEARS=2 \
+    PERF_AUDIT=2000 PERF_SESSIONS=1000 PERF_LIGHT_AUDIT=200 PERF_ITER=5 PERF_BIND=5 PERF_WRITERS=2 PERF_WRITES=50 \
+    PERF_OUT="$TMP/perf-run.txt" PERF_REPORT="$TMP/perf-results.md" bash tools/perf/run_perf.sh > "$TMP/perf.out" 2>&1 || {
+    tail -30 "$TMP/perf.out"
+    echo "the performance scripts failed"
+    exit 1
+}
+perf_n=$(grep -c '^RESULT|' "$TMP/perf-run.txt")
+if [ "$perf_n" -ne 18 ] || ! grep -q '^INFO|C1|chain after the concurrent writers|[0-9]* OK$' "$TMP/perf-run.txt"; then
+    tail -30 "$TMP/perf-run.txt"
+    echo "the performance run gave $perf_n results (expected 18), or the chain was not OK after the concurrent writers"
+    exit 1
+fi
+echo "performance scripts: $perf_n results, the chain OK after the concurrent writers"
 echo "all database checks passed"

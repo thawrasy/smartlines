@@ -6,8 +6,12 @@
 #                                    to a new file in <store>, anchors-<UTC time>.tsv, one line per chain:
 #                                    chain key, number, SHA-256 in hex, time taken. A file is never written twice
 #                                    (noclobber) and is made read-only.
-#   audit_anchor.sh verify <store>   checks each chain of the files against its latest anchor
-#                                    (aud.usp_VerifyAuditChain). Exit code 1 when a chain is not OK; each result is
+#   audit_anchor.sh verify <store> [--full]
+#                                    checks each chain of the files against its latest anchor
+#                                    (aud.usp_VerifyAuditChain): daily, from the anchor (the anchor's row and the rows
+#                                    after it, so the cost follows the day's rows); with --full, weekly, every row,
+#                                    which alone sees an old row changed without its hash computed again (ADR 0033,
+#                                    docs/40). Exit code 1 when a chain is not OK; each result is
 #                                    also an audit row (AUDIT_CHAIN_VERIFIED, or AUDIT_CHAIN_BROKEN, high severity),
 #                                    from which AL-12 raises the alert (DOC-S12 section 6).
 #
@@ -26,7 +30,9 @@ SQLCMD="${SQLCMD:-sqlcmd}"
 SQLCMD_OPTS="${SQLCMD_OPTS-}"
 # shellcheck source=tools/deploy/preflight.sh
 . "$HERE/preflight.sh"
-[ $# -eq 2 ] && { [ "$1" = "take" ] || [ "$1" = "verify" ]; } || bankfas_refuse "usage: audit_anchor.sh take|verify <store>"
+full=0
+if [ $# -eq 3 ] && [ "$1" = "verify" ] && [ "$3" = "--full" ]; then full=1; set -- "$1" "$2"; fi
+[ $# -eq 2 ] && { [ "$1" = "take" ] || [ "$1" = "verify" ]; } || bankfas_refuse "usage: audit_anchor.sh take <store> | verify <store> [--full]"
 cmd="$1" store="$2"
 [ -d "$store" ] || bankfas_refuse "no folder $store"
 : "${SQLCMDPASSWORD:?set SQLCMDPASSWORD for the login $SQL_USER}"
@@ -62,7 +68,7 @@ while IFS=$'\t' read -r key seq hash; do
 SET NOCOUNT ON;
 DECLARE @s VARCHAR(20), @b BIGINT, @n BIGINT;
 EXEC aud.usp_VerifyAuditChain @JobKey = 'JOB-PLT-AUDIT-CHAIN', @ChainKey = $key, @AnchorSeq = $seq, @AnchorHash = 0x$hash,
-     @Status = @s OUTPUT, @BadSeq = @b OUTPUT, @Rows = @n OUTPUT;
+     @FromAnchor = $((1 - full)), @Status = @s OUTPUT, @BadSeq = @b OUTPUT, @Rows = @n OUTPUT;
 SELECT CONCAT(@s, '|', @b, '|', @n);
 SQL
 )"
