@@ -10,7 +10,8 @@ decision.
 
 The owner asked that the study of a balance sheet give a comprehensive assessment, with its strengths drawn from the
 financial ratios, how they sit with the covenants, and the resulting risks, in a report of the system; the criteria
-on the basis of Moody's, which most banks use: a weight for each ratio, risk grades for each balance sheet item and the
+on the basis of Moody's published rating scale and scorecard approach (the owner's choice; ADR 0038 corrects an
+earlier claim about how widely it is used): a weight for each ratio, risk grades for each balance sheet item and the
 analyses drawn from them. The link to an external credit rating system stays a later phase.
 
 The model held approved statements, their units, the covenant tests that read them, the breach register and the bank

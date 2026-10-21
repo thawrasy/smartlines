@@ -117,7 +117,8 @@ BEGIN
             @bu BIT, @buOut FLOAT, @buLimits FLOAT, @buLenders INT, @buDpd12 INT, @buDefault BIT, @buDefaults24 INT, @buBouncedN INT, @buBouncedAmt FLOAT,
             @buJudg FLOAT, @buRestructured BIT, @buInquiries INT, @buMonthsAfterPe INT,
             @qualBp FLOAT, @qualFp FLOAT, @docBp BIT, @docFp BIT, @prodCfq FLOAT, @prodConc FLOAT, @invCrisis FLOAT, @invDays FLOAT,
-            @support INT, @parentNotch INT, @override INT, @guLiquid FLOAT, @guNetWorth FLOAT, @guGiven FLOAT, @guGuaranteed FLOAT, @guMaxLev FLOAT;
+            @support INT, @parentNotch INT, @override INT, @guLiquid FLOAT, @guNetWorth FLOAT, @guGiven FLOAT, @guGuaranteed FLOAT, @guMaxLev FLOAT,
+            @months INT, @pmonths INT, @buAge INT;
     SELECT @card = ScorecardId, @pt = PeriodType, @ppt = PriorPeriodType, @hasPrior = HasPrior, @fx = Fx, @assurance = Assurance, @opinion = Opinion,
            @goingConcern = GoingConcern, @holdco = HoldingStandalone, @breach = Breach, @breachAtPe = BreachAtPeriodEnd, @flowShortfall = FlowShortfall,
            @ageMonths = StatementAgeMonths, @restatedPct = RestatedPct, @industry = IndustryId, @country = CountryId, @marketSize = MarketSize, @rollFactor = RolloverFactor,
@@ -130,7 +131,8 @@ BEGIN
            @qualBp = QualBp, @qualFp = QualFp, @docBp = DocBp, @docFp = DocFp, @prodCfq = ProdCashFlowQuality, @prodConc = ProdConcentration,
            @invCrisis = InvCrisisValue, @invDays = InvDaysStagnant,
            @support = Support, @parentNotch = ParentNotch, @override = Override,
-           @guLiquid = GuLiquid, @guNetWorth = GuNetWorth, @guGiven = GuGiven, @guGuaranteed = GuGuaranteed, @guMaxLev = GuMaxLeverage
+           @guLiquid = GuLiquid, @guNetWorth = GuNetWorth, @guGiven = GuGiven, @guGuaranteed = GuGuaranteed, @guMaxLev = GuMaxLeverage,
+           @months = PeriodMonths, @pmonths = PriorPeriodMonths, @buAge = BuAgeMonths
     FROM #crX;
     DELETE #crQ; DELETE #crM; DELETE #crF; DELETE #crI; DELETE #crA; DELETE #crR; DELETE #crD; DELETE #crS;
 
@@ -142,7 +144,7 @@ BEGIN
     DECLARE @eosbPct FLOAT, @maintCapex FLOAT, @invSlowHaircut FLOAT, @arFallbackDso FLOAT, @stiLiq FLOAT, @partnersLiq FLOAT, @rollPct FLOAT, @rollMaxExp FLOAT,
             @urPct FLOAT, @urFloor FLOAT, @rateShock FLOAT, @govExtra FLOAT, @retExtra FLOAT, @notchFloor INT, @hiddenPct FLOAT,
             @sgl1 FLOAT, @sgl2 FLOAT, @sgl3 FLOAT, @severe FLOAT, @staffFixed FLOAT, @sellFixed FLOAT, @gaStaff FLOAT, @fbFixed FLOAT,
-            @lgdMaxUp INT, @lgdMaxUpNear INT, @lgdBestNotch INT;
+            @lgdMaxUp INT, @lgdMaxUpNear INT, @lgdBestNotch INT, @buMaxAge INT, @hiddenWindow INT;
     SELECT @eosbPct = MAX(CASE WHEN GroupCode = 'CARD' AND ParamKey = 'eosb_debt_pct' THEN Value END),
            @maintCapex = MAX(CASE WHEN GroupCode = 'CARD' AND ParamKey = 'maint_capex_factor' THEN Value END),
            @invSlowHaircut = MAX(CASE WHEN GroupCode = 'CARD' AND ParamKey = 'inv_slow_haircut' THEN Value END),
@@ -158,6 +160,8 @@ BEGIN
            @retExtra = MAX(CASE WHEN GroupCode = 'CARD' AND ParamKey = 'retentions_overdue_extra_haircut' THEN Value END),
            @notchFloor = MAX(CASE WHEN GroupCode = 'CARD' AND ParamKey = 'NOTCH_FLOOR' THEN Value END),
            @hiddenPct = MAX(CASE WHEN GroupCode = 'CARD' AND ParamKey = 'HIDDEN_DEBT_PCT' THEN Value END),
+           @buMaxAge = MAX(CASE WHEN GroupCode = 'CARD' AND ParamKey = 'BUREAU_MAX_AGE_MONTHS' THEN Value END),
+           @hiddenWindow = MAX(CASE WHEN GroupCode = 'CARD' AND ParamKey = 'HIDDEN_DEBT_WINDOW_MONTHS' THEN Value END),
            @lgdMaxUp = MAX(CASE WHEN GroupCode = 'CARD' AND ParamKey = 'LGD_MAX_UP' THEN Value END),
            @lgdMaxUpNear = MAX(CASE WHEN GroupCode = 'CARD' AND ParamKey = 'LGD_MAX_UP_NEAR_DEFAULT' THEN Value END),
            @lgdBestNotch = MAX(CASE WHEN GroupCode = 'CARD' AND ParamKey = 'LGD_BEST_FACILITY_NOTCH' THEN Value END),
@@ -168,13 +172,16 @@ BEGIN
            @gaStaff = MAX(CASE WHEN GroupCode = 'FIXED_COST' AND ParamKey = 'ga_staff_share_pct' THEN Value END),
            @fbFixed = MAX(CASE WHEN GroupCode = 'FIXED_COST' AND ParamKey = 'fallback_opex_fixed_pct' THEN Value END)
     FROM @prm;
+    -- a bureau report older than the card's maximum age at the assessment date is not read (review E16)
+    IF @bu = 1 AND ISNULL(@buAge, 0) > @buMaxAge SET @bu = 0;
     DECLARE @H TABLE (Bucket VARCHAR(40) COLLATE DATABASE_DEFAULT PRIMARY KEY, Keep FLOAT);   -- 1 - haircut
     INSERT @H SELECT ParamKey, 1 - Value / 100 FROM @prm WHERE GroupCode = 'REALISABLE_HAIRCUT';
 
     -- The lines: a LINE absent is zero, a TOTAL absent unknown, a breakdown or disclosure absent unknown, an OF_WHICH
-    -- above its parent (by more than one unit) unknown; flows are annualised (docs/35 section 4).
-    DECLARE @k FLOAT = 12.0 / CASE @pt WHEN 'ANNUAL' THEN 12 WHEN 'SEMIANNUAL' THEN 6 WHEN 'QUARTERLY' THEN 3 ELSE 1 END,
-            @pk FLOAT = 12.0 / CASE @ppt WHEN 'ANNUAL' THEN 12 WHEN 'SEMIANNUAL' THEN 6 WHEN 'QUARTERLY' THEN 3 ELSE 1 END;
+    -- above its parent (by more than one unit) unknown; flows are annualised by the months the statement covers, from its
+    -- start and end dates when it has them, else from its period type (docs/35 section 4, review E13).
+    DECLARE @k FLOAT = 12.0 / ISNULL(@months, CASE @pt WHEN 'ANNUAL' THEN 12 WHEN 'SEMIANNUAL' THEN 6 WHEN 'QUARTERLY' THEN 3 ELSE 1 END),
+            @pk FLOAT = 12.0 / ISNULL(@pmonths, CASE @ppt WHEN 'ANNUAL' THEN 12 WHEN 'SEMIANNUAL' THEN 6 WHEN 'QUARTERLY' THEN 3 ELSE 1 END);
     DECLARE @raw TABLE (Which CHAR(1) NOT NULL, Code VARCHAR(40) COLLATE DATABASE_DEFAULT NOT NULL, Amount FLOAT NULL, PRIMARY KEY (Which, Code));
     INSERT @raw SELECT 'C', Code, Amount FROM #crL WHERE Amount IS NOT NULL;
     INSERT @raw SELECT 'P', Code, Amount FROM #crP WHERE Amount IS NOT NULL AND @hasPrior = 1;
@@ -317,15 +324,22 @@ BEGIN
                           + @SHAREHOLDER_LOANS_UNSUB + @PARTNERS_CURRENT_ACCOUNTS + @supplier + @DIVIDENDS_PAYABLE + @eosbA + @shlSubDebt + @ccDebt + @fact,
             @bankDebt FLOAT = @ST_LOANS + @BANK_ACCEPTANCES + @CURRENT_PORTION_LTD + @LT_LOANS + @fact + @supplier,
             @hidden FLOAT = 0;
-    -- the credit bureau: debt in SIMAH above the statement's bank debt, within six months of the period end
-    IF @bu = 1 AND ISNULL(@buMonthsAfterPe, 0) <= 6
+    -- the credit bureau: debt in SIMAH above the statement's bank debt, in a report dated within the card's window after
+    -- the period end (HIDDEN_DEBT_WINDOW_MONTHS); a later report may show borrowing after the period
+    -- (six months for a scorecard approved before the parameter existed)
+    IF @bu = 1 AND ISNULL(@buMonthsAfterPe, 0) <= ISNULL(@hiddenWindow, 6)
         SET @hidden = CASE WHEN @bankDebt > 0 AND (@buOut - @bankDebt) / @bankDebt * 100 > @hiddenPct THEN @buOut - @bankDebt
                            WHEN @bankDebt = 0 AND @buOut > 0 THEN @buOut ELSE 0 END;
     SET @debt = @debt + @hidden;
     DECLARE @quasi FLOAT = @TOTAL_EQUITY + @shlSubEq - @ccDebt,
             @related FLOAT = @DUE_FROM_RELATED + ISNULL(@ADVANCES_TO_RELATED, 0),
             @over365 FLOAT = ISNULL(@AR_AGE_OVER_365, 0), @gov365 FLOAT = ISNULL(@AR_AGE_OVER_365_GOV, 0);
-    DECLARE @impairAr FLOAT = CASE WHEN @over365 - @gov365 - ISNULL(@AR_ECL_ALLOWANCE, 0) > 0 THEN @over365 - @gov365 - ISNULL(@AR_ECL_ALLOWANCE, 0) ELSE 0 END,
+    -- the allowance covers the receivables of every age: the private receivables over a year carry their share of the
+    -- gross receivables of it, not the whole allowance (review E14)
+    DECLARE @grossAr FLOAT = CASE WHEN @AR_GROSS IS NOT NULL THEN @AR_GROSS ELSE @AR + ISNULL(@AR_ECL_ALLOWANCE, 0) END,
+            @priv365 FLOAT = GREATEST(@over365 - @gov365, 0.0);
+    DECLARE @alloc365 FLOAT = CASE WHEN @grossAr > 0 THEN ISNULL(@AR_ECL_ALLOWANCE, 0) * @priv365 / @grossAr ELSE 0 END;
+    DECLARE @impairAr FLOAT = CASE WHEN @priv365 - @alloc365 > 0 THEN @priv365 - @alloc365 ELSE 0 END,
             @slow FLOAT = CASE WHEN ISNULL(@INV_SLOW_MOVING, 0) - ISNULL(@INV_PROVISION, 0) > 0 THEN ISNULL(@INV_SLOW_MOVING, 0) - ISNULL(@INV_PROVISION, 0) ELSE 0 END * @invSlowHaircut / 100,
             @reval FLOAT = CASE WHEN @REVALUATION_RESERVE >= ISNULL(@PPE_REVALUATION_SURPLUS, 0) THEN @REVALUATION_RESERVE ELSE @PPE_REVALUATION_SURPLUS END;
     DECLARE @tangQuasi FLOAT = @quasi - @INTANGIBLES;
@@ -383,7 +397,7 @@ BEGIN
     SET @real = GREATEST(@cashAdj, 0.0) * @K_CASH + GREATEST(@restricted, 0.0) * @K_CASH_RESTRICTED + GREATEST(@SHORT_TERM_INVESTMENTS, 0.0) * @K_STI;
     IF @AR_AGE_OVER_365 IS NOT NULL AND @AR_AGE_181_365 IS NOT NULL
     BEGIN
-        DECLARE @ng365 FLOAT = GREATEST(@over365 - @gov365 - ISNULL(@AR_ECL_ALLOWANCE, 0), 0.0);
+        DECLARE @ng365 FLOAT = @impairAr;
         SET @rest = GREATEST(@AR - @ng365 - @gov365 - @AR_AGE_181_365 - @relt, 0.0);
         DECLARE @govYoung FLOAT = LEAST(GREATEST(@gov - @gov365, 0.0), @rest);
         SET @real = @real + @ng365 * @K_AR_365 + @gov365 * (1 - LEAST(100.0, @H_AR_GOV + @govExtra) / 100)
@@ -457,6 +471,7 @@ BEGIN
         ('RCF', @ffo - @DIVIDENDS - @PARTNER_DRAWINGS), ('EBITDA_LESS_TAX', @ebitdaA - @ZAKAT_TAX), ('DEBT_SERVICE', @principal + @interest),
         ('CPLTD', @CURRENT_PORTION_LTD), ('DEBT', @debt), ('ST_DEBT', @stDebt), ('BANK_DEBT', @bankDebt), ('HIDDEN_DEBT', @hidden),
         ('NET_DEBT', @debt - @cashAdj - @SHORT_TERM_INVESTMENTS), ('CASH_ADJ', @cashAdj), ('LIQUID', @cashAdj + @SHORT_TERM_INVESTMENTS),
+        ('CASH_REPORTED', @CASH), ('CF', CAST(@cf AS FLOAT)),
         ('MONTHLY_CASH_COSTS', (@COGS + @OPEX - @DEPR_AMORT) / 12), ('QUASI', @quasi), ('TANG_QUASI', @tangQuasi), ('ADJ_TNW', @adjTnw),
         ('ADJ_TL', @adjTl), ('ADJ_CA', @adjCa), ('ADJ_CL', @adjCl), ('NWC_ADJ', @adjCa - @adjCl), ('DEBT_PLUS_QUASI', @debt + @quasi), ('RELATED', @related),
         ('TOTAL_ASSETS', @TOTAL_ASSETS), ('INTANGIBLES', @INTANGIBLES), ('REALISABLE', @real), ('REALISABLE_NW', @real - @adjTl),
@@ -705,7 +720,7 @@ BEGIN
         DECLARE @app TABLE (Ord INT PRIMARY KEY, RuleCode VARCHAR(40) COLLATE DATABASE_DEFAULT NOT NULL);
         INSERT @app (Ord, RuleCode)
         SELECT v.Ord, v.RuleCode FROM (VALUES
-            (1, 'UNAUDITED_ANNUAL', CASE WHEN @assurance = 'MANAGEMENT' AND @pt = 'ANNUAL' THEN 1 ELSE 0 END),
+            (1, 'UNAUDITED_ANNUAL', CASE WHEN @assurance = 'MANAGEMENT' THEN 1 ELSE 0 END),   -- annual or interim (review E13)
             (2, 'AUDIT_QUALIFIED', CASE WHEN @opinion = 'QUALIFIED' THEN 1 ELSE 0 END),
             (3, 'STALE_STATEMENT', CASE WHEN @ageMonths > (SELECT P FROM @P WHERE RuleCode = 'STALE_STATEMENT') THEN 1 ELSE 0 END),
             (4, 'INCOMPLETE_STATEMENT', CASE WHEN @cf = 0 THEN 1 ELSE 0 END),
@@ -1431,7 +1446,7 @@ BEGIN
     DECLARE @pt VARCHAR(10), @pe DATE, @fy INT, @basis VARCHAR(12), @assurance VARCHAR(10), @opinion VARCHAR(11), @goingConcern BIT, @cur INT,
             @sstatus VARCHAR(10), @versionReason VARCHAR(10), @supersedes BIGINT, @isHolding BIT, @industry INT, @ppt VARCHAR(10), @cardStatus VARCHAR(8),
             @cardCur INT, @supportAge INT, @cardCode VARCHAR(40), @cardVer INT, @minCov DECIMAL(5,2), @fx FLOAT, @country INT, @region VARCHAR(10),
-            @trial BIT, @nature VARCHAR(10);
+            @trial BIT, @nature VARCHAR(10), @ps DATE, @months INT, @pmonths INT, @pps DATE, @ppe DATE;
 
     BEGIN TRANSACTION;
     SELECT @tenant = TenantId, @company = CompanyId, @stmt = StatementId, @priorIn = PriorStatementId, @card = ScorecardId,
@@ -1444,7 +1459,8 @@ BEGIN
 
     SELECT @pt = s.PeriodType, @pe = s.PeriodEnd, @fy = s.FiscalYear, @basis = s.Basis, @assurance = s.Assurance, @opinion = s.AuditOpinion,
            @goingConcern = s.GoingConcernUncertainty, @cur = s.CurrencyId, @sstatus = s.Status, @versionReason = s.VersionReason,
-           @supersedes = s.SupersedesId, @nature = s.Nature, @isHolding = c.IsHolding, @industry = c.IndustryId, @country = ISNULL(@country, c.CountryId)
+           @supersedes = s.SupersedesId, @nature = s.Nature, @isHolding = c.IsHolding, @industry = c.IndustryId, @country = ISNULL(@country, c.CountryId),
+           @ps = s.PeriodStart
     FROM fin.FinancialStatement AS s
     JOIN org.Company AS c ON c.TenantId = s.TenantId AND c.CompanyId = s.CompanyId
     WHERE s.TenantId = @tenant AND s.FinancialStatementId = @stmt;
@@ -1453,6 +1469,22 @@ BEGIN
         THROW 50064, 'An assessment reads an approved statement; a trial assessment also reads a draft or submitted one (BR-FIN-019, BR-FIN-036)', 1;
     -- a budget is assessed by a trial only, against actual statements (ADR 0025)
     IF @nature = 'BUDGET' AND @trial = 0 THROW 50064, 'A budget statement is assessed by a trial assessment only (BR-FIN-039)', 1;
+    -- The assessment is of the date it names: on or after the period end of its statement and not after the day it is
+    -- computed, so what it reads "on the assessment date" has happened (review E4). A trial may look ahead.
+    IF @trial = 0 AND (@asOf < @pe OR @asOf > CAST(SYSUTCDATETIME() AS DATE))
+        THROW 50064, 'The assessment date is on or after the period end of the statement and not after the day of the computation (BR-FIN-019)', 1;
+    -- The months the statement covers: from its start date when it has one, else its period type (review E13).
+    SET @months = CASE WHEN @ps IS NOT NULL THEN DATEDIFF(MONTH, DATEADD(DAY, -1, @ps), @pe) END;
+    IF @months IS NOT NULL AND (@months < 1 OR @months > CASE WHEN @pt = 'ANNUAL' THEN 18 ELSE 12 END)
+        THROW 50064, 'The period of the statement, from its start to its end date, is of one to twelve months, or up to eighteen for an annual statement (BR-FIN-019)', 1;
+    -- A lower assurance is not chosen over a higher one: an assessment reads the audited (or reviewed) statement of a
+    -- period when one is approved (review E20). A trial may read any.
+    IF @trial = 0 AND EXISTS (SELECT 1 FROM fin.FinancialStatement AS x
+                              WHERE x.TenantId = @tenant AND x.CompanyId = @company AND x.Basis = @basis AND x.PeriodType = @pt AND x.PeriodEnd = @pe
+                                AND x.Nature = 'ACTUAL' AND x.Status = 'APPROVED' AND x.FinancialStatementId <> @stmt
+                                AND CASE x.Assurance WHEN 'AUDITED' THEN 0 WHEN 'REVIEWED' THEN 1 ELSE 2 END
+                                    < CASE @assurance WHEN 'AUDITED' THEN 0 WHEN 'REVIEWED' THEN 1 ELSE 2 END)
+        THROW 50064, 'An approved statement of the same period with a higher assurance exists: the assessment reads that one (BR-FIN-019)', 1;
     SELECT @cardStatus = Status, @cardCur = CurrencyId, @supportAge = SupportMaxAgeMonths, @cardCode = Code, @cardVer = VersionNo, @minCov = MinCoveragePct
     FROM fin.Scorecard WHERE ScorecardId = @card;
     IF @cardStatus <> 'APPROVED' THROW 50064, 'An assessment uses an approved scorecard (BR-FIN-023)', 1;
@@ -1465,15 +1497,18 @@ BEGIN
     IF @priorIn IS NOT NULL
     BEGIN
         SELECT @prior = FinancialStatementId, @ppt = PeriodType FROM fin.FinancialStatement
-        WHERE TenantId = @tenant AND FinancialStatementId = @priorIn AND CompanyId = @company AND Basis = @basis
+        WHERE TenantId = @tenant AND FinancialStatementId = @priorIn AND CompanyId = @company AND Basis = @basis AND PeriodType = @pt
           AND Status = 'APPROVED' AND Nature = 'ACTUAL' AND PeriodEnd < @pe;
-        IF @prior IS NULL THROW 50064, 'The comparison statement is an approved, earlier statement of the same company and basis (BR-FIN-019)', 1;
+        IF @prior IS NULL THROW 50064, 'The comparison statement is an approved, earlier statement of the same company, basis and period type (BR-FIN-019)', 1;
     END
     ELSE
         SELECT TOP (1) @prior = FinancialStatementId, @ppt = PeriodType FROM fin.FinancialStatement
         WHERE TenantId = @tenant AND CompanyId = @company AND Basis = @basis AND PeriodType = @pt AND Status = 'APPROVED' AND Nature = 'ACTUAL'
           AND PeriodEnd = EOMONTH(@pe, -12)
         ORDER BY CASE Assurance WHEN 'AUDITED' THEN 0 WHEN 'REVIEWED' THEN 1 ELSE 2 END, VersionNo DESC;
+    SELECT @pps = PeriodStart, @ppe = PeriodEnd FROM fin.FinancialStatement WHERE TenantId = @tenant AND FinancialStatementId = @prior;
+    SET @pmonths = CASE WHEN @pps IS NOT NULL THEN DATEDIFF(MONTH, DATEADD(DAY, -1, @pps), @ppe) END;
+    IF @pmonths IS NOT NULL AND (@pmonths < 1 OR @pmonths > CASE WHEN @ppt = 'ANNUAL' THEN 18 ELSE 12 END) SET @pmonths = NULL;
     -- A budget is read with the assurance, opinion and going concern of the actual statement it is compared with, so
     -- the comparison shows the plan alone and not the budget being the management's (ADR 0025).
     IF @nature = 'BUDGET' AND @prior IS NOT NULL
@@ -1490,7 +1525,7 @@ BEGIN
         BuInquiries6m INT, BuMonthsAfterPeriodEnd INT, QualBp FLOAT, QualFp FLOAT, DocBp BIT, DocFp BIT, ProdCashFlowQuality FLOAT, ProdConcentration FLOAT,
         InvCrisisValue FLOAT, InvDaysStagnant FLOAT, Support INT, ParentNotch INT, Override INT, GuLiquid FLOAT, GuNetWorth FLOAT, GuGiven FLOAT,
         GuGuaranteed FLOAT, GuMaxLeverage FLOAT, CountryId INT, RegionCode VARCHAR(10) COLLATE DATABASE_DEFAULT,
-        PfUndrawnDecided FLOAT, PfLenderRepayment FLOAT, PfDecidedShare FLOAT, PfDecidedCost FLOAT);
+        PfUndrawnDecided FLOAT, PfLenderRepayment FLOAT, PfDecidedShare FLOAT, PfDecidedCost FLOAT, PeriodMonths INT, PriorPeriodMonths INT, BuAgeMonths INT);
     CREATE TABLE #crL (Code VARCHAR(40) COLLATE DATABASE_DEFAULT PRIMARY KEY, Amount FLOAT NULL);
     CREATE TABLE #crP (Code VARCHAR(40) COLLATE DATABASE_DEFAULT PRIMARY KEY, Amount FLOAT NULL);
     CREATE TABLE #crColl (Kind VARCHAR(40) COLLATE DATABASE_DEFAULT NOT NULL, Cover FLOAT NOT NULL);
@@ -1537,10 +1572,30 @@ BEGIN
     JOIN fin.LineCatalogItem AS li ON li.TenantId = ln.TenantId AND li.LineCatalogItemId = ln.LineCatalogItemId
     JOIN fin.StandardLine AS sl ON sl.Code = li.Code
     WHERE ln.TenantId = @tenant AND ln.StatementId = @prior AND COALESCE(ln.EnteredAmount, ln.ComputedAmount) IS NOT NULL;
+    -- The allowance for expected credit losses is a positive amount deducted from the gross receivables (review E14).
+    IF EXISTS (SELECT 1 FROM #crL WHERE Code = 'AR_ECL_ALLOWANCE' AND Amount < 0) OR EXISTS (SELECT 1 FROM #crP WHERE Code = 'AR_ECL_ALLOWANCE' AND Amount < 0)
+        THROW 50064, 'The allowance for expected credit losses is entered as a positive amount (BR-FIN-019)', 1;
+    -- A document the preparer gives for an input supports it only when it is an active document of the assessed company:
+    -- owned by it, or linked to it, to the statement or to this assessment, of a type for a company or general (review
+    -- E19). The preparer is of the company; the document is what an approver checks.
+    IF EXISTS (SELECT 1 FROM fin.CreditAssessmentInput AS i
+               LEFT JOIN doc.Document AS d ON d.TenantId = i.TenantId AND d.DocumentId = i.DocumentId
+               LEFT JOIN cat.DocumentType AS dt ON dt.TenantId = d.TenantId AND dt.DocumentTypeId = d.DocumentTypeId
+               WHERE i.TenantId = @tenant AND i.AssessmentId = @AssessmentId AND i.DocumentId IS NOT NULL
+                 AND (d.DocumentId IS NULL OR d.Status <> 'ACTIVE'
+                      OR (CONCAT(',', dt.AppliesTo, ',') NOT LIKE '%,COMPANY,%' AND CONCAT(',', dt.AppliesTo, ',') NOT LIKE '%,GENERAL,%')
+                      OR NOT (ISNULL(d.OwnerCompanyId, -1) = @company
+                              OR EXISTS (SELECT 1 FROM doc.DocumentLink AS dl
+                                         WHERE dl.TenantId = d.TenantId AND dl.DocumentId = d.DocumentId AND dl.UnlinkedAt IS NULL
+                                           AND ((dl.EntityType = 'org.Company' AND dl.EntityId = @company)
+                                                OR (dl.EntityType = 'fin.FinancialStatement' AND dl.EntityId = @stmt)
+                                                OR (dl.EntityType = 'fin.CreditAssessment' AND dl.EntityId = @AssessmentId))))))
+        THROW 50064, 'The document of an input is an active document of the assessed company, its statement or this assessment (BR-FIN-021)', 1;
 
-    -- A restatement: the largest change of the net profit or the equity against the version it replaces.
+    -- A restatement: the largest change of the net profit or the equity against the version it replaces, whatever the
+    -- reason given for the new version (a correction or a presentation version changes the figures too, review E7).
     DECLARE @restated FLOAT = NULL;
-    IF @versionReason = 'RESTATED' AND @supersedes IS NOT NULL
+    IF @supersedes IS NOT NULL
     BEGIN
         DECLARE @oNp FLOAT, @oEq FLOAT, @cNp FLOAT = (SELECT Amount FROM #crL WHERE Code = 'NET_PROFIT'), @cEq FLOAT = (SELECT Amount FROM #crL WHERE Code = 'TOTAL_EQUITY');
         SELECT @oNp = MAX(CASE WHEN li.Code = 'NET_PROFIT' THEN COALESCE(ln.EnteredAmount, ln.ComputedAmount) END),
@@ -1596,35 +1651,43 @@ BEGIN
         THROW 50065, 'Group support reads a parent assessment of the twelve months before the assessment date (BR-FIN-022)', 1;
     SELECT @override = Notches FROM fin.CreditAssessmentInput WHERE TenantId = @tenant AND AssessmentId = @AssessmentId AND Kind = 'OVERRIDE';
 
-    -- The covenant breaches open on the assessment date, and whether one was open at the period end; the bank flows.
+    -- The covenant breaches open on the assessment date: detected by then and not resolved by then (a breach resolved
+    -- since the assessment date was open on it; one resolved without a date counts as resolved), with a waiver when it
+    -- was recorded by then; and whether one was open at the period end (review E4). The bank flows.
     DECLARE @breaches TABLE (Waiver BIT NOT NULL, AtPeriodEnd BIT NOT NULL);
     INSERT @breaches (Waiver, AtPeriodEnd)
-    SELECT CASE WHEN b.WaiverRef IS NOT NULL THEN 1 ELSE 0 END, CASE WHEN b.DetectedOn <= @pe THEN 1 ELSE 0 END
+    SELECT CASE WHEN b.WaiverRef IS NOT NULL AND (b.WaiverDate IS NULL OR b.WaiverDate <= @asOf) THEN 1 ELSE 0 END, CASE WHEN b.DetectedOn <= @pe THEN 1 ELSE 0 END
     FROM obl.ObligationBreach AS b
     JOIN obl.Obligation AS o ON o.TenantId = b.TenantId AND o.ObligationId = b.ObligationId
     LEFT JOIN fac.Facility AS fa ON fa.TenantId = o.TenantId AND fa.FacilityId = o.FacilityId
-    WHERE b.TenantId = @tenant AND b.Status IN ('OPEN','IN_CURE') AND b.Kind IN ('COVENANT_BREACH','RESTRICTION_VIOLATION') AND b.DetectedOn <= @asOf
+    WHERE b.TenantId = @tenant AND b.Kind IN ('COVENANT_BREACH','RESTRICTION_VIOLATION') AND b.DetectedOn <= @asOf
+      AND (b.Status IN ('OPEN','IN_CURE') OR (b.ResolvedOn IS NOT NULL AND b.ResolvedOn > @asOf))
       AND (fa.BorrowerCompanyId = @company
            OR EXISTS (SELECT 1 FROM obl.Covenant AS c WHERE c.TenantId = b.TenantId AND c.RootId = b.CovenantRootId AND c.TestedCompanyId = @company)
            OR EXISTS (SELECT 1 FROM obl.ObligationCompany AS oc WHERE oc.TenantId = o.TenantId AND oc.ObligationId = o.ObligationId AND oc.CompanyId = @company));
     DECLARE @breach VARCHAR(16) = CASE WHEN EXISTS (SELECT 1 FROM @breaches WHERE Waiver = 0) THEN 'OPEN'
                                        WHEN EXISTS (SELECT 1 FROM @breaches) THEN 'WAIVER_REQUESTED' END,
             @bape BIT = CASE WHEN @evWaiver = 0 AND EXISTS (SELECT 1 FROM @breaches WHERE AtPeriodEnd = 1 AND Waiver = 0) THEN 1 ELSE 0 END;
-    DECLARE @flows TABLE (CovenantId BIGINT, PerformanceState VARCHAR(10), Achieved FLOAT, Required FLOAT, MonthsElapsed INT, MonthsInWindow INT, AchievementPct FLOAT);
-    INSERT @flows SELECT p.CovenantId, p.PerformanceState, p.Achieved, p.Required, p.MonthsElapsed, p.MonthsInWindow, p.AchievementPct
+    DECLARE @flows TABLE (CovenantId BIGINT, PerformanceState VARCHAR(10), Achieved FLOAT, Required FLOAT, MonthsElapsed INT, MonthsInWindow INT, AchievementPct FLOAT,
+                          AchievedElapsed FLOAT);
+    INSERT @flows SELECT p.CovenantId, p.PerformanceState, p.Achieved, p.Required, p.MonthsElapsed, p.MonthsInWindow, p.AchievementPct, p.AchievedElapsed
                   FROM fin.fn_BankFlowPerformance(@asOf) AS p WHERE p.TenantId = @tenant AND p.CompanyId = @company;
     DECLARE @flowP FLOAT = (SELECT ParamValue FROM fin.ScorecardAdjustment WHERE ScorecardId = @card AND RuleCode = 'FLOW_SHORTFALL');
+    -- the pace of the months already complete, as the performance measures it (review E6)
     DECLARE @flowShort BIT = CASE WHEN EXISTS (SELECT 1 FROM @flows WHERE PerformanceState = 'BEHIND' AND Required > 0 AND MonthsInWindow > 0
-                                                      AND Achieved < (1 - @flowP / 100) * Required * MonthsElapsed / MonthsInWindow) THEN 1 ELSE 0 END;
+                                                      AND AchievedElapsed < (1 - @flowP / 100) * Required * MonthsElapsed / MonthsInWindow) THEN 1 ELSE 0 END;
 
-    -- The company's facilities on the platform on the assessment date (the approved revision), in the statement
-    -- currency: limit, outstanding, the main lender, commitment, expiry, and the collateral linked to them by kind
-    -- (a personal guarantee when the guarantor is an individual) (docs/35 section 10).
+    -- The company's facilities on the platform on the assessment date, in the statement currency: limit, outstanding,
+    -- the main lender, commitment, expiry, and the collateral linked to them by kind (a personal guarantee when the
+    -- guarantor is an individual) (docs/35 section 10). The lenders, limits and collateral links are those of the
+    -- approved revision in effect on the assessment date (the latest approved one effective by then, else the approved
+    -- one), read by the contract of the revisions FromRevision <= n < ToRevision (model 13, review E3 and E4); the
+    -- header (amount, expiry, status) is the facility's as it stands, the revisions not keeping it.
     DECLARE @fac TABLE (FacilityId BIGINT PRIMARY KEY, CurrencyId INT, Rate FLOAT, LimitAmount FLOAT, Outstanding FLOAT, Lender INT, LenderShare FLOAT,
                         IsCommitted BIT, ExpiryDate DATE, Secured FLOAT, Recoverable FLOAT, IsIncluded BIT, Reason NVARCHAR(300),
-                        DecisionId BIGINT, LimitAction VARCHAR(16), DecidedLimit FLOAT, CostBp INT);
+                        DecisionId BIGINT, LimitAction VARCHAR(16), DecidedLimit FLOAT, CostBp INT, RevisionNo INT);
     INSERT @fac (FacilityId, CurrencyId, Rate, LimitAmount, Outstanding, Lender, LenderShare, IsCommitted, ExpiryDate, Secured, Recoverable, IsIncluded, Reason,
-                 DecisionId, LimitAction, DecidedLimit, CostBp)
+                 DecisionId, LimitAction, DecidedLimit, CostBp, RevisionNo)
     SELECT f.FacilityId, f.CurrencyId, r.Rate, f.TotalAmount, ISNULL(u.Amount, 0), l.InstitutionId, l.SharePct, ISNULL(cm.IsCommitted, 0), f.ExpiryDate,
            ISNULL(cv.Secured, 0), ISNULL(cv.Recoverable, 0), CASE WHEN r.Rate IS NULL THEN 0 ELSE 1 END,
            CASE WHEN r.Rate IS NULL THEN N'لا سعر لعملة التسهيل بعملة القائمة في مدخلات التقييم' END,
@@ -1633,21 +1696,25 @@ BEGIN
            ld.FacilityLenderDecisionId, ld.LimitAction,
            CASE ld.LimitAction WHEN 'MAINTAINED' THEN f.TotalAmount WHEN 'UNDRAWN_STOPPED' THEN LEAST(f.TotalAmount, ISNULL(u.Amount, 0))
                                WHEN 'LIMIT_REDUCED' THEN ld.NewLimitAmount WHEN 'NOT_RENEWED' THEN 0 END,
-           ld.MarginChangeBp + ld.FeesChangeBp
+           ld.MarginChangeBp + ld.FeesChangeBp, rv.No
     FROM fac.Facility AS f
+    CROSS APPLY (SELECT ISNULL((SELECT MAX(x.RevisionNo) FROM fac.FacilityRevision AS x
+                                WHERE x.TenantId = f.TenantId AND x.FacilityId = f.FacilityId AND x.Status = 'APPROVED'
+                                  AND x.RevisionNo <= f.ApprovedRevisionNo AND x.EffectiveOn <= @asOf), f.ApprovedRevisionNo) AS No) AS rv
     OUTER APPLY (SELECT CASE WHEN f.CurrencyId = @cur THEN 1.0
                              ELSE (SELECT CAST(i.Rate AS FLOAT) FROM fin.CreditAssessmentInput AS i
                                    WHERE i.TenantId = @tenant AND i.AssessmentId = @AssessmentId AND i.Kind = 'FX_RATE' AND i.CurrencyId = f.CurrencyId) END AS Rate) AS r
     OUTER APPLY (SELECT SUM(CASE WHEN x.CurrencyId = f2.CurrencyId THEN x.Amount ELSE x.Amount * x.RateToFacilityCcy END) AS Amount
                  FROM fac.Utilization AS x JOIN fac.Facility AS f2 ON f2.TenantId = x.TenantId AND f2.FacilityId = x.FacilityId
-                 WHERE x.TenantId = f.TenantId AND x.FacilityId = f.FacilityId AND x.Status = 'ACTIVE' AND x.StartDate <= @asOf) AS u
+                 WHERE x.TenantId = f.TenantId AND x.FacilityId = f.FacilityId AND x.StartDate <= @asOf
+                   AND (x.Status = 'ACTIVE' OR (x.Status = 'RELEASED' AND x.ReleasedOn > @asOf))) AS u
     OUTER APPLY (SELECT TOP (1) x.InstitutionId, x.SharePct FROM fac.FacilityLender AS x
-                 WHERE x.TenantId = f.TenantId AND x.FacilityId = f.FacilityId AND x.FromRevision <= f.ApprovedRevisionNo
-                   AND (x.ToRevision IS NULL OR x.ToRevision >= f.ApprovedRevisionNo)
+                 WHERE x.TenantId = f.TenantId AND x.FacilityId = f.FacilityId AND x.FromRevision <= rv.No
+                   AND (x.ToRevision IS NULL OR x.ToRevision > rv.No)
                  ORDER BY x.SharePct DESC, x.InstitutionId) AS l
     OUTER APPLY (SELECT MAX(CASE WHEN x.IsCommitted = 1 THEN 1 ELSE 0 END) AS IsCommitted FROM fac.Limit AS x
-                 WHERE x.TenantId = f.TenantId AND x.FacilityId = f.FacilityId AND x.ParentLimitId IS NULL AND x.FromRevision <= f.ApprovedRevisionNo
-                   AND (x.ToRevision IS NULL OR x.ToRevision >= f.ApprovedRevisionNo)) AS cm
+                 WHERE x.TenantId = f.TenantId AND x.FacilityId = f.FacilityId AND x.ParentLimitId IS NULL AND x.FromRevision <= rv.No
+                   AND (x.ToRevision IS NULL OR x.ToRevision > rv.No)) AS cm
     OUTER APPLY (SELECT SUM(k.CoverageAmount) AS Secured, SUM(k.CoverageAmount * (1 - h.Value / 100)) AS Recoverable
                  FROM col.CollateralLink AS k
                  JOIN col.Collateral AS c ON c.TenantId = k.TenantId AND c.RootId = k.CollateralId AND c.ApprovalState = 'APPROVED' AND c.Status = 'ACTIVE'
@@ -1658,8 +1725,8 @@ BEGIN
                                           THEN 'GUARANTEE_PERSONAL' ELSE c.StructureKind END AS Kind) AS kd
                  JOIN fin.ScorecardParameter AS h ON h.ScorecardId = @card AND h.GroupCode = 'COLLATERAL_HAIRCUT' AND h.ParamKey = kd.Kind
                  WHERE k.TenantId = f.TenantId AND k.FacilityId = f.FacilityId AND k.CoverageAmount IS NOT NULL AND k.LinkedOn <= @asOf
-                   AND (k.UnlinkedOn IS NULL OR k.UnlinkedOn > @asOf) AND k.FromRevision <= f.ApprovedRevisionNo
-                   AND (k.ToRevision IS NULL OR k.ToRevision >= f.ApprovedRevisionNo)) AS cv
+                   AND (k.UnlinkedOn IS NULL OR k.UnlinkedOn > @asOf) AND k.FromRevision <= rv.No
+                   AND (k.ToRevision IS NULL OR k.ToRevision > rv.No)) AS cv
     OUTER APPLY (SELECT TOP (1) x.FacilityLenderDecisionId, x.LimitAction, x.NewLimitAmount, x.MarginChangeBp, x.FeesChangeBp
                  FROM fac.FacilityLenderDecision AS x
                  WHERE x.TenantId = f.TenantId AND x.FacilityId = f.FacilityId AND x.EffectiveDate <= @asOf
@@ -1677,7 +1744,7 @@ BEGIN
                                                                             WHERE g.TenantId = c.TenantId AND g.CollateralId = c.CollateralId AND p.Kind = 'INDIVIDUAL')
                               THEN 'GUARANTEE_PERSONAL' ELSE c.StructureKind END AS Kind) AS kd
     WHERE fa.IsIncluded = 1 AND k.CoverageAmount IS NOT NULL AND k.LinkedOn <= @asOf AND (k.UnlinkedOn IS NULL OR k.UnlinkedOn > @asOf)
-      AND k.FromRevision <= f.ApprovedRevisionNo AND (k.ToRevision IS NULL OR k.ToRevision >= f.ApprovedRevisionNo)
+      AND k.FromRevision <= fa.RevisionNo AND (k.ToRevision IS NULL OR k.ToRevision > fa.RevisionNo)
     GROUP BY kd.Kind;
     DECLARE @pfLimits FLOAT, @pfOut FLOAT, @pfUndrawn FLOAT, @pfLargest FLOAT, @pfExpiring FLOAT, @pfLenders INT, @pfUndDec FLOAT, @pfRepay FLOAT,
             @pfDecShare FLOAT, @pfDecCost FLOAT;
@@ -1721,7 +1788,8 @@ BEGIN
                  PfOutstanding, PfCommittedUndrawn, PfLargestLenderShare, PfExpiring12mShare, PfLenders, BuPresent, BuOutstanding, BuLimits, BuLenders, BuDpd12m,
                  BuCurrentDefault, BuDefaults24m, BuBouncedCount, BuBouncedAmount, BuJudgments, BuRestructured, BuInquiries6m, BuMonthsAfterPeriodEnd, QualBp,
                  QualFp, DocBp, DocFp, ProdCashFlowQuality, ProdConcentration, InvCrisisValue, InvDaysStagnant, Support, ParentNotch, Override, GuLiquid,
-                 GuNetWorth, GuGiven, GuGuaranteed, GuMaxLeverage, CountryId, RegionCode, PfUndrawnDecided, PfLenderRepayment, PfDecidedShare, PfDecidedCost)
+                 GuNetWorth, GuGiven, GuGuaranteed, GuMaxLeverage, CountryId, RegionCode, PfUndrawnDecided, PfLenderRepayment, PfDecidedShare, PfDecidedCost,
+                 PeriodMonths, PriorPeriodMonths, BuAgeMonths)
     SELECT @card, @pt, ISNULL(@ppt, 'ANNUAL'), CASE WHEN @prior IS NULL THEN 0 ELSE 1 END, @fx, @assurance, ISNULL(@opinion, 'UNQUALIFIED'), @goingConcern,
            CASE WHEN @isHolding = 1 AND @basis = 'STANDALONE' THEN 1 ELSE 0 END, @breach, @bape, @flowShort, DATEDIFF(MONTH, @pe, @asOf), @restated, @industry,
            @market, 1, 0, 0, @evSub, @evCap, @pfLimits, @pfOut, @pfUndrawn, @pfLargest, @pfExpiring, @pfLenders,
@@ -1731,7 +1799,9 @@ BEGIN
            (SELECT Score FROM @q WHERE Code = 'BUSINESS_PROFILE'), (SELECT Score FROM @q WHERE Code = 'FINANCIAL_POLICY'),
            ISNULL((SELECT Documented FROM @q WHERE Code = 'BUSINESS_PROFILE'), 0), ISNULL((SELECT Documented FROM @q WHERE Code = 'FINANCIAL_POLICY'), 0),
            @cfq, @conc, @crisis, @days, @support, @parentNotch, ISNULL(@override, 0), @guLiquid, @guNw, @guGiven, @guGtd, @guLev, @country, @region,
-           @pfUndDec, @pfRepay, @pfDecShare, @pfDecCost
+           @pfUndDec, @pfRepay, @pfDecShare, @pfDecCost, @months, CASE WHEN @prior IS NOT NULL THEN @pmonths END,
+           -- the age of the bureau report on the assessment date; a report dated after it was not known then (review E16)
+           CASE WHEN b.ReportDate > @asOf THEN 999 ELSE DATEDIFF(MONTH, b.ReportDate, @asOf) END
     FROM (SELECT 1 AS one) AS d
     LEFT JOIN fin.CreditAssessmentBureau AS b ON b.TenantId = @tenant AND b.AssessmentId = @AssessmentId;
 
@@ -1799,7 +1869,9 @@ BEGIN
     INSERT @x (Kind, Source, RuleCode, TextAr, TextEn)
     SELECT 'WATCH', 'DATA', r.Code, CONCAT(N'مطلوب — ', t.NameAr, N': ', t.TextAr), CONCAT(N'Requested — ', t.NameEn, N': ', t.TextEn)
     FROM (SELECT d.Code, 'DISCLOSURE' AS Domain, 1 AS g FROM #crD AS d WHERE d.Given = 0
-          UNION ALL SELECT 'BUREAU_REPORT', 'REQUEST', 2 WHERE NOT EXISTS (SELECT 1 FROM fin.CreditAssessmentBureau WHERE TenantId = @tenant AND AssessmentId = @AssessmentId)
+          UNION ALL SELECT 'BUREAU_REPORT', 'REQUEST', 2 WHERE ISNULL((SELECT BuPresent FROM #crX), 0) = 0
+                                                              OR ISNULL((SELECT BuAgeMonths FROM #crX), 0)
+                                                                 > (SELECT Value FROM fin.ScorecardParameter WHERE ScorecardId = @card AND GroupCode = 'CARD' AND ParamKey = 'BUREAU_MAX_AGE_MONTHS')
           UNION ALL SELECT 'PRODUCT_MIX', 'REQUEST', 3 WHERE NOT EXISTS (SELECT 1 FROM #crMix)
           UNION ALL SELECT 'INDUSTRY', 'REQUEST', 4 WHERE @industry IS NULL
           UNION ALL SELECT 'COUNTRY_PROFILE', 'REQUEST', 5 WHERE NOT EXISTS (SELECT 1 FROM fin.CountryRiskProfile WHERE CountryId = @country)
@@ -1878,6 +1950,22 @@ BEGIN
     FROM fin.CreditAssessmentInput AS i
     WHERE @rated = 1 AND i.TenantId = @tenant AND i.AssessmentId = @AssessmentId AND i.Kind IN ('GROUP_SUPPORT','OVERRIDE')
     ORDER BY i.Kind;
+    -- the exchange rates the preparer entered: the platform holds no reference rate to bound them, so the report says
+    -- whose they are (review E19)
+    INSERT @x (Kind, Source, RuleCode, Value, TextAr, TextEn)
+    SELECT 'INFO', 'ANALYST', 'FX_RATE_ENTERED', r.Rate,
+           CONCAT(N'سعر صرف أدخله معدّ التقييم ولم يُتحقق منه بسعر مرجعي: ', r.Pair, N' = ', FORMAT(r.Rate, 'G', 'en-US')),
+           CONCAT(N'Exchange rate entered by the preparer, not checked against a reference rate: ', r.Pair, N' = ', FORMAT(r.Rate, 'G', 'en-US'))
+    FROM (SELECT 0 AS o, CONCAT(sc.Iso, N'/', cc.Iso) AS Pair, CAST(@fxIn AS FLOAT) AS Rate
+          FROM (SELECT Code AS Iso FROM ref.Currency WHERE CurrencyId = @cur) AS sc CROSS JOIN (SELECT Code AS Iso FROM ref.Currency WHERE CurrencyId = @cardCur) AS cc
+          WHERE @cur <> @cardCur
+          UNION ALL
+          SELECT 1, CONCAT(fc.Code, N'/', scur.Code), CAST(i.Rate AS FLOAT)
+          FROM fin.CreditAssessmentInput AS i
+          JOIN ref.Currency AS fc ON fc.CurrencyId = i.CurrencyId
+          JOIN ref.Currency AS scur ON scur.CurrencyId = @cur
+          WHERE i.TenantId = @tenant AND i.AssessmentId = @AssessmentId AND i.Kind = 'FX_RATE') AS r
+    ORDER BY r.o, r.Pair;
 
     -- The summary, in both languages.
     DECLARE @ig VARCHAR(4) = (SELECT Code FROM fin.RatingGrade WHERE NotchNo = @n0),
@@ -2023,10 +2111,12 @@ SELECT a.TenantId, a.CreditAssessmentId, a.PublicId, a.CompanyId, co.NameAr AS C
        sc.Code AS ScorecardCode, sc.VersionNo AS ScorecardVersionNo, sc.NameAr AS ScorecardNameAr, sc.NameEn AS ScorecardNameEn,
        a.AssessmentDate, a.FxRateToScorecard, a.Status, a.IsTrial, a.ResultState, a.CoveragePct, a.FinancialScore, fng.Code AS FinancialGrade, a.WeightedScore,
        ig.Code AS IndicatedGrade, a.AdjustmentNotches, cg.Code AS CapGrade, sg.Code AS StandaloneGrade, a.SupportNotches, a.OverrideNotches,
-       fg.Code AS FinalGrade, fg.NotchNo AS FinalNotch, fg.Category AS FinalCategory, fg.RiskBand, fg.IsInvestmentGrade, fg.FitchEquivalent AS FitchGrade,
+       fg.Code AS FinalGrade, fg.NotchNo AS FinalNotch, fg.Category AS FinalCategory, fg.RiskBand, fg.IsInvestmentGrade,
+       -- an indicative internal mapping to the Fitch scale and recovery ratings, not ratings of an agency (review E21)
+       fg.FitchEquivalent AS FitchEquivalentIndicative,
        fg.DescriptionAr AS FinalGradeDescriptionAr, fg.DescriptionEn AS FinalGradeDescriptionEn,
-       facg.Code AS FacilityGrade, facg.FitchEquivalent AS FacilityFitchGrade, a.LgdPct, a.LgdBand,
-       CASE WHEN a.LgdBand IS NOT NULL THEN CONCAT('RR', RIGHT(a.LgdBand, 1)) END AS FitchRecoveryRating,
+       facg.Code AS FacilityGrade, facg.FitchEquivalent AS FacilityFitchEquivalentIndicative, a.LgdPct, a.LgdBand,
+       CASE WHEN a.LgdBand IS NOT NULL THEN CONCAT('RR', RIGHT(a.LgdBand, 1)) END AS RecoveryRatingIndicative,
        a.LiquidityLabel, lq.NameAr AS LiquidityNameAr, lq.NameEn AS LiquidityNameEn, a.CompletenessPct,
        a.AdjustedDebt, a.AdjustedTnw, a.RealisableNetWorth,
        a.IndustryId, ind.Code AS IndustryCode, ind.NameAr AS IndustryNameAr, ind.NameEn AS IndustryNameEn, a.IndustryRisk, ip.Cyclicality,

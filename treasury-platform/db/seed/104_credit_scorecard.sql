@@ -480,7 +480,7 @@ USING (VALUES
      N'AR_AGE_OVER_365 ÷ AR_GROSS × 100. غير مُدخل: لا يُحسب. الحكومي منها AR_AGE_OVER_365_GOV يُذكر منفصلًا.',
      N'لا ذمم جوهرية فوق سنة: {v}%', N'No material receivables over a year: {v}%', N'ذمم فوق سنة: {v}% ({g})', N'Receivables over a year: {v}% ({g})',
      'VALUE', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'RECEIVABLES',
-     N'الذمم فوق سنة لا تُعد سيولة؛ غير الحكومية منها تُخصم من الأصول المتداولة.', N'Receivables over a year are not liquidity; non-government ones are deducted from current assets.', N'غير الحكومي منها بعد المخصص يُخصم من صافي الثروة الملموسة المعدلة.', N'The non-government part net of the allowance is deducted from adjusted tangible net worth.'),
+     N'الذمم فوق سنة لا تُعد سيولة؛ غير الحكومية منها تُخصم من الأصول المتداولة.', N'Receivables over a year are not liquidity; non-government ones are deducted from current assets.', N'غير الحكومي منها بعد حصته من المخصص يُخصم من صافي الثروة الملموسة المعدلة.', N'The non-government part net of the allowance is deducted from adjusted tangible net worth.'),
     ('ECL_COVERAGE_365', N'تغطية المخصص للذمم فوق سنة', N'Allowance cover of receivables over one year', 'QUANTITATIVE', 'PERCENT', 'HIGHER_BETTER',
      N'AR_ECL_ALLOWANCE ÷ (AR_AGE_OVER_365 − AR_AGE_OVER_365_GOV) × 100. لا ذمم غير حكومية فوق سنة: أفضل درجة. أحد البندين غير مُدخل: لا يُحسب.',
      N'مخصص يغطي الذمم القديمة: {v}%', N'Allowance covers old receivables: {v}%', N'مخصص ناقص: يغطي {v}% من الذمم فوق سنة ({g})', N'Thin allowance: covers {v}% of receivables over a year ({g})',
@@ -737,7 +737,7 @@ USING (VALUES
      'RATIO', 'FCF', 'DEBT', 100, 'VALUE0', 'BEST_IF_NUM_NONNEG', 'NA', 'COMPUTE', 'CASH_FLOW',
      N'ما يبقى بعد الاستثمار والتوزيعات هو ما يخفض الدين.', N'What is left after investment and dividends is what cuts debt.', N'التدفق الحر السالب يزيد الدين.', N'Negative free cash flow adds debt.'),
     ('RCF_TO_NET_DEBT', N'التدفق المحتجز إلى صافي الدين', N'Retained cash flow / net debt', 'QUANTITATIVE', 'PERCENT', 'HIGHER_BETTER',
-     N'التدفق المحتجز ÷ صافي الدين المعدل × 100 (منهج موديز). التدفق المحتجز = الأموال من العمليات − DIVIDENDS − PARTNER_DRAWINGS. صافي الدين = الدين المعدل − النقد المعدل − SHORT_TERM_INVESTMENTS. صافي دين غير موجب مع تدفق محتجز غير سالب: أفضل درجة؛ ومع تدفق سالب: لا يُحسب.',
+     N'التدفق المحتجز ÷ صافي الدين المعدل × 100 (على غرار تعريف وكالات التصنيف المنشور). التدفق المحتجز = الأموال من العمليات − DIVIDENDS − PARTNER_DRAWINGS. صافي الدين = الدين المعدل − النقد المعدل − SHORT_TERM_INVESTMENTS. صافي دين غير موجب مع تدفق محتجز غير سالب: أفضل درجة؛ ومع تدفق سالب: لا يُحسب.',
      N'التدفق المحتجز يغطي {v}% من صافي الدين ({g})', N'Retained cash flow covers {v}% of net debt ({g})', N'التدفق المحتجز يغطي {v}% فقط من صافي الدين ({g})', N'Retained cash flow covers only {v}% of net debt ({g})',
      'VALUE', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'CASH_FLOW',
      N'يقيس قدرة النقد من العمليات بعد الشركاء على خدمة الدين.', N'It measures operating cash after partners against debt.', N'دون 10% يحتاج سداد الدين أكثر من عشر سنوات.', N'Below 10% repaying debt takes over ten years.'),
@@ -747,7 +747,7 @@ USING (VALUES
      'RATIO', 'DEBT', 'EBITDA', 1, 'BEST_IF_DEN_POS', 'WORST', 'WORST', 'COMPUTE', 'LEVERAGE',
      N'سداد الدين من الأرباح التشغيلية يحتاج {v} سنة.', N'Repaying debt from operating earnings takes {v} years.', N'الدين يتقدم على الشركاء في كل تصفية.', N'Debt ranks ahead of partners in any break-up.'),
     ('TL_TO_TNW', N'الخصوم المعدلة إلى صافي الثروة الملموسة المعدلة', N'Adjusted liabilities / adjusted TNW', 'QUANTITATIVE', 'RATIO', 'LOWER_BETTER',
-     N'الخصوم المعدلة ÷ صافي الثروة الملموسة المعدلة. الخصوم المعدلة = TOTAL_LIABS − SHAREHOLDER_LOANS_SUB بمستند + CAPITAL_CONTRIBUTIONS بلا قرار + AR_FACTORED_RECOURSE. صافي الثروة الملموسة المعدلة = حقوق الملكية وشبهها − INTANGIBLES − الأعلى من REVALUATION_RESERVE وPPE_REVALUATION_SURPLUS − DUE_FROM_RELATED − ADVANCES_TO_RELATED − الذمم غير الحكومية فوق سنة بعد المخصص − صافي المخزون الراكد × inv_slow_haircut. أساس غير موجب: أسوأ درجة.',
+     N'الخصوم المعدلة ÷ صافي الثروة الملموسة المعدلة. الخصوم المعدلة = TOTAL_LIABS − SHAREHOLDER_LOANS_SUB بمستند + CAPITAL_CONTRIBUTIONS بلا قرار + AR_FACTORED_RECOURSE. صافي الثروة الملموسة المعدلة = حقوق الملكية وشبهها − INTANGIBLES − الأعلى من REVALUATION_RESERVE وPPE_REVALUATION_SURPLUS − DUE_FROM_RELATED − ADVANCES_TO_RELATED − الذمم غير الحكومية فوق سنة بعد حصتها من المخصص (بنسبتها من إجمالي الذمم) − صافي المخزون الراكد × inv_slow_haircut. أساس غير موجب: أسوأ درجة.',
      N'هيكل رأس مال متين: الخصوم {v} مرة صافي الثروة', N'Solid capital structure: liabilities {v} times net worth', N'الخصوم {v} مرة صافي الثروة الملموسة ({g})', N'Liabilities are {v} times tangible net worth ({g})',
      'RATIO', 'ADJ_TL', 'ADJ_TNW', 1, 'VALUE0', 'WORST', 'WORST', 'COMPUTE', 'CAPITAL',
      N'الخصوم المرتفعة تعني التزامات نقدية أكبر من قاعدة رأس المال.', N'High liabilities mean cash obligations large against the capital base.', N'يقيس ما يحمي الدائنين من خسائر الأصول.', N'It measures the cushion that protects creditors from asset losses.'),
@@ -5844,8 +5844,8 @@ USING (VALUES
      N'الذمم الحكومية فوق سنة مضمونة غالبًا لكنها لا تُحصَّل خلال الدورة، فتخرج من الأصول المتداولة.',
      N'Government receivables over a year are usually good but not collected within the cycle, so they leave current assets.'),
     ('RECLASS', 'ADJ_AR_IMPAIR', N'الذمم الخاصة فوق سنة غير ملموسة', N'Private receivables over a year are not tangible',
-     N'الذمم الخاصة فوق سنة دون مخصص كافٍ تُطرح من صافي الثروة الملموسة.',
-     N'Private receivables over a year without enough allowance are taken out of tangible net worth.'),
+     N'الذمم الخاصة فوق سنة، بعد حصتها من المخصص بنسبتها من إجمالي الذمم، تُطرح من صافي الثروة الملموسة.',
+     N'Private receivables over a year, after their share of the allowance (their share of the gross receivables), are taken out of tangible net worth.'),
     ('RECLASS', 'ADJ_INTANGIBLES', N'الأصول غير الملموسة تُطرح', N'Intangibles deducted',
      N'الشهرة وغير الملموس لا تُسيل لسداد الدين، فتُطرح من صافي الثروة الملموسة.',
      N'Goodwill and intangibles do not pay debt, so they are deducted from tangible net worth.'),
@@ -5901,8 +5901,8 @@ USING (VALUES
      N'أدخل الأراضي والمباني والآلات والسيارات لتقدير قيمة التسييل.',
      N'Enter land and buildings, machinery and vehicles to estimate the realisable value.'),
     ('REQUEST', 'BUREAU_REPORT', N'تقرير سمة', N'SIMAH report',
-     N'أرفق تقرير سمة التجاري للشركة (حديث لا يتجاوز ستة أشهر بعد نهاية الفترة).',
-     N'Attach the company''s SIMAH commercial report (no more than six months after the period end).'),
+     N'أرفق تقرير سمة التجاري للشركة، لا يتجاوز عمره ثلاثة أشهر في تاريخ التقييم (والأقدم لا يُقرأ)؛ ويُقارن دينه بالقوائم إن كان خلال ستة أشهر من نهاية الفترة.',
+     N'Attach the company''s SIMAH commercial report, no more than three months old on the assessment date (an older one is not read); its debt is compared with the statement when it is dated within six months of the period end.'),
     ('REQUEST', 'PRODUCT_MIX', N'خطوط المنتجات', N'Product lines',
      N'أدخل خطوط منتجات الشركة لسنة القوائم: فئتها وحصتها من الإيرادات والمخزون، لقياس جودة التدفقات وسيولة المخزون.',
      N'Enter the company''s product lines for the year: category and share of revenue and inventory, to measure cash-flow quality and inventory liquidity.'),
@@ -6018,8 +6018,8 @@ IF NOT EXISTS (SELECT 1 FROM fin.Scorecard WHERE Code = 'GENERAL_CORPORATE' AND 
     SELECT 'GENERAL_CORPORATE', 3, N'الشركات العامة: الصناعة والخدمات', N'General corporates: industry and services',
            N'الشركات الصناعية والخدمية وما لا يندرج في القطاعين الآخرين؛ البطاقة الافتراضية',
            cu.CurrencyId, 1000000, 60, 3, 12, 'DRAFT',
-           N'تقييم داخلي يعتمد سلّم موديز (Moody''s) للتصنيف طويل الأجل وطريقة بطاقات التقييم المنشورة: درجة لكل مقياس على خط مستمر ووزن لكل عامل؛ والحدود معايرة بخبرة المحلل للسوق السعودية. ليس تصنيفًا صادرًا عن موديز ولا عن أي وكالة، ولا يحل محل التصنيف الداخلي للبنك.',
-           N'An internal assessment on Moody''s long-term rating scale and its published scorecard approach (a score per metric on a linear continuum, a weight per factor); the thresholds are calibrated by expert judgment for the Saudi market. It is not a rating issued by Moody''s or any agency, and it does not replace a bank''s internal rating.'
+           N'تقييم ذاتي داخلي تجريه الشركة على سلّم موديز (Moody''s) للتصنيف طويل الأجل بطريقة بطاقات التقييم: درجة لكل مقياس على خط مستمر ووزن لكل عامل. الحدود والأوزان معايرة بالخبرة لا بالإحصاء، صاغها وراجعها وكلاء ذكاء اصطناعي، ولم يراجعها محلل بشري، وتتحقق منها إدارة الخزينة قبل استعمالها. ليس تصنيفًا صادرًا عن موديز ولا عن أي وكالة؛ ومقابل فيتش وتصنيف الاسترداد ونطاق الخسارة عند التعثر وتسمية السيولة فيه مقابلة داخلية استرشادية لا تصنيفات وكالات؛ ولا يحل محل التصنيف الداخلي لأي جهة تمويل.',
+           N'An internal self-assessment by the company on Moody''s long-term rating scale with a scorecard approach (a score per metric on a linear continuum, a weight per factor). The thresholds and weights are a judgmental, not a statistical, calibration, written and reviewed by AI agents and not reviewed by a human analyst; the treasury validates them before use. It is not a rating issued by Moody''s or any agency; the Fitch equivalent, recovery rating, loss-given-default band and liquidity label it shows are an indicative internal mapping, not agency ratings; and it does not replace any lender''s internal rating.'
     FROM ref.Currency AS cu WHERE cu.Code = 'SAR';
 MERGE fin.ScorecardMetric AS d
 USING (SELECT sc.ScorecardId, m.CreditMetricId, v.FactorCode, v.Weight, v.B0, v.B1, v.B2, v.B3, v.B4, v.B5, v.B6, v.B7, v.B8, v.SortOrder
@@ -6198,9 +6198,9 @@ USING (SELECT sc.ScorecardId, v.RuleCode, v.Stage, v.Notches, g.RatingGradeId AS
     ('AUDIT_QUALIFIED', 'NOTCH', -1, NULL, NULL, 'ALWAYS', N'رأي المراجع متحفظ',
      N'رأي المراجع متحفظ: تنزيل درجة واحدة',
      N'Qualified audit opinion: one notch down'),
-    ('UNAUDITED_ANNUAL', 'NOTCH', -1, NULL, NULL, 'ALWAYS', N'قائمة سنوية غير مدققة',
-     N'قائمة سنوية إدارية غير مدققة: تنزيل درجة واحدة',
-     N'Unaudited (management) annual statement: one notch down'),
+    ('UNAUDITED_ANNUAL', 'NOTCH', -1, NULL, NULL, 'ALWAYS', N'قائمة غير مدققة',
+     N'قائمة إدارية غير مدققة ولا مراجَعة، سنوية أو مرحلية: تنزيل درجة واحدة',
+     N'Management statement, neither audited nor reviewed, annual or interim: one notch down'),
     ('STALE_STATEMENT', 'NOTCH', -1, NULL, 15, 'ALWAYS', N'قائمة قديمة',
      N'مضى على نهاية فترة القائمة أكثر من {p} شهرًا: تنزيل درجة واحدة',
      N'The statement''s period ended more than {p} months ago: one notch down'),
@@ -6354,6 +6354,7 @@ USING (SELECT sc.ScorecardId, v.GroupCode, v.ParamKey, v.Value, v.Value2
     ('CARD', 'SUBFACTOR_MINIMUM', 3, NULL),
     ('CARD', 'HIDDEN_DEBT_PCT', 15, NULL),
     ('CARD', 'BUREAU_MAX_AGE_MONTHS', 3, NULL),
+    ('CARD', 'HIDDEN_DEBT_WINDOW_MONTHS', 6, NULL),
     ('CARD', 'LGD_MAX_UP', 3, NULL),
     ('CARD', 'LGD_MAX_UP_NEAR_DEFAULT', 1, NULL),
     ('CARD', 'LGD_BEST_FACILITY_NOTCH', 4, NULL),
@@ -6469,8 +6470,8 @@ IF NOT EXISTS (SELECT 1 FROM fin.Scorecard WHERE Code = 'TRADING_DISTRIBUTION' A
     SELECT 'TRADING_DISTRIBUTION', 3, N'التجارة والتوزيع', N'Trading and distribution',
            N'تجارة الجملة والتجزئة والتوزيع: هوامش أدنى ودورة أقصر واعتماد أكبر على تمويل التجارة قصير الأجل',
            cu.CurrencyId, 1000000, 60, 3, 12, 'DRAFT',
-           N'تقييم داخلي يعتمد سلّم موديز (Moody''s) للتصنيف طويل الأجل وطريقة بطاقات التقييم المنشورة: درجة لكل مقياس على خط مستمر ووزن لكل عامل؛ والحدود معايرة بخبرة المحلل للسوق السعودية. ليس تصنيفًا صادرًا عن موديز ولا عن أي وكالة، ولا يحل محل التصنيف الداخلي للبنك.',
-           N'An internal assessment on Moody''s long-term rating scale and its published scorecard approach (a score per metric on a linear continuum, a weight per factor); the thresholds are calibrated by expert judgment for the Saudi market. It is not a rating issued by Moody''s or any agency, and it does not replace a bank''s internal rating.'
+           N'تقييم ذاتي داخلي تجريه الشركة على سلّم موديز (Moody''s) للتصنيف طويل الأجل بطريقة بطاقات التقييم: درجة لكل مقياس على خط مستمر ووزن لكل عامل. الحدود والأوزان معايرة بالخبرة لا بالإحصاء، صاغها وراجعها وكلاء ذكاء اصطناعي، ولم يراجعها محلل بشري، وتتحقق منها إدارة الخزينة قبل استعمالها. ليس تصنيفًا صادرًا عن موديز ولا عن أي وكالة؛ ومقابل فيتش وتصنيف الاسترداد ونطاق الخسارة عند التعثر وتسمية السيولة فيه مقابلة داخلية استرشادية لا تصنيفات وكالات؛ ولا يحل محل التصنيف الداخلي لأي جهة تمويل.',
+           N'An internal self-assessment by the company on Moody''s long-term rating scale with a scorecard approach (a score per metric on a linear continuum, a weight per factor). The thresholds and weights are a judgmental, not a statistical, calibration, written and reviewed by AI agents and not reviewed by a human analyst; the treasury validates them before use. It is not a rating issued by Moody''s or any agency; the Fitch equivalent, recovery rating, loss-given-default band and liquidity label it shows are an indicative internal mapping, not agency ratings; and it does not replace any lender''s internal rating.'
     FROM ref.Currency AS cu WHERE cu.Code = 'SAR';
 MERGE fin.ScorecardMetric AS d
 USING (SELECT sc.ScorecardId, m.CreditMetricId, v.FactorCode, v.Weight, v.B0, v.B1, v.B2, v.B3, v.B4, v.B5, v.B6, v.B7, v.B8, v.SortOrder
@@ -6650,9 +6651,9 @@ USING (SELECT sc.ScorecardId, v.RuleCode, v.Stage, v.Notches, g.RatingGradeId AS
     ('AUDIT_QUALIFIED', 'NOTCH', -1, NULL, NULL, 'ALWAYS', N'رأي المراجع متحفظ',
      N'رأي المراجع متحفظ: تنزيل درجة واحدة',
      N'Qualified audit opinion: one notch down'),
-    ('UNAUDITED_ANNUAL', 'NOTCH', -1, NULL, NULL, 'ALWAYS', N'قائمة سنوية غير مدققة',
-     N'قائمة سنوية إدارية غير مدققة: تنزيل درجة واحدة',
-     N'Unaudited (management) annual statement: one notch down'),
+    ('UNAUDITED_ANNUAL', 'NOTCH', -1, NULL, NULL, 'ALWAYS', N'قائمة غير مدققة',
+     N'قائمة إدارية غير مدققة ولا مراجَعة، سنوية أو مرحلية: تنزيل درجة واحدة',
+     N'Management statement, neither audited nor reviewed, annual or interim: one notch down'),
     ('STALE_STATEMENT', 'NOTCH', -1, NULL, 15, 'ALWAYS', N'قائمة قديمة',
      N'مضى على نهاية فترة القائمة أكثر من {p} شهرًا: تنزيل درجة واحدة',
      N'The statement''s period ended more than {p} months ago: one notch down'),
@@ -6806,6 +6807,7 @@ USING (SELECT sc.ScorecardId, v.GroupCode, v.ParamKey, v.Value, v.Value2
     ('CARD', 'SUBFACTOR_MINIMUM', 3, NULL),
     ('CARD', 'HIDDEN_DEBT_PCT', 15, NULL),
     ('CARD', 'BUREAU_MAX_AGE_MONTHS', 3, NULL),
+    ('CARD', 'HIDDEN_DEBT_WINDOW_MONTHS', 6, NULL),
     ('CARD', 'LGD_MAX_UP', 3, NULL),
     ('CARD', 'LGD_MAX_UP_NEAR_DEFAULT', 1, NULL),
     ('CARD', 'LGD_BEST_FACILITY_NOTCH', 4, NULL),
@@ -6921,8 +6923,8 @@ IF NOT EXISTS (SELECT 1 FROM fin.Scorecard WHERE Code = 'CONTRACTING' AND Versio
     SELECT 'CONTRACTING', 3, N'المقاولات والإنشاءات', N'Contracting and construction',
            N'المقاولات العامة والإنشاءات والهندسة: دورة تحصيل طويلة بمستخلصات ومحتجزات، وهوامش أدنى من الصناعة، واعتماد كبير على خطابات الضمان',
            cu.CurrencyId, 1000000, 60, 3, 12, 'DRAFT',
-           N'تقييم داخلي يعتمد سلّم موديز (Moody''s) للتصنيف طويل الأجل وطريقة بطاقات التقييم المنشورة: درجة لكل مقياس على خط مستمر ووزن لكل عامل؛ والحدود معايرة بخبرة المحلل للسوق السعودية. ليس تصنيفًا صادرًا عن موديز ولا عن أي وكالة، ولا يحل محل التصنيف الداخلي للبنك.',
-           N'An internal assessment on Moody''s long-term rating scale and its published scorecard approach (a score per metric on a linear continuum, a weight per factor); the thresholds are calibrated by expert judgment for the Saudi market. It is not a rating issued by Moody''s or any agency, and it does not replace a bank''s internal rating.'
+           N'تقييم ذاتي داخلي تجريه الشركة على سلّم موديز (Moody''s) للتصنيف طويل الأجل بطريقة بطاقات التقييم: درجة لكل مقياس على خط مستمر ووزن لكل عامل. الحدود والأوزان معايرة بالخبرة لا بالإحصاء، صاغها وراجعها وكلاء ذكاء اصطناعي، ولم يراجعها محلل بشري، وتتحقق منها إدارة الخزينة قبل استعمالها. ليس تصنيفًا صادرًا عن موديز ولا عن أي وكالة؛ ومقابل فيتش وتصنيف الاسترداد ونطاق الخسارة عند التعثر وتسمية السيولة فيه مقابلة داخلية استرشادية لا تصنيفات وكالات؛ ولا يحل محل التصنيف الداخلي لأي جهة تمويل.',
+           N'An internal self-assessment by the company on Moody''s long-term rating scale with a scorecard approach (a score per metric on a linear continuum, a weight per factor). The thresholds and weights are a judgmental, not a statistical, calibration, written and reviewed by AI agents and not reviewed by a human analyst; the treasury validates them before use. It is not a rating issued by Moody''s or any agency; the Fitch equivalent, recovery rating, loss-given-default band and liquidity label it shows are an indicative internal mapping, not agency ratings; and it does not replace any lender''s internal rating.'
     FROM ref.Currency AS cu WHERE cu.Code = 'SAR';
 MERGE fin.ScorecardMetric AS d
 USING (SELECT sc.ScorecardId, m.CreditMetricId, v.FactorCode, v.Weight, v.B0, v.B1, v.B2, v.B3, v.B4, v.B5, v.B6, v.B7, v.B8, v.SortOrder
@@ -7102,9 +7104,9 @@ USING (SELECT sc.ScorecardId, v.RuleCode, v.Stage, v.Notches, g.RatingGradeId AS
     ('AUDIT_QUALIFIED', 'NOTCH', -1, NULL, NULL, 'ALWAYS', N'رأي المراجع متحفظ',
      N'رأي المراجع متحفظ: تنزيل درجة واحدة',
      N'Qualified audit opinion: one notch down'),
-    ('UNAUDITED_ANNUAL', 'NOTCH', -1, NULL, NULL, 'ALWAYS', N'قائمة سنوية غير مدققة',
-     N'قائمة سنوية إدارية غير مدققة: تنزيل درجة واحدة',
-     N'Unaudited (management) annual statement: one notch down'),
+    ('UNAUDITED_ANNUAL', 'NOTCH', -1, NULL, NULL, 'ALWAYS', N'قائمة غير مدققة',
+     N'قائمة إدارية غير مدققة ولا مراجَعة، سنوية أو مرحلية: تنزيل درجة واحدة',
+     N'Management statement, neither audited nor reviewed, annual or interim: one notch down'),
     ('STALE_STATEMENT', 'NOTCH', -1, NULL, 15, 'ALWAYS', N'قائمة قديمة',
      N'مضى على نهاية فترة القائمة أكثر من {p} شهرًا: تنزيل درجة واحدة',
      N'The statement''s period ended more than {p} months ago: one notch down'),
@@ -7261,6 +7263,7 @@ USING (SELECT sc.ScorecardId, v.GroupCode, v.ParamKey, v.Value, v.Value2
     ('CARD', 'SUBFACTOR_MINIMUM', 3, NULL),
     ('CARD', 'HIDDEN_DEBT_PCT', 15, NULL),
     ('CARD', 'BUREAU_MAX_AGE_MONTHS', 3, NULL),
+    ('CARD', 'HIDDEN_DEBT_WINDOW_MONTHS', 6, NULL),
     ('CARD', 'LGD_MAX_UP', 3, NULL),
     ('CARD', 'LGD_MAX_UP_NEAR_DEFAULT', 1, NULL),
     ('CARD', 'LGD_BEST_FACILITY_NOTCH', 4, NULL),
@@ -7376,8 +7379,8 @@ IF NOT EXISTS (SELECT 1 FROM fin.Scorecard WHERE Code = 'BUILDING_MATERIALS_MFG'
     SELECT 'BUILDING_MATERIALS_MFG', 1, N'تصنيع مواد البناء', N'Building materials manufacturing',
            N'مصانع الأسمنت والحديد والبلوك والخرسانة الجاهزة والسيراميك',
            cu.CurrencyId, 1000000, 60, 3, 12, 'DRAFT',
-           N'تقييم داخلي يعتمد سلّم موديز (Moody''s) للتصنيف طويل الأجل وطريقة بطاقات التقييم المنشورة: درجة لكل مقياس على خط مستمر ووزن لكل عامل؛ والحدود معايرة بخبرة المحلل للسوق السعودية. ليس تصنيفًا صادرًا عن موديز ولا عن أي وكالة، ولا يحل محل التصنيف الداخلي للبنك.',
-           N'An internal assessment on Moody''s long-term rating scale and its published scorecard approach (a score per metric on a linear continuum, a weight per factor); the thresholds are calibrated by expert judgment for the Saudi market. It is not a rating issued by Moody''s or any agency, and it does not replace a bank''s internal rating.'
+           N'تقييم ذاتي داخلي تجريه الشركة على سلّم موديز (Moody''s) للتصنيف طويل الأجل بطريقة بطاقات التقييم: درجة لكل مقياس على خط مستمر ووزن لكل عامل. الحدود والأوزان معايرة بالخبرة لا بالإحصاء، صاغها وراجعها وكلاء ذكاء اصطناعي، ولم يراجعها محلل بشري، وتتحقق منها إدارة الخزينة قبل استعمالها. ليس تصنيفًا صادرًا عن موديز ولا عن أي وكالة؛ ومقابل فيتش وتصنيف الاسترداد ونطاق الخسارة عند التعثر وتسمية السيولة فيه مقابلة داخلية استرشادية لا تصنيفات وكالات؛ ولا يحل محل التصنيف الداخلي لأي جهة تمويل.',
+           N'An internal self-assessment by the company on Moody''s long-term rating scale with a scorecard approach (a score per metric on a linear continuum, a weight per factor). The thresholds and weights are a judgmental, not a statistical, calibration, written and reviewed by AI agents and not reviewed by a human analyst; the treasury validates them before use. It is not a rating issued by Moody''s or any agency; the Fitch equivalent, recovery rating, loss-given-default band and liquidity label it shows are an indicative internal mapping, not agency ratings; and it does not replace any lender''s internal rating.'
     FROM ref.Currency AS cu WHERE cu.Code = 'SAR';
 MERGE fin.ScorecardMetric AS d
 USING (SELECT sc.ScorecardId, m.CreditMetricId, v.FactorCode, v.Weight, v.B0, v.B1, v.B2, v.B3, v.B4, v.B5, v.B6, v.B7, v.B8, v.SortOrder
@@ -7557,9 +7560,9 @@ USING (SELECT sc.ScorecardId, v.RuleCode, v.Stage, v.Notches, g.RatingGradeId AS
     ('AUDIT_QUALIFIED', 'NOTCH', -1, NULL, NULL, 'ALWAYS', N'رأي المراجع متحفظ',
      N'رأي المراجع متحفظ: تنزيل درجة واحدة',
      N'Qualified audit opinion: one notch down'),
-    ('UNAUDITED_ANNUAL', 'NOTCH', -1, NULL, NULL, 'ALWAYS', N'قائمة سنوية غير مدققة',
-     N'قائمة سنوية إدارية غير مدققة: تنزيل درجة واحدة',
-     N'Unaudited (management) annual statement: one notch down'),
+    ('UNAUDITED_ANNUAL', 'NOTCH', -1, NULL, NULL, 'ALWAYS', N'قائمة غير مدققة',
+     N'قائمة إدارية غير مدققة ولا مراجَعة، سنوية أو مرحلية: تنزيل درجة واحدة',
+     N'Management statement, neither audited nor reviewed, annual or interim: one notch down'),
     ('STALE_STATEMENT', 'NOTCH', -1, NULL, 15, 'ALWAYS', N'قائمة قديمة',
      N'مضى على نهاية فترة القائمة أكثر من {p} شهرًا: تنزيل درجة واحدة',
      N'The statement''s period ended more than {p} months ago: one notch down'),
@@ -7713,6 +7716,7 @@ USING (SELECT sc.ScorecardId, v.GroupCode, v.ParamKey, v.Value, v.Value2
     ('CARD', 'SUBFACTOR_MINIMUM', 3, NULL),
     ('CARD', 'HIDDEN_DEBT_PCT', 15, NULL),
     ('CARD', 'BUREAU_MAX_AGE_MONTHS', 3, NULL),
+    ('CARD', 'HIDDEN_DEBT_WINDOW_MONTHS', 6, NULL),
     ('CARD', 'LGD_MAX_UP', 3, NULL),
     ('CARD', 'LGD_MAX_UP_NEAR_DEFAULT', 1, NULL),
     ('CARD', 'LGD_BEST_FACILITY_NOTCH', 4, NULL),
@@ -7830,8 +7834,8 @@ IF NOT EXISTS (SELECT 1 FROM fin.Scorecard WHERE Code = 'BUILDING_MATERIALS_TRAD
     SELECT 'BUILDING_MATERIALS_TRADE', 1, N'تجارة مواد البناء', N'Building materials trading',
            N'تجارة وتوريد مواد البناء',
            cu.CurrencyId, 1000000, 60, 3, 12, 'DRAFT',
-           N'تقييم داخلي يعتمد سلّم موديز (Moody''s) للتصنيف طويل الأجل وطريقة بطاقات التقييم المنشورة: درجة لكل مقياس على خط مستمر ووزن لكل عامل؛ والحدود معايرة بخبرة المحلل للسوق السعودية. ليس تصنيفًا صادرًا عن موديز ولا عن أي وكالة، ولا يحل محل التصنيف الداخلي للبنك.',
-           N'An internal assessment on Moody''s long-term rating scale and its published scorecard approach (a score per metric on a linear continuum, a weight per factor); the thresholds are calibrated by expert judgment for the Saudi market. It is not a rating issued by Moody''s or any agency, and it does not replace a bank''s internal rating.'
+           N'تقييم ذاتي داخلي تجريه الشركة على سلّم موديز (Moody''s) للتصنيف طويل الأجل بطريقة بطاقات التقييم: درجة لكل مقياس على خط مستمر ووزن لكل عامل. الحدود والأوزان معايرة بالخبرة لا بالإحصاء، صاغها وراجعها وكلاء ذكاء اصطناعي، ولم يراجعها محلل بشري، وتتحقق منها إدارة الخزينة قبل استعمالها. ليس تصنيفًا صادرًا عن موديز ولا عن أي وكالة؛ ومقابل فيتش وتصنيف الاسترداد ونطاق الخسارة عند التعثر وتسمية السيولة فيه مقابلة داخلية استرشادية لا تصنيفات وكالات؛ ولا يحل محل التصنيف الداخلي لأي جهة تمويل.',
+           N'An internal self-assessment by the company on Moody''s long-term rating scale with a scorecard approach (a score per metric on a linear continuum, a weight per factor). The thresholds and weights are a judgmental, not a statistical, calibration, written and reviewed by AI agents and not reviewed by a human analyst; the treasury validates them before use. It is not a rating issued by Moody''s or any agency; the Fitch equivalent, recovery rating, loss-given-default band and liquidity label it shows are an indicative internal mapping, not agency ratings; and it does not replace any lender''s internal rating.'
     FROM ref.Currency AS cu WHERE cu.Code = 'SAR';
 MERGE fin.ScorecardMetric AS d
 USING (SELECT sc.ScorecardId, m.CreditMetricId, v.FactorCode, v.Weight, v.B0, v.B1, v.B2, v.B3, v.B4, v.B5, v.B6, v.B7, v.B8, v.SortOrder
@@ -8009,9 +8013,9 @@ USING (SELECT sc.ScorecardId, v.RuleCode, v.Stage, v.Notches, g.RatingGradeId AS
     ('AUDIT_QUALIFIED', 'NOTCH', -1, NULL, NULL, 'ALWAYS', N'رأي المراجع متحفظ',
      N'رأي المراجع متحفظ: تنزيل درجة واحدة',
      N'Qualified audit opinion: one notch down'),
-    ('UNAUDITED_ANNUAL', 'NOTCH', -1, NULL, NULL, 'ALWAYS', N'قائمة سنوية غير مدققة',
-     N'قائمة سنوية إدارية غير مدققة: تنزيل درجة واحدة',
-     N'Unaudited (management) annual statement: one notch down'),
+    ('UNAUDITED_ANNUAL', 'NOTCH', -1, NULL, NULL, 'ALWAYS', N'قائمة غير مدققة',
+     N'قائمة إدارية غير مدققة ولا مراجَعة، سنوية أو مرحلية: تنزيل درجة واحدة',
+     N'Management statement, neither audited nor reviewed, annual or interim: one notch down'),
     ('STALE_STATEMENT', 'NOTCH', -1, NULL, 15, 'ALWAYS', N'قائمة قديمة',
      N'مضى على نهاية فترة القائمة أكثر من {p} شهرًا: تنزيل درجة واحدة',
      N'The statement''s period ended more than {p} months ago: one notch down'),
@@ -8165,6 +8169,7 @@ USING (SELECT sc.ScorecardId, v.GroupCode, v.ParamKey, v.Value, v.Value2
     ('CARD', 'SUBFACTOR_MINIMUM', 3, NULL),
     ('CARD', 'HIDDEN_DEBT_PCT', 15, NULL),
     ('CARD', 'BUREAU_MAX_AGE_MONTHS', 3, NULL),
+    ('CARD', 'HIDDEN_DEBT_WINDOW_MONTHS', 6, NULL),
     ('CARD', 'LGD_MAX_UP', 3, NULL),
     ('CARD', 'LGD_MAX_UP_NEAR_DEFAULT', 1, NULL),
     ('CARD', 'LGD_BEST_FACILITY_NOTCH', 4, NULL),
@@ -8282,8 +8287,8 @@ IF NOT EXISTS (SELECT 1 FROM fin.Scorecard WHERE Code = 'RETAIL' AND VersionNo =
     SELECT 'RETAIL', 1, N'التجزئة', N'Retail',
            N'تجارة التجزئة والمتاجر ومراكز البيع',
            cu.CurrencyId, 1000000, 60, 3, 12, 'DRAFT',
-           N'تقييم داخلي يعتمد سلّم موديز (Moody''s) للتصنيف طويل الأجل وطريقة بطاقات التقييم المنشورة: درجة لكل مقياس على خط مستمر ووزن لكل عامل؛ والحدود معايرة بخبرة المحلل للسوق السعودية. ليس تصنيفًا صادرًا عن موديز ولا عن أي وكالة، ولا يحل محل التصنيف الداخلي للبنك.',
-           N'An internal assessment on Moody''s long-term rating scale and its published scorecard approach (a score per metric on a linear continuum, a weight per factor); the thresholds are calibrated by expert judgment for the Saudi market. It is not a rating issued by Moody''s or any agency, and it does not replace a bank''s internal rating.'
+           N'تقييم ذاتي داخلي تجريه الشركة على سلّم موديز (Moody''s) للتصنيف طويل الأجل بطريقة بطاقات التقييم: درجة لكل مقياس على خط مستمر ووزن لكل عامل. الحدود والأوزان معايرة بالخبرة لا بالإحصاء، صاغها وراجعها وكلاء ذكاء اصطناعي، ولم يراجعها محلل بشري، وتتحقق منها إدارة الخزينة قبل استعمالها. ليس تصنيفًا صادرًا عن موديز ولا عن أي وكالة؛ ومقابل فيتش وتصنيف الاسترداد ونطاق الخسارة عند التعثر وتسمية السيولة فيه مقابلة داخلية استرشادية لا تصنيفات وكالات؛ ولا يحل محل التصنيف الداخلي لأي جهة تمويل.',
+           N'An internal self-assessment by the company on Moody''s long-term rating scale with a scorecard approach (a score per metric on a linear continuum, a weight per factor). The thresholds and weights are a judgmental, not a statistical, calibration, written and reviewed by AI agents and not reviewed by a human analyst; the treasury validates them before use. It is not a rating issued by Moody''s or any agency; the Fitch equivalent, recovery rating, loss-given-default band and liquidity label it shows are an indicative internal mapping, not agency ratings; and it does not replace any lender''s internal rating.'
     FROM ref.Currency AS cu WHERE cu.Code = 'SAR';
 MERGE fin.ScorecardMetric AS d
 USING (SELECT sc.ScorecardId, m.CreditMetricId, v.FactorCode, v.Weight, v.B0, v.B1, v.B2, v.B3, v.B4, v.B5, v.B6, v.B7, v.B8, v.SortOrder
@@ -8462,9 +8467,9 @@ USING (SELECT sc.ScorecardId, v.RuleCode, v.Stage, v.Notches, g.RatingGradeId AS
     ('AUDIT_QUALIFIED', 'NOTCH', -1, NULL, NULL, 'ALWAYS', N'رأي المراجع متحفظ',
      N'رأي المراجع متحفظ: تنزيل درجة واحدة',
      N'Qualified audit opinion: one notch down'),
-    ('UNAUDITED_ANNUAL', 'NOTCH', -1, NULL, NULL, 'ALWAYS', N'قائمة سنوية غير مدققة',
-     N'قائمة سنوية إدارية غير مدققة: تنزيل درجة واحدة',
-     N'Unaudited (management) annual statement: one notch down'),
+    ('UNAUDITED_ANNUAL', 'NOTCH', -1, NULL, NULL, 'ALWAYS', N'قائمة غير مدققة',
+     N'قائمة إدارية غير مدققة ولا مراجَعة، سنوية أو مرحلية: تنزيل درجة واحدة',
+     N'Management statement, neither audited nor reviewed, annual or interim: one notch down'),
     ('STALE_STATEMENT', 'NOTCH', -1, NULL, 15, 'ALWAYS', N'قائمة قديمة',
      N'مضى على نهاية فترة القائمة أكثر من {p} شهرًا: تنزيل درجة واحدة',
      N'The statement''s period ended more than {p} months ago: one notch down'),
@@ -8618,6 +8623,7 @@ USING (SELECT sc.ScorecardId, v.GroupCode, v.ParamKey, v.Value, v.Value2
     ('CARD', 'SUBFACTOR_MINIMUM', 3, NULL),
     ('CARD', 'HIDDEN_DEBT_PCT', 15, NULL),
     ('CARD', 'BUREAU_MAX_AGE_MONTHS', 3, NULL),
+    ('CARD', 'HIDDEN_DEBT_WINDOW_MONTHS', 6, NULL),
     ('CARD', 'LGD_MAX_UP', 3, NULL),
     ('CARD', 'LGD_MAX_UP_NEAR_DEFAULT', 1, NULL),
     ('CARD', 'LGD_BEST_FACILITY_NOTCH', 4, NULL),
@@ -8735,8 +8741,8 @@ IF NOT EXISTS (SELECT 1 FROM fin.Scorecard WHERE Code = 'AUTOMOTIVE_DISTRIBUTION
     SELECT 'AUTOMOTIVE_DISTRIBUTION', 1, N'وكالات وتوزيع السيارات', N'Automotive distribution',
            N'وكالات السيارات والمعارض وقطع الغيار والتأجير',
            cu.CurrencyId, 1000000, 60, 3, 12, 'DRAFT',
-           N'تقييم داخلي يعتمد سلّم موديز (Moody''s) للتصنيف طويل الأجل وطريقة بطاقات التقييم المنشورة: درجة لكل مقياس على خط مستمر ووزن لكل عامل؛ والحدود معايرة بخبرة المحلل للسوق السعودية. ليس تصنيفًا صادرًا عن موديز ولا عن أي وكالة، ولا يحل محل التصنيف الداخلي للبنك.',
-           N'An internal assessment on Moody''s long-term rating scale and its published scorecard approach (a score per metric on a linear continuum, a weight per factor); the thresholds are calibrated by expert judgment for the Saudi market. It is not a rating issued by Moody''s or any agency, and it does not replace a bank''s internal rating.'
+           N'تقييم ذاتي داخلي تجريه الشركة على سلّم موديز (Moody''s) للتصنيف طويل الأجل بطريقة بطاقات التقييم: درجة لكل مقياس على خط مستمر ووزن لكل عامل. الحدود والأوزان معايرة بالخبرة لا بالإحصاء، صاغها وراجعها وكلاء ذكاء اصطناعي، ولم يراجعها محلل بشري، وتتحقق منها إدارة الخزينة قبل استعمالها. ليس تصنيفًا صادرًا عن موديز ولا عن أي وكالة؛ ومقابل فيتش وتصنيف الاسترداد ونطاق الخسارة عند التعثر وتسمية السيولة فيه مقابلة داخلية استرشادية لا تصنيفات وكالات؛ ولا يحل محل التصنيف الداخلي لأي جهة تمويل.',
+           N'An internal self-assessment by the company on Moody''s long-term rating scale with a scorecard approach (a score per metric on a linear continuum, a weight per factor). The thresholds and weights are a judgmental, not a statistical, calibration, written and reviewed by AI agents and not reviewed by a human analyst; the treasury validates them before use. It is not a rating issued by Moody''s or any agency; the Fitch equivalent, recovery rating, loss-given-default band and liquidity label it shows are an indicative internal mapping, not agency ratings; and it does not replace any lender''s internal rating.'
     FROM ref.Currency AS cu WHERE cu.Code = 'SAR';
 MERGE fin.ScorecardMetric AS d
 USING (SELECT sc.ScorecardId, m.CreditMetricId, v.FactorCode, v.Weight, v.B0, v.B1, v.B2, v.B3, v.B4, v.B5, v.B6, v.B7, v.B8, v.SortOrder
@@ -8916,9 +8922,9 @@ USING (SELECT sc.ScorecardId, v.RuleCode, v.Stage, v.Notches, g.RatingGradeId AS
     ('AUDIT_QUALIFIED', 'NOTCH', -1, NULL, NULL, 'ALWAYS', N'رأي المراجع متحفظ',
      N'رأي المراجع متحفظ: تنزيل درجة واحدة',
      N'Qualified audit opinion: one notch down'),
-    ('UNAUDITED_ANNUAL', 'NOTCH', -1, NULL, NULL, 'ALWAYS', N'قائمة سنوية غير مدققة',
-     N'قائمة سنوية إدارية غير مدققة: تنزيل درجة واحدة',
-     N'Unaudited (management) annual statement: one notch down'),
+    ('UNAUDITED_ANNUAL', 'NOTCH', -1, NULL, NULL, 'ALWAYS', N'قائمة غير مدققة',
+     N'قائمة إدارية غير مدققة ولا مراجَعة، سنوية أو مرحلية: تنزيل درجة واحدة',
+     N'Management statement, neither audited nor reviewed, annual or interim: one notch down'),
     ('STALE_STATEMENT', 'NOTCH', -1, NULL, 15, 'ALWAYS', N'قائمة قديمة',
      N'مضى على نهاية فترة القائمة أكثر من {p} شهرًا: تنزيل درجة واحدة',
      N'The statement''s period ended more than {p} months ago: one notch down'),
@@ -9072,6 +9078,7 @@ USING (SELECT sc.ScorecardId, v.GroupCode, v.ParamKey, v.Value, v.Value2
     ('CARD', 'SUBFACTOR_MINIMUM', 3, NULL),
     ('CARD', 'HIDDEN_DEBT_PCT', 15, NULL),
     ('CARD', 'BUREAU_MAX_AGE_MONTHS', 3, NULL),
+    ('CARD', 'HIDDEN_DEBT_WINDOW_MONTHS', 6, NULL),
     ('CARD', 'LGD_MAX_UP', 3, NULL),
     ('CARD', 'LGD_MAX_UP_NEAR_DEFAULT', 1, NULL),
     ('CARD', 'LGD_BEST_FACILITY_NOTCH', 4, NULL),
@@ -9189,8 +9196,8 @@ IF NOT EXISTS (SELECT 1 FROM fin.Scorecard WHERE Code = 'PROPERTY_DEVELOPMENT' A
     SELECT 'PROPERTY_DEVELOPMENT', 1, N'التطوير العقاري', N'Property development',
            N'المطورون العقاريون وبناة المساكن',
            cu.CurrencyId, 1000000, 60, 3, 12, 'DRAFT',
-           N'تقييم داخلي يعتمد سلّم موديز (Moody''s) للتصنيف طويل الأجل وطريقة بطاقات التقييم المنشورة: درجة لكل مقياس على خط مستمر ووزن لكل عامل؛ والحدود معايرة بخبرة المحلل للسوق السعودية. ليس تصنيفًا صادرًا عن موديز ولا عن أي وكالة، ولا يحل محل التصنيف الداخلي للبنك.',
-           N'An internal assessment on Moody''s long-term rating scale and its published scorecard approach (a score per metric on a linear continuum, a weight per factor); the thresholds are calibrated by expert judgment for the Saudi market. It is not a rating issued by Moody''s or any agency, and it does not replace a bank''s internal rating.'
+           N'تقييم ذاتي داخلي تجريه الشركة على سلّم موديز (Moody''s) للتصنيف طويل الأجل بطريقة بطاقات التقييم: درجة لكل مقياس على خط مستمر ووزن لكل عامل. الحدود والأوزان معايرة بالخبرة لا بالإحصاء، صاغها وراجعها وكلاء ذكاء اصطناعي، ولم يراجعها محلل بشري، وتتحقق منها إدارة الخزينة قبل استعمالها. ليس تصنيفًا صادرًا عن موديز ولا عن أي وكالة؛ ومقابل فيتش وتصنيف الاسترداد ونطاق الخسارة عند التعثر وتسمية السيولة فيه مقابلة داخلية استرشادية لا تصنيفات وكالات؛ ولا يحل محل التصنيف الداخلي لأي جهة تمويل.',
+           N'An internal self-assessment by the company on Moody''s long-term rating scale with a scorecard approach (a score per metric on a linear continuum, a weight per factor). The thresholds and weights are a judgmental, not a statistical, calibration, written and reviewed by AI agents and not reviewed by a human analyst; the treasury validates them before use. It is not a rating issued by Moody''s or any agency; the Fitch equivalent, recovery rating, loss-given-default band and liquidity label it shows are an indicative internal mapping, not agency ratings; and it does not replace any lender''s internal rating.'
     FROM ref.Currency AS cu WHERE cu.Code = 'SAR';
 MERGE fin.ScorecardMetric AS d
 USING (SELECT sc.ScorecardId, m.CreditMetricId, v.FactorCode, v.Weight, v.B0, v.B1, v.B2, v.B3, v.B4, v.B5, v.B6, v.B7, v.B8, v.SortOrder
@@ -9370,9 +9377,9 @@ USING (SELECT sc.ScorecardId, v.RuleCode, v.Stage, v.Notches, g.RatingGradeId AS
     ('AUDIT_QUALIFIED', 'NOTCH', -1, NULL, NULL, 'ALWAYS', N'رأي المراجع متحفظ',
      N'رأي المراجع متحفظ: تنزيل درجة واحدة',
      N'Qualified audit opinion: one notch down'),
-    ('UNAUDITED_ANNUAL', 'NOTCH', -1, NULL, NULL, 'ALWAYS', N'قائمة سنوية غير مدققة',
-     N'قائمة سنوية إدارية غير مدققة: تنزيل درجة واحدة',
-     N'Unaudited (management) annual statement: one notch down'),
+    ('UNAUDITED_ANNUAL', 'NOTCH', -1, NULL, NULL, 'ALWAYS', N'قائمة غير مدققة',
+     N'قائمة إدارية غير مدققة ولا مراجَعة، سنوية أو مرحلية: تنزيل درجة واحدة',
+     N'Management statement, neither audited nor reviewed, annual or interim: one notch down'),
     ('STALE_STATEMENT', 'NOTCH', -1, NULL, 15, 'ALWAYS', N'قائمة قديمة',
      N'مضى على نهاية فترة القائمة أكثر من {p} شهرًا: تنزيل درجة واحدة',
      N'The statement''s period ended more than {p} months ago: one notch down'),
@@ -9526,6 +9533,7 @@ USING (SELECT sc.ScorecardId, v.GroupCode, v.ParamKey, v.Value, v.Value2
     ('CARD', 'SUBFACTOR_MINIMUM', 3, NULL),
     ('CARD', 'HIDDEN_DEBT_PCT', 15, NULL),
     ('CARD', 'BUREAU_MAX_AGE_MONTHS', 3, NULL),
+    ('CARD', 'HIDDEN_DEBT_WINDOW_MONTHS', 6, NULL),
     ('CARD', 'LGD_MAX_UP', 3, NULL),
     ('CARD', 'LGD_MAX_UP_NEAR_DEFAULT', 1, NULL),
     ('CARD', 'LGD_BEST_FACILITY_NOTCH', 4, NULL),
@@ -9643,8 +9651,8 @@ IF NOT EXISTS (SELECT 1 FROM fin.Scorecard WHERE Code = 'PROPERTY_INVESTMENT' AN
     SELECT 'PROPERTY_INVESTMENT', 1, N'الاستثمار العقاري', N'Property investment',
            N'تأجير العقارات الاستثمارية والمراكز التجارية والمكاتب',
            cu.CurrencyId, 1000000, 60, 3, 12, 'DRAFT',
-           N'تقييم داخلي يعتمد سلّم موديز (Moody''s) للتصنيف طويل الأجل وطريقة بطاقات التقييم المنشورة: درجة لكل مقياس على خط مستمر ووزن لكل عامل؛ والحدود معايرة بخبرة المحلل للسوق السعودية. ليس تصنيفًا صادرًا عن موديز ولا عن أي وكالة، ولا يحل محل التصنيف الداخلي للبنك.',
-           N'An internal assessment on Moody''s long-term rating scale and its published scorecard approach (a score per metric on a linear continuum, a weight per factor); the thresholds are calibrated by expert judgment for the Saudi market. It is not a rating issued by Moody''s or any agency, and it does not replace a bank''s internal rating.'
+           N'تقييم ذاتي داخلي تجريه الشركة على سلّم موديز (Moody''s) للتصنيف طويل الأجل بطريقة بطاقات التقييم: درجة لكل مقياس على خط مستمر ووزن لكل عامل. الحدود والأوزان معايرة بالخبرة لا بالإحصاء، صاغها وراجعها وكلاء ذكاء اصطناعي، ولم يراجعها محلل بشري، وتتحقق منها إدارة الخزينة قبل استعمالها. ليس تصنيفًا صادرًا عن موديز ولا عن أي وكالة؛ ومقابل فيتش وتصنيف الاسترداد ونطاق الخسارة عند التعثر وتسمية السيولة فيه مقابلة داخلية استرشادية لا تصنيفات وكالات؛ ولا يحل محل التصنيف الداخلي لأي جهة تمويل.',
+           N'An internal self-assessment by the company on Moody''s long-term rating scale with a scorecard approach (a score per metric on a linear continuum, a weight per factor). The thresholds and weights are a judgmental, not a statistical, calibration, written and reviewed by AI agents and not reviewed by a human analyst; the treasury validates them before use. It is not a rating issued by Moody''s or any agency; the Fitch equivalent, recovery rating, loss-given-default band and liquidity label it shows are an indicative internal mapping, not agency ratings; and it does not replace any lender''s internal rating.'
     FROM ref.Currency AS cu WHERE cu.Code = 'SAR';
 MERGE fin.ScorecardMetric AS d
 USING (SELECT sc.ScorecardId, m.CreditMetricId, v.FactorCode, v.Weight, v.B0, v.B1, v.B2, v.B3, v.B4, v.B5, v.B6, v.B7, v.B8, v.SortOrder
@@ -9823,9 +9831,9 @@ USING (SELECT sc.ScorecardId, v.RuleCode, v.Stage, v.Notches, g.RatingGradeId AS
     ('AUDIT_QUALIFIED', 'NOTCH', -1, NULL, NULL, 'ALWAYS', N'رأي المراجع متحفظ',
      N'رأي المراجع متحفظ: تنزيل درجة واحدة',
      N'Qualified audit opinion: one notch down'),
-    ('UNAUDITED_ANNUAL', 'NOTCH', -1, NULL, NULL, 'ALWAYS', N'قائمة سنوية غير مدققة',
-     N'قائمة سنوية إدارية غير مدققة: تنزيل درجة واحدة',
-     N'Unaudited (management) annual statement: one notch down'),
+    ('UNAUDITED_ANNUAL', 'NOTCH', -1, NULL, NULL, 'ALWAYS', N'قائمة غير مدققة',
+     N'قائمة إدارية غير مدققة ولا مراجَعة، سنوية أو مرحلية: تنزيل درجة واحدة',
+     N'Management statement, neither audited nor reviewed, annual or interim: one notch down'),
     ('STALE_STATEMENT', 'NOTCH', -1, NULL, 15, 'ALWAYS', N'قائمة قديمة',
      N'مضى على نهاية فترة القائمة أكثر من {p} شهرًا: تنزيل درجة واحدة',
      N'The statement''s period ended more than {p} months ago: one notch down'),
@@ -9979,6 +9987,7 @@ USING (SELECT sc.ScorecardId, v.GroupCode, v.ParamKey, v.Value, v.Value2
     ('CARD', 'SUBFACTOR_MINIMUM', 3, NULL),
     ('CARD', 'HIDDEN_DEBT_PCT', 15, NULL),
     ('CARD', 'BUREAU_MAX_AGE_MONTHS', 3, NULL),
+    ('CARD', 'HIDDEN_DEBT_WINDOW_MONTHS', 6, NULL),
     ('CARD', 'LGD_MAX_UP', 3, NULL),
     ('CARD', 'LGD_MAX_UP_NEAR_DEFAULT', 1, NULL),
     ('CARD', 'LGD_BEST_FACILITY_NOTCH', 4, NULL),
@@ -10096,8 +10105,8 @@ IF NOT EXISTS (SELECT 1 FROM fin.Scorecard WHERE Code = 'HOSPITALITY_TOURISM' AN
     SELECT 'HOSPITALITY_TOURISM', 1, N'الضيافة والسياحة', N'Hospitality and tourism',
            N'الفنادق والسفر والسياحة ومشغلو الحج والعمرة',
            cu.CurrencyId, 1000000, 60, 3, 12, 'DRAFT',
-           N'تقييم داخلي يعتمد سلّم موديز (Moody''s) للتصنيف طويل الأجل وطريقة بطاقات التقييم المنشورة: درجة لكل مقياس على خط مستمر ووزن لكل عامل؛ والحدود معايرة بخبرة المحلل للسوق السعودية. ليس تصنيفًا صادرًا عن موديز ولا عن أي وكالة، ولا يحل محل التصنيف الداخلي للبنك.',
-           N'An internal assessment on Moody''s long-term rating scale and its published scorecard approach (a score per metric on a linear continuum, a weight per factor); the thresholds are calibrated by expert judgment for the Saudi market. It is not a rating issued by Moody''s or any agency, and it does not replace a bank''s internal rating.'
+           N'تقييم ذاتي داخلي تجريه الشركة على سلّم موديز (Moody''s) للتصنيف طويل الأجل بطريقة بطاقات التقييم: درجة لكل مقياس على خط مستمر ووزن لكل عامل. الحدود والأوزان معايرة بالخبرة لا بالإحصاء، صاغها وراجعها وكلاء ذكاء اصطناعي، ولم يراجعها محلل بشري، وتتحقق منها إدارة الخزينة قبل استعمالها. ليس تصنيفًا صادرًا عن موديز ولا عن أي وكالة؛ ومقابل فيتش وتصنيف الاسترداد ونطاق الخسارة عند التعثر وتسمية السيولة فيه مقابلة داخلية استرشادية لا تصنيفات وكالات؛ ولا يحل محل التصنيف الداخلي لأي جهة تمويل.',
+           N'An internal self-assessment by the company on Moody''s long-term rating scale with a scorecard approach (a score per metric on a linear continuum, a weight per factor). The thresholds and weights are a judgmental, not a statistical, calibration, written and reviewed by AI agents and not reviewed by a human analyst; the treasury validates them before use. It is not a rating issued by Moody''s or any agency; the Fitch equivalent, recovery rating, loss-given-default band and liquidity label it shows are an indicative internal mapping, not agency ratings; and it does not replace any lender''s internal rating.'
     FROM ref.Currency AS cu WHERE cu.Code = 'SAR';
 MERGE fin.ScorecardMetric AS d
 USING (SELECT sc.ScorecardId, m.CreditMetricId, v.FactorCode, v.Weight, v.B0, v.B1, v.B2, v.B3, v.B4, v.B5, v.B6, v.B7, v.B8, v.SortOrder
@@ -10277,9 +10286,9 @@ USING (SELECT sc.ScorecardId, v.RuleCode, v.Stage, v.Notches, g.RatingGradeId AS
     ('AUDIT_QUALIFIED', 'NOTCH', -1, NULL, NULL, 'ALWAYS', N'رأي المراجع متحفظ',
      N'رأي المراجع متحفظ: تنزيل درجة واحدة',
      N'Qualified audit opinion: one notch down'),
-    ('UNAUDITED_ANNUAL', 'NOTCH', -1, NULL, NULL, 'ALWAYS', N'قائمة سنوية غير مدققة',
-     N'قائمة سنوية إدارية غير مدققة: تنزيل درجة واحدة',
-     N'Unaudited (management) annual statement: one notch down'),
+    ('UNAUDITED_ANNUAL', 'NOTCH', -1, NULL, NULL, 'ALWAYS', N'قائمة غير مدققة',
+     N'قائمة إدارية غير مدققة ولا مراجَعة، سنوية أو مرحلية: تنزيل درجة واحدة',
+     N'Management statement, neither audited nor reviewed, annual or interim: one notch down'),
     ('STALE_STATEMENT', 'NOTCH', -1, NULL, 15, 'ALWAYS', N'قائمة قديمة',
      N'مضى على نهاية فترة القائمة أكثر من {p} شهرًا: تنزيل درجة واحدة',
      N'The statement''s period ended more than {p} months ago: one notch down'),
@@ -10433,6 +10442,7 @@ USING (SELECT sc.ScorecardId, v.GroupCode, v.ParamKey, v.Value, v.Value2
     ('CARD', 'SUBFACTOR_MINIMUM', 3, NULL),
     ('CARD', 'HIDDEN_DEBT_PCT', 15, NULL),
     ('CARD', 'BUREAU_MAX_AGE_MONTHS', 3, NULL),
+    ('CARD', 'HIDDEN_DEBT_WINDOW_MONTHS', 6, NULL),
     ('CARD', 'LGD_MAX_UP', 3, NULL),
     ('CARD', 'LGD_MAX_UP_NEAR_DEFAULT', 1, NULL),
     ('CARD', 'LGD_BEST_FACILITY_NOTCH', 4, NULL),
@@ -10550,8 +10560,8 @@ IF NOT EXISTS (SELECT 1 FROM fin.Scorecard WHERE Code = 'RESTAURANTS_FOOD_SERVIC
     SELECT 'RESTAURANTS_FOOD_SERVICE', 1, N'المطاعم وخدمات الإعاشة', N'Restaurants and food service',
            N'المطاعم والمقاهي والإعاشة والتموين',
            cu.CurrencyId, 1000000, 60, 3, 12, 'DRAFT',
-           N'تقييم داخلي يعتمد سلّم موديز (Moody''s) للتصنيف طويل الأجل وطريقة بطاقات التقييم المنشورة: درجة لكل مقياس على خط مستمر ووزن لكل عامل؛ والحدود معايرة بخبرة المحلل للسوق السعودية. ليس تصنيفًا صادرًا عن موديز ولا عن أي وكالة، ولا يحل محل التصنيف الداخلي للبنك.',
-           N'An internal assessment on Moody''s long-term rating scale and its published scorecard approach (a score per metric on a linear continuum, a weight per factor); the thresholds are calibrated by expert judgment for the Saudi market. It is not a rating issued by Moody''s or any agency, and it does not replace a bank''s internal rating.'
+           N'تقييم ذاتي داخلي تجريه الشركة على سلّم موديز (Moody''s) للتصنيف طويل الأجل بطريقة بطاقات التقييم: درجة لكل مقياس على خط مستمر ووزن لكل عامل. الحدود والأوزان معايرة بالخبرة لا بالإحصاء، صاغها وراجعها وكلاء ذكاء اصطناعي، ولم يراجعها محلل بشري، وتتحقق منها إدارة الخزينة قبل استعمالها. ليس تصنيفًا صادرًا عن موديز ولا عن أي وكالة؛ ومقابل فيتش وتصنيف الاسترداد ونطاق الخسارة عند التعثر وتسمية السيولة فيه مقابلة داخلية استرشادية لا تصنيفات وكالات؛ ولا يحل محل التصنيف الداخلي لأي جهة تمويل.',
+           N'An internal self-assessment by the company on Moody''s long-term rating scale with a scorecard approach (a score per metric on a linear continuum, a weight per factor). The thresholds and weights are a judgmental, not a statistical, calibration, written and reviewed by AI agents and not reviewed by a human analyst; the treasury validates them before use. It is not a rating issued by Moody''s or any agency; the Fitch equivalent, recovery rating, loss-given-default band and liquidity label it shows are an indicative internal mapping, not agency ratings; and it does not replace any lender''s internal rating.'
     FROM ref.Currency AS cu WHERE cu.Code = 'SAR';
 MERGE fin.ScorecardMetric AS d
 USING (SELECT sc.ScorecardId, m.CreditMetricId, v.FactorCode, v.Weight, v.B0, v.B1, v.B2, v.B3, v.B4, v.B5, v.B6, v.B7, v.B8, v.SortOrder
@@ -10730,9 +10740,9 @@ USING (SELECT sc.ScorecardId, v.RuleCode, v.Stage, v.Notches, g.RatingGradeId AS
     ('AUDIT_QUALIFIED', 'NOTCH', -1, NULL, NULL, 'ALWAYS', N'رأي المراجع متحفظ',
      N'رأي المراجع متحفظ: تنزيل درجة واحدة',
      N'Qualified audit opinion: one notch down'),
-    ('UNAUDITED_ANNUAL', 'NOTCH', -1, NULL, NULL, 'ALWAYS', N'قائمة سنوية غير مدققة',
-     N'قائمة سنوية إدارية غير مدققة: تنزيل درجة واحدة',
-     N'Unaudited (management) annual statement: one notch down'),
+    ('UNAUDITED_ANNUAL', 'NOTCH', -1, NULL, NULL, 'ALWAYS', N'قائمة غير مدققة',
+     N'قائمة إدارية غير مدققة ولا مراجَعة، سنوية أو مرحلية: تنزيل درجة واحدة',
+     N'Management statement, neither audited nor reviewed, annual or interim: one notch down'),
     ('STALE_STATEMENT', 'NOTCH', -1, NULL, 15, 'ALWAYS', N'قائمة قديمة',
      N'مضى على نهاية فترة القائمة أكثر من {p} شهرًا: تنزيل درجة واحدة',
      N'The statement''s period ended more than {p} months ago: one notch down'),
@@ -10886,6 +10896,7 @@ USING (SELECT sc.ScorecardId, v.GroupCode, v.ParamKey, v.Value, v.Value2
     ('CARD', 'SUBFACTOR_MINIMUM', 3, NULL),
     ('CARD', 'HIDDEN_DEBT_PCT', 15, NULL),
     ('CARD', 'BUREAU_MAX_AGE_MONTHS', 3, NULL),
+    ('CARD', 'HIDDEN_DEBT_WINDOW_MONTHS', 6, NULL),
     ('CARD', 'LGD_MAX_UP', 3, NULL),
     ('CARD', 'LGD_MAX_UP_NEAR_DEFAULT', 1, NULL),
     ('CARD', 'LGD_BEST_FACILITY_NOTCH', 4, NULL),
@@ -11003,8 +11014,8 @@ IF NOT EXISTS (SELECT 1 FROM fin.Scorecard WHERE Code = 'TRANSPORT_LOGISTICS' AN
     SELECT 'TRANSPORT_LOGISTICS', 1, N'النقل والخدمات اللوجستية', N'Transport and logistics',
            N'النقل البري والبحري والتخزين والخدمات اللوجستية',
            cu.CurrencyId, 1000000, 60, 3, 12, 'DRAFT',
-           N'تقييم داخلي يعتمد سلّم موديز (Moody''s) للتصنيف طويل الأجل وطريقة بطاقات التقييم المنشورة: درجة لكل مقياس على خط مستمر ووزن لكل عامل؛ والحدود معايرة بخبرة المحلل للسوق السعودية. ليس تصنيفًا صادرًا عن موديز ولا عن أي وكالة، ولا يحل محل التصنيف الداخلي للبنك.',
-           N'An internal assessment on Moody''s long-term rating scale and its published scorecard approach (a score per metric on a linear continuum, a weight per factor); the thresholds are calibrated by expert judgment for the Saudi market. It is not a rating issued by Moody''s or any agency, and it does not replace a bank''s internal rating.'
+           N'تقييم ذاتي داخلي تجريه الشركة على سلّم موديز (Moody''s) للتصنيف طويل الأجل بطريقة بطاقات التقييم: درجة لكل مقياس على خط مستمر ووزن لكل عامل. الحدود والأوزان معايرة بالخبرة لا بالإحصاء، صاغها وراجعها وكلاء ذكاء اصطناعي، ولم يراجعها محلل بشري، وتتحقق منها إدارة الخزينة قبل استعمالها. ليس تصنيفًا صادرًا عن موديز ولا عن أي وكالة؛ ومقابل فيتش وتصنيف الاسترداد ونطاق الخسارة عند التعثر وتسمية السيولة فيه مقابلة داخلية استرشادية لا تصنيفات وكالات؛ ولا يحل محل التصنيف الداخلي لأي جهة تمويل.',
+           N'An internal self-assessment by the company on Moody''s long-term rating scale with a scorecard approach (a score per metric on a linear continuum, a weight per factor). The thresholds and weights are a judgmental, not a statistical, calibration, written and reviewed by AI agents and not reviewed by a human analyst; the treasury validates them before use. It is not a rating issued by Moody''s or any agency; the Fitch equivalent, recovery rating, loss-given-default band and liquidity label it shows are an indicative internal mapping, not agency ratings; and it does not replace any lender''s internal rating.'
     FROM ref.Currency AS cu WHERE cu.Code = 'SAR';
 MERGE fin.ScorecardMetric AS d
 USING (SELECT sc.ScorecardId, m.CreditMetricId, v.FactorCode, v.Weight, v.B0, v.B1, v.B2, v.B3, v.B4, v.B5, v.B6, v.B7, v.B8, v.SortOrder
@@ -11184,9 +11195,9 @@ USING (SELECT sc.ScorecardId, v.RuleCode, v.Stage, v.Notches, g.RatingGradeId AS
     ('AUDIT_QUALIFIED', 'NOTCH', -1, NULL, NULL, 'ALWAYS', N'رأي المراجع متحفظ',
      N'رأي المراجع متحفظ: تنزيل درجة واحدة',
      N'Qualified audit opinion: one notch down'),
-    ('UNAUDITED_ANNUAL', 'NOTCH', -1, NULL, NULL, 'ALWAYS', N'قائمة سنوية غير مدققة',
-     N'قائمة سنوية إدارية غير مدققة: تنزيل درجة واحدة',
-     N'Unaudited (management) annual statement: one notch down'),
+    ('UNAUDITED_ANNUAL', 'NOTCH', -1, NULL, NULL, 'ALWAYS', N'قائمة غير مدققة',
+     N'قائمة إدارية غير مدققة ولا مراجَعة، سنوية أو مرحلية: تنزيل درجة واحدة',
+     N'Management statement, neither audited nor reviewed, annual or interim: one notch down'),
     ('STALE_STATEMENT', 'NOTCH', -1, NULL, 15, 'ALWAYS', N'قائمة قديمة',
      N'مضى على نهاية فترة القائمة أكثر من {p} شهرًا: تنزيل درجة واحدة',
      N'The statement''s period ended more than {p} months ago: one notch down'),
@@ -11340,6 +11351,7 @@ USING (SELECT sc.ScorecardId, v.GroupCode, v.ParamKey, v.Value, v.Value2
     ('CARD', 'SUBFACTOR_MINIMUM', 3, NULL),
     ('CARD', 'HIDDEN_DEBT_PCT', 15, NULL),
     ('CARD', 'BUREAU_MAX_AGE_MONTHS', 3, NULL),
+    ('CARD', 'HIDDEN_DEBT_WINDOW_MONTHS', 6, NULL),
     ('CARD', 'LGD_MAX_UP', 3, NULL),
     ('CARD', 'LGD_MAX_UP_NEAR_DEFAULT', 1, NULL),
     ('CARD', 'LGD_BEST_FACILITY_NOTCH', 4, NULL),
@@ -11457,8 +11469,8 @@ IF NOT EXISTS (SELECT 1 FROM fin.Scorecard WHERE Code = 'AVIATION' AND VersionNo
     SELECT 'AVIATION', 1, N'الطيران', N'Aviation',
            N'شركات الطيران وخدمات الطيران',
            cu.CurrencyId, 1000000, 60, 3, 12, 'DRAFT',
-           N'تقييم داخلي يعتمد سلّم موديز (Moody''s) للتصنيف طويل الأجل وطريقة بطاقات التقييم المنشورة: درجة لكل مقياس على خط مستمر ووزن لكل عامل؛ والحدود معايرة بخبرة المحلل للسوق السعودية. ليس تصنيفًا صادرًا عن موديز ولا عن أي وكالة، ولا يحل محل التصنيف الداخلي للبنك.',
-           N'An internal assessment on Moody''s long-term rating scale and its published scorecard approach (a score per metric on a linear continuum, a weight per factor); the thresholds are calibrated by expert judgment for the Saudi market. It is not a rating issued by Moody''s or any agency, and it does not replace a bank''s internal rating.'
+           N'تقييم ذاتي داخلي تجريه الشركة على سلّم موديز (Moody''s) للتصنيف طويل الأجل بطريقة بطاقات التقييم: درجة لكل مقياس على خط مستمر ووزن لكل عامل. الحدود والأوزان معايرة بالخبرة لا بالإحصاء، صاغها وراجعها وكلاء ذكاء اصطناعي، ولم يراجعها محلل بشري، وتتحقق منها إدارة الخزينة قبل استعمالها. ليس تصنيفًا صادرًا عن موديز ولا عن أي وكالة؛ ومقابل فيتش وتصنيف الاسترداد ونطاق الخسارة عند التعثر وتسمية السيولة فيه مقابلة داخلية استرشادية لا تصنيفات وكالات؛ ولا يحل محل التصنيف الداخلي لأي جهة تمويل.',
+           N'An internal self-assessment by the company on Moody''s long-term rating scale with a scorecard approach (a score per metric on a linear continuum, a weight per factor). The thresholds and weights are a judgmental, not a statistical, calibration, written and reviewed by AI agents and not reviewed by a human analyst; the treasury validates them before use. It is not a rating issued by Moody''s or any agency; the Fitch equivalent, recovery rating, loss-given-default band and liquidity label it shows are an indicative internal mapping, not agency ratings; and it does not replace any lender''s internal rating.'
     FROM ref.Currency AS cu WHERE cu.Code = 'SAR';
 MERGE fin.ScorecardMetric AS d
 USING (SELECT sc.ScorecardId, m.CreditMetricId, v.FactorCode, v.Weight, v.B0, v.B1, v.B2, v.B3, v.B4, v.B5, v.B6, v.B7, v.B8, v.SortOrder
@@ -11637,9 +11649,9 @@ USING (SELECT sc.ScorecardId, v.RuleCode, v.Stage, v.Notches, g.RatingGradeId AS
     ('AUDIT_QUALIFIED', 'NOTCH', -1, NULL, NULL, 'ALWAYS', N'رأي المراجع متحفظ',
      N'رأي المراجع متحفظ: تنزيل درجة واحدة',
      N'Qualified audit opinion: one notch down'),
-    ('UNAUDITED_ANNUAL', 'NOTCH', -1, NULL, NULL, 'ALWAYS', N'قائمة سنوية غير مدققة',
-     N'قائمة سنوية إدارية غير مدققة: تنزيل درجة واحدة',
-     N'Unaudited (management) annual statement: one notch down'),
+    ('UNAUDITED_ANNUAL', 'NOTCH', -1, NULL, NULL, 'ALWAYS', N'قائمة غير مدققة',
+     N'قائمة إدارية غير مدققة ولا مراجَعة، سنوية أو مرحلية: تنزيل درجة واحدة',
+     N'Management statement, neither audited nor reviewed, annual or interim: one notch down'),
     ('STALE_STATEMENT', 'NOTCH', -1, NULL, 15, 'ALWAYS', N'قائمة قديمة',
      N'مضى على نهاية فترة القائمة أكثر من {p} شهرًا: تنزيل درجة واحدة',
      N'The statement''s period ended more than {p} months ago: one notch down'),
@@ -11793,6 +11805,7 @@ USING (SELECT sc.ScorecardId, v.GroupCode, v.ParamKey, v.Value, v.Value2
     ('CARD', 'SUBFACTOR_MINIMUM', 3, NULL),
     ('CARD', 'HIDDEN_DEBT_PCT', 15, NULL),
     ('CARD', 'BUREAU_MAX_AGE_MONTHS', 3, NULL),
+    ('CARD', 'HIDDEN_DEBT_WINDOW_MONTHS', 6, NULL),
     ('CARD', 'LGD_MAX_UP', 3, NULL),
     ('CARD', 'LGD_MAX_UP_NEAR_DEFAULT', 1, NULL),
     ('CARD', 'LGD_BEST_FACILITY_NOTCH', 4, NULL),
@@ -11910,8 +11923,8 @@ IF NOT EXISTS (SELECT 1 FROM fin.Scorecard WHERE Code = 'HEALTHCARE_PHARMA' AND 
     SELECT 'HEALTHCARE_PHARMA', 1, N'الرعاية الصحية والأدوية', N'Healthcare and pharmaceuticals',
            N'المستشفيات وتصنيع الأدوية وتوزيعها',
            cu.CurrencyId, 1000000, 60, 3, 12, 'DRAFT',
-           N'تقييم داخلي يعتمد سلّم موديز (Moody''s) للتصنيف طويل الأجل وطريقة بطاقات التقييم المنشورة: درجة لكل مقياس على خط مستمر ووزن لكل عامل؛ والحدود معايرة بخبرة المحلل للسوق السعودية. ليس تصنيفًا صادرًا عن موديز ولا عن أي وكالة، ولا يحل محل التصنيف الداخلي للبنك.',
-           N'An internal assessment on Moody''s long-term rating scale and its published scorecard approach (a score per metric on a linear continuum, a weight per factor); the thresholds are calibrated by expert judgment for the Saudi market. It is not a rating issued by Moody''s or any agency, and it does not replace a bank''s internal rating.'
+           N'تقييم ذاتي داخلي تجريه الشركة على سلّم موديز (Moody''s) للتصنيف طويل الأجل بطريقة بطاقات التقييم: درجة لكل مقياس على خط مستمر ووزن لكل عامل. الحدود والأوزان معايرة بالخبرة لا بالإحصاء، صاغها وراجعها وكلاء ذكاء اصطناعي، ولم يراجعها محلل بشري، وتتحقق منها إدارة الخزينة قبل استعمالها. ليس تصنيفًا صادرًا عن موديز ولا عن أي وكالة؛ ومقابل فيتش وتصنيف الاسترداد ونطاق الخسارة عند التعثر وتسمية السيولة فيه مقابلة داخلية استرشادية لا تصنيفات وكالات؛ ولا يحل محل التصنيف الداخلي لأي جهة تمويل.',
+           N'An internal self-assessment by the company on Moody''s long-term rating scale with a scorecard approach (a score per metric on a linear continuum, a weight per factor). The thresholds and weights are a judgmental, not a statistical, calibration, written and reviewed by AI agents and not reviewed by a human analyst; the treasury validates them before use. It is not a rating issued by Moody''s or any agency; the Fitch equivalent, recovery rating, loss-given-default band and liquidity label it shows are an indicative internal mapping, not agency ratings; and it does not replace any lender''s internal rating.'
     FROM ref.Currency AS cu WHERE cu.Code = 'SAR';
 MERGE fin.ScorecardMetric AS d
 USING (SELECT sc.ScorecardId, m.CreditMetricId, v.FactorCode, v.Weight, v.B0, v.B1, v.B2, v.B3, v.B4, v.B5, v.B6, v.B7, v.B8, v.SortOrder
@@ -12091,9 +12104,9 @@ USING (SELECT sc.ScorecardId, v.RuleCode, v.Stage, v.Notches, g.RatingGradeId AS
     ('AUDIT_QUALIFIED', 'NOTCH', -1, NULL, NULL, 'ALWAYS', N'رأي المراجع متحفظ',
      N'رأي المراجع متحفظ: تنزيل درجة واحدة',
      N'Qualified audit opinion: one notch down'),
-    ('UNAUDITED_ANNUAL', 'NOTCH', -1, NULL, NULL, 'ALWAYS', N'قائمة سنوية غير مدققة',
-     N'قائمة سنوية إدارية غير مدققة: تنزيل درجة واحدة',
-     N'Unaudited (management) annual statement: one notch down'),
+    ('UNAUDITED_ANNUAL', 'NOTCH', -1, NULL, NULL, 'ALWAYS', N'قائمة غير مدققة',
+     N'قائمة إدارية غير مدققة ولا مراجَعة، سنوية أو مرحلية: تنزيل درجة واحدة',
+     N'Management statement, neither audited nor reviewed, annual or interim: one notch down'),
     ('STALE_STATEMENT', 'NOTCH', -1, NULL, 15, 'ALWAYS', N'قائمة قديمة',
      N'مضى على نهاية فترة القائمة أكثر من {p} شهرًا: تنزيل درجة واحدة',
      N'The statement''s period ended more than {p} months ago: one notch down'),
@@ -12247,6 +12260,7 @@ USING (SELECT sc.ScorecardId, v.GroupCode, v.ParamKey, v.Value, v.Value2
     ('CARD', 'SUBFACTOR_MINIMUM', 3, NULL),
     ('CARD', 'HIDDEN_DEBT_PCT', 15, NULL),
     ('CARD', 'BUREAU_MAX_AGE_MONTHS', 3, NULL),
+    ('CARD', 'HIDDEN_DEBT_WINDOW_MONTHS', 6, NULL),
     ('CARD', 'LGD_MAX_UP', 3, NULL),
     ('CARD', 'LGD_MAX_UP_NEAR_DEFAULT', 1, NULL),
     ('CARD', 'LGD_BEST_FACILITY_NOTCH', 4, NULL),
@@ -12364,8 +12378,8 @@ IF NOT EXISTS (SELECT 1 FROM fin.Scorecard WHERE Code = 'FOOD_BEVERAGE_MFG' AND 
     SELECT 'FOOD_BEVERAGE_MFG', 1, N'تصنيع الأغذية والمشروبات', N'Food and beverage manufacturing',
            N'مصانع الأغذية والألبان والمخابز والمشروبات',
            cu.CurrencyId, 1000000, 60, 3, 12, 'DRAFT',
-           N'تقييم داخلي يعتمد سلّم موديز (Moody''s) للتصنيف طويل الأجل وطريقة بطاقات التقييم المنشورة: درجة لكل مقياس على خط مستمر ووزن لكل عامل؛ والحدود معايرة بخبرة المحلل للسوق السعودية. ليس تصنيفًا صادرًا عن موديز ولا عن أي وكالة، ولا يحل محل التصنيف الداخلي للبنك.',
-           N'An internal assessment on Moody''s long-term rating scale and its published scorecard approach (a score per metric on a linear continuum, a weight per factor); the thresholds are calibrated by expert judgment for the Saudi market. It is not a rating issued by Moody''s or any agency, and it does not replace a bank''s internal rating.'
+           N'تقييم ذاتي داخلي تجريه الشركة على سلّم موديز (Moody''s) للتصنيف طويل الأجل بطريقة بطاقات التقييم: درجة لكل مقياس على خط مستمر ووزن لكل عامل. الحدود والأوزان معايرة بالخبرة لا بالإحصاء، صاغها وراجعها وكلاء ذكاء اصطناعي، ولم يراجعها محلل بشري، وتتحقق منها إدارة الخزينة قبل استعمالها. ليس تصنيفًا صادرًا عن موديز ولا عن أي وكالة؛ ومقابل فيتش وتصنيف الاسترداد ونطاق الخسارة عند التعثر وتسمية السيولة فيه مقابلة داخلية استرشادية لا تصنيفات وكالات؛ ولا يحل محل التصنيف الداخلي لأي جهة تمويل.',
+           N'An internal self-assessment by the company on Moody''s long-term rating scale with a scorecard approach (a score per metric on a linear continuum, a weight per factor). The thresholds and weights are a judgmental, not a statistical, calibration, written and reviewed by AI agents and not reviewed by a human analyst; the treasury validates them before use. It is not a rating issued by Moody''s or any agency; the Fitch equivalent, recovery rating, loss-given-default band and liquidity label it shows are an indicative internal mapping, not agency ratings; and it does not replace any lender''s internal rating.'
     FROM ref.Currency AS cu WHERE cu.Code = 'SAR';
 MERGE fin.ScorecardMetric AS d
 USING (SELECT sc.ScorecardId, m.CreditMetricId, v.FactorCode, v.Weight, v.B0, v.B1, v.B2, v.B3, v.B4, v.B5, v.B6, v.B7, v.B8, v.SortOrder
@@ -12545,9 +12559,9 @@ USING (SELECT sc.ScorecardId, v.RuleCode, v.Stage, v.Notches, g.RatingGradeId AS
     ('AUDIT_QUALIFIED', 'NOTCH', -1, NULL, NULL, 'ALWAYS', N'رأي المراجع متحفظ',
      N'رأي المراجع متحفظ: تنزيل درجة واحدة',
      N'Qualified audit opinion: one notch down'),
-    ('UNAUDITED_ANNUAL', 'NOTCH', -1, NULL, NULL, 'ALWAYS', N'قائمة سنوية غير مدققة',
-     N'قائمة سنوية إدارية غير مدققة: تنزيل درجة واحدة',
-     N'Unaudited (management) annual statement: one notch down'),
+    ('UNAUDITED_ANNUAL', 'NOTCH', -1, NULL, NULL, 'ALWAYS', N'قائمة غير مدققة',
+     N'قائمة إدارية غير مدققة ولا مراجَعة، سنوية أو مرحلية: تنزيل درجة واحدة',
+     N'Management statement, neither audited nor reviewed, annual or interim: one notch down'),
     ('STALE_STATEMENT', 'NOTCH', -1, NULL, 15, 'ALWAYS', N'قائمة قديمة',
      N'مضى على نهاية فترة القائمة أكثر من {p} شهرًا: تنزيل درجة واحدة',
      N'The statement''s period ended more than {p} months ago: one notch down'),
@@ -12701,6 +12715,7 @@ USING (SELECT sc.ScorecardId, v.GroupCode, v.ParamKey, v.Value, v.Value2
     ('CARD', 'SUBFACTOR_MINIMUM', 3, NULL),
     ('CARD', 'HIDDEN_DEBT_PCT', 15, NULL),
     ('CARD', 'BUREAU_MAX_AGE_MONTHS', 3, NULL),
+    ('CARD', 'HIDDEN_DEBT_WINDOW_MONTHS', 6, NULL),
     ('CARD', 'LGD_MAX_UP', 3, NULL),
     ('CARD', 'LGD_MAX_UP_NEAR_DEFAULT', 1, NULL),
     ('CARD', 'LGD_BEST_FACILITY_NOTCH', 4, NULL),
@@ -12818,8 +12833,8 @@ IF NOT EXISTS (SELECT 1 FROM fin.Scorecard WHERE Code = 'BUSINESS_SERVICES' AND 
     SELECT 'BUSINESS_SERVICES', 1, N'خدمات الأعمال', N'Business services',
            N'تقنية المعلومات والخدمات المهنية وإدارة المرافق وتوريد العمالة والتعليم',
            cu.CurrencyId, 1000000, 60, 3, 12, 'DRAFT',
-           N'تقييم داخلي يعتمد سلّم موديز (Moody''s) للتصنيف طويل الأجل وطريقة بطاقات التقييم المنشورة: درجة لكل مقياس على خط مستمر ووزن لكل عامل؛ والحدود معايرة بخبرة المحلل للسوق السعودية. ليس تصنيفًا صادرًا عن موديز ولا عن أي وكالة، ولا يحل محل التصنيف الداخلي للبنك.',
-           N'An internal assessment on Moody''s long-term rating scale and its published scorecard approach (a score per metric on a linear continuum, a weight per factor); the thresholds are calibrated by expert judgment for the Saudi market. It is not a rating issued by Moody''s or any agency, and it does not replace a bank''s internal rating.'
+           N'تقييم ذاتي داخلي تجريه الشركة على سلّم موديز (Moody''s) للتصنيف طويل الأجل بطريقة بطاقات التقييم: درجة لكل مقياس على خط مستمر ووزن لكل عامل. الحدود والأوزان معايرة بالخبرة لا بالإحصاء، صاغها وراجعها وكلاء ذكاء اصطناعي، ولم يراجعها محلل بشري، وتتحقق منها إدارة الخزينة قبل استعمالها. ليس تصنيفًا صادرًا عن موديز ولا عن أي وكالة؛ ومقابل فيتش وتصنيف الاسترداد ونطاق الخسارة عند التعثر وتسمية السيولة فيه مقابلة داخلية استرشادية لا تصنيفات وكالات؛ ولا يحل محل التصنيف الداخلي لأي جهة تمويل.',
+           N'An internal self-assessment by the company on Moody''s long-term rating scale with a scorecard approach (a score per metric on a linear continuum, a weight per factor). The thresholds and weights are a judgmental, not a statistical, calibration, written and reviewed by AI agents and not reviewed by a human analyst; the treasury validates them before use. It is not a rating issued by Moody''s or any agency; the Fitch equivalent, recovery rating, loss-given-default band and liquidity label it shows are an indicative internal mapping, not agency ratings; and it does not replace any lender''s internal rating.'
     FROM ref.Currency AS cu WHERE cu.Code = 'SAR';
 MERGE fin.ScorecardMetric AS d
 USING (SELECT sc.ScorecardId, m.CreditMetricId, v.FactorCode, v.Weight, v.B0, v.B1, v.B2, v.B3, v.B4, v.B5, v.B6, v.B7, v.B8, v.SortOrder
@@ -12999,9 +13014,9 @@ USING (SELECT sc.ScorecardId, v.RuleCode, v.Stage, v.Notches, g.RatingGradeId AS
     ('AUDIT_QUALIFIED', 'NOTCH', -1, NULL, NULL, 'ALWAYS', N'رأي المراجع متحفظ',
      N'رأي المراجع متحفظ: تنزيل درجة واحدة',
      N'Qualified audit opinion: one notch down'),
-    ('UNAUDITED_ANNUAL', 'NOTCH', -1, NULL, NULL, 'ALWAYS', N'قائمة سنوية غير مدققة',
-     N'قائمة سنوية إدارية غير مدققة: تنزيل درجة واحدة',
-     N'Unaudited (management) annual statement: one notch down'),
+    ('UNAUDITED_ANNUAL', 'NOTCH', -1, NULL, NULL, 'ALWAYS', N'قائمة غير مدققة',
+     N'قائمة إدارية غير مدققة ولا مراجَعة، سنوية أو مرحلية: تنزيل درجة واحدة',
+     N'Management statement, neither audited nor reviewed, annual or interim: one notch down'),
     ('STALE_STATEMENT', 'NOTCH', -1, NULL, 15, 'ALWAYS', N'قائمة قديمة',
      N'مضى على نهاية فترة القائمة أكثر من {p} شهرًا: تنزيل درجة واحدة',
      N'The statement''s period ended more than {p} months ago: one notch down'),
@@ -13155,6 +13170,7 @@ USING (SELECT sc.ScorecardId, v.GroupCode, v.ParamKey, v.Value, v.Value2
     ('CARD', 'SUBFACTOR_MINIMUM', 3, NULL),
     ('CARD', 'HIDDEN_DEBT_PCT', 15, NULL),
     ('CARD', 'BUREAU_MAX_AGE_MONTHS', 3, NULL),
+    ('CARD', 'HIDDEN_DEBT_WINDOW_MONTHS', 6, NULL),
     ('CARD', 'LGD_MAX_UP', 3, NULL),
     ('CARD', 'LGD_MAX_UP_NEAR_DEFAULT', 1, NULL),
     ('CARD', 'LGD_BEST_FACILITY_NOTCH', 4, NULL),

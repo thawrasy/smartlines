@@ -61,6 +61,15 @@ VARIANTS = [
                                                           decided_share_pct=55, decided_cost=2.6)),
      'the actual decisions of the lenders on part of the facilities: one stopped its undrawn limit, one reduced its limit below the drawn amount '
      'and repriced; the estimate covers the other facilities only'),
+    # review v6 (ADR 0038): the months of an interim, the unaudited interim, the age of the bureau report
+    ('V21_INTERIM_YTD_MANAGEMENT', 'G01_EXAMPLE', dict(ytd=9, assurance='MANAGEMENT'),
+     'a nine-month year-to-date interim prepared by the management: annualised by 12/9 and one notch for the unaudited statement'),
+    ('V22_BUREAU_STALE', 'G01_EXAMPLE', dict(bureau=dict(outstanding=1.5, worst_dpd_12m=75, defaults_24m=1, bounced_count=3, judgments_amount=3e6,
+                                                           restructured=True, inquiries_6m=8, lenders=6, age_months=5)),
+     'the bureau report of V03 five months old on the assessment date: older than the card allows, it is not read'),
+    ('V23_BUREAU_AT_MAX_AGE', 'G01_EXAMPLE', dict(bureau=dict(outstanding=1.5, worst_dpd_12m=75, defaults_24m=1, bounced_count=3, judgments_amount=3e6,
+                                                                restructured=True, inquiries_6m=8, lenders=6, age_months=3)),
+     'the same report three months old: at the maximum age it is read'),
 ]
 
 
@@ -100,9 +109,14 @@ def cases():
         if ch.pop('quarter', False):
             kw['prior_period_type'] = 'ANNUAL'
             lines = {k: (v / 4 if cr.LINES[k]['section'] in ('IS', 'CF') else v) for k, v in lines.items()}
+        if 'ytd' in ch:
+            # a year-to-date interim of so many months (its start and end dates give them to the engine)
+            mo = ch.pop('ytd')
+            kw['period_type'], kw['period_months'], kw['prior_period_type'] = 'QUARTERLY', mo, 'ANNUAL'
+            lines = {k: (v * mo / 12 if cr.LINES[k]['section'] in ('IS', 'CF') else v) for k, v in lines.items()}
         if 'bureau' in ch:
             b = ch['bureau']
-            q, _ = cr.analytical(card, cr.Stmt(lines, kw.get('period_type', 'ANNUAL')), None,
+            q, _ = cr.analytical(card, cr.Stmt(lines, kw.get('period_type', 'ANNUAL'), months=kw.get('period_months')), None,
                                  dict(evidence=set(), breach_at_period_end=False, platform=kw.get('platform'), guarantors=None, bureau=None,
                                       industry=None, product_mix=None, market_size=None, holding_standalone=False, rollover_factor=1.0))
             bank = q['BANK_DEBT']
@@ -175,7 +189,8 @@ def context(card, lines, kw):
         GuMaxLeverage=None if not gu else max((g['given'] / g['net_worth'] * 100 if g['net_worth'] > 0 else 999.0) for g in gu),
         Country=country, RegionCode=kw.get('region'),
         PfUndrawnDecided=plat.get('undrawn_decided'), PfLenderRepayment=plat.get('lender_repayment'), PfDecidedShare=plat.get('decided_share_pct'),
-        PfDecidedCost=plat.get('decided_cost'),
+        PfDecidedCost=plat.get('decided_cost'), PeriodMonths=kw.get('period_months'), PriorPeriodMonths=kw.get('prior_period_months'),
+        BuAgeMonths=(bu or {}).get('age_months'),
     )
 
 
@@ -185,7 +200,8 @@ X_COLS = ['ScorecardId', 'PeriodType', 'PriorPeriodType', 'HasPrior', 'Fx', 'Ass
           'BuPresent', 'BuOutstanding', 'BuLimits', 'BuLenders', 'BuDpd12m', 'BuCurrentDefault', 'BuDefaults24m', 'BuBouncedCount', 'BuBouncedAmount',
           'BuJudgments', 'BuRestructured', 'BuInquiries6m', 'BuMonthsAfterPeriodEnd', 'QualBp', 'QualFp', 'DocBp', 'DocFp', 'ProdCashFlowQuality',
           'ProdConcentration', 'InvCrisisValue', 'InvDaysStagnant', 'Support', 'ParentNotch', 'Override', 'GuLiquid', 'GuNetWorth', 'GuGiven',
-          'GuGuaranteed', 'GuMaxLeverage', 'CountryId', 'RegionCode', 'PfUndrawnDecided', 'PfLenderRepayment', 'PfDecidedShare', 'PfDecidedCost']
+          'GuGuaranteed', 'GuMaxLeverage', 'CountryId', 'RegionCode', 'PfUndrawnDecided', 'PfLenderRepayment', 'PfDecidedShare', 'PfDecidedCost',
+          'PeriodMonths', 'PriorPeriodMonths', 'BuAgeMonths']
 STR_X = {'PeriodType', 'PriorPeriodType', 'Assurance', 'Opinion', 'Breach', 'RegionCode'}
 
 
@@ -254,7 +270,8 @@ def core_case(i, key, title, card, lines, kw):
     irows = [[s(m), s(line), s(level), num(v)] for (m, line), (level, v) in sorted(r['items'].items())]
     b.append(insert('#eI', ['MetricCode', 'LineCode', 'Level', 'Value'], irows).rstrip())
     if r['state'] == 'RATED':
-        b.append(insert('#eA', ['RuleCode'], [[s(a[0])] for a in r['applied']]).rstrip())
+        b.append(insert('#eA', ['RuleCode', 'Notches', 'CapNotch'],
+                         [[s(a[0]), num(a[1]), num(cr.N[a[2]] if a[2] else None)] for a in r['applied']]).rstrip())
     fac = r.get('facility') or {}
     b.append(insert('#eS', ['State', 'Coverage', 'Completeness', 'Liquidity', 'FinancialScore', 'WeightedScore', 'FinalNotch', 'Notches', 'FacilityLgd',
                             'FacilityBand', 'FacilityNotch'],
@@ -333,7 +350,7 @@ TABLES = """CREATE TABLE #crX (ScorecardId INT, PeriodType VARCHAR(10) COLLATE D
     BuInquiries6m INT, BuMonthsAfterPeriodEnd INT, QualBp FLOAT, QualFp FLOAT, DocBp BIT, DocFp BIT, ProdCashFlowQuality FLOAT, ProdConcentration FLOAT,
     InvCrisisValue FLOAT, InvDaysStagnant FLOAT, Support INT, ParentNotch INT, Override INT, GuLiquid FLOAT, GuNetWorth FLOAT, GuGiven FLOAT,
     GuGuaranteed FLOAT, GuMaxLeverage FLOAT, CountryId INT, RegionCode VARCHAR(10) COLLATE DATABASE_DEFAULT,
-    PfUndrawnDecided FLOAT, PfLenderRepayment FLOAT, PfDecidedShare FLOAT, PfDecidedCost FLOAT);
+    PfUndrawnDecided FLOAT, PfLenderRepayment FLOAT, PfDecidedShare FLOAT, PfDecidedCost FLOAT, PeriodMonths INT, PriorPeriodMonths INT, BuAgeMonths INT);
 CREATE TABLE #crL (Code VARCHAR(40) COLLATE DATABASE_DEFAULT PRIMARY KEY, Amount FLOAT NULL);
 CREATE TABLE #crP (Code VARCHAR(40) COLLATE DATABASE_DEFAULT PRIMARY KEY, Amount FLOAT NULL);
 CREATE TABLE #crColl (Kind VARCHAR(40) COLLATE DATABASE_DEFAULT NOT NULL, Cover FLOAT NOT NULL);
@@ -377,12 +394,23 @@ def main():
     print(f'{len(cs)} cases -> {out}')
 
 
+def nd(a, b, tol=None, rel=False):
+    """The SQL condition that two values differ, null-safe: one unknown and the other known is a difference (review
+    B2). Numbers differ by more than tol (rel: tol times one plus the larger magnitude); text and integers by <>."""
+    one = f"(({a}) IS NULL AND ({b}) IS NOT NULL OR ({a}) IS NOT NULL AND ({b}) IS NULL"
+    if tol is None:
+        return one + f" OR ({a}) <> ({b}))"
+    if rel:
+        return one + (f" OR ABS(({a}) - ({b})) > {tol} * (1 + CASE WHEN ABS({a}) > ABS({b}) THEN ABS({a}) ELSE ABS({b}) END))")
+    return one + f" OR ABS(({a}) - ({b})) > {tol})"
+
+
 CHECK_SQL = """CREATE TABLE #eQ (Code VARCHAR(40) COLLATE DATABASE_DEFAULT PRIMARY KEY, Value FLOAT NULL);
 CREATE TABLE #eM (Code VARCHAR(40) COLLATE DATABASE_DEFAULT PRIMARY KEY, State VARCHAR(14) COLLATE DATABASE_DEFAULT, Value FLOAT NULL);
 CREATE TABLE #eF (Code VARCHAR(40) COLLATE DATABASE_DEFAULT PRIMARY KEY, Score FLOAT NULL, EffectiveWeight FLOAT NULL);
 CREATE TABLE #eI (MetricCode VARCHAR(40) COLLATE DATABASE_DEFAULT, LineCode VARCHAR(40) COLLATE DATABASE_DEFAULT, Level VARCHAR(12) COLLATE DATABASE_DEFAULT, Value FLOAT NULL,
     PRIMARY KEY (MetricCode, LineCode));
-CREATE TABLE #eA (RuleCode VARCHAR(40) COLLATE DATABASE_DEFAULT PRIMARY KEY);
+CREATE TABLE #eA (RuleCode VARCHAR(40) COLLATE DATABASE_DEFAULT PRIMARY KEY, Notches INT NULL, CapNotch INT NULL);
 CREATE TABLE #eEv (State VARCHAR(20) COLLATE DATABASE_DEFAULT, FinalNotch INT, Resilience VARCHAR(10) COLLATE DATABASE_DEFAULT,
     Outlook VARCHAR(10) COLLATE DATABASE_DEFAULT, OutlookRules VARCHAR(200) COLLATE DATABASE_DEFAULT);
 CREATE TABLE #eScen (Scenario VARCHAR(30) COLLATE DATABASE_DEFAULT PRIMARY KEY, FinalNotch INT, NotchesLost INT, Liquidity VARCHAR(6) COLLATE DATABASE_DEFAULT,
@@ -398,7 +426,7 @@ CREATE TABLE #eS (State VARCHAR(20) COLLATE DATABASE_DEFAULT, Coverage FLOAT, Co
 GO
 """
 
-EVAL_BATCH = """-- The evaluation's results against the reference's.
+EVAL_BATCH = """-- The evaluation's results against the reference's; every comparison is null-safe and every row is matched both ways.
 DECLARE @Id VARCHAR(10) = '{id}', @Key VARCHAR(60) = '{key}';
 BEGIN
     DECLARE @err NVARCHAR(4000) = NULL;
@@ -413,30 +441,30 @@ BEGIN
         INSERT @d (t) VALUES (@err);
     ELSE
     BEGIN
+        IF (SELECT COUNT(*) FROM #crS) <> 1 OR (SELECT COUNT(*) FROM #evSum) <> 1
+            INSERT @d (t) VALUES (CONCAT('summary rows ', (SELECT COUNT(*) FROM #crS), '/', (SELECT COUNT(*) FROM #evSum), ', expected one each'));
         INSERT @d (t)
         SELECT CONCAT('result ', e.State, '/', s.State, ' final ', e.FinalNotch, '/', s.FinalNotch, ' resilience ', e.Resilience, '/', v.Resilience,
                       ' outlook ', e.Outlook, ' ', e.OutlookRules, '/', v.Outlook, ' ', v.OutlookRules)
-        FROM #eEv AS e CROSS JOIN #crS AS s LEFT JOIN #evSum AS v ON 1 = 1
-        WHERE e.State <> s.State OR ISNULL(e.FinalNotch, 0) <> ISNULL(s.FinalNotch, 0) OR ISNULL(e.Resilience, '') <> ISNULL(v.Resilience, '')
-           OR ISNULL(e.Outlook, '') <> ISNULL(v.Outlook, '') OR ISNULL(e.OutlookRules, '') <> ISNULL(v.OutlookRules, '');
+        FROM #eEv AS e LEFT JOIN #crS AS s ON 1 = 1 LEFT JOIN #evSum AS v ON 1 = 1
+        WHERE s.State IS NULL OR """ + '\n           OR '.join([nd('e.State', 's.State'), nd('e.FinalNotch', 's.FinalNotch'), nd('e.Resilience', 'v.Resilience'),
+                                                     nd('e.Outlook', 'v.Outlook'), nd('e.OutlookRules', 'v.OutlookRules')]) + """;
         INSERT @d (t)
         SELECT CONCAT('scenario ', COALESCE(e.Scenario, x.Scenario), ' ', e.FinalNotch, ' lost ', e.NotchesLost, ' ', e.Liquidity, ' / ', x.FinalNotch, ' lost ',
                       x.NotchesLost, ' ', x.Liquidity)
         FROM #eScen AS e FULL JOIN #evScen AS x ON x.Scenario = e.Scenario
-        WHERE e.Scenario IS NULL OR x.Scenario IS NULL OR ISNULL(e.FinalNotch, 0) <> ISNULL(x.FinalNotch, 0) OR ISNULL(e.NotchesLost, 99) <> ISNULL(x.NotchesLost, 99)
-           OR ISNULL(e.Liquidity, '') <> ISNULL(x.Liquidity, '')
-           OR ABS(e.RevenuePct - x.RevenuePct) > 1e-6 OR ABS(e.DsoDays - x.DsoDays) > 1e-6 OR ABS(e.StLinesWithdrawnPct - x.StLinesWithdrawnPct) > 1e-6
-           OR ABS(e.PrivateArLossPct - x.PrivateArLossPct) > 1e-6 OR ABS(ISNULL(e.InventoryWritedownPct, 0) - ISNULL(x.InventoryWritedownPct, 0)) > 1e-6
-           OR ABS(e.UndrawnAvailablePct - x.UndrawnAvailablePct) > 1e-6 OR ABS(e.CountryMult - x.CountryMult) > 1e-6
-           OR ABS(e.LenderCostBp - x.LenderCostBp) > 1e-6;
+        WHERE e.Scenario IS NULL OR x.Scenario IS NULL OR """ + '\n           OR '.join(
+            [nd('e.FinalNotch', 'x.FinalNotch'), nd('e.NotchesLost', 'x.NotchesLost'), nd('e.Liquidity', 'x.Liquidity')]
+            + [nd('e.' + c, 'x.' + c, '1e-6') for c in ('RevenuePct', 'DsoDays', 'StLinesWithdrawnPct', 'PrivateArLossPct', 'InventoryWritedownPct',
+                                                      'UndrawnAvailablePct', 'CountryMult', 'LenderCostBp')]) + """;
         INSERT @d (t)
         SELECT CONCAT('remedy ', COALESCE(e.Code, r.Code), ' ', e.TriggerCode, ' ', e.TriggerLevel, ' ', CONVERT(VARCHAR(30), e.Moved, 3), ' ', e.FinalNotch, ' ', e.NotchesGained,
                       ' / ', x.TriggerCode, ' ', x.TriggerLevel, ' ', CONVERT(VARCHAR(30), x.Moved, 3), ' ', x.FinalNotch, ' ', x.NotchesGained)
         FROM #eRem AS e
         FULL JOIN (#evRem AS x JOIN fin.CreditRemedy AS r ON r.CreditRemedyId = x.RemedyId) ON r.Code = e.Code
-        WHERE e.Code IS NULL OR r.Code IS NULL OR e.TriggerCode <> x.TriggerCode OR e.TriggerLevel <> x.TriggerLevel
-           OR ISNULL(e.FinalNotch, 0) <> ISNULL(x.FinalNotch, 0) OR ISNULL(e.NotchesGained, 99) <> ISNULL(x.NotchesGained, 99)
-           OR NOT ((e.Moved IS NULL AND x.Moved IS NULL) OR ABS(e.Moved - x.Moved) <= 1e-6 * (1 + ABS(e.Moved)));
+        WHERE e.Code IS NULL OR r.Code IS NULL OR """ + '\n           OR '.join(
+            [nd('e.TriggerCode', 'x.TriggerCode'), nd('e.TriggerLevel', 'x.TriggerLevel'), nd('e.FinalNotch', 'x.FinalNotch'),
+             nd('e.NotchesGained', 'x.NotchesGained'), nd('e.Moved', 'x.Moved', '1e-6', rel=True)]) + """;
         INSERT @d (t)
         SELECT CONCAT('plan ', COALESCE(e.Code, p.Code), ' ', e.FinalNotch, ' +', e.NotchesGained, ' ', e.Steps, ' / ', x.FinalNotch, ' +', x.NotchesGained, ' ', st.Steps,
                       ' balanced ', e.IsBalanced, '/', x.IsBalanced)
@@ -444,8 +472,8 @@ BEGIN
         FULL JOIN (#evPlan AS x JOIN fin.StrengtheningPlan AS p ON p.StrengtheningPlanId = x.PlanId) ON p.Code = e.Code
         OUTER APPLY (SELECT STRING_AGG(r.Code, ',') WITHIN GROUP (ORDER BY s.StepNo) AS Steps FROM #evPlanStep AS s
                      JOIN fin.CreditRemedy AS r ON r.CreditRemedyId = s.RemedyId WHERE s.PlanId = x.PlanId) AS st
-        WHERE e.Code IS NULL OR p.Code IS NULL OR e.FinalNotch <> x.FinalNotch OR e.NotchesGained <> x.NotchesGained OR e.Steps <> st.Steps
-           OR e.IsBalanced <> x.IsBalanced;
+        WHERE e.Code IS NULL OR p.Code IS NULL OR """ + '\n           OR '.join(
+            [nd('e.FinalNotch', 'x.FinalNotch'), nd('e.NotchesGained', 'x.NotchesGained'), nd('e.Steps', 'st.Steps'), nd('e.IsBalanced', 'x.IsBalanced')]) + """;
         INSERT @d (t)
         SELECT CONCAT('trigger ', COALESCE(e.MetricCode, x.MetricCode), ' ', COALESCE(e.Direction, x.Direction), ' ', CONVERT(VARCHAR(30), e.TriggerValue, 3), ' / ',
                       CONVERT(VARCHAR(30), x.TriggerValue, 3))
@@ -453,7 +481,7 @@ BEGIN
         -- a trigger agrees when its value does, or its target score does to a thousandth: the weighted score is rounded to
         -- four decimals on both sides, and a steep grid turns its last digit into a visible difference of value
         WHERE e.MetricCode IS NULL OR x.MetricCode IS NULL
-           OR (ABS(e.TriggerValue - x.TriggerValue) > 1e-5 * (1 + ABS(e.TriggerValue)) AND ABS(e.TargetScore - x.TargetScore) > 1e-3);
+           OR (""" + nd('e.TriggerValue', 'x.TriggerValue', '1e-5', rel=True) + '\n               AND ' + nd('e.TargetScore', 'x.TargetScore', '1e-3') + """);
     END;
     DECLARE @n INT = (SELECT COUNT(*) FROM @d), @first NVARCHAR(4000);
     SELECT @first = STRING_AGG(t, '; ') WITHIN GROUP (ORDER BY n) FROM @d WHERE n <= 6;
@@ -465,6 +493,8 @@ END;
 """
 
 CHECK_BATCH = """-- The core's results against the reference's: every difference is listed, the first ones printed with the FAIL line.
+-- Every comparison is null-safe (one side unknown and the other known is a difference) and every row is matched both
+-- ways (review B2).
 DECLARE @Id VARCHAR(10) = '{id}', @Key VARCHAR(60) = '{key}';
 BEGIN
     DECLARE @err NVARCHAR(4000) = NULL;
@@ -481,43 +511,42 @@ BEGIN
     BEGIN
         -- two numbers agree when both are unknown, or they differ by less than a millionth of the larger (and of one unit)
         INSERT @d (t)
-        SELECT CONCAT('quantity ', e.Code, ' ', CONVERT(VARCHAR(30), e.Value, 3), ' <> ', CONVERT(VARCHAR(30), q.Value, 3))
-        FROM #eQ AS e JOIN #crQ AS q ON q.Code = e.Code
-        WHERE NOT ((e.Value IS NULL AND q.Value IS NULL)
-                   OR ABS(e.Value - q.Value) <= 1e-6 * (1 + CASE WHEN ABS(e.Value) > ABS(q.Value) THEN ABS(e.Value) ELSE ABS(q.Value) END));
+        SELECT CONCAT('quantity ', COALESCE(e.Code, q.Code), ' ', CONVERT(VARCHAR(30), e.Value, 3), ' <> ', CONVERT(VARCHAR(30), q.Value, 3),
+                      CASE WHEN e.Code IS NULL THEN ' not expected' WHEN q.Code IS NULL THEN ' missing' END)
+        FROM #eQ AS e FULL JOIN #crQ AS q ON q.Code = e.Code
+        WHERE e.Code IS NULL OR q.Code IS NULL OR """ + nd('e.Value', 'q.Value', '1e-6', rel=True) + """;
         INSERT @d (t)
-        SELECT CONCAT('metric ', e.Code, ' ', e.State, ' ', CONVERT(VARCHAR(30), e.Value, 3), ' <> ', ISNULL(m.State, 'missing'), ' ',
+        SELECT CONCAT('metric ', COALESCE(e.Code, m.Code), ' ', ISNULL(e.State, 'not expected'), ' ', CONVERT(VARCHAR(30), e.Value, 3), ' <> ', ISNULL(m.State, 'missing'), ' ',
                       CONVERT(VARCHAR(30), m.Value, 3))
-        FROM #eM AS e LEFT JOIN #crM AS m ON m.Code = e.Code
-        WHERE m.Code IS NULL OR m.State <> e.State
-           OR NOT ((e.Value IS NULL AND m.Value IS NULL)
-                   OR ABS(e.Value - m.Value) <= 1e-6 * (1 + CASE WHEN ABS(e.Value) > ABS(m.Value) THEN ABS(e.Value) ELSE ABS(m.Value) END));
+        FROM #eM AS e FULL JOIN #crM AS m ON m.Code = e.Code
+        WHERE e.Code IS NULL OR m.Code IS NULL OR """ + nd('e.State', 'm.State') + '\n           OR ' + nd('e.Value', 'm.Value', '1e-6', rel=True) + """;
         INSERT @d (t)
-        SELECT CONCAT('factor ', e.Code, ' score ', e.Score, ' <> ', f.Score, ' weight ', e.EffectiveWeight, ' <> ', f.EffectiveWeight)
-        FROM #eF AS e LEFT JOIN #crF AS f ON f.Code = e.Code
-        WHERE f.Code IS NULL OR NOT ((e.Score IS NULL AND f.Score IS NULL) OR ABS(e.Score - f.Score) <= 1e-4)
-           OR ABS(ISNULL(e.EffectiveWeight, 0) - ISNULL(f.EffectiveWeight, 0)) > 1e-6;
+        SELECT CONCAT('factor ', COALESCE(e.Code, f.Code), ' score ', e.Score, ' <> ', f.Score, ' weight ', e.EffectiveWeight, ' <> ', f.EffectiveWeight)
+        FROM #eF AS e FULL JOIN #crF AS f ON f.Code = e.Code
+        WHERE e.Code IS NULL OR f.Code IS NULL OR """ + nd('e.Score', 'f.Score', '1e-4') + '\n           OR ' + nd('e.EffectiveWeight', 'f.EffectiveWeight', '1e-6') + """;
         INSERT @d (t)
-        SELECT CONCAT('item ', e.MetricCode, '/', e.LineCode, ' ', e.Level, ' <> ', ISNULL(i.Level, 'missing'))
-        FROM #eI AS e LEFT JOIN #crI AS i ON i.MetricCode = e.MetricCode AND i.LineCode = e.LineCode
-        WHERE i.MetricCode IS NULL OR i.Level <> e.Level;
+        SELECT CONCAT('item ', COALESCE(e.MetricCode, i.MetricCode), '/', COALESCE(e.LineCode, i.LineCode), ' ', ISNULL(e.Level, 'not expected'), ' ',
+                      CONVERT(VARCHAR(30), e.Value, 3), ' <> ', ISNULL(i.Level, 'missing'), ' ', CONVERT(VARCHAR(30), i.Value, 3))
+        FROM #eI AS e FULL JOIN #crI AS i ON i.MetricCode = e.MetricCode AND i.LineCode = e.LineCode
+        WHERE e.MetricCode IS NULL OR i.MetricCode IS NULL OR """ + nd('e.Level', 'i.Level') + '\n           OR ' + nd('e.Value', 'i.Value', '1e-6', rel=True) + """;
         INSERT @d (t)
-        SELECT CONCAT('adjustment ', COALESCE(e.RuleCode, a.RuleCode), CASE WHEN a.RuleCode IS NULL THEN ' expected' ELSE ' not expected' END)
+        SELECT CONCAT('adjustment ', COALESCE(e.RuleCode, a.RuleCode), CASE WHEN a.RuleCode IS NULL THEN ' expected' WHEN e.RuleCode IS NULL THEN ' not expected' END,
+                      ' notches ', e.Notches, '/', a.Notches, ' cap ', e.CapNotch, '/', a.CapNotch)
         FROM #eA AS e FULL JOIN #crA AS a ON a.RuleCode = e.RuleCode
-        WHERE e.RuleCode IS NULL OR a.RuleCode IS NULL;
+        WHERE e.RuleCode IS NULL OR a.RuleCode IS NULL OR """ + nd('e.Notches', 'a.Notches') + '\n           OR ' + nd('e.CapNotch', 'a.CapNotch') + """;
+        IF (SELECT COUNT(*) FROM #crS) <> 1
+            INSERT @d (t) VALUES (CONCAT('summary rows ', (SELECT COUNT(*) FROM #crS), ', expected one'));
         INSERT @d (t)
         SELECT CONCAT('summary ', e.State, '/', s.State, ' coverage ', e.Coverage, '/', s.Coverage, ' completeness ', e.Completeness, '/', s.Completeness,
                       ' liquidity ', e.Liquidity, '/', s.Liquidity, ' financial ', e.FinancialScore, '/', s.FinancialScore, ' aggregate ', e.WeightedScore,
                       '/', s.WeightedScore, ' final ', e.FinalNotch, '/', s.FinalNotch, ' notches ', e.Notches, '/', s.Notches, ' facility ',
                       e.FacilityBand, ' ', e.FacilityLgd, ' ', e.FacilityNotch, '/', s.FacilityBand, ' ', s.FacilityLgd, ' ', s.FacilityNotch)
         FROM #eS AS e LEFT JOIN #crS AS s ON 1 = 1
-        WHERE s.State IS NULL OR s.State <> e.State OR ABS(e.Coverage - s.Coverage) > 0.01 OR ABS(e.Completeness - s.Completeness) > 0.01
-           OR ISNULL(e.Liquidity, '') <> ISNULL(s.Liquidity, '')
-           OR NOT ((e.FinancialScore IS NULL AND s.FinancialScore IS NULL) OR ABS(e.FinancialScore - s.FinancialScore) <= 1e-4)
-           OR NOT ((e.WeightedScore IS NULL AND s.WeightedScore IS NULL) OR ABS(e.WeightedScore - s.WeightedScore) <= 1e-4)
-           OR ISNULL(e.FinalNotch, 0) <> ISNULL(s.FinalNotch, 0) OR ISNULL(e.Notches, 0) <> ISNULL(s.Notches, 0)
-           OR ISNULL(e.FacilityBand, '') <> ISNULL(s.FacilityBand, '') OR ISNULL(e.FacilityNotch, 0) <> ISNULL(s.FacilityNotch, 0)
-           OR NOT ((e.FacilityLgd IS NULL AND s.FacilityLgd IS NULL) OR ABS(e.FacilityLgd - s.FacilityLgd) <= 1e-4);
+        WHERE s.State IS NULL OR """ + '\n           OR '.join(
+            [nd('e.State', 's.State'), nd('e.Coverage', 's.Coverage', '0.01'), nd('e.Completeness', 's.Completeness', '0.01'), nd('e.Liquidity', 's.Liquidity'),
+             nd('e.FinancialScore', 's.FinancialScore', '1e-4'), nd('e.WeightedScore', 's.WeightedScore', '1e-4'), nd('e.FinalNotch', 's.FinalNotch'),
+             nd('e.Notches', 's.Notches'), nd('e.FacilityBand', 's.FacilityBand'), nd('e.FacilityNotch', 's.FacilityNotch'),
+             nd('e.FacilityLgd', 's.FacilityLgd', '1e-4')]) + """;
     END;
     DECLARE @n INT = (SELECT COUNT(*) FROM @d), @first NVARCHAR(4000);
     SELECT @first = STRING_AGG(t, '; ') WITHIN GROUP (ORDER BY n) FROM @d WHERE n <= 6;
@@ -527,7 +556,6 @@ BEGIN
         PRINT CONCAT('FAIL ', @Id, ': ', @Key, ' - ', @n, ' differences: ', @first);
 END;
 """
-
 
 FOOT = ""
 

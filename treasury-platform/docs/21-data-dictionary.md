@@ -5480,7 +5480,7 @@
 
 **قيود:** `ContentChars > 0`
 
-### `fin.ReceivableLossRate` — The loss rate of a receivables ageing bucket for the provision matrix the company compares its recorded allowance with (IFRS 9 simplified approach; owner decision 35, ADR 0030); the defaults of the pack FIN.PROVISION are for the treasury to approve or change
+### `fin.ReceivableLossRate` — The loss rate of a receivables ageing bucket for the provision matrix the company compares its recorded allowance with (a provision matrix in the manner of the simplified approach for trade receivables, a check of the allowance and not a measurement under IFRS 9; owner decision 35, ADR 0030); the defaults of the pack FIN.PROVISION are for the treasury to approve or change
 
 *مملوك للمشترك*
 

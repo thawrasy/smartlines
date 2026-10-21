@@ -168,7 +168,14 @@ BEGIN
     -- the tenant's line catalogue holds every standard line of the credit assessment (db/seed/104)
     INSERT fin.LineCatalogItem (TenantId, Code, NameAr, NameEn, Section, SortOrder)
     SELECT @t, sl.Code, sl.NameAr, sl.NameEn, sl.Section, sl.SortOrder FROM fin.StandardLine AS sl;
-    INSERT #C (k, v) VALUES ('t', @t), ('u1', @u1), ('u2', @u2), ('hold', @hold), ('ind', @ind), ('oth', @oth);
+    -- a document of IND, the evidence the inputs cite: an input's document is an active document of the assessed
+    -- company (review E19)
+    DECLARE @dt INT, @doc BIGINT;
+    INSERT cat.DocumentType (TenantId, Code, NameAr, NameEn, AppliesTo, IsSensitive) VALUES (@t, 'CREDIT_EVIDENCE', N'مستند تقييم', N'Credit evidence', 'COMPANY,GENERAL', 0);
+    SET @dt = SCOPE_IDENTITY();
+    INSERT doc.Document (TenantId, DocumentTypeId, Title, Sensitivity, OwnerCompanyId, CreatedBy) VALUES (@t, @dt, N'Evidence (test)', 'CONFIDENTIAL', @ind, @u1);
+    SET @doc = SCOPE_IDENTITY();
+    INSERT #C (k, v) VALUES ('t', @t), ('u1', @u1), ('u2', @u2), ('hold', @hold), ('ind', @ind), ('oth', @oth), ('doc', @doc);
     EXEC #CStmt @ind, '2024-12-31', N'TOTAL_ASSETS=940;REVENUE=850;GROSS_PROFIT=245;CURRENT_PORTION_LTD=55;OP_CASH_FLOW=85';
     SELECT @s = v FROM #C WHERE k = 's';
     INSERT #C (k, v) VALUES ('p', @s);
@@ -405,13 +412,17 @@ BEGIN
     SET @co = CASE WHEN @Case = 10 THEN @hold ELSE @ind END;
     IF @Case = 2 SET @opinion = 'QUALIFIED';
     IF @Case = 3 SET @assurance = 'MANAGEMENT';
-    IF @Case = 4 SET @asOf = '2027-06-30';
+    -- a stale statement: one ending 2024-11-30 assessed on 2026-04-30, seventeen months on (an assessment is not dated
+    -- after the day of its computation, review E4), compared, as the others are, with the lines of the fixture's
+    -- statement of the year before
+    DECLARE @pe DATE = CASE WHEN @Case = 4 THEN '2024-11-30' ELSE '2025-12-31' END;
+    IF @Case = 4 EXEC #CStmt @ind, '2023-11-30', N'TOTAL_ASSETS=940;REVENUE=850;GROSS_PROFIT=245;CURRENT_PORTION_LTD=55;OP_CASH_FLOW=85';
     IF @Case = 6 SET @opinion = 'ADVERSE';
     IF @Case = 7 SET @over = N'RETAINED_EARNINGS=-150;TOTAL_EQUITY=130';
     IF @Case = 8 SET @over = N'RETAINED_EARNINGS=-150;TOTAL_EQUITY=130;SHAREHOLDER_LOANS_SUB=200';
     IF @Case = 9 SET @over = N'DUE_FROM_RELATED=200';
     IF @Case = 10 EXEC #CStmt @hold, '2024-12-31', N'TOTAL_ASSETS=940;REVENUE=850;GROSS_PROFIT=245;CURRENT_PORTION_LTD=55;OP_CASH_FLOW=85';
-    EXEC #CStmt @co, '2025-12-31', @over, @assurance, @opinion, @GoingConcern = @gc;
+    EXEC #CStmt @co, @pe, @over, @assurance, @opinion, @GoingConcern = @gc;
     SELECT @s = v FROM #C WHERE k = 's';
     EXEC #CAssess @s, @AsOf = @asOf;
     SELECT @a = v FROM #C WHERE k = 'a';
@@ -419,7 +430,7 @@ BEGIN
     BEGIN
         ALTER TABLE fin.CreditAssessmentInput NOCHECK CONSTRAINT FK_CreditAssessmentInput_DocumentId;
         INSERT fin.CreditAssessmentInput (TenantId, AssessmentId, Kind, EvidenceCode, DocumentId, Justification, EnteredBy)
-        VALUES (@t, @a, 'EVIDENCE', 'SUBORDINATION', 1, N'test: the signed subordination letter of the partners', @u1);
+        VALUES (@t, @a, 'EVIDENCE', 'SUBORDINATION', (SELECT v FROM #C WHERE k = 'doc'), N'test: the signed subordination letter of the partners', @u1);
     END;
     EXEC fin.usp_ComputeCreditAssessment @a;
     SELECT @Out = CONCAT(r.FinalGrade, '|', r.StandaloneGrade, '|',
@@ -436,13 +447,13 @@ ELSE PRINT CONCAT('FAIL CA5: ', @got, ' (expected 1:0=Ba2|Ba2|INFORMATION_RISK,I
 GO
 /* CA6 cases (BR-FIN-022): HOLD's consolidated statement for 2025 with HOLD as its PARENT and IND as a subsidiary, four
    times the worked example, assessed and approved ('ha' in #C) unless @Approve = 0. */
-CREATE PROCEDURE #HoldAssessment @Approve BIT = 1, @AsOf DATE = '2026-04-30'
+CREATE PROCEDURE #HoldAssessment @Approve BIT = 1, @AsOf DATE = '2026-04-30', @PeriodEnd DATE = '2025-12-31'
 AS
 BEGIN
     SET NOCOUNT ON;
     DECLARE @t INT = (SELECT v FROM #C WHERE k = 't'), @u2 BIGINT = (SELECT v FROM #C WHERE k = 'u2'), @hold BIGINT = (SELECT v FROM #C WHERE k = 'hold'),
             @ind BIGINT = (SELECT v FROM #C WHERE k = 'ind'), @s BIGINT, @a BIGINT;
-    EXEC #CStmt @hold, '2025-12-31', N'CASH=180;AR=640;INVENTORY=520;DUE_FROM_RELATED=80;OTHER_CA=100;TOTAL_CA=1520;PPE=2080;INTANGIBLES=120;OTHER_NCA=280;TOTAL_ASSETS=4000;ST_LOANS=480;CURRENT_PORTION_LTD=240;AP=440;DUE_TO_RELATED=40;OTHER_CL=200;TOTAL_CL=1400;LT_LOANS=720;LEASE_LIABS=80;SHAREHOLDER_LOANS_SUB=0;EOSB=72;OTHER_NCL=48;TOTAL_LIABS=2320;SHARE_CAPITAL=1000;RETAINED_EARNINGS=560;OTHER_EQUITY=120;MINORITY_INTEREST=0;TOTAL_EQUITY=1680;REVENUE=3600;COGS=2600;GROSS_PROFIT=1000;OPEX=640;DEPR_AMORT=160;EBITDA=520;OPERATING_PROFIT=360;FINANCE_COSTS=88;OTHER_INCOME=16;ZAKAT_TAX=32;NET_PROFIT=256;OP_CASH_FLOW=380;CAPEX=240;PRINCIPAL_REPAID=220;INTEREST_PAID=84;DIVIDENDS=120;LC_OUTSTANDING=360;LG_PERFORMANCE=400;LG_FINANCIAL=80;GUARANTEES_GIVEN=0',
+    EXEC #CStmt @hold, @PeriodEnd, N'CASH=180;AR=640;INVENTORY=520;DUE_FROM_RELATED=80;OTHER_CA=100;TOTAL_CA=1520;PPE=2080;INTANGIBLES=120;OTHER_NCA=280;TOTAL_ASSETS=4000;ST_LOANS=480;CURRENT_PORTION_LTD=240;AP=440;DUE_TO_RELATED=40;OTHER_CL=200;TOTAL_CL=1400;LT_LOANS=720;LEASE_LIABS=80;SHAREHOLDER_LOANS_SUB=0;EOSB=72;OTHER_NCL=48;TOTAL_LIABS=2320;SHARE_CAPITAL=1000;RETAINED_EARNINGS=560;OTHER_EQUITY=120;MINORITY_INTEREST=0;TOTAL_EQUITY=1680;REVENUE=3600;COGS=2600;GROSS_PROFIT=1000;OPEX=640;DEPR_AMORT=160;EBITDA=520;OPERATING_PROFIT=360;FINANCE_COSTS=88;OTHER_INCOME=16;ZAKAT_TAX=32;NET_PROFIT=256;OP_CASH_FLOW=380;CAPEX=240;PRINCIPAL_REPAID=220;INTEREST_PAID=84;DIVIDENDS=120;LC_OUTSTANDING=360;LG_PERFORMANCE=400;LG_FINANCIAL=80;GUARANTEES_GIVEN=0',
                    @Approve = 0, @Basis = 'CONSOLIDATED';
     SELECT @s = v FROM #C WHERE k = 's';
     INSERT fin.ConsolidationMember (TenantId, StatementId, MemberCompanyId, Role, Method, OwnershipPct)
@@ -484,7 +495,8 @@ BEGIN
     ELSE
     BEGIN
         IF @Case = 5 EXEC #HoldAssessment @Approve = 0;
-        ELSE IF @Case = 7 EXEC #HoldAssessment @AsOf = '2025-01-31';
+        -- the parent's assessment of 2025-01-31, on its statement of 2024 (an assessment is dated after its period end)
+        ELSE IF @Case = 7 EXEC #HoldAssessment @AsOf = '2025-01-31', @PeriodEnd = '2024-12-31';
         ELSE EXEC #HoldAssessment;
         SELECT @parent = v FROM #C WHERE k = 'ha';
         SELECT @pg = FinalGrade FROM fin.v_CreditAssessmentReport WHERE CreditAssessmentId = @parent;
@@ -517,7 +529,10 @@ GO
    its computation, its fields and every row of its results do not change (50065, 50063), and a rejection has a
    reason (547); one approved assessment per statement (2601); a qualitative grade far from the financial grade needs
    a document (50065); a sub-factor of another scorecard is refused (50065). The application role does not write the
-   results (230 on a result column, 229 on the result tables). */
+   results (230 on a result column, 229 on the result tables). Review v6 (ADR 0038): the computation refuses an
+   assessment dated before its period end or after the day of the computation, a lower assurance where a higher one is
+   approved for the period, a comparison of another period type, a negative allowance and the document of another
+   company (50064); a correction that changes the net profit is a restatement (cases 23 to 29). */
 CREATE PROCEDURE #LifeCase @Case INT, @Out NVARCHAR(1000) OUTPUT
 AS
 BEGIN
@@ -540,9 +555,62 @@ BEGIN
         EXEC #CAssess @s, @Prior = @s2;
     END
     ELSE IF @Case = 16 EXEC #CAssess @s, @Business = 'Aaa';
+    -- review v6 (ADR 0038): (23) an assessment dated before its period end and (24) after the day of the computation;
+    -- (25) the management statement of a period with an approved audited one; (26) a comparison of another period type;
+    -- (27) a negative allowance; (28) a document of another company (50064 each); (29) a correction of the statement
+    -- that changes its net profit is a restatement
+    ELSE IF @Case = 23 EXEC #CAssess @s, @AsOf = '2025-06-30';
+    ELSE IF @Case = 24 BEGIN DECLARE @tomorrow DATE = DATEADD(DAY, 1, CAST(SYSUTCDATETIME() AS DATE)); EXEC #CAssess @s, @AsOf = @tomorrow; END
+    ELSE IF @Case = 25
+    BEGIN
+        EXEC #CStmt @ind, '2025-12-31', @Assurance = 'MANAGEMENT';
+        SELECT @s2 = v FROM #C WHERE k = 's';
+        EXEC #CAssess @s2;
+    END
+    ELSE IF @Case = 26
+    BEGIN
+        EXEC #CStmt @ind, '2025-09-30', @PeriodType = 'QUARTERLY';
+        SELECT @s2 = v FROM #C WHERE k = 's';
+        EXEC #CAssess @s, @Prior = @s2;
+    END
+    ELSE IF @Case = 27
+    BEGIN
+        EXEC #CStmt @ind, '2025-11-30', N'AR_ECL_ALLOWANCE=-5';
+        SELECT @s2 = v FROM #C WHERE k = 's';
+        EXEC #CAssess @s2;
+    END
+    ELSE IF @Case = 29
+    BEGIN
+        INSERT fin.FinancialStatement (TenantId, CompanyId, PeriodType, PeriodEnd, FiscalYear, Basis, Assurance, CurrencyId, EntryMethod, PreparedBy, PreparedOn,
+                                       AuditorName, AuditOpinion, VersionNo, VersionReason, SupersedesId)
+        SELECT TenantId, CompanyId, PeriodType, PeriodEnd, FiscalYear, Basis, Assurance, CurrencyId, EntryMethod, PreparedBy, PreparedOn, AuditorName, AuditOpinion,
+               2, 'CORRECTION', FinancialStatementId
+        FROM fin.FinancialStatement WHERE FinancialStatementId = @s;
+        SET @s2 = SCOPE_IDENTITY();
+        INSERT fin.StatementLine (TenantId, StatementId, LineCatalogItemId, EnteredAmount)
+        SELECT ln.TenantId, @s2, ln.LineCatalogItemId, CASE WHEN li.Code = 'NET_PROFIT' THEN ln.EnteredAmount * 0.8 ELSE ln.EnteredAmount END
+        FROM fin.StatementLine AS ln JOIN fin.LineCatalogItem AS li ON li.TenantId = ln.TenantId AND li.LineCatalogItemId = ln.LineCatalogItemId
+        WHERE ln.StatementId = @s;
+        UPDATE fin.FinancialStatement SET Status = 'SUBMITTED' WHERE FinancialStatementId = @s2;
+        UPDATE fin.FinancialStatement SET Status = 'SUPERSEDED' WHERE FinancialStatementId = @s;
+        UPDATE fin.FinancialStatement SET Status = 'APPROVED', ApprovedBy = @u2, ApprovedOn = SYSUTCDATETIME() WHERE FinancialStatementId = @s2;
+        EXEC #CAssess @s2;
+    END
     ELSE IF @Case > 2 EXEC #CAssess @s;
     SELECT @a = v FROM #C WHERE k = 'a';
-    IF @Case IN (3, 4, 5, 16) EXEC fin.usp_ComputeCreditAssessment @a;
+    IF @Case = 28
+    BEGIN
+        DECLARE @odoc BIGINT;
+        INSERT doc.Document (TenantId, DocumentTypeId, Title, Sensitivity, OwnerCompanyId, CreatedBy)
+        SELECT @t, DocumentTypeId, N'Another company''s letter (test)', 'CONFIDENTIAL', (SELECT v FROM #C WHERE k = 'oth'), @u1
+        FROM cat.DocumentType WHERE TenantId = @t AND Code = 'CREDIT_EVIDENCE';
+        SET @odoc = SCOPE_IDENTITY();
+        INSERT fin.CreditAssessmentInput (TenantId, AssessmentId, Kind, EvidenceCode, DocumentId, Justification, EnteredBy)
+        VALUES (@t, @a, 'EVIDENCE', 'SUBORDINATION', @odoc, N'test: a letter of another company', @u1);
+    END;
+    IF @Case IN (3, 4, 5, 16) OR @Case BETWEEN 23 AND 29 EXEC fin.usp_ComputeCreditAssessment @a;
+    IF @Case = 29
+        SELECT @Out = ISNULL((SELECT STRING_AGG(RuleCode, ',') FROM fin.CreditAssessmentFinding WHERE AssessmentId = @a AND Source = 'ADJUSTMENT' AND RuleCode = 'RESTATEMENT'), 'none');
     IF @Case = 6 UPDATE fin.CreditAssessment SET Status = 'SUBMITTED', PreparedOn = SYSUTCDATETIME() WHERE CreditAssessmentId = @a;
     IF @Case = 19
         INSERT fin.CreditAssessmentInput (TenantId, AssessmentId, Kind, MetricId, SubfactorId, GradeId, Justification, EnteredBy)
@@ -585,7 +653,7 @@ BEGIN
 END;
 GO
 DECLARE @got NVARCHAR(2000), @t INT, @a BIGINT, @s BIGINT, @ind BIGINT, @e1 INT = 0, @e2 INT = 0, @e3 INT = 0, @e4 INT = 0, @e5 INT = 0, @e6 INT = 0;
-EXEC #CCases '#LifeCase', 1, 22, @got OUTPUT;
+EXEC #CCases '#LifeCase', 1, 29, @got OUTPUT;
 BEGIN TRANSACTION;
 EXEC #Crd;
 SELECT @t = v FROM #C WHERE k = 't'; SELECT @ind = v FROM #C WHERE k = 'ind';
@@ -606,10 +674,10 @@ BEGIN TRY UPDATE fin.CreditAssessment SET Outlook = 'POSITIVE' WHERE CreditAsses
 BEGIN TRY DELETE fin.CreditAssessmentTrigger WHERE AssessmentId = @a; END TRY BEGIN CATCH SET @e6 = ERROR_NUMBER(); END CATCH;
 REVERT;
 WHILE @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
-IF @got = '1:50063 2:50063 3:50064 4:50064 5:50064 6:547 7:50063 8:547 9:0=APPROVED 10:50065 11:50063 12:50063 13:547 14:0=DRAFT 15:2601 16:50065 17:50063 18:50063 19:50065 20:50063 21:50063 22:50063'
+IF @got = '1:50063 2:50063 3:50064 4:50064 5:50064 6:547 7:50063 8:547 9:0=APPROVED 10:50065 11:50063 12:50063 13:547 14:0=DRAFT 15:2601 16:50065 17:50063 18:50063 19:50065 20:50063 21:50063 22:50063 23:50064 24:50064 25:50064 26:50064 27:50064 28:50064 29:0=RESTATEMENT'
    AND @e1 = 230 AND @e2 = 229 AND @e3 = 229 AND @e4 = 229 AND @e5 = 230 AND @e6 = 229
     PRINT 'PASS CA7: an assessment is a draft until computed and submitted on what it holds, is approved by someone else, then does not change; the application cannot write its results';
-ELSE PRINT CONCAT('FAIL CA7: ', @got, ' | application writes ', @e1, ' ', @e2, ' ', @e3, ' ', @e4, ' ', @e5, ' ', @e6, ' (expected 1:50063 2:50063 3:50064 4:50064 5:50064 6:547 7:50063 8:547 9:0=APPROVED 10:50065 11:50063 12:50063 13:547 14:0=DRAFT 15:2601 16:50065 17:50063 18:50063 19:50065 20:50063 21:50063 22:50063 | 230 229 229 229 230 229)');
+ELSE PRINT CONCAT('FAIL CA7: ', @got, ' | application writes ', @e1, ' ', @e2, ' ', @e3, ' ', @e4, ' ', @e5, ' ', @e6, ' (expected 1:50063 2:50063 3:50064 4:50064 5:50064 6:547 7:50063 8:547 9:0=APPROVED 10:50065 11:50063 12:50063 13:547 14:0=DRAFT 15:2601 16:50065 17:50063 18:50063 19:50065 20:50063 21:50063 22:50063 23:50064 24:50064 25:50064 26:50064 27:50064 28:50064 29:0=RESTATEMENT | 230 229 229 229 230 229)');
 GO
 /* CA8 (FR-FIN-021, FR-FIN-023, FR-FIN-024): the report: the header with the disclaimer, the risk band, the Fitch
    equivalent and the summary; each line of the statement with its comparison, change, share and risk level; the
@@ -636,7 +704,7 @@ SELECT @nreg = COUNT(*), @reg = STRING_AGG(CASE WHEN MetricCode IN ('DSO','CURRE
 FROM fin.v_CreditAssessmentItemRegister WHERE AssessmentId = @a;
 SELECT @rec = STRING_AGG(CONCAT(AdjCode, ':', Bucket, ':', CAST(Amount / 1000000 AS DECIMAL(9,2)), CASE WHEN AdjNameAr IS NOT NULL THEN ':text' END), ' ') WITHIN GROUP (ORDER BY SeqNo)
 FROM fin.v_CreditAssessmentReclass WHERE AssessmentId = @a;
-SELECT @head = CONCAT(FinalGrade, ' ', FitchGrade, ' ', RiskBand, ' ', CASE WHEN DisclaimerAr LIKE N'%موديز%' THEN 'disclaimer' END, ' ',
+SELECT @head = CONCAT(FinalGrade, ' ', FitchEquivalentIndicative, ' ', RiskBand, ' ', CASE WHEN DisclaimerAr LIKE N'%موديز%' THEN 'disclaimer' END, ' ',
                       CASE WHEN SummaryAr LIKE CONCAT(N'الدرجة النهائية ', FinalGrade, N'%') THEN 'summary' END, ' ', CompanyNameEn, ' ', ScorecardCode, ' ', LiquidityNameEn),
        @cur1 = CAST(IsCurrent AS INT)
 FROM fin.v_CreditAssessmentReport WHERE CreditAssessmentId = @a;
@@ -898,7 +966,9 @@ GO
 /* CA13 (FR-FIN-027, BR-FIN-027, docs/35 section 10): the company's facilities and collateral on the platform on the
    assessment date give the facility grade by the loss given default after the haircuts of each kind of collateral (a
    guarantee of an individual is a personal guarantee) and the guarantor's solvency; the platform's committed undrawn
-   lines join the liquidity sources; the SIMAH report brings its own adjustments and the debt outside the statement. */
+   lines join the liquidity sources; the SIMAH report brings its own adjustments and the debt outside the statement.
+   A revision of the facility that replaces the property's link and the committed limit is read alone once in effect
+   on the assessment date (4: the rows it superseded are not read with it, review E3), and not before (5, review E4). */
 CREATE PROCEDURE #PlatformCase @Case INT, @Out NVARCHAR(1000) OUTPUT
 AS
 BEGIN
@@ -911,8 +981,27 @@ BEGIN
     IF @Case = 1 EXEC #CPlatform;
     IF @Case = 2 EXEC #CPlatform @Property = 0;
     IF @Case = 3 EXEC #CPlatform @Bureau = 1;
+    -- revision 2 of the facility replaces the property's link (200 million to 100) and the committed limit by an
+    -- uncommitted one; it is in effect on the assessment date in case 4 (from 2026-03-01) and not yet in case 5 (from
+    -- 2026-06-01): the rows it superseded are not read with it, nor its own before it (review E3, E4)
+    IF @Case IN (4, 5)
+    BEGIN
+        EXEC #CPlatform;
+        DECLARE @t INT = (SELECT v FROM #C WHERE k = 't'), @u1 BIGINT = (SELECT v FROM #C WHERE k = 'u1'), @u2 BIGINT = (SELECT v FROM #C WHERE k = 'u2'),
+                @f BIGINT, @cp BIGINT;
+        SET @f = (SELECT FacilityId FROM fac.Facility WHERE TenantId = @t AND FacilityNo = 'FAC-26-301');
+        SET @cp = (SELECT CollateralId FROM col.Collateral WHERE TenantId = @t AND StructureKind = 'REAL_ESTATE');
+        UPDATE col.CollateralLink SET ToRevision = 2 WHERE TenantId = @t AND FacilityId = @f AND CollateralId = @cp;
+        INSERT col.CollateralLink (TenantId, CollateralId, FacilityId, CoverageAmount, LinkedOn, FromRevision) VALUES (@t, @cp, @f, 100000000.0, '2026-03-01', 2);
+        UPDATE fac.Limit SET ToRevision = 2 WHERE TenantId = @t AND FacilityId = @f;
+        INSERT fac.Limit (TenantId, FacilityId, LimitTypeId, Code, NameAr, AmountBasis, Amount, IsRevolving, IsCommitted, FromRevision, NoSourceReason)
+        VALUES (@t, @f, 1, 'L1', N'حد', 'ABSOLUTE', 300000000.0, 1, 0, 2, N'test fixture');
+        INSERT fac.FacilityRevision (TenantId, FacilityId, RevisionNo, ReasonKind, Status, EffectiveOn, SubmittedBy, SubmittedOn, ApprovedBy, ApprovedOn)
+        VALUES (@t, @f, 2, 'AMENDMENT', 'APPROVED', CASE WHEN @Case = 4 THEN '2026-03-01' ELSE '2026-06-01' END, @u1, SYSUTCDATETIME(), @u2, SYSUTCDATETIME());
+        UPDATE fac.Facility SET ApprovedRevisionNo = 2 WHERE FacilityId = @f;
+    END;
     EXEC fin.usp_ComputeCreditAssessment @a;
-    SELECT @Out = CONCAT(r.FinalGrade, ' ', r.FacilityGrade, ' ', r.LgdPct, ' ', r.LgdBand, ' ', r.FitchRecoveryRating, ' ', r.LiquidityLabel, ' | ',
+    SELECT @Out = CONCAT(r.FinalGrade, ' ', r.FacilityGrade, ' ', r.LgdPct, ' ', r.LgdBand, ' ', r.RecoveryRatingIndicative, ' ', r.LiquidityLabel, ' | ',
                          (SELECT STRING_AGG(CONCAT(CAST(LimitAmount / 1000000 AS INT), '/', CAST(OutstandingAmount / 1000000 AS INT), '/', CAST(SecuredCover / 1000000 AS INT), '/',
                                                    CAST(RecoverableCover / 1000000 AS INT), '/', CAST(IsCommitted AS INT)), ',') FROM fin.v_CreditAssessmentFacilities WHERE AssessmentId = @a),
                          ' | ', (SELECT STRING_AGG(x.RuleCode, ',') WITHIN GROUP (ORDER BY x.RuleCode)
@@ -921,10 +1010,10 @@ BEGIN
 END;
 GO
 DECLARE @got NVARCHAR(2000);
-EXEC #CCases '#PlatformCase', 1, 3, @got OUTPUT;
-IF @got = '1:0=Ba2 Ba1 39.00 LGD3 RR3 SGL-2 | 300/250/500/120/1 | INFORMATION_RISK,INFORMATION_RISK_SEVERE 2:0=Ba2 Ba2 65.00 LGD4 RR4 SGL-2 | 300/250/300/0/1 | INFORMATION_RISK,INFORMATION_RISK_SEVERE 3:0=B1 Ba3 39.00 LGD3 RR3 SGL-2 | 300/250/500/120/1 | BUREAU_DPD30_59,BUREAU_HIDDEN_DEBT,BUREAU_LENDERS_NOT_ON_PLATFORM,INFORMATION_RISK,INFORMATION_RISK_SEVERE'
+EXEC #CCases '#PlatformCase', 1, 5, @got OUTPUT;
+IF @got = '1:0=Ba2 Ba1 39.00 LGD3 RR3 SGL-2 | 300/250/500/120/1 | INFORMATION_RISK,INFORMATION_RISK_SEVERE 2:0=Ba2 Ba2 65.00 LGD4 RR4 SGL-2 | 300/250/300/0/1 | INFORMATION_RISK,INFORMATION_RISK_SEVERE 3:0=B1 Ba3 39.00 LGD3 RR3 SGL-2 | 300/250/500/120/1 | BUREAU_DPD30_59,BUREAU_HIDDEN_DEBT,BUREAU_LENDERS_NOT_ON_PLATFORM,INFORMATION_RISK,INFORMATION_RISK_SEVERE 4:0=Ba2 Ba2 52.00 LGD4 RR4 SGL-3 | 300/250/400/60/0 | INFORMATION_RISK,INFORMATION_RISK_SEVERE 5:0=Ba2 Ba1 39.00 LGD3 RR3 SGL-2 | 300/250/500/120/1 | INFORMATION_RISK,INFORMATION_RISK_SEVERE'
     PRINT 'PASS CA13: the facilities, collateral and guarantor on the platform give the facility grade, and the SIMAH report its adjustments, as the reference computes them';
-ELSE PRINT CONCAT('FAIL CA13: ', @got, ' (expected 1:0=Ba2 Ba1 39.00 LGD3 RR3 SGL-2 | 300/250/500/120/1 | INFORMATION_RISK,INFORMATION_RISK_SEVERE 2:0=Ba2 Ba2 65.00 LGD4 RR4 SGL-2 | 300/250/300/0/1 | INFORMATION_RISK,INFORMATION_RISK_SEVERE 3:0=B1 Ba3 39.00 LGD3 RR3 SGL-2 | 300/250/500/120/1 | BUREAU_DPD30_59,BUREAU_HIDDEN_DEBT,BUREAU_LENDERS_NOT_ON_PLATFORM,INFORMATION_RISK,INFORMATION_RISK_SEVERE)');
+ELSE PRINT CONCAT('FAIL CA13: ', @got, ' (expected 1:0=Ba2 Ba1 39.00 LGD3 RR3 SGL-2 | 300/250/500/120/1 | INFORMATION_RISK,INFORMATION_RISK_SEVERE 2:0=Ba2 Ba2 65.00 LGD4 RR4 SGL-2 | 300/250/300/0/1 | INFORMATION_RISK,INFORMATION_RISK_SEVERE 3:0=B1 Ba3 39.00 LGD3 RR3 SGL-2 | 300/250/500/120/1 | BUREAU_DPD30_59,BUREAU_HIDDEN_DEBT,BUREAU_LENDERS_NOT_ON_PLATFORM,INFORMATION_RISK,INFORMATION_RISK_SEVERE 4:0=Ba2 Ba2 52.00 LGD4 RR4 SGL-3 | 300/250/400/60/0 | INFORMATION_RISK,INFORMATION_RISK_SEVERE 5:0=Ba2 Ba1 39.00 LGD3 RR3 SGL-2 | 300/250/500/120/1 | INFORMATION_RISK,INFORMATION_RISK_SEVERE)');
 GO
 /* CA14 (FR-FIN-028 to FR-FIN-030, BR-FIN-028 to BR-FIN-030, docs/35 sections 5, 12, 13 and 15): IND's activity is the
    manufacture of non-metallic mineral products and its product lines for 2025 are building materials and capital
@@ -1143,12 +1232,13 @@ BEGIN
     EXEC fin.usp_ComputeCreditAssessment @a;
     INSERT fin.PresentationVersion (TenantId, SourceStatementId, SourceAssessmentId, NameAr, PreparedBy) VALUES (@t, @s, @a, N'النسخة أ', @u1);
     SET @va = SCOPE_IDENTITY();
+    DECLARE @doc BIGINT = (SELECT v FROM #C WHERE k = 'doc');
     INSERT fin.PresentationVersionStep (TenantId, VersionId, StepNo, RemedyId, DocumentId, EvidenceDate, Justification)
-    VALUES (@t, @va, 1, @sub, 1, '2025-12-15', N'اتفاقية مساندة موقعة من الشركاء'), (@t, @va, 2, @ret, 1, '2026-02-10', N'قرار الجمعية بعدم التوزيع');
+    VALUES (@t, @va, 1, @sub, @doc, '2025-12-15', N'اتفاقية مساندة موقعة من الشركاء'), (@t, @va, 2, @ret, @doc, '2026-02-10', N'قرار الجمعية بعدم التوزيع');
     INSERT fin.PresentationVersion (TenantId, SourceStatementId, SourceAssessmentId, NameAr, PreparedBy) VALUES (@t, @s, @a, N'النسخة ب', @u1);
     SET @vb = SCOPE_IDENTITY();
     INSERT fin.PresentationVersionStep (TenantId, VersionId, StepNo, RemedyId, DocumentId, EvidenceDate, Justification)
-    VALUES (@t, @vb, 1, @sub, 1, '2025-12-15', N'اتفاقية مساندة موقعة من الشركاء'), (@t, @vb, 2, @ret, 1, '2025-12-20', N'قرار الشركاء بعدم التوزيع');
+    VALUES (@t, @vb, 1, @sub, @doc, '2025-12-15', N'اتفاقية مساندة موقعة من الشركاء'), (@t, @vb, 2, @ret, @doc, '2025-12-20', N'قرار الشركاء بعدم التوزيع');
     EXEC fin.usp_BuildPresentationVersion @va;
     EXEC fin.usp_BuildPresentationVersion @vb;
     IF @Case = 1
@@ -1202,7 +1292,9 @@ BEGIN
     SET NOCOUNT ON;
     DECLARE @s BIGINT, @a BIGINT, @f BIGINT, @t INT = (SELECT v FROM #C WHERE k = 't'), @ind BIGINT = (SELECT v FROM #C WHERE k = 'ind'),
             @today DATE = CAST(SYSUTCDATETIME() AS DATE);
-    EXEC #CStmt @ind, '2025-12-31';
+    -- case 6 is of today: its statement ends ten months before, so its age, and the grade, do not move with the calendar (review B10)
+    DECLARE @pe DATE = CASE WHEN @Case = 6 THEN EOMONTH(@today, -10) ELSE '2025-12-31' END;
+    EXEC #CStmt @ind, @pe;
     SELECT @s = v FROM #C WHERE k = 's';
     IF @Case = 6 EXEC #CAssess @s, @AsOf = @today; ELSE EXEC #CAssess @s;
     SELECT @a = v FROM #C WHERE k = 'a';
@@ -1257,14 +1349,17 @@ BEGIN
     SET NOCOUNT ON;
     DECLARE @s BIGINT, @a BIGINT, @b BIGINT, @ba BIGINT, @t INT = (SELECT v FROM #C WHERE k = 't'), @ind BIGINT = (SELECT v FROM #C WHERE k = 'ind'),
             @today DATE = CAST(SYSUTCDATETIME() AS DATE);
-    -- the actual year 2025, approved, and its official assessment (not computed in case 5)
-    EXEC #CStmt @ind, '2025-12-31';
+    -- the actual year 2025, approved, and its official assessment (not computed in case 5); case 5 is of today, its
+    -- actual statement ending ten months before and its budget two months after, whatever the day (review B10)
+    DECLARE @pe DATE = CASE WHEN @Case = 5 THEN EOMONTH(@today, -10) ELSE '2025-12-31' END,
+            @bpe DATE = CASE WHEN @Case = 5 THEN EOMONTH(@today, 2) ELSE '2026-12-31' END;
+    EXEC #CStmt @ind, @pe;
     SELECT @s = v FROM #C WHERE k = 's';
     EXEC #CAssess @s;
     SELECT @a = v FROM #C WHERE k = 'a';
     IF @Case <> 5 EXEC fin.usp_ComputeCreditAssessment @a;
     -- the budget of 2026: the same lines, totals left to the engine
-    EXEC #CStmt @ind, '2026-12-31', @Assurance = 'MANAGEMENT', @Approve = 0;
+    EXEC #CStmt @ind, @bpe, @Assurance = 'MANAGEMENT', @Approve = 0;
     SELECT @b = v FROM #C WHERE k = 's';
     UPDATE fin.FinancialStatement SET Nature = 'BUDGET' WHERE FinancialStatementId = @b;
     DELETE ln FROM fin.StatementLine AS ln JOIN fin.LineCatalogItem AS li ON li.TenantId = ln.TenantId AND li.LineCatalogItemId = ln.LineCatalogItemId
@@ -1351,7 +1446,9 @@ BEGIN
     SET NOCOUNT ON;
     DECLARE @s BIGINT, @a BIGINT, @f BIGINT, @n1 INT, @n2 INT, @t INT = (SELECT v FROM #C WHERE k = 't'), @ind BIGINT = (SELECT v FROM #C WHERE k = 'ind'),
             @u1 BIGINT = (SELECT v FROM #C WHERE k = 'u1'), @d DATE = CAST(SYSUTCDATETIME() AS DATE), @e DATE, @e1 INT, @e2 INT, @e3 INT, @r1 VARCHAR(200);
-    EXEC #CStmt @ind, '2025-12-31';
+    -- the assessment is of today: its statement ends ten months before, so its age does not move with the calendar (review B10)
+    DECLARE @pe DATE = EOMONTH(@d, -10);
+    EXEC #CStmt @ind, @pe;
     SELECT @s = v FROM #C WHERE k = 's';
     EXEC #CAssess @s, @AsOf = @d;
     SELECT @a = v FROM #C WHERE k = 'a';
@@ -1537,7 +1634,9 @@ BEGIN
             @d DATE = CAST(SYSUTCDATETIME() AS DATE), @e DATE, @m UNIQUEIDENTIFIER, @m2 UNIQUEIDENTIFIER, @subj NVARCHAR(600), @body NVARCHAR(4000),
             @bad INT = 0, @ch VARCHAR(6), @lg VARCHAR(2), @k INT;
     EXEC #CNtfPack;
-    EXEC #CStmt @ind, '2025-12-31';
+    -- the assessment is of today: its statement ends ten months before, so its age does not move with the calendar (review B10)
+    DECLARE @pe DATE = EOMONTH(@d, -10);
+    EXEC #CStmt @ind, @pe;
     SELECT @s = v FROM #C WHERE k = 's';
     EXEC #CAssess @s, @AsOf = @d;
     SELECT @a = v FROM #C WHERE k = 'a';
