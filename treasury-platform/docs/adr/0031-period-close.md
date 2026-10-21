@@ -42,11 +42,13 @@ reopening of that year should be possible without a second, deliberate decision.
 
 - One table (252 in all), one permission (144 in all), one static script (053) with three triggers, two procedures,
   a function and a view.
-- Test CA31 has eight cases:
-  - the close and its audit row, then a statement of the period refused;
-  - a close refused while a draft remains;
-  - a flow after the close accepted, and one inside it refused;
-  - a reopening refused to the one who closed;
-  - a reopening by another user, after which a statement is accepted;
-  - a close refused without the permission;
-  - a direct write by the application refused.
+- Test CA31 checks nine sub-cases:
+  1. the close, its audit row and the company's current close;
+  2. a close refused while a statement of the period is still a draft (50097);
+  3. a bank flow after the close accepted;
+  4. a bank flow inside the closed period refused (50096);
+  5. a reopening refused to the one who closed (50097);
+  6. a reopening by another user with a reason, audited, after which a statement of the period is accepted;
+  7. a close refused without the permission fin.period.lock (50097);
+  8. a direct write of the close by the application refused (229);
+  9. after the close, a new statement of the period refused (50096).

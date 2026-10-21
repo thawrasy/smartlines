@@ -33,8 +33,8 @@
 
 | البند | الحالة | المصدر |
 |---|---|---|
-| تشفير أعمدة المقيّد في طبقة التطبيق AES-256-GCM بغلاف مُصدَّر | قرار تصميم 🟢، ولا يوجد تطبيق بعد | docs/20-database-design.md:67 و188-202 |
-| سجل مفاتيح المشترك `sec.TenantKey` بأغراض DATA وBLIND_INDEX وFILE، و`WrappedKey` و`MasterKeyRef` | منشور في DDL | db/model/10-platform.model:276-289 |
+| تشفير أعمدة المقيّد في طبقة التطبيق AES-256-GCM بغلاف مُصدَّر | قرار تصميم 🟢، ولا يوجد تطبيق بعد | docs/20-database-design.md:89 و199-229 |
+| سجل مفاتيح المشترك `sec.TenantKey` بأغراض DATA وBLIND_INDEX وFILE، و`WrappedKey` و`MasterKeyRef` | منشور في DDL | db/model/10-platform.model:332-345 |
 | ربط عمود المفتاح بغرضه بمفتاح أجنبي مركّب (DR-02) | منفّذ | db/model/11-organization-party.model:297-300، db/model/10-platform.model:128-129 |
 | أدنى طول للغلاف `DATALENGTH >= 29` | منفّذ بقيود CHECK | db/model/11-organization-party.model:317، db/model/10-platform.model:85 و149 |
 | سجل أحداث المفاتيح `sec.KeyEvent` ومنه `MASTER_KEY_CHANGED` و`BACKUP_VERIFIED` | منشور، للإضافة فقط | db/model/10-platform.model:291-299، db/generated/tsql/005_delete_grants.sql:46 |
@@ -275,10 +275,10 @@ flowchart TB
 - docs/10-detailed-analysis/11-m2-m4-institutions-accounts-catalogs.md:582 يقول «Always Encrypted أو ما يعادله» لـ AccountNo وIban، والقرار T-7 تشفير في طبقة التطبيق (docs/20-database-design.md:67) والنموذج يطبّقه (db/model/12-institutions-accounts-catalogs.model:386-396). يُصحَّح النص إلى «غلاف T-7».
 - TDE ونسخ مشفّرة مطلوبة (docs/10-detailed-analysis/10-m0-m1-platform-organization.md:582)، ولا يوجد أي كائن TDE في `db/` ولا سكربت نسخ في المستودع.
 - Q-PLT-12 يحيل الإجراء إلى «فريق التشغيل» (docs/10-detailed-analysis/10-m0-m1-platform-organization.md:624)، ولا يوجد إجراء. هذه الوثيقة مسودته.
-- DR-20 مسجَّل «open» (docs/review/design-review-2026-10-11.json:220-221)، مع أن ربط الغرض منفّذ بعد DR-02 (docs/review/design-review-2026-10-11.json:28-29، db/model/12-institutions-accounts-catalogs.model:393-396). وكان يبقى منه منع الإشارة إلى مفتاح RETIRED أو REVOKED فقط، وقد أُغلق بـ ADR 0032 (2026-10-21). ويبقى التشفير نفسه في طبقة التطبيق غير المبنية.
-- `sec.KeyEvent` مملوك للمشترك (db/generated/tsql/001_tables.sql:475)، فلا يتسع لأحداث مفاتيح المنصة التي يطلب BR-PLT-009 تسجيلها بشدة عالية.
-- `wfl.Request.FormDataJson` يحمل حقولًا مقيّدة مشفّرة (db/model/15-workflow-notifications.model:283) بلا عمود مفتاح، خلافًا لقاعدة «عمود المفتاح في الصف يحدد الإصدار» (docs/20-database-design.md:200).
-- docs/20-database-design.md:183 وdb/model/10-platform.model:73 يذكران «KMS» دون منتج ولا موقع؛ القرار مفتوح (DQ-S02-1).
+- DR-20 مسجَّل «resolved» (docs/review/design-review-2026-10-11.json:229-231)، لأن ربط الغرض منفّذ بعد DR-02 (docs/review/design-review-2026-10-11.json:28-29، db/model/12-institutions-accounts-catalogs.model:393-396). وكان يبقى منه منع الإشارة إلى مفتاح RETIRED أو REVOKED فقط، وقد أُغلق بـ ADR 0032 (2026-10-21). ويبقى التشفير نفسه في طبقة التطبيق غير المبنية.
+- `sec.KeyEvent` مملوك للمشترك (db/generated/tsql/001_tables.sql:547)، فلا يتسع لأحداث مفاتيح المنصة التي يطلب BR-PLT-009 تسجيلها بشدة عالية.
+- `wfl.Request.FormDataJson` يحمل حقولًا مقيّدة مشفّرة (db/model/15-workflow-notifications.model:282) بلا عمود مفتاح، خلافًا لقاعدة «عمود المفتاح في الصف يحدد الإصدار» (docs/20-database-design.md:227).
+- docs/20-database-design.md:210 وdb/model/10-platform.model:75 يذكران «KMS» دون منتج ولا موقع؛ القرار مفتوح (DQ-S02-1).
 
 ## 17. التتبع
 

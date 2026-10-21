@@ -10,7 +10,7 @@
 | يعتمد على | DOC-F04 (ربط المهمة بالمشترك، DQ-F04-4)، DOC-F05 (المؤقتات الزمنية للمشترك)، DOC-F10 وDOC-F11 (مصادر الأحداث)، DOC-B03 (NFR-OPS وNFR-I18N)، DOC-B10 (اللغة)، DOC-S01 (التهديدات)، DOC-S08 (حسابات القاعدة)، DOC-S12 (السجلات والمراقبة) |
 | المصادر | db/model/10-platform.model، db/model/15-workflow-notifications.model، db/generated/tsql/005_delete_grants.sql، db/generated/tsql/007_table_grants.sql، docs/10-detailed-analysis/10-m0-m1-platform-organization.md، docs/10-detailed-analysis/13-m6-workflow-engine-notifications.md، docs/10-detailed-analysis/14-m7-m8-letters-of-credit.md، docs/21-data-dictionary.md، docs/20-database-design.md، docs/review/design-review-2026-10-11.json |
 
-> **تحديث التنفيذ (2026-10-12):** قائمة JobKey المغلقة (DQ-F17-2) جدول `cfg.JobDefinition` مبذور بالمهام التسع والعشرين في §5.2 ومعها JOB-PLT-ONBOARD، ثم JOB-PLT-EXPORT (ADR 0008)، ثم JOB-PLT-RECONCILE (ADR 0011، DR-44؛ 32 مهمة)، بنطاق كل مهمة وحالات المشترك المسموحة، و`sec.usp_SetJobContext` يرفض غيرها (docs/adr/0004-platform-access-jobs-and-onboarding.md، db/static/037_job_context.sql؛ الاختبارات J1 إلى J7، وJ7 تدقيق الربط). ومهمتا JOB-PLT-TRIAL-EXPIRE وJOB-PLT-ARCHIVE تستدعيان `plat.usp_RunTenantTransitions`.
+> **تحديث التنفيذ (2026-10-12):** قائمة JobKey المغلقة (DQ-F17-2) جدول `cfg.JobDefinition` مبذور بالمهام التسع والعشرين في §5.2 ومعها JOB-PLT-ONBOARD، ثم JOB-PLT-EXPORT (ADR 0008)، ثم JOB-PLT-RECONCILE (ADR 0011، DR-44)، ثم JOB-FIN-READINESS (ADR 0027) وJOB-PLT-AUDIT-CHAIN (ADR 0033)؛ 34 مهمة، بنطاق كل مهمة وحالات المشترك المسموحة، و`sec.usp_SetJobContext` يرفض غيرها (docs/adr/0004-platform-access-jobs-and-onboarding.md، db/static/037_job_context.sql؛ الاختبارات J1 إلى J7، وJ7 تدقيق الربط). ومهمتا JOB-PLT-TRIAL-EXPIRE وJOB-PLT-ARCHIVE تستدعيان `plat.usp_RunTenantTransitions`.
 
 ## 1. الغرض والنطاق
 
@@ -36,7 +36,7 @@
 | لغة المستخدم والمشترك | AppUser.PreferredLanguage فارغها يعني لغة المشترك؛ Tenant.DefaultLanguage افتراضيها en؛ Tenant.TimeZone إلزامي | 10.model:120، :39-40 |
 | حساب الخدمة | IsSystemUser بلا كلمة مرور ولا MFA | 10.model:123، :150 |
 
-ما لا يوجد: عامل Outbox، ومجدول المهام، وطريق لربط المهمة بالمشترك. فحساب الخدمة لا يبدأ جلسة، والربط يشترط جلسة (DOC-F04 §5.1). هذا مانع لـ FR-PLT-044 في S0.
+ما لا يوجد: عامل Outbox، ومجدول المهام. ~~وطريق لربط المهمة بالمشترك~~ ✅ مبني: `sec.usp_SetJobContext` (037، ADR 0004) يربط اتصال عامل المهام (`tp_jobs`) بمشترك واحد بصفة حساب خدمته، لمهمة من `cfg.JobDefinition` في حالة تسمح بها، بلا جلسة مستخدم؛ وتختبره J1 إلى J7.
 
 ## 3. الصورة العامة
 

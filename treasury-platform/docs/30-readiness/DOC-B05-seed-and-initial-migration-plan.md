@@ -29,7 +29,7 @@
 | لا توجد بيانات بذر في المستودع. عبارات INSERT الوحيدة تملأ الجدول المؤقت #rls_tables | db/generated/tsql/004_rls_tables.sql:9-18 |
 | ترتيب النشر لا يحوي خطوة بذر | db/deploy.sql:22-34 |
 | اختبارات العزل تعطّل المفاتيح الأجنبية لأن المراجع غير مبذورة، وتستعمل PlanId=1 وHomeCountryId=1 غير موجودين | db/tests/tenant_isolation_tests.sql:29-34، :69-73 |
-| DDL غير قابل لإعادة التشغيل (CREATE TABLE بلا حراسة)، فالنشر لقاعدة جديدة فقط ولا مسار ترحيل | db/generated/tsql/001_tables.sql:8؛ docs/20-database-design.md:530 (O-2) |
+| DDL غير قابل لإعادة التشغيل (CREATE TABLE بلا حراسة)، فالنشر لقاعدة جديدة فقط؛ ومسار الترحيل بعد النشر الأول ✅ مبني: `tools/deploy/migrate.sh` بالدفتر `plat.SchemaMigration` (ADR 0034، MG1 إلى MG7) | db/generated/tsql/001_tables.sql:8؛ docs/20-database-design.md:627 (O-2) |
 | علامة catalog تضيف SeedKey وفرادة (Tenant, SeedKey) | tools/dbgen/README.md:40 |
 | SeedKey موجود أيضًا في: sec.Role، cfg.NumberSequenceDefinition، cfg.ExpiryAlertRule، org.Department، pty.CustomFieldDefinition، pty.KycProfile، pty.KycProfileItem، wfl.RequestType، wfl.WorkflowTemplate، ntf.NotificationEventType، ntf.NotificationRule، lc.LcFieldDefinition، lc.LcDocumentClause، ref.UcpArticle | db/model/10-platform.model:163، :451، :489؛ 11-organization-party.model:66، :388، :418، :439؛ 15-workflow-notifications.model:37، :84، :540، :561؛ 16-letters-of-credit.model:55، :81، :141 |
 | سجل تشغيل البذر cfg.SeedRun مملوك للمشترك (TenantId NOT NULL) | db/model/10-platform.model:572-584؛ db/generated/tsql/001_tables.sql:933-934 |
@@ -66,7 +66,7 @@ flowchart TD
 | plat.Plan وplat.PlanModule | لا قائمة باقات في الوثائق. نقترح باقة واحدة STANDARD بكل الوحدات وبلا حدود 🟡 | db/model/10-platform.model:14-29؛ Q-PLT-11 | OWN | S0 |
 | plat.ReservedSubdomain | www وadmin وapi وapp وغيرها | FR-PLT-046 (10-m0-m1…:148)؛ db/model/10-platform.model:58-62 | OPS مع SEC | S0 |
 | sec.Permission | كل رموز الصلاحيات بنصها الحرفي من مصفوفات §2، وLockedToRoleCodes للصلاحيات الأربع المقفلة على TM وFO | FR-PLT-017 (10-m0-m1…:119)؛ FR-PLT-019 (:121)؛ BR-PLT-019 (:245) | SEC مع OWN | S0 لرموز CORE، ثم رموز كل وحدة مع شريحتها |
-| cfg.SettingDefinition | مفاتيح الإعداد وقيمها الافتراضية وحدودها: سياسة كلمة المرور، المهل، work.start وwork.end، العتبات | FR-PLT-043 (10-m0-m1…:145)؛ BR-PLT-018 (:244)؛ db/model/10-platform.model:426-436 | SEC للأمنية، TRM للتشغيلية | S0 |
+| cfg.SettingDefinition | مفاتيح الإعداد وقيمها الافتراضية وحدودها: سياسة كلمة المرور، المهل، work.start وwork.end، العتبات | FR-PLT-043 (10-m0-m1…:145)؛ BR-PLT-018 (:244)؛ db/model/10-platform.model:501-511 | SEC للأمنية، TRM للتشغيلية | S0 |
 | cfg.NonWorkingDay (صفوف المنصة) | العطل الرسمية لكل دولة؛ يدخلها المشغّل من الشاشة ولا تُبذر من المستودع 🟡 | Q-PLT-09 (90-consolidated…:19)؛ شاشة 4 (10-m0-m1…:376) | OPS بصفة مشغّل | S2 (FR-PLT-035) |
 | plat.PlatformOperator | لا يُبذر. أول مشغّل يُنشأ بإجراء تمهيد لمرة واحدة يصدر دعوة، فلا كلمة مرور في أي سكربت 🟡 | FR-PLT-006 (10-m0-m1…:108) | SEC | S0 |
 
@@ -94,8 +94,8 @@ flowchart TD
 
 | الحزمة | الجداول | المحتوى والعدد | المصدر | الشريحة |
 |---|---|---|---|---|
-| CORE.ROLES | sec.Role، sec.RolePermission | أدوار النظام TA وTM وFO وTE وFA وRQ وAU وRK (مسؤول المخاطر، قرار المالك 35)، بـ IsSystem=1 وSeedKey. ✅ **مبنية (2026-10-21، ADR 0035):** تُولَّد من مصفوفات الأدوار (`tools/dbgen/core_roles_pack.py`) إلى `db/seed/packs/CORE.ROLES/v1`، وفيها 393 ربطًا، ويطبّقها في القاعدة `sec.usp_SeedCoreRoles` (057) أثناء التهيئة. الاختبارات CR1 إلى CR6 | 12-m5…:46؛ 10-m0-m1…:39-70؛ db/model/10-platform.model:156-167 | S0 |
-| CORE.NUMBERING | cfg.NumberSequenceDefinition | REQUEST وPROFORMA وغيرهما، بـ GapPolicy، وغير مفعّلة حتى يفعّلها TA 🟡 | db/model/10-platform.model:443-453؛ BR-ORG-001 | S0 |
+| CORE.ROLES | sec.Role، sec.RolePermission | أدوار النظام TA وTM وFO وTE وFA وRQ وAU وRK (مسؤول المخاطر، قرار المالك 35)، بـ IsSystem=1 وSeedKey. ✅ **مبنية (2026-10-21، ADR 0035):** تُولَّد من مصفوفات الأدوار (`tools/dbgen/core_roles_pack.py`) إلى `db/seed/packs/CORE.ROLES/v1`، وفيها 393 ربطًا، ويطبّقها في القاعدة `sec.usp_SeedCoreRoles` (057) أثناء التهيئة. الاختبارات CR1 إلى CR6 | 12-m5…:46؛ 10-m0-m1…:39-70؛ db/model/10-platform.model:192-203 و218-222 | S0 |
+| CORE.NUMBERING | cfg.NumberSequenceDefinition | REQUEST وPROFORMA وغيرهما، بـ GapPolicy، وغير مفعّلة حتى يفعّلها TA 🟡 | db/model/10-platform.model:518-530؛ BR-ORG-001 | S0 |
 | CAT.DOCTYPES | cat.DocumentType | 42 نوعًا بأعلامها، ويُضاف النوع النظامي `DATA_EXPORT_PACKAGE` (عام، حساس، مقفل) لحزم التصدير، فتصير 43 (ADR 0008). ✅ وحزمة نوعٍ حساس تُكتب RESTRICTED ولو خلت من البيانات المقيّدة، كما يشترط 043 لوثائق الأنواع الحساسة (db/static/042_data_export.sql، المراجعة الذاتية A10، X7) | 11-m2-m4…:330؛ FR-CAT-018 (:181) | S0، لأن مخزن المستندات FR-PLT-028 في S0 |
 | CORE.DEPARTMENTS | org.Department | إدارة لكل Function: TREASURY وPROCUREMENT وSALES وFINANCE 🟡 | FR-PLT-008؛ FR-ORG-014 (10-m0-m1…:168)؛ 11-organization-party.model:56-68 | S1 |
 | CORE.EXPIRY | cfg.ExpiryAlertRule | قواعد الجدول §9.2 | 10-m0-m1…:517-526؛ db/model/10-platform.model:482-491 | S1 |
@@ -261,7 +261,7 @@ flowchart LR
 | DQ-B05-7 | تمهيد أول مشغّل منصة | إجراء لمرة واحدة يشغّله OPS ويصدر دعوة، بلا كلمة مرور في سكربت | SEC (DOC-S08، DOC-F03) | لوحة المشغّل |
 | DQ-B05-8 | لا متطلب FR لقوالب Excel | ✅ معتمد من المالك (2026-10-12): إضافة متطلبات استيراد للشركات (10) وللمنشآت والعلاقات والحسابات (11) بأولوية Should في S1 | OWN مع BA | §7 |
 | DQ-B05-9 | سجل تشغيل الاستيراد | cfg.JobRun للتشغيل، والتقرير مستند في doc.Document، بلا جدول جديد | SA | §7.3 |
-| DQ-B05-10 | أداة ترحيل المخطط بين الإصدارات (O-2 في 20-database-design) | تُختار قبل أول نشر على بيانات حقيقية؛ المذكور في الوثيقة DbUp أو Flyway | DBA مع OPS | أول بيانات حقيقية |
+| DQ-B05-10 | أداة ترحيل المخطط بين الإصدارات (O-2 في 20-database-design) | ✅ محسوم (2026-10-21، ADR 0034): `tools/deploy/migrate.sh` بسكربتات مرقّمة في `db/migrations` والدفتر `plat.SchemaMigration`، وتختبره MG1 إلى MG7 (docs/20-database-design.md:627) | DBA مع OPS | أول بيانات حقيقية |
 | DQ-B05-11 | حزم الدول (Q-CAT-01) | ✅ معتمد من المالك (2026-10-12): حزمة واحدة للسعودية والخليج | TRM | CAT.ORG وCAT.BANKING |
 | DQ-B05-12 | قوائم أدوار النظام ورموزها الموحدة | ✅ معتمد من المالك (2026-10-12): TA وTM وFO وTE وFA وRQ وAU كما في 12-m5…:46، وتُثبَّت في 10 §2؛ وأضاف المالك RK مسؤول المخاطر في 2026-10-20 (القرار 35) | OWN مع SEC | CORE.ROLES في S0 |
 

@@ -58,9 +58,9 @@ the notifications of its section 9.2, and RK receives the red warning. Neither w
 
 ## Effect on E2
 
-RK is now seeded in every tenant through onboarding. It holds `fin.credit.endorse` and nine read permissions, and
-neither assessment permission. A user given RK passes the endorsement's preconditions (CR4). The constraint of 052 has
-its holder outside the preparing line.
+RK is now seeded in every tenant through onboarding. It holds `fin.credit.endorse`, its notification preferences
+(`ntf.prefs`) and eight read permissions, and neither assessment permission. A user given RK passes the endorsement's
+preconditions (CR4). The constraint of 052 has its holder outside the preparing line.
 
 ## Tests
 

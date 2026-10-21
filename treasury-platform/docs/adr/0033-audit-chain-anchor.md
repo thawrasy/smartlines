@@ -37,7 +37,9 @@ verifies the chain and pushes its head to a store nobody with access to the data
    - *Added on 2026-10-21 after the performance run (ADR 0036, docs/40).* A full check costs about 40 microseconds a
      row (2 s for a tenant of 50,000 rows), so its daily cost would grow without end. The daily check therefore runs
      from the latest anchor (`@FromAnchor = 1`, `audit_anchor.sh verify`). It reads the anchor's row and the rows after
-     it: 0.17 s for a day of 500 rows.
+     it: 206.40 ms at p50 and 244.25 ms at p95 for a day of 500 rows in the committed run (J4, `docs/perf/perf-run.txt`).
+     A probe after the committed run, once the chain's filter seeks on its index (ADR 0036 section 4), gave about
+     0.17 s; it is not in `perf-run.txt` and will appear in the next run.
    - A rewrite of older rows that computes the hashes again still changes the anchor's row, so the daily check catches
      it. An old row changed *without* its hash computed again is seen only by the full check, which runs weekly
      (`audit_anchor.sh verify --full`). Tests AC7 and AA3 show both.

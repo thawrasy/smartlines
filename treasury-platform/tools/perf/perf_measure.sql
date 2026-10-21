@@ -82,7 +82,7 @@ BEGIN
     IF @i < 10
     BEGIN
         SET @t0 = SYSUTCDATETIME();
-        SELECT @x = COUNT(*) FROM fin.fn_CreditEarlyWarnings('2026-10-21') WHERE TenantId = @t;
+        SELECT @x = COUNT(*) FROM fin.fn_CreditEarlyWarnings(CAST(SYSUTCDATETIME() AS DATE)) WHERE TenantId = @t;
         INSERT #S VALUES ('R2', DATEDIFF_BIG(MICROSECOND, @t0, SYSUTCDATETIME()));
     END;
     SET @i += 1;
@@ -130,12 +130,12 @@ GO
    J2: the full audit chain verification of the measured tenant (all its rows), three runs.
    J3: the anchors of all 300 chains, then again with one chain moved. */
 DECLARE @t INT = (SELECT v FROM #P WHERE k = 't'), @svc BIGINT = (SELECT v FROM #P WHERE k = 'svc'), @i INT = 0, @t0 DATETIME2(7), @issued INT,
-        @st VARCHAR(20), @bad BIGINT, @rows BIGINT;
+        @st VARCHAR(20), @bad BIGINT, @rows BIGINT, @today DATE = CAST(SYSUTCDATETIME() AS DATE);
 EXEC #Bind @t, @svc, 'JOB', 'JOB-FIN-READINESS';
 WHILE @i < 3
 BEGIN
     SET @t0 = SYSUTCDATETIME();
-    EXEC fin.usp_RunEarlyWarnings @AsOf = '2026-10-21', @Issued = @issued OUTPUT;
+    EXEC fin.usp_RunEarlyWarnings @AsOf = @today, @Issued = @issued OUTPUT;
     INSERT #S VALUES ('J1', DATEDIFF_BIG(MICROSECOND, @t0, SYSUTCDATETIME()));
     IF @i = 0 PRINT CONCAT('INFO|J1|warnings issued on the first run|', @issued);
     SET @i += 1;

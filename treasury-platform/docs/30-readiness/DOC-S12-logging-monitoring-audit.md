@@ -24,7 +24,7 @@
 
 | البند | الحالة | المصدر |
 |---|---|---|
-| سجل التدقيق | جدول مختلط للإضافة فقط بفئة وشدة ونتيجة وارتباط وعنوان، وأعمدة سلسلة فارغة حتى تفعيل FR-PLT-025 | db/model/10-platform.model:304-330 |
+| سجل التدقيق | جدول مختلط للإضافة فقط بفئة وشدة ونتيجة وارتباط وعنوان، وأعمدة سلسلة (`ChainSeq` و`PrevHash` و`RowHash`) يكتبها القادح `aud.TR_AuditLog_Chain` عند كل إدراج (055، ADR 0033) | db/model/10-platform.model:360-386 |
 | من يكتب التدقيق | التطبيق ولوحة المشغّل (`tp_app` و`tp_platform`) لما يفعلانه؛ و**منذ ADR 0007 (2026-10-13)** إجراءات القاعدة لأحداثها: الدخول (قادح على `sec.LoginAttempt`) والحسابات والجلسات ودخول المشغّلين وحساباتهم وربط الدعم والمهام والتهيئة وحالة المشترك، عبر `aud.usp_WriteEvent` (db/static/029_audit_writer.sql) | db/static/020_roles_and_grants.sql:65؛ db/generated/tsql/007_table_grants.sql:54-55 |
 | حماية التدقيق | `tp_app` و`tp_platform` بلا تحديث ولا حذف؛ المنصة تقرأ صفوف `TenantId` الفارغ فقط (T38) | db/static/020_roles_and_grants.sql:65؛ db/static/010_rls.sql:80-86 |
 | محاولات الدخول | يكتبها `usp_StartSession` و`usp_ConfirmMfa` في `sec.LoginAttempt`، وينسخها قادح إلى `aud.AuditLog` (ADR 0007، DQ-F03-10؛ R6 من O-24 مغلق) | db/static/030_session_context.sql:124-129، :162؛ db/model/10-platform.model:199 |
@@ -109,7 +109,7 @@ flowchart LR
 | عند فشل الكتابة | `ON_FAILURE = CONTINUE` مع تنبيه فوري AL-18 (DQ-S12-5) |
 | الشحن | مهمة كل دقيقة تقرأ السجلات الجديدة بـ `sys.fn_get_audit_file` وتكتبها أسطر JSON للشاحن، والملفات المغلقة تُنسخ إلى المخزن غير القابل للتعديل. صلاحية القراءة المطلوبة [تحقق MS] |
 
-السبب: `sysadmin` و`db_owner` يتجاوزون RLS والمنع ويعدّلون أي صف (DOC-S08 §9، THR-57). سلسلة البصمات لا تكشف ذلك وحدها (docs/20-database-design.md:165)، وSQL Server Audit المشحون خارج الخادم يكشفه.
+السبب: `sysadmin` و`db_owner` يتجاوزون RLS والمنع ويعدّلون أي صف (DOC-S08 §9، THR-57). سلسلة البصمات لا تكشف ذلك وحدها (docs/20-database-design.md:192)، وSQL Server Audit المشحون خارج الخادم يكشفه.
 
 **✅ منفّذ (2026-10-13، docs/adr/0012-server-audit.md).** ما بُني من الجدول أعلاه، وأجوبة [تحقق MS] الثلاثة مثبتة بفحوص CI:
 
@@ -198,9 +198,9 @@ sequenceDiagram
 
 ### 5.3 مرساة سلسلة التدقيق (O-13 في 20-database-design) ✅ منفّذة في 2026-10-21 (ADR 0033)
 
-- السلسلة لا تكشف العبث وحدها، لأن من يعدّل السجل يعيد حساب البصمات (docs/20-database-design.md:165). ولذلك تُحفظ المرساة خارج القاعدة.
-- **المقترح:** مهمة `AUDIT_CHAIN_VERIFY` (المثال في db/model/10-platform.model:555) تعمل لكل مشترك يوميًا: تتحقق من اتصال `ChainSeq` ومن كل `RowHash` منذ آخر مرساة، ثم تدفع رأس السلسلة (معرّف المشترك العام، وآخر `ChainSeq`، وآخر `RowHash`، والوقت) إلى المخزن غير القابل للتعديل، وتكتب حدث منصة.
-- **التحقق:** يقارن التشغيل التالي السلسلة بآخر رأس في المخزن، لا بالقاعدة. أي اختلاف ينبّه AL-12 ويرسل `PLT.INTEGRITY_FAIL` للمشترك (docs/10-detailed-analysis/10-m0-m1-platform-organization.md:537-539).
+- السلسلة لا تكشف العبث وحدها، لأن من يعدّل السجل يعيد حساب البصمات (docs/20-database-design.md:192). ولذلك تُحفظ المرساة خارج القاعدة.
+- **المقترح:** مهمة `AUDIT_CHAIN_VERIFY` (المثال في db/model/10-platform.model:650) تعمل لكل مشترك يوميًا: تتحقق من اتصال `ChainSeq` ومن كل `RowHash` منذ آخر مرساة، ثم تدفع رأس السلسلة (معرّف المشترك العام، وآخر `ChainSeq`، وآخر `RowHash`، والوقت) إلى المخزن غير القابل للتعديل، وتكتب حدث منصة.
+- **التحقق:** يقارن التشغيل التالي السلسلة بآخر رأس في المخزن، لا بالقاعدة. أي اختلاف ينبّه AL-12 ويرسل `PLT.INTEGRITY_FAIL` للمشترك (لم يُبنَ بعد، انظر «ما بقي» أدناه) (docs/10-detailed-analysis/10-m0-m1-platform-organization.md:537-539).
 - **الحد:** عبث بعد آخر مرساة لا يُكشف حتى المرساة التالية. الدورية يومية، وساعة إن كانت الكلفة مقبولة (DQ-S12-4). وSQL Server Audit (§3.5) يغطي هذه النافذة.
 - ~~تبدأ مع FR-PLT-025 في S2، و`ChainSeq` فارغ حتى ذلك.~~ **بُنيت (db/static/055_audit_chain.sql، ADR 0033):**
   - **السلسلة:** سلسلة لكل مشترك، وسلسلة لأحداث المنصة بالمفتاح 0. وكل صف بصمته `SHA-256(PrevHash ‖ ChainSeq بثمانية بايتات ‖ النص القانوني للصف بترميز UTF-16LE)`، والنص القانوني تعطيه `aud.fn_AuditCanonical`.
@@ -210,7 +210,7 @@ sequenceDiagram
   - **النتيجة:** كل نتيجة حدث منصة: AUDIT_CHAIN_VERIFIED، أو AUDIT_CHAIN_BROKEN بخطورة عالية ينبّه عليه AL-12.
   - **يوميًا من المرساة، وأسبوعيًا كاملًا (بعد قياس الأداء، ADR 0036، docs/40):**
     - الفحص الكامل يكلّف نحو 40 ميكروثانية للصف، أي 2 ثانية لمشترك من 50 ألف صف، ويزيد بلا حد مع نمو السجل.
-    - لذلك يبدأ الفحص اليومي من آخر مرساة (`audit_anchor.sh verify`): صف المرساة وما بعده فقط، نحو 0.17 ثانية ليوم من 500 صف.
+    - لذلك يبدأ الفحص اليومي من آخر مرساة (`audit_anchor.sh verify`): صف المرساة وما بعده فقط: 206.40 مللي ثانية في p50 و244.25 في p95 ليوم من 500 صف في التشغيل المعتمد (J4، docs/perf/perf-run.txt). وأعطى فحص بعد التشغيل المعتمد، بعد أن صار فلتر السلسلة يبحث في فهرسه، نحو 0.17 ثانية؛ وهو ليس في `perf-run.txt`، ويظهر في التشغيل التالي (docs/40 §4.1).
     - إعادة كتابة صفوف قديمة مع إعادة حساب بصماتها تغيّر صف المرساة، فيكشفها الفحص اليومي.
     - أما تعديل صف قديم دون إعادة حساب بصمته فلا يراه إلا الفحص الكامل الأسبوعي (`verify --full`).
   - **الاختبارات:** AC1 إلى AC7 في db/tests/integrity_tests.sql، وAA1 إلى AA3 في tools/ci/audit_anchor_check.sh.
@@ -233,7 +233,7 @@ sequenceDiagram
 | AL-09 | محمول المنع | أي خطأ 33504 من اتصال `tp_app` | A1 | SEC وDBA | سجلات التطبيق (R4، O-21) |
 | AL-10 | فك المفتاح | أي `UNWRAP_FAILED` | A1 | SEC | `sec.KeyEvent` (DOC-S02 §7.2) |
 | AL-11 | المهام | فشل بعد ساعة إعادة المحاولة، أو مهمة لم تبدأ خلال ضعف دوريتها | A2 | OPS | مقياس يرسله العامل، و`cfg.JobRun` (FR-PLT-044) |
-| AL-12 | السلامة | فشل `AUDIT_CHAIN_VERIFY` أو `FILE_INTEGRITY`، أو `MISMATCH` أو `MISSING` | A1 | SEC | المهمة (FR-PLT-025، FR-PLT-031) |
+| AL-12 | السلامة | الحدث `AUDIT_CHAIN_BROKEN` من `JOB-PLT-AUDIT-CHAIN` (`AUDIT_CHAIN_VERIFY`)، أو فشل `FILE_INTEGRITY`، أو `MISMATCH` أو `MISSING` | A1 | SEC | المهمة (FR-PLT-025، FR-PLT-031) |
 | AL-13 | تأخر Outbox | أقدم حدث معلّق أقدم من 5 دقائق (A2) أو 30 دقيقة (A1)، أو أي حدث `DEAD` (A2) | A1 أو A2 | OPS | العامل (DOC-F17) |
 | AL-14 | الأقراص والسجل | V2 إلى V5 فوق 80% (A2) أو 90% (A1)؛ سجل المعاملات فوق 70% | A1 أو A2 | OPS وDBA | وكيل المقاييس (DOC-S10 §9) |
 | AL-15 | النسخ | شروط DOC-S09 §4.3: سجل 20 دقيقة، وكاملة 26 ساعة، ونقل 15 دقيقة، وفشل التحقق | A1 | DBA | سجل مهام النسخ |
@@ -325,7 +325,7 @@ sequenceDiagram
 | §3.5 | DQ-S08-10، DQ-S01-8، THR-57 | docs/30-readiness/DOC-S08-database-access-model-and-secrets.md:179-185 |
 | §4 | FR-PLT-023، NFR-OPS-01، DQ-S03-4 | db/static/030_session_context.sql:169، :207؛ db/model/10-platform.model:317، :330 |
 | §5.1 | BR-PLT-016، X-AUD-3 | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:242؛ docs/10-detailed-analysis/00-overview-and-cross-cutting.md:149 |
-| §5.3 | FR-PLT-025، O-13 (20-database-design) | docs/20-database-design.md:165، :541؛ db/model/10-platform.model:305، :321-323 |
+| §5.3 | FR-PLT-025، O-13 (20-database-design) | docs/20-database-design.md:192، :638؛ db/model/10-platform.model:360-386 |
 | §6 AL-11، AL-12 | FR-PLT-044، FR-PLT-031 | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:133، :146؛ db/model/10-platform.model:399، :554-565 |
 | §6 AL-15 | DOC-S09 §4.3 | docs/30-readiness/DOC-S09-backup-restore-dr.md:76-84 |
 | §6 AL-20 | BR-PTY-009 | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:280 |

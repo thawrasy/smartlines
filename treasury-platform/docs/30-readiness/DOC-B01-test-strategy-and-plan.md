@@ -22,22 +22,31 @@
 
 ### 2.1 خط CI لقاعدة البيانات
 
-ملف الخط في جذر المستودع، ../.github/workflows/treasury-db-ci.yml، لأن GitHub يقرأ الخطوط من الجذر فقط. يعمل على كل دفع إلى main وclaude/** وعلى كل طلب دمج، ولكن فقط عند تغيّر treasury-platform/db/ أو tools/dbgen/ أو tools/ci/ أو tools/deploy/ أو versions.json أو مستندات الجاهزية والتحليل التفصيلي التي تُولَّد منها بذرة الصلاحيات، أو ملف الخط نفسه، ويمكن تشغيله يدويًا، وينفّذ أوامره داخل treasury-platform/، على ubuntu-24.04 مع حاوية mcr.microsoft.com/mssql/server:2025-CU9-GDR1-ubuntu-24.04 مثبّتة ببصمتها (sha256، من versions.json؛ تطابقها الخطوة 3)، والإجراءات مثبّتة بإيداعاتها، والسحب بلا حفظ بيانات الاعتماد (المراجعة الذاتية E13). يثبّت Pillow (pillow==12.3.0) لأن check_fk_indexes.py يستورد erd_layout.py الذي يستورد PIL. **يعمل على GitHub ويمر** 🟢: أول تشغيل أخضر في 2026-10-12 (https://github.com/thawrasy/smartlines/actions/runs/38283663041) نفّذ الخطوات الثماني يومها، 6 حالات للمشغّلات و41 حالة عزل؛ والتشغيل الذي سبقه، قبل خطوة Pillow، فشل في الخطوة 3 (التشغيل 38267525934) (O-02، tools/dbgen/erd_open_items.py:22؛ docs/adr/0001-schema-work-on-linux.md:11). واليوم 25 خطوة (0 إلى 23 و4b، الجدول أدناه)، والسكربت tools/ci/db_ci.sh نفسه يمر كاملًا في حاوية التطوير أيضًا. وتُطابق كل خطوة سطور PASS وFAIL في أي موضع من السطر، وتعدّ كل حالة مرة واحدة (المراجعة الذاتية C9).
+ملف الخط في جذر المستودع، ../.github/workflows/treasury-db-ci.yml، لأن GitHub يقرأ الخطوط من الجذر فقط. يعمل على كل دفع إلى main وclaude/** وعلى كل طلب دمج، ولكن فقط عند تغيّر treasury-platform/db/ أو tools/dbgen/ أو tools/ci/ أو tools/deploy/ أو versions.json أو مستندات الجاهزية والتحليل التفصيلي التي تُولَّد منها بذرة الصلاحيات، أو ملف الخط نفسه، ويمكن تشغيله يدويًا، وينفّذ أوامره داخل treasury-platform/، على ubuntu-24.04 مع حاوية mcr.microsoft.com/mssql/server:2025-CU9-GDR1-ubuntu-24.04 مثبّتة ببصمتها (sha256، من versions.json؛ تطابقها الخطوة 3)، والإجراءات مثبّتة بإيداعاتها، والسحب بلا حفظ بيانات الاعتماد (المراجعة الذاتية E13). يثبّت Pillow (pillow==12.3.0) لأن check_fk_indexes.py يستورد erd_layout.py الذي يستورد PIL. **يعمل على GitHub ويمر** 🟢: أول تشغيل أخضر في 2026-10-12 (https://github.com/thawrasy/smartlines/actions/runs/38283663041) نفّذ الخطوات الثماني يومها، 6 حالات للمشغّلات و41 حالة عزل؛ والتشغيل الذي سبقه، قبل خطوة Pillow، فشل في الخطوة 3 (التشغيل 38267525934) (O-02، tools/dbgen/erd_open_items.py:22؛ docs/adr/0001-schema-work-on-linux.md:11). واليوم 33 خطوة (0 إلى 24 و4b و19b إلى 19d و22b إلى 22e، الجدول أدناه)، والسكربت tools/ci/db_ci.sh نفسه يمر كاملًا في حاوية التطوير أيضًا. وتُطابق كل خطوة سطور PASS وFAIL في أي موضع من السطر، وتعدّ كل حالة مرة واحدة (المراجعة الذاتية C9).
 
 | الخطوة | ما تفعله | الموضع |
 |---|---|---|
-| 0 | انتظار استجابة SQL Server حتى 180 ثانية | tools/ci/db_ci.sh:23-34 |
-| 1 | فحص النموذج `dbgen.py check` | tools/ci/db_ci.sh:36-37 |
-| 2 | مطابقة DDL المولَّد للنموذج | tools/ci/db_ci.sh:39-45 |
-| 3 | كل مفتاح أجنبي مفهرس أو موسوم noidx، وقواعد المنح R1-R10 | tools/ci/db_ci.sh:47-49 |
-| 4 | نشر db/deploy.sql على قاعدة جديدة عبر deploy.sh | tools/ci/db_ci.sh:51-54 |
-| 5 | مطابقة الكائنات المنشورة مع DDL المولَّد | tools/ci/db_ci.sh:56-57 |
-| 6 | اختبارات المشغّلات: 7 حالات PASS بالضبط (T1 إلى T6 وT2b) | tools/ci/db_ci.sh |
-| 7 | اختبارات العزل: 48 حالة PASS بالضبط | tools/ci/db_ci.sh |
-| 8 إلى 18 | أمن الحساب (20)، المشغّل والدعم (11)، ربط المهام (7، J1 إلى J7)، تهيئة المشترك (5)، الترقيم (8، ومع اتصالات متزامنة 2)، تاريخ KYC (4)، البيانات المرجعية (4)، التدقيق (7)، التصدير (7، X1 إلى X7)، دخولات الخدمة (6) | tools/ci/db_ci.sh |
-| 19 | إصلاحات المراجعة: RF1 إلى RF34 وSR1 إلى SR9 (43) | db/tests/review_fixes_tests.sql |
-| 20 إلى 22 | SQL Server Audit (SA1 إلى SA9)، دخول المراقبة (MN1 إلى MN6)، فحوص ما قبل النشر (PF1 إلى PF8) | tools/ci/*_check.sh |
-| 23 | لا قيد غير موثوق ولا مشغّل معطّل ولا مرشح صفوف معطّل ولا مستخدم اختبار ولا مشترك متروك | tools/ci/db_ci.sh |
+| 0 | انتظار استجابة SQL Server حتى 180 ثانية | tools/ci/db_ci.sh:45-56 |
+| 1 | فحص النموذج `dbgen.py check` | tools/ci/db_ci.sh:58-59 |
+| 2 | مطابقة DDL المولَّد للنموذج، وبذرة الصلاحيات، والحزمة CORE.ROLES و057، وبذرة المنهجية الائتمانية وجداول docs/35، وحالات محرك التقييم | tools/ci/db_ci.sh:61-100 |
+| 3 | كل مفتاح أجنبي مفهرس أو موسوم noidx، وقواعد المنح R1-R11، و`check_review_fixes.py`، والحزمة NTF.BASE، وحالات الضغط الائتماني، ولا ثقة بالشهادة افتراضيًا ولا أوامر sqlcmd خطرة، وصورة CI مقابل versions.json | tools/ci/db_ci.sh:102-147 |
+| 4 | نشر db/deploy.sql على قاعدة جديدة عبر deploy.sh بحساب bankfas_migrator | tools/ci/db_ci.sh:149-189 |
+| 4b | البذر العالمي كامل ويُعاد بلا تغيير، والنص العربي كما كُتب | tools/ci/db_ci.sh:191-223 |
+| 5 | مطابقة الكائنات المنشورة مع DDL المولَّد والسكربتات الثابتة بحساب المراقبة | tools/ci/db_ci.sh:225-227 |
+| 6 | اختبارات المشغّلات: 7 حالات PASS بالضبط (T1 إلى T6 وT2b) | tools/ci/db_ci.sh:229-245 |
+| 7 | اختبارات العزل: 48 حالة PASS بالضبط | tools/ci/db_ci.sh:246-264 |
+| 8 إلى 18 | أمن الحساب (20)، المشغّل والدعم (11)، ربط المهام (7، J1 إلى J7)، تهيئة المشترك (5)، الترقيم (8، ومع اتصالات متزامنة 2)، تاريخ KYC (4)، البيانات المرجعية (4)، التدقيق (7)، التصدير (7، X1 إلى X7)، دخولات الخدمة (6) | tools/ci/db_ci.sh:265-467 |
+| 19 | إصلاحات المراجعة: RF1 إلى RF34 وSR1 إلى SR9 (43) | db/tests/review_fixes_tests.sql؛ tools/ci/db_ci.sh:468-491 |
+| 19b | القوائم المالية: FS1 إلى FS11 (11) | db/tests/financial_statements_tests.sql؛ tools/ci/db_ci.sh:492-511 |
+| 19c | التقييم الائتماني: CA1 إلى CA31 (31) | db/tests/credit_assessment_tests.sql؛ tools/ci/db_ci.sh:512-541 |
+| 19d | محرك T-SQL يطابق مرجع Python: CE وCV (142) | db/tests/credit_engine_cases.sql؛ tools/ci/db_ci.sh:542-556 |
+| 20 إلى 22 | SQL Server Audit (SA1 إلى SA9)، دخول المراقبة (MN1 إلى MN6)، فحوص ما قبل النشر (PF1 إلى PF8) | tools/ci/*_check.sh؛ tools/ci/db_ci.sh:557-619 |
+| 22b | حارس المفاتيح وسلسلة التدقيق: KG1 إلى KG6 وAC1 إلى AC7 (13) | db/tests/integrity_tests.sql؛ tools/ci/db_ci.sh:620-639 |
+| 22c | مراسي سلسلة التدقيق خارج القاعدة: AA1 إلى AA3 | tools/ci/audit_anchor_check.sh؛ tools/ci/db_ci.sh:640-654 |
+| 22d | الترحيلات المتزايدة: MG1 إلى MG7 | tools/ci/migration_check.sh؛ tools/ci/db_ci.sh:655-670 |
+| 22e | أدوار الحزمة CORE.ROLES: CR1 إلى CR6 | db/tests/core_roles_tests.sql؛ tools/ci/db_ci.sh:671-689 |
+| 23 | لا قيد غير موثوق ولا مشغّل معطّل ولا مرشح صفوف معطّل ولا مستخدم اختبار ولا مشترك متروك | tools/ci/db_ci.sh:690-700 |
+| 24 | سكربتات القياس بأحجام صغيرة: 18 نتيجة، والسلسلة سليمة بعد الكتّاب المتزامنين (ADR 0036) | tools/perf/run_perf.sh؛ tools/ci/db_ci.sh:701-718 |
 
 ### 2.2 اختبارات قاعدة البيانات
 
@@ -62,14 +71,14 @@
 | tools/dbgen/dbgen.py check | النموذج والمراجع والمفاتيح المركّبة | نعم، الخطوة 1 |
 | tools/dbgen/check_fk_indexes.py | فهرسة المفاتيح الأجنبية (السطور 1-9) | نعم، الخطوة 3 |
 | tools/dbgen/check_deployed.py | أعداد الكائنات المنشورة مقابل DDL (السطور 1-9) | نعم، الخطوة 5 |
-| tools/dbgen/check_grants.py | القواعد R1-R10 للمنح والتشفير (السطور 4-16) | نعم، الخطوة 3 (tools/ci/db_ci.sh:49) |
-| tools/dbgen/check_review_fixes.py | الإصلاحات الحرجة DR-01 إلى DR-10 (السطر 2) | لا |
+| tools/dbgen/check_grants.py | القواعد R1-R11 للمنح والتشفير (السطور 4-16) | نعم، الخطوة 3 (tools/ci/db_ci.sh:104) |
+| tools/dbgen/check_review_fixes.py | الإصلاحات الحرجة DR-01 إلى DR-10 (السطر 2) | نعم، الخطوة 3 (tools/ci/db_ci.sh:105) |
 | tools/dbgen/pg_validate.sh | البنية على PostgreSQL فقط، لا T-SQL (السطر 2) | لا |
 
 ### 2.4 الفجوات
 
 1. لا اختبارات وحدات ولا تكامل ولا API ولا واجهة، لأن كود التطبيق غير موجود.
-2. check_review_fixes.py لا يعمل في CI، مع أن docs/20-database-design.md:489 يعدّه دليل تحقق من الإصلاحات الحرجة.
+2. ~~check_review_fixes.py لا يعمل في CI~~ ✅ مسدودة: يعمل في الخطوة 3 (tools/ci/db_ci.sh:105، DQ-B01-3).
 3. لا اختبار لكتابة tp_app على كتالوج عالمي مثل ref.Currency (docs/20-database-design.md:493).
 4. لا اختبار للمخاطر المفتوحة O-19 وO-20 وO-21 (erd_open_items، tools/dbgen/erd_open_items.py:121-138) لأن قراراتها لم تُتخذ.
 5. معرّفات الحالات متصادمة: T1 إلى T6 موجودة في الملفين بمعنيين مختلفين.
@@ -161,7 +170,7 @@ flowchart TB
   F --> G["دعوة المدير الأول وتعيين كلمة المرور وMFA"]
   G --> H["دخول مدير A ومدير B عبر usp_StartSession"]
   H --> I["إنشاء بيانات أعمال لكل مشترك من الواجهة البرمجية"]
-  I --> J["اختبارات العزل في القاعدة 41 حالة"]
+  I --> J["اختبارات العزل في القاعدة 48 حالة"]
   J --> K["اختبار العبور لكل نقطة API"]
   K --> L["مقارنة سجل التدقيق لكل مشترك"]
   L --> M["تقرير الخروج"]

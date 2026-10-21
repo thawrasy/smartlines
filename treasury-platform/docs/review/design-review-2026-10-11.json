@@ -228,7 +228,7 @@
    "recommendation": "Store the purpose on the row as a constant column (e.g. EncKeyPurpose CHECK = 'DATA'; HashKeyPurpose CHECK = 'BLIND_INDEX'). Make the FKs composite on (TenantId, KeyId, Purpose) -> sec.TenantKey (TenantId, TenantKeyId, Purpose), with a unique key on that target. Keep the RETIRED/REVOKED rule in the rotation service and cover it in the static checker.",
    "id": "DR-20",
    "status": "resolved",
-   "resolution": "DR-02 (C-12); the retired or revoked key check stays with the rotation job (ADR 0011)"
+   "resolution": "DR-02 (C-12); a retired or revoked key is refused in the database by db/static/054_key_guard.sql (ADR 0032)"
   },
   {
    "table": "org.AuthorityGrant",

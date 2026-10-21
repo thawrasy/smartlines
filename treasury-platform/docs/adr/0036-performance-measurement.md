@@ -48,8 +48,9 @@ deployment.
      from the latest anchor, and a weekly full check covers the old rows (ADR 0033, tests AC7 and AA3).
    - The chain's filter now seeks on its index. In the first form, one statement with ISNULL or an OR, it read the
      tenant's whole range. Each read is now two guarded statements, one for a tenant's chain and one for the
-     platform's. Logical reads went from 2,422 to 176, and J4 from 0.25 to 0.17 s. These two numbers come from a probe
-     after the committed run, not from `perf-run.txt`; the next run of the tool shows them.
+     platform's. The committed run (`perf-run.txt`) was taken before this change and gives J4 206.40 ms at p50 and
+     244.25 ms at p95; that is the measured result. A probe after the committed run, not in `perf-run.txt`, gave
+     logical reads of 176 instead of 2,422 and J4 of about 0.17 s instead of 0.25 s; it will appear in the next run.
    - No index was added. The requests that came from the measurement's own lookups were set aside. The one that applies
      to the system (fin.BankFlowEntry by tenant, 21% impact) is proposed in docs/40, under the owner's decision D-6.
 5. **In CI** (step 24) the same scripts run at small sizes, so a change of the schema cannot break them unseen.
