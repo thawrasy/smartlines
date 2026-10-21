@@ -1,0 +1,8 @@
+bin/
+obj/
+*.user
+.vs/
+TestResults/
+web/node_modules/
+web/dist/
+*.tsbuildinfo

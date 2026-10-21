@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <ItemGroup>
+    <ProjectReference Include="..\BankFas.Core\BankFas.Core.csproj" />
+    <ProjectReference Include="..\BankFas.Data\BankFas.Data.csproj" />
+  </ItemGroup>
+</Project>

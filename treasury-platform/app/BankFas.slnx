@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/BankFas.Api/BankFas.Api.csproj" />
+    <Project Path="src/BankFas.Core/BankFas.Core.csproj" />
+    <Project Path="src/BankFas.Data/BankFas.Data.csproj" />
+    <Project Path="src/BankFas.Worker/BankFas.Worker.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/BankFas.Core.Tests/BankFas.Core.Tests.csproj" />
+    <Project Path="tests/BankFas.IntegrationTests/BankFas.IntegrationTests.csproj" />
+  </Folder>
+</Solution>
