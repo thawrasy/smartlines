@@ -15,8 +15,9 @@
      fin.v_CreditReadinessActions   the timeline: the remedies by their effect, before the period end (a remedy is
                                     booked in the period only on a document dated by its end, ADR 0023), then the
                                     requests before the first lender date less 30 days;
-     fin.v_CreditEarlyWarnings      today, for the latest computed assessment of an actual statement of each company
-                                    (a budget looks ahead and does not raise warnings, ADR 0025): every lender date
+     fin.v_CreditEarlyWarnings      today, for the latest approved and the latest computed official assessment of an
+                                    actual statement of each company, the worse of the two (ADR 0037; a budget looks
+                                    ahead and does not raise warnings, ADR 0025): every lender date
                                     within the lead time whose readiness is not GREEN, with the stage of the time left;
                                     fin.fn_CreditEarlyWarnings gives the same on any date, for the job of 051.
    Two views compare the ratings a lender communicated with the assessment (ADR 0026, FR-FIN-039, BR-FIN-040):
@@ -39,13 +40,26 @@
    (CALIBRATION_OPTIMISTIC, fin.v_LenderRatingCalibration), or its latest lender rating is older than the setting
    fin.calibration.max_age_months (12) (CALIBRATION_STALE); a company with no rating is asked for one in the requests
    (CALIBRATION), and a recorded allowance below the provision matrix (fin.v_ReceivableProvisionCheck) is a request
-   (PROVISION). */
+   (PROVISION).
+   Since ADR 0037 (the internal review of 2026-10-21, lens E, findings 9, 14 and 17):
+     - a lender rating is compared with the official assessments only (a trial is a plan, never the company's view),
+       an approved one first; the calibration (fin.v_LenderRatingCalibration), which the endorsement records and the
+       readiness reads, takes approved official assessments only, so a draft cannot move the bias;
+     - the early warnings read, for each company, the latest approved official assessment of an actual statement and
+       the latest computed official one, and for a lender date both give, the worse readiness (the approved one on a
+       tie): a draft can only add to the warnings, never remove one that the approved assessment raises;
+     - on a run date (@AsOf given, the warnings and their job) a renewal is read from the facility as it is now, at
+       its approved revision: its expiry, its main lender and the lender's decision effective that day; the readiness
+       of an assessment on its own date (@AsOf NULL) keeps what the assessment read;
+     - the provision matrix is INCOMPLETE when the ageing does not add up to the gross receivables within 1%, when
+       the government part over a year exceeds the part over a year, or when the recorded allowance is negative. */
 SET NOCOUNT ON;
 SET ANSI_NULLS ON; SET QUOTED_IDENTIFIER ON; SET ANSI_PADDING ON; SET ANSI_WARNINGS ON; SET ARITHABORT ON; SET CONCAT_NULL_YIELDS_NULL ON; SET NUMERIC_ROUNDABORT OFF;
 GO
 /* Each rating a lender communicated beside the company's assessment of that date (ADR 0026): the latest computed
-   assessment of an actual statement on or before the rating date (else the earliest after it), and the gap in notches
-   (positive: the lender is more severe than the assessment). */
+   official assessment of an actual statement on or before the rating date (else the earliest after it), an approved
+   one first, and the gap in notches (positive: the lender is more severe than the assessment); a trial is never
+   compared (ADR 0037). */
 CREATE OR ALTER VIEW fin.v_LenderRatingComparison
 AS
 SELECT r.TenantId, r.LenderRatingId, r.CompanyId, r.LenderInstitutionId, r.RatingDate, r.LenderGradeLabel, lg.Code AS LenderGrade, r.MappingKind,
@@ -60,20 +74,32 @@ OUTER APPLY (SELECT TOP (1) x.CreditAssessmentId, x.AssessmentDate, g.Code AS Gr
              JOIN fin.FinancialStatement AS s ON s.TenantId = x.TenantId AND s.FinancialStatementId = x.StatementId AND s.Nature = 'ACTUAL'
              JOIN fin.RatingGrade AS g ON g.RatingGradeId = x.FinalGradeId
              LEFT JOIN fin.RatingGrade AS fg ON fg.RatingGradeId = x.FacilityGradeId
-             WHERE x.TenantId = r.TenantId AND x.CompanyId = r.CompanyId AND x.ComputedAt IS NOT NULL AND x.Status IN ('DRAFT', 'SUBMITTED', 'APPROVED')
+             WHERE x.TenantId = r.TenantId AND x.CompanyId = r.CompanyId AND x.ComputedAt IS NOT NULL AND x.IsTrial = 0
+               AND x.Status IN ('DRAFT', 'SUBMITTED', 'APPROVED')
              ORDER BY CASE WHEN x.AssessmentDate <= r.RatingDate THEN 0 ELSE 1 END,
                       CASE WHEN x.AssessmentDate <= r.RatingDate THEN DATEDIFF(DAY, x.AssessmentDate, r.RatingDate) ELSE DATEDIFF(DAY, r.RatingDate, x.AssessmentDate) END,
                       CASE x.Status WHEN 'APPROVED' THEN 0 WHEN 'SUBMITTED' THEN 1 ELSE 2 END, x.ComputedAt DESC) AS a;
 GO
-/* The calibration against the lenders over time (ADR 0029, BR-FIN-045); read by the readiness below (ADR 0030). */
+/* The calibration against the lenders over time (ADR 0029, BR-FIN-045); read by the readiness below (ADR 0030). Each
+   rating beside the approved official assessment of its date (the latest on or before it, else the earliest after
+   it): a draft or a trial does not move the bias (ADR 0037). */
 CREATE OR ALTER VIEW fin.v_LenderRatingCalibration
 AS
 WITH c AS (
-    SELECT r.TenantId, r.CompanyId, r.LenderInstitutionId, r.RatingDate, r.GapNotches, r.Direction,
+    SELECT r.TenantId, r.CompanyId, r.LenderInstitutionId, r.RatingDate, CAST(lg.NotchNo AS INT) - CAST(a.NotchNo AS INT) AS GapNotches,
+           CASE WHEN lg.NotchNo > a.NotchNo THEN 'LENDER_MORE_SEVERE' WHEN lg.NotchNo < a.NotchNo THEN 'LENDER_MORE_FAVOURABLE' ELSE 'SAME' END AS Direction,
            ROW_NUMBER() OVER (PARTITION BY r.TenantId, r.CompanyId ORDER BY r.RatingDate DESC, r.LenderRatingId DESC) AS RecentCompany,
            ROW_NUMBER() OVER (PARTITION BY r.TenantId, r.CompanyId, r.LenderInstitutionId ORDER BY r.RatingDate DESC, r.LenderRatingId DESC) AS RecentLender
-    FROM fin.v_LenderRatingComparison AS r
-    WHERE r.Direction <> 'NO_ASSESSMENT'),
+    FROM fin.LenderRating AS r
+    JOIN fin.RatingGrade AS lg ON lg.RatingGradeId = r.GradeId
+    CROSS APPLY (SELECT TOP (1) g.NotchNo
+                 FROM fin.CreditAssessment AS x
+                 JOIN fin.FinancialStatement AS s ON s.TenantId = x.TenantId AND s.FinancialStatementId = x.StatementId AND s.Nature = 'ACTUAL'
+                 JOIN fin.RatingGrade AS g ON g.RatingGradeId = x.FinalGradeId
+                 WHERE x.TenantId = r.TenantId AND x.CompanyId = r.CompanyId AND x.Status = 'APPROVED' AND x.IsTrial = 0
+                 ORDER BY CASE WHEN x.AssessmentDate <= r.RatingDate THEN 0 ELSE 1 END,
+                          CASE WHEN x.AssessmentDate <= r.RatingDate THEN DATEDIFF(DAY, x.AssessmentDate, r.RatingDate) ELSE DATEDIFF(DAY, r.RatingDate, x.AssessmentDate) END,
+                          x.ApprovedOn DESC, x.CreditAssessmentId DESC) AS a),
 k AS (   -- each rating once for its company (all lenders) and once for its company and lender
     SELECT TenantId, CompanyId, CAST(NULL AS BIGINT) AS LenderInstitutionId, CAST(1 AS BIT) AS AllLenders, RatingDate, GapNotches, Direction, RecentCompany AS Recent FROM c
     UNION ALL
@@ -97,7 +123,9 @@ GO
 /* The provision matrix (owner decision 35, ADR 0030, BR-FIN-047): for each statement with an ageing of its receivables,
    the allowance the loss rates of fin.ReceivableLossRate give (the latest rate of each bucket effective by the period
    end, an approved one first) beside the allowance the statement records (AR_ECL_ALLOWANCE). Government receivables
-   over a year take their own rate. Status: NO_AGEING, NO_RATES, SHORTFALL (recorded below 90% of expected) or ADEQUATE;
+   over a year take their own rate. Status: NO_AGEING, INCOMPLETE (the ageing does not add up to the gross receivables,
+   AR_GROSS or else AR + AR_ECL_ALLOWANCE, within 1%, or the allowance is negative; ADR 0037), NO_RATES, SHORTFALL
+   (recorded below 90% of expected) or ADEQUATE;
    RatesStatus says whether every rate used is approved by the treasury. It informs the company and its lender; it
    does not change the grade. */
 CREATE OR ALTER VIEW fin.v_ReceivableProvisionCheck
@@ -109,12 +137,18 @@ WITH l AS (
            MAX(CASE WHEN li.Code = 'AR_AGE_181_365' THEN COALESCE(ln.EnteredAmount, ln.ComputedAmount) END) AS Age181_365,
            MAX(CASE WHEN li.Code = 'AR_AGE_OVER_365' THEN COALESCE(ln.EnteredAmount, ln.ComputedAmount) END) AS AgeOver365,
            MAX(CASE WHEN li.Code = 'AR_AGE_OVER_365_GOV' THEN COALESCE(ln.EnteredAmount, ln.ComputedAmount) END) AS AgeOver365Gov,
-           MAX(CASE WHEN li.Code = 'AR_ECL_ALLOWANCE' THEN COALESCE(ln.EnteredAmount, ln.ComputedAmount) END) AS RecordedAllowance
+           MAX(CASE WHEN li.Code = 'AR_ECL_ALLOWANCE' THEN COALESCE(ln.EnteredAmount, ln.ComputedAmount) END) AS RecordedAllowance,
+           -- the gross receivables the ageing adds up to: AR_GROSS, else the net receivables and the allowance (docs/35)
+           COALESCE(MAX(CASE WHEN li.Code = 'AR_GROSS' THEN COALESCE(ln.EnteredAmount, ln.ComputedAmount) END),
+                    MAX(CASE WHEN li.Code = 'AR' THEN COALESCE(ln.EnteredAmount, ln.ComputedAmount) END)
+                    + ISNULL(MAX(CASE WHEN li.Code = 'AR_ECL_ALLOWANCE' THEN COALESCE(ln.EnteredAmount, ln.ComputedAmount) END), 0)) AS GrossReceivables
     FROM fin.FinancialStatement AS s
     JOIN fin.StatementLine AS ln ON ln.TenantId = s.TenantId AND ln.StatementId = s.FinancialStatementId
     JOIN fin.LineCatalogItem AS li ON li.TenantId = ln.TenantId AND li.LineCatalogItemId = ln.LineCatalogItemId
-    WHERE li.Code IN ('AR_AGE_0_90', 'AR_AGE_91_180', 'AR_AGE_181_365', 'AR_AGE_OVER_365', 'AR_AGE_OVER_365_GOV', 'AR_ECL_ALLOWANCE')
-    GROUP BY s.TenantId, s.FinancialStatementId, s.CompanyId, s.PeriodEnd),
+    WHERE li.Code IN ('AR_AGE_0_90', 'AR_AGE_91_180', 'AR_AGE_181_365', 'AR_AGE_OVER_365', 'AR_AGE_OVER_365_GOV', 'AR_ECL_ALLOWANCE', 'AR_GROSS', 'AR')
+    GROUP BY s.TenantId, s.FinancialStatementId, s.CompanyId, s.PeriodEnd
+    -- a statement with neither an ageing nor an allowance has no check
+    HAVING COUNT(CASE WHEN li.Code NOT IN ('AR_GROSS', 'AR') THEN 1 END) > 0),
 r AS (
     SELECT l.*, b.BucketCode, x.LossRatePct, x.Status AS RateStatus
     FROM l
@@ -123,20 +157,24 @@ r AS (
                  WHERE q.TenantId = l.TenantId AND q.BucketCode = b.BucketCode AND q.EffectiveFrom <= l.PeriodEnd
                  ORDER BY CASE q.Status WHEN 'APPROVED' THEN 0 ELSE 1 END, q.EffectiveFrom DESC) AS x),
 e AS (
-    SELECT TenantId, StatementId, CompanyId, PeriodEnd, Age0_90, Age91_180, Age181_365, AgeOver365, AgeOver365Gov, RecordedAllowance,
+    SELECT TenantId, StatementId, CompanyId, PeriodEnd, Age0_90, Age91_180, Age181_365, AgeOver365, AgeOver365Gov, RecordedAllowance, GrossReceivables,
            COUNT(LossRatePct) AS RatesFound, SUM(CASE WHEN RateStatus = 'APPROVED' THEN 1 ELSE 0 END) AS RatesApproved,
            CAST(SUM(CASE BucketCode WHEN 'AR_AGE_0_90' THEN ISNULL(Age0_90, 0) WHEN 'AR_AGE_91_180' THEN ISNULL(Age91_180, 0)
                                     WHEN 'AR_AGE_181_365' THEN ISNULL(Age181_365, 0)
                                     WHEN 'AR_AGE_OVER_365' THEN ISNULL(AgeOver365, 0) - ISNULL(AgeOver365Gov, 0)
                                     ELSE ISNULL(AgeOver365Gov, 0) END * LossRatePct / 100) AS DECIMAL(19,4)) AS ExpectedAllowance
     FROM r
-    GROUP BY TenantId, StatementId, CompanyId, PeriodEnd, Age0_90, Age91_180, Age181_365, AgeOver365, AgeOver365Gov, RecordedAllowance)
+    GROUP BY TenantId, StatementId, CompanyId, PeriodEnd, Age0_90, Age91_180, Age181_365, AgeOver365, AgeOver365Gov, RecordedAllowance, GrossReceivables)
 SELECT TenantId, StatementId, CompanyId, PeriodEnd, Age0_90, Age91_180, Age181_365, AgeOver365, AgeOver365Gov,
        CAST(ISNULL(RecordedAllowance, 0) AS DECIMAL(19,4)) AS RecordedAllowance,
        CASE WHEN RatesFound = 5 THEN ExpectedAllowance END AS ExpectedAllowance,
        CASE WHEN RatesFound = 5 THEN CAST(ExpectedAllowance - ISNULL(RecordedAllowance, 0) AS DECIMAL(19,4)) END AS Shortfall,
        CASE WHEN RatesFound = 5 AND RatesApproved = 5 THEN 'APPROVED' WHEN RatesFound = 5 THEN 'PROVISIONAL' ELSE 'MISSING' END AS RatesStatus,
        CASE WHEN COALESCE(Age0_90, Age91_180, Age181_365, AgeOver365) IS NULL THEN 'NO_AGEING'
+            -- the ageing adds up to the gross receivables within 1%, its government part fits in it, the allowance is not negative
+            WHEN ISNULL(RecordedAllowance, 0) < 0 OR ISNULL(AgeOver365Gov, 0) > ISNULL(AgeOver365, 0)
+                 OR ABS(ISNULL(Age0_90, 0) + ISNULL(Age91_180, 0) + ISNULL(Age181_365, 0) + ISNULL(AgeOver365, 0) - ISNULL(GrossReceivables, 0))
+                    > 0.01 * ABS(ISNULL(GrossReceivables, 0)) THEN 'INCOMPLETE'
             WHEN RatesFound < 5 THEN 'NO_RATES'
             WHEN ISNULL(RecordedAllowance, 0) < ExpectedAllowance * 0.9 THEN 'SHORTFALL'
             ELSE 'ADEQUATE' END AS Status
@@ -167,7 +205,8 @@ CREATE OR ALTER FUNCTION fin.fn_CreditReadinessEvents (@AsOf DATE)
 RETURNS TABLE
 AS RETURN
 WITH e AS (
-    -- a facility that expires: its renewal, with what its lender notified and the latest rating it communicated
+    -- a facility that expires: its renewal, with what its lender notified and the latest rating it communicated; on the
+    -- assessment's own date as the assessment read the facility
     SELECT b.*, 'RENEWAL' AS EventKind, f.ExpiryDate AS EventDate, f.FacilityId, CAST(f.FacilityId AS BIGINT) AS RefId, fa.FacilityNo AS Reference,
            f.LimitAction, CAST(NULL AS VARCHAR(30)) AS LastResult, CAST(NULL AS DECIMAL(19,6)) AS LastHeadroomPct, CAST(NULL AS DECIMAL(19,6)) AS EarlyWarningPct,
            lr.Code AS LenderGrade, CAST(lr.NotchNo AS INT) AS LenderNotch
@@ -177,7 +216,25 @@ WITH e AS (
     OUTER APPLY (SELECT TOP (1) g.Code, g.NotchNo FROM fin.LenderRating AS r JOIN fin.RatingGrade AS g ON g.RatingGradeId = r.GradeId
                  WHERE r.TenantId = b.TenantId AND r.CompanyId = b.CompanyId AND r.LenderInstitutionId = f.LenderInstitutionId AND r.RatingDate <= b.FromDate
                  ORDER BY r.RatingDate DESC) AS lr
-    WHERE f.ExpiryDate BETWEEN b.FromDate AND b.ToDate
+    WHERE @AsOf IS NULL AND f.ExpiryDate BETWEEN b.FromDate AND b.ToDate
+    UNION ALL
+    -- on a run date, as the facility is now at its approved revision (ADR 0037): its expiry, its main lender and the
+    -- lender's decision effective that day
+    SELECT b.*, 'RENEWAL', fa.ExpiryDate, fa.FacilityId, CAST(fa.FacilityId AS BIGINT), fa.FacilityNo, ld.LimitAction, NULL, NULL, NULL, lr.Code, CAST(lr.NotchNo AS INT)
+    FROM fin.fn_CreditReadinessBase(@AsOf) AS b
+    JOIN fac.Facility AS fa ON fa.TenantId = b.TenantId AND fa.BorrowerCompanyId = b.CompanyId
+    OUTER APPLY (SELECT TOP (1) x.InstitutionId FROM fac.FacilityLender AS x
+                 WHERE x.TenantId = fa.TenantId AND x.FacilityId = fa.FacilityId
+                   AND x.FromRevision <= fa.ApprovedRevisionNo AND (x.ToRevision IS NULL OR x.ToRevision > fa.ApprovedRevisionNo)
+                 ORDER BY x.SharePct DESC, x.InstitutionId) AS l
+    OUTER APPLY (SELECT TOP (1) x.LimitAction FROM fac.FacilityLenderDecision AS x
+                 WHERE x.TenantId = fa.TenantId AND x.FacilityId = fa.FacilityId AND x.EffectiveDate <= b.FromDate
+                 ORDER BY x.EffectiveDate DESC) AS ld
+    OUTER APPLY (SELECT TOP (1) g.Code, g.NotchNo FROM fin.LenderRating AS r JOIN fin.RatingGrade AS g ON g.RatingGradeId = r.GradeId
+                 WHERE r.TenantId = b.TenantId AND r.CompanyId = b.CompanyId AND r.LenderInstitutionId = l.InstitutionId AND r.RatingDate <= b.FromDate
+                 ORDER BY r.RatingDate DESC) AS lr
+    WHERE @AsOf IS NOT NULL AND fa.ApprovedRevisionNo >= 1 AND fa.LifecycleStatus IN ('ACTIVE', 'SUSPENDED')
+      AND fa.ExpiryDate BETWEEN b.FromDate AND b.ToDate
     UNION ALL
     -- a scheduled covenant test of the company, with the last result and headroom of its covenant
     SELECT b.*, 'COVENANT_TEST', t.DueDate, o.FacilityId, t.CovenantTestId, o.TitleAr, NULL, lt.Result, lt.HeadroomPct, ISNULL(c.EarlyWarningPct, 10), NULL, NULL
@@ -296,21 +353,37 @@ FROM b
 JOIN fin.v_CreditReadinessRequests AS q ON q.TenantId = b.TenantId AND q.AssessmentId = b.AssessmentId
 WHERE q.RequestKind <> 'EVIDENCE';
 GO
-/* On @AsOf, for the latest computed assessment of each company, every lender date within the lead time that is not
-   ready, with the stage of the time left (the lead time, then 90, 30 and 7 days) that the early warning job reads
-   (051, ADR 0027). */
+/* On @AsOf, for each company, every lender date within the lead time that is not ready, with the stage of the time
+   left (the lead time, then 90, 30 and 7 days) that the early warning job reads (051, ADR 0027). Two official
+   assessments of an actual statement are read (ADR 0037): the latest approved one and the latest computed one (the
+   same when the latest computed is approved); a date takes the worse readiness of the two, the approved one on a
+   tie, so a draft adds warnings and never hides one. A trial is never read. */
 CREATE OR ALTER FUNCTION fin.fn_CreditEarlyWarnings (@AsOf DATE)
 RETURNS TABLE
 AS RETURN
-SELECT ev.*, DATEADD(MONTH, -ev.LeadMonths, ev.EventDate) AS WarnFrom,
-       CASE WHEN ev.DaysLeft <= 7 THEN 'D7' WHEN ev.DaysLeft <= 30 THEN 'D30' WHEN ev.DaysLeft <= 90 THEN 'D90' ELSE 'LEAD' END AS Stage
-FROM fin.fn_CreditReadinessEvents(@AsOf) AS ev
-WHERE ev.Readiness <> 'GREEN'
-  AND ev.AssessmentId = (SELECT TOP (1) a.CreditAssessmentId FROM fin.CreditAssessment AS a
-                         JOIN fin.FinancialStatement AS s ON s.TenantId = a.TenantId AND s.FinancialStatementId = a.StatementId AND s.Nature = 'ACTUAL'
-                         WHERE a.TenantId = ev.TenantId AND a.CompanyId = ev.CompanyId AND a.ComputedAt IS NOT NULL
-                           AND a.Status IN ('DRAFT', 'SUBMITTED', 'APPROVED')
-                         ORDER BY a.ComputedAt DESC, a.CreditAssessmentId DESC);
+WITH w AS (
+    SELECT ev.*, CASE WHEN ev.AssessmentId = ap.CreditAssessmentId THEN 0 ELSE 1 END AS NotApproved
+    FROM fin.fn_CreditReadinessEvents(@AsOf) AS ev
+    OUTER APPLY (SELECT TOP (1) a.CreditAssessmentId FROM fin.CreditAssessment AS a
+                 JOIN fin.FinancialStatement AS s ON s.TenantId = a.TenantId AND s.FinancialStatementId = a.StatementId AND s.Nature = 'ACTUAL'
+                 WHERE a.TenantId = ev.TenantId AND a.CompanyId = ev.CompanyId AND a.ComputedAt IS NOT NULL AND a.IsTrial = 0 AND a.Status = 'APPROVED'
+                 ORDER BY a.AssessmentDate DESC, a.ApprovedOn DESC, a.CreditAssessmentId DESC) AS ap
+    OUTER APPLY (SELECT TOP (1) a.CreditAssessmentId FROM fin.CreditAssessment AS a
+                 JOIN fin.FinancialStatement AS s ON s.TenantId = a.TenantId AND s.FinancialStatementId = a.StatementId AND s.Nature = 'ACTUAL'
+                 WHERE a.TenantId = ev.TenantId AND a.CompanyId = ev.CompanyId AND a.ComputedAt IS NOT NULL AND a.IsTrial = 0
+                   AND a.Status IN ('DRAFT', 'SUBMITTED', 'APPROVED')
+                 ORDER BY a.ComputedAt DESC, a.CreditAssessmentId DESC) AS lc
+    WHERE ev.Readiness <> 'GREEN' AND ev.AssessmentId IN (ap.CreditAssessmentId, lc.CreditAssessmentId)),
+r AS (
+    SELECT w.*, ROW_NUMBER() OVER (PARTITION BY w.TenantId, w.CompanyId, w.EventKind, w.RefId, w.EventDate
+                                   ORDER BY CASE w.Readiness WHEN 'RED' THEN 0 ELSE 1 END, w.NotApproved, w.AssessmentId DESC) AS Pick
+    FROM w)
+SELECT r.TenantId, r.AssessmentId, r.CompanyId, r.IsTrial, r.FinalGrade, r.LiquidityLabel, r.Outlook, r.LeadMonths, r.EventKind, r.EventDate,
+       r.DaysLeft, r.FacilityId, r.RefId, r.Reference, r.LimitAction, r.LastResult, r.LastHeadroomPct, r.LenderGrade, r.Readiness, r.ReasonCode,
+       DATEADD(MONTH, -r.LeadMonths, r.EventDate) AS WarnFrom,
+       CASE WHEN r.DaysLeft <= 7 THEN 'D7' WHEN r.DaysLeft <= 30 THEN 'D30' WHEN r.DaysLeft <= 90 THEN 'D90' ELSE 'LEAD' END AS Stage
+FROM r
+WHERE r.Pick = 1;
 GO
 /* Today's early warnings. */
 CREATE OR ALTER VIEW fin.v_CreditEarlyWarnings

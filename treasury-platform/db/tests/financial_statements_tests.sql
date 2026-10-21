@@ -17,6 +17,8 @@
    FS9  analysis measures: one per statement and formula, a DAYS formula is for analysis only, and a measure that
         could not be computed says why (FR-FIN-016, BR-FIN-014)
    FS10 one approved revenue estimate per company, year and basis, approved by someone else (Q-FIN-05)
+   Since ADR 0037 (058) the preparer u1 holds fin.stmt.enter and fin.stats.enter, the approver u2 fin.stmt.approve and
+   fin.stats.confirm, and each acts bound as itself (#As).
    FS11 the units of a consolidated statement, with their own statements and the ownership on record (FR-FIN-015)
 
    Run against a deployed BankFas database that holds no real data, with a sysadmin login:
@@ -46,6 +48,14 @@ BEGIN
     EXEC sys.sp_set_session_context @key = N'BindingToken', @value = @token;
 END;
 GO
+-- Binds the connection as another user of the fixture's tenant: the maker and the checker are the bound user (058).
+CREATE PROCEDURE #As @UserId BIGINT
+AS
+BEGIN
+    DECLARE @t INT = (SELECT v FROM #F WHERE k = 't');
+    EXEC #Bind @t, @UserId;
+END;
+GO
 /* The fixture, inside the caller's transaction: a tenant with a preparer and an approver; a holding HOLD with its
    subsidiary SUB (80 percent on record) and a company OTHER; the catalogue lines REVENUE, TOTAL_CA and TOTAL_CL;
    the FLOW_KIND list with TRANSFERRED_TO_BANK and another list; a facility of HOLD with bank 1 at 100 percent, its
@@ -70,6 +80,15 @@ BEGIN
     SET @u1 = SCOPE_IDENTITY();
     INSERT sec.AppUser (TenantId, Email, DisplayNameEn, Status, PasswordHash) VALUES (@t, N'tm@fin.invalid', N'Approver', 'ACTIVE', @pw);
     SET @u2 = SCOPE_IDENTITY();
+    -- the preparer enters statements and figures, the approver approves and confirms them (058, ADR 0037)
+    INSERT sec.Role (TenantId, Code, NameAr, NameEn) VALUES (@t, 'T_MAKER', N'مُعِدّ', N'Maker'), (@t, 'T_CHECKER', N'معتمِد', N'Checker');
+    INSERT sec.RolePermission (TenantId, RoleId, PermissionId)
+    SELECT @t, r.RoleId, p.PermissionId
+    FROM sec.Role AS r JOIN sec.Permission AS p
+      ON (r.Code = 'T_MAKER' AND p.Code IN ('fin.stmt.enter', 'fin.stats.enter')) OR (r.Code = 'T_CHECKER' AND p.Code IN ('fin.stmt.approve', 'fin.stats.confirm'))
+    WHERE r.TenantId = @t;
+    INSERT sec.UserRole (TenantId, UserId, RoleId)
+    SELECT @t, CASE r.Code WHEN 'T_MAKER' THEN @u1 ELSE @u2 END, r.RoleId FROM sec.Role AS r WHERE r.TenantId = @t AND r.Code IN ('T_MAKER', 'T_CHECKER');
     EXEC #Bind @t, @u1;
     ALTER TABLE org.Company NOCHECK CONSTRAINT FK_Company_LegalEntityTypeId;
     ALTER TABLE fac.Facility NOCHECK CONSTRAINT FK_Facility_FacilityTypeId;
@@ -131,7 +150,9 @@ BEGIN
     SET @fs = SCOPE_IDENTITY();
     INSERT fin.StatementLine (TenantId, StatementId, LineCatalogItemId, EnteredAmount) VALUES (@t, @fs, @ca, 11000000), (@t, @fs, @cl, 10000000), (@t, @fs, @rev, 50000000);
     UPDATE fin.FinancialStatement SET Status = 'SUBMITTED' WHERE FinancialStatementId = @fs;
+    EXEC #Bind @t, @u2;
     UPDATE fin.FinancialStatement SET Status = 'APPROVED', ApprovedBy = @u2, ApprovedOn = SYSUTCDATETIME() WHERE FinancialStatementId = @fs;
+    EXEC #Bind @t, @u1;
     INSERT obl.CovenantTest (TenantId, CovenantId, CovenantRootId, PeriodStart, PeriodEnd, DueDate, Method)
     VALUES (@t, @crt, (SELECT RootId FROM obl.Covenant WHERE CovenantId = @crt), '2025-01-01', '2025-12-31', '2026-03-31', 'AUTO');
     SET @ct = SCOPE_IDENTITY();
@@ -209,16 +230,18 @@ BEGIN
         EXEC #NewStatement @oth, 'STANDALONE', @assurance;
         SELECT @s = v FROM #F WHERE k = 's';
         INSERT fin.StatementLine (TenantId, StatementId, LineCatalogItemId, EnteredAmount) VALUES (@t, @s, @ca, 1000);
-        IF @Case = 21 UPDATE fin.FinancialStatement SET Status = 'APPROVED', ApprovedBy = @u2, ApprovedOn = SYSUTCDATETIME() WHERE FinancialStatementId = @s;
+        IF @Case = 21 BEGIN EXEC #As @u2; UPDATE fin.FinancialStatement SET Status = 'APPROVED', ApprovedBy = @u2, ApprovedOn = SYSUTCDATETIME() WHERE FinancialStatementId = @s; END;
         IF @Case BETWEEN 22 AND 28 UPDATE fin.FinancialStatement SET Status = 'SUBMITTED' WHERE FinancialStatementId = @s;
         IF @Case = 22 UPDATE fin.FinancialStatement SET UnitScale = 1000 WHERE FinancialStatementId = @s;
         IF @Case = 23 UPDATE fin.StatementLine SET EnteredAmount = 2000 WHERE StatementId = @s;
         IF @Case = 24 UPDATE fin.FinancialStatement SET Status = 'APPROVED', ApprovedBy = @u1, ApprovedOn = SYSUTCDATETIME() WHERE FinancialStatementId = @s;
-        IF @Case IN (25, 26) UPDATE fin.FinancialStatement SET Status = 'APPROVED', ApprovedBy = @u2, ApprovedOn = SYSUTCDATETIME() WHERE FinancialStatementId = @s;
+        IF @Case IN (25, 26) BEGIN EXEC #As @u2; UPDATE fin.FinancialStatement SET Status = 'APPROVED', ApprovedBy = @u2, ApprovedOn = SYSUTCDATETIME() WHERE FinancialStatementId = @s; END;
         IF @Case = 26 UPDATE fin.FinancialStatement SET Status = 'DRAFT' WHERE FinancialStatementId = @s;
         IF @Case IN (27, 28)
         BEGIN
+            EXEC #As @u2;
             UPDATE fin.FinancialStatement SET Status = 'REJECTED' WHERE FinancialStatementId = @s;
+            EXEC #As @u1;
             UPDATE fin.FinancialStatement SET Status = 'DRAFT' WHERE FinancialStatementId = @s;
             UPDATE fin.StatementLine SET EnteredAmount = 2000 WHERE StatementId = @s;
         END;
@@ -339,8 +362,14 @@ BEGIN
                  VALUES (@t, @hold, 1, '2026-01-31', @lst, @kind, 1000000, @cur, @u1, 'CONFIRMED');
     IF @Case = 5 INSERT fin.BankFlowEntry (TenantId, CompanyId, InstitutionId, MonthEnd, FlowKindListId, FlowKindId, Amount, CurrencyId, EnteredBy, Status, ConfirmedBy, ConfirmedOn)
                  VALUES (@t, @hold, 1, '2026-01-31', @lst, @kind, 1000000, @cur, @u1, 'CONFIRMED', @u1, SYSUTCDATETIME());
-    IF @Case = 6 INSERT fin.BankFlowEntry (TenantId, CompanyId, InstitutionId, MonthEnd, FlowKindListId, FlowKindId, Amount, CurrencyId, EnteredBy, Status, ConfirmedBy, ConfirmedOn)
-                 VALUES (@t, @hold, 1, '2026-01-31', @lst, @kind, 1000000, @cur, @u1, 'CONFIRMED', @u2, SYSUTCDATETIME());
+    -- entered as a draft, then confirmed by another user (058)
+    IF @Case = 6
+    BEGIN
+        INSERT fin.BankFlowEntry (TenantId, CompanyId, InstitutionId, MonthEnd, FlowKindListId, FlowKindId, Amount, CurrencyId, EnteredBy)
+        VALUES (@t, @hold, 1, '2026-01-31', @lst, @kind, 1000000, @cur, @u1);
+        EXEC #As @u2;
+        UPDATE fin.BankFlowEntry SET Status = 'CONFIRMED', ConfirmedBy = @u2, ConfirmedOn = SYSUTCDATETIME() WHERE TenantId = @t AND CompanyId = @hold;
+    END;
 END;
 GO
 /* FS6 (BR-FIN-016, self-review B7f): a flow kind from another list (547, by the list's code) or an item of another
@@ -365,13 +394,16 @@ SELECT @cfl = v FROM #F WHERE k = 'cfl';
 INSERT fac.Facility (TenantId, FacilityNo, BorrowerCompanyId, FacilityTypeId, CurrencyId, TotalAmount, PrecedenceLanguage, EffectiveFrom, ExpiryDate)
 VALUES (@t, 'FAC-26-102', @hold, 1, @cur, 1000000, 'EN', '2026-01-01', '2027-12-31');
 SET @f2 = SCOPE_IDENTITY();
-INSERT fin.BankFlowEntry (TenantId, CompanyId, InstitutionId, FacilityId, MonthEnd, FlowKindListId, FlowKindId, Amount, CurrencyId, EnteredBy, Status, ConfirmedBy, ConfirmedOn)
-VALUES (@t, @hold, 1, NULL, '2026-01-31', @lst, @kind, 1000000, @cur, @u1, 'CONFIRMED', @u2, SYSUTCDATETIME()),
-       (@t, @hold, 1, NULL, '2026-02-28', @lst, @kind, 1000000, @cur, @u1, 'CONFIRMED', @u2, SYSUTCDATETIME()),
-       (@t, @hold, 1, @f, '2026-03-31', @lst, @kind, 1000000, @cur, @u1, 'CONFIRMED', @u2, SYSUTCDATETIME()),
-       (@t, @hold, 1, @f2, '2026-03-31', @lst, @kind, 700000, @cur, @u1, 'CONFIRMED', @u2, SYSUTCDATETIME()),
-       (@t, @hold, 2, NULL, '2026-03-31', @lst, @kind, 900000, @cur, @u1, 'CONFIRMED', @u2, SYSUTCDATETIME()),
-       (@t, @hold, 1, NULL, '2026-04-30', @lst, @kind, 500000, @cur, @u1, 'DRAFT', NULL, NULL);
+INSERT fin.BankFlowEntry (TenantId, CompanyId, InstitutionId, FacilityId, MonthEnd, FlowKindListId, FlowKindId, Amount, CurrencyId, EnteredBy, Status)
+VALUES (@t, @hold, 1, NULL, '2026-01-31', @lst, @kind, 1000000, @cur, @u1, 'DRAFT'),
+       (@t, @hold, 1, NULL, '2026-02-28', @lst, @kind, 1000000, @cur, @u1, 'DRAFT'),
+       (@t, @hold, 1, @f, '2026-03-31', @lst, @kind, 1000000, @cur, @u1, 'DRAFT'),
+       (@t, @hold, 1, @f2, '2026-03-31', @lst, @kind, 700000, @cur, @u1, 'DRAFT'),
+       (@t, @hold, 2, NULL, '2026-03-31', @lst, @kind, 900000, @cur, @u1, 'DRAFT'),
+       (@t, @hold, 1, NULL, '2026-04-30', @lst, @kind, 500000, @cur, @u1, 'DRAFT');
+-- confirmed by the approver, but April's (058)
+EXEC #As @u2;
+UPDATE fin.BankFlowEntry SET Status = 'CONFIRMED', ConfirmedBy = @u2, ConfirmedOn = SYSUTCDATETIME() WHERE TenantId = @t AND MonthEnd < '2026-04-30';
 SELECT @row = CONCAT(WindowStart, '/', WindowEnd, '/', CAST(Achieved AS DECIMAL(19,0)), '/', CAST(AwaitingConfirmation AS DECIMAL(19,0)), '/', MonthsConfirmed, '/',
                      MonthsElapsed, '/', MonthsInWindow, '/', CAST(Remaining AS DECIMAL(19,0)), '/', CAST(RequiredPerRemainingMonth AS DECIMAL(19,0)), '/',
                      CAST(AchievementPct AS DECIMAL(9,2)), '/', PerformanceState)
@@ -404,8 +436,10 @@ INSERT fac.FacilityRevision (TenantId, FacilityId, RevisionNo, ReasonKind, Statu
 VALUES (@t, @f, 2, 'AMENDMENT', 'APPROVED', '2026-02-01', @u1, SYSUTCDATETIME(), @u2, SYSUTCDATETIME());
 UPDATE fac.Facility SET ApprovedRevisionNo = 2 WHERE FacilityId = @f;
 SELECT @r3 = CONCAT(PerformanceState, '/', Required) FROM fin.fn_BankFlowPerformance('2026-04-15') WHERE CovenantId = @c2;
-INSERT fin.RevenueEstimate (TenantId, CompanyId, FiscalYear, Basis, Amount, CurrencyId, BasisNote, Status, PreparedBy, ApprovedBy, ApprovedOn)
-VALUES (@t, @hold, 2026, 'STANDALONE', 40000000, @cur, N'Approved budget 2026', 'APPROVED', @u1, @u2, SYSUTCDATETIME());
+INSERT fin.RevenueEstimate (TenantId, CompanyId, FiscalYear, Basis, Amount, CurrencyId, BasisNote, PreparedBy)
+VALUES (@t, @hold, 2026, 'STANDALONE', 40000000, @cur, N'Approved budget 2026', @u1);
+EXEC #As @u2;
+UPDATE fin.RevenueEstimate SET Status = 'APPROVED', ApprovedBy = @u2, ApprovedOn = SYSUTCDATETIME() WHERE TenantId = @t AND CompanyId = @hold;
 SELECT @r1 = CONCAT(CAST(Revenue AS DECIMAL(19,0)), '/', CAST(Required AS DECIMAL(19,0)), '/', LEFT(RevenueSource, 9)) FROM fin.fn_BankFlowPerformance('2026-04-15') WHERE CovenantId = @c1;
 SELECT @r2 = CONCAT(CAST(Revenue AS DECIMAL(19,0)), '/', CAST(Required AS DECIMAL(19,0)), '/', LEFT(RevenueSource, 8)) FROM fin.fn_BankFlowPerformance('2026-04-15') WHERE CovenantId = @c2;
 WHILE @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
@@ -454,11 +488,15 @@ BEGIN
     DECLARE @t INT, @u1 BIGINT, @u2 BIGINT, @hold BIGINT, @cur INT;
     SELECT @t = v FROM #F WHERE k = 't'; SELECT @u1 = v FROM #F WHERE k = 'u1'; SELECT @u2 = v FROM #F WHERE k = 'u2';
     SELECT @hold = v FROM #F WHERE k = 'hold'; SELECT @cur = v FROM #F WHERE k = 'cur';
-    INSERT fin.RevenueEstimate (TenantId, CompanyId, FiscalYear, Basis, Amount, CurrencyId, BasisNote, Status, PreparedBy, ApprovedBy, ApprovedOn)
-    VALUES (@t, @hold, 2026, 'STANDALONE', 40000000, @cur, N'Budget', 'APPROVED', @u1, CASE WHEN @Case = 2 THEN @u1 ELSE @u2 END, SYSUTCDATETIME());
+    -- written as drafts by the preparer, approved by the approver (u1 itself in case 2) (058)
+    INSERT fin.RevenueEstimate (TenantId, CompanyId, FiscalYear, Basis, Amount, CurrencyId, BasisNote, PreparedBy)
+    VALUES (@t, @hold, 2026, 'STANDALONE', 40000000, @cur, N'Budget', @u1);
     IF @Case = 1
-        INSERT fin.RevenueEstimate (TenantId, CompanyId, FiscalYear, Basis, Amount, CurrencyId, BasisNote, Status, PreparedBy, ApprovedBy, ApprovedOn)
-        VALUES (@t, @hold, 2026, 'STANDALONE', 42000000, @cur, N'Revised budget', 'APPROVED', @u1, @u2, SYSUTCDATETIME());
+        INSERT fin.RevenueEstimate (TenantId, CompanyId, FiscalYear, Basis, Amount, CurrencyId, BasisNote, PreparedBy)
+        VALUES (@t, @hold, 2026, 'STANDALONE', 42000000, @cur, N'Revised budget', @u1);
+    IF @Case <> 2 EXEC #As @u2;
+    UPDATE fin.RevenueEstimate SET Status = 'APPROVED', ApprovedBy = CASE WHEN @Case = 2 THEN @u1 ELSE @u2 END, ApprovedOn = SYSUTCDATETIME()
+    WHERE TenantId = @t AND CompanyId = @hold;
 END;
 GO
 DECLARE @got NVARCHAR(800);
@@ -483,6 +521,7 @@ FROM fin.v_ConsolidationUnits WHERE StatementId = @s;
 EXEC #NewStatement @sub, 'STANDALONE';
 SELECT @ss = v FROM #F WHERE k = 's';
 UPDATE fin.FinancialStatement SET Status = 'SUBMITTED' WHERE FinancialStatementId = @ss;
+EXEC #As @u2;
 UPDATE fin.FinancialStatement SET Status = 'APPROVED', ApprovedBy = @u2, ApprovedOn = SYSUTCDATETIME() WHERE FinancialStatementId = @ss;
 SELECT @r2 = CONCAT(CAST(HasStandalone AS INT), ':', CASE WHEN StandaloneStatementId = @ss THEN 'own' ELSE 'other' END)
 FROM fin.v_ConsolidationUnits WHERE StatementId = @s AND Role = 'SUBSIDIARY';

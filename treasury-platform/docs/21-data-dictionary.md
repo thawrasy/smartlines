@@ -4461,7 +4461,7 @@
 
 **المفاتيح:** PK(RevenueEstimateId) · UQ(PublicId) · UQ(TenantId, CompanyId, FiscalYear, Basis) WHERE Status = 'APPROVED'
 
-**قيود:** `Amount > 0` · `FiscalYear BETWEEN 1900 AND 2200` · `Status = 'DRAFT' OR (ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)` · `ApprovedBy IS NULL OR PreparedBy IS NULL OR ApprovedBy <> PreparedBy`
+**قيود:** `Amount > 0` · `FiscalYear BETWEEN 1900 AND 2200` · `Status = 'DRAFT' OR (ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)` · `ApprovedBy IS NULL OR PreparedBy IS NULL OR ApprovedBy <> PreparedBy` · `Status = 'DRAFT' OR PreparedBy IS NOT NULL`
 
 ### `fin.AccountMonthlyStat` — Monthly balance of an account in the account currency (FR-FIN-008, BR-FIN-005/006, V-FIN-02)
 
@@ -4496,7 +4496,7 @@
 
 **المفاتيح:** PK(AccountMonthlyStatId) · UQ(PublicId) · UQ(TenantId, BankAccountId, MonthEnd)
 
-**قيود:** `DAY(DATEADD(DAY, 1, MonthEnd)) = 1` · `(Status = 'DRAFT' AND ConfirmedBy IS NULL AND ConfirmedOn IS NULL) OR (Status = 'CONFIRMED' AND ConfirmedBy IS NOT NULL AND ConfirmedOn IS NOT NULL)` · `ConfirmedBy IS NULL OR EnteredBy IS NULL OR ConfirmedBy <> EnteredBy` · `ReopenCount >= 0 AND (ReopenCount = 0 OR (LastReopenedBy IS NOT NULL AND LastReopenedOn IS NOT NULL AND LastReopenReason IS NOT NULL))` · `LastReopenedBy IS NULL OR EnteredBy IS NULL OR LastReopenedBy <> EnteredBy`
+**قيود:** `DAY(DATEADD(DAY, 1, MonthEnd)) = 1` · `(Status = 'DRAFT' AND ConfirmedBy IS NULL AND ConfirmedOn IS NULL) OR (Status = 'CONFIRMED' AND ConfirmedBy IS NOT NULL AND ConfirmedOn IS NOT NULL)` · `ConfirmedBy IS NULL OR EnteredBy IS NULL OR ConfirmedBy <> EnteredBy` · `ReopenCount >= 0 AND (ReopenCount = 0 OR (LastReopenedBy IS NOT NULL AND LastReopenedOn IS NOT NULL AND LastReopenReason IS NOT NULL))` · `LastReopenedBy IS NULL OR EnteredBy IS NULL OR LastReopenedBy <> EnteredBy` · `ConfirmedBy IS NULL OR LastReopenedBy IS NULL OR ConfirmedBy <> LastReopenedBy` · `Status <> 'CONFIRMED' OR EnteredBy IS NOT NULL`
 
 ### `fin.BankFlowEntry` — Amount transferred to the bank in a month; annual totals are computed automatically (FR-FIN-009/010, BR-FIN-007/008)
 
@@ -4533,7 +4533,7 @@
 
 **المفاتيح:** PK(BankFlowEntryId) · UQ(PublicId) · UQ(TenantId, CompanyId, InstitutionId, FacilityId, MonthEnd, FlowKindId)
 
-**قيود:** `DAY(DATEADD(DAY, 1, MonthEnd)) = 1` · `Amount >= 0` · `FlowKindListCode = 'FLOW_KIND'` · `(Status = 'DRAFT' AND ConfirmedBy IS NULL AND ConfirmedOn IS NULL) OR (Status = 'CONFIRMED' AND ConfirmedBy IS NOT NULL AND ConfirmedOn IS NOT NULL)` · `ConfirmedBy IS NULL OR EnteredBy IS NULL OR ConfirmedBy <> EnteredBy` · `ReopenCount >= 0 AND (ReopenCount = 0 OR (LastReopenedBy IS NOT NULL AND LastReopenedOn IS NOT NULL AND LastReopenReason IS NOT NULL))` · `LastReopenedBy IS NULL OR EnteredBy IS NULL OR LastReopenedBy <> EnteredBy`
+**قيود:** `DAY(DATEADD(DAY, 1, MonthEnd)) = 1` · `Amount >= 0` · `FlowKindListCode = 'FLOW_KIND'` · `(Status = 'DRAFT' AND ConfirmedBy IS NULL AND ConfirmedOn IS NULL) OR (Status = 'CONFIRMED' AND ConfirmedBy IS NOT NULL AND ConfirmedOn IS NOT NULL)` · `ConfirmedBy IS NULL OR EnteredBy IS NULL OR ConfirmedBy <> EnteredBy` · `ReopenCount >= 0 AND (ReopenCount = 0 OR (LastReopenedBy IS NOT NULL AND LastReopenedOn IS NOT NULL AND LastReopenReason IS NOT NULL))` · `LastReopenedBy IS NULL OR EnteredBy IS NULL OR LastReopenedBy <> EnteredBy` · `ConfirmedBy IS NULL OR LastReopenedBy IS NULL OR ConfirmedBy <> LastReopenedBy` · `Status <> 'CONFIRMED' OR EnteredBy IS NOT NULL`
 
 ### `fin.MeasureFormula` — Measure formula: a template or a facility-agreement version with revisions; never executed as text (FR-FIN-011, BR-FIN-009, section 12)
 
@@ -5492,6 +5492,7 @@
 | LossRatePct | DECIMAL(7,4) | لا |  |  |  |
 | EffectiveFrom | DATE | لا |  |  |  |
 | Status | VARCHAR(10) | لا | DRAFT |  | enum: DRAFT, APPROVED |
+| PreparedBy | BIGINT | نعم |  | sec.AppUser | من كتب المسودة أو غيّرها؛ فارغ لافتراضي الحزمة FIN.PROVISION (058، ADR 0037) |
 | ApprovedBy | BIGINT | نعم |  | sec.AppUser |  |
 | ApprovedOn | DATETIME2(3) | نعم |  |  |  |
 | Note | NVARCHAR(500) | نعم |  |  |  |
@@ -5503,7 +5504,7 @@
 
 **المفاتيح:** PK(ReceivableLossRateId) · UQ(TenantId, BucketCode, EffectiveFrom) · UQ(TenantId, SeedKey) WHERE SeedKey IS NOT NULL
 
-**قيود:** `LossRatePct >= 0 AND LossRatePct <= 100` · `(Status = 'DRAFT' AND ApprovedBy IS NULL AND ApprovedOn IS NULL) OR (Status = 'APPROVED' AND ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)`
+**قيود:** `LossRatePct >= 0 AND LossRatePct <= 100` · `(Status = 'DRAFT' AND ApprovedBy IS NULL AND ApprovedOn IS NULL) OR (Status = 'APPROVED' AND ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)` · `ApprovedBy IS NULL OR PreparedBy IS NULL OR ApprovedBy <> PreparedBy` · `PreparedBy IS NOT NULL OR SeedKey IS NOT NULL`
 
 ### `fin.ReportingPeriodLock` — The close of a company's reporting periods: through LockedThrough no actual statement, version, monthly balance or bank flow of the company is added, changed or removed; locked once its figures are approved or confirmed, reopened with a reason by someone other than the one who locked it (optional for each company; docs/38 item 2, ADR 0031)
 

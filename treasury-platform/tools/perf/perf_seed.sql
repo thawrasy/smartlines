@@ -36,13 +36,14 @@ BEGIN
 END;
 GO
 /* A tenant with its key, users, roles, catalogues and banks ('t', 'u1' analyst FA, 'u2' treasury manager TM, 'u3'
-   risk officer RK, 'svc', 'lst' and 'kind' the flow kind, 'ftype', 'ltype', 'otype', 'bank1' in #P). */
+   risk officer RK, 'u4' treasury employee TE, 'svc', 'lst' and 'kind' the flow kind, 'ftype', 'ltype', 'otype',
+   'bank1' in #P). */
 CREATE PROCEDURE #Tenant @Code VARCHAR(30)
 AS
 BEGIN
     SET NOCOUNT ON;
     DELETE FROM #P;
-    DECLARE @t INT, @u1 BIGINT, @u2 BIGINT, @u3 BIGINT, @svc BIGINT, @key BIGINT, @lst INT, @x INT, @it INT,
+    DECLARE @t INT, @u1 BIGINT, @u2 BIGINT, @u3 BIGINT, @u4 BIGINT, @svc BIGINT, @key BIGINT, @lst INT, @x INT, @it INT,
             @plan INT = (SELECT PlanId FROM plat.[Plan] WHERE Code = 'STANDARD'), @country INT = (SELECT CountryId FROM ref.Country WHERE Iso2 = 'SA'),
             @pw VARCHAR(255) = '$argon2id$v=19$m=65536,t=3,p=4$c2FsdA$aGFzaA';
     INSERT plat.Tenant (Code, NameAr, NameEn, PlanId, HomeCountryId, Status, TimeZone) VALUES (@Code, N'أداء', @Code, @plan, @country, 'ACTIVE', 'Asia/Riyadh');
@@ -60,12 +61,14 @@ BEGIN
     SET @u2 = SCOPE_IDENTITY();
     INSERT sec.AppUser (TenantId, Email, DisplayNameEn, Status, PasswordHash) VALUES (@t, N'rk@perf.invalid', N'Risk officer', 'ACTIVE', @pw);
     SET @u3 = SCOPE_IDENTITY();
+    INSERT sec.AppUser (TenantId, Email, DisplayNameEn, Status, PasswordHash) VALUES (@t, N'te@perf.invalid', N'Treasury employee', 'ACTIVE', @pw);
+    SET @u4 = SCOPE_IDENTITY();
     -- the system roles through the pack, as the onboarding job seeds them
     EXEC #Bind @t, @svc, 'JOB', 'JOB-PLT-ONBOARD';
     EXEC sec.usp_SeedCoreRoles;
     EXEC #Bind @t, @u1;
     INSERT sec.UserRole (TenantId, UserId, RoleId)
-    SELECT @t, x.UserId, r.RoleId FROM (VALUES (@u1, 'FA'), (@u2, 'TM'), (@u3, 'RK')) AS x (UserId, Code)
+    SELECT @t, x.UserId, r.RoleId FROM (VALUES (@u1, 'FA'), (@u2, 'TM'), (@u3, 'RK'), (@u4, 'TE')) AS x (UserId, Code)
     JOIN sec.Role AS r ON r.TenantId = @t AND r.Code = x.Code COLLATE DATABASE_DEFAULT;
     -- catalogues
     INSERT cat.LegalEntityType (TenantId, Code, NameAr) VALUES (@t, 'LLC', N'ذات مسؤولية محدودة');
@@ -86,7 +89,7 @@ BEGIN
     INSERT #P SELECT 'bank1', MIN(InstitutionId) FROM ins.Institution WHERE TenantId = @t;
     INSERT fin.LineCatalogItem (TenantId, Code, NameAr, NameEn, Section, SortOrder)
     SELECT @t, sl.Code, sl.NameAr, sl.NameEn, sl.Section, sl.SortOrder FROM fin.StandardLine AS sl;
-    INSERT #P VALUES ('t', @t), ('u1', @u1), ('u2', @u2), ('u3', @u3), ('svc', @svc);
+    INSERT #P VALUES ('t', @t), ('u1', @u1), ('u2', @u2), ('u3', @u3), ('u4', @u4), ('svc', @svc);
     -- 200 open sessions of the treasury manager, checked by MFA, for the binding measurement
     INSERT sec.UserSession (TenantId, UserId, TokenHash, IdleExpiresAt, AbsoluteExpiresAt, MfaVerifiedAt)
     SELECT @t, @u2, HASHBYTES('SHA2_256', CAST(CONCAT('perf-', @t, '-', n) AS VARBINARY(64))), DATEADD(DAY, 2, SYSUTCDATETIME()),
@@ -136,8 +139,12 @@ BEGIN
     CROSS JOIN @lines AS l
     JOIN fin.LineCatalogItem AS li ON li.TenantId = @t AND li.Code = l.Code
     WHERE s.TenantId = @t;
+    -- prepared by the analyst u1, approved by the treasury manager u2, each bound as itself (058, ADR 0037)
+    EXEC #Bind @t, @u1;
     UPDATE fin.FinancialStatement SET Status = 'SUBMITTED' WHERE TenantId = @t AND Status = 'DRAFT';
+    EXEC #Bind @t, @u2;
     UPDATE fin.FinancialStatement SET Status = 'APPROVED', ApprovedBy = @u2, ApprovedOn = SYSUTCDATETIME() WHERE TenantId = @t AND Status = 'SUBMITTED';
+    EXEC #Bind @t, @u1;
     IF @Platform = 0 RETURN;
     -- the platform: a facility per company with one of the five banks, expiring over the next two years
     DECLARE @ftype INT = (SELECT v FROM #P WHERE k = 'ftype'), @ltype INT = (SELECT v FROM #P WHERE k = 'ltype'), @otype INT = (SELECT v FROM #P WHERE k = 'otype'),
@@ -162,11 +169,17 @@ BEGIN
     INSERT fac.FacilityRevision (TenantId, FacilityId, RevisionNo, ReasonKind, Status, EffectiveOn, SubmittedBy, SubmittedOn, ApprovedBy, ApprovedOn)
     SELECT @t, f.FacilityId, 1, 'INITIAL', 'APPROVED', '2025-01-01', @u1, SYSUTCDATETIME(), @u2, SYSUTCDATETIME() FROM fac.Facility AS f WHERE f.TenantId = @t;
     UPDATE fac.Facility SET ApprovedRevisionNo = 1, LifecycleStatus = 'ACTIVE' WHERE TenantId = @t;
-    INSERT fin.BankFlowEntry (TenantId, CompanyId, InstitutionId, MonthEnd, FlowKindListId, FlowKindId, Amount, CurrencyId, EnteredBy, Status, ConfirmedBy, ConfirmedOn)
+    -- entered by the treasury employee u4, confirmed by the treasury manager u2 (058, ADR 0037)
+    DECLARE @u4 BIGINT = (SELECT v FROM #P WHERE k = 'u4');
+    EXEC #Bind @t, @u4;
+    INSERT fin.BankFlowEntry (TenantId, CompanyId, InstitutionId, MonthEnd, FlowKindListId, FlowKindId, Amount, CurrencyId, EnteredBy)
     SELECT @t, f.BorrowerCompanyId, @bank1 + f.BorrowerCompanyId % 5, EOMONTH(DATEADD(MONTH, m.n - 1, '2022-01-01')), @lst, @kind,
-           900000 + (f.BorrowerCompanyId % 7) * 100000, @cur, @u1, 'CONFIRMED', @u2, SYSUTCDATETIME()
+           900000 + (f.BorrowerCompanyId % 7) * 100000, @cur, @u4
     FROM fac.Facility AS f CROSS JOIN (SELECT TOP (57) n FROM @n ORDER BY n) AS m
     WHERE f.TenantId = @t;
+    EXEC #Bind @t, @u2;
+    UPDATE fin.BankFlowEntry SET Status = 'CONFIRMED', ConfirmedBy = @u2, ConfirmedOn = SYSUTCDATETIME() WHERE TenantId = @t AND Status = 'DRAFT';
+    EXEC #Bind @t, @u1;
 END;
 GO
 /* A computed and approved credit assessment of each company's 2025 statement, prepared by u1, approved by u2; the
@@ -198,6 +211,7 @@ BEGIN
     END;
     CLOSE c; DEALLOCATE c;
     UPDATE fin.CreditAssessment SET Status = 'SUBMITTED', PreparedOn = SYSUTCDATETIME() WHERE TenantId = @t AND Status = 'DRAFT';
+    EXEC #Bind @t, @u2;
     UPDATE fin.CreditAssessment SET Status = 'APPROVED', ApprovedBy = @u2, ApprovedOn = SYSUTCDATETIME() WHERE TenantId = @t AND Status = 'SUBMITTED';
     EXEC #Bind @t, @u3;
     DECLARE e CURSOR LOCAL FAST_FORWARD FOR SELECT TOP (@Endorse) CreditAssessmentId FROM fin.CreditAssessment WHERE TenantId = @t ORDER BY CreditAssessmentId;

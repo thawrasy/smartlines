@@ -4901,6 +4901,7 @@ CREATE TABLE [fin].[RevenueEstimate] (
     CONSTRAINT [CK_RevenueEstimate_2] CHECK (FiscalYear BETWEEN 1900 AND 2200),
     CONSTRAINT [CK_RevenueEstimate_3] CHECK (Status = 'DRAFT' OR (ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)),
     CONSTRAINT [CK_RevenueEstimate_4] CHECK (ApprovedBy IS NULL OR PreparedBy IS NULL OR ApprovedBy <> PreparedBy),
+    CONSTRAINT [CK_RevenueEstimate_5] CHECK (Status = 'DRAFT' OR PreparedBy IS NOT NULL),
     CONSTRAINT [CK_RevenueEstimate_Basis] CHECK ([Basis] IS NULL OR [Basis] IN ('STANDALONE', 'CONSOLIDATED')),
     CONSTRAINT [CK_RevenueEstimate_Status] CHECK ([Status] IS NULL OR [Status] IN ('DRAFT', 'APPROVED', 'SUPERSEDED'))
 );
@@ -4941,6 +4942,8 @@ CREATE TABLE [fin].[AccountMonthlyStat] (
     CONSTRAINT [CK_AccountMonthlyStat_3] CHECK (ConfirmedBy IS NULL OR EnteredBy IS NULL OR ConfirmedBy <> EnteredBy),
     CONSTRAINT [CK_AccountMonthlyStat_4] CHECK (ReopenCount >= 0 AND (ReopenCount = 0 OR (LastReopenedBy IS NOT NULL AND LastReopenedOn IS NOT NULL AND LastReopenReason IS NOT NULL))),
     CONSTRAINT [CK_AccountMonthlyStat_5] CHECK (LastReopenedBy IS NULL OR EnteredBy IS NULL OR LastReopenedBy <> EnteredBy),
+    CONSTRAINT [CK_AccountMonthlyStat_6] CHECK (ConfirmedBy IS NULL OR LastReopenedBy IS NULL OR ConfirmedBy <> LastReopenedBy),
+    CONSTRAINT [CK_AccountMonthlyStat_7] CHECK (Status <> 'CONFIRMED' OR EnteredBy IS NOT NULL),
     CONSTRAINT [CK_AccountMonthlyStat_SourceKind] CHECK ([SourceKind] IS NULL OR [SourceKind] IN ('BANK_STATEMENT', 'BANK_NOTICE', 'INTERNAL_CALC')),
     CONSTRAINT [CK_AccountMonthlyStat_Status] CHECK ([Status] IS NULL OR [Status] IN ('DRAFT', 'CONFIRMED'))
 );
@@ -4985,6 +4988,8 @@ CREATE TABLE [fin].[BankFlowEntry] (
     CONSTRAINT [CK_BankFlowEntry_5] CHECK (ConfirmedBy IS NULL OR EnteredBy IS NULL OR ConfirmedBy <> EnteredBy),
     CONSTRAINT [CK_BankFlowEntry_6] CHECK (ReopenCount >= 0 AND (ReopenCount = 0 OR (LastReopenedBy IS NOT NULL AND LastReopenedOn IS NOT NULL AND LastReopenReason IS NOT NULL))),
     CONSTRAINT [CK_BankFlowEntry_7] CHECK (LastReopenedBy IS NULL OR EnteredBy IS NULL OR LastReopenedBy <> EnteredBy),
+    CONSTRAINT [CK_BankFlowEntry_8] CHECK (ConfirmedBy IS NULL OR LastReopenedBy IS NULL OR ConfirmedBy <> LastReopenedBy),
+    CONSTRAINT [CK_BankFlowEntry_9] CHECK (Status <> 'CONFIRMED' OR EnteredBy IS NOT NULL),
     CONSTRAINT [CK_BankFlowEntry_Status] CHECK ([Status] IS NULL OR [Status] IN ('DRAFT', 'CONFIRMED'))
 );
 GO
@@ -5946,6 +5951,7 @@ CREATE TABLE [fin].[ReceivableLossRate] (
     [LossRatePct] DECIMAL(7,4) NOT NULL,
     [EffectiveFrom] DATE NOT NULL,
     [Status] VARCHAR(10) NOT NULL CONSTRAINT [DF_ReceivableLossRate_Status] DEFAULT 'DRAFT',
+    [PreparedBy] BIGINT NULL,
     [ApprovedBy] BIGINT NULL,
     [ApprovedOn] DATETIME2(3) NULL,
     [Note] NVARCHAR(500) NULL,
@@ -5960,6 +5966,8 @@ CREATE TABLE [fin].[ReceivableLossRate] (
     CONSTRAINT [UQ_ReceivableLossRate_BucketCode_EffectiveFrom] UNIQUE ([TenantId], [BucketCode], [EffectiveFrom]),
     CONSTRAINT [CK_ReceivableLossRate_1] CHECK (LossRatePct >= 0 AND LossRatePct <= 100),
     CONSTRAINT [CK_ReceivableLossRate_2] CHECK ((Status = 'DRAFT' AND ApprovedBy IS NULL AND ApprovedOn IS NULL) OR (Status = 'APPROVED' AND ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)),
+    CONSTRAINT [CK_ReceivableLossRate_3] CHECK (ApprovedBy IS NULL OR PreparedBy IS NULL OR ApprovedBy <> PreparedBy),
+    CONSTRAINT [CK_ReceivableLossRate_4] CHECK (PreparedBy IS NOT NULL OR SeedKey IS NOT NULL),
     CONSTRAINT [CK_ReceivableLossRate_BucketCode] CHECK ([BucketCode] IS NULL OR [BucketCode] IN ('AR_AGE_0_90', 'AR_AGE_91_180', 'AR_AGE_181_365', 'AR_AGE_OVER_365', 'AR_AGE_OVER_365_GOV')),
     CONSTRAINT [CK_ReceivableLossRate_Status] CHECK ([Status] IS NULL OR [Status] IN ('DRAFT', 'APPROVED'))
 );

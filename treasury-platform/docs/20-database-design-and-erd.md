@@ -1621,9 +1621,9 @@
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `fin.AccountMonthlyStat` | Monthly balance of an account in the account currency (FR-FIN-008, BR-FIN-005/006, V-FIN-02) | AccountMonthlyStatId | 5 | 3 | 5 | 16 |
+| `fin.AccountMonthlyStat` | Monthly balance of an account in the account currency (FR-FIN-008, BR-FIN-005/006, V-FIN-02) | AccountMonthlyStatId | 5 | 3 | 7 | 16 |
 | `fin.AssessmentEvidencePack` | A sealed evidence pack of an endorsed assessment, built for an auditor or a lender: the assessment, its statement versions and lines, findings, reconciliation, calibration and audit rows in one JSON document whose SHA-256 is kept here; the same content gives the same hash (ADR 0030) | AssessmentEvidencePackId | 2 | 1 | 1 | 4 |
-| `fin.BankFlowEntry` | Amount transferred to the bank in a month; annual totals are computed automatically (FR-FIN-009/010, BR-FIN-007/008) | BankFlowEntryId | 10 | 3 | 7 | 13 |
+| `fin.BankFlowEntry` | Amount transferred to the bank in a month; annual totals are computed automatically (FR-FIN-009/010, BR-FIN-007/008) | BankFlowEntryId | 10 | 3 | 9 | 13 |
 | `fin.CompanyProductLine` | A product or service line of a company for a fiscal year: its category, share of revenue and of inventory, and its sales channels; read by the credit assessment for the quality of cash flows and the liquidity of the inventory (docs/35 section 5) | CompanyProductLineId | 2 | 2 | 4 | 12 |
 
 **العلاقات (المفاتيح الأجنبية)**
@@ -1943,15 +1943,16 @@
 
 | الجدول | الغرض | PK | FK | UQ | CHECK | أعمدة أخرى |
 |---|---|---|---|---|---|---|
-| `fin.ReceivableLossRate` | The loss rate of a receivables ageing bucket for the provision matrix the company compares its recorded allowance with (IFRS 9 simplified approach; owner decision 35, ADR 0030); the defaults of the pack FIN.PROVISION are for the treasury to approve or change | ReceivableLossRateId | 1 | 3 | 2 | 10 |
+| `fin.ReceivableLossRate` | The loss rate of a receivables ageing bucket for the provision matrix the company compares its recorded allowance with (IFRS 9 simplified approach; owner decision 35, ADR 0030); the defaults of the pack FIN.PROVISION are for the treasury to approve or change | ReceivableLossRateId | 2 | 3 | 4 | 10 |
 | `fin.ReportingPeriodLock` | The close of a company's reporting periods: through LockedThrough no actual statement, version, monthly balance or bank flow of the company is added, changed or removed; locked once its figures are approved or confirmed, reopened with a reason by someone other than the one who locked it (optional for each company; docs/38 item 2, ADR 0031) | ReportingPeriodLockId | 3 | 2 | 3 | 9 |
-| `fin.RevenueEstimate` | Manual revenue estimate for a fiscal year, used by a revenue-share covenant with RevenueBasisRule MANUAL_ESTIMATE (Q-FIN-05, BR-FIN-008, self-review B4) | RevenueEstimateId | 5 | 3 | 4 | 10 |
+| `fin.RevenueEstimate` | Manual revenue estimate for a fiscal year, used by a revenue-share covenant with RevenueBasisRule MANUAL_ESTIMATE (Q-FIN-05, BR-FIN-008, self-review B4) | RevenueEstimateId | 5 | 3 | 5 | 10 |
 | `fin.RiskAnchor` | The anchor of a company's business risk from its country risk and its industry risk, a notch of the 21-grade scale: the computed sector risk sub-factor and the centre of the expected range (docs/35 section 13) | RiskAnchorId | 0 | 1 | 1 | 6 |
 
 **العلاقات (المفاتيح الأجنبية)**
 
 | الطفل (الجدول.العمود) | الأب | العلاقة | الإلزام | النطاق | الحذف | أعمدة النطاق |
 |---|---|---|---|---|---|---|
+| `fin.ReceivableLossRate.PreparedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `fin.ReceivableLossRate.ApprovedBy` | `sec.AppUser` | 1 : N | اختياري | مشترك · مركّب | قيد | — |
 | `fin.ReportingPeriodLock.CompanyId` | `org.Company` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |
 | `fin.ReportingPeriodLock.LockedBy` | `sec.AppUser` | 1 : N | إلزامي | مشترك · مركّب | قيد | — |

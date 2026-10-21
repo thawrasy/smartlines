@@ -2,8 +2,9 @@
    lender date is coming and the company is not ready for it (docs/36 gap F4, ADR 0027 and ADR 0028, FR-FIN-040, FR-FIN-041, BR-FIN-041, BR-FIN-042).
 
    049 lists the warnings of a day (fin.fn_CreditEarlyWarnings): every renewal, covenant test and report to a lender
-   within the lead time of the tenant (fin.readiness.lead_months, 6 by the owner's decision 34) whose readiness on
-   the latest computed assessment of an actual statement is AMBER or RED. This script sends them:
+   within the lead time of the tenant (fin.readiness.lead_months, 6 by the owner's decision 34) whose readiness is
+   AMBER or RED, the worse of the latest approved and the latest computed official assessment of an actual statement,
+   a renewal read from the facility as it is on the run date (ADR 0037). This script sends them:
      fin.usp_RunEarlyWarnings  run daily by the job JOB-FIN-READINESS (05:20 in the tenant's time, after JOB-FIN-EVAL
                                and JOB-OBL-CALENDAR, before JOB-NTF-DIGEST gathers the morning), bound to the tenant
                                as its service account (037). For each warning not yet issued it writes a row in

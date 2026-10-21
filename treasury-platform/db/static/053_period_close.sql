@@ -17,6 +17,22 @@
                                      or a bank flow dated through the closed day is refused (50096). A budget is a plan,
                                      not a figure of the period, and is not closed.
      fin.v_ReportingPeriodStatus     each company's current close.
+   Since ADR 0037 (the internal review of 2026-10-21, lens E, findings 8 and 23) the close also reaches what changes a
+   closed period indirectly, where the row carries a date tied to a period (50096):
+     - a statement of a unit of a holding's consolidated statement: once the holding's period is closed through the
+       end of an approved consolidated statement, the unit's actual statements of that period (its standalone
+       statement named on the unit, or any with a period end within the consolidated period) are closed too;
+     - an official assessment (not a trial) of an actual statement of a closed period: none is added, and none moves
+       from one status to another (submitted, approved, superseded); a trial stays possible, and the endorsement of an
+       approved one too (it changes no figure);
+     - a revenue estimate of a fiscal year that ends in a closed period (the year Y ends on the last day of the
+       company's fiscal year end month of Y);
+     - a lender rating dated in a closed period;
+     - the product lines of a fiscal year that ends in a closed period;
+     - a loss rate of the provision matrix effective on or before the latest closed day of any company of the tenant
+       (the rates are the tenant's, the statements the companies'): a new rate takes effect after the close.
+   The close itself has no second person: it only freezes, and its reopening, which unfreezes, is by someone else (an
+   open point of ADR 0037). Monthly figures of a unit are closed by the unit's own close, not by the holding's.
    The application cannot write fin.ReportingPeriodLock. Errors: 50096 the period is closed, 50097 the close or the
    reopening is refused. */
 SET NOCOUNT ON;
@@ -40,6 +56,86 @@ BEGIN
                CROSS APPLY fin.fn_PeriodLockedThrough(r.TenantId, r.CompanyId) AS p
                WHERE r.Nature = 'ACTUAL' AND r.PeriodEnd <= p.LockedThrough)
         THROW 50096, 'The reporting period of this statement is closed; reopen the period to add or change a statement or a version (BR-FIN-050)', 1;
+    -- a unit's statement of a period its holding closed with an approved consolidated statement that includes it (ADR 0037)
+    IF EXISTS (SELECT 1
+               FROM (SELECT TenantId, FinancialStatementId, CompanyId, PeriodEnd, Nature FROM inserted
+                     UNION ALL SELECT TenantId, FinancialStatementId, CompanyId, PeriodEnd, Nature FROM deleted) AS r
+               JOIN fin.ConsolidationMember AS m ON m.TenantId = r.TenantId AND m.MemberCompanyId = r.CompanyId AND m.Role <> 'PARENT'
+               JOIN fin.FinancialStatement AS cs ON cs.TenantId = m.TenantId AND cs.FinancialStatementId = m.StatementId
+               CROSS APPLY fin.fn_PeriodLockedThrough(cs.TenantId, cs.CompanyId) AS hp
+               WHERE r.Nature = 'ACTUAL' AND cs.Nature = 'ACTUAL' AND cs.Status IN ('APPROVED', 'SUPERSEDED') AND cs.PeriodEnd <= hp.LockedThrough
+                 AND (m.MemberStatementId = r.FinancialStatementId
+                      OR (r.PeriodEnd <= cs.PeriodEnd AND r.PeriodEnd > ISNULL(cs.PeriodStart, DATEADD(YEAR, -1, cs.PeriodEnd)))))
+        THROW 50096, 'The holding closed the period of a consolidated statement that includes this company: its statements of that period are closed too (ADR 0037)', 1;
+END;
+GO
+-- An official assessment of a statement of a closed period is not added and does not change status (ADR 0037).
+CREATE OR ALTER TRIGGER fin.TR_CreditAssessment_PeriodLock ON fin.CreditAssessment
+AFTER INSERT, UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF EXISTS (SELECT 1
+               FROM inserted AS i
+               LEFT JOIN deleted AS d ON d.CreditAssessmentId = i.CreditAssessmentId
+               JOIN fin.FinancialStatement AS s ON s.TenantId = i.TenantId AND s.FinancialStatementId = i.StatementId
+               CROSS APPLY fin.fn_PeriodLockedThrough(s.TenantId, s.CompanyId) AS p
+               WHERE i.IsTrial = 0 AND s.Nature = 'ACTUAL' AND s.PeriodEnd <= p.LockedThrough
+                 AND (d.CreditAssessmentId IS NULL OR d.Status <> i.Status OR d.StatementId <> i.StatementId OR d.IsTrial <> i.IsTrial))
+        THROW 50096, 'The reporting period of this statement is closed: an official assessment of it is not added, submitted, approved or superseded until the period is reopened (ADR 0037)', 1;
+END;
+GO
+-- A revenue estimate of a fiscal year that ends in a closed period (ADR 0037).
+CREATE OR ALTER TRIGGER fin.TR_RevenueEstimate_PeriodLock ON fin.RevenueEstimate
+AFTER INSERT, UPDATE, DELETE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF EXISTS (SELECT 1
+               FROM (SELECT TenantId, CompanyId, FiscalYear FROM inserted UNION ALL SELECT TenantId, CompanyId, FiscalYear FROM deleted) AS r
+               JOIN org.Company AS c ON c.TenantId = r.TenantId AND c.CompanyId = r.CompanyId
+               CROSS APPLY fin.fn_PeriodLockedThrough(r.TenantId, r.CompanyId) AS p
+               WHERE EOMONTH(DATEFROMPARTS(r.FiscalYear, c.FiscalYearEndMonth, 1)) <= p.LockedThrough)
+        THROW 50096, 'The fiscal year of this revenue estimate ends in a closed period; reopen the period first (ADR 0037)', 1;
+END;
+GO
+-- A lender rating dated in a closed period (ADR 0037).
+CREATE OR ALTER TRIGGER fin.TR_LenderRating_PeriodLock ON fin.LenderRating
+AFTER INSERT, UPDATE, DELETE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF EXISTS (SELECT 1
+               FROM (SELECT TenantId, CompanyId, RatingDate FROM inserted UNION ALL SELECT TenantId, CompanyId, RatingDate FROM deleted) AS r
+               CROSS APPLY fin.fn_PeriodLockedThrough(r.TenantId, r.CompanyId) AS p
+               WHERE r.RatingDate <= p.LockedThrough)
+        THROW 50096, 'This lender rating is dated in a closed period; reopen the period first (ADR 0037)', 1;
+END;
+GO
+-- The product lines of a fiscal year that ends in a closed period (ADR 0037).
+CREATE OR ALTER TRIGGER fin.TR_CompanyProductLine_PeriodLock ON fin.CompanyProductLine
+AFTER INSERT, UPDATE, DELETE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF EXISTS (SELECT 1
+               FROM (SELECT TenantId, CompanyId, FiscalYear FROM inserted UNION ALL SELECT TenantId, CompanyId, FiscalYear FROM deleted) AS r
+               JOIN org.Company AS c ON c.TenantId = r.TenantId AND c.CompanyId = r.CompanyId
+               CROSS APPLY fin.fn_PeriodLockedThrough(r.TenantId, r.CompanyId) AS p
+               WHERE EOMONTH(DATEFROMPARTS(r.FiscalYear, c.FiscalYearEndMonth, 1)) <= p.LockedThrough)
+        THROW 50096, 'The fiscal year of these product lines ends in a closed period; reopen the period first (ADR 0037)', 1;
+END;
+GO
+-- A loss rate effective on or before the latest closed day of a company of the tenant (ADR 0037).
+CREATE OR ALTER TRIGGER fin.TR_ReceivableLossRate_PeriodLock ON fin.ReceivableLossRate
+AFTER INSERT, UPDATE, DELETE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF EXISTS (SELECT 1
+               FROM (SELECT TenantId, EffectiveFrom FROM inserted UNION ALL SELECT TenantId, EffectiveFrom FROM deleted) AS r
+               WHERE r.EffectiveFrom <= (SELECT MAX(l.LockedThrough) FROM fin.ReportingPeriodLock AS l WHERE l.TenantId = r.TenantId AND l.Status = 'LOCKED'))
+        THROW 50096, 'A company of the tenant closed a period this loss rate would apply to; a new rate takes effect after the close (ADR 0037)', 1;
 END;
 GO
 CREATE OR ALTER TRIGGER fin.TR_BankFlowEntry_PeriodLock ON fin.BankFlowEntry

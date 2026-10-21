@@ -544,6 +544,7 @@ table fin.RevenueEstimate public  # Manual revenue estimate for a fiscal year, u
   check  FiscalYear BETWEEN 1900 AND 2200
   check  Status = 'DRAFT' OR (ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)
   check  ApprovedBy IS NULL OR PreparedBy IS NULL OR ApprovedBy <> PreparedBy
+  check  Status = 'DRAFT' OR PreparedBy IS NOT NULL   # المعتمد له مُعِدّ (058، ADR 0037)
 
 table fin.AccountMonthlyStat public  # Monthly balance of an account in the account currency (FR-FIN-008, BR-FIN-005/006, V-FIN-02)
   BankAccountId     ->acc.BankAccount req
@@ -571,6 +572,8 @@ table fin.AccountMonthlyStat public  # Monthly balance of an account in the acco
   check  ConfirmedBy IS NULL OR EnteredBy IS NULL OR ConfirmedBy <> EnteredBy   # المُدخِل ≠ المؤكِّد
   check  ReopenCount >= 0 AND (ReopenCount = 0 OR (LastReopenedBy IS NOT NULL AND LastReopenedOn IS NOT NULL AND LastReopenReason IS NOT NULL))
   check  LastReopenedBy IS NULL OR EnteredBy IS NULL OR LastReopenedBy <> EnteredBy   # يعيد فتحه غير المُدخِل
+  check  ConfirmedBy IS NULL OR LastReopenedBy IS NULL OR ConfirmedBy <> LastReopenedBy   # يؤكده بعد إعادة الفتح غير من أعاد فتحه (ADR 0037)
+  check  Status <> 'CONFIRMED' OR EnteredBy IS NOT NULL   # المؤكَّد له مُدخِل يختمه الإدخال بالمستخدم المربوط (058، ADR 0037)
 
 table fin.BankFlowEntry public  # Amount transferred to the bank in a month; annual totals are computed automatically (FR-FIN-009/010, BR-FIN-007/008)
   CompanyId     ->org.Company req
@@ -602,6 +605,8 @@ table fin.BankFlowEntry public  # Amount transferred to the bank in a month; ann
   check  ConfirmedBy IS NULL OR EnteredBy IS NULL OR ConfirmedBy <> EnteredBy   # المُدخِل ≠ المؤكِّد
   check  ReopenCount >= 0 AND (ReopenCount = 0 OR (LastReopenedBy IS NOT NULL AND LastReopenedOn IS NOT NULL AND LastReopenReason IS NOT NULL))
   check  LastReopenedBy IS NULL OR EnteredBy IS NULL OR LastReopenedBy <> EnteredBy   # يعيد فتحه غير المُدخِل
+  check  ConfirmedBy IS NULL OR LastReopenedBy IS NULL OR ConfirmedBy <> LastReopenedBy   # يؤكده بعد إعادة الفتح غير من أعاد فتحه (ADR 0037)
+  check  Status <> 'CONFIRMED' OR EnteredBy IS NOT NULL   # المؤكَّد له مُدخِل يختمه الإدخال بالمستخدم المربوط (058، ADR 0037)
 
 table fin.MeasureFormula src  # Measure formula: a template or a facility-agreement version with revisions; never executed as text (FR-FIN-011, BR-FIN-009, section 12)
   Code            ascii(60)  req
@@ -1204,6 +1209,7 @@ table fin.ReceivableLossRate int  # The loss rate of a receivables ageing bucket
   LossRatePct   dec(7,4)   req
   EffectiveFrom date       req
   Status        enum{DRAFT,APPROVED} req =DRAFT
+  PreparedBy    ->sec.AppUser noidx   # من كتب المسودة أو غيّرها؛ فارغ لافتراضي الحزمة FIN.PROVISION (058، ADR 0037)
   ApprovedBy    ->sec.AppUser noidx
   ApprovedOn    ts
   Note          str(500)
@@ -1212,6 +1218,8 @@ table fin.ReceivableLossRate int  # The loss rate of a receivables ageing bucket
   unique SeedKey where SeedKey IS NOT NULL
   check  LossRatePct >= 0 AND LossRatePct <= 100
   check  (Status = 'DRAFT' AND ApprovedBy IS NULL AND ApprovedOn IS NULL) OR (Status = 'APPROVED' AND ApprovedBy IS NOT NULL AND ApprovedOn IS NOT NULL)
+  check  ApprovedBy IS NULL OR PreparedBy IS NULL OR ApprovedBy <> PreparedBy   # المُعِدّ ≠ المعتمِد (ADR 0037)
+  check  PreparedBy IS NOT NULL OR SeedKey IS NOT NULL   # يُعِدّه مستخدم إلا افتراضي الحزمة (ADR 0037)
 
 table fin.ReportingPeriodLock  # The close of a company's reporting periods: through LockedThrough no actual statement, version, monthly balance or bank flow of the company is added, changed or removed; locked once its figures are approved or confirmed, reopened with a reason by someone other than the one who locked it (optional for each company; docs/38 item 2, ADR 0031)
   CompanyId     ->org.Company req

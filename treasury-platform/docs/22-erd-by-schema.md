@@ -580,6 +580,7 @@ erDiagram
 | PresentationVersion | PreparedBy | sec.AppUser |
 | PresentationVersionStep | DocumentId | doc.Document |
 | ReceivableLossRate | ApprovedBy | sec.AppUser |
+| ReceivableLossRate | PreparedBy | sec.AppUser |
 | ReportingPeriodLock | CompanyId | org.Company |
 | ReportingPeriodLock | LockedBy | sec.AppUser |
 | ReportingPeriodLock | ReopenedBy | sec.AppUser |

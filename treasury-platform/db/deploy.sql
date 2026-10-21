@@ -61,6 +61,7 @@ GO
 :r static/055_audit_chain.sql
 :r static/056_schema_fingerprint.sql
 :r static/057_core_roles.sql
+:r static/058_actor_controls.sql
 :r static/090_readonly_denies.sql
 :r seed/100_platform_global.sql
 :r seed/101_iso_reference.sql
