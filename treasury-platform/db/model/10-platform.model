@@ -243,6 +243,23 @@ table sec.LoginAttempt append deletable   # Login attempts for rate limiting and
   index CreatedAt
   check UserId IS NOT NULL OR LoginName IS NOT NULL
 
+# The journal of the schema changes applied to this database (DOC-B11 section 6, ADR 0034): the deployment of
+# db/deploy.sql as the BASELINE, each versioned script of db/migrations once, and each run of the repeatable scripts.
+# Written only by tools/deploy/migrate.sh as the deployment login; no role reads or writes it.
+table plat.SchemaMigration global noapp noplat norv   # Journal of the schema scripts applied to this database (DOC-B11 section 6)
+  Version      ascii(60) req   # BASELINE · V0001 … for a versioned script · R for a run of the repeatable scripts
+  Kind         enum{BASELINE,VERSIONED,REPEATABLE} req
+  ScriptName   str(260)  req   # the file, or the deployment bundle for the baseline
+  Checksum     bin(32)   req   # SHA-256 of the file (of the bundle for the baseline and the repeatable run)
+  Fingerprint  bin(32)   req   # plat.fn_SchemaFingerprint() after the step
+  AppliedAt    ts        req =SYSUTCDATETIME()
+  AppliedBy    str(128)  req
+  DurationMs   int
+  unique Version where Kind <> 'REPEATABLE'
+  index Kind,AppliedAt
+  check (Kind = 'BASELINE' AND Version = 'BASELINE') OR (Kind = 'VERSIONED' AND Version LIKE 'V[0-9][0-9][0-9][0-9]') OR (Kind = 'REPEATABLE' AND Version = 'R')
+  check DurationMs IS NULL OR DurationMs >= 0
+
 # Binds a database connection (@@SPID) to one tenant and user. Written only by sec.usp_SetSessionContext (O-16);
 # read only inside the row filters (rls.fn_Bound). No tenant column, so it is outside the tenant filter rule.
 table sec.SessionBinding global noapp noplat noaudit norv pk=SessionId   # Connection binding for the row filters (O-16)
@@ -341,7 +358,7 @@ table sec.KeyEvent append   # Key event log: create, rotate and revoke (FR-PLT-0
 module PLT-AUD
 
 table aud.AuditLog mixed append   # Append-only audit log; NULL TenantId = platform event, not visible to any tenant; dedicated RLS policy (BR-PLT-001, BR-PLT-009)
-  ChainSeq       bigint            # تسلسل السلسلة لكل مشترك (فارغ حتى تفعيل FR-PLT-025)
+  ChainSeq       bigint            # تسلسل السلسلة لكل مشترك أو للمنصة؛ يكتبه aud.TR_AuditLog_Chain عند الإدراج (055، FR-PLT-025)
   OccurredAt     ts        req
   ActorType      enum{USER,OPERATOR,SYSTEM,JOB} req
   ActorId        guid              # PublicId للمستخدم أو المشغّل؛ فارغ لمحاولة ببريد غير موجود
@@ -358,7 +375,7 @@ table aud.AuditLog mixed append   # Append-only audit log; NULL TenantId = platf
   UserAgent      str(400)
   Result         enum{SUCCESS,DENIED,FAILED} req =SUCCESS
   PrevHash       bin(32)           # بصمة السابق لنفس المشترك (BR-PLT-009)
-  RowHash        bin(32)           # SHA-256(PrevHash ‖ تمثيل قانوني للصف)
+  RowHash        bin(32)           # SHA-256(PrevHash ‖ ChainSeq ‖ تمثيل قانوني للصف)، aud.fn_AuditRowHash (055)
   unique ChainSeq where ChainSeq IS NOT NULL
   index OccurredAt
   index EntityType,EntityId
@@ -392,6 +409,24 @@ table aud.SensitiveAccessLog append   # Access log for sensitive data: identity 
   check ActorType <> 'USER' OR ActorUserId IS NOT NULL
   check ActorType <> 'OPERATOR' OR OperatorId IS NOT NULL
   check Result = 'GRANTED' OR DenyReason IS NOT NULL
+
+# The hash chain of aud.AuditLog (FR-PLT-025, DOC-S12 section 5.3, ADR 0033): one chain per tenant and one for the
+# platform events (ChainKey 0). Written only by the chain trigger and procedures of 055; no role reads or writes them.
+table aud.AuditChainHead global noapp noplat noaudit norv pk=ChainKey   # Head of each audit hash chain: its last sequence number and hash (FR-PLT-025)
+  ChainKey   int      req   # TenantId of the chain, or 0 for the platform events; a value, not a foreign key
+  LastSeq    bigint   req
+  LastHash   bin(32)  req
+  check ChainKey >= 0
+  check LastSeq >= 1
+
+table aud.AuditChainAnchor global noapp noplat append   # Anchor of an audit chain: its head at a moment, also kept outside the database (DOC-S12 section 5.3)
+  ChainKey   int      req   # TenantId, or 0 for the platform events
+  ChainSeq   bigint   req
+  RowHash    bin(32)  req
+  TakenAt    ts       req =SYSUTCDATETIME()
+  StoreRef   str(400)       # where the copy outside the database is kept (a write-once object or file)
+  index ChainKey,ChainSeq
+  check ChainSeq >= 1
 
 # ============================== المخطط doc: مخزن المستندات ==============================
 module PLT-DOC

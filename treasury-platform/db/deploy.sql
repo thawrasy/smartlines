@@ -57,6 +57,9 @@ GO
 :r static/051_early_warning_job.sql
 :r static/052_review_controls.sql
 :r static/053_period_close.sql
+:r static/054_key_guard.sql
+:r static/055_audit_chain.sql
+:r static/056_schema_fingerprint.sql
 :r static/090_readonly_denies.sql
 :r seed/100_platform_global.sql
 :r seed/101_iso_reference.sql

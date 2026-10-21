@@ -6,13 +6,11 @@ erDiagram
   plat_ReservedSubdomain["plat.ReservedSubdomain"] {
     int ReservedSubdomainId PK
   }
+  plat_SchemaMigration["plat.SchemaMigration"] {
+    bigint SchemaMigrationId PK
+  }
   plat_SupportAccessGrant["plat.SupportAccessGrant"] {
     bigint SupportAccessGrantId PK
     int OperatorId FK
-  }
-  plat_Tenant["plat.Tenant"] {
-    int TenantId PK
-    int PlanId FK
-    int HomeCountryId FK
   }
   plat_PlatformOperator ||--o{ plat_SupportAccessGrant : "OperatorId"

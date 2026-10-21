@@ -211,6 +211,27 @@ CREATE TABLE [plat].[OperatorSession] (
     CONSTRAINT [CK_OperatorSession_EndReason] CHECK ([EndReason] IS NULL OR [EndReason] IN ('LOGOUT', 'TERMINATED_BY_ADMIN', 'MFA_FAILED', 'OPERATOR_DISABLED', 'OPERATOR_RESET'))
 );
 GO
+-- Journal of the schema scripts applied to this database (DOC-B11 section 6)
+CREATE TABLE [plat].[SchemaMigration] (
+    [SchemaMigrationId] BIGINT IDENTITY(1,1) NOT NULL,
+    [Version] VARCHAR(60) NOT NULL,
+    [Kind] VARCHAR(10) NOT NULL,
+    [ScriptName] NVARCHAR(260) NOT NULL,
+    [Checksum] VARBINARY(32) NOT NULL,
+    [Fingerprint] VARBINARY(32) NOT NULL,
+    [AppliedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_SchemaMigration_AppliedAt] DEFAULT SYSUTCDATETIME(),
+    [AppliedBy] NVARCHAR(128) NOT NULL,
+    [DurationMs] INT NULL,
+    [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_SchemaMigration_CreatedAt] DEFAULT SYSUTCDATETIME(),
+    [CreatedBy] BIGINT NULL,
+    [UpdatedAt] DATETIME2(3) NULL,
+    [UpdatedBy] BIGINT NULL,
+    CONSTRAINT [PK_SchemaMigration] PRIMARY KEY CLUSTERED ([SchemaMigrationId]),
+    CONSTRAINT [CK_SchemaMigration_1] CHECK ((Kind = 'BASELINE' AND Version = 'BASELINE') OR (Kind = 'VERSIONED' AND Version LIKE 'V[0-9][0-9][0-9][0-9]') OR (Kind = 'REPEATABLE' AND Version = 'R')),
+    CONSTRAINT [CK_SchemaMigration_2] CHECK (DurationMs IS NULL OR DurationMs >= 0),
+    CONSTRAINT [CK_SchemaMigration_Kind] CHECK ([Kind] IS NULL OR [Kind] IN ('BASELINE', 'VERSIONED', 'REPEATABLE'))
+);
+GO
 
 -- ===== schema sec =====
 -- Tenant portal user (FR-PLT-010..016, BR-PLT-004..006)
@@ -608,6 +629,30 @@ CREATE TABLE [aud].[SensitiveAccessLog] (
     CONSTRAINT [CK_SensitiveAccessLog_AccessKind] CHECK ([AccessKind] IS NULL OR [AccessKind] IN ('IDENTITY_REVEAL', 'IDENTITY_IMAGE_VIEW', 'SENSITIVE_DOCUMENT_DOWNLOAD', 'PACK_EXPORT', 'SENSITIVE_EXPORT', 'DATA_EXPORT', 'CUSTOM_FIELD_REVEAL')),
     CONSTRAINT [CK_SensitiveAccessLog_ActorType] CHECK ([ActorType] IS NULL OR [ActorType] IN ('USER', 'OPERATOR', 'SYSTEM')),
     CONSTRAINT [CK_SensitiveAccessLog_Result] CHECK ([Result] IS NULL OR [Result] IN ('GRANTED', 'DENIED'))
+);
+GO
+-- Head of each audit hash chain: its last sequence number and hash (FR-PLT-025)
+CREATE TABLE [aud].[AuditChainHead] (
+    [ChainKey] INT NOT NULL,
+    [LastSeq] BIGINT NOT NULL,
+    [LastHash] VARBINARY(32) NOT NULL,
+    CONSTRAINT [PK_AuditChainHead] PRIMARY KEY CLUSTERED ([ChainKey]),
+    CONSTRAINT [CK_AuditChainHead_1] CHECK (ChainKey >= 0),
+    CONSTRAINT [CK_AuditChainHead_2] CHECK (LastSeq >= 1)
+);
+GO
+-- Anchor of an audit chain: its head at a moment, also kept outside the database (DOC-S12 section 5.3)
+CREATE TABLE [aud].[AuditChainAnchor] (
+    [AuditChainAnchorId] BIGINT IDENTITY(1,1) NOT NULL,
+    [ChainKey] INT NOT NULL,
+    [ChainSeq] BIGINT NOT NULL,
+    [RowHash] VARBINARY(32) NOT NULL,
+    [TakenAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_AuditChainAnchor_TakenAt] DEFAULT SYSUTCDATETIME(),
+    [StoreRef] NVARCHAR(400) NULL,
+    [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_AuditChainAnchor_CreatedAt] DEFAULT SYSUTCDATETIME(),
+    [CreatedBy] BIGINT NULL,
+    CONSTRAINT [PK_AuditChainAnchor] PRIMARY KEY CLUSTERED ([AuditChainAnchorId]),
+    CONSTRAINT [CK_AuditChainAnchor_1] CHECK (ChainSeq >= 1)
 );
 GO
 

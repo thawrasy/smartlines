@@ -2,7 +2,7 @@
 
 > مُولَّد آليًا. تظهر العلاقات بين الجداول (مفتاح أجنبي ← جدول مرجعي) داخل المخطط، وتُختصَر العلاقات العابرة للمخططات في جدول.
 
-## مخطط `plat` (9 جدولًا)
+## مخطط `plat` (10 جدولًا)
 
 ```mermaid
 erDiagram
@@ -52,7 +52,7 @@ erDiagram
 | SessionBinding | BoundTenantId | plat.Tenant |
 | UserCompanyScope | CompanyId | org.Company |
 
-## مخطط `aud` (2 جدولًا)
+## مخطط `aud` (4 جدولًا)
 
 ```mermaid
 erDiagram

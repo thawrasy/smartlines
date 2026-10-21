@@ -76,7 +76,8 @@ USING (VALUES
     ('JOB-PLT-EXPORT-EXPIRE', 'TENANT', 'TRIAL,ACTIVE,SUSPENDED,CLOSED', N'READY export packages to EXPIRED and the file deleted (DOC-F05 6.3).'),
     ('JOB-PLT-EXPORT', 'TENANT', 'TRIAL,ACTIVE,SUSPENDED,CLOSED', N'Builds approved tenant data exports into sealed packages (FR-PLT-039, DQ-F04-8, 042).'),
     ('JOB-PLT-TRIAL-EXPIRE', 'PLATFORM', NULL, N'TRIAL to SUSPENDED when the trial ends, through plat.usp_RunTenantTransitions (038; DOC-F05 6.3).'),
-    ('JOB-PLT-ARCHIVE', 'PLATFORM', NULL, N'CLOSED to ARCHIVED_READ_ONLY 30 days after ClosedAt, through plat.usp_RunTenantTransitions (038; DOC-F05 6.3).')
+    ('JOB-PLT-ARCHIVE', 'PLATFORM', NULL, N'CLOSED to ARCHIVED_READ_ONLY 30 days after ClosedAt, through plat.usp_RunTenantTransitions (038; DOC-F05 6.3).'),
+    ('JOB-PLT-AUDIT-CHAIN', 'PLATFORM', NULL, N'Anchors the audit hash chains outside the database and verifies them against the anchors, daily, through aud.usp_TakeAuditAnchors and aud.usp_VerifyAuditChain (055, ADR 0033; DOC-S12 5.3).')
 ) AS s (JobKey, Scope, RunsInStatuses, Description)
    ON d.JobKey = s.JobKey
 WHEN MATCHED AND (d.Scope <> s.Scope OR ISNULL(d.RunsInStatuses, '') <> ISNULL(s.RunsInStatuses, '')

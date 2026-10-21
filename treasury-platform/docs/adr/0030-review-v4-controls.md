@@ -53,6 +53,13 @@ The owner also decided:
 5. **The risk officer RK** (D1). A system role of CORE.ROLES beside AU: a function independent of the line that prepares
    and approves. In the role matrix of spec 12 it reads what the auditor reads and holds `fin.credit.endorse`, so it
    endorses and receives the red warnings. A tenant may give it more.
+   - *Correction of 2026-10-21 (external review v5.0, E2).* What this decision built is the role's definition: the
+     column RK of the role matrix in spec 12, the row of DOC-B05 section 5.1, and the recipient code in
+     `tools/dbgen/ntf_pack.py`. It is not a row of `sec.Role`: no system role is seeded in any tenant yet. The pack
+     CORE.ROLES that seeds TA, TM, FO, TE, FA, RQ, AU and RK, with their permissions, belongs to the application's
+     tenant seeder (DOC-B05 section 5.1) and is not built. The words "a system role of CORE.ROLES" described the
+     design, not something the package holds. Until the pack exists, the endorsement constraint of 052 is in place but
+     has no seeded holder.
 6. **The provision matrix** (D4, BR-FIN-047). `fin.ReceivableLossRate` holds a loss rate per ageing bucket, government
    receivables over a year apart, with its effective date and its approval by the treasury.
    - `fin.v_ReceivableProvisionCheck` (049) gives, for each statement with an ageing, the expected allowance beside

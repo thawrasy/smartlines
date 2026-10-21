@@ -1,7 +1,24 @@
 %% م0 · التدقيق والمستندات (2/2) — Audit & documents
 erDiagram
+  doc_Document["doc.Document"] {
+    bigint DocumentId PK
+    int DocumentTypeId FK
+    bigint OwnerCompanyId FK
+    bigint CurrentVersionId FK
+    bigint SupersededByDocumentId FK
+    bigint DeletedBy FK
+  }
+  doc_DocumentLink["doc.DocumentLink"] {
+    bigint DocumentLinkId PK
+    bigint DocumentId FK
+    bigint UnlinkedBy FK
+  }
   doc_DocumentVersion["doc.DocumentVersion"] {
     bigint DocumentVersionId PK
     bigint DocumentId FK
     bigint KeyId FK
   }
+  doc_Document |o--o{ doc_Document : "SupersededByDocumentId"
+  doc_Document ||--o{ doc_DocumentLink : "DocumentId"
+  doc_Document ||--o{ doc_DocumentVersion : "DocumentId"
+  doc_DocumentVersion |o--o{ doc_Document : "CurrentVersionId"

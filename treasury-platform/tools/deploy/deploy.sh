@@ -3,7 +3,8 @@
 # directory, so this script changes to db/ first. tools/ci/db_ci.sh calls this script, so CI tests the same path.
 # Before anything runs, db/ops/deploy_preflight.sql checks (DQ-S11-6, docs/adr/0014-deployment-preflight.md) that
 # the login is neither sa nor a sysadmin (50140), that the SQL Server build and the Ubuntu release are those of
-# versions.json (gate G4, 50143), and that BankFas exists in its collation (50141) and is empty (50142).
+# versions.json (gate G4, 50143), and that BankFas exists in its collation (50141) and is empty (50142). After it, the
+# deployment is journaled as the BASELINE of plat.SchemaMigration (tools/deploy/migrate.sh, ADR 0034).
 #
 # Environment:
 #   SQL_SERVER      server, default localhost,1433
@@ -51,4 +52,6 @@ printf ':r "%s"\nGO\n:r "%s"\n' "$WORK/preflight.sql" "$DB_DIR/deploy.sql" > "$W
 
 cd "$DB_DIR"
 "$SQLCMD" -S "$SQL_SERVER" "${AUTH[@]}" -I -b $SQLCMD_OPTS -i "$WORK/run.sql"
+# The new database's journal starts here: every later release reaches it through tools/deploy/migrate.sh (ADR 0034).
+bash "$HERE/migrate.sh" baseline
 echo "deployment finished"

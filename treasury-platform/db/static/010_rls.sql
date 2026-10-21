@@ -19,6 +19,23 @@ IF SCHEMA_ID(N'rls') IS NULL EXEC(N'CREATE SCHEMA [rls] AUTHORIZATION dbo;');
 GO
 GRANT SELECT ON SCHEMA::[rls] TO [tp_app];   -- predicate functions: the query engine evaluates them in the caller's context
 GO
+-- Run again on a deployed database (the repeatable scripts of tools/deploy/migrate.sh, ADR 0034): the predicate
+-- functions are schema-bound to each other and to the policies, so the policies and the functions go first and are
+-- made again below. migrate.sh runs the repeatable scripts in one transaction, so no session ever sees a table
+-- without its policy.
+DECLARE @drop nvarchar(max);
+SELECT @drop = STRING_AGG(CAST(N'DROP SECURITY POLICY rls.' + QUOTENAME(name) + N';' AS nvarchar(max)), N' ')
+FROM sys.security_policies WHERE schema_id = SCHEMA_ID(N'rls');
+IF @drop IS NOT NULL EXEC (@drop);
+IF OBJECT_ID(N'rls.fn_TenantWrite') IS NOT NULL DROP FUNCTION rls.fn_TenantWrite;
+IF OBJECT_ID(N'rls.fn_TenantAccess') IS NOT NULL DROP FUNCTION rls.fn_TenantAccess;
+IF OBJECT_ID(N'rls.fn_MixedRead') IS NOT NULL DROP FUNCTION rls.fn_MixedRead;
+IF OBJECT_ID(N'rls.fn_MixedWrite') IS NOT NULL DROP FUNCTION rls.fn_MixedWrite;
+IF OBJECT_ID(N'rls.fn_AuditRead') IS NOT NULL DROP FUNCTION rls.fn_AuditRead;
+IF OBJECT_ID(N'rls.fn_AuditWrite') IS NOT NULL DROP FUNCTION rls.fn_AuditWrite;
+IF OBJECT_ID(N'rls.fn_BoundWrite') IS NOT NULL DROP FUNCTION rls.fn_BoundWrite;
+IF OBJECT_ID(N'rls.fn_Bound') IS NOT NULL DROP FUNCTION rls.fn_Bound;
+GO
 -- Is the current connection bound to @TenantId? Used by every predicate below.
 CREATE OR ALTER FUNCTION rls.fn_Bound (@TenantId INT)
 RETURNS TABLE WITH SCHEMABINDING

@@ -37,6 +37,7 @@ GRANT SELECT, INSERT, UPDATE ON [sec].[UserRole] TO [tp_app];
 GRANT SELECT, INSERT, UPDATE ON [sec].[UserCompanyScope] TO [tp_app];
 -- sec.LoginAttempt
 GRANT SELECT, INSERT ON [sec].[LoginAttempt] TO [tp_app];
+-- plat.SchemaMigration  (noapp: بلا منح لتطبيق المشترك)
 -- sec.SessionBinding  (noapp: بلا منح لتطبيق المشترك)
 -- sec.UserSession
 GRANT SELECT, INSERT, UPDATE ON [sec].[UserSession] TO [tp_app];
@@ -57,6 +58,8 @@ GRANT SELECT, INSERT ON [aud].[AuditLog] TO [tp_app];
 GRANT SELECT, INSERT ON [aud].[AuditLog] TO [tp_platform];
 -- aud.SensitiveAccessLog
 GRANT SELECT, INSERT ON [aud].[SensitiveAccessLog] TO [tp_app];
+-- aud.AuditChainHead  (noapp: بلا منح لتطبيق المشترك)
+-- aud.AuditChainAnchor  (noapp: بلا منح لتطبيق المشترك)
 -- doc.Document
 GRANT SELECT, INSERT, UPDATE ON [doc].[Document] TO [tp_app];
 -- doc.DocumentVersion

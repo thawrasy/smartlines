@@ -15,8 +15,8 @@
                                 (005); their audit rows stay, since nobody may update or delete aud.AuditLog (R6 of
                                 O-24, DQ-F03-10).
    Tenant rows (TenantId set) are what the tenant's audit viewer shows; platform rows (TenantId NULL) are for the
-   operators only (rls.fn_AuditRead). The hash chain (ChainSeq, PrevHash, RowHash) stays empty until FR-PLT-025 is
-   built in S2; its writer must then cover these rows too.
+   operators only (rls.fn_AuditRead). The hash chain (ChainSeq, PrevHash, RowHash) is written by the trigger of 055 on
+   every insert, these rows included (FR-PLT-025, ADR 0033).
 
    Events (Action; Category; Severity HIGH where BR-PLT-009 asks for it):
      tenant rows   LOGIN_SUCCESS, FAILED_PASSWORD, DENIED_LOCKED, DENIED_TENANT, FAILED_MFA, LOCKOUT (trigger);

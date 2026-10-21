@@ -29,6 +29,8 @@ CREATE NONCLUSTERED INDEX [IX_UserCompanyScope_CompanyId] ON [sec].[UserCompanyS
 CREATE NONCLUSTERED INDEX [IX_LoginAttempt_IpAddress_CreatedAt] ON [sec].[LoginAttempt] ([TenantId], [IpAddress], [CreatedAt]);
 CREATE NONCLUSTERED INDEX [IX_LoginAttempt_UserId_CreatedAt] ON [sec].[LoginAttempt] ([TenantId], [UserId], [CreatedAt]);
 CREATE NONCLUSTERED INDEX [IX_LoginAttempt_CreatedAt] ON [sec].[LoginAttempt] ([TenantId], [CreatedAt]);
+CREATE UNIQUE NONCLUSTERED INDEX [UQ_SchemaMigration_Version] ON [plat].[SchemaMigration] ([Version]) WHERE Kind <> 'REPEATABLE';
+CREATE NONCLUSTERED INDEX [IX_SchemaMigration_Kind_AppliedAt] ON [plat].[SchemaMigration] ([Kind], [AppliedAt]);
 CREATE NONCLUSTERED INDEX [IX_UserSession_UserId_AbsoluteExpiresAt] ON [sec].[UserSession] ([TenantId], [UserId], [AbsoluteExpiresAt]) WHERE EndedAt IS NULL;
 CREATE NONCLUSTERED INDEX [IX_UserSession_AbsoluteExpiresAt] ON [sec].[UserSession] ([TenantId], [AbsoluteExpiresAt]);
 CREATE NONCLUSTERED INDEX [IX_UserSession_EndedBy] ON [sec].[UserSession] ([TenantId], [EndedBy]);
@@ -54,6 +56,7 @@ CREATE NONCLUSTERED INDEX [IX_SensitiveAccessLog_AccessKind_OccurredAt] ON [aud]
 CREATE NONCLUSTERED INDEX [IX_SensitiveAccessLog_SubjectEntityType_SubjectEntityId] ON [aud].[SensitiveAccessLog] ([TenantId], [SubjectEntityType], [SubjectEntityId]);
 CREATE NONCLUSTERED INDEX [IX_SensitiveAccessLog_OperatorId] ON [aud].[SensitiveAccessLog] ([TenantId], [OperatorId]);
 CREATE NONCLUSTERED INDEX [IX_SensitiveAccessLog_AuditLogId] ON [aud].[SensitiveAccessLog] ([TenantId], [AuditLogId]);
+CREATE NONCLUSTERED INDEX [IX_AuditChainAnchor_ChainKey_ChainSeq] ON [aud].[AuditChainAnchor] ([ChainKey], [ChainSeq]);
 CREATE NONCLUSTERED INDEX [IX_Document_Status_ExpiryDate] ON [doc].[Document] ([TenantId], [Status], [ExpiryDate]);
 CREATE NONCLUSTERED INDEX [IX_Document_DocumentNumber] ON [doc].[Document] ([TenantId], [DocumentNumber]) WHERE DocumentNumber IS NOT NULL;
 CREATE NONCLUSTERED INDEX [IX_Document_ExpiryDate] ON [doc].[Document] ([TenantId], [ExpiryDate]) WHERE Status = 'ACTIVE' AND ExpiryDate IS NOT NULL;

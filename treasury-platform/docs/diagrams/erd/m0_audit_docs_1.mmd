@@ -1,5 +1,11 @@
 %% م0 · التدقيق والمستندات (1/2) — Audit & documents
 erDiagram
+  aud_AuditChainAnchor["aud.AuditChainAnchor"] {
+    bigint AuditChainAnchorId PK
+  }
+  aud_AuditChainHead["aud.AuditChainHead"] {
+    integer ChainKey PK
+  }
   aud_AuditLog["aud.AuditLog"] {
     bigint AuditLogId PK
   }
@@ -8,19 +14,4 @@ erDiagram
     int OperatorId FK
     bigint AuditLogId FK
   }
-  doc_Document["doc.Document"] {
-    bigint DocumentId PK
-    int DocumentTypeId FK
-    bigint OwnerCompanyId FK
-    bigint CurrentVersionId FK
-    bigint SupersededByDocumentId FK
-    bigint DeletedBy FK
-  }
-  doc_DocumentLink["doc.DocumentLink"] {
-    bigint DocumentLinkId PK
-    bigint DocumentId FK
-    bigint UnlinkedBy FK
-  }
   aud_AuditLog ||--o{ aud_SensitiveAccessLog : "AuditLogId"
-  doc_Document |o--o{ doc_Document : "SupersededByDocumentId"
-  doc_Document ||--o{ doc_DocumentLink : "DocumentId"

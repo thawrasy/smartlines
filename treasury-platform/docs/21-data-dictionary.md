@@ -2,13 +2,13 @@
 
 > مُولَّد آليًا من نموذج البيانات بـ `tools/dbgen` — لا يُعدَّل يدويًا. الأعمدة المشتركة التي تضيفها اصطلاحات التوليد (TenantId، المعرّف، التدقيق) تظهر في كل جدول.
 
-**عدد الجداول: 252**
+**عدد الجداول: 255**
 
 | الوحدة | عدد الجداول |
 |---|---|
 | PLT-PLAT | 9 |
-| PLT-SEC | 15 |
-| PLT-AUD | 2 |
+| PLT-SEC | 16 |
+| PLT-AUD | 4 |
 | PLT-DOC | 3 |
 | PLT-CFG | 14 |
 | ORG | 14 |
@@ -412,6 +412,30 @@
 
 **قيود:** `UserId IS NOT NULL OR LoginName IS NOT NULL`
 
+### `plat.SchemaMigration` — Journal of the schema scripts applied to this database (DOC-B11 section 6)
+
+*عالمي*
+
+| العمود | النوع | NULL | الافتراضي | المرجع | ملاحظة |
+|---|---|---|---|---|---|
+| **SchemaMigrationId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
+| Version | VARCHAR(60) | لا |  |  | BASELINE · V0001 … for a versioned script · R for a run of the repeatable scripts |
+| Kind | VARCHAR(10) | لا |  |  | enum: BASELINE, VERSIONED, REPEATABLE |
+| ScriptName | NVARCHAR(260) | لا |  |  | the file, or the deployment bundle for the baseline |
+| Checksum | VARBINARY(32) | لا |  |  | SHA-256 of the file (of the bundle for the baseline and the repeatable run) |
+| Fingerprint | VARBINARY(32) | لا |  |  | plat.fn_SchemaFingerprint() after the step |
+| AppliedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
+| AppliedBy | NVARCHAR(128) | لا |  |  |  |
+| DurationMs | INT | نعم |  |  |  |
+| CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
+| CreatedBy | BIGINT | نعم |  |  |  |
+| UpdatedAt | DATETIME2(3) | نعم |  |  |  |
+| UpdatedBy | BIGINT | نعم |  |  |  |
+
+**المفاتيح:** PK(SchemaMigrationId) · UQ(Version) WHERE Kind <> 'REPEATABLE'
+
+**قيود:** `(Kind = 'BASELINE' AND Version = 'BASELINE') OR (Kind = 'VERSIONED' AND Version LIKE 'V[0-9][0-9][0-9][0-9]') OR (Kind = 'REPEATABLE' AND Version = 'R')` · `DurationMs IS NULL OR DurationMs >= 0`
+
 ### `sec.SessionBinding` — Connection binding for the row filters (O-16)
 
 *عالمي*
@@ -596,7 +620,7 @@
 |---|---|---|---|---|---|
 | TenantId | INT | نعم | | plat.Tenant | عزل المشترك |
 | **AuditLogId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
-| ChainSeq | BIGINT | نعم |  |  | تسلسل السلسلة لكل مشترك (فارغ حتى تفعيل FR-PLT-025) |
+| ChainSeq | BIGINT | نعم |  |  | تسلسل السلسلة لكل مشترك أو للمنصة؛ يكتبه aud.TR_AuditLog_Chain عند الإدراج (055، FR-PLT-025) |
 | OccurredAt | DATETIME2(3) | لا |  |  |  |
 | ActorType | VARCHAR(10) | لا |  |  | enum: USER, OPERATOR, SYSTEM, JOB |
 | ActorId | UNIQUEIDENTIFIER | نعم |  |  | PublicId للمستخدم أو المشغّل؛ فارغ لمحاولة ببريد غير موجود |
@@ -613,7 +637,7 @@
 | UserAgent | NVARCHAR(400) | نعم |  |  |  |
 | Result | VARCHAR(10) | لا | SUCCESS |  | enum: SUCCESS, DENIED, FAILED |
 | PrevHash | VARBINARY(32) | نعم |  |  | بصمة السابق لنفس المشترك (BR-PLT-009) |
-| RowHash | VARBINARY(32) | نعم |  |  | SHA-256(PrevHash ‖ تمثيل قانوني للصف) |
+| RowHash | VARBINARY(32) | نعم |  |  | SHA-256(PrevHash ‖ ChainSeq ‖ تمثيل قانوني للصف)، aud.fn_AuditRowHash (055) |
 | CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
 | CreatedBy | BIGINT | نعم |  |  |  |
 
@@ -649,6 +673,39 @@
 **المفاتيح:** PK(SensitiveAccessLogId)
 
 **قيود:** `ActorType <> 'USER' OR ActorUserId IS NOT NULL` · `ActorType <> 'OPERATOR' OR OperatorId IS NOT NULL` · `Result = 'GRANTED' OR DenyReason IS NOT NULL`
+
+### `aud.AuditChainHead` — Head of each audit hash chain: its last sequence number and hash (FR-PLT-025)
+
+*عالمي*
+
+| العمود | النوع | NULL | الافتراضي | المرجع | ملاحظة |
+|---|---|---|---|---|---|
+| ChainKey | INT | لا |  |  | TenantId of the chain, or 0 for the platform events; a value, not a foreign key |
+| LastSeq | BIGINT | لا |  |  |  |
+| LastHash | VARBINARY(32) | لا |  |  |  |
+
+**المفاتيح:** PK(ChainKey)
+
+**قيود:** `ChainKey >= 0` · `LastSeq >= 1`
+
+### `aud.AuditChainAnchor` — Anchor of an audit chain: its head at a moment, also kept outside the database (DOC-S12 section 5.3)
+
+*عالمي*
+
+| العمود | النوع | NULL | الافتراضي | المرجع | ملاحظة |
+|---|---|---|---|---|---|
+| **AuditChainAnchorId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
+| ChainKey | INT | لا |  |  | TenantId, or 0 for the platform events |
+| ChainSeq | BIGINT | لا |  |  |  |
+| RowHash | VARBINARY(32) | لا |  |  |  |
+| TakenAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
+| StoreRef | NVARCHAR(400) | نعم |  |  | where the copy outside the database is kept (a write-once object or file) |
+| CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
+| CreatedBy | BIGINT | نعم |  |  |  |
+
+**المفاتيح:** PK(AuditChainAnchorId)
+
+**قيود:** `ChainSeq >= 1`
 
 ## PLT-DOC
 

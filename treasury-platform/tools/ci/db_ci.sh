@@ -194,8 +194,8 @@ sq -d BankFas -i db/seed/102_permissions.sql >/dev/null
 sq -d BankFas -i db/seed/103_lc_reference.sql >/dev/null
 sq -d BankFas -i db/seed/104_credit_scorecard.sql >/dev/null
 seed_after="$(seed_state)"
-if [ "$seed_before" != "$seed_after" ] || [ "$seed_before" != "11/33/1/9/23/249/157/144/16/39/21/112/16/3130/0" ]; then
-    echo "platform seed is not safe to run again, or incomplete: settings/jobs/plans/plan modules/reserved/countries/currencies/permissions/Incoterms/unverified UCP articles/grades/credit metrics/approved scorecards/scorecard rows/updated before $seed_before, after $seed_after (expected 11/33/1/9/23/249/157/144/16/39/21/112/16/3130/0)"
+if [ "$seed_before" != "$seed_after" ] || [ "$seed_before" != "11/34/1/9/23/249/157/144/16/39/21/112/16/3130/0" ]; then
+    echo "platform seed is not safe to run again, or incomplete: settings/jobs/plans/plan modules/reserved/countries/currencies/permissions/Incoterms/unverified UCP articles/grades/credit metrics/approved scorecards/scorecard rows/updated before $seed_before, after $seed_after (expected 11/34/1/9/23/249/157/144/16/39/21/112/16/3130/0)"
     exit 1
 fi
 echo "platform seed unchanged on a second run ($seed_after)"
@@ -609,6 +609,57 @@ if [ "$pf_pass" -ne 8 ]; then
     exit 1
 fi
 echo "deployment preflight checks: $pf_pass passed"
+echo "== 22b. the key guard and the audit hash chain (db/tests/integrity_tests.sql, 054, 055, ADR 0032, ADR 0033)"
+sq -i db/tests/integrity_tests.sql > "$TMP/integrity.out" 2>&1 || {
+    cat "$TMP/integrity.out"
+    echo "integrity test run failed"
+    exit 1
+}
+cat "$TMP/integrity.out"
+if grep -qaE "$FAIL_RE" "$TMP/integrity.out"; then
+    echo "an integrity test failed"
+    exit 1
+fi
+in_pass=$(grep -oaE "$PASS_RE" "$TMP/integrity.out" | sort -u | wc -l)
+# 12 cases: KG1-KG6 (DR-20: new rows on an ACTIVE key only, the key lifecycle, retirement only when unused, revocation
+# at once, every key column guarded) and AC1-AC6 (FR-PLT-025: the chain, the anchors, changed, removed and unchained
+# rows, the job's rights).
+if [ "$in_pass" -ne 12 ]; then
+    echo "expected 12 PASS, found $in_pass"
+    exit 1
+fi
+echo "integrity tests: $in_pass passed"
+echo "== 22c. the anchors of the audit chain kept outside the database (tools/deploy/audit_anchor.sh, tools/ci/audit_anchor_check.sh)"
+SQL_SERVER="$SQL_SERVER" SQLCMD="$SQLCMD" bash tools/ci/audit_anchor_check.sh > "$TMP/anchor.out" 2>&1
+cat "$TMP/anchor.out"
+if grep -qaE "$FAIL_RE" "$TMP/anchor.out"; then
+    echo "an audit anchor check failed"
+    exit 1
+fi
+aa_pass=$(grep -oaE "$PASS_RE" "$TMP/anchor.out" | sort -u | wc -l)
+# 3 checks: AA1 (a new read-only file per run), AA2 (each chain verified against its latest anchor), AA3 (a changed row
+# fails the verification, and passes once put back).
+if [ "$aa_pass" -ne 3 ]; then
+    echo "expected 3 PASS, found $aa_pass"
+    exit 1
+fi
+echo "audit anchor checks: $aa_pass passed"
+echo "== 22d. incremental schema changes (tools/deploy/migrate.sh, tools/ci/migration_check.sh, 056, ADR 0034)"
+SQL_SERVER="$SQL_SERVER" SQLCMD="$SQLCMD" bash tools/ci/migration_check.sh > "$TMP/migration.out" 2>&1
+cat "$TMP/migration.out"
+if grep -qaE "$FAIL_RE" "$TMP/migration.out"; then
+    echo "a migration check failed"
+    exit 1
+fi
+mg_pass=$(grep -oaE "$PASS_RE" "$TMP/migration.out" | sort -u | wc -l)
+# 7 checks: MG1 (deploy.sh journals the baseline), MG2 (nothing pending), MG3 (the repeatable scripts run again with
+# the fingerprint unchanged), MG4 (a versioned script once), MG5 (edited, early and misnamed scripts refused), MG6 (a
+# failing script rolls back), MG7 (a change outside the journal stops apply).
+if [ "$mg_pass" -ne 7 ]; then
+    echo "expected 7 PASS, found $mg_pass"
+    exit 1
+fi
+echo "migration checks: $mg_pass passed"
 echo "== 23. nothing the tests switched off is left off, and no test data is left (self-review C10)"
 # The tests switch constraints and triggers off only inside their transactions, and make users without logins; the
 # users are dropped here, and then every key and check is trusted, every trigger and row filter is on, and no tenant

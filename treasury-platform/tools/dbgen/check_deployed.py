@@ -79,6 +79,11 @@ def static_triggers():
         if "N'_DraftOnly'" in text:
             block = re.search(r'INSERT @parts VALUES (.*?);', text, re.S).group(1)
             names.update(f'wfl.TR_{t}_DraftOnly' for t in re.findall(r"\(N'(\w+)', [01]\)", block))
+        if "N'_KeyStatus'" in text:   # 054: one per table with a foreign key to sec.TenantKey, but the key log
+            fks = open(os.path.join(DDL, '002_foreign_keys.sql'), encoding='utf-8').read()
+            names.update(f'{a}.TR_{b}_KeyStatus'
+                         for a, b in re.findall(r'ALTER TABLE \[(\w+)\]\.\[(\w+)\] ADD CONSTRAINT \[\w+\] FOREIGN KEY .*? REFERENCES \[sec\]\.\[TenantKey\]', fks)
+                         if (a, b) != ('sec', 'KeyEvent'))
     return names
 
 

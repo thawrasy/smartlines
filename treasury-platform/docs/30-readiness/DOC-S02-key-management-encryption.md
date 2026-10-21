@@ -203,7 +203,7 @@ flowchart TB
 | K-01 وK-02 | عند الحاجة | تسرّب، إعادة بناء الخادم | إعادة توليد ثم نسخ جديد إلى الضمان | منخفضة |
 
 - كل مشترك جديد يحصل عند التهيئة على ثلاثة مفاتيح إصدارها 1 (DATA وBLIND_INDEX وFILE). التسلسل في DOC-F05.
-- مفتاح بحالة RETIRED أو REVOKED لا يُستعمل لكتابة ولا يشير إليه صف جديد؛ القاعدة في خدمة التدوير (بقية DR-20).
+- مفتاح بحالة RETIRED أو REVOKED لا يُستعمل لكتابة ولا يشير إليه صف جديد. ✅ **منفّذ في القاعدة نفسها (2026-10-21، ADR 0032، db/static/054_key_guard.sql):** قادح لكل جدول يشير إلى `sec.TenantKey`، أي 9 أعمدة مفاتيح في 6 جداول، يُبنى من `sys.foreign_keys`. فلا يُكتب صف جديد، ولا يُنقل صف، إلا على مفتاح ACTIVE (50098). وتسير حالة المفتاح إلى الأمام فقط، والحالتان RETIRED وREVOKED نهائيتان. ولا يتقاعد مفتاح ما دام صف يشير إليه. أما الإلغاء فلا يُؤخَّر أبدًا، والصفوف التي بقيت على مفتاح ملغى تعرضها `sec.v_KeyReferences` لمهمة التدوير. الاختبارات KG1 إلى KG6.
 
 ## 11. الضمان والاسترداد
 
@@ -275,7 +275,7 @@ flowchart TB
 - docs/10-detailed-analysis/11-m2-m4-institutions-accounts-catalogs.md:582 يقول «Always Encrypted أو ما يعادله» لـ AccountNo وIban، والقرار T-7 تشفير في طبقة التطبيق (docs/20-database-design.md:67) والنموذج يطبّقه (db/model/12-institutions-accounts-catalogs.model:386-396). يُصحَّح النص إلى «غلاف T-7».
 - TDE ونسخ مشفّرة مطلوبة (docs/10-detailed-analysis/10-m0-m1-platform-organization.md:582)، ولا يوجد أي كائن TDE في `db/` ولا سكربت نسخ في المستودع.
 - Q-PLT-12 يحيل الإجراء إلى «فريق التشغيل» (docs/10-detailed-analysis/10-m0-m1-platform-organization.md:624)، ولا يوجد إجراء. هذه الوثيقة مسودته.
-- DR-20 مسجَّل «open» (docs/review/design-review-2026-10-11.json:220-221)، مع أن ربط الغرض منفّذ بعد DR-02 (docs/review/design-review-2026-10-11.json:28-29، db/model/12-institutions-accounts-catalogs.model:393-396). يبقى منه منع الإشارة إلى مفتاح RETIRED أو REVOKED فقط.
+- DR-20 مسجَّل «open» (docs/review/design-review-2026-10-11.json:220-221)، مع أن ربط الغرض منفّذ بعد DR-02 (docs/review/design-review-2026-10-11.json:28-29، db/model/12-institutions-accounts-catalogs.model:393-396). وكان يبقى منه منع الإشارة إلى مفتاح RETIRED أو REVOKED فقط، وقد أُغلق بـ ADR 0032 (2026-10-21). ويبقى التشفير نفسه في طبقة التطبيق غير المبنية.
 - `sec.KeyEvent` مملوك للمشترك (db/generated/tsql/001_tables.sql:475)، فلا يتسع لأحداث مفاتيح المنصة التي يطلب BR-PLT-009 تسجيلها بشدة عالية.
 - `wfl.Request.FormDataJson` يحمل حقولًا مقيّدة مشفّرة (db/model/15-workflow-notifications.model:283) بلا عمود مفتاح، خلافًا لقاعدة «عمود المفتاح في الصف يحدد الإصدار» (docs/20-database-design.md:200).
 - docs/20-database-design.md:183 وdb/model/10-platform.model:73 يذكران «KMS» دون منتج ولا موقع؛ القرار مفتوح (DQ-S02-1).
