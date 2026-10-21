@@ -1,0 +1,8 @@
+Code,NameAr,NameEn,Description,IsActive,IsSystem,IsLocked,SortOrder,SeedKey,AbbreviationAr,AbbreviationEn,CountryIso2,DefaultBodyTypes
+JOINT_STOCK,شركة مساهمة,Joint stock company,,1,1,0,1,CAT.ORG.JOINT_STOCK,ش.م,JSC,SA,"BOARD_OF_DIRECTORS,MANAGEMENT,GENERAL_ASSEMBLY"
+SIMPLIFIED_JOINT_STOCK,شركة مساهمة مبسطة,Simplified joint stock company,,1,1,0,2,CAT.ORG.SIMPLIFIED_JOINT_STOCK,,SJSC,SA,"BOARD_OF_DIRECTORS,MANAGEMENT,GENERAL_ASSEMBLY"
+LLC,شركة ذات مسؤولية محدودة,Limited liability company,,1,1,0,3,CAT.ORG.LLC,ذ.م.م,LLC,SA,"BOARD_OF_MANAGERS,MANAGEMENT,GENERAL_ASSEMBLY"
+ONE_PERSON_LLC,شركة ذات مسؤولية محدودة من شخص واحد,One-person limited liability company,,1,1,0,4,CAT.ORG.ONE_PERSON_LLC,,,SA,"BOARD_OF_MANAGERS,MANAGEMENT"
+REGIONAL_HQ,مقر إقليمي,Regional headquarters,,1,1,0,5,CAT.ORG.REGIONAL_HQ,,RHQ,SA,MANAGEMENT
+PARTNERSHIP,شركة تضامن,General partnership,"Proposed addition, to be confirmed by a specialist before production. Not in source 01 (Q-CAT-03).",1,1,0,6,CAT.ORG.PARTNERSHIP,,,SA,"MANAGEMENT,GENERAL_ASSEMBLY"
+FOREIGN_BRANCH,فرع شركة أجنبية,Branch of a foreign company,"Proposed addition, to be confirmed by a specialist before production. Not in source 01 (Q-CAT-03).",1,1,0,7,CAT.ORG.FOREIGN_BRANCH,,,SA,MANAGEMENT

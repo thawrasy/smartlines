@@ -48,6 +48,28 @@ public sealed class OpaqueRefs(IDataProtectionProvider provider)
         catch (CryptographicException) { return null; }
     }
 
+    private readonly IDataProtector _item = provider.CreateProtector("BankFas.ItemRef");
+
+    /// <summary>A reference to a row without a PublicId (a catalogue item, a sub-resource), tied to its tenant and kind.</summary>
+    public string ItemRef(int tenantId, string kind, long id) =>
+        Base64Url.Encode(_item.Protect(Encoding.UTF8.GetBytes(string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{tenantId}:{kind}:{id}"))));
+
+    /// <summary>The id of an <see cref="ItemRef"/> of this tenant and kind, or null.</summary>
+    public long? ItemId(int tenantId, string kind, string? reference)
+    {
+        if (string.IsNullOrEmpty(reference)) return null;
+        try
+        {
+            var raw = Base64Url.TryDecode(reference);
+            if (raw is null) return null;
+            var text = Encoding.UTF8.GetString(_item.Unprotect(raw));
+            var prefix = string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{tenantId}:{kind}:");
+            return text.StartsWith(prefix, StringComparison.Ordinal)
+                && long.TryParse(text[prefix.Length..], System.Globalization.CultureInfo.InvariantCulture, out var id) ? id : null;
+        }
+        catch (CryptographicException) { return null; }
+    }
+
     public string Cursor(string scope, long lastId) => Base64Url.Encode(_cursor.Protect(Encoding.UTF8.GetBytes($"{scope}:{lastId}")));
 
     /// <summary>The last id of the previous page, or 400 INVALID_CURSOR for a cursor this server did not issue for this list.</summary>

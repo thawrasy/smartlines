@@ -1,0 +1,5 @@
+Code,NameAr,NameEn,Function,IsTreasury,IsActive,SeedKey
+TREASURY,إدارة الخزينة,Treasury,TREASURY,1,1,CORE.DEPARTMENTS.TREASURY
+PROCUREMENT,إدارة المشتريات,Procurement,PROCUREMENT,0,1,CORE.DEPARTMENTS.PROCUREMENT
+SALES,إدارة المبيعات,Sales,SALES,0,1,CORE.DEPARTMENTS.SALES
+FINANCE,الإدارة المالية,Finance,FINANCE,0,1,CORE.DEPARTMENTS.FINANCE

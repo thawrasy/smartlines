@@ -1,0 +1,19 @@
+{
+  "PackKey": "CORE.DEPARTMENTS",
+  "SeedVersion": 1,
+  "Slice": "S1",
+  "Status": "Proposed default written by an AI agent from spec 11 §6.4 (🟡 items to be reviewed by a specialist); the tenant may edit or deactivate non-locked rows",
+  "Tables": [
+    "org.Department.csv"
+  ],
+  "DependsOn": [],
+  "References": {},
+  "Sources": [
+    "docs/10-detailed-analysis/10-m0-m1-platform-organization.md FR-ORG-014",
+    "db/model/11-organization-party.model (org.Department: CompanyId optional, a tenant-level department)",
+    "docs/30-readiness/DOC-B05-seed-and-initial-migration-plan.md section 5.1 (CORE.DEPARTMENTS)"
+  ],
+  "Notes": {
+    "org.Department": "Tenant-level departments (CompanyId empty), one per function; the tenant attaches them to a company or adds its own."
+  }
+}

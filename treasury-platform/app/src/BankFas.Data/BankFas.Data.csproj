@@ -6,6 +6,10 @@
     <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
   </ItemGroup>
+  <!-- The tenant seed packs (db/seed/packs), next to every application that runs the seeder. -->
+  <ItemGroup>
+    <None Include="..\..\..\db\seed\packs\**\*" LinkBase="packs" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\BankFas.Core\BankFas.Core.csproj" />
   </ItemGroup>

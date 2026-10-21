@@ -41,10 +41,12 @@ public static class DbProblemMap
         DbErrors.CodeReserved or DbErrors.CodeInUse => (409, "CODE_UNAVAILABLE", "This sub-domain is not available."),
         DbErrors.CloseWaitsForExport => (409, "EXPORT_REQUIRED", "Closing waits for the data export."),
         DbErrors.RolesNotSeeded => (409, "NOT_READY", "The account is still being prepared."),
+        DbErrors.SeedRowsOnly => (409, "SYSTEM_ITEM", "System and locked items come from the default packs only."),
         DbErrors.RowFilterWriteRefused => (403, "TENANT_READ_ONLY", "The account is read-only in its current status."),
         DbErrors.PermissionDenied or DbErrors.ColumnPermissionDenied => (403, "FORBIDDEN", "You may not do this."),
         DbErrors.UniqueViolation or DbErrors.UniqueIndexViolation => (409, "CONFLICT", "A record with these values already exists."),
         DbErrors.CheckViolation => (422, "VALIDATION_FAILED", "A value is not valid."),
+        DbErrors.NullNotAllowed => (422, "REQUIRED_FIELD", "A required field is missing."),
         _ => null,
     };
 }

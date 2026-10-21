@@ -87,6 +87,7 @@ RoleEndpoints.Map(portal);
 MeEndpoints.Map(portal);
 ConfigEndpoints.Map(portal);
 SupportEndpoints.Map(portal);
+CatalogEndpoints.Map(portal);
 var panel = app.MapGroup("/api/v1/operator").AddEndpointFilter(SurfaceFilter(Surface.OperatorPanel));
 OperatorEndpoints.Map(panel);
 OperatorAdminEndpoints.Map(panel);

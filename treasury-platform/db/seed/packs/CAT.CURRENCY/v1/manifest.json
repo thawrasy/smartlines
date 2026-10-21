@@ -1,0 +1,24 @@
+{
+  "PackKey": "CAT.CURRENCY",
+  "SeedVersion": 1,
+  "Slice": "S1",
+  "Status": "Proposed default written by an AI agent from spec 11 §6.4 (🟡 items to be reviewed by a specialist); the tenant may edit or deactivate non-locked rows",
+  "Tables": [
+    "cat.TenantCurrency.csv"
+  ],
+  "DependsOn": [],
+  "References": {
+    "cat.TenantCurrency.csv": {
+      "CurrencyCode": {
+        "Column": "CurrencyId",
+        "Table": "ref.Currency",
+        "Key": "Code"
+      }
+    }
+  },
+  "Sources": [
+    "docs/10-detailed-analysis/11-m2-m4-institutions-accounts-catalogs.md section 6.4 (Currency)",
+    "Q-CAT-08",
+    "docs/30-readiness/DOC-B05-seed-and-initial-migration-plan.md section 5.1 (CAT.CURRENCY)"
+  ]
+}

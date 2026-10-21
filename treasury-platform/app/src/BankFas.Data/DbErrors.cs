@@ -29,6 +29,7 @@ public static class DbErrors
     public const int CodeInUse = 50026;
     public const int CloseWaitsForExport = 50027;
     public const int RolesNotSeeded = 50028;
+    public const int SeedRowsOnly = 50174;
     public const int KeyNotActive = 50098;
     public const int RowFilterWriteRefused = 33504;
     public const int PermissionDenied = 229;
@@ -36,6 +37,7 @@ public static class DbErrors
     public const int UniqueViolation = 2627;
     public const int UniqueIndexViolation = 2601;
     public const int CheckViolation = 547;
+    public const int NullNotAllowed = 515;
     public const int Deadlock = 1205;
 
     /// <summary>The number of the first error of a database exception, or null for any other exception.</summary>

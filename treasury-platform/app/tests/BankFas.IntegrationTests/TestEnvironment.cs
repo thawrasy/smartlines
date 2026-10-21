@@ -109,7 +109,7 @@ public sealed class TestEnvironment : WebApplicationFactory<Program>
     /// <summary>The onboarding job as the worker runs it, with this application's keys and mail drop.</summary>
     public OnboardingJob OnboardingJob() =>
         new(Services.GetRequiredService<SqlConnectionFactory>(), Services.GetRequiredService<IKeyWrapper>(), new FileDropMailSender(MailDir),
-            new PortalOptions { Domain = Domain });
+            new PortalOptions { Domain = Domain }, new BankFas.Data.Seeding.SeedPacks(BankFas.Data.Seeding.TenantSeeder.PacksDirectory(null)));
 
     /// <summary>The newest mail to an address, and the token of its link.</summary>
     public string LinkTokenSentTo(string email)
@@ -141,6 +141,20 @@ public sealed class TestEnvironment : WebApplicationFactory<Program>
         await using var c = new SqlConnection(cs.ConnectionString);
         await c.OpenAsync();
         await Dapper.SqlMapper.ExecuteAsync(c, sql, args);
+    }
+
+    /// <summary>The internal id of a tenant, by its code (sa; plat.Tenant has no row filter).</summary>
+    public static async Task<int> TenantIdAsync(string code)
+    {
+        var saFile = Environment.GetEnvironmentVariable("BANKFAS_IT_SA_FILE") ?? throw new InvalidOperationException("BANKFAS_IT_SA_FILE is not set.");
+        var cs = new SqlConnectionStringBuilder
+        {
+            DataSource = DbServer, InitialCatalog = "BankFas", UserID = "sa", Password = File.ReadAllText(saFile).Trim(),
+            Encrypt = SqlConnectionEncryptOption.Mandatory, TrustServerCertificate = true,
+        };
+        await using var c = new SqlConnection(cs.ConnectionString);
+        await c.OpenAsync();
+        return await Dapper.SqlMapper.ExecuteScalarAsync<int>(c, "SELECT TenantId FROM plat.Tenant WHERE Code = @code;", new { code });
     }
 
     /// <summary>Stands in for the deployment: the first operator administrator's invitation, once per database.</summary>

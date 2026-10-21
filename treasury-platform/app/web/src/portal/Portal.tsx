@@ -5,6 +5,7 @@ import { LangSwitch, useI18n } from '../i18n';
 import { StepUpProvider } from '../ui';
 import { Enrol, ForgotPassword, Invitation, Login, Mfa, ResetPassword, type Tenant } from './Auth';
 import { Audit, Jobs, Numbering, Settings, Support } from './Admin';
+import { Catalogs } from './Catalogs';
 import { Profile } from './Profile';
 import { RoleDetail, Roles } from './Roles';
 import { UserDetail, Users } from './Users';
@@ -28,6 +29,7 @@ const menu: { to: string; label: string; permission?: string; anyOf?: string[] }
   { to: '/numbering', label: 'Numbering', permission: 'cfg.numbering.manage' },
   { to: '/audit', label: 'Audit log', anyOf: ['audit.view', 'audit.view.treasury'] },
   { to: '/jobs', label: 'Background jobs', permission: 'cfg.jobs.view' },
+  { to: '/catalogs', label: 'Catalogues', anyOf: ['cat.manage.general', 'cat.manage.financial'] },
   { to: '/profile', label: 'My profile' },
 ];
 
@@ -70,6 +72,7 @@ function Shell() {
               <Route path="/numbering" element={<Numbering />} />
               <Route path="/audit" element={<Audit />} />
               <Route path="/jobs" element={<Jobs />} />
+              <Route path="/catalogs" element={<Catalogs />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="*" element={<Navigate to="/" />} />
             </Routes>

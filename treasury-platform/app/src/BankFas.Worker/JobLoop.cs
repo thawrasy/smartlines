@@ -7,11 +7,11 @@ namespace BankFas.Worker;
 /// <summary>
 /// The S0 schedule (brief section 6): every 10 seconds JOB-PLT-ONBOARD and JOB-PLT-OUTBOX; once a day (UTC) the tenant
 /// transitions JOB-PLT-TRIAL-EXPIRE and JOB-PLT-ARCHIVE, the trial reminders, and the two purges, which themselves run
-/// at most weekly per tenant. A failed pass is logged and taken up again on the next one; every job is safe to run twice.
+/// at most weekly per tenant, and the UPGRADE run of the tenant packs (S1). A failed pass is logged and taken up again on the next one; every job is safe to run twice.
 /// One worker process in S0 (DOC-F17 section 3).
 /// </summary>
 public sealed partial class JobLoop(OnboardingJob onboarding, OutboxJob outbox, TrialReminderJob reminders, OutboxPurgeJob outboxPurge,
-    JobRunPurgeJob runPurge, SqlConnectionFactory db, TimeProvider clock, ILogger<JobLoop> logger) : BackgroundService
+    JobRunPurgeJob runPurge, SeedUpgradeJob seedUpgrade, SqlConnectionFactory db, TimeProvider clock, ILogger<JobLoop> logger) : BackgroundService
 {
     private DateOnly _dailyDoneOn;
 
@@ -35,6 +35,7 @@ public sealed partial class JobLoop(OnboardingJob onboarding, OutboxJob outbox, 
                 await RunAsync(reminders.JobKey, () => reminders.RunOnceAsync(stoppingToken));
                 await RunAsync(outboxPurge.JobKey, () => outboxPurge.RunOnceAsync(stoppingToken));
                 await RunAsync(runPurge.JobKey, () => runPurge.RunOnceAsync(stoppingToken));
+                await RunAsync("seed upgrade", () => seedUpgrade.RunOnceAsync(stoppingToken));
                 _dailyDoneOn = today;
             }
         }

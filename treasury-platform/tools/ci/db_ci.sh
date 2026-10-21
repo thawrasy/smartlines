@@ -100,6 +100,7 @@ python3 tools/dbgen/check_fk_indexes.py
 python3 tools/dbgen/check_grants.py
 python3 tools/dbgen/check_review_fixes.py | tail -1   # the design-review fixes in the generated DDL (C-12, O-15)
 python3 tools/dbgen/ntf_pack.py   # the tenant pack NTF.BASE: columns, placeholders, templates and rules (ADR 0028)
+python3 tools/dbgen/tenant_packs.py > /dev/null   # the S1 tenant packs: columns, references, checks and counts (S1-A)
 # The stress cases of the independent credit review fall within the reviewer's grade ranges (docs/35 section 13).
 python3 tools/dbgen/credit_stress.py > "$TMP/stress.out" || {
     cat "$TMP/stress.out"
@@ -403,9 +404,10 @@ if grep -qaE "$FAIL_RE" "$TMP/reference.out"; then
     exit 1
 fi
 ref_pass=$(grep -oaE "$PASS_RE" "$TMP/reference.out" | sort -u | wc -l)
-# 4 cases: R1-R4 (a tenant reads the global lists and the platform UCP articles, writes none of them; seed hygiene).
-if [ "$ref_pass" -ne 4 ]; then
-    echo "expected 4 PASS, found $ref_pass"
+# 8 cases: R1-R4 (a tenant reads the global lists and the platform UCP articles, writes none of them; seed hygiene),
+# R5-R8 (the catalogue guards of 060).
+if [ "$ref_pass" -ne 8 ]; then
+    echo "expected 8 PASS, found $ref_pass"
     exit 1
 fi
 echo "reference data tests: $ref_pass passed"

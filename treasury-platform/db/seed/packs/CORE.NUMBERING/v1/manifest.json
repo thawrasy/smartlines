@@ -1,0 +1,20 @@
+{
+  "PackKey": "CORE.NUMBERING",
+  "SeedVersion": 1,
+  "Slice": "S1",
+  "Status": "Proposed default written by an AI agent from spec 11 §6.4 (🟡 items to be reviewed by a specialist); the tenant may edit or deactivate non-locked rows",
+  "Tables": [
+    "cfg.NumberSequenceDefinition.csv"
+  ],
+  "DependsOn": [],
+  "References": {},
+  "Sources": [
+    "docs/10-detailed-analysis/10-m0-m1-platform-organization.md FR-PLT-026, BR-PLT-010 and section 6.2 (Party.PartyCode)",
+    "db/static/039_numbering.sql (pattern rules)",
+    "docs/30-readiness/DOC-B05-seed-and-initial-migration-plan.md section 5.1 (CORE.NUMBERING)"
+  ],
+  "NotSeeded": {
+    "PROFORMA": "Its pattern {seq:000}-{erp}-{yy} needs the company scope (one counter per tenant, company and year; {erp} is accepted only with ScopeLevel COMPANY), so it is left out.",
+    "req:<TypeCode>": "Request numbers (BR-WFL-013) use one definition per request type, keyed by wfl.RequestType.Code; the types are seeded with WFL.BASE in S3, so their definitions belong there."
+  }
+}

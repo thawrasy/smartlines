@@ -35,12 +35,13 @@ public sealed class PortalOptions
 /// <summary>
 /// JOB-PLT-ONBOARD (DOC-F05 4.3, ADR 0004): for each tenant.created event, bound as the tenant's service account,
 /// (1) claims the event, (2) creates the tenant keys DATA, BLIND_INDEX and FILE (version 1, wrapped by the master key
-/// outside the database), (3) seeds the system roles (sec.usp_SeedCoreRoles), (4) gives the first administrator every
+/// outside the database), (3) seeds the system roles (sec.usp_SeedCoreRoles) and the S1 packs (catalogues, numbering,
+/// expiry rules; <see cref="Seeding.TenantSeeder"/>), (4) gives the first administrator every
 /// company (DQ-F07-2) and the TA role with an invitation link (sec.usp_InviteFirstAdministrator), then (5) sends the
 /// e-mail and records whether it went. Each step is safe to run again: keys that exist are kept, the seed inserts
 /// only what is missing, and a new invitation replaces an unused one.
 /// </summary>
-public sealed class OnboardingJob(SqlConnectionFactory db, IKeyWrapper keys, IMailSender mail, PortalOptions portal)
+public sealed class OnboardingJob(SqlConnectionFactory db, IKeyWrapper keys, IMailSender mail, PortalOptions portal, Seeding.SeedPacks packs)
 {
     public const string JobKey = "JOB-PLT-ONBOARD";
     private static readonly string[] KeyPurposes = ["DATA", "BLIND_INDEX", "FILE"];
@@ -92,10 +93,11 @@ public sealed class OnboardingJob(SqlConnectionFactory db, IKeyWrapper keys, IMa
 
             var token = SecureTokens.NewToken();
             string sentTo;
-            int rolesCreated;
+            int rolesCreated, seeded;
             await using (var tx = (SqlTransaction)await c.BeginTransactionAsync(ct).ConfigureAwait(false))
             {
                 (rolesCreated, _) = await JobProcedures.SeedCoreRolesAsync(c, tx, ct).ConfigureAwait(false);
+                seeded = (await Seeding.TenantSeeder.ApplyAsync(c, tx, packs.S1, ct).ConfigureAwait(false)).Sum(r => r.Created);
                 await c.ExecuteAsync(new CommandDefinition(
                     "UPDATE sec.AppUser SET CompanyScopeMode = 'ALL' WHERE AppUserId = @u AND CompanyScopeMode <> 'ALL';",
                     new { u = adminUserId }, tx, cancellationToken: ct)).ConfigureAwait(false);
@@ -132,7 +134,7 @@ public sealed class OnboardingJob(SqlConnectionFactory db, IKeyWrapper keys, IMa
                 {
                     s = sendStatus, err = sendError, u = adminUserId, h = SecureTokens.Sha256(token), id = ev.Id, me = _workerId, run = runId,
                     evStatus = sendStatus == "SENT" ? "DELIVERED" : "FAILED", runStatus = sendStatus == "SENT" ? "SUCCEEDED" : "FAILED",
-                    summary = $"keys created {created}, roles created {rolesCreated}, invitation {sendStatus.ToLowerInvariant()}",
+                    summary = $"keys created {created}, roles created {rolesCreated}, seed rows {seeded}, invitation {sendStatus.ToLowerInvariant()}",
                 }, cancellationToken: ct)).ConfigureAwait(false);
             return sendStatus == "SENT";
         }

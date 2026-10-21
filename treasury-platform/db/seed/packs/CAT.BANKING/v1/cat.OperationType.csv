@@ -1,0 +1,12 @@
+Code,NameAr,NameEn,Description,IsActive,IsSystem,IsLocked,SortOrder,SeedKey,SupportsCeiling,OperationGroup
+WITHDRAW,السحب,Withdrawal,,1,1,0,1,CAT.BANKING.WITHDRAW,1,MONEY
+DEPOSIT,الإيداع,Deposit,,1,1,0,2,CAT.BANKING.DEPOSIT,0,MONEY
+CHEQUES,الشيكات,Cheques,,1,1,0,3,CAT.BANKING.CHEQUES,1,MONEY
+CASH,العمليات النقدية,Cash,,1,1,0,4,CAT.BANKING.CASH,1,MONEY
+FACILITIES,التسهيلات الائتمانية,Credit facilities,,1,1,0,5,CAT.BANKING.FACILITIES,1,CREDIT
+LC,الاعتمادات المستندية,Letters of credit,,1,1,0,6,CAT.BANKING.LC,1,CREDIT
+FINANCING,التمويل,Financing,,1,1,0,7,CAT.BANKING.FINANCING,1,CREDIT
+REPRESENT_COMPANY,تمثيل الشركة لدى البنك,Represent the company,,1,1,0,8,CAT.BANKING.REPRESENT_COMPANY,0,REPRESENTATION
+TRANSFERS,الحوالات,Transfers,"Proposed addition, to be confirmed by a specialist before production. Not in sources 01-04 (Q-CAT-11).",1,1,0,9,CAT.BANKING.TRANSFERS,1,MONEY
+ONLINE_BANKING,الخدمات المصرفية الإلكترونية,Online banking,"Proposed addition, to be confirmed by a specialist before production. Not in sources 01-04 (Q-CAT-11).",1,1,0,10,CAT.BANKING.ONLINE_BANKING,0,CHANNEL
+CARDS,البطاقات,Cards,"Proposed addition, to be confirmed by a specialist before production. Not in sources 01-04 (Q-CAT-11).",1,1,0,11,CAT.BANKING.CARDS,0,CHANNEL

@@ -1,0 +1,20 @@
+Code,NameAr,NameEn,Description,IsActive,IsSystem,IsLocked,SortOrder,SeedKey,Nature,CalcHint
+ISSUANCE,رسوم الإصدار,Issuance,,1,1,0,1,CAT.BANKING.ISSUANCE,FEE,PERCENT
+TRANSFER,رسوم الحوالات,Transfer,,1,1,0,2,CAT.BANKING.TRANSFER,FEE,FIXED
+POS,رسوم نقاط البيع,Point of sale,,1,1,0,3,CAT.BANKING.POS,FEE,PERCENT
+PAYROLL_INTERNAL,رسوم الرواتب داخل البنك,Payroll within the bank,,1,1,0,4,CAT.BANKING.PAYROLL_INTERNAL,FEE,FIXED
+PAYROLL_EXTERNAL,رسوم الرواتب إلى بنوك أخرى,Payroll to other banks,,1,1,0,5,CAT.BANKING.PAYROLL_EXTERNAL,FEE,FIXED
+PAYROLL_CARDS,رسوم بطاقات الرواتب,Payroll cards,,1,1,0,6,CAT.BANKING.PAYROLL_CARDS,FEE,FIXED
+ADVISING,رسوم التبليغ,Advising,,1,1,0,7,CAT.BANKING.ADVISING,FEE,FIXED
+LC_AMENDMENT,رسوم تعديل الاعتماد المستندي,Letter of credit amendment,,1,1,0,8,CAT.BANKING.LC_AMENDMENT,FEE,FIXED
+GUARANTEE_AMENDMENT,رسوم تعديل خطاب الضمان,Guarantee amendment,,1,1,0,9,CAT.BANKING.GUARANTEE_AMENDMENT,FEE,FIXED
+ADMIN,الرسوم الإدارية,Administrative,,1,1,0,10,CAT.BANKING.ADMIN,FEE,FIXED
+COMMISSION,العمولة,Commission,,1,1,0,11,CAT.BANKING.COMMISSION,FEE,PERCENT
+ARRANGEMENT,رسوم الترتيب,Arrangement,,1,1,0,12,CAT.BANKING.ARRANGEMENT,FEE,PERCENT
+LATE_PENALTY,غرامة التأخر في السداد,Late payment penalty,Not revenue: paid to charity and reported as non-income (BR-CAT-005).,1,1,1,13,CAT.BANKING.LATE_PENALTY,PENALTY_NON_INCOME,
+DEFERRAL,رسوم التأجيل,Deferral,,1,1,0,14,CAT.BANKING.DEFERRAL,FEE,PERCENT
+ACCEPTANCE,رسوم القبول,Acceptance,,1,1,0,15,CAT.BANKING.ACCEPTANCE,FEE,PERCENT
+TREASURY,رسوم عمليات الخزينة,Treasury,,1,1,0,16,CAT.BANKING.TREASURY,FEE,
+COLLECTION_DOCS,رسوم مستندات التحصيل,Collection documents,,1,1,0,17,CAT.BANKING.COLLECTION_DOCS,FEE,FIXED
+NEGOTIATION_PAYMENT,رسوم التداول والدفع,Negotiation and payment,,1,1,0,18,CAT.BANKING.NEGOTIATION_PAYMENT,FEE,PERCENT
+CONFIRMATION,رسوم التعزيز,Confirmation,,1,1,0,19,CAT.BANKING.CONFIRMATION,FEE,PERCENT

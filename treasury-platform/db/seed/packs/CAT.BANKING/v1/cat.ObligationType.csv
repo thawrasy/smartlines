@@ -1,0 +1,31 @@
+Code,NameAr,NameEn,Description,IsActive,IsSystem,IsLocked,SortOrder,SeedKey,Family,MeasureKind,IsQualitative,DefaultDeadlineBasis,DefaultUnit
+AUDITED_ANNUAL_FS,القوائم المالية السنوية المدققة,Audited annual financial statements,,1,1,0,1,CAT.BANKING.AUDITED_ANNUAL_FS,REPORTING,,0,AFTER_FISCAL_YEAR_END,
+INTERNAL_SEMIANNUAL_FS,القوائم المالية النصف سنوية الداخلية,Internal semi-annual financial statements,,1,1,0,2,CAT.BANKING.INTERNAL_SEMIANNUAL_FS,REPORTING,,0,AFTER_PERIOD_END,
+QUARTERLY_FS,القوائم المالية الربع سنوية,Quarterly financial statements,,1,1,0,3,CAT.BANKING.QUARTERLY_FS,REPORTING,,0,AFTER_PERIOD_END,
+ZAKAT_CERT,شهادة الزكاة,Zakat certificate,,1,1,0,4,CAT.BANKING.ZAKAT_CERT,REPORTING,,0,AFTER_FISCAL_YEAR_END,
+GOSI_CERT,شهادة التأمينات الاجتماعية,Social insurance (GOSI) certificate,,1,1,0,5,CAT.BANKING.GOSI_CERT,REPORTING,,0,BEFORE_EVENT,
+NOTICE_OWNERSHIP_CHANGE,إشعار تغيير الملكية,Notice of a change of ownership,,1,1,0,6,CAT.BANKING.NOTICE_OWNERSHIP_CHANGE,REPORTING,,0,BEFORE_EVENT,
+NOTICE_BREACH,إشعار الإخلال,Notice of a breach,,1,1,0,7,CAT.BANKING.NOTICE_BREACH,REPORTING,,0,AFTER_EVENT,
+VALUATION_CERT,شهادة التقييم,Valuation certificate,,1,1,0,8,CAT.BANKING.VALUATION_CERT,REPORTING,,0,FIXED_DATE,
+PROMISSORY_RENEWAL,تجديد السند لأمر,Promissory note renewal,,1,1,0,9,CAT.BANKING.PROMISSORY_RENEWAL,REPORTING,,0,BEFORE_EVENT,
+INSURANCE_RENEWAL,تجديد وثيقة التأمين,Insurance renewal,,1,1,0,10,CAT.BANKING.INSURANCE_RENEWAL,REPORTING,,0,BEFORE_EVENT,
+MIN_TANGIBLE_NET_WORTH,الحد الأدنى لصافي القيمة الملموسة,Minimum tangible net worth,,1,1,0,11,CAT.BANKING.MIN_TANGIBLE_NET_WORTH,COVENANT,AMOUNT,0,,
+DEBT_TO_EQUITY,نسبة الدين إلى حقوق الملكية,Debt to equity,,1,1,0,12,CAT.BANKING.DEBT_TO_EQUITY,COVENANT,RATIO,0,,x
+CURRENT_RATIO,نسبة التداول,Current ratio,,1,1,0,13,CAT.BANKING.CURRENT_RATIO,COVENANT,RATIO,0,,x
+DSCR,نسبة تغطية خدمة الدين,Debt service coverage ratio,,1,1,0,14,CAT.BANKING.DSCR,COVENANT,RATIO,0,,x
+NET_DEBT_TO_EBITDA,صافي الدين إلى الأرباح قبل الفوائد والضرائب والإهلاك والاستهلاك,Net debt to EBITDA,,1,1,0,15,CAT.BANKING.NET_DEBT_TO_EBITDA,COVENANT,RATIO,0,,x
+REVENUE_CHANNELLING_PCT,نسبة توجيه الإيرادات إلى البنك,Revenue channelling percentage,,1,1,0,16,CAT.BANKING.REVENUE_CHANNELLING_PCT,COVENANT,PERCENT_OF_REVENUE,0,,%
+CAPITAL_PRESERVATION,المحافظة على رأس المال,Capital preservation,,1,1,0,17,CAT.BANKING.CAPITAL_PRESERVATION,COVENANT,AMOUNT,0,,
+MIN_AVG_BALANCE,الحد الأدنى لمتوسط الرصيد,Minimum average balance,,1,1,0,18,CAT.BANKING.MIN_AVG_BALANCE,COVENANT,AVERAGE_BALANCE,0,,
+MIN_INFLOW,الحد الأدنى للتدفقات الواردة,Minimum inflow,,1,1,0,19,CAT.BANKING.MIN_INFLOW,COVENANT,FLOW_VOLUME,0,,
+NO_DIVIDENDS,عدم توزيع الأرباح,No dividends,,1,1,0,20,CAT.BANKING.NO_DIVIDENDS,COVENANT,NONE,1,,
+NO_OWNERSHIP_CHANGE,عدم تغيير الملكية,No change of ownership,,1,1,0,21,CAT.BANKING.NO_OWNERSHIP_CHANGE,COVENANT,NONE,1,,
+SALES_PROCEEDS_DIRECTION,توجيه متحصلات المبيعات,Direction of sales proceeds,,1,1,0,22,CAT.BANKING.SALES_PROCEEDS_DIRECTION,COVENANT,NONE,1,,
+CASH_MGMT_SHARE,حصة البنك من أعمال إدارة النقد,Share of cash management business,,1,1,0,23,CAT.BANKING.CASH_MGMT_SHARE,COVENANT,NONE,1,,
+FIRST_OFFER_RIGHT,حق العرض الأول,Right of first offer,,1,1,0,24,CAT.BANKING.FIRST_OFFER_RIGHT,COVENANT,NONE,1,,
+BENEFICIARY_COMPANY_RESTRICTION,تقييد الشركة المستفيدة,Beneficiary company restriction,,1,1,0,25,CAT.BANKING.BENEFICIARY_COMPANY_RESTRICTION,TRANSACTION_RESTRICTION,,0,,
+SHIPMENT_MODE_APPROVAL,موافقة البنك على طريقة الشحن,Shipment mode approval,,1,1,0,26,CAT.BANKING.SHIPMENT_MODE_APPROVAL,TRANSACTION_RESTRICTION,,0,,
+INSURANCE_DOC_CONDITION,شرط مستند التأمين,Insurance document condition,,1,1,0,27,CAT.BANKING.INSURANCE_DOC_CONDITION,TRANSACTION_RESTRICTION,,0,,
+LATE_PAYMENT_GRACE_DAYS,مهلة السماح للسداد المتأخر,Late payment grace days,,1,1,0,28,CAT.BANKING.LATE_PAYMENT_GRACE_DAYS,STATIC_CLAUSE,,0,,days
+EARLY_SETTLEMENT_NOTICE_DAYS,مدة الإشعار للسداد المبكر,Early settlement notice days,,1,1,0,29,CAT.BANKING.EARLY_SETTLEMENT_NOTICE_DAYS,STATIC_CLAUSE,,0,,days
+CREDIT_BUREAU_LISTING_DAYS,مهلة الإدراج لدى الشركة السعودية للمعلومات الائتمانية (سمة),Credit bureau (SIMAH) listing days,,1,1,0,30,CAT.BANKING.CREDIT_BUREAU_LISTING_DAYS,STATIC_CLAUSE,,0,,days

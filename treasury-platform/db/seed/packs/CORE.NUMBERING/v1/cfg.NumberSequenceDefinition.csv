@@ -1,0 +1,2 @@
+SequenceKey,Pattern,ScopeLevel,PeriodBasis,GapPolicy,MinWidth,IsActive,SeedKey
+PARTY,P{seq:000000},TENANT,NONE,ALLOW_GAPS,,1,CORE.NUMBERING.PARTY

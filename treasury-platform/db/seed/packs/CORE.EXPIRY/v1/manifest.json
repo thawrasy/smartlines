@@ -1,0 +1,37 @@
+{
+  "PackKey": "CORE.EXPIRY",
+  "SeedVersion": 1,
+  "Slice": "S1",
+  "Status": "Proposed default written by an AI agent from spec 11 §6.4 (🟡 items to be reviewed by a specialist); the tenant may edit or deactivate non-locked rows",
+  "Tables": [
+    "cfg.ExpiryAlertRule.csv",
+    "cfg.ExpiryAlertRuleRole.csv"
+  ],
+  "DependsOn": [
+    "CORE.ROLES"
+  ],
+  "References": {
+    "cfg.ExpiryAlertRuleRole.csv": {
+      "ExpiryAlertRuleSeedKey": {
+        "Column": "ExpiryAlertRuleId",
+        "Table": "cfg.ExpiryAlertRule",
+        "Key": "SeedKey"
+      },
+      "RoleSeedKey": {
+        "Column": "RoleId",
+        "Table": "sec.Role",
+        "Key": "SeedKey"
+      }
+    }
+  },
+  "Sources": [
+    "docs/10-detailed-analysis/10-m0-m1-platform-organization.md section 9.2 and BR-PLT-013",
+    "db/model/10-platform.model (cfg.ExpiryAlertRule, cfg.ExpiryAlertRuleRole)",
+    "docs/30-readiness/DOC-B05-seed-and-initial-migration-plan.md section 5.1 (CORE.EXPIRY)"
+  ],
+  "NotSeeded": {
+    "BODY_TERM": "Governing body and member terms (90/30) are slice S1-b.",
+    "AUTHORITY_GRANT": "Authority grants (60/30/7) are slice S1-b.",
+    "Ownership and completeness alerts": "Not expiry rules (immediate or on event; S1-b and S2)."
+  }
+}

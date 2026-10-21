@@ -230,3 +230,29 @@ public sealed class TrialReminderJob(SqlConnectionFactory db, IMailSender mail, 
         return $"reminded {due.Value} day(s) before {endText}";
     }
 }
+
+/// <summary>
+/// The UPGRADE run of the tenant packs (DOC-B05 section 5.1, DQ-F05-9): a tenant onboarded before a pack existed gets
+/// it here, insert only, bound as the onboarding job. A tenant whose onboarding has not seeded CORE.ROLES yet is left
+/// to the onboarding job. Daily, and at the start of the worker.
+/// </summary>
+public sealed class SeedUpgradeJob(SqlConnectionFactory db, Seeding.SeedPacks packs) : TenantJob(db)
+{
+    public override string JobKey => OnboardingJob.JobKey;
+
+    protected override async Task<string?> RunForTenantAsync(SqlConnection c, JobTenant tenant, Guid correlation, CancellationToken ct)
+    {
+        var onboarded = await c.ExecuteScalarAsync<int>(new CommandDefinition(
+            "SELECT COUNT(*) FROM cfg.SeedRun WHERE PackKey = 'CORE.ROLES' AND Status = 'SUCCEEDED';", cancellationToken: ct)).ConfigureAwait(false);
+        if (onboarded == 0) return null;
+        IReadOnlyList<Seeding.SeedResult> results;
+        await using (var tx = (SqlTransaction)await c.BeginTransactionAsync(ct).ConfigureAwait(false))
+        {
+            try { results = await Seeding.TenantSeeder.ApplyAsync(c, tx, packs.S1, ct).ConfigureAwait(false); }
+            catch (InvalidDataException ex) { throw new InvalidOperationException(ex.Message, ex); }
+            await tx.CommitAsync(ct).ConfigureAwait(false);
+        }
+        var ran = results.Where(r => !r.AlreadyRun).ToList();
+        return ran.Count == 0 ? null : string.Join("; ", ran.Select(r => $"{r.PackKey} v{r.SeedVersion}: {r.Created} created, {r.Skipped} present"));
+    }
+}
