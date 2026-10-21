@@ -578,7 +578,7 @@ BEGIN TRY EXEC sec.usp_SetSessionContext @TenantId = @t1, @SessionToken = @tok1;
 BEGIN CATCH SET @err = ERROR_NUMBER(); END CATCH;
 BEGIN TRY EXEC sec.usp_ConfirmMfa @TenantId = @t1, @SessionToken = @tok1, @Passed = 0; END TRY
 BEGIN CATCH SET @err2 = ERROR_NUMBER(); END CATCH;
-BEGIN TRY EXEC sec.usp_ConfirmMfa @TenantId = @t1, @SessionToken = @tok1, @Passed = 1; END TRY
+BEGIN TRY EXEC sec.usp_ConfirmMfa @TenantId = @t1, @SessionToken = @tok1, @Passed = 1, @Step = 1; END TRY
 BEGIN CATCH SET @err3 = ERROR_NUMBER(); END CATCH;
 REVERT;
 SELECT @n = COUNT(*) FROM sec.UserSession WHERE TenantId = @t1 AND TokenHash = HASHBYTES('SHA2_256', @tok1) AND MfaVerifiedAt IS NOT NULL;

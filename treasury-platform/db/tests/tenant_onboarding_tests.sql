@@ -245,6 +245,29 @@ IF @e1 = 229 AND @n >= 1 AND @n2 >= 1 AND @n3 = 0 AND @e2 = 50024 AND @n4 = 2
 ELSE PRINT 'FAIL O5: tenant transition jobs (' + CONCAT(@e1, '/', @n, '/', @n2, '/', @n3, '/', @e2, '/', @n4) + ')';
 ROLLBACK TRANSACTION o5;
 
+/* O6: an operator extends a trial while the tenant is still in TRIAL (GAP-10): a later end date is accepted and
+   audited with the old one, an end date that is not later is refused (50001). */
+SAVE TRANSACTION o6;
+SELECT @e1 = NULL, @t = NULL, @n = NULL, @n2 = NULL;
+SET @d = DATEADD(DAY, 45, @today);
+EXECUTE AS USER = N'tp_test_panel';
+EXEC plat.usp_CreateTenant @OperatorSessionToken = @os1, @Code = 'extend', @NameAr = N'ت', @NameEn = N'Extend', @PlanId = @plan,
+     @HomeCountryId = 1, @TimeZone = 'UTC', @AdminEmail = N'admin@extend.invalid', @AdminDisplayName = N'Admin', @TenantId = @t OUTPUT;
+EXEC plat.usp_SetTenantStatus @OperatorSessionToken = @os1, @TenantId = @t, @Status = 'TRIAL', @TrialEndsOn = @d;
+SET @d = DATEADD(DAY, 40, @today);
+BEGIN TRY EXEC plat.usp_SetTenantStatus @OperatorSessionToken = @os1, @TenantId = @t, @Status = 'TRIAL', @TrialEndsOn = @d; END TRY
+BEGIN CATCH SET @e1 = ERROR_NUMBER(); END CATCH;
+SELECT @n2 = COUNT(AuditLogId) FROM aud.AuditLog                -- a platform row: the panel reads it, as the row filter says
+ WHERE Action = 'TENANT_STATUS_CHANGED' AND EntityId = @t
+   AND JSON_VALUE(BeforeJson, '$.trialEndsOn') = CONVERT(CHAR(10), DATEADD(DAY, 30, @today), 23)
+   AND JSON_VALUE(AfterJson, '$.trialEndsOn') = CONVERT(CHAR(10), DATEADD(DAY, 45, @today), 23);
+REVERT;
+SELECT @n = COUNT(*) FROM plat.Tenant WHERE TenantId = @t AND Status = 'TRIAL' AND TrialEndsOn = DATEADD(DAY, 45, @today);
+IF @n = 1 AND @n2 = 1 AND @e1 = 50001
+    PRINT 'PASS O6: an operator extends a running trial to a later date only, and the old date is audited';
+ELSE PRINT 'FAIL O6: trial extension (' + CONCAT(@n, '/', @n2, '/', @e1) + ')';
+ROLLBACK TRANSACTION o6;
+
 ROLLBACK TRANSACTION;
 GO
 PRINT 'Tenant onboarding tests finished; every change is rolled back.';

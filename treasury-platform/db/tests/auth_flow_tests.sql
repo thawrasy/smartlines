@@ -8,7 +8,8 @@
        sqlcmd -S <server> -U sa -C -I -b -i db/tests/auth_flow_tests.sql
    A1 runs first in its own transaction, because an error raised in a trigger ends the transaction it runs in.
    S1 and S2 (tenant setting bounds, also a trigger) follow in their own transactions. Cases A2-A13 and S3-S6 then run
-   in one transaction with a savepoint each, rolled back at the end; A14 binds the connection for real, which makes
+   in one transaction with a savepoint each, rolled back at the end, then A15-A17 (the challenge key and step-up,
+   the outcome of an MFA check, the password rules before binding); A14 binds the connection for real, which makes
    its context read-only, so it is the last case. S cases cover the tenant security settings (DQ-S03-6, DQ-S04-14).
    Each case prints one line that starts with PASS or FAIL.
    ============================================================================ */
@@ -176,14 +177,19 @@ VALUES (@tf, @mfa, HASHBYTES('SHA2_256', @sv),  DATEADD(MINUTE, 30, SYSUTCDATETI
        (@tf, @mfa, HASHBYTES('SHA2_256', @sv2), DATEADD(MINUTE, 30, SYSUTCDATETIME()), DATEADD(HOUR, 12, SYSUTCDATETIME()), SYSUTCDATETIME());
 EXEC #Bind @tf, @adm;
 
-/* A2: the sub-domain code resolves to the tenant; an unknown code to nothing. */
+/* A2: the sub-domain code resolves to the tenant with its names for the login page (GAP-13); an unknown code to
+   nothing. */
 SAVE TRANSACTION a2;
-SELECT @id = NULL, @st = NULL, @n = 1;
+DECLARE @nameEn NVARCHAR(200), @nameAr NVARCHAR(200), @lang VARCHAR(2), @nameX NVARCHAR(200);
+SELECT @id = NULL, @st = NULL, @n = 1, @nameX = N'x';
+UPDATE plat.Tenant SET NameEn = N'Flow Trading', NameAr = N'فلو للتجارة' WHERE TenantId = @tf;
 EXECUTE AS USER = N'tp_test_app';
-EXEC sec.usp_ResolveTenant @Code = 'TST-FLOW', @TenantId = @id OUTPUT, @Status = @st OUTPUT;
-EXEC sec.usp_ResolveTenant @Code = 'NO-SUCH', @TenantId = @n OUTPUT;
+EXEC sec.usp_ResolveTenant @Code = 'TST-FLOW', @TenantId = @id OUTPUT, @Status = @st OUTPUT, @NameEn = @nameEn OUTPUT,
+     @NameAr = @nameAr OUTPUT, @DefaultLanguage = @lang OUTPUT;
+EXEC sec.usp_ResolveTenant @Code = 'NO-SUCH', @TenantId = @n OUTPUT, @NameEn = @nameX OUTPUT;
 REVERT;
-IF @id = @tf AND @st = 'ACTIVE' AND @n IS NULL PRINT 'PASS A2: the sub-domain resolves to its tenant, an unknown code to nothing';
+IF @id = @tf AND @st = 'ACTIVE' AND @n IS NULL AND @nameX IS NULL AND @nameEn = N'Flow Trading' AND @nameAr = N'فلو للتجارة' AND @lang = 'en'
+    PRINT 'PASS A2: the sub-domain resolves to its tenant and names, an unknown code to nothing';
 ELSE PRINT 'FAIL A2: tenant resolution';
 ROLLBACK TRANSACTION a2;
 
@@ -472,6 +478,75 @@ SELECT @n3 = Value FROM cfg.fn_SettingInt(@tf, 'custom.undefined', 99);
 IF @n = 30 AND @n2 = 3 AND @n3 = 99 PRINT 'PASS S6: stored values are held within the platform bounds';
 ELSE PRINT 'FAIL S6: setting bounds in cfg.fn_SettingInt (' + CONCAT(@n, '/', @n2, '/', @n3) + ')';
 ROLLBACK TRANSACTION s6;
+
+/* A15: the MFA challenge carries the wrapped tenant key, which the application cannot read before binding (GAP-2):
+   the user's key for a TOTP check, the tenant's ACTIVE DATA key for an enrolment. A step-up challenge is only for a
+   session whose check is done, and the first challenge only for one that waits for it (GAP-3). */
+SAVE TRANSACTION a15;
+DECLARE @k BIGINT, @wrap VARBINARY(512) = CRYPT_GEN_RANDOM(60), @wk VARBINARY(512), @mref VARCHAR(200), @kver INT, @kalg VARCHAR(30),
+        @verAt DATETIME2(3), @pub UNIQUEIDENTIFIER, @acc BIT, @sec2 VARBINARY(256), @key2 BIGINT, @wk2 VARBINARY(512), @enr2 BIT, @e5 INT;
+SELECT @e1 = NULL, @e2 = NULL, @sec = NULL, @key = NULL, @wk = NULL, @verAt = NULL;
+INSERT sec.TenantKey (TenantId, Purpose, KeyVersion, Status, WrappedKey, MasterKeyRef) VALUES (@tf, 'DATA', 1, 'PENDING', @wrap, 'local:test/1');
+SET @k = SCOPE_IDENTITY();
+UPDATE sec.TenantKey SET Status = 'ACTIVE', ActivatedAt = SYSUTCDATETIME() WHERE TenantKeyId = @k;
+UPDATE sec.AppUser SET MfaKeyId = @k WHERE AppUserId = @mfa;
+EXECUTE AS USER = N'tp_test_app';
+EXEC sec.usp_StartSession @TenantId = @tf, @Email = N'mfa@test.invalid', @PasswordHash = @phcM, @SessionToken = @s2;
+BEGIN TRY EXEC sec.usp_GetMfaChallenge @TenantId = @tf, @SessionToken = @s2, @StepUp = 1; END TRY
+BEGIN CATCH SET @e1 = ERROR_NUMBER(); END CATCH;
+EXEC sec.usp_GetMfaChallenge @TenantId = @tf, @SessionToken = @s2, @MfaSecretEnc = @sec OUTPUT, @MfaKeyId = @key OUTPUT,
+     @LastUsedStep = @last OUTPUT, @EnrolmentRequired = @enr OUTPUT, @WrappedKey = @wk OUTPUT, @MasterKeyRef = @mref OUTPUT,
+     @KeyVersion = @kver OUTPUT, @KeyAlgorithm = @kalg OUTPUT, @UserPublicId = @pub OUTPUT;
+EXEC sec.usp_ConfirmMfa @TenantId = @tf, @SessionToken = @s2, @Passed = 1, @Step = 101, @Accepted = @acc OUTPUT;
+BEGIN TRY EXEC sec.usp_GetMfaChallenge @TenantId = @tf, @SessionToken = @s2; END TRY
+BEGIN CATCH SET @e2 = ERROR_NUMBER(); END CATCH;
+EXEC sec.usp_GetMfaChallenge @TenantId = @tf, @SessionToken = @s2, @StepUp = 1, @MfaSecretEnc = @sec2 OUTPUT, @MfaVerifiedAt = @verAt OUTPUT;
+EXEC sec.usp_StartSession @TenantId = @tf, @Email = N'usr@test.invalid', @PasswordHash = @phcU, @SessionToken = @s1;
+EXEC sec.usp_GetMfaChallenge @TenantId = @tf, @SessionToken = @s1, @MfaSecretEnc = @sec2 OUTPUT, @MfaKeyId = @key2 OUTPUT,
+     @EnrolmentRequired = @enr2 OUTPUT, @WrappedKey = @wk2 OUTPUT;
+REVERT;
+IF @e1 = 50003 AND @e2 = 50003 AND @sec = @secret AND @key = @k AND @last = 100 AND @enr = 0 AND @wk = @wrap
+   AND @mref = 'local:test/1' AND @kver = 1 AND @kalg = 'AES-256-GCM' AND @pub = (SELECT PublicId FROM sec.AppUser WHERE AppUserId = @mfa)
+   AND @acc = 1 AND @verAt IS NOT NULL AND @enr2 = 1 AND @sec2 IS NULL AND @key2 = @k AND @wk2 = @wrap
+    PRINT 'PASS A15: the MFA challenge carries the wrapped tenant key; step-up only after the first check';
+ELSE PRINT 'FAIL A15: MFA challenge key or step-up (' + CONCAT(@e1, '/', @e2, '/', @acc, '/', @enr2, '/', IIF(@wk = @wrap, 1, 0), '/', IIF(@wk2 = @wrap, 1, 0)) + ')';
+ROLLBACK TRANSACTION a15;
+
+/* A16: sec.usp_ConfirmMfa says whether the check was recorded (GAP-4): a replayed step and a check without a step are
+   refused and counted as failures, the next step is accepted. */
+SAVE TRANSACTION a16;
+DECLARE @acc1 BIT, @acc2 BIT, @acc3 BIT;
+EXECUTE AS USER = N'tp_test_app';
+EXEC sec.usp_StartSession @TenantId = @tf, @Email = N'mfa@test.invalid', @PasswordHash = @phcM, @SessionToken = @s2;
+EXEC sec.usp_ConfirmMfa @TenantId = @tf, @SessionToken = @s2, @Passed = 1, @Step = 100, @Accepted = @acc1 OUTPUT;
+EXEC sec.usp_ConfirmMfa @TenantId = @tf, @SessionToken = @s2, @Passed = 1, @Accepted = @acc2 OUTPUT;
+EXEC sec.usp_ConfirmMfa @TenantId = @tf, @SessionToken = @s2, @Passed = 1, @Step = 102, @Accepted = @acc3 OUTPUT;
+REVERT;
+SELECT @n = COUNT(*) FROM sec.LoginAttempt WHERE UserId = @mfa AND Outcome = 'FAILED_MFA';
+SELECT @last = MfaLastUsedStep FROM sec.AppUser WHERE AppUserId = @mfa;
+IF @acc1 = 0 AND @acc2 = 0 AND @acc3 = 1 AND @n = 2 AND @last = 102
+    PRINT 'PASS A16: the MFA check reports a replayed or stepless code as refused and the next step as accepted';
+ELSE PRINT 'FAIL A16: MFA check outcome (' + CONCAT(@acc1, '/', @acc2, '/', @acc3, '/', @n, '/', @last) + ')';
+ROLLBACK TRANSACTION a16;
+
+/* A17: the password rules of a tenant can be read before binding (GAP-8): the platform defaults, a tenant's stricter
+   minimum length, and an unknown tenant refused (50002). */
+SAVE TRANSACTION a17;
+DECLARE @min1 INT, @min2 INT, @hist INT;
+SELECT @e1 = NULL;
+EXECUTE AS USER = N'tp_test_app';
+EXEC sec.usp_GetPasswordPolicy @TenantId = @tf, @MinLength = @min1 OUTPUT, @HistoryCount = @hist OUTPUT;
+REVERT;
+INSERT cfg.TenantSetting (TenantId, [Key], ValueJson) VALUES (@tf, 'security.password.min_length', N'16');
+EXECUTE AS USER = N'tp_test_app';
+EXEC sec.usp_GetPasswordPolicy @TenantId = @tf, @MinLength = @min2 OUTPUT;
+BEGIN TRY EXEC sec.usp_GetPasswordPolicy @TenantId = -1; END TRY
+BEGIN CATCH SET @e1 = ERROR_NUMBER(); END CATCH;
+REVERT;
+IF @min1 = 12 AND @hist = 5 AND @min2 = 16 AND @e1 = 50002
+    PRINT 'PASS A17: the password rules of a tenant are readable before binding';
+ELSE PRINT 'FAIL A17: password policy (' + CONCAT(@min1, '/', @hist, '/', @min2, '/', @e1) + ')';
+ROLLBACK TRANSACTION a17;
 
 /* A14: the whole path ends in a bound connection: login, enrolment, binding. Runs last, because the binding makes the
    connection's context read-only. */

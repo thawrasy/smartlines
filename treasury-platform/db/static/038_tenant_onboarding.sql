@@ -16,6 +16,7 @@
    Status changes (DOC-F05 6.2) go through one internal procedure, plat.usp_ApplyTenantStatus:
      plat.usp_SetTenantStatus           an operator administrator with a fresh MFA check. EXECUTE: tp_platform
      plat.usp_RunTenantTransitions      the daily platform jobs JOB-PLT-TRIAL-EXPIRE and JOB-PLT-ARCHIVE. EXECUTE: tp_jobs
+   An operator extends a running trial by setting TRIAL again with a later end date (GAP-10).
    Closing an ACTIVE or SUSPENDED tenant is refused until the data export (FR-PLT-039) exists (DQ-F05-7, 50027);
    a TRIAL tenant whose onboarding is cancelled may be closed (DQ-F05-4).
    The operator panel can no longer insert a tenant or change its code, status or status dates directly (DENYs at
@@ -186,7 +187,7 @@ BEGIN
         FROM plat.Tenant WITH (UPDLOCK, HOLDLOCK) WHERE TenantId = @TenantId;
         IF @old IS NULL THROW 50002, 'Unknown tenant', 1;
         IF @Actor = 'OPERATOR'
-            SET @ok = CASE WHEN @old = 'TRIAL' AND @Status IN ('ACTIVE', 'CLOSED') THEN 1
+            SET @ok = CASE WHEN @old = 'TRIAL' AND @Status IN ('TRIAL', 'ACTIVE', 'CLOSED') THEN 1   -- TRIAL again: extended (GAP-10)
                            WHEN @old = 'ACTIVE' AND @Status IN ('SUSPENDED', 'CLOSED') THEN 1
                            WHEN @old = 'SUSPENDED' AND @Status IN ('ACTIVE', 'TRIAL', 'CLOSED') THEN 1
                            ELSE 0 END;
@@ -201,6 +202,8 @@ BEGIN
             THROW 50001, 'A reason is required to suspend a tenant', 1;
         IF @Status = 'TRIAL' AND (@TrialEndsOn IS NULL OR @TrialEndsOn <= @today)
             THROW 50001, 'A new trial end date after today is required', 1;
+        IF @old = 'TRIAL' AND @Status = 'TRIAL' AND @trialEnds IS NOT NULL AND @TrialEndsOn <= @trialEnds
+            THROW 50001, 'An extended trial ends after the current trial end date', 1;
         IF @Status = 'CLOSED' AND (@Reason IS NULL OR LTRIM(@Reason) = N'')
             THROW 50001, 'A reason is required to close a tenant', 1;
 
@@ -222,7 +225,8 @@ BEGIN
         INSERT cfg.OutboxEvent (TenantId, EventName, AggregateType, AggregateId, PayloadJson)
         VALUES (@TenantId, 'tenant.status_changed', 'Tenant', @TenantId,
                 CONCAT(N'{"from":"', @old, N'","to":"', @Status, N'","by":"', @Actor, N'"}'));
-        DECLARE @before NVARCHAR(100) = (SELECT @old AS status FOR JSON PATH, WITHOUT_ARRAY_WRAPPER),
+        DECLARE @before NVARCHAR(100) = (SELECT @old AS status, CASE WHEN @old = 'TRIAL' THEN @trialEnds END AS trialEndsOn
+                                         FOR JSON PATH, WITHOUT_ARRAY_WRAPPER),
                 @after NVARCHAR(1000) = (SELECT @Status AS status, @Reason AS reason,
                                                 CASE WHEN @Status = 'TRIAL' THEN @TrialEndsOn END AS trialEndsOn
                                          FOR JSON PATH, WITHOUT_ARRAY_WRAPPER),

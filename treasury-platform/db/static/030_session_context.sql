@@ -11,8 +11,10 @@
                                 (FR-PLT-014: 30 minutes idle, 12 hours absolute; a tenant may set shorter ones,
                                 FR-PLT-043, read through cfg.fn_SettingInt).
      sec.usp_ConfirmMfa         records the result of the TOTP check. The application verifies the code, because the
-                                secret is encrypted with application keys (BR-PLT-006). A reused time step counts as
-                                a failure, and failures count toward the lockout (ADR 0003).
+                                secret is encrypted with application keys (BR-PLT-006). A reused time step, or none,
+                                counts as a failure, and failures count toward the lockout (ADR 0003); @Accepted says
+                                which it was (GAP-4). A session whose check is done takes another one the same way
+                                before a sensitive action (step-up, sec.usp_GetMfaChallenge @StepUp = 1).
      sec.usp_SetSessionContext  binds a connection to the tenant of a valid session. It takes the session token,
                                 not a user id, so the caller cannot choose the user (O-17). Every non-system user
                                 needs a recorded MFA check (ADR 0003), and the tenant status decides who may bind:
@@ -205,13 +207,15 @@ CREATE OR ALTER PROCEDURE sec.usp_ConfirmMfa
     @SessionToken VARBINARY(64),
     @Passed       BIT,                 -- result of the TOTP check done by the application
     @ClientIp     VARCHAR(45) = NULL,
-    @Step         BIGINT = NULL        -- TOTP time step of the accepted code; a step not after the last one is a replay
+    @Step         BIGINT = NULL,       -- TOTP time step of the accepted code; a step not after the last one is a replay
+    @Accepted     BIT = NULL OUTPUT    -- 1 when the check was recorded; 0 for a failed or replayed code (GAP-4)
 WITH EXECUTE AS N'tp_auth_exec'
 AS
 BEGIN
     SET NOCOUNT ON;
     DECLARE @now DATETIME2(3) = SYSUTCDATETIME(), @sid BIGINT, @uid BIGINT, @enrolled BIT, @lastStep BIGINT,
             @own BIT = 0, @locked BIT;
+    SET @Accepted = 0;
     IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END ELSE SAVE TRANSACTION sp_ConfirmMfa;
     BEGIN TRY
         SELECT @sid = s.UserSessionId, @uid = s.UserId, @enrolled = u.MfaEnabled, @lastStep = u.MfaLastUsedStep
@@ -223,14 +227,15 @@ BEGIN
         IF @sid IS NULL THROW 50003, 'No valid session for this tenant', 1;
         IF @enrolled = 0 THROW 50008, 'MFA enrolment is required first', 1;
 
-        IF @Passed = 1 AND @Step IS NOT NULL AND @lastStep IS NOT NULL AND @Step <= @lastStep
-            SET @Passed = 0;                                            -- a replayed code
+        IF @Passed = 1 AND (@Step IS NULL OR (@lastStep IS NOT NULL AND @Step <= @lastStep))
+            SET @Passed = 0;                                            -- a replayed code, or no step to check it against
 
         IF @Passed = 1
         BEGIN
             UPDATE sec.UserSession SET MfaVerifiedAt = @now WHERE UserSessionId = @sid;
             UPDATE sec.AppUser SET MfaLastUsedStep = COALESCE(@Step, MfaLastUsedStep)
              WHERE TenantId = @TenantId AND AppUserId = @uid;
+            SET @Accepted = 1;
         END
         ELSE
         BEGIN
@@ -244,6 +249,7 @@ BEGIN
     BEGIN CATCH
         IF @own = 1 AND XACT_STATE() <> 0 ROLLBACK TRANSACTION;
         ELSE IF @own = 0 AND XACT_STATE() = 1 ROLLBACK TRANSACTION sp_ConfirmMfa;   -- undo this procedure only
+        SET @Accepted = 0;
         THROW;
     END CATCH;
 END;

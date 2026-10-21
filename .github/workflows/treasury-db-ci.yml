@@ -1,7 +1,8 @@
 name: treasury-database-ci
 
 # BankFas treasury platform (treasury-platform/): runs tools/ci/db_ci.sh on every change to the database model,
-# the generator, the database scripts, or the deployment scripts it runs (tools/deploy). SQL Server 2025 runs as a
+# the generator, the database scripts, or the deployment scripts it runs (tools/deploy), then tools/ci/app_ci.sh,
+# which builds and tests the application against the database just deployed. SQL Server 2025 runs as a
 # service container on the job.
 # GitHub reads workflows only from the repository root, so this file lives here and works in treasury-platform/.
 
@@ -19,6 +20,8 @@ on:
       - 'treasury-platform/docs/10-detailed-analysis/**'
       # the generated tables of the credit methodology document match tools/dbgen/credit_scorecard.json (step 2)
       - 'treasury-platform/docs/35-credit-assessment-methodology.md'
+      # the application (phase 2, ADR 0040), whose integration tests run against the deployed database
+      - 'treasury-platform/app/**'
       - '.github/workflows/treasury-db-ci.yml'
   pull_request:
     paths:
@@ -32,6 +35,8 @@ on:
       - 'treasury-platform/docs/10-detailed-analysis/**'
       # the generated tables of the credit methodology document match tools/dbgen/credit_scorecard.json (step 2)
       - 'treasury-platform/docs/35-credit-assessment-methodology.md'
+      # the application (phase 2, ADR 0040), whose integration tests run against the deployed database
+      - 'treasury-platform/app/**'
       - '.github/workflows/treasury-db-ci.yml'
   workflow_dispatch:
 
@@ -45,7 +50,7 @@ defaults:
 jobs:
   database:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 60
     services:
       sqlserver:
         # The SQL Server build of the release register treasury-platform/versions.json, on Ubuntu 24.04 like the
@@ -63,7 +68,8 @@ jobs:
     env:
       SA_PASSWORD: 'CiOnly-Ephemeral-Passw0rd!'
       SQL_SERVER: 'localhost,1433'
-    # The actions are pinned to their commits (actions/checkout v4.4.0, actions/setup-python v5.6.0): a moved tag
+    # The actions are pinned to their commits (actions/checkout v4.4.0, actions/setup-python v5.6.0,
+    # actions/setup-dotnet v5.4.0, actions/setup-node v4.4.0): a moved tag
     # cannot change what runs here (self-review E13).
     steps:
       - name: Check out the repository
@@ -94,3 +100,16 @@ jobs:
 
       - name: Database checks and deployment
         run: bash tools/ci/db_ci.sh
+
+      - name: Set up .NET (the SDK of treasury-platform/app/global.json)
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1
+        with:
+          global-json-file: treasury-platform/app/global.json
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22.22.0'
+
+      - name: Application build, unit tests and integration tests
+        run: bash tools/ci/app_ci.sh

@@ -271,10 +271,11 @@ if grep -qaE "$FAIL_RE" "$TMP/auth.out"; then
     exit 1
 fi
 auth_pass=$(grep -oaE "$PASS_RE" "$TMP/auth.out" | sort -u | wc -l)
-# 20 cases: A1-A14 (ADR 0003: invitation, MFA enrolment and checks, recovery codes, passwords, administrator actions,
-# sessions) and S1-S6 (tenant security settings within the platform bounds, DQ-S03-6, DQ-S04-14).
-if [ "$auth_pass" -ne 20 ]; then
-    echo "expected 20 PASS, found $auth_pass"
+# 23 cases: A1-A17 (ADR 0003: invitation, MFA enrolment and checks, recovery codes, passwords, administrator actions,
+# sessions; the tenant names, the challenge key, step-up, the check outcome and the password rules before binding,
+# GAP-2, GAP-3, GAP-4, GAP-8, GAP-13) and S1-S6 (tenant security settings within the platform bounds, DQ-S03-6, DQ-S04-14).
+if [ "$auth_pass" -ne 23 ]; then
+    echo "expected 23 PASS, found $auth_pass"
     exit 1
 fi
 echo "account-security tests: $auth_pass passed"
@@ -290,10 +291,10 @@ if grep -qaE "$FAIL_RE" "$TMP/operator.out"; then
     exit 1
 fi
 op_pass=$(grep -oaE "$PASS_RE" "$TMP/operator.out" | sort -u | wc -l)
-# 11 cases: P1-P11 (ADR 0004: operator bootstrap, login, MFA, lockout, reset, status, direct rights; the support binding
-# and its audit row, ADR 0007).
-if [ "$op_pass" -ne 11 ]; then
-    echo "expected 11 PASS, found $op_pass"
+# 12 cases: P1-P12 (ADR 0004: operator bootstrap, login, MFA, lockout, reset, status, direct rights; the support binding
+# and its audit row, ADR 0007; the operator's TOTP challenge, check outcome and MFA state per request, GAP-1, GAP-4, GAP-7).
+if [ "$op_pass" -ne 12 ]; then
+    echo "expected 12 PASS, found $op_pass"
     exit 1
 fi
 echo "operator and support tests: $op_pass passed"
@@ -328,9 +329,10 @@ if grep -qaE "$FAIL_RE" "$TMP/onboarding.out"; then
     exit 1
 fi
 onb_pass=$(grep -oaE "$PASS_RE" "$TMP/onboarding.out" | sort -u | wc -l)
-# 5 cases: O1-O5 (ADR 0004: tenant creation, first administrator invitation, status changes, daily status jobs).
-if [ "$onb_pass" -ne 5 ]; then
-    echo "expected 5 PASS, found $onb_pass"
+# 6 cases: O1-O6 (ADR 0004: tenant creation, first administrator invitation, status changes, daily status jobs, a
+# running trial extended, GAP-10).
+if [ "$onb_pass" -ne 6 ]; then
+    echo "expected 6 PASS, found $onb_pass"
     exit 1
 fi
 echo "tenant onboarding tests: $onb_pass passed"

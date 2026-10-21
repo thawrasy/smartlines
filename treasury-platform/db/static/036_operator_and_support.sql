@@ -7,8 +7,8 @@
    the session needs a recorded TOTP check (MFA is mandatory for operators, no recovery codes). Policy (DOC-S04
    section 12): five failures within 15 minutes lock the operator until another operator administrator unlocks;
    sessions last 15 minutes idle and 8 hours absolute.
-     plat.usp_GetOperatorPasswordParams, plat.usp_StartOperatorSession, plat.usp_ConfirmOperatorMfa,
-     plat.usp_TouchOperatorSession, plat.usp_EndOperatorSession, plat.usp_UnlockOperator   EXECUTE: tp_platform
+     plat.usp_GetOperatorPasswordParams, plat.usp_StartOperatorSession, plat.usp_GetOperatorMfaChallenge,
+     plat.usp_ConfirmOperatorMfa, plat.usp_TouchOperatorSession, plat.usp_EndOperatorSession, plat.usp_UnlockOperator   EXECUTE: tp_platform
    Operator accounts change only through procedures, so the operator panel cannot set a password, an MFA secret or
    a lock state (DENYs at the end of this file):
      plat.usp_BootstrapOperator      the first operator administrator, once, at deployment (DQ-F07-3): an invitation,
@@ -153,17 +153,50 @@ BEGIN
     IF @ok = 0 THROW 50005, 'Invalid e-mail or password', 1;     -- after the failure is committed
 END;
 GO
+-- The operator's TOTP secret for the panel to verify a code with (GAP-1): encrypted with the platform key named by
+-- MfaKeyRef, which the panel unwraps in the key store; tp_platform cannot read the column itself. Any live session of an
+-- ACTIVE operator: the first check after the password, or a fresh one before a sensitive action (step-up, 038).
+CREATE OR ALTER PROCEDURE plat.usp_GetOperatorMfaChallenge
+    @SessionToken  VARBINARY(64),
+    @MfaSecretEnc  VARBINARY(256) = NULL OUTPUT,
+    @MfaKeyRef     VARCHAR(200) = NULL OUTPUT,
+    @LastUsedStep  BIGINT = NULL OUTPUT,
+    @MfaVerifiedAt DATETIME2(3) = NULL OUTPUT,
+    @OperatorPublicId UNIQUEIDENTIFIER = NULL OUTPUT   -- part of the envelope's associated data (DOC-S02 section 6)
+WITH EXECUTE AS N'tp_auth_exec'
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @now DATETIME2(3) = SYSUTCDATETIME(), @oid INT;
+    SELECT @MfaSecretEnc = NULL, @MfaKeyRef = NULL, @LastUsedStep = NULL, @MfaVerifiedAt = NULL, @OperatorPublicId = NULL;
+    SELECT @oid = o.PlatformOperatorId, @MfaSecretEnc = o.MfaSecretEnc, @MfaKeyRef = o.MfaKeyRef,
+           @LastUsedStep = o.MfaLastUsedStep, @MfaVerifiedAt = s.MfaVerifiedAt, @OperatorPublicId = o.PublicId
+    FROM plat.OperatorSession AS s
+    JOIN plat.PlatformOperator AS o ON o.PlatformOperatorId = s.OperatorId
+    WHERE s.TokenHash = HASHBYTES('SHA2_256', @SessionToken)
+      AND s.EndedAt IS NULL AND s.IdleExpiresAt > @now AND s.AbsoluteExpiresAt > @now
+      AND o.Status = 'ACTIVE' AND o.MfaEnabled = 1;
+    IF @oid IS NULL
+    BEGIN
+        SELECT @MfaSecretEnc = NULL, @MfaKeyRef = NULL, @LastUsedStep = NULL, @MfaVerifiedAt = NULL, @OperatorPublicId = NULL;
+        THROW 50003, 'No valid operator session', 1;
+    END;
+END;
+GO
 -- Records the TOTP check done by the panel (the secret is encrypted with the platform key). A step not after the
--- last accepted one is a replay; failures count toward the lock, and a lock ends the session.
+-- last accepted one is a replay; failures count toward the lock, and a lock ends the session. @Accepted says which
+-- it was (GAP-4).
 CREATE OR ALTER PROCEDURE plat.usp_ConfirmOperatorMfa
     @SessionToken VARBINARY(64),
     @Passed       BIT,
-    @Step         BIGINT = NULL
+    @Step         BIGINT = NULL,
+    @Accepted     BIT = NULL OUTPUT
 WITH EXECUTE AS N'tp_auth_exec'
 AS
 BEGIN
     SET NOCOUNT ON;
     DECLARE @now DATETIME2(3) = SYSUTCDATETIME(), @own BIT = 0, @sid BIGINT, @oid INT, @last BIGINT, @locked BIT;
+    SET @Accepted = 0;
     IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END ELSE SAVE TRANSACTION sp_ConfirmOperatorMfa;
     BEGIN TRY
         SELECT @sid = s.OperatorSessionId, @oid = o.PlatformOperatorId, @last = o.MfaLastUsedStep
@@ -179,6 +212,7 @@ BEGIN
         BEGIN
             UPDATE plat.OperatorSession SET MfaVerifiedAt = @now WHERE OperatorSessionId = @sid;
             UPDATE plat.PlatformOperator SET MfaLastUsedStep = @Step WHERE PlatformOperatorId = @oid;
+            SET @Accepted = 1;
         END
         ELSE
         BEGIN
@@ -193,23 +227,36 @@ BEGIN
     BEGIN CATCH
         IF @own = 1 AND XACT_STATE() <> 0 ROLLBACK TRANSACTION;
         ELSE IF @own = 0 AND XACT_STATE() = 1 ROLLBACK TRANSACTION sp_ConfirmOperatorMfa;   -- undo this procedure only
+        SET @Accepted = 0;
         THROW;
     END CATCH;
 END;
 GO
+-- Extends a live session of an ACTIVE operator on each request of the panel, and says who it is and whether its MFA
+-- check is done (GAP-7), so the panel needs no state of its own: a request before the check is refused by the panel.
 CREATE OR ALTER PROCEDURE plat.usp_TouchOperatorSession
-    @SessionToken VARBINARY(64)
+    @SessionToken  VARBINARY(64),
+    @OperatorId    INT = NULL OUTPUT,
+    @Role          VARCHAR(20) = NULL OUTPUT,
+    @MfaVerifiedAt DATETIME2(3) = NULL OUTPUT
 WITH EXECUTE AS N'tp_auth_exec'
 AS
 BEGIN
     SET NOCOUNT ON;
     DECLARE @now DATETIME2(3) = SYSUTCDATETIME();
-    UPDATE plat.OperatorSession
+    DECLARE @t TABLE (OperatorId INT NOT NULL, MfaVerifiedAt DATETIME2(3) NULL);
+    SELECT @OperatorId = NULL, @Role = NULL, @MfaVerifiedAt = NULL;
+    UPDATE s
        SET LastSeenAt = @now,
-           IdleExpiresAt = CASE WHEN DATEADD(MINUTE, 15, @now) < AbsoluteExpiresAt THEN DATEADD(MINUTE, 15, @now) ELSE AbsoluteExpiresAt END
-     WHERE TokenHash = HASHBYTES('SHA2_256', @SessionToken)
-       AND EndedAt IS NULL AND IdleExpiresAt > @now AND AbsoluteExpiresAt > @now;
+           IdleExpiresAt = CASE WHEN DATEADD(MINUTE, 15, @now) < s.AbsoluteExpiresAt THEN DATEADD(MINUTE, 15, @now) ELSE s.AbsoluteExpiresAt END
+    OUTPUT inserted.OperatorId, inserted.MfaVerifiedAt INTO @t
+      FROM plat.OperatorSession AS s
+      JOIN plat.PlatformOperator AS o ON o.PlatformOperatorId = s.OperatorId
+     WHERE s.TokenHash = HASHBYTES('SHA2_256', @SessionToken)
+       AND s.EndedAt IS NULL AND s.IdleExpiresAt > @now AND s.AbsoluteExpiresAt > @now AND o.Status = 'ACTIVE';
     IF @@ROWCOUNT = 0 THROW 50003, 'No valid operator session', 1;
+    SELECT @OperatorId = t.OperatorId, @MfaVerifiedAt = t.MfaVerifiedAt, @Role = o.Role
+    FROM @t AS t JOIN plat.PlatformOperator AS o ON o.PlatformOperatorId = t.OperatorId;
 END;
 GO
 CREATE OR ALTER PROCEDURE plat.usp_EndOperatorSession
@@ -601,6 +648,7 @@ END;
 GO
 GRANT EXECUTE ON plat.usp_GetOperatorPasswordParams TO [tp_platform];
 GRANT EXECUTE ON plat.usp_StartOperatorSession TO [tp_platform];
+GRANT EXECUTE ON plat.usp_GetOperatorMfaChallenge TO [tp_platform];
 GRANT EXECUTE ON plat.usp_ConfirmOperatorMfa TO [tp_platform];
 GRANT EXECUTE ON plat.usp_TouchOperatorSession TO [tp_platform];
 GRANT EXECUTE ON plat.usp_EndOperatorSession TO [tp_platform];

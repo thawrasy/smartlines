@@ -175,6 +175,32 @@ IF @n = 1 AND @n2 = 2 AND @n3 = 1 PRINT 'PASS P2: operator MFA refuses replayed 
 ELSE PRINT 'FAIL P2: operator MFA (' + CONCAT(@n, '/', @n2, '/', @n3) + ')';
 ROLLBACK TRANSACTION p2;
 
+/* P12: the panel reads the operator's encrypted TOTP secret through its session only (GAP-1), learns whether each
+   check was accepted (GAP-4), and each request's touch says who the operator is and whether MFA is done (GAP-7). */
+SAVE TRANSACTION p12;
+DECLARE @csec VARBINARY(256), @cref VARCHAR(200), @clast BIGINT, @cver DATETIME2(3), @cpub UNIQUEIDENTIFIER,
+        @toid INT, @trole VARCHAR(20), @tver1 DATETIME2(3), @tver2 DATETIME2(3), @acc1 BIT, @acc2 BIT;
+SELECT @e1 = NULL, @e2 = NULL, @cver = '2000-01-01', @tver1 = '2000-01-01';
+EXECUTE AS USER = N'tp_test_panel';
+EXEC plat.usp_GetOperatorMfaChallenge @SessionToken = @os3u, @MfaSecretEnc = @csec OUTPUT, @MfaKeyRef = @cref OUTPUT,
+     @LastUsedStep = @clast OUTPUT, @MfaVerifiedAt = @cver OUTPUT, @OperatorPublicId = @cpub OUTPUT;
+EXEC plat.usp_TouchOperatorSession @SessionToken = @os3u, @OperatorId = @toid OUTPUT, @Role = @trole OUTPUT, @MfaVerifiedAt = @tver1 OUTPUT;
+EXEC plat.usp_ConfirmOperatorMfa @SessionToken = @os3u, @Passed = 1, @Step = 3001, @Accepted = @acc1 OUTPUT;
+EXEC plat.usp_ConfirmOperatorMfa @SessionToken = @os3u, @Passed = 1, @Step = 3002, @Accepted = @acc2 OUTPUT;
+EXEC plat.usp_TouchOperatorSession @SessionToken = @os3u, @MfaVerifiedAt = @tver2 OUTPUT;
+BEGIN TRY EXEC plat.usp_GetOperatorMfaChallenge @SessionToken = @lk5; END TRY
+BEGIN CATCH SET @e1 = ERROR_NUMBER(); END CATCH;
+BEGIN TRY EXEC plat.usp_TouchOperatorSession @SessionToken = @lk5; END TRY
+BEGIN CATCH SET @e2 = ERROR_NUMBER(); END CATCH;
+REVERT;
+IF @csec = @sec AND @cref = 'kms/platform/1' AND @clast = 3001 AND @cver IS NULL
+   AND @cpub = (SELECT PublicId FROM plat.PlatformOperator WHERE PlatformOperatorId = @op3)
+   AND @toid = @op3 AND @trole = 'OPERATOR_SUPPORT' AND @tver1 IS NULL AND @acc1 = 0 AND @acc2 = 1 AND @tver2 IS NOT NULL
+   AND @e1 = 50003 AND @e2 = 50003
+    PRINT 'PASS P12: the panel reads the operator TOTP secret through the session, the check outcome and the MFA state';
+ELSE PRINT 'FAIL P12: operator MFA challenge, outcome or touch (' + CONCAT(@clast, '/', @trole, '/', @acc1, '/', @acc2, '/', @e1, '/', @e2) + ')';
+ROLLBACK TRANSACTION p12;
+
 /* P3: five wrong passwords lock an operator, the right password is then refused, and only another operator
    administrator unlocks (50021 for oneself or a non-administrator, 50018 when not locked). */
 SAVE TRANSACTION p3;

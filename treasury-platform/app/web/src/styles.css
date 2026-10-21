@@ -1,0 +1,15 @@
+:root { font-family: system-ui, "Segoe UI", Tahoma, sans-serif; color: #1c2430; background: #f4f6f9; }
+main { max-width: 720px; margin: 3rem auto; padding: 0 1rem; }
+.card { background: #fff; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgb(0 0 0 / 10%); }
+h1 { font-size: 1.4rem; margin-top: 0; }
+label { display: block; margin: 0.75rem 0; }
+label span { display: block; font-size: 0.9rem; margin-bottom: 0.25rem; }
+input { width: 100%; box-sizing: border-box; padding: 0.5rem; border: 1px solid #b7c0cc; border-radius: 4px; font-size: 1rem; }
+button { margin-top: 0.75rem; padding: 0.5rem 1rem; border: 0; border-radius: 4px; background: #1d4f91; color: #fff; font-size: 1rem; cursor: pointer; }
+button:disabled { opacity: 0.6; }
+button.link { background: none; color: #1d4f91; padding: 0; margin-inline-start: 0; }
+.error { color: #a4161a; }
+.banner { background: #fff4cc; padding: 0.5rem; border-radius: 4px; }
+.secret code, .codes code { font-size: 1.1rem; letter-spacing: 0.05em; }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: start; padding: 0.4rem; border-bottom: 1px solid #e3e7ee; }

@@ -8,9 +8,9 @@
    enrol or reset MFA, read password-history or recovery-code hashes, mint a link, or reopen or extend a session.
 
    Callers:
-     before binding (session token or link token):  usp_ResolveTenant, usp_GetMfaChallenge, usp_CompleteMfaEnrolment,
-                                                     usp_UseRecoveryCode, usp_TouchSession, usp_EndSession (own),
-                                                     usp_GetPasswordHistoryParams, usp_ChangePassword,
+     before binding (session token or link token):  usp_ResolveTenant, usp_GetPasswordPolicy, usp_GetMfaChallenge,
+                                                     usp_CompleteMfaEnrolment, usp_UseRecoveryCode, usp_TouchSession,
+                                                     usp_EndSession (own), usp_GetPasswordHistoryParams, usp_ChangePassword,
                                                      usp_RequestPasswordReset, usp_CompleteInvitation, usp_ResetPassword
      bound to the tenant (administrator actions):    usp_IssueUserToken, usp_UnlockUser, usp_ResetMfa, usp_SetUserStatus,
                                                      usp_EndSession (another user's session)
@@ -23,8 +23,8 @@
    compromised application server can therefore still take over an account through a reset link; the user is told
    by e-mail and the action is logged. What is closed is direct change through table rights.
 
-   Errors: 50003 no valid session or not bound, 50008 MFA enrolment required, 50009 invalid recovery code,
-   50010 current password wrong, 50011 password used recently, 50012 direct insert of a privileged user,
+   Errors: 50002 unknown tenant, 50003 no valid session or not bound, 50008 MFA enrolment required, 50009 invalid
+   recovery code, 50010 current password wrong, 50011 password used recently, 50012 direct insert of a privileged user,
    50013 re-enrolment link required, 50014 ten recovery code hashes required, 50015 history candidates incomplete,
    50016 link cannot be issued for this user, 50017 invalid or expired link, 50018 user not locked,
    50019 status change not allowed.
@@ -47,21 +47,34 @@ AS RETURN
 GO
 /* ---------- Tenant resolution and MFA before binding ---------- */
 
--- The sub-domain {Code}.bankfas.com gives the tenant (FR-PLT-046). plat.Tenant is not readable by tp_app.
+-- The sub-domain {Code}.bankfas.com gives the tenant (FR-PLT-046). plat.Tenant is not readable by tp_app. The names
+-- let the login page show the tenant before anyone signs in (GAP-13); the application shows a neutral page instead for
+-- an unknown code or an archived tenant (decision 37, Q-1).
 CREATE OR ALTER PROCEDURE sec.usp_ResolveTenant
     @Code     VARCHAR(30),
     @TenantId INT = NULL OUTPUT,
-    @Status   VARCHAR(18) = NULL OUTPUT
+    @Status   VARCHAR(18) = NULL OUTPUT,
+    @NameEn   NVARCHAR(200) = NULL OUTPUT,
+    @NameAr   NVARCHAR(200) = NULL OUTPUT,
+    @DefaultLanguage VARCHAR(2) = NULL OUTPUT
 WITH EXECUTE AS N'tp_auth_exec'
 AS
 BEGIN
     SET NOCOUNT ON;
-    SELECT @TenantId = NULL, @Status = NULL;
-    SELECT @TenantId = TenantId, @Status = Status FROM plat.Tenant WHERE Code = @Code;
+    SELECT @TenantId = NULL, @Status = NULL, @NameEn = NULL, @NameAr = NULL, @DefaultLanguage = NULL;
+    SELECT @TenantId = TenantId, @Status = Status, @NameEn = NameEn, @NameAr = NameAr, @DefaultLanguage = DefaultLanguage
+    FROM plat.Tenant WHERE Code = @Code;
 END;
 GO
--- For a session that still waits for its MFA check: the encrypted TOTP secret to verify the code with, or a flag
--- that the user must enrol first (mandatory MFA, ADR 0003).
+-- The TOTP secret of a session's user and the tenant key that encrypts it (GAP-2, GAP-3). The application holds no
+-- key before binding and sec.TenantKey is under the row filters, so the wrapped key comes with the challenge; the
+-- application unwraps it with the master key (MasterKeyRef) outside the database (DOC-S02 section 6).
+--   @StepUp = 0  a session that still waits for its MFA check: the secret to verify the code with, or a flag that the
+--                user must enrol first (mandatory MFA, ADR 0003). When enrolment is required, @MfaKeyId and the key
+--                columns name the tenant's ACTIVE DATA key, the one the new secret is encrypted with.
+--   @StepUp = 1  a session whose MFA check is done, for a fresh code before a sensitive action (DOC-S04 section 9);
+--                sec.usp_ConfirmMfa records it, and @MfaVerifiedAt says when the last check was.
+-- A REVOKED or RETIRED key is never returned: a secret left on one cannot be read, and the user re-enrols.
 CREATE OR ALTER PROCEDURE sec.usp_GetMfaChallenge
     @TenantId          INT,
     @SessionToken      VARBINARY(64),
@@ -69,24 +82,49 @@ CREATE OR ALTER PROCEDURE sec.usp_GetMfaChallenge
     @MfaKeyId          BIGINT = NULL OUTPUT,
     @LastUsedStep      BIGINT = NULL OUTPUT,
     @EnrolmentRequired BIT = NULL OUTPUT,
-    @ReenrolmentRequired BIT = NULL OUTPUT     -- 1 after an MFA reset: enrolment needs the e-mailed link
+    @ReenrolmentRequired BIT = NULL OUTPUT,    -- 1 after an MFA reset: enrolment needs the e-mailed link
+    @StepUp            BIT = 0,
+    @WrappedKey        VARBINARY(512) = NULL OUTPUT,
+    @MasterKeyRef      VARCHAR(200) = NULL OUTPUT,
+    @KeyVersion        INT = NULL OUTPUT,
+    @KeyAlgorithm      VARCHAR(30) = NULL OUTPUT,
+    @MfaVerifiedAt     DATETIME2(3) = NULL OUTPUT,
+    @UserPublicId      UNIQUEIDENTIFIER = NULL OUTPUT   -- part of the envelope's associated data (DOC-S02 section 6)
 WITH EXECUTE AS N'tp_auth_exec'
 AS
 BEGIN
     SET NOCOUNT ON;
     DECLARE @now DATETIME2(3) = SYSUTCDATETIME(), @uid BIGINT, @enabled BIT, @enrolledAt DATETIME2(3);
-    SELECT @MfaSecretEnc = NULL, @MfaKeyId = NULL, @LastUsedStep = NULL, @EnrolmentRequired = NULL, @ReenrolmentRequired = NULL;
-    SELECT @uid = u.AppUserId, @enabled = u.MfaEnabled, @enrolledAt = u.MfaEnrolledAt,
-           @MfaSecretEnc = u.MfaSecretEnc, @MfaKeyId = u.MfaKeyId, @LastUsedStep = u.MfaLastUsedStep
+    SELECT @MfaSecretEnc = NULL, @MfaKeyId = NULL, @LastUsedStep = NULL, @EnrolmentRequired = NULL, @ReenrolmentRequired = NULL,
+           @WrappedKey = NULL, @MasterKeyRef = NULL, @KeyVersion = NULL, @KeyAlgorithm = NULL, @MfaVerifiedAt = NULL,
+           @UserPublicId = NULL;
+    SELECT @uid = u.AppUserId, @enabled = u.MfaEnabled, @enrolledAt = u.MfaEnrolledAt, @UserPublicId = u.PublicId,
+           @MfaSecretEnc = u.MfaSecretEnc, @MfaKeyId = u.MfaKeyId, @LastUsedStep = u.MfaLastUsedStep,
+           @MfaVerifiedAt = s.MfaVerifiedAt
     FROM sec.UserSession AS s
     JOIN sec.AppUser AS u ON u.TenantId = s.TenantId AND u.AppUserId = s.UserId
     WHERE s.TenantId = @TenantId AND s.TokenHash = HASHBYTES('SHA2_256', @SessionToken)
-      AND s.EndedAt IS NULL AND s.IdleExpiresAt > @now AND s.AbsoluteExpiresAt > @now AND s.MfaVerifiedAt IS NULL
+      AND s.EndedAt IS NULL AND s.IdleExpiresAt > @now AND s.AbsoluteExpiresAt > @now
+      AND ((ISNULL(@StepUp, 0) = 0 AND s.MfaVerifiedAt IS NULL) OR (@StepUp = 1 AND s.MfaVerifiedAt IS NOT NULL AND u.MfaEnabled = 1))
       AND u.Status = 'ACTIVE' AND u.IsSystemUser = 0
       AND EXISTS (SELECT 1 FROM sec.fn_TenantLoginAllowed(@TenantId, u.AppUserId));
-    IF @uid IS NULL THROW 50003, 'No session waiting for MFA for this tenant', 1;
+    IF @uid IS NULL
+    BEGIN
+        SELECT @MfaSecretEnc = NULL, @MfaKeyId = NULL, @LastUsedStep = NULL, @MfaVerifiedAt = NULL, @UserPublicId = NULL;
+        IF @StepUp = 1 THROW 50003, 'No MFA-verified session for this tenant', 1;
+        THROW 50003, 'No session waiting for MFA for this tenant', 1;
+    END;
     SET @EnrolmentRequired = CASE WHEN @enabled = 1 THEN 0 ELSE 1 END;
     SET @ReenrolmentRequired = CASE WHEN @enabled = 0 AND @enrolledAt IS NOT NULL THEN 1 ELSE 0 END;
+    IF @enabled = 1
+        SELECT @WrappedKey = k.WrappedKey, @MasterKeyRef = k.MasterKeyRef, @KeyVersion = k.KeyVersion, @KeyAlgorithm = k.Algorithm
+        FROM sec.TenantKey AS k
+        WHERE k.TenantId = @TenantId AND k.TenantKeyId = @MfaKeyId AND k.Purpose = 'DATA' AND k.Status IN ('ACTIVE', 'RETIRING');
+    ELSE
+        SELECT @MfaSecretEnc = NULL, @LastUsedStep = NULL, @MfaKeyId = k.TenantKeyId,
+               @WrappedKey = k.WrappedKey, @MasterKeyRef = k.MasterKeyRef, @KeyVersion = k.KeyVersion, @KeyAlgorithm = k.Algorithm
+        FROM (SELECT 1 AS One) AS one
+        LEFT JOIN sec.TenantKey AS k ON k.TenantId = @TenantId AND k.Purpose = 'DATA' AND k.Status = 'ACTIVE';
 END;
 GO
 -- First enrolment after the invitation, or re-enrolment after an MFA reset (then with the e-mailed link,
@@ -302,6 +340,23 @@ BEGIN
         WHERE t.TenantId = @TenantId AND t.Purpose = 'PASSWORD_RESET' AND t.TokenHash = HASHBYTES('SHA2_256', @LinkToken)
           AND t.UsedAt IS NULL AND t.RevokedAt IS NULL AND t.ExpiresAt > @now
           AND u.Status IN ('ACTIVE', 'LOCKED') AND u.IsSystemUser = 0;
+END;
+GO
+-- The tenant's password rules, for the pages that set a password before binding (invitation, reset), where
+-- cfg.TenantSetting is under the row filters (GAP-8): the minimum length the application checks after NFKC
+-- normalisation (BR-PLT-004) and the number of last passwords the new one may not repeat. Not secret: no token needed.
+CREATE OR ALTER PROCEDURE sec.usp_GetPasswordPolicy
+    @TenantId     INT,
+    @MinLength    INT = NULL OUTPUT,
+    @HistoryCount INT = NULL OUTPUT
+WITH EXECUTE AS N'tp_auth_exec'
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT @MinLength = NULL, @HistoryCount = NULL;
+    IF NOT EXISTS (SELECT 1 FROM plat.Tenant WHERE TenantId = @TenantId) THROW 50002, 'Unknown tenant', 1;
+    SELECT @MinLength = Value FROM cfg.fn_SettingInt(@TenantId, 'security.password.min_length', 12);
+    SELECT @HistoryCount = Value FROM cfg.fn_SettingInt(@TenantId, 'security.password.history_count', 5);
 END;
 GO
 -- The Argon2id parameters and salts of the passwords the new one may not repeat, without the hashes: the last N
@@ -698,6 +753,7 @@ GRANT EXECUTE ON sec.usp_CompleteMfaEnrolment TO [tp_app];
 GRANT EXECUTE ON sec.usp_UseRecoveryCode TO [tp_app];
 GRANT EXECUTE ON sec.usp_TouchSession TO [tp_app];
 GRANT EXECUTE ON sec.usp_EndSession TO [tp_app];
+GRANT EXECUTE ON sec.usp_GetPasswordPolicy TO [tp_app];
 GRANT EXECUTE ON sec.usp_GetPasswordHistoryParams TO [tp_app];
 GRANT EXECUTE ON sec.usp_ChangePassword TO [tp_app];
 GRANT EXECUTE ON sec.usp_RequestPasswordReset TO [tp_app];

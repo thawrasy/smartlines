@@ -106,8 +106,7 @@
       "bankfas.core": {
         "type": "Project",
         "dependencies": {
-          "Konscious.Security.Cryptography.Argon2": "[1.3.1, )",
-          "Otp.NET": "[1.4.1, )"
+          "Konscious.Security.Cryptography.Argon2": "[1.3.1, )"
         }
       },
       "bankfas.data": {
@@ -149,12 +148,6 @@
           "System.Configuration.ConfigurationManager": "9.0.18",
           "System.Security.Cryptography.Pkcs": "9.0.18"
         }
-      },
-      "Otp.NET": {
-        "type": "CentralTransitive",
-        "requested": "[1.4.1, )",
-        "resolved": "1.4.1",
-        "contentHash": "UXjZ80T6BfVACJWmEcz4UFZ93hwX3STKojKvVpPk3qUhubjnLwIiZMsI4Hh91HhYxC0JlatNdNrVK2wkv4O9/Q=="
       },
       "System.Security.Cryptography.Pkcs": {
         "type": "CentralTransitive",
