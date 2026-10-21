@@ -24,10 +24,14 @@ nothing in the package gave its permission to anyone. The onboarding test insert
    - ◐ grants it as Restricted: the application narrows it by scope, audience or ownership.
    - R grants only a code that views. An R in a manage row means the role reads through another code.
    - M grants a view code that is not sensitive: a masked view, never a reveal.
-   - Cells with two codes are read pairwise.
-   - One cell is read by hand, and the manifest names it with its reason: RQ does not get `req.cancel.any` (spec 13 row
-     14).
-3. **Eight roles, 391 links:** TA 46, TM 127, FO 100, TE 51, FA 8, RQ 19, AU 31, RK 9.
+   - Cells with two codes ("a · b") are read pairwise. One value may stand for both only when it means the same for
+     each (✔, R, M, —). A single ◐ over two codes is refused, because it does not say which code it restricts; the
+     matrix must give one value per code. "a + b" is one action that needs both codes, so one value is right there.
+   - The rule found two such cells, and both were corrected in the specs rather than worked around in the generator:
+     - Spec 13 row 14 now reads ◐/— for the requester: it cancels its own requests (`req.cancel`), not any request
+       (`req.cancel.any`).
+     - Spec 14 row 28 now reads ◐/◐: the scope limit applies to viewing and to exporting reports alike.
+3. **Eight roles, 393 links:** TA 46, TM 127, FO 100, TE 51, FA 9, RQ 19, AU 31, RK 10.
    - RQ takes the purchasing column PR of spec 14.
    - Three columns are not seeded, as the manifest says:
      - PO, the platform operator, is not a tenant role.
@@ -47,6 +51,11 @@ nothing in the package gave its permission to anyone. The onboarding test insert
      its name. The run counts both (SkippedModifiedCount) and lists them (DiffJson) in `cfg.SeedRun`.
    - Each run is audited as SEED_PACK_APPLIED.
 
+## FA and RK in spec 13 (owner decision 36)
+
+Spec 13 now has columns FA and RK. Both hold `ntf.prefs`, their own notification preferences, because both receive
+the notifications of its section 9.2, and RK receives the red warning. Neither works in requests.
+
 ## Effect on E2
 
 RK is now seeded in every tenant through onboarding. It holds `fin.credit.endorse` and nine read permissions, and
@@ -56,7 +65,7 @@ its holder outside the preparing line.
 ## Tests
 
 `db/tests/core_roles_tests.sql` CR1 to CR6:
-- CR1: the 8 roles and 391 links.
+- CR1: the 8 roles and 393 links.
 - CR2: a second run keeps the tenant's changes and lists them.
 - CR3: the count per role; the locked permissions are on TM and FO only.
 - CR4: RK endorses from outside the line.
@@ -68,5 +77,4 @@ The onboarding test O3 now seeds through the pack instead of inserting TA.
 
 - **Upgrades.** Version 1 is the only version. How a later version adds new links without overriding what a tenant
   removed is decided with version 2.
-- **FA and RK in specs 13 and 14.** These specs have no column for them, so FA and RK get no notification preferences
-  (`ntf.prefs`) and no own requests (`req.view.own`). Whether they should is an owner decision (docs/39 section 6).
+- Spec 14 still has no column for FA and RK: neither works with letters of credit.

@@ -18,20 +18,17 @@
     "RQM": "the requester's manager, resolved by the assignment rule REQUESTER_MANAGER (spec 13)",
     "SL": "the sales roles, custom roles seeded with the S4 templates (spec 14)"
   },
-  "Excluded": {
-    "RQ req.cancel.any": "spec 13 section 2 row 14: one ◐ for two codes; the requester cancels its own requests in given stages (req.cancel), any request in any stage is the treasury's (req.cancel.any)"
-  },
   "PermissionsPerRole": {
     "TA": 46,
     "TM": 127,
     "FO": 100,
     "TE": 51,
-    "FA": 8,
+    "FA": 9,
     "RQ": 19,
     "AU": 31,
-    "RK": 9
+    "RK": 10
   },
-  "Links": 391,
+  "Links": 393,
   "CatalogueCodesWithoutDefaultRole": [
     "cat.global.manage",
     "req.view.department"

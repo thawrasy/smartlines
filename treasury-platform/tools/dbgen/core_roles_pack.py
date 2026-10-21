@@ -16,7 +16,9 @@ Reading a cell (✔ full · ◐ restricted · R read · M masked · — none):
   application's. R gives a code that views (a code with a "view" segment), never a code that manages: "R" in a
   manage row says the role reads through another code. M gives a view code that is not sensitive: a masked view,
   never a reveal. Cells with two codes ("a · b", values "x/y") are read pairwise; "a + b" takes one value for both.
-Roles: TA, TM, FO, TE, FA, RQ, AU, RK. RQ takes the PR column of spec 14 (purchasing is a requester, spec 10
+  One value for several codes is accepted only when it means the same for each (✔, R, M, —); a single ◐ over
+  several codes is refused, since it does not say which code it restricts: the matrix gives one value per code.
+Roles: TA, TM, FO, TE, FA, RQ, AU, RK. FA and RK hold ntf.prefs (spec 13, owner decision 36). RQ takes the PR column of spec 14 (purchasing is a requester, spec 10
 section 2 note c). Not seeded here: PO (the platform operator, not a tenant role), RQM (the requester's manager,
 resolved by the assignment rule, spec 13), SL (the sales roles seeded with the S4 templates, spec 14).
 Checks that stop the build: every code is in the permission catalogue (gen_permission_seed.py); a locked code goes
@@ -44,11 +46,6 @@ CODES = [r[0] for r in ROLES]
 ALIAS = {'PR': 'RQ'}
 TOKEN = re.compile(r'(?<![A-Z])(TA|TM|FO|TE|FA|RQ|AU|RK)(?![A-Z])')
 ENDORSE, PREPARE = 'fin.credit.endorse', {'fin.credit.assess', 'fin.credit.approve'}
-# Cells a mechanical reading gets wrong, each with the text that decides it. Listed in the manifest.
-EXCLUDE = {
-    ('RQ', 'req.cancel.any'): 'spec 13 section 2 row 14: one ◐ for two codes; the requester cancels its own requests '
-                              'in given stages (req.cancel), any request in any stage is the treasury\'s (req.cancel.any)',
-}
 
 
 def read_cell(value, code):
@@ -86,11 +83,15 @@ def matrices(grants, sources):
                 continue
             for c, role in cols.items():
                 values = cells[c].split('/') if len(codes) > 1 and '/' in cells[c] else [cells[c]] * len(codes)
+                # "a · b" are two actions: one value may stand for both only when it means the same for each (✔ R M —).
+                # A ◐ says that something is restricted, not which: one value per code (x/y). "a + b" is one action.
+                if '·' in cells[pcol] and '/' not in cells[c] and cells[c].strip() == '◐':
+                    raise SystemExit(f'{rel}:{k + 1}: one ◐ for {len(codes)} codes in the column {role}: write one value per code')
                 if len(values) != len(codes):
                     raise SystemExit(f'{rel}:{k + 1}: {len(codes)} codes but {len(values)} values for {role}')
                 for code, value in zip(codes, values):
                     ok, restricted = read_cell(value, code)
-                    if ok and (role, code) not in EXCLUDE:
+                    if ok:
                         prev = grants.get((role, code))
                         grants[(role, code)] = restricted and (prev is None or prev)
                         sources.setdefault((role, code), set()).add(f'{rel}:{k + 1}')
@@ -197,7 +198,6 @@ def main():
         'NotSeeded': {'PO': 'the platform operator, not a tenant role', 'RQM': "the requester's manager, resolved "
                       'by the assignment rule REQUESTER_MANAGER (spec 13)', 'SL': 'the sales roles, custom roles '
                       'seeded with the S4 templates (spec 14)'},
-        'Excluded': {f'{r} {c}': why for (r, c), why in EXCLUDE.items()},
         'PermissionsPerRole': per_role,
         'Links': len(links),
         'CatalogueCodesWithoutDefaultRole': unassigned,

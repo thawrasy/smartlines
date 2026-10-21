@@ -328,6 +328,7 @@ ROLE.FA,fin.credit.assess,0,docs/10-detailed-analysis/12-m5-facilities-pricing-c
 ROLE.FA,fin.stmt.enter,0,docs/10-detailed-analysis/12-m5-facilities-pricing-collateral-obligations.md:68
 ROLE.FA,fin.verify.run,0,docs/10-detailed-analysis/12-m5-facilities-pricing-collateral-obligations.md:73
 ROLE.FA,fin.view,0,docs/10-detailed-analysis/12-m5-facilities-pricing-collateral-obligations.md:67
+ROLE.FA,ntf.prefs,0,docs/10-detailed-analysis/13-m6-workflow-engine-notifications.md:75
 ROLE.FA,obl.view,0,docs/10-detailed-analysis/12-m5-facilities-pricing-collateral-obligations.md:63
 ROLE.FA,org.company.view,0,docs/30-readiness/DOC-F07-use-case-catalogue-m0-m1.md:64
 ROLE.FA,org.document.view,0,docs/30-readiness/DOC-F07-use-case-catalogue-m0-m1.md:71
@@ -386,6 +387,7 @@ ROLE.RK,col.view,0,docs/10-detailed-analysis/12-m5-facilities-pricing-collateral
 ROLE.RK,fac.view,0,docs/10-detailed-analysis/12-m5-facilities-pricing-collateral-obligations.md:50
 ROLE.RK,fin.credit.endorse,0,docs/10-detailed-analysis/12-m5-facilities-pricing-collateral-obligations.md:75
 ROLE.RK,fin.view,0,docs/10-detailed-analysis/12-m5-facilities-pricing-collateral-obligations.md:67
+ROLE.RK,ntf.prefs,0,docs/10-detailed-analysis/13-m6-workflow-engine-notifications.md:75
 ROLE.RK,obl.view,0,docs/10-detailed-analysis/12-m5-facilities-pricing-collateral-obligations.md:63
 ROLE.RK,org.company.view,0,docs/30-readiness/DOC-F07-use-case-catalogue-m0-m1.md:64
 ROLE.RK,org.document.view,0,docs/30-readiness/DOC-F07-use-case-catalogue-m0-m1.md:71

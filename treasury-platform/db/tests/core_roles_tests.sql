@@ -60,7 +60,7 @@ GO
 
 DECLARE @e INT, @e2 INT, @o NVARCHAR(4000), @o2 NVARCHAR(4000);
 
-/* CR1: the onboarding job seeds the 8 system roles with their seed keys and the 391 default links of the pack, and
+/* CR1: the onboarding job seeds the 8 system roles with their seed keys and the 393 default links of the pack, and
    logs one INITIAL run. */
 EXEC #Try N'DECLARE @t INT = (SELECT v FROM #K WHERE k = ''t''), @c INT;
     EXECUTE AS USER = N''tp_test_rjob''; EXEC sec.usp_SeedCoreRoles @Created = @c OUTPUT; REVERT;
@@ -68,8 +68,8 @@ EXEC #Try N'DECLARE @t INT = (SELECT v FROM #K WHERE k = ''t''), @c INT;
                        WHERE TenantId = @t AND IsSystem = 1 AND IsActive = 1 AND SeedKey = ''ROLE.'' + Code), ''/'',
                       (SELECT COUNT(*) FROM sec.RolePermission WHERE TenantId = @t), ''/'', @c, ''/'',
                       (SELECT CONCAT(RunKind, '':'', CreatedCount, '':'', SkippedModifiedCount) FROM cfg.SeedRun WHERE TenantId = @t AND PackKey = ''CORE.ROLES''));', @e OUTPUT, @o OUTPUT;
-IF @e = 0 AND @o = 'AU,FA,FO,RK,RQ,TA,TE,TM/391/399/INITIAL:399:0'
-    PRINT 'PASS CR1: the onboarding job seeds the 8 system roles and their 391 default permissions, and logs the run';
+IF @e = 0 AND @o = 'AU,FA,FO,RK,RQ,TA,TE,TM/393/401/INITIAL:401:0'
+    PRINT 'PASS CR1: the onboarding job seeds the 8 system roles and their 393 default permissions, and logs the run';
 ELSE PRINT CONCAT('FAIL CR1: ', @e, ' ', @o);
 
 /* CR2: a second run adds nothing. What the tenant changed stays: a removed link is not put back and a renamed role
@@ -86,7 +86,7 @@ EXEC #Try N'DECLARE @t INT = (SELECT v FROM #K WHERE k = ''t''), @c INT, @s INT;
                       (SELECT CONCAT(JSON_VALUE(DiffJson, ''$.roles[0].seedKey''), '':'', JSON_VALUE(DiffJson, ''$.roles[0].change''), '':'',
                                      JSON_VALUE(DiffJson, ''$.missingLinks[0].seedKey''), '':'', JSON_VALUE(DiffJson, ''$.missingLinks[0].permission''))
                        FROM cfg.SeedRun WHERE TenantId = @t AND PackKey = ''CORE.ROLES'' AND RunKind = ''RERUN''));', @e OUTPUT, @o OUTPUT;
-IF @e = 0 AND @o = '0/2/390/Account administrator/ROLE.TA:RENAMED:ROLE.RK:fin.view'
+IF @e = 0 AND @o = '0/2/392/Account administrator/ROLE.TA:RENAMED:ROLE.RK:fin.view'
     PRINT 'PASS CR2: a second run adds nothing, keeps what the tenant changed, and lists it for review';
 ELSE PRINT CONCAT('FAIL CR2: ', @e, ' ', @o);
 
@@ -103,7 +103,7 @@ EXEC #Try N'DECLARE @t INT = (SELECT v FROM #K WHERE k = ''t'');
          WHERE rp.TenantId = @t AND p.LockedToRoleCodes IS NOT NULL AND r.Code NOT IN (''TM'', ''FO'')), ''/'',
         (SELECT COUNT(*) FROM sec.RolePermission AS rp JOIN sec.Permission AS p ON p.PermissionId = rp.PermissionId
          WHERE rp.TenantId = @t AND p.LockedToRoleCodes IS NOT NULL));', @e OUTPUT, @o OUTPUT;
-IF @e = 0 AND @o = 'AU 31,FA 8,FO 100,RK 9,RQ 19,TA 46,TE 51,TM 127//10'
+IF @e = 0 AND @o = 'AU 31,FA 9,FO 100,RK 10,RQ 19,TA 46,TE 51,TM 127//10'
     PRINT 'PASS CR3: each role has the permissions of the pack, and the locked permissions are on TM and FO only';
 ELSE PRINT CONCAT('FAIL CR3: ', @e, ' ', @o);
 

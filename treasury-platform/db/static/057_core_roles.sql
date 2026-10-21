@@ -6,14 +6,14 @@
 
    sec.usp_SeedCoreRoles   run by the onboarding job JOB-PLT-ONBOARD bound to the new tenant (stage B of 038),
                            before sec.usp_InviteFirstAdministrator, which needs the role TA. It writes the 8 system
-                           roles (IsSystem 1, SeedKey ROLE.<code>) and their 391 default permissions, and logs
+                           roles (IsSystem 1, SeedKey ROLE.<code>) and their 393 default permissions, and logs
                            the run in cfg.SeedRun (PackKey CORE.ROLES, version 1). Insert only (FR-PLT-008):
                              - the first run (INITIAL) adds every role and link;
                              - a later run (RERUN) adds nothing: a link the tenant removed stays removed, and a role
                                the tenant renamed keeps its name; the run counts them (SkippedModifiedCount) and lists
                                them in DiffJson for review.
                            Locked permissions go to TM and FO only, as sec.TR_RolePermission_Locked requires.
-   Roles: TA 46, TM 127, FO 100, TE 51, FA 8, RQ 19, AU 31, RK 9 permissions.
+   Roles: TA 46, TM 127, FO 100, TE 51, FA 9, RQ 19, AU 31, RK 10 permissions.
    EXECUTE: tp_jobs. Errors: 50003 not bound as the onboarding job of an open tenant, 50029 the catalogue lacks a
    permission of the pack (seed 102 first).
    ============================================================================ */
@@ -377,6 +377,7 @@ BEGIN
         ('ROLE.FA', 'fin.stmt.enter'),
         ('ROLE.FA', 'fin.verify.run'),
         ('ROLE.FA', 'fin.view'),
+        ('ROLE.FA', 'ntf.prefs'),
         ('ROLE.FA', 'obl.view'),
         ('ROLE.FA', 'org.company.view'),
         ('ROLE.FA', 'org.document.view'),
@@ -435,6 +436,7 @@ BEGIN
         ('ROLE.RK', 'fac.view'),
         ('ROLE.RK', 'fin.credit.endorse'),
         ('ROLE.RK', 'fin.view'),
+        ('ROLE.RK', 'ntf.prefs'),
         ('ROLE.RK', 'obl.view'),
         ('ROLE.RK', 'org.company.view'),
         ('ROLE.RK', 'org.document.view'),

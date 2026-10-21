@@ -680,7 +680,7 @@ if grep -qaE "$FAIL_RE" "$TMP/roles_tests.out"; then
     exit 1
 fi
 cr_pass=$(grep -oaE "$PASS_RE" "$TMP/roles_tests.out" | sort -u | wc -l)
-# 6 cases: CR1 (the 8 roles and 391 links), CR2 (a second run keeps the tenant's changes), CR3 (per role, and the locked
+# 6 cases: CR1 (the 8 roles and 393 links), CR2 (a second run keeps the tenant's changes), CR3 (per role, and the locked
 # permissions on TM and FO only), CR4 (RK endorses from outside the preparing line, E2), CR5 (rights), CR6 (stages B and C).
 if [ "$cr_pass" -ne 6 ]; then
     echo "expected 6 PASS, found $cr_pass"
