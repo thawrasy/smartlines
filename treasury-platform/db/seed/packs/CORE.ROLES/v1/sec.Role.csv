@@ -1,0 +1,9 @@
+SeedKey,Code,NameAr,NameEn,Description,IsSystem
+ROLE.TA,TA,مدير حساب المشترك,Tenant administrator,"Users, roles, settings and audit; no business data by default (spec 10 section 2 note a).",1
+ROLE.TM,TM,مدير الخزينة,Treasury manager,Treasury approvals; holds the locked permissions with FO (BR-PLT-019).,1
+ROLE.FO,FO,مسؤول التسهيلات,Facilities officer,"Facilities, collateral and statements; holds the locked permissions with TM.",1
+ROLE.TE,TE,موظف الخزينة,Treasury officer,"Treasury execution: requests, letters of credit, monthly figures.",1
+ROLE.FA,FA,محلل مالي,Financial analyst,Enters statements and prepares credit assessments (spec 12).,1
+ROLE.RQ,RQ,الجهة الطالبة,Requester,Purchasing and other requesting units: their own requests only.,1
+ROLE.AU,AU,المدقق,Auditor,Read only; may endorse an approved credit assessment (ADR 0029).,1
+ROLE.RK,RK,مسؤول المخاطر,Risk officer,"Independent of the preparing and approving line: reads what the auditor reads, endorses credit assessments and receives the red warnings (owner decision 35).",1

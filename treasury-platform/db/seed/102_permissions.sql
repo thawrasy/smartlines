@@ -5,7 +5,7 @@
 
    144 codes. LockedToRoleCodes ["TM","FO"] for the 5 permissions only the treasury manager and the
    facilities officer may hold (BR-PLT-019, DQ-F09-1); they and acc.reveal are sensitive (BR-PLT-008).
-   The default role assignment (role matrices) belongs to the CORE.ROLES tenant pack (DOC-B05 section 5.1).
+   The default role assignment (role matrices) is the CORE.ROLES tenant pack: tools/dbgen/core_roles_pack.py, 057.
    Insert only: a code that exists is never changed.
    ============================================================================ */
 SET NOCOUNT ON;

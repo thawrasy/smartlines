@@ -60,6 +60,9 @@ The owner also decided:
      tenant seeder (DOC-B05 section 5.1) and is not built. The words "a system role of CORE.ROLES" described the
      design, not something the package holds. Until the pack exists, the endorsement constraint of 052 is in place but
      has no seeded holder.
+   - *Closed on 2026-10-21 (ADR 0035).* The pack CORE.ROLES is built: generated from the role matrices, applied by
+     `sec.usp_SeedCoreRoles` (057) during onboarding, and it seeds RK with `fin.credit.endorse` in every tenant
+     (CR1 to CR6).
 6. **The provision matrix** (D4, BR-FIN-047). `fin.ReceivableLossRate` holds a loss rate per ageing bucket, government
    receivables over a year apart, with its effective date and its approval by the treasury.
    - `fin.v_ReceivableProvisionCheck` (049) gives, for each statement with an ageing, the expected allowance beside

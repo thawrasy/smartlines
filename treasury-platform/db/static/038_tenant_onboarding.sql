@@ -8,7 +8,8 @@
                                         CORE, the service account, the first administrator (INVITED, no password)
                                         and the event tenant.created. EXECUTE: tp_platform
      B. the onboarding job              binds as the service account (sec.usp_SetJobContext, JOB-PLT-ONBOARD) and
-                                        seeds the packs, the system roles among them (application code, FR-PLT-008).
+                                        seeds the packs (FR-PLT-008): the system roles with sec.usp_SeedCoreRoles
+                                        (057, the pack CORE.ROLES, ADR 0035), the others through the application.
      C. sec.usp_InviteFirstAdministrator the same job gives the first administrator the TA role and an invitation
                                         link, once the roles exist. EXECUTE: tp_jobs
      D-E. the e-mail and the acceptance (sec.usp_CompleteInvitation, 035), then MFA enrolment at the first login.

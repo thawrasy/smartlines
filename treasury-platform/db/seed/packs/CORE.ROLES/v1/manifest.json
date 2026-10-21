@@ -1,0 +1,47 @@
+{
+  "PackKey": "CORE.ROLES",
+  "SeedVersion": 1,
+  "Slice": "S0",
+  "Status": "Generated from the role matrices of specs 11 to 14, DOC-F07 section 3 and DOC-F09 section 3.2, approved by the owner (DQ-B05-12, DQ-F07-1, DQ-F09-1, decision 35). Do not edit by hand: run tools/dbgen/core_roles_pack.py.",
+  "Tables": [
+    "sec.Role.csv",
+    "sec.RolePermission.csv"
+  ],
+  "References": {
+    "PermissionCode": "sec.Permission.Code of db/seed/102_permissions.sql",
+    "RoleSeedKey": "sec.Role.SeedKey of this pack"
+  },
+  "Apply": "In the database: sec.usp_SeedCoreRoles (db/static/057_core_roles.sql), run by the onboarding job JOB-PLT-ONBOARD before sec.usp_InviteFirstAdministrator. Insert only: a run adds what is missing the first time; a later run of the same version adds nothing and reports what the tenant changed.",
+  "Reading": "✔ and ◐ grant (◐ = Restricted 1: the application narrows it by scope, audience or ownership); R grants a view code only; M grants a view code that is not sensitive; — grants nothing.",
+  "NotSeeded": {
+    "PO": "the platform operator, not a tenant role",
+    "RQM": "the requester's manager, resolved by the assignment rule REQUESTER_MANAGER (spec 13)",
+    "SL": "the sales roles, custom roles seeded with the S4 templates (spec 14)"
+  },
+  "Excluded": {
+    "RQ req.cancel.any": "spec 13 section 2 row 14: one ◐ for two codes; the requester cancels its own requests in given stages (req.cancel), any request in any stage is the treasury's (req.cancel.any)"
+  },
+  "PermissionsPerRole": {
+    "TA": 46,
+    "TM": 127,
+    "FO": 100,
+    "TE": 51,
+    "FA": 8,
+    "RQ": 19,
+    "AU": 31,
+    "RK": 9
+  },
+  "Links": 391,
+  "CatalogueCodesWithoutDefaultRole": [
+    "cat.global.manage",
+    "req.view.department"
+  ],
+  "Sources": [
+    "docs/10-detailed-analysis/11-m2-m4-institutions-accounts-catalogs.md section 2",
+    "docs/10-detailed-analysis/12-m5-facilities-pricing-collateral-obligations.md section 2",
+    "docs/10-detailed-analysis/13-m6-workflow-engine-notifications.md section 2",
+    "docs/10-detailed-analysis/14-m7-m8-letters-of-credit.md section 2",
+    "docs/30-readiness/DOC-F07-use-case-catalogue-m0-m1.md section 3",
+    "docs/30-readiness/DOC-F09-use-case-catalogue-m2-m8.md section 3.2"
+  ]
+}

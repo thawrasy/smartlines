@@ -140,8 +140,10 @@ EXEC #JobBind @t, 'JOB-PLT-ONBOARD';
 EXECUTE AS USER = N'tp_test_job';
 BEGIN TRY EXEC sec.usp_InviteFirstAdministrator @UserId = @admin, @Token = @lk3; END TRY BEGIN CATCH SET @e1 = ERROR_NUMBER(); END CATCH;
 REVERT;
--- the CORE.ROLES pack (application code) seeds the system roles; here only TA
-INSERT sec.Role (TenantId, Code, NameAr, NameEn, IsSystem, SeedKey) VALUES (@t, 'TA', N'مدير الحساب', N'Tenant administrator', 1, 'ROLE.TA');
+-- stage B: the onboarding job seeds the system roles with the pack CORE.ROLES (057, ADR 0035)
+EXECUTE AS USER = N'tp_test_job';
+EXEC sec.usp_SeedCoreRoles;
+REVERT;
 SELECT @role = RoleId FROM sec.Role WHERE TenantId = @t AND Code = 'TA';
 INSERT sec.AppUser (TenantId, Email, DisplayNameEn, Status) VALUES (@t, N'other@onboard.invalid', N'Other', 'INVITED');
 SELECT @admin2 = AppUserId FROM sec.AppUser WHERE TenantId = @t AND Email = N'other@onboard.invalid';

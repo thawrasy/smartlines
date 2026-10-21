@@ -72,6 +72,14 @@ if ! diff -q "$TMP/102_permissions.sql" db/seed/102_permissions.sql >/dev/null; 
     exit 1
 fi
 echo "permission seed matches the documents"
+# The tenant pack CORE.ROLES and its procedure 057 are generated from the role matrices of the specs (ADR 0035).
+python3 tools/dbgen/core_roles_pack.py --out "$TMP/roles" > "$TMP/roles.out"
+if ! diff -r "$TMP/roles/db/seed/packs/CORE.ROLES" db/seed/packs/CORE.ROLES >/dev/null \
+   || ! diff -q "$TMP/roles/db/static/057_core_roles.sql" db/static/057_core_roles.sql >/dev/null; then
+    echo "the pack CORE.ROLES or db/static/057_core_roles.sql is stale: run tools/dbgen/core_roles_pack.py and commit the result"
+    exit 1
+fi
+echo "the pack CORE.ROLES matches the role matrices ($(cat "$TMP/roles.out"))"
 # The credit assessment methodology seed is generated from tools/dbgen/credit_scorecard.json (docs/35, ADR 0017).
 # Its tables in docs/35 come from the same file (--doc-check changes nothing and fails on a difference).
 python3 tools/dbgen/gen_credit_seed.py "$TMP/104_credit_scorecard.sql" --doc-check > "$TMP/credit_seed.out" || {
@@ -660,6 +668,25 @@ if [ "$mg_pass" -ne 7 ]; then
     exit 1
 fi
 echo "migration checks: $mg_pass passed"
+echo "== 22e. the system roles of the pack CORE.ROLES (db/tests/core_roles_tests.sql, 057, ADR 0035)"
+sq -i db/tests/core_roles_tests.sql > "$TMP/roles_tests.out" 2>&1 || {
+    cat "$TMP/roles_tests.out"
+    echo "core roles test run failed"
+    exit 1
+}
+cat "$TMP/roles_tests.out"
+if grep -qaE "$FAIL_RE" "$TMP/roles_tests.out"; then
+    echo "a core roles test failed"
+    exit 1
+fi
+cr_pass=$(grep -oaE "$PASS_RE" "$TMP/roles_tests.out" | sort -u | wc -l)
+# 6 cases: CR1 (the 8 roles and 391 links), CR2 (a second run keeps the tenant's changes), CR3 (per role, and the locked
+# permissions on TM and FO only), CR4 (RK endorses from outside the preparing line, E2), CR5 (rights), CR6 (stages B and C).
+if [ "$cr_pass" -ne 6 ]; then
+    echo "expected 6 PASS, found $cr_pass"
+    exit 1
+fi
+echo "core roles tests: $cr_pass passed"
 echo "== 23. nothing the tests switched off is left off, and no test data is left (self-review C10)"
 # The tests switch constraints and triggers off only inside their transactions, and make users without logins; the
 # users are dropped here, and then every key and check is trusted, every trigger and row filter is on, and no tenant
