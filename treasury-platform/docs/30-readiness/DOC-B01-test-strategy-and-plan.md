@@ -22,7 +22,7 @@
 
 ### 2.1 خط CI لقاعدة البيانات
 
-ملف الخط في جذر المستودع، ../.github/workflows/treasury-db-ci.yml، لأن GitHub يقرأ الخطوط من الجذر فقط. يعمل على كل دفع إلى main وclaude/** وعلى كل طلب دمج، ولكن فقط عند تغيّر treasury-platform/db/ أو tools/dbgen/ أو tools/ci/ أو tools/deploy/ أو versions.json أو مستندات الجاهزية والتحليل التفصيلي التي تُولَّد منها بذرة الصلاحيات، أو ملف الخط نفسه، ويمكن تشغيله يدويًا، وينفّذ أوامره داخل treasury-platform/، على ubuntu-24.04 مع حاوية mcr.microsoft.com/mssql/server:2025-CU9-GDR1-ubuntu-24.04 مثبّتة ببصمتها (sha256، من versions.json؛ تطابقها الخطوة 3)، والإجراءات مثبّتة بإيداعاتها، والسحب بلا حفظ بيانات الاعتماد (المراجعة الذاتية E13). يثبّت Pillow (pillow==12.3.0) لأن check_fk_indexes.py يستورد erd_layout.py الذي يستورد PIL. **يعمل على GitHub ويمر** 🟢: أول تشغيل أخضر في 2026-10-12 (https://github.com/thawrasy/smartlines/actions/runs/38283663041) نفّذ الخطوات الثماني يومها، 6 حالات للمشغّلات و41 حالة عزل؛ والتشغيل الذي سبقه، قبل خطوة Pillow، فشل في الخطوة 3 (التشغيل 38267525934) (O-02، tools/dbgen/erd_open_items.py:22؛ docs/adr/0001-schema-work-on-linux.md:11). واليوم 33 خطوة (0 إلى 24 و4b و19b إلى 19d و22b إلى 22e، الجدول أدناه)، والسكربت tools/ci/db_ci.sh نفسه يمر كاملًا في حاوية التطوير أيضًا. وتُطابق كل خطوة سطور PASS وFAIL في أي موضع من السطر، وتعدّ كل حالة مرة واحدة (المراجعة الذاتية C9).
+ملف الخط في جذر المستودع، ../.github/workflows/treasury-db-ci.yml، لأن GitHub يقرأ الخطوط من الجذر فقط. يعمل على كل دفع إلى main وclaude/** وعلى كل طلب دمج، ولكن فقط عند تغيّر treasury-platform/db/ أو tools/dbgen/ أو tools/ci/ أو tools/deploy/ أو versions.json أو مستندات الجاهزية والتحليل التفصيلي التي تُولَّد منها بذرة الصلاحيات، أو ملف الخط نفسه، ويمكن تشغيله يدويًا، وينفّذ أوامره داخل treasury-platform/، على ubuntu-24.04 مع حاوية mcr.microsoft.com/mssql/server:2025-CU9-GDR1-ubuntu-24.04 مثبّتة ببصمتها (sha256، من versions.json؛ تطابقها الخطوة 3)، والإجراءات مثبّتة بإيداعاتها، والسحب بلا حفظ بيانات الاعتماد (المراجعة الذاتية E13). يثبّت Pillow (pillow==12.3.0) لأن check_fk_indexes.py يستورد erd_layout.py الذي يستورد PIL. **يعمل على GitHub ويمر** 🟢: أول تشغيل أخضر في 2026-10-12 (https://github.com/thawrasy/smartlines/actions/runs/38283663041) نفّذ الخطوات الثماني يومها، 6 حالات للمشغّلات و41 حالة عزل؛ والتشغيل الذي سبقه، قبل خطوة Pillow، فشل في الخطوة 3 (التشغيل 38267525934) (O-02، tools/dbgen/erd_open_items.py:22؛ docs/adr/0001-schema-work-on-linux.md:11). واليوم 34 خطوة (0 إلى 24 و4b و19b إلى 19d و22b إلى 22e، الجدول أدناه)، والسكربت tools/ci/db_ci.sh نفسه يمر كاملًا في حاوية التطوير أيضًا. وتُطابق كل خطوة سطور PASS وFAIL في أي موضع من السطر، وتعدّ كل حالة مرة واحدة (المراجعة الذاتية C9).
 
 | الخطوة | ما تفعله | الموضع |
 |---|---|---|
@@ -39,13 +39,14 @@
 | 19 | إصلاحات المراجعة: RF1 إلى RF34 وSR1 إلى SR9 (43) | db/tests/review_fixes_tests.sql؛ tools/ci/db_ci.sh:468-491 |
 | 19b | القوائم المالية: FS1 إلى FS11 (11) | db/tests/financial_statements_tests.sql؛ tools/ci/db_ci.sh:492-511 |
 | 19c | التقييم الائتماني: CA1 إلى CA31 (31) | db/tests/credit_assessment_tests.sql؛ tools/ci/db_ci.sh:512-541 |
-| 19d | محرك T-SQL يطابق مرجع Python: CE وCV (142) | db/tests/credit_engine_cases.sql؛ tools/ci/db_ci.sh:542-556 |
+| 19d | محرك T-SQL يطابق مرجع Python: CE وCV (148) | db/tests/credit_engine_cases.sql؛ tools/ci/db_ci.sh:542-556 |
 | 20 إلى 22 | SQL Server Audit (SA1 إلى SA9)، دخول المراقبة (MN1 إلى MN6)، فحوص ما قبل النشر (PF1 إلى PF8) | tools/ci/*_check.sh؛ tools/ci/db_ci.sh:557-619 |
-| 22b | حارس المفاتيح وسلسلة التدقيق: KG1 إلى KG6 وAC1 إلى AC7 (13) | db/tests/integrity_tests.sql؛ tools/ci/db_ci.sh:620-639 |
-| 22c | مراسي سلسلة التدقيق خارج القاعدة: AA1 إلى AA3 | tools/ci/audit_anchor_check.sh؛ tools/ci/db_ci.sh:640-654 |
-| 22d | الترحيلات المتزايدة: MG1 إلى MG7 | tools/ci/migration_check.sh؛ tools/ci/db_ci.sh:655-670 |
-| 22e | أدوار الحزمة CORE.ROLES: CR1 إلى CR6 | db/tests/core_roles_tests.sql؛ tools/ci/db_ci.sh:671-689 |
-| 23 | لا قيد غير موثوق ولا مشغّل معطّل ولا مرشح صفوف معطّل ولا مستخدم اختبار ولا مشترك متروك | tools/ci/db_ci.sh:690-700 |
+| 22b | حارس المفاتيح وسلسلة التدقيق: KG1 إلى KG7 وAC1 إلى AC10 (17) | db/tests/integrity_tests.sql؛ tools/ci/db_ci.sh:622-642 |
+| 22c | مراسي سلسلة التدقيق خارج القاعدة، والمخزن هو الحَكَم: AA1 إلى AA7 | tools/ci/audit_anchor_check.sh؛ tools/ci/db_ci.sh:643-662 |
+| 22d | الترحيلات المتزايدة بحساب النشر داخل نافذة: MG1 إلى MG12 | tools/ci/migration_check.sh؛ tools/ci/db_ci.sh:663-685 |
+| 22e | أدوار الحزمة CORE.ROLES: CR1 إلى CR9 | db/tests/core_roles_tests.sql؛ tools/ci/db_ci.sh:686-705 |
+| 22f | الفاعلون في السجلات المالية وما تجمّده الفترة المغلقة: FC1 إلى FC14 | db/tests/finance_controls_tests.sql؛ tools/ci/db_ci.sh:706-726 |
+| 23 | لا مستخدم اختبار متروك (يُعدّ قبل الحذف)، ولا قيد غير موثوق ولا مشغّل معطّل ولا مرشح صفوف معطّل ولا مشترك متروك | tools/ci/db_ci.sh:727-742 |
 | 24 | سكربتات القياس بأحجام صغيرة: 18 نتيجة، والسلسلة سليمة بعد الكتّاب المتزامنين (ADR 0036) | tools/perf/run_perf.sh؛ tools/ci/db_ci.sh:701-718 |
 
 ### 2.2 اختبارات قاعدة البيانات

@@ -1,10 +1,11 @@
 /* ============================================================================
-   BankFas - 046: the credit assessment of a balance sheet on the Moody's scale (owner request of 2026-10-18;
+   BankFas - 046: the company's own credit self-assessment of a balance sheet, graded on a 21-step internal scale named
+   after Moody's rating symbols; an indicative internal mapping, not an agency rating (owner request of 2026-10-18;
    docs/35-credit-assessment-methodology.md, spec 12 FR-FIN-020 to FR-FIN-024, BR-FIN-018 to BR-FIN-024,
    docs/adr/0017-credit-assessment.md)
 
    When an approved statement is studied, the system computes from its lines the ratios of the methodology, scores
-   each scorecard ratio on the linear continuum of the Moody's scorecards (0.5 best to 20.5 worst, by the nine
+   each scorecard ratio on a linear continuum in the manner of published rating scorecards (0.5 best to 20.5 worst, by the nine
    boundaries of its sector grid), weights them into an aggregate that gives the indicated grade (Aaa below 1.5,
    then one notch per point, Ca from 19.5), and applies in order: the notches (audit opinion, unaudited or stale or
    incomplete or restated statement, losses of half the capital cured, related-party exposure, a holding's standalone
@@ -45,7 +46,8 @@ GO
    review of 2026-10-21, lens E, finding 11): the company's facilities with their lenders, limits, uses started by the
    assessment date, the collateral linked to them and the lenders' decisions effective by then; the covenant breaches
    of the company and its covenants; its bank flows to the assessment date and its revenue estimates; the covenant
-   tests that read the statement; and the country, region and activity profiles the methodology reads. A platform row
+   tests that read the statement; the facilities' revisions and the documents the inputs cite (read as of the
+   assessment date by the engine, ADR 0038); and the country, region and activity profiles the methodology reads. A platform row
    is taken by its row version (any change of it changes the digest), a global profile by its content. A change of any
    of them after the computation makes the submission refuse the assessment until it is computed again. */
 CREATE OR ALTER FUNCTION fin.fn_CreditAssessmentPlatformDigest (@TenantId INT, @AssessmentId BIGINT)
@@ -63,7 +65,10 @@ SELECT CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', CONCAT(
                     LEFT JOIN col.Collateral AS c ON c.TenantId = k.TenantId AND c.RootId = k.CollateralId
                     WHERE k.TenantId = f.TenantId AND k.FacilityId = f.FacilityId ORDER BY k.CollateralLinkId, c.CollateralId FOR JSON PATH) AS collateral,
                    (SELECT x.FacilityLenderDecisionId, x.RowVersion FROM fac.FacilityLenderDecision AS x
-                    WHERE x.TenantId = f.TenantId AND x.FacilityId = f.FacilityId AND x.EffectiveDate <= a.AssessmentDate ORDER BY x.FacilityLenderDecisionId FOR JSON PATH) AS decisions
+                    WHERE x.TenantId = f.TenantId AND x.FacilityId = f.FacilityId AND x.EffectiveDate <= a.AssessmentDate ORDER BY x.FacilityLenderDecisionId FOR JSON PATH) AS decisions,
+                   -- the revisions, since the engine reads the one in effect on the assessment date (ADR 0038, E4)
+                   (SELECT x.FacilityRevisionId, x.RowVersion FROM fac.FacilityRevision AS x
+                    WHERE x.TenantId = f.TenantId AND x.FacilityId = f.FacilityId ORDER BY x.FacilityRevisionId FOR JSON PATH) AS revisions
             FROM fac.Facility AS f
             WHERE f.TenantId = a.TenantId AND f.BorrowerCompanyId = a.CompanyId
             ORDER BY f.FacilityId
@@ -89,7 +94,11 @@ SELECT CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', CONCAT(
             WHERE p.CountryId IN (co.CountryId, a.MarketCountryId) OR p.IsDefault = 1 ORDER BY p.CountryRiskProfileId FOR JSON PATH), '|',
            (SELECT g.* FROM fin.CountryRegion AS g
             WHERE g.CountryId = ISNULL(a.MarketCountryId, co.CountryId) AND g.Code = a.MarketRegionCode FOR JSON PATH), '|',
-           (SELECT ip.* FROM fin.IndustryProfile AS ip WHERE ip.IndustryId = co.IndustryId FOR JSON PATH))), 2) AS PlatformDigest
+           (SELECT ip.* FROM fin.IndustryProfile AS ip WHERE ip.IndustryId = co.IndustryId FOR JSON PATH),
+           -- the documents the inputs cite: the engine accepts an active document of the company only (ADR 0038, E19)
+           (SELECT d.DocumentId, d.RowVersion FROM fin.CreditAssessmentInput AS i
+            JOIN doc.Document AS d ON d.TenantId = i.TenantId AND d.DocumentId = i.DocumentId
+            WHERE i.TenantId = a.TenantId AND i.AssessmentId = a.CreditAssessmentId ORDER BY d.DocumentId FOR JSON PATH))), 2) AS PlatformDigest
 FROM fin.CreditAssessment AS a
 JOIN org.Company AS co ON co.TenantId = a.TenantId AND co.CompanyId = a.CompanyId
 WHERE a.TenantId = @TenantId AND a.CreditAssessmentId = @AssessmentId;

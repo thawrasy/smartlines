@@ -158,14 +158,14 @@ ELSE PRINT CONCAT('FAIL CR6: ', @e, ' ', @o);
 /* CR7: an open tenant only: a SUSPENDED tenant is refused (50003, the write filter of the binding) (internal review
    v6, B13). */
 EXEC #Try N'UPDATE plat.Tenant SET Status = ''SUSPENDED'', SuspendedReason = N''TEST'', SuspendedAt = SYSUTCDATETIME() WHERE TenantId = (SELECT v FROM #K WHERE k = ''t'');
-    EXECUTE AS USER = N''tp_test_rjob''; BEGIN TRY EXEC sec.usp_SeedCoreRoles; END TRY BEGIN CATCH REVERT; THROW; END CATCH; REVERT;', @e OUTPUT;
+    EXECUTE AS USER = N''tp_test_rjob''; EXEC sec.usp_SeedCoreRoles; REVERT;', @e OUTPUT;
 IF @e = 50003
     PRINT 'PASS CR7: the pack is refused for a tenant that is not open (50003)';
 ELSE PRINT CONCAT('FAIL CR7: suspended tenant ', @e);
 
 /* CR8: a catalogue that lacks a permission of the pack stops it before anything is written (50149). */
 EXEC #Try N'UPDATE sec.Permission SET IsActive = 0 WHERE Code = ''fac.view'';
-    EXECUTE AS USER = N''tp_test_rjob''; BEGIN TRY EXEC sec.usp_SeedCoreRoles; END TRY BEGIN CATCH REVERT; THROW; END CATCH; REVERT;', @e OUTPUT;
+    EXECUTE AS USER = N''tp_test_rjob''; EXEC sec.usp_SeedCoreRoles; REVERT;', @e OUTPUT;
 IF @e = 50149
     PRINT 'PASS CR8: a permission of the pack missing from the catalogue stops the pack (50149)';
 ELSE PRINT CONCAT('FAIL CR8: missing permission ', @e);

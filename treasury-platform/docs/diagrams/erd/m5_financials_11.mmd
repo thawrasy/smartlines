@@ -2,6 +2,7 @@
 erDiagram
   fin_ReceivableLossRate["fin.ReceivableLossRate"] {
     int ReceivableLossRateId PK
+    bigint PreparedBy FK
     bigint ApprovedBy FK
   }
   fin_ReportingPeriodLock["fin.ReportingPeriodLock"] {

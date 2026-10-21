@@ -629,8 +629,12 @@ BEGIN
         FROM fin.StatementLine AS ln JOIN fin.LineCatalogItem AS li ON li.TenantId = ln.TenantId AND li.LineCatalogItemId = ln.LineCatalogItemId
         WHERE ln.StatementId = @s;
         UPDATE fin.FinancialStatement SET Status = 'SUBMITTED' WHERE FinancialStatementId = @s2;
+        -- the approver supersedes the old version and approves the correction (058: the act of a user who may approve)
+        DECLARE @was29 BIGINT = CAST(SESSION_CONTEXT(N'UserId') AS BIGINT);
+        EXEC #CAs @u2;
         UPDATE fin.FinancialStatement SET Status = 'SUPERSEDED' WHERE FinancialStatementId = @s;
         UPDATE fin.FinancialStatement SET Status = 'APPROVED', ApprovedBy = @u2, ApprovedOn = SYSUTCDATETIME() WHERE FinancialStatementId = @s2;
+        EXEC #CAs @was29;
         EXEC #CAssess @s2;
     END
     ELSE IF @Case > 2 EXEC #CAssess @s;

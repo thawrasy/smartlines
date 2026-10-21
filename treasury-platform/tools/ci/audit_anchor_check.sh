@@ -72,11 +72,14 @@ SQL
 # moved past the store: the run's own audit rows move the platform chain, so the second run anchors it again.
 anchor take "$STORE"; r0=$rc; grep -q 'bankfas-anchor-store' "$TMP/a.out" || r0=x
 touch "$STORE/.bankfas-anchor-store"
+# On a fresh database the platform chain may hold no row yet: the first run then anchors nothing and writes no file,
+# and its own audit row starts the chain. So three runs give two or three files, one platform line in each.
 anchor take "$STORE"; r1=$rc
 anchor take "$STORE"; r2=$rc
+anchor take "$STORE"; r3=$rc; r2="$r2$r3"
 lines="$(cat "$STORE"/anchors-*.tsv | grep -cE '^0	[0-9]+	[0-9A-F]{64}	')"
 writable="$(find "$STORE" -name '*.tsv' -perm -u+w | wc -l)"
-result "$([ "$r0/$r1/$r2" = "1/0/0" ] && [ "$(files)" = "2" ] && [ "$lines" = "2" ] && [ "$writable" = "0" ] && echo 1)" \
+result "$([ "$r0/$r1/$r2" = "1/0/00" ] && [ "$(files)" -ge 2 ] && [ "$lines" = "$(files)" ] && [ "$writable" = "0" ] && echo 1)" \
     "AA1: audit_anchor.sh take refuses a folder that is not the store, and writes each run's anchors to a new read-only file" "exit $r0/$r1/$r2, files $(files), platform lines $lines, writable $writable"
 
 # AA2: verify checks every chain against its latest anchor in the store and passes.
