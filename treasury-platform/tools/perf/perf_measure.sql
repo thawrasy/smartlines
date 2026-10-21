@@ -153,12 +153,14 @@ BEGIN
 END;
 DECLARE @anchors TABLE (ChainKey INT, ChainSeq BIGINT, RowHash CHAR(64), TakenAt CHAR(23));
 SET @t0 = SYSUTCDATETIME();
-INSERT @anchors EXEC aud.usp_TakeAuditAnchors @JobKey = 'JOB-PLT-AUDIT-CHAIN', @StoreRef = N'perf';
+INSERT @anchors EXEC aud.usp_TakeAuditAnchors @JobKey = 'JOB-PLT-AUDIT-CHAIN', @StoreRef = N'perf', @StoreLatest = N'[]';
 INSERT #S VALUES ('J3', DATEDIFF_BIG(MICROSECOND, @t0, SYSUTCDATETIME()));
 SET @rows = (SELECT COUNT(*) FROM @anchors);
 PRINT CONCAT('INFO|J3|chains anchored|', @rows);
+-- the store's latest anchors are those just taken (audit_anchor.sh reads them from the store)
+DECLARE @latest NVARCHAR(MAX) = (SELECT ChainKey AS k, ChainSeq AS s FROM @anchors FOR JSON PATH);
 SET @t0 = SYSUTCDATETIME();
-INSERT @anchors EXEC aud.usp_TakeAuditAnchors @JobKey = 'JOB-PLT-AUDIT-CHAIN', @StoreRef = N'perf';
+INSERT @anchors EXEC aud.usp_TakeAuditAnchors @JobKey = 'JOB-PLT-AUDIT-CHAIN', @StoreRef = N'perf', @StoreLatest = @latest;
 INSERT #S VALUES ('J3', DATEDIFF_BIG(MICROSECOND, @t0, SYSUTCDATETIME()));
 GO
 /* J4: the daily chain check from the anchor (055): the tenant's latest anchor, a day of 500 more audit rows, then the

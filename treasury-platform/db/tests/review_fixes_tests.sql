@@ -122,8 +122,9 @@ BEGIN
                (@t, 'CUSTOM', N'دور مخصص', N'Custom role', 0, NULL);
         INSERT cat.DocumentType (TenantId, Code, NameAr, NameEn, AppliesTo, IsSensitive)
         VALUES (@t, 'ID_CARD', N'بطاقة هوية', N'Identity card', 'PARTY', 1), (@t, 'CONTRACT', N'عقد', N'Contract', 'GENERAL', 0);
-        INSERT sec.TenantKey (TenantId, Purpose, KeyVersion, Status, WrappedKey, MasterKeyRef, ActivatedAt)
-        VALUES (@t, 'FILE', 1, 'ACTIVE', CRYPT_GEN_RANDOM(64), 'kms/test/file', SYSUTCDATETIME());
+        INSERT sec.TenantKey (TenantId, Purpose, KeyVersion, Status, WrappedKey, MasterKeyRef)
+        VALUES (@t, 'FILE', 1, 'PENDING', CRYPT_GEN_RANDOM(64), 'kms/test/file');
+        UPDATE sec.TenantKey SET Status = 'ACTIVE', ActivatedAt = SYSUTCDATETIME() WHERE TenantId = @t AND Purpose = 'FILE';
         INSERT #F (k, v)
         SELECT CONCAT('t', @i), @t UNION ALL SELECT CONCAT('u', @i), @u
         UNION ALL SELECT CONCAT('key', @i), TenantKeyId FROM sec.TenantKey WHERE TenantId = @t AND Purpose = 'FILE'
@@ -2122,4 +2123,10 @@ EXEC #Cases '#Cov', '#ModelCase', 1, 16, @got OUTPUT;
 IF @got = '1:2627 2:547 3:0 4:547 5:50053 6:0 7:547 8:547 9:0 10:2601 11:547 12:547 13:547 14:0 15:547 16:547'
     PRINT 'PASS SR9: tests, breaches and agenda items follow their root, a test is cancelled with its reason, a waiver is approved, and a renewal moves utilisations to the successor';
 ELSE PRINT CONCAT('FAIL SR9: case:error ', @got, ' (expected 1:2627 2:547 3:0 4:547 5:50053 6:0 7-8:547 9:0 10:2601 11-13:547 14:0 15-16:547)');
+GO
+-- the test users go with the test (CI step 23 counts any left behind; internal review v6, B9)
+ALTER ROLE [tp_app] DROP MEMBER [tp_test_rfapp];
+ALTER ROLE [tp_readonly] DROP MEMBER [tp_test_rfread];
+DROP USER [tp_test_rfapp];
+DROP USER [tp_test_rfread];
 GO

@@ -46,6 +46,14 @@ verifies the chain and pushes its head to a store nobody with access to the data
 5. Only tp_jobs may execute the two job procedures, with the job's own key. No role is granted the head or the anchor
    table.
 
+6. *Amended on 2026-10-21 by ADR 0039 (internal review v6).* The store, not the database, judges the anchors: `take`
+   verifies every chain from its latest store anchor before anchoring and refuses a rewritten chain; what moved is
+   decided against the store's latest anchors (`@StoreLatest`, 50148); the store carries `.bankfas-anchor-store`, files
+   have unique names and are read back; `verify` fails STALE and NOT_ANCHORED chains, `verify --full` checks every
+   anchor of the store; `restored` records the heads after a restore. The verification reads up to the head it read
+   first; the anchor job holds no lock; heads are locked in key order; unchained rows no longer stop a deployment;
+   `tp_readonly` is denied the head and anchor tables. Tests AA1 to AA7 and AC1 to AC10.
+
 ## Limits
 
 - An administrator of the database can still change rows and compute every hash again. What they cannot change is the

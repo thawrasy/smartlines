@@ -8,11 +8,18 @@
      keys           primary keys, unique and check constraints, foreign keys with their columns and actions
      indexes        each index: unique, filter, key columns in order and direction, included columns
      modules        each procedure, function, view and trigger: its definition, and whether a trigger is disabled
+     ddltriggers    each database DDL trigger, its definition and whether it is disabled (these are not in sys.objects)
      policies       each security policy and its predicates
      roles          the database roles
-     permissions    what is granted or denied to a role, on what, and which column
-   Database users and role membership are left out: the service logins and their users are made after the
-   deployment (provision_logins.sh, provision_monitor.sh) and differ between servers by design. Data is left out.
+     members        who is a member of which role: roles in roles, tp_auth_exec, and anyone in a fixed role (db_owner,
+                    db_securityadmin, db_ddladmin and the rest)
+     permissions    what is granted or denied to any principal, role or user, on what, and which column
+     owners         the owner of each schema, and of each object that has an owner of its own
+   Left out are only what the provisioning tools make after the deployment, on every server: the service users
+   bankfas_app_*, bankfas_jobs_*, bankfas_platform_* and bankfas_support_* as members of their own role (tp_app,
+   tp_jobs, tp_platform, tp_support), the right to connect, and bankfas_monitor's VIEW DEFINITION
+   (provision_logins.sh, provision_monitor.sh). Anything else given to them counts (internal review v6, A10, B6, D8):
+   a member added to db_owner, a grant to a user, a new DDL trigger, all change the fingerprint. Data is left out.
    tools/deploy/migrate.sh records the fingerprint after every step in plat.SchemaMigration, and refuses to go on
    when the database's fingerprint is not the one the journal holds: the schema was changed outside the journal.
    CI runs the repeatable scripts a second time on a deployed database and requires the same fingerprint (the
@@ -77,6 +84,12 @@ AS RETURN
         JOIN sys.objects AS o ON o.object_id = m.object_id AND o.is_ms_shipped = 0
         LEFT JOIN sys.triggers AS tr ON tr.object_id = m.object_id
         UNION ALL
+        SELECT N'ddltriggers', CONCAT(tr.name, N'|', tr.is_disabled, N'|', tr.is_instead_of_trigger, N'|',
+                                      CONVERT(NVARCHAR(64), HASHBYTES('SHA2_256', CAST(m.definition AS NVARCHAR(MAX))), 2))
+        FROM sys.triggers AS tr
+        LEFT JOIN sys.sql_modules AS m ON m.object_id = tr.object_id
+        WHERE tr.parent_class = 0
+        UNION ALL
         SELECT N'policies', CONCAT(SCHEMA_NAME(p.schema_id), N'.', p.name, N'|', p.is_enabled, N'|', sp.predicate_type, N'|',
                                    sp.operation, N'|', OBJECT_SCHEMA_NAME(sp.target_object_id), N'.', OBJECT_NAME(sp.target_object_id), N'|',
                                    sp.predicate_definition)
@@ -86,13 +99,27 @@ AS RETURN
         SELECT N'roles', CAST(r.name AS NVARCHAR(MAX))
         FROM sys.database_principals AS r WHERE r.type = 'R' AND r.is_fixed_role = 0 AND r.name <> N'public'
         UNION ALL
-        SELECT N'permissions', CONCAT(g.name, N'|', p.state, N'|', p.permission_name, N'|', p.class, N'|',
+        SELECT N'members', CONCAT(r.name, N'>', m.name, N'|', m.type)
+        FROM sys.database_role_members AS rm
+        JOIN sys.database_principals AS r ON r.principal_id = rm.role_principal_id
+        JOIN sys.database_principals AS m ON m.principal_id = rm.member_principal_id
+        WHERE NOT (m.type = 'S' AND r.name IN (N'tp_app', N'tp_jobs', N'tp_platform', N'tp_support')
+                   AND m.name LIKE N'bankfas[_]' + SUBSTRING(r.name, 4, 20) + N'[_]%')
+        UNION ALL
+        SELECT N'owners', CONCAT(N'schema|', s.name, N'|', USER_NAME(s.principal_id))
+        FROM sys.schemas AS s WHERE s.schema_id BETWEEN 5 AND 16383 OR s.name = N'dbo'
+        UNION ALL
+        SELECT N'owners', CONCAT(N'object|', OBJECT_SCHEMA_NAME(o.object_id), N'.', o.name, N'|', USER_NAME(o.principal_id))
+        FROM sys.objects AS o WHERE o.principal_id IS NOT NULL AND o.is_ms_shipped = 0
+        UNION ALL
+        SELECT N'permissions', CONCAT(g.name, N'|', g.type, N'|', p.state, N'|', p.permission_name, N'|', p.class, N'|',
                                       CASE p.class WHEN 0 THEN N'DATABASE' WHEN 1 THEN CONCAT(OBJECT_SCHEMA_NAME(p.major_id), N'.', OBJECT_NAME(p.major_id))
                                                    WHEN 3 THEN SCHEMA_NAME(p.major_id) ELSE CAST(p.major_id AS NVARCHAR(20)) END, N'|',
                                       CASE WHEN p.class = 1 AND p.minor_id > 0 THEN COL_NAME(p.major_id, p.minor_id) END)
         FROM sys.database_permissions AS p
-        JOIN sys.database_principals AS g ON g.principal_id = p.grantee_principal_id AND g.type = 'R'
-        WHERE NOT (g.name = N'public' AND p.class = 0 AND p.permission_name = N'CONNECT'))
+        JOIN sys.database_principals AS g ON g.principal_id = p.grantee_principal_id
+        WHERE NOT (p.class = 0 AND p.permission_name = N'CONNECT' AND p.state = 'G')
+          AND NOT (g.name = N'bankfas_monitor' AND p.class = 0 AND p.permission_name = N'VIEW DEFINITION' AND p.state = 'G'))
     SELECT Part, COUNT_BIG(*) AS Items,
            CAST(HASHBYTES('SHA2_256', STRING_AGG(Line COLLATE Latin1_General_100_BIN2, NCHAR(10))
                                       WITHIN GROUP (ORDER BY Line COLLATE Latin1_General_100_BIN2)) AS VARBINARY(32)) AS PartHash
@@ -105,4 +132,7 @@ AS RETURN
     SELECT CAST(HASHBYTES('SHA2_256', STRING_AGG(CAST(CONCAT(Part, N'=', CONVERT(NVARCHAR(64), PartHash, 2)) AS NVARCHAR(MAX)), NCHAR(10))
                                       WITHIN GROUP (ORDER BY Part)) AS VARBINARY(32)) AS Fingerprint
     FROM plat.fn_SchemaFingerprintParts();
+GO
+-- tp_readonly reads the plat schema (020), but not the journal of the schema's changes (internal review v6, A11).
+DENY SELECT ON plat.SchemaMigration TO [tp_readonly];
 GO

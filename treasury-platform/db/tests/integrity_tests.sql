@@ -14,6 +14,15 @@ SET NOCOUNT ON;
 IF DATABASE_PRINCIPAL_ID(N'tp_test_ijob') IS NULL CREATE USER [tp_test_ijob] WITHOUT LOGIN;
 IF DATABASE_PRINCIPAL_ID(N'tp_test_iapp') IS NULL CREATE USER [tp_test_iapp] WITHOUT LOGIN;
 IF DATABASE_PRINCIPAL_ID(N'tp_test_iread') IS NULL CREATE USER [tp_test_iread] WITHOUT LOGIN;
+IF DATABASE_PRINCIPAL_ID(N'tp_test_iro') IS NULL CREATE USER [tp_test_iro] WITHOUT LOGIN;
+IF DATABASE_PRINCIPAL_ID(N'tp_test_iwrite') IS NULL CREATE USER [tp_test_iwrite] WITHOUT LOGIN;
+ALTER ROLE [tp_auth] ADD MEMBER [tp_test_iwrite];
+GRANT INSERT ON aud.AuditLog TO [tp_test_iwrite];
+IF DATABASE_PRINCIPAL_ID(N'tp_test_isup') IS NULL CREATE USER [tp_test_isup] WITHOUT LOGIN;
+IF DATABASE_PRINCIPAL_ID(N'tp_test_iplat') IS NULL CREATE USER [tp_test_iplat] WITHOUT LOGIN;
+ALTER ROLE [tp_readonly] ADD MEMBER [tp_test_iro];
+ALTER ROLE [tp_support] ADD MEMBER [tp_test_isup];
+ALTER ROLE [tp_platform] ADD MEMBER [tp_test_iplat];
 ALTER ROLE [tp_auth] ADD MEMBER [tp_test_iread];          -- the row filters let tp_auth read every audit row
 ALTER ROLE [db_datareader] ADD MEMBER [tp_test_iread];    -- tp_auth itself has no right on aud.AuditLog
 ALTER ROLE [tp_jobs] ADD MEMBER [tp_test_ijob];
@@ -46,8 +55,9 @@ BEGIN
     SET @t = SCOPE_IDENTITY();
     EXEC #Bind @t, 0;
     INSERT sec.TenantKey (TenantId, Purpose, KeyVersion, Status, WrappedKey, MasterKeyRef, ActivatedAt)
-    VALUES (@t, 'DATA', 1, 'ACTIVE', CRYPT_GEN_RANDOM(64), 'kms/test/data', SYSUTCDATETIME()),
+    VALUES (@t, 'DATA', 1, 'PENDING', CRYPT_GEN_RANDOM(64), 'kms/test/data', NULL),
            (@t, 'DATA', 2, 'PENDING', CRYPT_GEN_RANDOM(64), 'kms/test/data', NULL);
+    UPDATE sec.TenantKey SET Status = 'ACTIVE', ActivatedAt = SYSUTCDATETIME() WHERE TenantId = @t AND KeyVersion = 1;
     INSERT #K SELECT 't', @t
     UNION ALL SELECT 'k1', TenantKeyId FROM sec.TenantKey WHERE TenantId = @t AND KeyVersion = 1
     UNION ALL SELECT 'k2', TenantKeyId FROM sec.TenantKey WHERE TenantId = @t AND KeyVersion = 2;
@@ -182,11 +192,37 @@ JOIN sys.columns AS rc ON rc.object_id = fk.referenced_object_id AND rc.column_i
 JOIN sys.columns AS c ON c.object_id = fk.parent_object_id AND c.column_id = fc.parent_column_id
 JOIN sys.triggers AS tr ON tr.parent_id = fk.parent_object_id AND tr.name = N'TR_' + OBJECT_NAME(fk.parent_object_id) + N'_KeyStatus' AND tr.is_disabled = 0
 WHERE fk.referenced_object_id = OBJECT_ID(N'sec.TenantKey') AND fk.parent_object_id <> OBJECT_ID(N'sec.KeyEvent')
-  AND CHARINDEX(N'i.' + QUOTENAME(c.name), OBJECT_DEFINITION(tr.object_id)) > 0;
+  -- the whole condition of each column, so a column named wrongly in one place is found (internal review v6, B11)
+  AND CHARINDEX(N'JOIN sec.TenantKey AS k WITH (REPEATABLEREAD) ON k.TenantId = i.TenantId AND k.TenantKeyId = i.' + QUOTENAME(c.name), OBJECT_DEFINITION(tr.object_id)) > 0
+  AND CHARINDEX(N'd.' + QUOTENAME(c.name) + N' IS NULL OR d.' + QUOTENAME(c.name) + N' <> i.' + QUOTENAME(c.name), OBJECT_DEFINITION(tr.object_id)) > 0;
 SELECT @e2 = COUNT(*) FROM sys.triggers WHERE name LIKE N'TR[_]%[_]KeyStatus' AND parent_class = 1;
 IF @n = 9 AND @e = 9 AND @e2 = 6
     PRINT 'PASS KG6: the 9 key columns of the 6 tables that reference sec.TenantKey are all guarded';
 ELSE PRINT CONCAT('FAIL KG6: key columns ', @n, ', guarded ', @e, ', triggers ', @e2);
+
+/* KG7: the key itself (internal review v6, A5, A8, A4): a key is created PENDING; its version never changes; its bytes
+   change only with the master key that wraps them (a re-wrap); a row on a REVOKED key is frozen until it is moved or
+   cleared; the operators see per key how many rows are still on it, through sec.usp_KeyReferenceCounts. */
+EXEC #Try N'INSERT sec.TenantKey (TenantId, Purpose, KeyVersion, Status, WrappedKey, MasterKeyRef, ActivatedAt)
+            VALUES ((SELECT v FROM #K WHERE k = ''t''), ''FILE'', 1, ''ACTIVE'', CRYPT_GEN_RANDOM(64), ''kms/test/file'', SYSUTCDATETIME());', @e OUTPUT;
+EXEC #Try N'UPDATE sec.TenantKey SET KeyVersion = 9 WHERE TenantKeyId = (SELECT v FROM #K WHERE k = ''k1'');', @e2 OUTPUT;
+EXEC #Try N'UPDATE sec.TenantKey SET WrappedKey = CRYPT_GEN_RANDOM(64) WHERE TenantKeyId = (SELECT v FROM #K WHERE k = ''k1'');', @e3 OUTPUT;
+SET @o = CONCAT(@e, '/', @e2, '/', @e3);
+EXEC #Try N'UPDATE sec.TenantKey SET WrappedKey = CRYPT_GEN_RANDOM(64), MasterKeyRef = ''kms/test/data-2'' WHERE TenantKeyId = (SELECT v FROM #K WHERE k = ''k1'');', @e OUTPUT;
+EXEC #Try N'UPDATE sec.TenantKey SET Status = ''REVOKED'' WHERE TenantKeyId = (SELECT v FROM #K WHERE k = ''k1'');
+            UPDATE sec.AppUser SET MfaSecretEnc = CRYPT_GEN_RANDOM(48) WHERE AppUserId = (SELECT v FROM #K WHERE k = ''u1'');', @e2 OUTPUT;
+EXEC #Try N'UPDATE sec.TenantKey SET Status = ''REVOKED'' WHERE TenantKeyId = (SELECT v FROM #K WHERE k = ''k1'');
+            UPDATE sec.AppUser SET MfaSecretEnc = NULL, MfaKeyId = NULL WHERE AppUserId = (SELECT v FROM #K WHERE k = ''u1'');
+            DECLARE @r TABLE (TenantId INT, TenantKeyId BIGINT, Purpose VARCHAR(20), KeyVersion INT, Status VARCHAR(20), RowCnt BIGINT);
+            UPDATE sec.TenantKey SET Status = ''ACTIVE'', ActivatedAt = SYSUTCDATETIME() WHERE TenantKeyId = (SELECT v FROM #K WHERE k = ''k2'');
+            UPDATE sec.AppUser SET MfaSecretEnc = CRYPT_GEN_RANDOM(48), MfaKeyId = (SELECT v FROM #K WHERE k = ''k2'') WHERE AppUserId = (SELECT v FROM #K WHERE k = ''u1'');
+            EXECUTE AS USER = N''tp_test_iplat'';
+            INSERT @r EXEC sec.usp_KeyReferenceCounts;
+            REVERT;
+            SET @out = (SELECT STRING_AGG(CONCAT(KeyVersion, '':'', Status, ''='', RowCnt), '','') FROM @r WHERE TenantId = (SELECT v FROM #K WHERE k = ''t''));', @e3 OUTPUT, @o2 OUTPUT;
+IF @o = '50098/50098/50098' AND @e = 0 AND @e2 = 50098 AND @e3 = 0 AND @o2 = '2:ACTIVE=1'
+    PRINT 'PASS KG7: a key is created PENDING, keeps its version, changes its bytes only in a re-wrap; rows on a REVOKED key are frozen until moved; operators see the counts';
+ELSE PRINT CONCAT('FAIL KG7: created active/version/bytes alone ', @o, ', re-wrap ', @e, ', row on revoked ', @e2, ', clear and counts ', @e3, ' ', @o2);
 
 /* AC1: each row joins its tenant's chain: numbers 1, 2, 3; each links to the one before; each hash computes again;
    the head is the last row; what a writer puts in the chain columns is replaced. */
@@ -213,16 +249,25 @@ EXEC #Try N'DECLARE @t INT = (SELECT v FROM #K WHERE k = ''t''), @st VARCHAR(20)
     DECLARE @a TABLE (ChainKey INT, ChainSeq BIGINT, RowHash CHAR(64), TakenAt CHAR(23));
     DECLARE @b TABLE (ChainKey INT, ChainSeq BIGINT, RowHash CHAR(64), TakenAt CHAR(23));
     EXECUTE AS USER = N''tp_test_ijob'';
-    INSERT @a EXEC aud.usp_TakeAuditAnchors @JobKey = ''JOB-PLT-AUDIT-CHAIN'', @StoreRef = N''worm://test/1'';
-    INSERT @b EXEC aud.usp_TakeAuditAnchors @JobKey = ''JOB-PLT-AUDIT-CHAIN'', @StoreRef = N''worm://test/2'';
+    DECLARE @c TABLE (ChainKey INT, ChainSeq BIGINT, RowHash CHAR(64), TakenAt CHAR(23));
+    DECLARE @latest NVARCHAR(MAX);
+    INSERT @a EXEC aud.usp_TakeAuditAnchors @JobKey = ''JOB-PLT-AUDIT-CHAIN'', @StoreRef = N''worm://test/1'', @StoreLatest = N''[]'';
+    SET @latest = (SELECT ChainKey AS k, ChainSeq AS s FROM @a FOR JSON PATH);
+    INSERT @b EXEC aud.usp_TakeAuditAnchors @JobKey = ''JOB-PLT-AUDIT-CHAIN'', @StoreRef = N''worm://test/2'', @StoreLatest = @latest;
+    REVERT;
+    -- a forged anchor far ahead in the database does not hide the chain from the store (internal review v6, D2)
+    INSERT aud.AuditChainAnchor (ChainKey, ChainSeq, RowHash, StoreRef) VALUES (@t, 999999, 0x00, N''forged'');
+    EXECUTE AS USER = N''tp_test_ijob'';
+    INSERT @c EXEC aud.usp_TakeAuditAnchors @JobKey = ''JOB-PLT-AUDIT-CHAIN'', @StoreRef = N''worm://test/3'', @StoreLatest = N''[]'';
     REVERT;
     SET @h = CONVERT(VARBINARY(32), (SELECT RowHash FROM @a WHERE ChainKey = @t), 2);
     EXEC #Verify @t, 3, @h, @st OUTPUT, @bad OUTPUT;
     SET @out = CONCAT((SELECT ChainSeq FROM @a WHERE ChainKey = @t), ''/'', (SELECT COUNT(*) FROM aud.AuditChainHead WHERE ChainKey = 0), ''/'',
                       (SELECT COUNT(*) FROM @b WHERE ChainKey = @t), ''/'', (SELECT COUNT(*) FROM @b WHERE ChainKey = 0), ''/'', @st, ''/'',
-                      (SELECT COUNT(*) FROM aud.AuditChainAnchor WHERE ChainKey = @t AND StoreRef = N''worm://test/1''));', @e OUTPUT, @o OUTPUT;
-IF @e = 0 AND @o = '3/1/0/1/OK/1'
-    PRINT 'PASS AC2: JOB-PLT-AUDIT-CHAIN anchors each chain that moved, once, and a chain verifies against its anchor';
+                      (SELECT COUNT(*) FROM aud.AuditChainAnchor WHERE ChainKey = @t AND StoreRef = N''worm://test/1''), ''/'',
+                      (SELECT COUNT(*) FROM @c WHERE ChainKey = @t));', @e OUTPUT, @o OUTPUT;
+IF @e = 0 AND @o = '3/1/0/1/OK/1/1'
+    PRINT 'PASS AC2: JOB-PLT-AUDIT-CHAIN anchors each chain that moved past the store, once, and a chain verifies against its anchor';
 ELSE PRINT CONCAT('FAIL AC2: ', @e, ' ', @o);
 
 /* AC3: a changed row is found: an administrator changes row 2 (BROKEN at 2); then computes every hash again and the
@@ -256,12 +301,16 @@ EXEC #Try N'DECLARE @t INT = (SELECT v FROM #K WHERE k = ''t''), @h VARBINARY(32
     DELETE FROM aud.AuditLog WHERE TenantId = @t AND ChainSeq = 1;
     EXEC #Verify @t, NULL, NULL, @s1 OUTPUT, @b1 OUTPUT;
     SET @out = CONCAT(@s1, '':'', @b1, ''/'', @s2, '':'', @b2, ''/'', @s3, '':'', @b3);', @e OUTPUT, @o OUTPUT;
-IF @e = 0 AND @o = 'GAP:2/HEAD_MISMATCH:2/ANCHOR_MISSING:3'
+EXEC #Try N'DECLARE @t INT = (SELECT v FROM #K WHERE k = ''t''), @s VARCHAR(20), @b BIGINT;
+    DELETE FROM aud.AuditLog WHERE TenantId = @t AND ChainSeq = 2;
+    EXEC #Verify @t, NULL, NULL, @s OUTPUT, @b OUTPUT;
+    SET @out = CONCAT(@s, '':'', @b);', @e2 OUTPUT, @o2 OUTPUT;
+IF @e = 0 AND @o = 'GAP:2/HEAD_MISMATCH:2/ANCHOR_MISSING:3' AND @e2 = 0 AND @o2 = 'GAP:3'
     PRINT 'PASS AC4: removed audit rows are found: a gap in the numbers, a head past the last row, an anchor whose row is gone';
-ELSE PRINT CONCAT('FAIL AC4: ', @e, ' ', @o);
+ELSE PRINT CONCAT('FAIL AC4: ', @e, ' ', @o, ', middle row ', @e2, ' ', @o2);
 
-/* AC5: a row written with the chain trigger off has no number: the verification reports UNCHAINED, and chaining it
-   later is refused (50099), since it would hide the gap in time. */
+/* AC5: a row written with the chain trigger off has no number: the verification reports UNCHAINED; chaining rows
+   later leaves it as it is (it would hide the gap in time) without stopping anything (internal review v6, A13). */
 EXEC #Try N'DECLARE @t INT = (SELECT v FROM #K WHERE k = ''t''), @s VARCHAR(20), @b BIGINT;
     DISABLE TRIGGER aud.TR_AuditLog_Chain ON aud.AuditLog;
     INSERT aud.AuditLog (TenantId, OccurredAt, ActorType, Action, Category) VALUES (@t, SYSUTCDATETIME(), ''SYSTEM'', ''TEST_HIDDEN'', ''SYSTEM'');
@@ -272,10 +321,13 @@ EXEC #Try N'DECLARE @t INT = (SELECT v FROM #K WHERE k = ''t'');
     DISABLE TRIGGER aud.TR_AuditLog_Chain ON aud.AuditLog;
     INSERT aud.AuditLog (TenantId, OccurredAt, ActorType, Action, Category) VALUES (@t, SYSUTCDATETIME(), ''SYSTEM'', ''TEST_HIDDEN'', ''SYSTEM'');
     ENABLE TRIGGER aud.TR_AuditLog_Chain ON aud.AuditLog;
-    EXEC aud.usp_ChainExistingRows;', @e2 OUTPUT;
-IF @e = 0 AND @o = 'UNCHAINED' AND @e2 = 50099
-    PRINT 'PASS AC5: a row written with the chain trigger off is reported (UNCHAINED) and cannot be chained afterwards (50099)';
-ELSE PRINT CONCAT('FAIL AC5: ', @e, ' ', @o, ', chain afterwards ', @e2);
+    DECLARE @n INT, @s VARCHAR(20), @b BIGINT;
+    EXEC aud.usp_ChainExistingRows @Chained = @n OUTPUT;
+    EXEC #Verify @t, NULL, NULL, @s OUTPUT, @b OUTPUT;
+    SET @out = CONCAT(@n, ''/'', @s, ''/'', (SELECT COUNT(*) FROM aud.AuditLog WHERE TenantId = @t AND ChainSeq IS NULL));', @e2 OUTPUT, @o2 OUTPUT;
+IF @e = 0 AND @o = 'UNCHAINED' AND @e2 = 0 AND @o2 = '0/UNCHAINED/1'
+    PRINT 'PASS AC5: a row written with the chain trigger off is reported (UNCHAINED) and is not chained afterwards, without stopping a deployment';
+ELSE PRINT CONCAT('FAIL AC5: ', @e, ' ', @o, ', chain afterwards ', @e2, ' ', @o2);
 
 /* AC7: the daily check from the anchor reads the anchor's row and the rows after it only (2 of 3). An old row changed
    without its hash computed again passes it (the limit of the daily check) and fails the full check (BROKEN at 1);
@@ -298,14 +350,81 @@ ELSE PRINT CONCAT('FAIL AC7: ', @e, ' ', @o);
    another job key is refused (50099). Nobody but the trigger and procedures writes the head or the anchors. */
 EXEC #Try N'EXECUTE AS USER = N''tp_test_iapp''; BEGIN TRY EXEC aud.usp_TakeAuditAnchors @JobKey = ''JOB-PLT-AUDIT-CHAIN''; END TRY BEGIN CATCH REVERT; THROW; END CATCH; REVERT;', @e OUTPUT;
 EXEC #Try N'EXEC aud.usp_TakeAuditAnchors @JobKey = ''JOB-PLT-ARCHIVE'';', @e2 OUTPUT;
-SELECT @e3 = COUNT(*) FROM sys.database_permissions
-WHERE major_id IN (OBJECT_ID(N'aud.AuditChainHead'), OBJECT_ID(N'aud.AuditChainAnchor'), OBJECT_ID(N'plat.SchemaMigration')) AND state IN ('G', 'W');
+-- what each role can read, asked as a member of it (a schema-wide grant counts too; internal review v6, B3, A11)
+SET @e3 = 0;
+DECLARE @who sysname, @w CURSOR;
+SET @w = CURSOR LOCAL FAST_FORWARD FOR SELECT name FROM (VALUES (N'tp_test_iro'), (N'tp_test_isup'), (N'tp_test_iapp'), (N'tp_test_ijob'), (N'tp_test_iplat')) AS x (name);
+OPEN @w; FETCH NEXT FROM @w INTO @who;
+WHILE @@FETCH_STATUS = 0
+BEGIN
+    EXECUTE AS USER = @who;
+    SET @e3 += ISNULL(HAS_PERMS_BY_NAME(N'aud.AuditChainHead', N'OBJECT', N'SELECT'), 0) + ISNULL(HAS_PERMS_BY_NAME(N'aud.AuditChainAnchor', N'OBJECT', N'SELECT'), 0)
+             + ISNULL(HAS_PERMS_BY_NAME(N'plat.SchemaMigration', N'OBJECT', N'SELECT'), 0)
+             + ISNULL(HAS_PERMS_BY_NAME(N'aud.AuditChainHead', N'OBJECT', N'UPDATE'), 0) + ISNULL(HAS_PERMS_BY_NAME(N'aud.AuditChainAnchor', N'OBJECT', N'INSERT'), 0);
+    REVERT;
+    FETCH NEXT FROM @w INTO @who;
+END;
 IF @e = 229 AND @e2 = 50099 AND @e3 = 0
-    PRINT 'PASS AC6: only JOB-PLT-AUDIT-CHAIN runs the chain procedures; no role is granted the chain head, the anchors or the migration journal';
-ELSE PRINT CONCAT('FAIL AC6: application ', @e, ', other job ', @e2, ', grants ', @e3);
+    PRINT 'PASS AC6: only JOB-PLT-AUDIT-CHAIN runs the chain procedures; no role reads or writes the chain head, the anchors or the migration journal';
+ELSE PRINT CONCAT('FAIL AC6: application ', @e, ', other job ', @e2, ', rights of the roles ', @e3);
+
+/* AC8: rows written before the chain existed join it later: the tenant's chain emptied (no head, no numbers) is
+   chained again by aud.usp_ChainExistingRows, with the same hashes, and verifies (internal review v6, B12). */
+EXEC #Try N'DECLARE @t INT = (SELECT v FROM #K WHERE k = ''t''), @h VARBINARY(32), @n INT, @s VARCHAR(20), @b BIGINT;
+    SET @h = (SELECT RowHash FROM aud.AuditLog WHERE TenantId = @t AND ChainSeq = 3);
+    DELETE FROM aud.AuditChainHead WHERE ChainKey = @t;
+    UPDATE aud.AuditLog SET ChainSeq = NULL, PrevHash = NULL, RowHash = NULL WHERE TenantId = @t;
+    EXEC aud.usp_ChainExistingRows @Chained = @n OUTPUT;
+    EXEC #Verify @t, 3, @h, @s OUTPUT, @b OUTPUT;
+    SET @out = CONCAT(@n, ''/'', @s);', @e OUTPUT, @o OUTPUT;
+IF @e = 0 AND @o = '3/OK'
+    PRINT 'PASS AC8: rows written before the chain are chained later in their order, with the hashes the trigger gives';
+ELSE PRINT CONCAT('FAIL AC8: ', @e, ' ', @o);
+
+/* AC9: one statement that writes rows of two chains (a tenant's and the platform's) extends both, each verifying. */
+EXEC #Try N'DECLARE @t INT = (SELECT v FROM #K WHERE k = ''t''), @p0 BIGINT, @s1 VARCHAR(20), @b1 BIGINT, @s2 VARCHAR(20), @b2 BIGINT;
+    SET @p0 = ISNULL((SELECT LastSeq FROM aud.AuditChainHead WHERE ChainKey = 0), 0);
+    EXECUTE AS USER = N''tp_test_iwrite'';   -- tp_auth writes platform and tenant rows alike
+    INSERT aud.AuditLog (TenantId, OccurredAt, ActorType, Action, Category)
+    SELECT x.t, SYSUTCDATETIME(), ''SYSTEM'', x.a, ''SYSTEM''
+    FROM (VALUES (NULL, ''TEST_P1''), (@t, ''TEST_T4''), (NULL, ''TEST_P2''), (@t, ''TEST_T5'')) AS x (t, a);
+    REVERT;
+    EXEC #Verify @t, NULL, NULL, @s1 OUTPUT, @b1 OUTPUT;
+    EXEC #Verify 0, NULL, NULL, @s2 OUTPUT, @b2 OUTPUT;
+    SET @out = CONCAT((SELECT LastSeq FROM aud.AuditChainHead WHERE ChainKey = @t), ''/'', @s1, ''/'',
+                      (SELECT LastSeq FROM aud.AuditChainHead WHERE ChainKey = 0) - @p0, ''/'', @s2);', @e OUTPUT, @o OUTPUT;
+IF @e = 0 AND @o LIKE '5/OK/[2-9]/OK'
+    PRINT 'PASS AC9: one statement writing rows of two chains extends each of them, and both verify';
+ELSE PRINT CONCAT('FAIL AC9: ', @e, ' ', @o);
+
+/* AC10: the anchors are taken against the store's latest anchors, which the job must pass (50148); the operators,
+   who see no tenant row, cannot write a tenant's audit row (a forged event the chain would make look genuine,
+   internal review v6, A1), only platform events. */
+EXEC #Try N'EXECUTE AS USER = N''tp_test_ijob''; EXEC aud.usp_TakeAuditAnchors @JobKey = ''JOB-PLT-AUDIT-CHAIN''; REVERT;', @e OUTPUT;
+EXEC #Try N'DELETE FROM sec.SessionBinding WHERE SessionId = @@SPID; EXEC sys.sp_set_session_context @key = N''TenantId'', @value = NULL;
+    EXECUTE AS USER = N''tp_test_iplat'';
+    BEGIN TRY
+        INSERT aud.AuditLog (TenantId, OccurredAt, ActorType, Action, Category) VALUES ((SELECT v FROM #K WHERE k = ''t''), SYSUTCDATETIME(), ''USER'', ''PERIOD_REOPENED'', ''SYSTEM'');
+    END TRY BEGIN CATCH REVERT; THROW; END CATCH;
+    REVERT;', @e2 OUTPUT;
+EXEC #Try N'DELETE FROM sec.SessionBinding WHERE SessionId = @@SPID; EXEC sys.sp_set_session_context @key = N''TenantId'', @value = NULL;
+    EXECUTE AS USER = N''tp_test_iplat'';
+    INSERT aud.AuditLog (TenantId, OccurredAt, ActorType, Action, Category) VALUES (NULL, SYSUTCDATETIME(), ''OPERATOR'', ''TEST_PLATFORM'', ''PLATFORM'');
+    REVERT;', @e3 OUTPUT;
+IF @e = 50148 AND @e2 = 33504 AND @e3 = 0
+    PRINT 'PASS AC10: anchors need the store''s latest anchors (50148); an operator writes platform audit events, never a tenant''s row';
+ELSE PRINT CONCAT('FAIL AC10: without the store ', @e, ', operator tenant row ', @e2, ', operator platform event ', @e3);
 GO
 ALTER ROLE [tp_jobs] DROP MEMBER [tp_test_ijob];
 ALTER ROLE [tp_app] DROP MEMBER [tp_test_iapp];
+ALTER ROLE [tp_readonly] DROP MEMBER [tp_test_iro];
+ALTER ROLE [tp_support] DROP MEMBER [tp_test_isup];
+ALTER ROLE [tp_platform] DROP MEMBER [tp_test_iplat];
+DROP USER [tp_test_iro];
+ALTER ROLE [tp_auth] DROP MEMBER [tp_test_iwrite];
+DROP USER [tp_test_iwrite];
+DROP USER [tp_test_isup];
+DROP USER [tp_test_iplat];
 ALTER ROLE [tp_auth] DROP MEMBER [tp_test_iread];
 ALTER ROLE [db_datareader] DROP MEMBER [tp_test_iread];
 DROP USER [tp_test_iread];

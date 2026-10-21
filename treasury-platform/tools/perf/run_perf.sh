@@ -23,13 +23,10 @@ cd "$ROOT"
 SQL_SERVER="${SQL_SERVER:-localhost,1433}"
 SQLCMD="${SQLCMD:-sqlcmd}"
 export SQLCMDPASSWORD="$SA_PASSWORD"
-ci_host="${SQL_SERVER%%,*}"; ci_host="${ci_host#tcp:}"
-case "$ci_host" in
-    localhost|127.0.0.1|::1|"(local)"|.) ;;
-    *) [ "${BANKFAS_CI_THROWAWAY_SERVER:-}" = "1" ] \
-           || { echo "run_perf.sh drops BankFas: it runs only against a server on this machine, not $ci_host"; exit 1; } ;;
-esac
 export SQLCMD_OPTS=-C BANKFAS_ALLOW_TRUST_CERT=1 BANKFAS_ALLOW_SA=1
+# the same guard as CI: a server on this machine or one marked a throwaway, and never a BankFas with real tenants
+# shellcheck source=tools/ci/ci_guard.sh
+. "$ROOT/tools/ci/ci_guard.sh"
 FULL="${PERF_FULL:-3}" LIGHT="${PERF_LIGHT:-297}" COMPANIES="${PERF_COMPANIES:-200}" YEARS="${PERF_YEARS:-5}"
 AUDIT="${PERF_AUDIT:-50000}" SESSIONS="${PERF_SESSIONS:-50000}" LIGHT_AUDIT="${PERF_LIGHT_AUDIT:-2000}"
 ITER="${PERF_ITER:-50}" BIND="${PERF_BIND:-100}" WRITERS="${PERF_WRITERS:-4}" WRITES="${PERF_WRITES:-500}"
@@ -51,9 +48,13 @@ log "RUN|sizes|full $FULL, light $LIGHT, companies $COMPANIES, years $YEARS, aud
 
 # 1. a fresh database through the production path
 t0=$(now_ms)
-sq -Q "IF DB_ID(N'BankFas') IS NOT NULL BEGIN ALTER DATABASE [BankFas] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [BankFas]; END" >/dev/null
+sq -Q "$(ci_guard_drop_sql)
+IF DB_ID(N'BankFas') IS NOT NULL BEGIN ALTER DATABASE [BankFas] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [BankFas]; END" >/dev/null
 mkdir -m 700 "$TMP/migrator"
 export BANKFAS_CHANGE_REF=PERF
+# the window opens only with the server audit running (prepare_database.sh open, internal review v6, D14)
+sq -Q "EXEC master.sys.xp_create_subdir N'/var/opt/mssql/audit';" >/dev/null
+SQL_SERVER="$SQL_SERVER" SQL_USER=sa SQLCMD="$SQLCMD" bash tools/deploy/server_audit.sh apply >/dev/null
 SQL_SERVER="$SQL_SERVER" SQL_USER=sa SQLCMD="$SQLCMD" BANKFAS_SECRETS_DIR="$TMP/migrator" bash tools/deploy/prepare_database.sh prepare --generate >/dev/null
 SQL_SERVER="$SQL_SERVER" SQL_USER=sa SQLCMD="$SQLCMD" bash tools/deploy/prepare_database.sh open >/dev/null
 SQL_SERVER="$SQL_SERVER" SQL_USER=bankfas_migrator SQLCMDPASSWORD="$(cat "$TMP/migrator/bankfas_migrator.secret")" SQLCMD="$SQLCMD" \
@@ -121,7 +122,8 @@ SELECT CONCAT(@n, ' ', @s);" | tr -d '\r' | tail -1)"
 
 # 3d. the repeatable scripts on the loaded database: how long a deployment window holds the schema
 t0=$(now_ms)
-SQL_SERVER="$SQL_SERVER" SQL_USER=sa SQLCMD="$SQLCMD" bash tools/deploy/migrate.sh apply --repeatable > "$TMP/migrate.out" 2>&1 \
+SQL_SERVER="$SQL_SERVER" SQL_USER=bankfas_migrator SQLCMDPASSWORD="$(cat "$TMP/migrator/bankfas_migrator.secret")" SQLCMD="$SQLCMD" \
+    bash tools/deploy/migrate.sh apply --repeatable > "$TMP/migrate.out" 2>&1 \
     || { cat "$TMP/migrate.out"; echo "the repeatable scripts failed on the loaded database"; exit 1; }
 log "RESULT|D2|1|$(( $(now_ms) - t0 ))|$(( $(now_ms) - t0 ))|$(( $(now_ms) - t0 ))"
 SQL_SERVER="$SQL_SERVER" SQL_USER=sa SQLCMD="$SQLCMD" bash tools/deploy/prepare_database.sh close >/dev/null

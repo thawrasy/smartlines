@@ -11,6 +11,8 @@
 #              bankfas_monitor.secret)
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+# shellcheck source=tools/ci/ci_guard.sh
+. "$ROOT/tools/ci/ci_guard.sh"
 SQL_SERVER="${SQL_SERVER:-localhost,1433}"
 SQLCMD="${SQLCMD:-sqlcmd}"
 SA_PW="${SQLCMDPASSWORD:?set SQLCMDPASSWORD to the sa password}"

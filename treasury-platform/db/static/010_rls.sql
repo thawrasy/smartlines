@@ -94,6 +94,7 @@ GO
 -- Audit log aud.AuditLog: its own policy (BR-PLT-001, BR-PLT-009)
 --   Read: a tenant reads its own rows; rows with TenantId NULL (platform events) are for tp_platform only.
 --   Write (insert only): a tenant writes its own TenantId; NULL (a platform event) only tp_platform or tp_auth (O-19);
+--   tp_platform writes no tenant row (A1);
 --   no update and no delete (DENY in 005/020).
 CREATE OR ALTER FUNCTION rls.fn_AuditRead (@TenantId INT)
 RETURNS TABLE WITH SCHEMABINDING
@@ -107,7 +108,10 @@ CREATE OR ALTER FUNCTION rls.fn_AuditWrite (@TenantId INT)
 RETURNS TABLE WITH SCHEMABINDING
 AS RETURN
     SELECT 1 AS AccessOk
-    WHERE IS_MEMBER(N'tp_platform') = 1 OR IS_MEMBER(N'tp_auth') = 1   -- platform events (TenantId NULL) only from these (O-19)
+    WHERE (IS_MEMBER(N'tp_platform') = 1 AND @TenantId IS NULL)   -- operators write platform events only, never a tenant's
+                                                                   -- row (O-19; internal review v6, A1): a tenant event of
+                                                                   -- an operator is written by its procedure (tp_auth_exec)
+       OR IS_MEMBER(N'tp_auth') = 1
        OR EXISTS (SELECT 1 FROM rls.fn_Bound(@TenantId));
 GO
 IF EXISTS (SELECT 1 FROM sys.security_policies sp WHERE sp.name = N'TP_aud_AuditLog' AND sp.schema_id = SCHEMA_ID(N'rls'))

@@ -154,6 +154,33 @@ EXEC #Try N'DECLARE @t INT = (SELECT v FROM #K WHERE k = ''t''), @a BIGINT = (SE
 IF @e = 0 AND @o = '1/1/0'
     PRINT 'PASS CR6: after the pack the first administrator is invited with TA: users and audit, no business data';
 ELSE PRINT CONCAT('FAIL CR6: ', @e, ' ', @o);
+
+/* CR7: an open tenant only: a SUSPENDED tenant is refused (50003, the write filter of the binding) (internal review
+   v6, B13). */
+EXEC #Try N'UPDATE plat.Tenant SET Status = ''SUSPENDED'', SuspendedReason = N''TEST'', SuspendedAt = SYSUTCDATETIME() WHERE TenantId = (SELECT v FROM #K WHERE k = ''t'');
+    EXECUTE AS USER = N''tp_test_rjob''; BEGIN TRY EXEC sec.usp_SeedCoreRoles; END TRY BEGIN CATCH REVERT; THROW; END CATCH; REVERT;', @e OUTPUT;
+IF @e = 50003
+    PRINT 'PASS CR7: the pack is refused for a tenant that is not open (50003)';
+ELSE PRINT CONCAT('FAIL CR7: suspended tenant ', @e);
+
+/* CR8: a catalogue that lacks a permission of the pack stops it before anything is written (50149). */
+EXEC #Try N'UPDATE sec.Permission SET IsActive = 0 WHERE Code = ''fac.view'';
+    EXECUTE AS USER = N''tp_test_rjob''; BEGIN TRY EXEC sec.usp_SeedCoreRoles; END TRY BEGIN CATCH REVERT; THROW; END CATCH; REVERT;', @e OUTPUT;
+IF @e = 50149
+    PRINT 'PASS CR8: a permission of the pack missing from the catalogue stops the pack (50149)';
+ELSE PRINT CONCAT('FAIL CR8: missing permission ', @e);
+
+/* CR9: a role the tenant made before the pack under one of its codes becomes the pack's role and gets its links. */
+EXEC #Try N'DECLARE @t INT = (SELECT v FROM #K WHERE k = ''t''), @svc BIGINT = (SELECT v FROM #K WHERE k = ''svc''), @c INT;
+    INSERT sec.Role (TenantId, Code, NameAr, NameEn, IsSystem, IsActive, CreatedBy) VALUES (@t, ''TA'', N''مدير'', N''Admin'', 0, 1, @svc);
+    EXECUTE AS USER = N''tp_test_rjob''; EXEC sec.usp_SeedCoreRoles @Created = @c OUTPUT; REVERT;
+    SET @out = CONCAT((SELECT COUNT(*) FROM sec.Role WHERE TenantId = @t), ''/'',
+                      (SELECT SeedKey FROM sec.Role WHERE TenantId = @t AND Code = ''TA''), ''/'',
+                      (SELECT COUNT(*) FROM sec.RolePermission AS rp JOIN sec.Role AS r ON r.TenantId = rp.TenantId AND r.RoleId = rp.RoleId
+                       WHERE rp.TenantId = @t AND r.Code = ''TA''), ''/'', @c);', @e OUTPUT, @o OUTPUT;
+IF @e = 0 AND @o = '8/ROLE.TA/46/400'
+    PRINT 'PASS CR9: a role made before the pack under its code becomes the pack''s role and gets its links';
+ELSE PRINT CONCAT('FAIL CR9: ', @e, ' ', @o);
 GO
 ALTER ROLE [tp_jobs] DROP MEMBER [tp_test_rjob];
 ALTER ROLE [tp_app] DROP MEMBER [tp_test_rapp];

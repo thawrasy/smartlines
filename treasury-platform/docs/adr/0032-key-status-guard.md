@@ -25,6 +25,12 @@ references a RETIRED key. Until now this was left to the rotation service, which
    by `sec.v_KeyReferences` (per key: table, column, number of rows) until the rotation job re-encrypts or destroys
    them; no new row can be written onto the key.
 
+5. *Amended on 2026-10-21 by ADR 0039 (internal review v6).* A key is created PENDING; its tenant, purpose and version
+   never change; its wrapped bytes change only with its master key reference (a re-wrap) and never once RETIRED or
+   REVOKED. A row on a REVOKED key is frozen until it is moved or cleared. The reference triggers read the key under
+   REPEATABLEREAD. The rotation job (tp_jobs) reads `sec.v_KeyReferences`; operators read counts only, through
+   `sec.usp_KeyReferenceCounts` (tp_platform). Test KG7.
+
 So the rule of DR-20 holds in the database itself: no row references a RETIRED key, and no row is written onto a key
 that is not ACTIVE. The one exception, rows still on a REVOKED key, is deliberate and visible.
 

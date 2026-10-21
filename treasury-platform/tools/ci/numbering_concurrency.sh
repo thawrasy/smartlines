@@ -9,6 +9,8 @@
 # Environment: SQLCMDPASSWORD (sa), SQL_SERVER (default localhost,1433), SQLCMD (default sqlcmd),
 #              WORKERS (default 6), PER_WORKER (default 25)
 set -euo pipefail
+# shellcheck source=tools/ci/ci_guard.sh
+. "$(cd "$(dirname "$0")" && pwd)/ci_guard.sh"
 SQL_SERVER="${SQL_SERVER:-localhost,1433}"
 SQLCMD="${SQLCMD:-sqlcmd}"
 WORKERS="${WORKERS:-6}"

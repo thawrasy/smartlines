@@ -259,12 +259,14 @@ GO
 -- closed 30 days ago become ARCHIVED_READ_ONLY. Each tenant in its own transaction; safe to run again.
 CREATE OR ALTER PROCEDURE plat.usp_RunTenantTransitions
     @JobKey  VARCHAR(80),
-    @Changed INT = NULL OUTPUT
+    @Changed INT = NULL OUTPUT,
+    @Failed  INT = NULL OUTPUT     -- tenants whose change failed; each is a TENANT_TRANSITION_FAILED event
 WITH EXECUTE AS N'tp_auth_exec'
 AS
 BEGIN
     SET NOCOUNT ON;
-    SET @Changed = 0;
+    SELECT @Changed = 0, @Failed = 0;
+    DECLARE @err NVARCHAR(4000);
     IF @JobKey IS NULL OR @JobKey NOT IN ('JOB-PLT-TRIAL-EXPIRE', 'JOB-PLT-ARCHIVE')
        OR NOT EXISTS (SELECT 1 FROM cfg.JobDefinition WHERE JobKey = @JobKey AND Scope = 'PLATFORM' AND IsActive = 1)
         THROW 50024, 'Not a tenant status job', 1;
@@ -278,11 +280,29 @@ BEGIN
     OPEN c; FETCH NEXT FROM c INTO @t;
     WHILE @@FETCH_STATUS = 0
     BEGIN
-        IF @JobKey = 'JOB-PLT-TRIAL-EXPIRE'
-            EXEC plat.usp_ApplyTenantStatus @t, 'SUSPENDED', 'JOB', N'TRIAL_EXPIRED';
-        ELSE
-            EXEC plat.usp_ApplyTenantStatus @t, 'ARCHIVED_READ_ONLY', 'JOB';
-        SET @Changed = @Changed + 1;
+        -- one tenant that fails, or no longer qualifies (an operator changed it meanwhile), does not stop the others
+        -- (internal review v6, A15): it is skipped, and a failure is a platform event of high severity
+        BEGIN TRY
+            IF (@JobKey = 'JOB-PLT-TRIAL-EXPIRE'
+                AND EXISTS (SELECT 1 FROM plat.Tenant WHERE TenantId = @t AND Status = 'TRIAL' AND TrialEndsOn < CAST(SYSUTCDATETIME() AS DATE)))
+            BEGIN
+                EXEC plat.usp_ApplyTenantStatus @t, 'SUSPENDED', 'JOB', N'TRIAL_EXPIRED';
+                SET @Changed = @Changed + 1;
+            END
+            ELSE IF (@JobKey = 'JOB-PLT-ARCHIVE'
+                     AND EXISTS (SELECT 1 FROM plat.Tenant WHERE TenantId = @t AND Status = 'CLOSED' AND DATEADD(DAY, 30, ClosedAt) <= SYSUTCDATETIME()))
+            BEGIN
+                EXEC plat.usp_ApplyTenantStatus @t, 'ARCHIVED_READ_ONLY', 'JOB';
+                SET @Changed = @Changed + 1;
+            END;
+        END TRY
+        BEGIN CATCH
+            IF XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+            SET @Failed = @Failed + 1;
+            SET @err = (SELECT @JobKey AS jobKey, ERROR_NUMBER() AS error, ERROR_MESSAGE() AS message FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
+            EXEC aud.usp_WriteEvent @TenantId = NULL, @Action = 'TENANT_TRANSITION_FAILED', @Category = 'PLATFORM', @ActorType = 'JOB',
+                 @Severity = 'HIGH', @Result = 'FAILED', @EntityType = 'plat.Tenant', @EntityId = @t, @AfterJson = @err;
+        END CATCH;
         FETCH NEXT FROM c INTO @t;
     END;
     CLOSE c; DEALLOCATE c;

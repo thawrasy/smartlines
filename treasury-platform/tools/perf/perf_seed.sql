@@ -48,9 +48,10 @@ BEGIN
     INSERT plat.Tenant (Code, NameAr, NameEn, PlanId, HomeCountryId, Status, TimeZone) VALUES (@Code, N'أداء', @Code, @plan, @country, 'ACTIVE', 'Asia/Riyadh');
     SET @t = SCOPE_IDENTITY();
     EXEC #Bind @t, 0;
-    INSERT sec.TenantKey (TenantId, Purpose, KeyVersion, Status, WrappedKey, MasterKeyRef, ActivatedAt)
-    VALUES (@t, 'DATA', 1, 'ACTIVE', CRYPT_GEN_RANDOM(64), 'kms/perf/data', SYSUTCDATETIME());
+    INSERT sec.TenantKey (TenantId, Purpose, KeyVersion, Status, WrappedKey, MasterKeyRef)
+    VALUES (@t, 'DATA', 1, 'PENDING', CRYPT_GEN_RANDOM(64), 'kms/perf/data');
     SET @key = SCOPE_IDENTITY();
+    UPDATE sec.TenantKey SET Status = 'ACTIVE', ActivatedAt = SYSUTCDATETIME() WHERE TenantKeyId = @key;
     INSERT sec.AppUser (TenantId, Email, DisplayNameEn, Status, IsSystemUser) VALUES (@t, N'service@perf.invalid', N'Service', 'ACTIVE', 1);
     SET @svc = SCOPE_IDENTITY();
     INSERT sec.AppUser (TenantId, Email, DisplayNameEn, Status, PasswordHash) VALUES (@t, N'fa@perf.invalid', N'Analyst', 'ACTIVE', @pw);

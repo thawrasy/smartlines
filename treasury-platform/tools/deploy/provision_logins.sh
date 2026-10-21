@@ -3,7 +3,9 @@
 # DQ-S08-1; docs/adr/0009-service-logins.md):
 #     bankfas_app_<set> -> tp_app, bankfas_jobs_<set> -> tp_jobs, bankfas_platform_<set> -> tp_platform,
 #     bankfas_support_<set> -> tp_support
-# Run it after tools/deploy/deploy.sh, with the same deploying login. <set> is a or b, the two accounts of each pair
+# Run it after tools/deploy/deploy.sh, inside the deployment window, with the database administrator's own login: it
+# creates server logins, which the deployment login bankfas_migrator (db_owner only) may not (internal review v6, D15).
+# <set> is a or b, the two accounts of each pair
 # used to rotate a secret without downtime (DOC-S08 section 6). Each run declares itself in SQL Server Audit as an
 # administrative change with BANKFAS_CHANGE_REF (audit_declare.sh, docs/adr/0012-server-audit.md).
 #

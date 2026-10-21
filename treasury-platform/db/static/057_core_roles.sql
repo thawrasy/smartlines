@@ -14,7 +14,7 @@
                                them in DiffJson for review.
                            Locked permissions go to TM and FO only, as sec.TR_RolePermission_Locked requires.
    Roles: TA 46, TM 127, FO 100, TE 51, FA 9, RQ 19, AU 31, RK 10 permissions.
-   EXECUTE: tp_jobs. Errors: 50003 not bound as the onboarding job of an open tenant, 50029 the catalogue lacks a
+   EXECUTE: tp_jobs. Errors: 50003 not bound as the onboarding job of an open tenant, 50149 the catalogue lacks a
    permission of the pack (seed 102 first).
    ============================================================================ */
 SET NOCOUNT ON;
@@ -442,13 +442,19 @@ BEGIN
         ('ROLE.RK', 'org.document.view'),
         ('ROLE.RK', 'prc.view');
     IF EXISTS (SELECT 1 FROM @links AS l LEFT JOIN sec.Permission AS p ON p.Code = l.PermissionCode AND p.IsActive = 1 WHERE p.PermissionId IS NULL)
-        THROW 50029, 'The permission catalogue lacks a permission of CORE.ROLES: run db/seed/102_permissions.sql first', 1;
+        THROW 50149, 'The permission catalogue lacks a permission of CORE.ROLES: run db/seed/102_permissions.sql first', 1;
     BEGIN TRANSACTION;
     SET @kind = CASE WHEN EXISTS (SELECT 1 FROM cfg.SeedRun WITH (UPDLOCK, HOLDLOCK)
                                   WHERE TenantId = @tenant AND PackKey = 'CORE.ROLES' AND SeedVersion = 1 AND Status = 'SUCCEEDED')
                      THEN 'RERUN' ELSE 'INITIAL' END;
     IF @kind = 'INITIAL'
     BEGIN
+        -- a role the tenant already has under the pack's code, made before the pack, becomes the pack's role, so its
+        -- links are seeded too (internal review v6, B13); a role under another seed key is left as it is
+        UPDATE x SET SeedKey = r.SeedKey
+        FROM sec.Role AS x JOIN @roles AS r ON x.Code = r.Code
+        WHERE x.TenantId = @tenant AND x.SeedKey IS NULL
+          AND NOT EXISTS (SELECT 1 FROM sec.Role AS y WHERE y.TenantId = @tenant AND y.SeedKey = r.SeedKey);
         INSERT sec.Role (TenantId, Code, NameAr, NameEn, Description, IsSystem, IsActive, SeedKey, CreatedBy)
         SELECT @tenant, r.Code, r.NameAr, r.NameEn, r.Description, 1, 1, r.SeedKey, @svc
         FROM @roles AS r

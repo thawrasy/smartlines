@@ -13,6 +13,8 @@
 #              MIGRATOR_SECRET (the file of the deployment login's secret from step 4)
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+# shellcheck source=tools/ci/ci_guard.sh
+. "$ROOT/tools/ci/ci_guard.sh"
 SQL_SERVER="${SQL_SERVER:-localhost,1433}"
 SQLCMD="${SQLCMD:-sqlcmd}"
 SA_PW="${SQLCMDPASSWORD:?set SQLCMDPASSWORD to the sa password}"
@@ -236,7 +238,9 @@ fi
 
 # SA9: server settings, a credential, a linked server, an object in master and a renamed login raise their alerts
 # outside a window (self-review E6), and the deployment login stopping the database audit specification is alerted
-# even inside a deployment window (E2).
+# even inside a deployment window (E2). The window opens only after a full backup of a database that holds tables
+# (prepare_database.sh open, internal review v6, D7), so one is taken first, before the time the alerts are read from.
+sa_run "BACKUP DATABASE [BankFas] TO DISK = N'/var/opt/mssql/data/ci-audit.bak' WITH COPY_ONLY, INIT, FORMAT;" >/dev/null
 t9="$(now)"
 act "SET NOCOUNT ON;
 EXEC sp_configure 'show advanced options', 1; RECONFIGURE;

@@ -37,12 +37,21 @@ each other and to the policies.
 5. A versioned script carries what the repeatable scripts cannot: tables, columns, keys, indexes, and data that must
    move with them. The same change goes into the model, so a new database built by deploy.sql has the same schema.
 
+6. *Amended on 2026-10-21 by ADR 0039 (internal review v6).* migrate.sh runs the server gate of deploy.sh
+   (`db/ops/server_gate.sql`: 50140, 50143, 50150) and requires `BANKFAS_CHANGE_REF`, recorded in the new journal column
+   `ChangeRef`; `baseline --after-deploy` (deploy.sh only) journals the versioned scripts present; a repeatable run that
+   failed after a versioned script is taken up again; a script with a transaction or sqlcmd control line is refused;
+   the fingerprint is checked again inside each script's transaction; `status` exits 1 on a problem. The window opens
+   only with the server audit running, no service session and a recent full backup (`prepare_database.sh open`, 50151
+   to 50153). The fingerprint now covers role membership, grants to every principal, owners and DDL triggers. Tests
+   MG1 to MG12, run as `bankfas_migrator` inside a window.
+
 DbUp, which DOC-B11 suggested, would need the service layer, which is not built. When that layer exists, DbUp can take
 over the same folder and journal.
 
 ## Tests
 
-`tools/ci/migration_check.sh` MG1 to MG7, on the database CI deploys:
+`tools/ci/migration_check.sh` MG1 to MG7, on the database CI deploys (MG8 to MG12 added by ADR 0039):
 - MG1: the baseline is journaled.
 - MG2: nothing is pending.
 - MG3: the repeatable scripts run again with the fingerprint unchanged.

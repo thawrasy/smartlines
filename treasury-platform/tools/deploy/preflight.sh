@@ -29,3 +29,20 @@ sa_guard_sql() {
     [ "${BANKFAS_ALLOW_SA:-}" = "1" ] && return 0
     printf "IF SUSER_SID() = 0x01 THROW 50144, 'sa is disabled outside CI (DOC-S08 section 9): run this with your own administrator login', 1;\nGO\n"
 }
+# bankfas_gate_sql prints db/ops/server_gate.sql (50140 sa, sysadmin or a server right; 50143 the release register,
+# gate G4; 50150 nested triggers off) filled from the release register, BANKFAS_VERSIONS or versions.json: deploy.sh
+# runs it before its preflight, migrate.sh before baseline and apply (internal review v6, D6).
+bankfas_gate_sql() {
+    local here versions v os sql
+    here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    versions="${BANKFAS_VERSIONS:-$here/../../versions.json}"
+    read -r v os < <(python3 -c 'import json, sys
+h = json.load(open(sys.argv[1], encoding="utf-8"))["database_host"]
+print(h["sqlserver"]["product_version"], h["os_release"])' "$versions")
+    [[ "$v" =~ ^[0-9]+(\.[0-9]+){3}$ && "$os" =~ ^[0-9]+\.[0-9]+$ ]] \
+        || bankfas_refuse "$versions must give database_host.sqlserver.product_version and database_host.os_release"
+    sql="$(cat "$here/../../db/ops/server_gate.sql")"
+    sql="${sql//\$(BANKFAS_EXPECT_VERSION)/$v}"
+    sql="${sql//\$(BANKFAS_EXPECT_OS)/$os}"
+    printf '%s\n' "$sql"
+}

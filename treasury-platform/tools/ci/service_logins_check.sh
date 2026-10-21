@@ -8,6 +8,8 @@
 # Environment: SQLCMDPASSWORD (sa), SQL_SERVER (default localhost,1433), SQLCMD (default sqlcmd)
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+# shellcheck source=tools/ci/ci_guard.sh
+. "$ROOT/tools/ci/ci_guard.sh"
 SQL_SERVER="${SQL_SERVER:-localhost,1433}"
 SQLCMD="${SQLCMD:-sqlcmd}"
 SA_PW="${SQLCMDPASSWORD:?set SQLCMDPASSWORD to the sa password}"
@@ -82,9 +84,9 @@ else echo "FAIL LG4: second account of the pair"; fi
 # LG5: a weak secret or a secret file others can read is refused before anything changes.
 good="$(secret bankfas_support_a)"
 printf 'short-secret' > "$SEC/bankfas_support_a.secret"
-provision a && weak=accepted || weak=refused
+provision a && weak=accepted || { grep -q '32 to 128' "$TMP/provision.out" && weak=refused || weak="refused for another reason"; }
 printf '%s' "$good" > "$SEC/bankfas_support_a.secret"; chmod 644 "$SEC/bankfas_support_a.secret"
-provision a && open=accepted || open=refused
+provision a && open=accepted || { grep -q 'mode' "$TMP/provision.out" && open=refused || open="refused for another reason"; }
 chmod 600 "$SEC/bankfas_support_a.secret"
 if [ "$weak" = refused ] && [ "$open" = refused ] && as_login bankfas_support_a "$good" "SELECT 1;" >/dev/null; then
     echo "PASS LG5: a weak secret or a readable secret file is refused, and the login keeps its secret"

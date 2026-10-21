@@ -18,20 +18,16 @@ cd "$ROOT"
 SQL_SERVER="${SQL_SERVER:-localhost,1433}"
 SQLCMD="${SQLCMD:-sqlcmd}"
 export SQLCMDPASSWORD="$SA_PASSWORD"
-# CI drops and builds BankFas again, as sa, and gives itself the allowances below: it runs only against a server on
-# this machine (the container of the job), unless BANKFAS_CI_THROWAWAY_SERVER=1 says that another one is a throwaway
-# server too (self-review E8).
-ci_host="${SQL_SERVER%%,*}"; ci_host="${ci_host#tcp:}"
-case "$ci_host" in
-    localhost|127.0.0.1|::1|"(local)"|.) ;;
-    *) [ "${BANKFAS_CI_THROWAWAY_SERVER:-}" = "1" ] \
-           || { echo "db_ci.sh drops BankFas: it runs only against a server on this machine, not $ci_host (set BANKFAS_CI_THROWAWAY_SERVER=1 for a throwaway server)"; exit 1; } ;;
-esac
 # The tools in tools/deploy and check_deployed.py verify the server certificate by default (DQ-S05-7). The throwaway
 # container of CI has a self-signed one, so CI alone trusts it, here and for every script it runs. The same tools
 # refuse -C, and the administrator scripts refuse sa, unless these two allowances are set (DQ-S11-6, ADR 0014); only CI
 # sets them.
 export SQLCMD_OPTS=-C BANKFAS_ALLOW_TRUST_CERT=1 BANKFAS_ALLOW_SA=1
+# CI drops and builds BankFas again, as sa: tools/ci/ci_guard.sh, which every script of tools/ci sources, lets it reach
+# only a server on this machine, unless BANKFAS_CI_THROWAWAY_SERVER=1 says that another one is a throwaway server too
+# (self-review E8), and never a BankFas that holds real tenants (internal review v6, D9, D10).
+# shellcheck source=tools/ci/ci_guard.sh
+. "$ROOT/tools/ci/ci_guard.sh"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
@@ -148,7 +144,8 @@ PY
 
 echo "== 4. deploy db/deploy.sql to a fresh BankFas database the way production does (DOC-S11, ADR 0010, ADR 0012)"
 audit_since="$(sq -h -1 -W -Q "SET NOCOUNT ON; SELECT CONVERT(VARCHAR(19), SYSUTCDATETIME(), 126);")"
-sq -Q "IF DB_ID(N'BankFas') IS NOT NULL BEGIN ALTER DATABASE [BankFas] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [BankFas]; END" >/dev/null
+sq -Q "$(ci_guard_drop_sql)
+IF DB_ID(N'BankFas') IS NOT NULL BEGIN ALTER DATABASE [BankFas] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [BankFas]; END" >/dev/null
 # The administrator (sa here) starts the server audit first, so everything after it is recorded, then prepares the
 # empty database and the deployment login and opens the window; the deployment runs as bankfas_migrator, a member of
 # db_owner and of no server role, through the same wrapper users run; the administrator adds the database audit
@@ -629,42 +626,55 @@ if grep -qaE "$FAIL_RE" "$TMP/integrity.out"; then
     exit 1
 fi
 in_pass=$(grep -oaE "$PASS_RE" "$TMP/integrity.out" | sort -u | wc -l)
-# 13 cases: KG1-KG6 (DR-20: new rows on an ACTIVE key only, the key lifecycle, retirement only when unused, revocation
-# at once, every key column guarded) and AC1-AC7 (FR-PLT-025: the chain, the anchors, changed, removed and unchained
-# rows, the job's rights, the daily check from the anchor).
-if [ "$in_pass" -ne 13 ]; then
-    echo "expected 13 PASS, found $in_pass"
+# 17 cases: KG1-KG7 (DR-20: new rows on an ACTIVE key only, the key lifecycle, retirement only when unused, revocation
+# at once, every key column guarded, the key itself) and AC1-AC10 (FR-PLT-025: the chain, the anchors, changed, removed
+# and unchained rows, the job's rights, the daily check from the anchor, chaining later, two chains at once, the
+# store's anchors and the operators' rows; internal review v6).
+if [ "$in_pass" -ne 17 ]; then
+    echo "expected 17 PASS, found $in_pass"
     exit 1
 fi
 echo "integrity tests: $in_pass passed"
 echo "== 22c. the anchors of the audit chain kept outside the database (tools/deploy/audit_anchor.sh, tools/ci/audit_anchor_check.sh)"
-SQL_SERVER="$SQL_SERVER" SQLCMD="$SQLCMD" bash tools/ci/audit_anchor_check.sh > "$TMP/anchor.out" 2>&1
+SQL_SERVER="$SQL_SERVER" SQLCMD="$SQLCMD" bash tools/ci/audit_anchor_check.sh > "$TMP/anchor.out" 2>&1 || {
+    cat "$TMP/anchor.out"
+    echo "audit anchor check run failed"
+    exit 1
+}
 cat "$TMP/anchor.out"
 if grep -qaE "$FAIL_RE" "$TMP/anchor.out"; then
     echo "an audit anchor check failed"
     exit 1
 fi
 aa_pass=$(grep -oaE "$PASS_RE" "$TMP/anchor.out" | sort -u | wc -l)
-# 3 checks: AA1 (a new read-only file per run), AA2 (each chain verified against its latest anchor), AA3 (an old row
-# changed passes the daily check, fails the full check, and passes once put back).
-if [ "$aa_pass" -ne 3 ]; then
-    echo "expected 3 PASS, found $aa_pass"
+# 7 checks: AA1 (the store's mark, a new read-only file per run), AA2 (each chain verified against its latest anchor),
+# AA3 (an old row changed passes the daily check, fails the full check, and passes once put back), AA4 (a rewritten
+# chain is never anchored), AA5 (the store decides what moved), AA6 (stale and missing anchors), AA7 (a restore).
+if [ "$aa_pass" -ne 7 ]; then
+    echo "expected 7 PASS, found $aa_pass"
     exit 1
 fi
 echo "audit anchor checks: $aa_pass passed"
 echo "== 22d. incremental schema changes (tools/deploy/migrate.sh, tools/ci/migration_check.sh, 056, ADR 0034)"
-SQL_SERVER="$SQL_SERVER" SQLCMD="$SQLCMD" bash tools/ci/migration_check.sh > "$TMP/migration.out" 2>&1
+SQL_SERVER="$SQL_SERVER" SQLCMD="$SQLCMD" MIGRATOR_SECRET="$TMP/migrator/bankfas_migrator.secret" \
+    bash tools/ci/migration_check.sh > "$TMP/migration.out" 2>&1 || {
+    cat "$TMP/migration.out"
+    echo "migration check run failed"
+    exit 1
+}
 cat "$TMP/migration.out"
 if grep -qaE "$FAIL_RE" "$TMP/migration.out"; then
     echo "a migration check failed"
     exit 1
 fi
 mg_pass=$(grep -oaE "$PASS_RE" "$TMP/migration.out" | sort -u | wc -l)
-# 7 checks: MG1 (deploy.sh journals the baseline), MG2 (nothing pending), MG3 (the repeatable scripts run again with
-# the fingerprint unchanged), MG4 (a versioned script once), MG5 (edited, early and misnamed scripts refused), MG6 (a
-# failing script rolls back), MG7 (a change outside the journal stops apply).
-if [ "$mg_pass" -ne 7 ]; then
-    echo "expected 7 PASS, found $mg_pass"
+# 12 checks: MG1 (deploy.sh journals the baseline), MG2 (nothing pending), MG3 (the repeatable scripts run again with
+# the fingerprint unchanged), MG4 (a versioned script once), MG5 (edited, removed, early, duplicate, misnamed and
+# transaction-ending scripts refused), MG6 (a failing script rolls back), MG7 (a table, a member, a grant or a DDL
+# trigger outside the journal stops apply), MG8 (the window: backup first, sa refused), MG9 (a failed repeatable run
+# is taken up again), MG10 (the baseline journals the versioned scripts), MG11 (the change reference), MG12 (clean-up).
+if [ "$mg_pass" -ne 12 ]; then
+    echo "expected 12 PASS, found $mg_pass"
     exit 1
 fi
 echo "migration checks: $mg_pass passed"
@@ -680,17 +690,23 @@ if grep -qaE "$FAIL_RE" "$TMP/roles_tests.out"; then
     exit 1
 fi
 cr_pass=$(grep -oaE "$PASS_RE" "$TMP/roles_tests.out" | sort -u | wc -l)
-# 6 cases: CR1 (the 8 roles and 393 links), CR2 (a second run keeps the tenant's changes), CR3 (per role, and the locked
-# permissions on TM and FO only), CR4 (RK endorses from outside the preparing line, E2), CR5 (rights), CR6 (stages B and C).
-if [ "$cr_pass" -ne 6 ]; then
-    echo "expected 6 PASS, found $cr_pass"
+# 9 cases: CR1 (the 8 roles and 393 links), CR2 (a second run keeps the tenant's changes), CR3 (per role, and the locked
+# permissions on TM and FO only), CR4 (RK endorses from outside the preparing line, E2), CR5 (rights), CR6 (stages B and C),
+# CR7 (an open tenant only), CR8 (the catalogue complete), CR9 (a role made before the pack).
+if [ "$cr_pass" -ne 9 ]; then
+    echo "expected 9 PASS, found $cr_pass"
     exit 1
 fi
 echo "core roles tests: $cr_pass passed"
 echo "== 23. nothing the tests switched off is left off, and no test data is left (self-review C10)"
-# The tests switch constraints and triggers off only inside their transactions, and make users without logins; the
-# users are dropped here, and then every key and check is trusted, every trigger and row filter is on, and no tenant
-# is left behind.
+# The tests switch constraints and triggers off only inside their transactions, and make users without logins that
+# each test drops at its end: none may be left (counted before anything is dropped; internal review v6, B9). Then every
+# key and check is trusted, every trigger and row filter is on, and no tenant is left behind.
+test_users="$(sq -d BankFas -h -1 -W -Q "SET NOCOUNT ON; SELECT CONCAT('users:', COUNT(*)) FROM sys.database_principals WHERE name LIKE N'tp[_]test[_]%' OR name LIKE N'ci[_]%' OR name LIKE N'mg[_]%';" | grep -oE '^users:[0-9]+$' | tail -1)"
+if [ "$test_users" != "users:0" ]; then
+    echo "the tests left database users behind ($test_users): $(sq -d BankFas -h -1 -W -Q "SET NOCOUNT ON; SELECT STRING_AGG(name, ', ') FROM sys.database_principals WHERE name LIKE N'tp[_]test[_]%' OR name LIKE N'ci[_]%' OR name LIKE N'mg[_]%';" | tail -1)"
+    exit 1
+fi
 sq -d BankFas -Q "SET NOCOUNT ON; DECLARE @s NVARCHAR(MAX) = N''; SELECT @s += N'DROP USER ' + QUOTENAME(name) + N';' FROM sys.database_principals WHERE name LIKE N'tp[_]test[_]%' AND type = 'S'; EXEC (@s);" >/dev/null
 left="$(sq -d BankFas -h -1 -W -Q "SET NOCOUNT ON; SELECT CONCAT((SELECT COUNT(*) FROM sys.foreign_keys WHERE is_disabled = 1 OR is_not_trusted = 1), '/', (SELECT COUNT(*) FROM sys.check_constraints WHERE is_disabled = 1 OR is_not_trusted = 1), '/', (SELECT COUNT(*) FROM sys.triggers WHERE is_disabled = 1), '/', (SELECT COUNT(*) FROM sys.security_policies WHERE is_enabled = 0), '/', (SELECT COUNT(*) FROM sys.database_principals WHERE name LIKE N'tp[_]test[_]%'), '/', (SELECT COUNT(*) FROM plat.Tenant));" | grep -oE '^[0-9]+(/[0-9]+){5}$' | tail -1)"
 if [ "$left" != "0/0/0/0/0/0" ]; then
@@ -699,7 +715,7 @@ if [ "$left" != "0/0/0/0/0/0" ]; then
 fi
 echo "every key and check is trusted, every trigger and row filter is on, and no test user or tenant is left ($left)"
 echo "== 24. the performance scripts at small sizes (tools/perf/run_perf.sh, ADR 0036); it builds BankFas again, so it runs last"
-# The full measurement (300 tenants, three at the volume of NFR-SCL-02) takes about forty minutes and is run by hand
+# The full measurement (300 tenants, three at the volume of NFR-SCL-02) takes about 25 minutes and is run by hand
 # (docs/40); here the same scripts run on 1 full and 3 light tenants, so a change of the schema cannot break them unseen.
 SA_PASSWORD="$SA_PASSWORD" SQL_SERVER="$SQL_SERVER" SQLCMD="$SQLCMD" PERF_FULL=1 PERF_LIGHT=3 PERF_COMPANIES=10 PERF_YEARS=2 \
     PERF_AUDIT=2000 PERF_SESSIONS=1000 PERF_LIGHT_AUDIT=200 PERF_ITER=5 PERF_BIND=5 PERF_WRITERS=2 PERF_WRITES=50 \
@@ -708,10 +724,13 @@ SA_PASSWORD="$SA_PASSWORD" SQL_SERVER="$SQL_SERVER" SQLCMD="$SQLCMD" PERF_FULL=1
     echo "the performance scripts failed"
     exit 1
 }
-perf_n=$(grep -c '^RESULT|' "$TMP/perf-run.txt")
-if [ "$perf_n" -ne 18 ] || ! grep -q '^INFO|C1|chain after the concurrent writers|[0-9]* OK$' "$TMP/perf-run.txt"; then
+perf_n=$(grep -c '^RESULT|' "$TMP/perf-run.txt" || true)
+# the chain after the two writers holds at least their rows, and the J2 and J4 checks of the measured chain are OK (B9)
+c1_rows="$(grep -oE '^INFO\|C1\|chain after the concurrent writers\|[0-9]+ OK$' "$TMP/perf-run.txt" | grep -oE '[0-9]+ OK$' | cut -d' ' -f1 || true)"
+if [ "$perf_n" -ne 18 ] || [ -z "$c1_rows" ] || [ "$c1_rows" -lt 100 ] \
+   || ! grep -qE '^INFO\|J2\|.*OK' "$TMP/perf-run.txt" || ! grep -qE '^INFO\|J4\|.*OK' "$TMP/perf-run.txt"; then
     tail -30 "$TMP/perf-run.txt"
-    echo "the performance run gave $perf_n results (expected 18), or the chain was not OK after the concurrent writers"
+    echo "the performance run gave $perf_n results (expected 18), or a chain check was not OK (C1 rows ${c1_rows:-none}, J2, J4)"
     exit 1
 fi
 echo "performance scripts: $perf_n results, the chain OK after the concurrent writers"

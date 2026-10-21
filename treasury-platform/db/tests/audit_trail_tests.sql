@@ -53,6 +53,8 @@ DECLARE @sA VARBINARY(64) = CRYPT_GEN_RANDOM(32), @sU VARBINARY(64) = CRYPT_GEN_
         @lk2 VARBINARY(64) = CRYPT_GEN_RANDOM(32), @lk3 VARBINARY(64) = CRYPT_GEN_RANDOM(32), @os1 VARBINARY(64) = CRYPT_GEN_RANDOM(32),
         @osBad VARBINARY(64) = CRYPT_GEN_RANDOM(32);
 DECLARE @i INT, @e INT, @n INT, @n2 INT, @n3 INT, @n4 INT, @n5 INT, @n6 INT, @n7 INT, @n8 INT, @n9 INT, @before INT, @after INT;
+-- the rows of this test only: AU7 counts the platform rows written after this point (internal review v6, B15)
+DECLARE @start BIGINT = ISNULL(IDENT_CURRENT(N'aud.AuditLog'), 0);
 
 -- Seed: one active tenant with an administrator and a user, both with a password and MFA.
 INSERT plat.Tenant (Code, NameAr, NameEn, PlanId, HomeCountryId, Status, TimeZone) VALUES ('tst-audit', N'ت', N'Audit', @plan, @country, 'ACTIVE', 'UTC');
@@ -240,7 +242,7 @@ REVERT;
 DELETE FROM sec.SessionBinding WHERE SessionId = @@SPID;
 EXEC sys.sp_set_session_context @key = N'TenantId', @value = NULL;
 EXECUTE AS USER = N'tp_test_apanel';
-SELECT @n3 = COUNT(AuditLogId), @n4 = SUM(CASE WHEN TenantId IS NOT NULL THEN 1 ELSE 0 END) FROM aud.AuditLog;
+SELECT @n3 = COUNT(AuditLogId), @n4 = SUM(CASE WHEN TenantId IS NOT NULL THEN 1 ELSE 0 END) FROM aud.AuditLog WHERE AuditLogId > @start;
 REVERT;
 EXECUTE AS USER = N'tp_test_aread';
 SELECT @n5 = COUNT(*) FROM aud.AuditLog

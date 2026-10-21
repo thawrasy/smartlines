@@ -373,6 +373,7 @@ CREATE TABLE "plat"."SchemaMigration" (
   "AppliedAt" timestamp(3) NOT NULL DEFAULT (now() at time zone 'utc'),
   "AppliedBy" varchar(128) NOT NULL,
   "DurationMs" integer NULL,
+  "ChangeRef" varchar(60) NULL,
   "CreatedAt" timestamp(3) NOT NULL DEFAULT (now() at time zone 'utc'),
   "CreatedBy" bigint NULL,
   "UpdatedAt" timestamp(3) NULL,

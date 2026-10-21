@@ -9,6 +9,8 @@
 #              tools/deploy, -C in CI), MONITOR_SECRETS (the folder of bankfas_monitor.secret from step 4)
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+# shellcheck source=tools/ci/ci_guard.sh
+. "$ROOT/tools/ci/ci_guard.sh"
 SQL_SERVER="${SQL_SERVER:-localhost,1433}"
 SQLCMD="${SQLCMD:-sqlcmd}"
 SA_PW="${SQLCMDPASSWORD:?set SQLCMDPASSWORD to the sa password}"

@@ -72,8 +72,9 @@ UNION ALL SELECT @t, @rTM, PermissionId FROM sec.Permission WHERE Code IN ('cfg.
 INSERT sec.UserRole (TenantId, UserId, RoleId) VALUES (@t, @ta, @rTA), (@t, @rev, @rTM);
 INSERT cat.DocumentType (TenantId, Code, NameAr, NameEn, AppliesTo, IsSensitive, IsSystem, IsLocked)
 VALUES (@t, 'DATA_EXPORT_PACKAGE', N'حزمة تصدير البيانات', N'Data export package', 'GENERAL', 0, 1, 1);   -- not sensitive: 042 marks a restricted package RESTRICTED itself (DR-18)
-INSERT sec.TenantKey (TenantId, Purpose, KeyVersion, Status, WrappedKey, MasterKeyRef, ActivatedAt)
-VALUES (@t, 'FILE', 1, 'ACTIVE', CRYPT_GEN_RANDOM(64), 'kms/test/file', SYSUTCDATETIME());
+INSERT sec.TenantKey (TenantId, Purpose, KeyVersion, Status, WrappedKey, MasterKeyRef)
+VALUES (@t, 'FILE', 1, 'PENDING', CRYPT_GEN_RANDOM(64), 'kms/test/file');
+UPDATE sec.TenantKey SET Status = 'ACTIVE', ActivatedAt = SYSUTCDATETIME() WHERE TenantId = @t AND Purpose = 'FILE';
 
 /* X1: in an active tenant, a user without cfg.export.request is refused (50034); the account administrator's export
    without restricted data is approved at once and audited with high severity; a second one waits for the first

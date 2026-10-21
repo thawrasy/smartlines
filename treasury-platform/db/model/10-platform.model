@@ -255,6 +255,7 @@ table plat.SchemaMigration global noapp noplat norv   # Journal of the schema sc
   AppliedAt    ts        req =SYSUTCDATETIME()
   AppliedBy    str(128)  req
   DurationMs   int
+  ChangeRef    ascii(60)       # BANKFAS_CHANGE_REF of the run (DOC-S11 section 7; internal review v6, D7)
   unique Version where Kind <> 'REPEATABLE'
   index Kind,AppliedAt
   check (Kind = 'BASELINE' AND Version = 'BASELINE') OR (Kind = 'VERSIONED' AND Version LIKE 'V[0-9][0-9][0-9][0-9]') OR (Kind = 'REPEATABLE' AND Version = 'R')

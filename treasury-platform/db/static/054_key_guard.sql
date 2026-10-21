@@ -6,16 +6,26 @@
      reference triggers   one per table that references sec.TenantKey (all but the key log sec.KeyEvent), built from
                           sys.foreign_keys so a new encrypted column is covered when this script runs again: a new row,
                           or a row whose key column changes, may name only an ACTIVE key (50098). A row that keeps its
-                          key keeps it whatever the key's status, so a row on a RETIRING key can still be read and
-                          updated while the rotation job re-encrypts it.
+                          key keeps it while the key is RETIRING, so it can still be read and updated while the
+                          rotation job re-encrypts it; a row on a REVOKED key is frozen until it is moved to an ACTIVE
+                          key or its key column is cleared, so nothing is written again under a compromised key
+                          (internal review v6, A8). The key is read under REPEATABLEREAD: a key cannot leave ACTIVE
+                          between the check and the commit of the row written on it (A9).
      sec.TR_TenantKey_Lifecycle
-                          the status moves only forward: PENDING to ACTIVE, ACTIVE to RETIRING, RETIRING to RETIRED or
-                          back to ACTIVE (a rotation given up), and any of them to REVOKED; RETIRED and REVOKED are
-                          final (50098). A key becomes RETIRED only when no row references it any more (50098).
+                          a key is created PENDING; the status moves only forward: PENDING to ACTIVE, ACTIVE to
+                          RETIRING, RETIRING to RETIRED or back to ACTIVE (a rotation given up), and any of them to
+                          REVOKED; RETIRED and REVOKED are final (50098). A key becomes RETIRED only when no row
+                          references it any more (50098). Its tenant, purpose and version never change; its wrapped
+                          bytes change only together with the master key that wraps them (a re-wrap under a new
+                          master key), and never once the key is RETIRED or REVOKED (A5). tp_app, which holds the keys
+                          for the application's envelope encryption (DOC-S02 section 6), keeps INSERT and UPDATE on
+                          the table: the trigger, not the grant, holds the lifecycle.
                           Revocation is an emergency and is never held back: the rows still on a REVOKED key are
                           listed by sec.v_KeyReferences until the rotation job moves or destroys them.
-     sec.v_KeyReferences  per key, the rows that still reference it, by table and column. The rotation job reads it to
-                          know when a key can retire; the operators read it after a revocation.
+     sec.v_KeyReferences  per key, the rows that still reference it, by table and column. The rotation job (tp_jobs,
+                          bound to its tenant, so the row filters keep it to that tenant) reads it to know when a key
+                          can retire (A4). Operators, who see no tenant data, read the counts across tenants through
+                          sec.usp_KeyReferenceCounts (tp_platform): key, status and number of rows, no row itself.
    So no row references a RETIRED key, and no row is written onto any key that is not ACTIVE. Errors: 50098. */
 SET NOCOUNT ON;
 SET ANSI_NULLS ON; SET QUOTED_IDENTIFIER ON; SET ANSI_PADDING ON; SET ANSI_WARNINGS ON; SET ARITHABORT ON; SET CONCAT_NULL_YIELDS_NULL ON; SET NUMERIC_ROUNDABORT OFF;
@@ -52,10 +62,10 @@ WHILE @@FETCH_STATUS = 0
 BEGIN
     SELECT @cond = STRING_AGG(CAST(CONCAT(N'
                OR EXISTS (SELECT 1 FROM inserted AS i
-                          JOIN sec.TenantKey AS k ON k.TenantId = i.TenantId AND k.TenantKeyId = i.', QUOTENAME(KeyColumn), N'
+                          JOIN sec.TenantKey AS k WITH (REPEATABLEREAD) ON k.TenantId = i.TenantId AND k.TenantKeyId = i.', QUOTENAME(KeyColumn), N'
                           LEFT JOIN deleted AS d ON d.', QUOTENAME(@pk), N' = i.', QUOTENAME(@pk), N'
                           WHERE k.Status <> ''ACTIVE''
-                            AND (d.', QUOTENAME(@pk), N' IS NULL OR d.', QUOTENAME(KeyColumn), N' IS NULL OR d.', QUOTENAME(KeyColumn), N' <> i.', QUOTENAME(KeyColumn), N'))') AS NVARCHAR(MAX)), N'')
+                            AND (k.Status = ''REVOKED'' OR d.', QUOTENAME(@pk), N' IS NULL OR d.', QUOTENAME(KeyColumn), N' IS NULL OR d.', QUOTENAME(KeyColumn), N' <> i.', QUOTENAME(KeyColumn), N'))') AS NVARCHAR(MAX)), N'')
                    WITHIN GROUP (ORDER BY KeyColumn)
     FROM #KeyRef WHERE SchemaName = @s AND TableName = @t;
     SET @sql = CONCAT(N'CREATE OR ALTER TRIGGER ', QUOTENAME(@s), N'.', QUOTENAME(N'TR_' + @t + N'_KeyStatus'), N' ON ', QUOTENAME(@s), N'.', QUOTENAME(@t), N'
@@ -65,7 +75,7 @@ BEGIN
     SET NOCOUNT ON;
     -- 054 (DR-20): a new row, or a row whose key changes, names an ACTIVE key only
     IF 1 = 0', @cond, N'
-        THROW 50098, ''A row is written only with an ACTIVE key; a PENDING, RETIRING, RETIRED or REVOKED key takes no new row (DR-20)'', 1;
+        THROW 50098, ''A row is written only with an ACTIVE key; a PENDING, RETIRING, RETIRED or REVOKED key takes no new row, and a row on a REVOKED key is moved or cleared before it changes (DR-20)'', 1;
 END;');
     EXEC sys.sp_executesql @sql;
     FETCH NEXT FROM c INTO @s, @t, @pk;
@@ -89,10 +99,19 @@ JOIN (', @refs, N'
 GROUP BY k.TenantId, k.TenantKeyId, k.Purpose, k.KeyVersion, k.Status, r.TableName, r.KeyColumn;');
 EXEC sys.sp_executesql @sql;
 SET @sql = N'CREATE OR ALTER TRIGGER sec.TR_TenantKey_Lifecycle ON sec.TenantKey
-AFTER UPDATE
+AFTER INSERT, UPDATE
 AS
 BEGIN
     SET NOCOUNT ON;
+    -- 054 (A5): a key is created PENDING; what it is never changes, and its bytes change only in a re-wrap
+    IF EXISTS (SELECT 1 FROM inserted AS i LEFT JOIN deleted AS d ON d.TenantKeyId = i.TenantKeyId
+               WHERE d.TenantKeyId IS NULL AND i.Status <> ''PENDING'')
+        THROW 50098, ''A key is created PENDING and then activated (DR-20)'', 1;
+    IF EXISTS (SELECT 1 FROM inserted AS i JOIN deleted AS d ON d.TenantKeyId = i.TenantKeyId
+               WHERE i.TenantId <> d.TenantId OR i.Purpose <> d.Purpose OR i.KeyVersion <> d.KeyVersion
+                  OR ((i.WrappedKey <> d.WrappedKey OR i.MasterKeyRef <> d.MasterKeyRef)
+                      AND (d.Status IN (''RETIRED'', ''REVOKED'') OR i.WrappedKey = d.WrappedKey OR i.MasterKeyRef = d.MasterKeyRef)))
+        THROW 50098, ''A key keeps its tenant, purpose and version; its wrapped bytes change only with the master key that wraps them, and never once it is RETIRED or REVOKED (DR-20)'', 1;
     -- 054 (DR-20): the status moves only forward; RETIRED and REVOKED are final
     IF EXISTS (SELECT 1 FROM inserted AS i JOIN deleted AS d ON d.TenantKeyId = i.TenantKeyId
                WHERE i.Status <> d.Status
@@ -107,6 +126,25 @@ BEGIN
         THROW 50098, ''A key retires only when no row references it any more; sec.v_KeyReferences lists the rows still on it (DR-20)'', 1;
 END;';
 EXEC sys.sp_executesql @sql;
+GO
+-- The rotation job reads the view for its bound tenant (the row filters of the tables it joins keep it there).
+GRANT SELECT ON sec.v_KeyReferences TO [tp_jobs];
+GO
+-- The operators' view of a revocation: per tenant and key, how many rows are still on it, and nothing of the rows.
+CREATE OR ALTER PROCEDURE sec.usp_KeyReferenceCounts
+    @Status VARCHAR(20) = NULL   -- e.g. REVOKED; all statuses when NULL
+WITH EXECUTE AS N'tp_auth_exec'
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT TenantId, TenantKeyId, Purpose, KeyVersion, Status, SUM(RowCnt) AS RowCnt
+    FROM sec.v_KeyReferences
+    WHERE @Status IS NULL OR Status = @Status
+    GROUP BY TenantId, TenantKeyId, Purpose, KeyVersion, Status
+    ORDER BY TenantId, TenantKeyId;
+END;
+GO
+GRANT EXECUTE ON sec.usp_KeyReferenceCounts TO [tp_platform];
 GO
 DROP TABLE #KeyRef;
 GO

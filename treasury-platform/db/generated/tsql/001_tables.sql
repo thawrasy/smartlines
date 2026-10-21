@@ -222,6 +222,7 @@ CREATE TABLE [plat].[SchemaMigration] (
     [AppliedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_SchemaMigration_AppliedAt] DEFAULT SYSUTCDATETIME(),
     [AppliedBy] NVARCHAR(128) NOT NULL,
     [DurationMs] INT NULL,
+    [ChangeRef] VARCHAR(60) NULL,
     [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_SchemaMigration_CreatedAt] DEFAULT SYSUTCDATETIME(),
     [CreatedBy] BIGINT NULL,
     [UpdatedAt] DATETIME2(3) NULL,

@@ -5,7 +5,10 @@
 #                         Its secret is BANKFAS_SECRETS_DIR/bankfas_migrator.secret (owned by the caller, mode 600 or
 #                         400, 32 to 128 characters of [A-Za-z0-9_-] with upper, lower and digit; --generate makes it).
 #                         BANKFAS_DATA_DIR and BANKFAS_LOG_DIR place the files of a new database (DOC-S10 section 3).
-#   open                  opens a deployment window: declares it in SQL Server Audit and enables bankfas_migrator.
+#   open                  opens a deployment window: checks that the server audit runs (50151), that no service login
+#                         has a session (50152), and that a database holding tables has a full backup within
+#                         BANKFAS_BACKUP_MAX_AGE_HOURS, default 24 (50153); declares the window in SQL Server Audit
+#                         and enables bankfas_migrator (internal review v6, D7, D14).
 #   close                 disables it again, ends its sessions and declares the window closed.
 # A deployment (DOC-S11): server_audit.sh apply (first time) -> prepare (first time) -> open
 #               -> SQL_USER=bankfas_migrator tools/deploy/deploy.sh -> server_audit.sh apply -> provision_logins.sh -> close.
@@ -82,7 +85,30 @@ $sql" || rc=$?
     exit "$rc"
     ;;
 open)
-    run "$(declare_sql 1101 "deployment window opened")
+    # A window opens only when it can be audited and the database can be put back (internal review v6, D7, D14): the
+    # server audit is running, no service login has a session (the application and the job worker are stopped), and a
+    # database that holds tables (an upgrade through migrate.sh) has a full backup within BANKFAS_BACKUP_MAX_AGE_HOURS.
+    max_age="${BANKFAS_BACKUP_MAX_AGE_HOURS:-24}"
+    [[ "$max_age" =~ ^[0-9]{1,4}$ ]] || fail "BANKFAS_BACKUP_MAX_AGE_HOURS is a number of hours"
+    run "SET NOCOUNT ON;
+DECLARE @msg NVARCHAR(2048), @tables INT = 0, @who NVARCHAR(1000);
+IF NOT EXISTS (SELECT 1 FROM sys.dm_server_audit_status WHERE name = N'BankFas_Audit' AND status_desc = N'STARTED')
+    THROW 50151, 'The server audit BankFas_Audit is not running: a deployment window opens only when it is recorded (server_audit.sh apply)', 1;
+SET @who = (SELECT STRING_AGG(CONVERT(NVARCHAR(MAX), CONCAT(login_name, N' (', session_id, N')')), N', ') FROM sys.dm_exec_sessions
+            WHERE login_name LIKE N'bankfas[_]app[_]%' OR login_name LIKE N'bankfas[_]jobs[_]%'
+               OR login_name LIKE N'bankfas[_]platform[_]%' OR login_name LIKE N'bankfas[_]support[_]%');
+IF @who IS NOT NULL
+BEGIN
+    SET @msg = CONCAT(N'Stop the application, the job worker and the operator panel before the window: sessions of ', @who);
+    THROW 50152, @msg, 1;
+END;
+IF DB_ID(N'BankFas') IS NOT NULL
+    EXEC [BankFas].sys.sp_executesql N'SELECT @n = COUNT(*) FROM sys.tables WHERE is_ms_shipped = 0', N'@n INT OUTPUT', @n = @tables OUTPUT;
+IF @tables > 0 AND NOT EXISTS (SELECT 1 FROM msdb.dbo.backupset WHERE database_name = N'BankFas' AND type = 'D'
+                                   AND backup_finish_date >= DATEADD(HOUR, -$max_age, GETDATE()))
+    THROW 50153, 'BankFas holds tables and has no full backup within BANKFAS_BACKUP_MAX_AGE_HOURS: back it up before an upgrade (DOC-S09)', 1;
+GO
+$(declare_sql 1101 "deployment window opened")
 ALTER LOGIN [bankfas_migrator] ENABLE;"
     echo "deployment window open: bankfas_migrator enabled"
     ;;

@@ -3,7 +3,8 @@
 # directory, so this script changes to db/ first. tools/ci/db_ci.sh calls this script, so CI tests the same path.
 # Before anything runs, db/ops/deploy_preflight.sql checks (DQ-S11-6, docs/adr/0014-deployment-preflight.md) that
 # the login is neither sa nor a sysadmin (50140), that the SQL Server build and the Ubuntu release are those of
-# versions.json (gate G4, 50143), and that BankFas exists in its collation (50141) and is empty (50142). After it, the
+# versions.json (gate G4, 50143), that nested triggers are on (50150; these three are db/ops/server_gate.sql), and
+# that BankFas exists in its collation (50141) and is empty (50142). After it, the
 # deployment is journaled as the BASELINE of plat.SchemaMigration (tools/deploy/migrate.sh, ADR 0034).
 #
 # Environment:
@@ -47,11 +48,13 @@ sql="$(cat "$DB_DIR/ops/deploy_preflight.sql")"
 sql="${sql//\$(BANKFAS_EXPECT_VERSION)/$expect_version}"
 sql="${sql//\$(BANKFAS_EXPECT_OS)/$expect_os}"
 printf '%s\n' "$sql" > "$WORK/preflight.sql"
-# One session: deploy.sql starts only after the mark the preflight sets in it (50146, self-review E5).
-printf ':r "%s"\nGO\n:r "%s"\n' "$WORK/preflight.sql" "$DB_DIR/deploy.sql" > "$WORK/run.sql"
+BANKFAS_VERSIONS="$VERSIONS" bankfas_gate_sql > "$WORK/gate.sql"
+# One session: the server gate, the preflight, and deploy.sql, which starts only after the mark the preflight sets in
+# it (50146, self-review E5).
+printf ':r "%s"\nGO\n:r "%s"\nGO\n:r "%s"\n' "$WORK/gate.sql" "$WORK/preflight.sql" "$DB_DIR/deploy.sql" > "$WORK/run.sql"
 
 cd "$DB_DIR"
 "$SQLCMD" -S "$SQL_SERVER" "${AUTH[@]}" -I -b $SQLCMD_OPTS -i "$WORK/run.sql"
 # The new database's journal starts here: every later release reaches it through tools/deploy/migrate.sh (ADR 0034).
-bash "$HERE/migrate.sh" baseline
+bash "$HERE/migrate.sh" baseline --after-deploy
 echo "deployment finished"

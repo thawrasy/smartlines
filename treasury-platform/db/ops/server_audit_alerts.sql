@@ -9,7 +9,8 @@
 
    Windows. The scripts in tools/deploy declare their own work in the audit with sys.sp_audit_write:
      1101, 1102  a deployment window, opened and closed by prepare_database.sh open and close. It ends at the next
-                 close, or 12 hours after it opened if none comes.
+                 close, or 4 hours after it opened if none comes: the window of DOC-S11 section 10 is 2 hours,
+                 and a longer silence of the alerts is not a deployment (internal review v6, D17).
      1103, 1104  an administrative change: prepare_database.sh prepare, provision_logins.sh and server_audit.sh apply.
                  It ends at the next 1104 of the same login, which the scripts write even when they fail, or after
                  one hour.
@@ -65,8 +66,8 @@ ALTER TABLE #a ADD who SYSNAME NULL;
 UPDATE #a SET who = COALESCE(NULLIF(session_server_principal_name, N''), server_principal_name);
 
 SELECT o.event_time AS opened, o.user_defined_event_id AS kind, o.who AS opened_by, o.user_defined_information AS info, c.closed,
-       CASE WHEN c.closed < DATEADD(HOUR, CASE o.user_defined_event_id WHEN 1101 THEN 12 ELSE 1 END, o.event_time) THEN c.closed
-            ELSE DATEADD(HOUR, CASE o.user_defined_event_id WHEN 1101 THEN 12 ELSE 1 END, o.event_time) END AS ends
+       CASE WHEN c.closed < DATEADD(HOUR, CASE o.user_defined_event_id WHEN 1101 THEN 4 ELSE 1 END, o.event_time) THEN c.closed
+            ELSE DATEADD(HOUR, CASE o.user_defined_event_id WHEN 1101 THEN 4 ELSE 1 END, o.event_time) END AS ends
 INTO #w
 FROM #a AS o
 OUTER APPLY (SELECT MIN(e.event_time) AS closed
