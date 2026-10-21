@@ -1,6 +1,73 @@
-RUN|started|2026-10-21T11:17:50Z
-RUN|commit|1abef42
+RUN|started|2026-10-21T11:40:00Z
+RUN|commit|36b06b9
 RUN|server|17.0.5015.4 Enterprise Developer Edition (64-bit)
 RUN|host|4 cpu, 15 GB memory
 RUN|sizes|full 3, light 297, companies 200, years 5, audit 50000, sessions 50000, light audit 2000
-RUN|deploy seconds|21
+RUN|deploy seconds|20
+GEN|full tenants|822.810
+GEN|light tenants|561.518
+GEN|compute|600|1284.6|4815.9
+RUN|seed seconds|1384
+INFO|J1|warnings issued on the first run|48
+INFO|J2|chain rows verified, status|50071 OK
+INFO|J3|chains anchored|301
+INFO|J4|rows verified from the anchor, status|501 OK
+RESULT|D1|3|1671.66|2520.78|2615.12
+RESULT|J1|3|882.05|1161.60|1192.66
+RESULT|J2|3|1982.80|2220.16|2246.54
+RESULT|J3|2|24.88|32.51|33.36
+RESULT|J4|3|206.40|244.25|248.46
+RESULT|Q1|50|0.20|0.21|0.27
+RESULT|Q2|50|0.20|0.21|0.23
+RESULT|Q3|50|0.82|1.23|1.28
+RESULT|Q4|50|0.83|1.16|1.46
+RESULT|R1|50|0.83|1.18|1.45
+RESULT|R2|10|62.50|72.48|74.26
+RESULT|R3|50|0.00|0.21|0.22
+RESULT|W1|50|4.12|6.68|225.47
+RESULT|W2|20|157.58|361.84|3013.88
+RESULT|W3|20|25.04|88.61|1181.01
+SIZE|aud.AuditLog|744878
+SIZE|sec.UserSession|358500
+SIZE|fin.StatementLine|154959
+SIZE|sec.RolePermission|117900
+SIZE|fin.CreditAssessmentFinding|95128
+SIZE|fin.LineCatalogItem|47100
+SIZE|fin.BankFlowEntry|34200
+SIZE|fin.CreditAssessmentFactor|10540
+SIZE|fin.CreditAssessmentTrigger|8606
+SIZE|fin.CreditAssessmentRemedy|4216
+SIZE|fin.FinancialStatement|3297
+SIZE|fin.CreditAssessmentReclass|3100
+SIZE|fin.IndustrySensitivity|2576
+SIZE|sec.Role|2400
+SIZE|fin.ScorecardItemRule|2144
+SIZE|database MB|840.0
+SIZE|tenants|300
+TOP|batch|1|2032.8|1449301|SELECT @f = Fingerprint FROM plat.fn_SchemaFingerprint()
+TOP|fin.usp_ComputeCreditAssessment|20|1674.1|1002816|INSERT @flows SELECT p.CovenantId, p.PerformanceState, p.Achieved, p.Required, p.MonthsElapsed, p.MonthsInWind
+TOP|aud.usp_WriteEvent|578|1140.6|60702|INSERT aud.AuditLog (TenantId, OccurredAt, ActorType, ActorId, Action, Category, Severity, EntityType, EntityI
+TOP|batch|1000|882.8|957960|SELECT @x = COUNT(*) FROM fin.FinancialStatement AS s JOIN fin.StatementLine AS l ON l.TenantId = s.TenantId A
+TOP|batch|1000|741.7|426000|SELECT @x = COUNT(*) FROM (SELECT CompanyId FROM org.Company WHERE TenantId = @t ORDER BY NameEn OFFSET ((@i +
+TOP|batch|10|607.8|170030|SELECT @x = COUNT(*) FROM fin.fn_CreditEarlyWarnings('2026-10-21') WHERE TenantId = @t
+TOP|batch|1000|553.4|479000|SELECT @x = COUNT(*) FROM fin.v_CreditAssessmentReport WHERE TenantId = @t AND CreditAssessmentId = @a
+TOP|fin.usp_BuildAssessmentEvidencePack|20|349.2|93754|SET @Pack = (SELECT         'BankFas assessment evidence pack v1' AS format,         JSON_QUERY((SELECT * FROM
+TOP|batch|20|329.8|2917|INSERT fin.CreditAssessment (TenantId, CompanyId, StatementId, ScorecardId, AssessmentDate, PreparedBy)     SE
+TOP|batch|1000|251.3|311560|SELECT @x = COUNT(*) FROM fin.v_CreditAssessmentFindings WHERE TenantId = @t AND AssessmentId = @a
+TOP|fin.usp_CreditCore|40|161.9|67612|INSERT @V (Which, Code, V, Inconsistent)     SELECT w.Which, sl.Code,            CASE WHEN r.Amount IS NULL TH
+TOP|fin.usp_ComputeCreditAssessment|20|146.0|67397|INSERT fin.CreditAssessmentFinding (TenantId, AssessmentId, SeqNo, Kind, Source, RuleCode, LineCode, RiskLevel
+MISSING|[BankFas].[fin].[BankFlowEntry]|[TenantId]||[CompanyId], [InstitutionId], [FacilityId], [MonthEnd], [Amount], [CurrencyId], [Status]|21.1|620
+MISSING|[BankFas].[fin].[FinancialStatement]|[TenantId], [Status]||[SupersedesId]|10.7|299
+MISSING|[BankFas].[fin].[CreditAssessment]|[TenantId]|[EndorsedBy]||96.3|21
+MISSING|[BankFas].[fin].[FinancialStatement]|[TenantId], [Status]||[SupersedesId], [ApprovedBy]|9.3|126
+MISSING|[BankFas].[fin].[FinancialStatement]|[TenantId], [FiscalYear]|||55.1|21
+MISSING|[BankFas].[aud].[AuditLog]|[ChainSeq]||[TenantId]|100.0|6
+MISSING|[BankFas].[fin].[CreditAssessmentFinding]|[TenantId], [Source]||[AssessmentId]|19.1|19
+MISSING|[BankFas].[fin].[CreditAssessmentFinding]|[TenantId], [Kind]||[AssessmentId]|19.1|19
+MISSING|[BankFas].[fin].[FinancialStatement]||[Status]|[TenantId]|18.5|2
+MISSING|[BankFas].[fin].[CreditAssessment]|[TenantId], [Status]||[ApprovedBy]|9.2|1
+RESULT|B1|100|4.10|4.30|507.30
+RESULT|C1|2000|4516|442
+INFO|C1|chain after the concurrent writers|52571 OK
+RESULT|D2|1|18079|18081|18083
+RUN|finished|2026-10-21T12:05:06Z

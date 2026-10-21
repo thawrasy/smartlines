@@ -34,10 +34,10 @@ verifies the chain and pushes its head to a store nobody with access to the data
    anchor's number still has the anchor's hash. The results are OK, BROKEN, GAP, UNCHAINED, HEAD_MISMATCH,
    ANCHOR_MISMATCH and ANCHOR_MISSING. Each run is audited as AUDIT_CHAIN_VERIFIED, or as AUDIT_CHAIN_BROKEN with high
    severity, which AL-12 alerts on.
-   - *Added on 2026-10-21 after the performance run (ADR 0036, docs/40).* A full check costs about 33 microseconds a
-     row (1.7 s for a tenant of 52,000 rows), so its daily cost would grow without end. The daily check therefore runs
+   - *Added on 2026-10-21 after the performance run (ADR 0036, docs/40).* A full check costs about 40 microseconds a
+     row (2 s for a tenant of 50,000 rows), so its daily cost would grow without end. The daily check therefore runs
      from the latest anchor (`@FromAnchor = 1`, `audit_anchor.sh verify`). It reads the anchor's row and the rows after
-     it: 0.25 s for a day of 500 rows.
+     it: 0.17 s for a day of 500 rows.
    - A rewrite of older rows that computes the hashes again still changes the anchor's row, so the daily check catches
      it. An old row changed *without* its hash computed again is seen only by the full check, which runs weekly
      (`audit_anchor.sh verify --full`). Tests AC7 and AA3 show both.
