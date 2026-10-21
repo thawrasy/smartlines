@@ -53,3 +53,14 @@ public class TokenAndCodeTests
         Assert.Equal(Convert.ToHexStringLower(RecoveryCodes.Hash(RecoveryCodes.Normalise(codes[0])!)), hashes[0]);
     }
 }
+
+public class PortalLinkTests
+{
+    [Fact]
+    public void A_link_keeps_its_token_in_the_fragment()
+    {
+        var uri = new BankFas.Data.Jobs.PortalOptions { Domain = "bankfas.com" }.TenantUri("acme", "/invitation#token=abc-_9");
+        Assert.Equal("https://acme.bankfas.com/invitation#token=abc-_9", uri.ToString());
+        Assert.Equal("", uri.Query);
+    }
+}

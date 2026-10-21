@@ -92,11 +92,50 @@ public static class PasswordRules
 /// <summary>A connection bound to the signed-in user for one request; disposed at the end of the request (DOC-F04 section 5).</summary>
 public sealed class BoundUser(Microsoft.Data.SqlClient.SqlConnection connection, int tenantId, long userId) : IAsyncDisposable
 {
+    private HashSet<string>? _permissions;
+
     public Microsoft.Data.SqlClient.SqlConnection Connection { get; } = connection;
     public int TenantId { get; } = tenantId;
     public long UserId { get; } = userId;
 
     public ValueTask DisposeAsync() => Connection.DisposeAsync();
+
+    /// <summary>The union of the permissions of the user's active roles (BR-PLT-007).</summary>
+    public async Task<IReadOnlySet<string>> PermissionsAsync(CancellationToken ct)
+    {
+        _permissions ??= [.. await Dapper.SqlMapper.QueryAsync<string>(Connection, new Dapper.CommandDefinition(
+            """
+            SELECT DISTINCT p.Code
+            FROM sec.UserRole AS ur
+            JOIN sec.Role AS r ON r.RoleId = ur.RoleId AND r.IsActive = 1
+            JOIN sec.RolePermission AS rp ON rp.RoleId = r.RoleId
+            JOIN sec.Permission AS p ON p.PermissionId = rp.PermissionId AND p.IsActive = 1
+            WHERE ur.UserId = @id;
+            """, new { id = UserId }, cancellationToken: ct))];
+        return _permissions;
+    }
+
+    /// <summary>403 unless the user holds the permission; the database checks the binding and the tenant on top.</summary>
+    public async Task RequireAsync(string permission, CancellationToken ct)
+    {
+        if (!(await PermissionsAsync(ct)).Contains(permission)) throw ApiProblemException.Forbidden();
+    }
+
+    /// <summary>Opens, binds and checks one permission.</summary>
+    public static async Task<BoundUser> OpenAsync(HttpContext http, SqlConnectionFactory db, string permission)
+    {
+        var u = await OpenAsync(http, db);
+        try
+        {
+            await u.RequireAsync(permission, http.RequestAborted);
+            return u;
+        }
+        catch
+        {
+            await u.DisposeAsync();
+            throw;
+        }
+    }
 
     /// <summary>Opens and binds; a session that cannot bind answers 401.</summary>
     public static async Task<BoundUser> OpenAsync(HttpContext http, SqlConnectionFactory db)

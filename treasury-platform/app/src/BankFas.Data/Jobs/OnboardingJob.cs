@@ -18,13 +18,16 @@ public sealed class PortalOptions
     /// <summary>A port for development, else null.</summary>
     public int? Port { get; set; }
 
-    public Uri TenantUri(string tenantCode, string pathAndQuery)
+    /// <summary>The URL of a page of the tenant's portal; a fragment (#...) stays a fragment, so a token in it never reaches a server.</summary>
+    public Uri TenantUri(string tenantCode, string pathQueryAndFragment)
     {
-        var host = tenantCode + "." + Domain;
-        var builder = new UriBuilder(Scheme, host, Port ?? -1);
-        var q = pathAndQuery.IndexOf('?', StringComparison.Ordinal);
-        builder.Path = q < 0 ? pathAndQuery : pathAndQuery[..q];
-        if (q >= 0) builder.Query = pathAndQuery[(q + 1)..];
+        var builder = new UriBuilder(Scheme, tenantCode + "." + Domain, Port ?? -1);
+        var rest = pathQueryAndFragment;
+        var hash = rest.IndexOf('#', StringComparison.Ordinal);
+        if (hash >= 0) { builder.Fragment = rest[(hash + 1)..]; rest = rest[..hash]; }
+        var q = rest.IndexOf('?', StringComparison.Ordinal);
+        if (q >= 0) { builder.Query = rest[(q + 1)..]; rest = rest[..q]; }
+        builder.Path = rest;
         return builder.Uri;
     }
 }

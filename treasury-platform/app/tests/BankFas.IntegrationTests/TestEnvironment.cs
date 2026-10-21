@@ -67,6 +67,8 @@ public sealed class TestEnvironment : WebApplicationFactory<Program>
             ["Hosts:Operator"] = OperatorHost,
             ["Portal:Domain"] = Domain,
             ["Keys:Provider"] = "local",
+            ["RateLimits:Scale"] = "100",
+            ["Mail:DropDirectory"] = MailDir,
             ["Keys:Local:Current"] = "local:it/1",
             ["Keys:Local:Keys:0:Ref"] = "local:it/1",
             ["Keys:Local:Keys:0:Key"] = _masterKey,
@@ -96,11 +98,11 @@ public sealed class TestEnvironment : WebApplicationFactory<Program>
     /// <summary>The newest mail to an address, and the token of its link.</summary>
     public string LinkTokenSentTo(string email)
     {
-        var file = Directory.EnumerateFiles(MailDir, "*.eml").OrderByDescending(f => f)
+        var file = Directory.EnumerateFiles(MailDir, "*.eml").OrderByDescending(File.GetLastWriteTimeUtc).ThenByDescending(f => f)
             .First(f => File.ReadAllText(f).Contains("To: " + email, StringComparison.Ordinal));
-        var text = File.ReadAllText(file);
-        var i = text.IndexOf("token=", StringComparison.Ordinal) + "token=".Length;
-        return new string(text[i..].TakeWhile(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_').ToArray());
+        var match = System.Text.RegularExpressions.Regex.Match(File.ReadAllText(file), "#(?:token|reenrol)=([A-Za-z0-9_-]+)");
+        Assert.True(match.Success, "No link in the mail to " + email);
+        return match.Groups[1].Value;
     }
 
     /// <summary>Stands in for the deployment: the first operator administrator's invitation, once per database.</summary>
@@ -134,18 +136,45 @@ public sealed class TestEnvironment : WebApplicationFactory<Program>
 
 public static class Http
 {
-    public static async Task<JsonElement> PostOkAsync(this HttpClient client, string path, object body)
+    /// <summary>A request as the browser sends it: JSON body, an Idempotency-Key on POST, and If-Match when given.</summary>
+    public static async Task<HttpResponseMessage> SendAsync(this HttpClient client, HttpMethod method, string path, object? body = null,
+        string? ifMatch = null, string? idempotencyKey = null)
     {
-        var response = await client.PostAsJsonAsync(path, body);
+        using var request = new HttpRequestMessage(method, path);
+        if (body is not null) request.Content = JsonContent.Create(body);
+        if (method == HttpMethod.Post) request.Headers.TryAddWithoutValidation("Idempotency-Key", idempotencyKey ?? Guid.NewGuid().ToString());
+        if (ifMatch is not null) request.Headers.TryAddWithoutValidation("If-Match", ifMatch);
+        return await client.SendAsync(request);
+    }
+
+    public static async Task<JsonElement> OkAsync(this HttpClient client, HttpMethod method, string path, object? body = null, string? ifMatch = null)
+    {
+        var response = await client.SendAsync(method, path, body, ifMatch);
         var text = await response.Content.ReadAsStringAsync();
-        Assert.True(response.IsSuccessStatusCode, $"{path}: {(int)response.StatusCode} {text}");
+        Assert.True(response.IsSuccessStatusCode, $"{method} {path}: {(int)response.StatusCode} {text}");
         return text.Length == 0 ? default : JsonDocument.Parse(text).RootElement.Clone();
     }
 
-    public static async Task<(int Status, string Code)> PostProblemAsync(this HttpClient client, string path, object body)
+    public static async Task<(int Status, string Code)> ProblemAsync(this HttpClient client, HttpMethod method, string path, object? body = null, string? ifMatch = null)
     {
-        var response = await client.PostAsJsonAsync(path, body);
-        var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement;
-        return ((int)response.StatusCode, json.TryGetProperty("code", out var c) ? c.GetString()! : "");
+        var response = await client.SendAsync(method, path, body, ifMatch);
+        var text = await response.Content.ReadAsStringAsync();
+        var code = text.Length > 0 && JsonDocument.Parse(text).RootElement.TryGetProperty("code", out var c) ? c.GetString()! : "";
+        return ((int)response.StatusCode, code);
+    }
+
+    public static Task<JsonElement> PostOkAsync(this HttpClient client, string path, object body) => client.OkAsync(HttpMethod.Post, path, body);
+
+    public static Task<(int Status, string Code)> PostProblemAsync(this HttpClient client, string path, object body) => client.ProblemAsync(HttpMethod.Post, path, body);
+
+    public static async Task<JsonElement> GetJsonAsync(this HttpClient client, string path) => await client.OkAsync(HttpMethod.Get, path);
+
+    /// <summary>GET and the ETag of the answer.</summary>
+    public static async Task<(JsonElement Body, string ETag)> GetWithETagAsync(this HttpClient client, string path)
+    {
+        var response = await client.GetAsync(path);
+        var text = await response.Content.ReadAsStringAsync();
+        Assert.True(response.IsSuccessStatusCode, $"GET {path}: {(int)response.StatusCode} {text}");
+        return (JsonDocument.Parse(text).RootElement.Clone(), response.Headers.ETag?.ToString() ?? "");
     }
 }

@@ -11,5 +11,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\BankFas.Core\BankFas.Core.csproj" />
+    <ProjectReference Include="..\..\src\BankFas.Data\BankFas.Data.csproj" />
   </ItemGroup>
 </Project>
