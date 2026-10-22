@@ -61,3 +61,28 @@ export async function download(path: string, body: unknown, fallbackName: string
 export function message(e: unknown): string {
   return e instanceof ApiError ? e.problem.title : 'Something went wrong. Try again.';
 }
+
+/** A multipart POST of a file and its fields (the document store); the browser sets the boundary. */
+export async function upload<T>(path: string, form: FormData): Promise<T> {
+  const response = await fetch('/api/v1' + path, {
+    method: 'POST', credentials: 'same-origin', body: form,
+    headers: { Accept: 'application/json', 'X-CSRF-Token': await csrfToken(), 'Idempotency-Key': crypto.randomUUID() },
+  });
+  if (!response.ok) {
+    const p = (await response.json().catch(() => ({}))) as Partial<Problem>;
+    throw new ApiError({ status: response.status, code: p.code ?? 'ERROR', title: p.title ?? 'Something went wrong.', correlationId: p.correlationId });
+  }
+  return (await response.json()) as T;
+}
+
+/** A GET that answers with a file, saved by the browser. */
+export async function downloadGet(path: string, fallbackName: string): Promise<void> {
+  const response = await send('GET', path);
+  const name = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/.exec(response.headers.get('Content-Disposition') ?? '')?.[1] ?? fallbackName;
+  const url = URL.createObjectURL(await response.blob());
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = decodeURIComponent(name);
+  a.click();
+  URL.revokeObjectURL(url);
+}

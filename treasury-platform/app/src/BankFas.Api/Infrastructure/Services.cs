@@ -14,12 +14,37 @@ namespace BankFas.Api.Infrastructure;
 public sealed class TenantKeyRing(IKeyWrapper wrapper, IMemoryCache cache)
 {
     public byte[] DataKey(int tenantId, long keyId, int version, byte[] wrapped, string masterKeyRef) =>
+        Key(tenantId, "DATA", keyId, version, wrapped, masterKeyRef);
+
+    /// <summary>A tenant key of any purpose (DATA, BLIND_INDEX, FILE), unwrapped with the associated data of its purpose.</summary>
+    public byte[] Key(int tenantId, string purpose, long keyId, int version, byte[] wrapped, string masterKeyRef) =>
         cache.GetOrCreate(("tenant-key", tenantId, keyId), e =>
         {
             e.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(15);
             e.Size = 1;
-            return wrapper.Unwrap(masterKeyRef, wrapped, EnvelopeAad.ForTenantKey(tenantId, "DATA", version));
+            return wrapper.Unwrap(masterKeyRef, wrapped, EnvelopeAad.ForTenantKey(tenantId, purpose, version));
         })!;
+
+    /// <summary>The ACTIVE key of a purpose of the bound tenant, read on the bound connection, and its bytes.</summary>
+    public async Task<(long KeyId, byte[] Key)> ActiveAsync(Microsoft.Data.SqlClient.SqlConnection c, Microsoft.Data.SqlClient.SqlTransaction? tx,
+        int tenantId, string purpose, CancellationToken ct)
+    {
+        var k = await Dapper.SqlMapper.QuerySingleOrDefaultAsync<(long Id, int Version, byte[] Wrapped, string Ref)>(c, new Dapper.CommandDefinition(
+            "SELECT TenantKeyId, KeyVersion, WrappedKey, MasterKeyRef FROM sec.TenantKey WHERE Purpose = @p AND Status = 'ACTIVE';",
+            new { p = purpose }, tx, cancellationToken: ct)).ConfigureAwait(false);
+        if (k.Id == 0) throw new InvalidOperationException($"The tenant has no ACTIVE {purpose} key.");
+        return (k.Id, Key(tenantId, purpose, k.Id, k.Version, k.Wrapped, k.Ref));
+    }
+
+    /// <summary>A key by its id (any status that may still be read), for a value written under it.</summary>
+    public async Task<byte[]> ByIdAsync(Microsoft.Data.SqlClient.SqlConnection c, Microsoft.Data.SqlClient.SqlTransaction? tx, int tenantId, long keyId,
+        CancellationToken ct)
+    {
+        var k = await Dapper.SqlMapper.QuerySingleAsync<(string Purpose, int Version, byte[] Wrapped, string Ref)>(c, new Dapper.CommandDefinition(
+            "SELECT Purpose, KeyVersion, WrappedKey, MasterKeyRef FROM sec.TenantKey WHERE TenantKeyId = @id AND Status IN ('ACTIVE', 'RETIRING');",
+            new { id = keyId }, tx, cancellationToken: ct)).ConfigureAwait(false);
+        return Key(tenantId, k.Purpose, keyId, k.Version, k.Wrapped, k.Ref);
+    }
 }
 
 /// <summary>

@@ -6,6 +6,7 @@ import { StepUpProvider } from '../ui';
 import { Enrol, ForgotPassword, Invitation, Login, Mfa, ResetPassword, type Tenant } from './Auth';
 import { Audit, Jobs, Numbering, Settings, Support } from './Admin';
 import { Catalogs } from './Catalogs';
+import { Companies, CompanyDetail, Departments, DocumentRegister } from './Companies';
 import { Profile } from './Profile';
 import { RoleDetail, Roles } from './Roles';
 import { UserDetail, Users } from './Users';
@@ -29,6 +30,9 @@ const menu: { to: string; label: string; permission?: string; anyOf?: string[] }
   { to: '/numbering', label: 'Numbering', permission: 'cfg.numbering.manage' },
   { to: '/audit', label: 'Audit log', anyOf: ['audit.view', 'audit.view.treasury'] },
   { to: '/jobs', label: 'Background jobs', permission: 'cfg.jobs.view' },
+  { to: '/companies', label: 'Companies', permission: 'org.company.view' },
+  { to: '/documents', label: 'Company documents', permission: 'org.document.view' },
+  { to: '/departments', label: 'Departments', permission: 'org.company.manage' },
   { to: '/catalogs', label: 'Catalogues', anyOf: ['cat.manage.general', 'cat.manage.financial'] },
   { to: '/profile', label: 'My profile' },
 ];
@@ -73,6 +77,10 @@ function Shell() {
               <Route path="/audit" element={<Audit />} />
               <Route path="/jobs" element={<Jobs />} />
               <Route path="/catalogs" element={<Catalogs />} />
+              <Route path="/companies" element={<Companies />} />
+              <Route path="/companies/:id" element={<CompanyDetail />} />
+              <Route path="/documents" element={<DocumentRegister />} />
+              <Route path="/departments" element={<Departments />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="*" element={<Navigate to="/" />} />
             </Routes>

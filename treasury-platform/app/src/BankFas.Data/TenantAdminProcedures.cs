@@ -73,5 +73,47 @@ public static class TenantAdminProcedures
             """, e, tx, cancellationToken: ct));
 }
 
+/// <summary>
+/// Audit rows with their id, and the sensitive-access log that points at them (BR-PTY-009, DR-12): every access to a
+/// restricted value, granted or denied, has its audit event and its row in aud.SensitiveAccessLog.
+/// </summary>
+public static class AuditWriter
+{
+    public static Task<long> WriteAsync(SqlConnection c, SqlTransaction? tx, AuditEntry e, long? companyId, CancellationToken ct) =>
+        c.ExecuteScalarAsync<long>(new CommandDefinition(
+            """
+            DECLARE @o TABLE (Id BIGINT);
+            INSERT aud.AuditLog (TenantId, OccurredAt, ActorType, ActorId, Action, Category, Severity, EntityType, EntityId, CompanyId,
+                                 BeforeJson, AfterJson, CorrelationId, IpAddress, UserAgent, Result)
+            OUTPUT inserted.AuditLogId INTO @o
+            SELECT CAST(SESSION_CONTEXT(N'TenantId') AS INT), SYSUTCDATETIME(), 'USER', u.PublicId, @Action, @Category, @Severity,
+                   @EntityType, @EntityId, @companyId, @BeforeJson, @AfterJson, CAST(SESSION_CONTEXT(N'CorrelationId') AS UNIQUEIDENTIFIER),
+                   CAST(SESSION_CONTEXT(N'ClientIp') AS VARCHAR(45)), @UserAgent, @Result
+            FROM sec.AppUser AS u WHERE u.AppUserId = CAST(SESSION_CONTEXT(N'UserId') AS BIGINT);
+            SELECT Id FROM @o;
+            """,
+            new { e.Action, e.Category, e.Severity, e.EntityType, e.EntityId, companyId, e.BeforeJson, e.AfterJson, e.UserAgent, e.Result }, tx,
+            cancellationToken: ct));
+
+    /// <summary>An access to a restricted value: the audit row (HIGH when denied) and its sensitive-access row.</summary>
+    public static async Task SensitiveAccessAsync(SqlConnection c, SqlTransaction? tx, string accessKind, string action, string entityType, long entityId,
+        long? partyId, long? companyId, bool granted, string? denyReason, string? reason, string? userAgent, CancellationToken ct)
+    {
+        var auditId = await WriteAsync(c, tx, new AuditEntry(action, "IDENTITY_ACCESS", entityType, entityId,
+            AfterJson: System.Text.Json.JsonSerializer.Serialize(new { accessKind, granted, denyReason }), Severity: granted ? "INFO" : "HIGH",
+            Result: granted ? "SUCCESS" : "DENIED", UserAgent: userAgent), companyId, ct).ConfigureAwait(false);
+        await c.ExecuteAsync(new CommandDefinition(
+            """
+            INSERT aud.SensitiveAccessLog (TenantId, OccurredAt, AccessKind, ActorType, ActorUserId, SubjectEntityType, SubjectEntityId, SubjectPartyId,
+                                           CompanyId, Result, DenyReason, Reason, IpAddress, UserAgent, CorrelationId, AuditLogId)
+            VALUES (CAST(SESSION_CONTEXT(N'TenantId') AS INT), SYSUTCDATETIME(), @accessKind, 'USER', CAST(SESSION_CONTEXT(N'UserId') AS BIGINT),
+                    @entityType, @entityId, @partyId, @companyId, @result, @denyReason, @reason, CAST(SESSION_CONTEXT(N'ClientIp') AS VARCHAR(45)),
+                    @userAgent, CAST(SESSION_CONTEXT(N'CorrelationId') AS UNIQUEIDENTIFIER), @auditId);
+            """,
+            new { accessKind, entityType, entityId, partyId, companyId, result = granted ? "GRANTED" : "DENIED", denyReason, reason, userAgent, auditId }, tx,
+            cancellationToken: ct)).ConfigureAwait(false);
+    }
+}
+
 public sealed record AuditEntry(string Action, string Category, string EntityType, long? EntityId, string? BeforeJson = null,
     string? AfterJson = null, string Severity = "INFO", string Result = "SUCCESS", string? UserAgent = null);

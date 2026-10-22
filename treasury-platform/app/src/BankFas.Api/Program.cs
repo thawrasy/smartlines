@@ -31,6 +31,15 @@ builder.Services.AddSingleton(sp =>
         throw new InvalidOperationException("A partial leaked-password list is for development and tests only (DQ-S04-1).");
     return new BankFas.Core.Security.BreachedPasswords(config["Passwords:BreachedList:Directory"] ?? "", allowPartial);
 });
+// The document store and its malware check (DOC-S02 section 8, FR-PLT-029): ClamAV in production; the EICAR-only
+// test scanner in development and tests.
+builder.Services.AddSingleton(_ => new BankFas.Core.Files.FileStore(builder.Configuration["Files:Root"] ?? ""));
+builder.Services.AddSingleton<BankFas.Core.Files.IMalwareScanner>(_ => builder.Configuration["Scanning:Provider"] switch
+{
+    "clamav" => new BankFas.Core.Files.ClamAvScanner(builder.Configuration["Scanning:Host"] ?? "127.0.0.1", builder.Configuration.GetValue("Scanning:Port", 3310)),
+    "test" when builder.Environment.IsDevelopment() || builder.Environment.IsEnvironment("Testing") => new BankFas.Core.Files.EicarOnlyScanner(),
+    _ => throw new InvalidOperationException("No malware scanner is configured (Scanning:Provider clamav; FR-PLT-029)."),
+});
 builder.Services.AddSingleton<IKeyWrapper>(sp => KeyWrapperFactory.Create(builder.Configuration, builder.Environment));
 builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase);
 
@@ -88,6 +97,8 @@ MeEndpoints.Map(portal);
 ConfigEndpoints.Map(portal);
 SupportEndpoints.Map(portal);
 CatalogEndpoints.Map(portal);
+DocumentEndpoints.Map(portal);
+CompanyEndpoints.Map(portal);
 var panel = app.MapGroup("/api/v1/operator").AddEndpointFilter(SurfaceFilter(Surface.OperatorPanel));
 OperatorEndpoints.Map(panel);
 OperatorAdminEndpoints.Map(panel);

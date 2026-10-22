@@ -40,6 +40,8 @@ public sealed class TestEnvironment : WebApplicationFactory<Program>
 
     public string BreachedDir { get; } = WriteBreachedList();
 
+    public string FilesDir { get; } = Path.Combine(Path.GetTempPath(), "bankfas-it-files-" + Guid.NewGuid().ToString("N"));
+
     private static string WriteBreachedList()
     {
         var dir = Path.Combine(Path.GetTempPath(), "bankfas-it-breached-" + Guid.NewGuid().ToString("N"));
@@ -85,6 +87,8 @@ public sealed class TestEnvironment : WebApplicationFactory<Program>
             ["Mail:DropDirectory"] = MailDir,
             ["Passwords:BreachedList:Directory"] = BreachedDir,
             ["Passwords:BreachedList:AllowMissingRanges"] = "true",
+            ["Files:Root"] = FilesDir,
+            ["Scanning:Provider"] = "test",
             ["Keys:Local:Current"] = "local:it/1",
             ["Keys:Local:Keys:0:Ref"] = "local:it/1",
             ["Keys:Local:Keys:0:Key"] = _masterKey,
@@ -184,6 +188,7 @@ public sealed class TestEnvironment : WebApplicationFactory<Program>
         base.Dispose(disposing);
         if (disposing && Directory.Exists(MailDir)) Directory.Delete(MailDir, recursive: true);
         if (disposing && Directory.Exists(BreachedDir)) Directory.Delete(BreachedDir, recursive: true);
+        if (disposing && Directory.Exists(FilesDir)) Directory.Delete(FilesDir, recursive: true);
     }
 }
 

@@ -13,7 +13,7 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 : "${SA_PASSWORD:?}" "${SQL_SERVER:?}" "${SQLCMD:?}" "${BANKFAS_SECRETS_DIR:?}" "${E2E_WORK:?}"
 PORT="${E2E_PORT:-8443}"
 W="$E2E_WORK"
-mkdir -p -m 700 "$W/mail" "$W/breached"
+mkdir -p -m 700 "$W/mail" "$W/breached" "$W/files"
 
 # A throwaway certificate; the browser is told to ignore its issuer.
 openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj "/CN=bankfas.test" \
@@ -37,6 +37,7 @@ export Hosts__Operator=admin.bankfas.test Portal__Domain=bankfas.test Portal__Po
 export Keys__Provider=local Keys__Local__Current=local:e2e/1 Keys__Local__Keys__0__Ref=local:e2e/1
 Keys__Local__Keys__0__Key="$(openssl rand -base64 32)"; export Keys__Local__Keys__0__Key
 export Mail__DropDirectory="$W/mail" Passwords__BreachedList__Directory="$W/breached" Passwords__BreachedList__AllowMissingRanges=true
+export Files__Root="$W/files" Scanning__Provider=test
 export Web__Root="$ROOT/app/web/dist"
 export ASPNETCORE_URLS="https://127.0.0.1:$PORT" Kestrel__Certificates__Default__Path="$W/cert.pfx" Kestrel__Certificates__Default__Password="$CERT_PW"
 
