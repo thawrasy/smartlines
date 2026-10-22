@@ -1,7 +1,7 @@
 # ADR 0041: Slice S1 of the application, its defaults and the gaps it closed
 
-Status: built on 2026-10-22 on the owner's request "start building S1" (docs/31, row 38). The defaults below are
-assumptions taken from the S1 brief; they stand until the owner confirms or changes them. Written by an AI agent.
+Status: built on 2026-10-22 on the owner's request "start building S1" (docs/31, row 38). The defaults below were
+taken from the S1 brief and approved by the owner on 2026-10-22. Written by an AI agent.
 
 ## Context
 
@@ -26,7 +26,7 @@ S1 was built in six batches, each with its tests and its own commit:
 | S1-E | The notification pipeline, NTF.BASE v2, the expiry alerts, the security events, the bell and the preferences |
 | S1-F | The exit-path tests, the browser flow, these documents |
 
-### 2. The defaults taken (to be confirmed)
+### 2. The defaults taken (approved by the owner on 2026-10-22)
 
 | Question | Default |
 |---|---|
@@ -84,8 +84,7 @@ of 044 and 054.
 
 ## Consequences
 
-- The S1 defaults above are listed for the owner in docs/31 and docs/43; changing one is a later change, not a
-  rebuild.
+- The S1 defaults above are recorded in docs/31 and docs/43; changing one is a later change, not a rebuild.
 - Facilities (S2) join the closing check of a relationship (BR-INS-011) and the usage of accounts. The signatories
   (S1-b) join the accounts with their signing rules.
 - The digest job, the reminders of required actions and the retention job of notifications remain for later
