@@ -205,7 +205,9 @@ public static class FacilityTreeStore
                  + (SELECT COUNT(*) FROM fac.ProductLineTerm WHERE FacilityId = @f AND ToRevision IS NULL AND FromRevision < @r)
                  + (SELECT COUNT(*) FROM prc.PricingRule WHERE FacilityId = @f AND ToRevision IS NULL AND FromRevision < @r)
                  + (SELECT COUNT(*) FROM prc.PricingTier WHERE FacilityId = @f AND ToRevision IS NULL AND FromRevision < @r)
-                 + (SELECT COUNT(*) FROM col.CollateralLink WHERE FacilityId = @f AND ToRevision IS NULL AND FromRevision < @r);
+                 + (SELECT COUNT(*) FROM col.CollateralLink WHERE FacilityId = @f AND ToRevision IS NULL AND FromRevision < @r)
+                 + (SELECT COUNT(*) FROM obl.Obligation WHERE FacilityId = @f AND ToRevision IS NULL AND FromRevision < @r)
+                 + (SELECT COUNT(*) FROM cmp.TermValue WHERE FacilityId = @f AND ToRevision IS NULL AND FromRevision < @r AND Origin = 'ENTERED');
             """, p, tx, cancellationToken: ct)).ConfigureAwait(false);
         if (pending == 0) return;
         await c.ExecuteAsync(new CommandDefinition(
@@ -219,6 +221,13 @@ public static class FacilityTreeStore
             INSERT @old SELECT PricingRuleId, 5 FROM prc.PricingRule WHERE FacilityId = @f AND ToRevision IS NULL AND FromRevision < @r;
             INSERT @old SELECT PricingTierId, 6 FROM prc.PricingTier WHERE FacilityId = @f AND ToRevision IS NULL AND FromRevision < @r;
             INSERT @old SELECT CollateralLinkId, 7 FROM col.CollateralLink WHERE FacilityId = @f AND ToRevision IS NULL AND FromRevision < @r;
+            INSERT @old SELECT ObligationId, 8 FROM obl.Obligation WHERE FacilityId = @f AND ToRevision IS NULL AND FromRevision < @r;
+            INSERT @old SELECT x.ReportingObligationId, 9 FROM obl.ReportingObligation AS x JOIN obl.Obligation AS o ON o.ObligationId = x.ObligationId
+             WHERE o.FacilityId = @f AND x.ToRevision IS NULL AND x.FromRevision < @r;
+            INSERT @old SELECT x.CovenantId, 10 FROM obl.Covenant AS x JOIN obl.Obligation AS o ON o.ObligationId = x.ObligationId
+             WHERE o.FacilityId = @f AND x.ToRevision IS NULL AND x.FromRevision < @r;
+            -- The projected terms are not copied: the approval projects them again (DQ-F13-6).
+            INSERT @old SELECT TermValueId, 11 FROM cmp.TermValue WHERE FacilityId = @f AND ToRevision IS NULL AND FromRevision < @r AND Origin = 'ENTERED';
             -- One open row per root: the old rows close first.
             UPDATE fac.Limit SET ToRevision = @r, UpdatedAt = SYSUTCDATETIME(), UpdatedBy = @me WHERE LimitId IN (SELECT Id FROM @old WHERE Kind = 1);
             UPDATE fac.LimitProductLine SET ToRevision = @r, UpdatedAt = SYSUTCDATETIME(), UpdatedBy = @me WHERE LimitProductLineId IN (SELECT Id FROM @old WHERE Kind = 2);
@@ -227,6 +236,10 @@ public static class FacilityTreeStore
             UPDATE prc.PricingRule SET ToRevision = @r, UpdatedAt = SYSUTCDATETIME(), UpdatedBy = @me WHERE PricingRuleId IN (SELECT Id FROM @old WHERE Kind = 5);
             UPDATE prc.PricingTier SET ToRevision = @r, UpdatedAt = SYSUTCDATETIME(), UpdatedBy = @me WHERE PricingTierId IN (SELECT Id FROM @old WHERE Kind = 6);
             UPDATE col.CollateralLink SET ToRevision = @r, UpdatedAt = SYSUTCDATETIME(), UpdatedBy = @me WHERE CollateralLinkId IN (SELECT Id FROM @old WHERE Kind = 7);
+            UPDATE obl.Obligation SET ToRevision = @r, UpdatedAt = SYSUTCDATETIME(), UpdatedBy = @me WHERE ObligationId IN (SELECT Id FROM @old WHERE Kind = 8);
+            UPDATE obl.ReportingObligation SET ToRevision = @r, UpdatedAt = SYSUTCDATETIME(), UpdatedBy = @me WHERE ReportingObligationId IN (SELECT Id FROM @old WHERE Kind = 9);
+            UPDATE obl.Covenant SET ToRevision = @r, UpdatedAt = SYSUTCDATETIME(), UpdatedBy = @me WHERE CovenantId IN (SELECT Id FROM @old WHERE Kind = 10);
+            UPDATE cmp.TermValue SET ToRevision = @r, UpdatedAt = SYSUTCDATETIME(), UpdatedBy = @me WHERE TermValueId IN (SELECT Id FROM @old WHERE Kind = 11);
             -- The limits, level by level: a copy whose parent was copied points to the parent's copy.
             DECLARE @n INT = 1;
             WHILE @n > 0
@@ -303,6 +316,57 @@ public static class FacilityTreeStore
               FROM col.CollateralLink AS o
               LEFT JOIN fac.Limit AS nl ON nl.FacilityId = o.FacilityId AND nl.FromRevision = @r AND nl.SupersedesId = o.LimitId
              WHERE o.CollateralLinkId IN (SELECT Id FROM @old WHERE Kind = 7);
+            -- The obligations point to the copied limit and line; their rule, covenant and companies to the copied obligation.
+            INSERT obl.Obligation (TenantId, FacilityId, Family, ObligationTypeId, TitleAr, TitleEn, Phase, ScopeLimitId, ScopeProductLineId, ClauseRef, ClauseText, ConsequenceText,
+                                   GraceDays, CureDays, ParamValue, ParamUnit, ParamCurrencyId, TriggerField, TriggerValues, CheckMode, Status, ValidFrom, ValidTo, FromRevision,
+                                   SupersedesId, InheritedRootId, SourceDocumentId, SourcePage, ReadFromScan, OriginalText, NoSourceReason, Confidence, VerifiedBy, VerifiedOn,
+                                   ConflictId, CreatedBy)
+            SELECT o.TenantId, o.FacilityId, o.Family, o.ObligationTypeId, o.TitleAr, o.TitleEn, o.Phase, ISNULL(nl.LimitId, o.ScopeLimitId),
+                   ISNULL(nln.LimitProductLineId, o.ScopeProductLineId), o.ClauseRef, o.ClauseText, o.ConsequenceText, o.GraceDays, o.CureDays, o.ParamValue, o.ParamUnit,
+                   o.ParamCurrencyId, o.TriggerField, o.TriggerValues, o.CheckMode, o.Status, o.ValidFrom, o.ValidTo, @r, o.ObligationId, o.RootId, o.SourceDocumentId,
+                   o.SourcePage, o.ReadFromScan, o.OriginalText, o.NoSourceReason, o.Confidence, o.VerifiedBy, o.VerifiedOn, o.ConflictId, @me
+              FROM obl.Obligation AS o
+              LEFT JOIN fac.Limit AS nl ON nl.FacilityId = o.FacilityId AND nl.FromRevision = @r AND nl.SupersedesId = o.ScopeLimitId
+              LEFT JOIN fac.LimitProductLine AS nln ON nln.FacilityId = o.FacilityId AND nln.FromRevision = @r AND nln.SupersedesId = o.ScopeProductLineId
+             WHERE o.ObligationId IN (SELECT Id FROM @old WHERE Kind = 8);
+            INSERT obl.ObligationCompany (TenantId, ObligationId, CompanyId, CreatedBy)
+            SELECT x.TenantId, n.ObligationId, x.CompanyId, @me FROM obl.ObligationCompany AS x
+              JOIN obl.Obligation AS n ON n.FacilityId = @f AND n.FromRevision = @r AND n.SupersedesId = x.ObligationId
+             WHERE x.ObligationId IN (SELECT Id FROM @old WHERE Kind = 8);
+            INSERT obl.ReportingObligation (TenantId, ObligationId, Frequency, AnchorKind, OffsetValue, OffsetUnit, FixedDueDate, Direction, DocumentBasis, StatementScope,
+                                            SubmissionChannelId, ChannelNote, AlertLeadDays, FirstPeriodEnd, HorizonMonths, ExpectsEvidence, FromRevision, SupersedesId,
+                                            InheritedRootId, CreatedBy)
+            SELECT o.TenantId, ISNULL(n.ObligationId, o.ObligationId), o.Frequency, o.AnchorKind, o.OffsetValue, o.OffsetUnit, o.FixedDueDate, o.Direction, o.DocumentBasis,
+                   o.StatementScope, o.SubmissionChannelId, o.ChannelNote, o.AlertLeadDays, o.FirstPeriodEnd, o.HorizonMonths, o.ExpectsEvidence, @r, o.ReportingObligationId,
+                   o.RootId, @me
+              FROM obl.ReportingObligation AS o
+              LEFT JOIN obl.Obligation AS n ON n.FacilityId = @f AND n.FromRevision = @r AND n.SupersedesId = o.ObligationId
+             WHERE o.ReportingObligationId IN (SELECT Id FROM @old WHERE Kind = 9);
+            INSERT obl.Covenant (TenantId, ObligationId, MeasureKind, FormulaId, FormulaResultUnit, FormulaUsesStatements, Operator, ThresholdState, ThresholdValue, ThresholdUnit,
+                                 CurrencyId, TestFrequency, AggregationMode, AnnualWindowBasis, StatementBasis, RequiredAssurance, RevenueBasisRule, AccountScopeKind,
+                                 TestedCompanyId, SubmissionLagDays, FirstTestPeriodEnd, EarlyWarningPct, ValidFrom, ValidTo, FromRevision, SupersedesId, InheritedRootId, CreatedBy)
+            SELECT o.TenantId, ISNULL(n.ObligationId, o.ObligationId), o.MeasureKind, o.FormulaId, o.FormulaResultUnit, o.FormulaUsesStatements, o.Operator, o.ThresholdState,
+                   o.ThresholdValue, o.ThresholdUnit, o.CurrencyId, o.TestFrequency, o.AggregationMode, o.AnnualWindowBasis, o.StatementBasis, o.RequiredAssurance,
+                   o.RevenueBasisRule, o.AccountScopeKind, o.TestedCompanyId, o.SubmissionLagDays, o.FirstTestPeriodEnd, o.EarlyWarningPct, o.ValidFrom, o.ValidTo, @r,
+                   o.CovenantId, o.RootId, @me
+              FROM obl.Covenant AS o
+              LEFT JOIN obl.Obligation AS n ON n.FacilityId = @f AND n.FromRevision = @r AND n.SupersedesId = o.ObligationId
+             WHERE o.CovenantId IN (SELECT Id FROM @old WHERE Kind = 10);
+            INSERT obl.CovenantAccount (TenantId, CovenantId, BankAccountId, CreatedBy)
+            SELECT x.TenantId, n.CovenantId, x.BankAccountId, @me FROM obl.CovenantAccount AS x
+              JOIN obl.Covenant AS n ON n.FromRevision = @r AND n.SupersedesId = x.CovenantId
+             WHERE x.CovenantId IN (SELECT Id FROM @old WHERE Kind = 10);
+            INSERT cmp.TermValue (TenantId, FacilityId, TermTypeId, OtherLabel, LimitId, LimitProductLineId, ProductId, CompanyId, ValueState, ValueNumber, ValueText, ValueBool,
+                                  ValueEnum, Unit, CurrencyId, Bound, NormalizedValue, Origin, EffectiveFrom, EffectiveTo, FromRevision, SupersedesId, InheritedRootId,
+                                  SourceDocumentId, SourcePage, ReadFromScan, OriginalText, NoSourceReason, Confidence, VerifiedBy, VerifiedOn, ConflictId, CreatedBy)
+            SELECT o.TenantId, o.FacilityId, o.TermTypeId, o.OtherLabel, ISNULL(nl.LimitId, o.LimitId), ISNULL(nln.LimitProductLineId, o.LimitProductLineId), o.ProductId,
+                   o.CompanyId, o.ValueState, o.ValueNumber, o.ValueText, o.ValueBool, o.ValueEnum, o.Unit, o.CurrencyId, o.Bound, o.NormalizedValue, o.Origin, o.EffectiveFrom,
+                   o.EffectiveTo, @r, o.TermValueId, o.RootId, o.SourceDocumentId, o.SourcePage, o.ReadFromScan, o.OriginalText, o.NoSourceReason, o.Confidence, o.VerifiedBy,
+                   o.VerifiedOn, o.ConflictId, @me
+              FROM cmp.TermValue AS o
+              LEFT JOIN fac.Limit AS nl ON nl.FacilityId = o.FacilityId AND nl.FromRevision = @r AND nl.SupersedesId = o.LimitId
+              LEFT JOIN fac.LimitProductLine AS nln ON nln.FacilityId = o.FacilityId AND nln.FromRevision = @r AND nln.SupersedesId = o.LimitProductLineId
+             WHERE o.TermValueId IN (SELECT Id FROM @old WHERE Kind = 11);
             """, p, tx, cancellationToken: ct)).ConfigureAwait(false);
     }
 

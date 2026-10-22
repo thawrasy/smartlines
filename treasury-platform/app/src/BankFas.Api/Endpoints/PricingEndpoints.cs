@@ -186,6 +186,12 @@ public static class PricingEndpoints
     /// <summary>V-PRC-02 and BR-PRC-012: a SET rule holds the fields its method needs and no other; a rule not specified in the agreement holds no rate at all.</summary>
     private static void CheckFields(PricingRuleRequest b, string method, string state)
     {
+        // The bank's right to change the price with notice gives the days to object and whether they are calendar or business days (CK_PricingRule_33).
+        var bank = b.BankMayChange?.ToUpperInvariant() ?? "NO";
+        if (bank is not ("NO" or "WITH_NOTICE_OBJECTION" or "UNILATERAL")) throw ApiProblemException.Invalid("V-PRC-02", "The bank may change the price: NO, WITH_NOTICE_OBJECTION or UNILATERAL.");
+        if (b.ObjectionDays is < 0 || (b.ObjectionDaysKind?.ToUpperInvariant() is { } k && k is not ("CALENDAR" or "BUSINESS"))
+            || (bank == "WITH_NOTICE_OBJECTION" && (b.ObjectionDays is null || b.ObjectionDaysKind is null)))
+            throw ApiProblemException.Invalid("V-PRC-02", "A change with notice gives the days to object and their kind, CALENDAR or BUSINESS.");
         var rateFields = new object?[] { b.AddOnPct, b.MarginPct, b.RatePct, b.RateRangeLowPct, b.RateRangeHighPct, b.FixedAmount, b.PerMillionAmount };
         if (state == "NOT_SPECIFIED_IN_AGREEMENT")
         {

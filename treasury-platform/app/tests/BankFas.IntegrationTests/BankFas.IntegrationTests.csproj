@@ -11,6 +11,10 @@
     <Using Include="Xunit" />
   </ItemGroup>
   <ItemGroup>
+    <!-- DS-AGR: the four synthetic agreements (AC-FAC-11, DOC-B06 section 6). -->
+    <None Include="..\data\DS-AGR\**\*" LinkBase="DS-AGR" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\..\src\BankFas.Api\BankFas.Api.csproj" />
     <ProjectReference Include="..\..\src\BankFas.Data\BankFas.Data.csproj" />
     <ProjectReference Include="..\..\src\BankFas.Core\BankFas.Core.csproj" />

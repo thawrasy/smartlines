@@ -22,6 +22,7 @@ builder.Services.AddSingleton<SeedUpgradeJob>();
 builder.Services.AddSingleton<OutboxJob>();
 builder.Services.AddSingleton<NotificationDispatchJob>();
 builder.Services.AddSingleton<BankFas.Data.Facilities.FacilityValidityJob>();
+builder.Services.AddSingleton<BankFas.Data.Facilities.ObligationCalendarJob>();
 builder.Services.AddSingleton<ExpiryAlertJob>();
 builder.Services.AddSingleton<SignatoryExpiryJob>();
 builder.Services.AddSingleton<GovernanceJob>();

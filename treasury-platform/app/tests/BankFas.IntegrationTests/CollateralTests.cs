@@ -127,6 +127,40 @@ public sealed class CollateralTests(PlatformFixture f)
         await ApproveRevisionAsync(fo, tm, fac);
         Assert.Equal(7, (await tm.GetJsonAsync($"/api/v1/facilities/{fac}/collateral-links")).GetProperty("items").GetArrayLength());
 
+        // On approval the terms are projected (AC-FAC-8): the note at 110% of the limit and two individual guarantors, with their origin; a projected key is not entered by hand.
+        var terms = (await tm.GetJsonAsync($"/api/v1/facilities/{fac}/terms")).GetProperty("items").EnumerateArray().ToList();
+        JsonElement Term(string key) => terms.Single(x => x.GetProperty("key").GetString() == key);
+        Assert.Equal((110m, "PROJECTED"), (Term("COL.PN_PCT_OF_LIMIT").GetProperty("value").GetDecimal(), Term("COL.PN_PCT_OF_LIMIT").GetProperty("origin").GetString()));
+        Assert.Equal(2m, Term("COL.GUARANTORS_INDIVIDUAL").GetProperty("value").GetDecimal());
+        Assert.Equal((true, true), (Term("COL.SET_OFF").GetProperty("value").GetBoolean(), Term("COL.NEGATIVE_PLEDGE").GetProperty("value").GetBoolean()));
+        Assert.Equal(24m, Term("DUR.FACILITY_TERM_MONTHS").GetProperty("value").GetDecimal());
+        await fo.PostOkAsync($"/api/v1/facilities/{fac}/revisions", new { reasonKind = "CORRECTION", changeSummary = "Statement objection days" });
+        Assert.Equal((409, "V-CMP-01"), await fo.PostProblemAsync($"/api/v1/facilities/{fac}/terms", new { termType = "COL.PN_PCT_OF_LIMIT", valueNumber = 100, noSourceReason = Src }));
+        await fo.PostOkAsync($"/api/v1/facilities/{fac}/terms", new { termType = "DUR.STATEMENT_OBJECTION_DAYS", valueNumber = 30, noSourceReason = Src });
+        await ApproveRevisionAsync(fo, tm, fac);
+
+        // A second facility: its note is 100% of its limit and its statement objection days are not in the agreement.
+        var fac2 = PlatformFixture.Id(await fo.PostOkAsync("/api/v1/facilities", new
+        {
+            borrower = company, facilityType = "CREDIT_FACILITIES", currency = "SAR", totalAmount = 20_000_000, effectiveFrom = "2026-01-01", expiryDate = "2026-12-31",
+        }));
+        await fo.PostOkAsync($"/api/v1/facilities/{fac2}/lenders", new { institution = bank, sharePct = 100, roles = new[] { "SOLE" } });
+        var pn2 = await CollateralAsync(fo, new
+        {
+            collateralType = "PROMISSORY_NOTE", titleAr = "سند ثان", noSourceReason = Src, note = new { amount = 20_000_000, currency = "SAR", issuedOn = "2026-01-01", custodyKind = "BANK" },
+        });
+        await ApproveAsync(tm, pn2);
+        await fo.PostOkAsync($"/api/v1/facilities/{fac2}/collateral-links", new { collateral = pn2 });
+        await fo.PostOkAsync($"/api/v1/facilities/{fac2}/terms", new { termType = "DUR.STATEMENT_OBJECTION_DAYS", valueState = "NOT_SPECIFIED_IN_AGREEMENT", noSourceReason = Src });
+        Assert.Equal((422, "V-CMP-01"), await fo.PostProblemAsync($"/api/v1/facilities/{fac2}/terms", new { termType = "DUR.LATE_GRACE_DAYS", valueState = "NOT_SPECIFIED_IN_AGREEMENT", valueNumber = 0, noSourceReason = Src }));
+        await ApproveRevisionAsync(fo, tm, fac2);
+        var cmp = await tm.GetJsonAsync("/api/v1/terms/compare?key=COL.PN_PCT_OF_LIMIT&asOf=2026-06-01");
+        Assert.Equal((fac2, 100m), (cmp.GetProperty("best").GetProperty("facility").GetString(), cmp.GetProperty("best").GetProperty("value").GetDecimal()));
+        Assert.Equal([100m, 110m], cmp.GetProperty("ranked").EnumerateArray().Select(r => r.GetProperty("term").GetProperty("value").GetDecimal()));
+        var objection = await tm.GetJsonAsync("/api/v1/terms/compare?key=DUR.STATEMENT_OBJECTION_DAYS&asOf=2026-06-01");
+        Assert.Equal(fac, objection.GetProperty("ranked")[0].GetProperty("term").GetProperty("facility").GetString());
+        Assert.Equal(("NOT_SPECIFIED_IN_AGREEMENT", fac2), (objection.GetProperty("unranked")[0].GetProperty("valueState").GetString(), objection.GetProperty("unranked")[0].GetProperty("facility").GetString()));
+
         // R-COL-01 on 2026-10-20.
         var cov = await tm.GetJsonAsync($"/api/v1/facilities/{fac}/coverage?asOf=2026-10-20");
         var note = cov.GetProperty("notes")[0];

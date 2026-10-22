@@ -27,7 +27,7 @@
 |---|---|---|---|---|---|
 | NFR-PERF-01 | الشاشات الرئيسية: زمن الطلب على الخادم p95 ≤ 2 ثانية، وتحميل الصفحة ≤ 2 ثانية، ببيانات NFR-SCL-02 | p95 من سجلات التطبيق، وزمن التحميل من المتصفح | اختبار حمل في بيئة الاختبار بعشرين مستخدمًا متزامنًا 🟡 قبل خروج S2 | قائد التطبيق | docs/10-detailed-analysis/00-overview-and-cross-cutting.md:167 |
 | NFR-PERF-02 | البحث الموحّد في المنشآت وجهات الاتصال < 2 ثانية على 5,000 جهة | p95 لنقطة البحث | AC-INS-8 قبل خروج S1 | قائد التطبيق | docs/10-detailed-analysis/11-m2-m4-institutions-accounts-catalogs.md:128 |
-| NFR-PERF-03 | 100 طلب حجز متزامن على الحد نفسه: لا تجاوز للمتاح، ولكل طلب نتيجة محددة | مجموع المحجوز مقابل المتاح بعد التشغيل، وعدد النتائج لكل نوع | اختبار تكامل تزامني على SQL Server 2025 قبل خروج S2 | قائد قاعدة البيانات | docs/20-database-design.md:241 |
+| NFR-PERF-03 | 100 طلب حجز متزامن على الحد نفسه: لا تجاوز للمتاح، ولكل طلب نتيجة محددة | مجموع المحجوز مقابل المتاح بعد التشغيل، وعدد النتائج لكل نوع | اختبار تكامل تزامني على SQL Server 2025 قبل خروج S2 | قائد قاعدة البيانات | docs/20-database-design.md:271 |
 | NFR-PERF-04 | الترقيم: 50 طلبًا متزامنًا 🟡 بلا رقم مكرر ولا فجوة | فحص التسلسل الناتج | اختبار تكامل ضمن AC-PLT-3 | قائد قاعدة البيانات | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:128 |
 | NFR-PERF-05 | الدخول: p95 ≤ 1 ثانية 🟡 بعشرين دخولًا متزامنًا، مع سقف للتجزئات المتزامنة لأن كل تجزئة Argon2id تحجز 64 ميغابايت | الزمن، وذروة ذاكرة عملية التطبيق | اختبار حمل لنقطة الدخول | قائد التطبيق | docs/adr/0002-login-and-session-bound-context.md:14 |
 | NFR-PERF-06 | ربط السياق لكل طلب بـ sec.usp_SetSessionContext: p95 ≤ 20 مللي ثانية 🟡 | زمن الاستدعاء من قياس التطبيق | ضمن اختبار NFR-PERF-01 | قائد قاعدة البيانات | docs/adr/0002-login-and-session-bound-context.md:22 |
@@ -180,14 +180,14 @@ flowchart LR
 2. RPO/RTO: تظهر قيمًا في docs/10-detailed-analysis/00-overview-and-cross-cutting.md:169 وdocs/10-detailed-analysis/10-m0-m1-platform-organization.md:590، بينما تقول docs/20-database-design.md:463 إنها لم تُحدَّد، وتسجلها O-14 في السطر 542.
 3. تصادم المعرّف O-14: في docs/20-database-design.md:542 هو أرقام RPO/RTO، وفي tools/dbgen/erd_open_items.py:98-101 هو خطة الشرائح. هذه الوثيقة تقصد الأول.
 4. docs/10-detailed-analysis/00-overview-and-cross-cutting.md:170 يفترض «مئات المشتركين»، وdocs/20-database-design.md:466 يفترض حملًا منخفضًا دون رقم؛ لا تعارض، لكن لا رقم معتمدًا في أي منهما.
-5. لا يوجد هدف رقمي للتزامن غير اختبار الحجز (docs/20-database-design.md:241)، ولا هدف لحجم البيانات، قبل هذه الوثيقة.
+5. لا يوجد هدف رقمي للتزامن غير اختبار الحجز (docs/20-database-design.md:271)، ولا هدف لحجم البيانات، قبل هذه الوثيقة.
 6. docs/30-readiness-documents.md:357 يذكر أن 00-overview يقول إن الاستضافة «ويندوز» في السطرين 126 و226 خلافًا لـ ADR 0001؛ النص الحالي فيهما يجعل مضيف القاعدة Ubuntu 24.04 LTS وفق ADR 0001، ويُبقي طبقة التطبيق على Windows Server وفق 01 §13 مطروحة للمراجعة بعد ADR 0001، وهو ما يقوله FR-PLT-045 (docs/10-detailed-analysis/10-m0-m1-platform-organization.md:147)، فلا تعارض مع ADR 0001 الذي يغيّر مضيف القاعدة وحده (docs/adr/0001-schema-work-on-linux.md:10). وملاحظة التحقق في السطر 359 تقول إن ذكر ويندوز صُحّح وفق ADR 0001.
 
 ## 13. التتبع
 
 | البند في هذه الوثيقة | المتطلب أو القاعدة أو القرار | المصدر |
 |---|---|---|
-| §2 | §6.4 الأداء، اختبار التزامن، FR-INS-019 | docs/10-detailed-analysis/00-overview-and-cross-cutting.md:167؛ docs/20-database-design.md:241؛ docs/10-detailed-analysis/11-m2-m4-institutions-accounts-catalogs.md:128 |
+| §2 | §6.4 الأداء، اختبار التزامن، FR-INS-019 | docs/10-detailed-analysis/00-overview-and-cross-cutting.md:167؛ docs/20-database-design.md:271؛ docs/10-detailed-analysis/11-m2-m4-institutions-accounts-catalogs.md:128 |
 | §3 | §6.4 التوفر، ADR 0001 | docs/10-detailed-analysis/00-overview-and-cross-cutting.md:168؛ docs/adr/0001-schema-work-on-linux.md:16 |
 | §4 | §6.4 التعافي، O-14 (20-database-design) | docs/10-detailed-analysis/00-overview-and-cross-cutting.md:169؛ docs/20-database-design.md:457-463، 542 |
 | §5 | X-SEC-1 إلى 7، X-AUD-1، ADR 0002، DOC-S14 | docs/10-detailed-analysis/00-overview-and-cross-cutting.md:134-150؛ docs/adr/0002-login-and-session-bound-context.md؛ docs/30-readiness-documents.md:316-323 |

@@ -119,19 +119,21 @@ public sealed class ExpiryAlertJob(SqlConnectionFactory db, TimeProvider clock, 
                     new { r = rule.ExpiryAlertRuleId, i = item.Id, e = item.ExpiryDate }, cancellationToken: ct)).ConfigureAwait(false)).ToHashSet();
                 string kind;
                 int threshold;
-                int[] alsoRecord = [];
+                (string Kind, int Threshold)[] alsoRecord = [];
                 if (days > 0 || (days == 0 && provider.ExpiredFromNextDay))
                 {
                     var crossed = lead.Where(l => days <= l).ToArray();
                     if (crossed.Length == 0 && days > 0) continue;
                     threshold = days == 0 ? 0 : crossed.Min();
                     kind = "LEAD";
-                    alsoRecord = [.. crossed.Where(l => l != threshold && !logged.Contains(("LEAD", l)))];
+                    alsoRecord = [.. crossed.Where(l => l != threshold && !logged.Contains(("LEAD", l))).Select(l => ("LEAD", l))];
                 }
                 else if (!logged.Contains(("EXPIRED", 0)))
                 {
                     kind = "EXPIRED";
                     threshold = 0;
+                    // A first notice that arrives late stands for the reminders already due, so a catch-up sends one message.
+                    if (rule.ReminderAfterExpiryDays is { } due && -days / due >= 1) alsoRecord = [("REMINDER", -days / due)];
                 }
                 else if (rule.ReminderAfterExpiryDays is { } every && -days / every >= 1)
                 {
@@ -142,7 +144,7 @@ public sealed class ExpiryAlertJob(SqlConnectionFactory db, TimeProvider clock, 
                 if (logged.Contains((kind, threshold))) continue;
 
                 await using var tx = (SqlTransaction)await c.BeginTransactionAsync(ct).ConfigureAwait(false);
-                foreach (var (k, th) in alsoRecord.Select(l => ("LEAD", l)).Append((kind, threshold)))
+                foreach (var (k, th) in alsoRecord.Append((kind, threshold)))
                     await c.ExecuteAsync(new CommandDefinition(
                         """
                         INSERT cfg.ExpiryAlertLog (TenantId, ExpiryAlertRuleId, ItemId, ExpiryDate, AlertKind, Threshold)

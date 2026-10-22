@@ -153,7 +153,7 @@
 | دخول | اعتماد DOC-B06 وتجهيز الاتفاقيات الأربع والنماذج الثلاثة مجهّلة في بيئة الاختبار (docs/10-detailed-analysis/00-overview-and-cross-cutting.md:216) |
 | دخول | تجهيز أداة اختبار التزامن للحجز |
 | خروج | «إدخال الاتفاقيات الأربع الفعلية بلا قيد خارج النموذج، وإنذار الانتهاء يعمل» (docs/10-detailed-analysis/00-overview-and-cross-cutting.md:196) |
-| خروج | 100 طلب حجز متزامن على الحد نفسه بنتائج محددة (docs/20-database-design.md:241، NFR-PERF-03) |
+| خروج | 100 طلب حجز متزامن على الحد نفسه بنتائج محددة (docs/20-database-design.md:271، NFR-PERF-03) |
 | خروج | الشاشات الرئيسية ضمن NFR-PERF-01 |
 | خروج | فحص سلسلة التدقيق FR-PLT-025 إن نُفِّذ في S2، بعد قرار المرساة O-13 (20-database-design، docs/20-database-design.md:541) |
 
@@ -269,7 +269,7 @@ flowchart TB
 | §3 اختبار العبور لكل نقطة | O-09 (erd_open_items)، FR-PLT-021، FR-PLT-041 | tools/dbgen/erd_open_items.py:62-66؛ docs/10-detailed-analysis/10-m0-m1-platform-organization.md:123، 143 |
 | §5.1، §6 | خروج S0، FR-PLT-008، FR-PLT-013 | docs/10-detailed-analysis/00-overview-and-cross-cutting.md:194؛ docs/10-detailed-analysis/10-m0-m1-platform-organization.md:110، 115 |
 | §5.2 | خروج S1، AC-INS-1 | docs/10-detailed-analysis/00-overview-and-cross-cutting.md:195؛ docs/10-detailed-analysis/11-m2-m4-institutions-accounts-catalogs.md:646 |
-| §5.3 | خروج S2، اختبار التزامن | docs/10-detailed-analysis/00-overview-and-cross-cutting.md:196؛ docs/20-database-design.md:241 |
+| §5.3 | خروج S2، اختبار التزامن | docs/10-detailed-analysis/00-overview-and-cross-cutting.md:196؛ docs/20-database-design.md:271 |
 | §7 | R4 تسريب بين المشتركين | docs/01-preliminary-analysis.md:359 |
 | §8 | خصوصية الأمثلة، DOC-B06 | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:11؛ db/tests/tenant_isolation_tests.sql:7 |
 | DQ-B01-2 | FR-PLT-045 | docs/10-detailed-analysis/10-m0-m1-platform-organization.md:147؛ ../.github/workflows/treasury-db-ci.yml:37 |

@@ -5,6 +5,8 @@ __pycache__/
 node_modules/
 frontend/dist/
 data/
+# The synthetic test packs of the treasury platform (DS-AGR) are versioned.
+!treasury-platform/app/tests/data/
 docs/database/build/
 docs/database/erd/dot/
 deploy/FIRST_LOGIN.txt

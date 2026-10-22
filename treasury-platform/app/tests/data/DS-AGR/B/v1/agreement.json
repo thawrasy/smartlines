@@ -1,0 +1,33 @@
+{
+  "pack": "B",
+  "about": "Facilities with a framework murabaha agreement and a renewal memorandum: two sub-limits, each equal to the total; the renewal replaces the earlier facility.",
+  "bank": { "code": "BNK-B", "nameAr": "البنك (ب)", "nameEn": "Bank B" },
+  "predecessor": { "effectiveFrom": "2025-06-13", "expiryDate": "2026-03-13", "totalAmount": 12500000 },
+  "facility": { "facilityType": "ISLAMIC_FINANCING", "currency": "SAR", "totalAmount": 12500000, "effectiveFrom": "2026-03-14", "expiryDate": "2027-02-28", "bankReferenceNo": "SYN-B-002",
+    "precedenceLanguage": "AR", "agreementDate": "2026-03-14" },
+  "lenders": [ { "bank": "BNK-B", "sharePct": 100, "roles": [ "SOLE" ] } ],
+  "limits": [
+    { "code": "L0", "limitType": "TOTAL_FACILITY", "nameAr": "الحد الكلي", "amount": 12500000, "page": "p.1 §1" },
+    { "code": "DC", "limitType": "DOCUMENTARY_CREDITS", "nameAr": "اعتمادات بالمرابحة", "parent": "L0", "amount": 12500000, "distributionMode": "SHARED_CAP", "page": "p.2 §2" },
+    { "code": "MT", "limitType": "MURABAHA_TAYSEER", "nameAr": "تمويل الاعتمادات بالمرابحة", "parent": "L0", "amount": 12500000, "distributionMode": "SHARED_CAP", "page": "p.2 §3" }
+  ],
+  "lines": [
+    { "limit": "DC", "product": "LC_PURCHASE_MURABAHA", "bankProductCode": "SYN-B-LC", "amount": 12500000, "page": "p.3" },
+    { "limit": "MT", "product": "MURABAHA_FINANCING", "bankProductCode": "SYN-B-MR", "amount": 12500000, "page": "p.3" }
+  ],
+  "pricing": [
+    { "scopeLimit": "MT", "financingType": "MURABAHA", "method": "BASE_PLUS_MARGIN", "baseRate": "SAIBOR_3M", "marginPct": 2.1, "rateFixing": "FIXED_FOR_CONTRACT", "dayCount": "ACT_360",
+      "periodBasis": "PER_ANNUM", "effectiveFrom": "2026-03-14", "page": "p.4 §5" }
+  ],
+  "obligations": [
+    { "obligationType": "AUDITED_ANNUAL_FS", "titleAr": "القوائم المالية المدققة", "page": "p.6 §7.1",
+      "reporting": { "frequency": "ANNUAL", "anchorKind": "AFTER_FISCAL_YEAR_END", "offsetValue": 120, "documentBasis": "AUDITED", "expectsEvidence": false } },
+    { "obligationType": "NOTICE_BREACH", "titleAr": "إخطار المخالفة فورًا", "page": "p.6 §7.3",
+      "reporting": { "frequency": "EVENT_BASED", "anchorKind": "AFTER_EVENT", "offsetValue": 0, "documentBasis": "NOT_APPLICABLE", "expectsEvidence": false } },
+    { "obligationType": "NO_OWNERSHIP_CHANGE", "titleAr": "تغيير الملكية مخالفة", "page": "p.7 §8",
+      "covenant": { "measureKind": "NONE", "thresholdState": "NOT_SPECIFIED_IN_AGREEMENT" } }
+  ],
+  "terms": [
+    { "termType": "DUR.STATEMENT_OBJECTION_DAYS", "valueNumber": 15, "page": "p.8 §9" }
+  ]
+}

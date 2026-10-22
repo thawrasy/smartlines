@@ -330,4 +330,37 @@ public sealed class LimitTests(PlatformFixture f)
         var snap = (await s.Fo.GetJsonAsync($"/api/v1/facilities/{s.Facility}/snapshots")).GetProperty("items").EnumerateArray().Single();
         Assert.Equal((87.82m, true, 39_520_000m), (snap.GetProperty("ackPct").GetDecimal(), snap.GetProperty("flagged").GetBoolean(), snap.GetProperty("variance").GetDecimal()));
     }
+
+    [Fact]
+    public async Task NFR_PERF_01_the_card_of_a_facility_with_100_limits_and_lines()
+    {
+        // FR-FAC-028: twenty limits with four lines each under one total (101 nodes); each read of the card is timed ten times against 2 s.
+        var s = await SetupAsync(100_000_000);
+        var l0 = await LimitAsync(s.Fo, s.Facility, "L0", "TOTAL_FACILITY", 100_000_000m);
+        for (var i = 1; i <= 20; i++)
+        {
+            var l = await LimitAsync(s.Fo, s.Facility, $"L{i}", "DOCUMENTARY_CREDITS", 95, l0);
+            for (var j = 1; j <= 4; j++)
+                await s.Fo.PostOkAsync($"/api/v1/facilities/{s.Facility}/limits/{l}/lines", new
+                {
+                    product = "LC_PURCHASE_CONV", bankProductCode = $"P{i}-{j}", amount = 50_000_000, noSourceReason = "Entered from the agreement",
+                });
+        }
+        await ApproveAsync(s, await OpenRevisionAsync(s.Fo, s.Facility));
+        var tree = await s.Fo.GetJsonAsync($"/api/v1/facilities/{s.Facility}/limits");
+        Assert.Equal(21, tree.GetProperty("limits").GetArrayLength());
+        foreach (var path in new[] { "", "/limits", "/pricing-rules", "/obligations", "/agenda", "/terms", "/collateral-links", "/compliance" })
+        {
+            await s.Fo.GetJsonAsync($"/api/v1/facilities/{s.Facility}{path}");
+            var worst = TimeSpan.Zero;
+            for (var k = 0; k < 10; k++)
+            {
+                var watch = Stopwatch.StartNew();
+                await s.Fo.GetJsonAsync($"/api/v1/facilities/{s.Facility}{path}");
+                worst = watch.Elapsed > worst ? watch.Elapsed : worst;
+            }
+            TestContext.Current.TestOutputHelper?.WriteLine($"NFR-PERF-01 /facilities/{{id}}{path}: worst of 10 {worst.TotalMilliseconds:F0} ms");
+            Assert.True(worst < TimeSpan.FromSeconds(2), $"{path} took {worst}.");
+        }
+    }
 }

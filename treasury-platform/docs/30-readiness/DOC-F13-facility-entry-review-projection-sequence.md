@@ -233,18 +233,16 @@ sequenceDiagram
   participant A as خدمة التسهيلات
   participant D as قاعدة البيانات
   participant O as Outbox
-  A->>D: نسخ الأبناء غير المعدلة لصفوف استُبدلت
-  A->>D: إعادة وصل الاستخدام والحجز والأجندة المفتوحة
-  A->>D: تطبيق HeaderChanges على الرأس
-  A->>D: إعادة حساب EffectiveAmount من الجذر
-  A->>D: UPDATE ApprovedRevisionNo يساوي R مع الحالة
+  Note over A,D: المسودة نُسخت عند أول تعديل، وEffectiveAmount كُتب عند كل حفظ
+  A->>D: إعادة وصل الاستخدام والحجز المفتوحين
+  A->>D: إسقاط TermValue بأصل PROJECTED وFromRevision يساوي R
+  A->>D: المراجعة APPROVED وApprovedBy وApprovedOn
+  A->>D: أخيرًا: ApprovedRevisionNo يساوي R مع الحالة وHeaderChanges
   alt القادح يرفض الحصص
     D-->>A: 50072
     A->>D: ROLLBACK
   end
-  A->>D: المراجعة APPROVED وApprovedBy وApprovedOn
-  A->>D: إسقاط TermValue بأصل PROJECTED
-  A->>D: توليد بنود الأجندة واختبارات التعهدات
+  A->>D: توليد بنود الأجندة حتى الأفق
   A->>O: facility.revision.approved وأحداث التغيير
   A->>D: صف aud.AuditLog
   A->>D: COMMIT
@@ -258,19 +256,19 @@ sequenceDiagram
 | 2 | الحالة SUBMITTED وRowVersion كما رآه المعتمِد | fac.FacilityRevision | 🟢 العمود في db/generated/tsql/001_tables.sql:2913 |
 | 3 | الصلاحية وفصل المهام | — | 🟢 BR-FAC-004؛ 🟡 طريقة معرفة المحررين DQ-F13-2 |
 | 4 | إعادة فحوص E، والإقرارات المطلوبة موجودة | القراءة فقط | 🟢 12-m5:492؛ 🟡 الإعادة |
-| 5 | نسخ الأبناء غير المعدلة إلى الأب الجديد بـ `FromRevision = R`، وإغلاق القديمة بـ R | Limit وأبناؤه، PricingRule، TermValue، CollateralLink، Obligation وأبناؤه | 🟢 m13:11؛ m14:9-12 |
+| 5 | المسودة هي النسخة: أول تعديل في المسودة نسخ الصفوف المعتمدة لكل جداول [R] إلى R بـ `FromRevision = R` وأغلق المنسوخ منها بـ `ToRevision = R`؛ و`EffectiveAmount` يُكتب من الجذر إلى الورقة عند كل حفظ | Limit وأبناؤه، PricingRule، TermValue المدخلة، CollateralLink، Obligation وأبناؤه | 🟢 m13:11؛ m14:9-12؛ BR-FAC-009؛ ✅ منفّذ (S2، ADR 0043) |
 | 6 | إعادة وصل الصفوف التشغيلية غير المنتهية بالصف الجديد | Utilization وLimitReservation الفعالة، wfl.Request وlc.LetterOfCredit | 🟢 m13:11؛ db/model/16-letters-of-credit.model:408؛ 🟡 حصرها في غير المنتهية DQ-F13-4 |
-| 7 | تطبيق `HeaderChanges` على الرأس | fac.Facility | 🟢 m13:77 |
-| 8 | `EffectiveAmount` من الجذر إلى الورقة | fac.Limit | 🟢 m13:150؛ BR-FAC-009 |
-| 9 | رفع `ApprovedRevisionNo` إلى R في عبارة مستقلة، و`LifecycleStatus` من DRAFT إلى ACTIVE للأولى أو من EXPIRED إلى ACTIVE للتمديد | fac.Facility والقادح | 🟢 050:17-19؛ m13:67؛ 12-m5:451 |
-| 10 | المراجعة APPROVED | fac.FacilityRevision | 🟢 m13:90 |
-| 11 | إسقاط الحقول المنمّطة إلى TermValue | cmp.TermValue | 🟢 BR-CMP-004 (12-m5:330)؛ 🟡 داخل المعاملة DQ-F13-6 |
-| 12 | توليد بنود الأجندة واختبارات التعهدات حتى الأفق | obl.ReportingInstance، obl.CovenantTest | 🟢 FR-OBL-003، FR-OBL-011؛ 🟡 داخل المعاملة DQ-F13-5 |
-| 13 | الأحداث والتدقيق | cfg.OutboxEvent، aud.AuditLog | 🟢 12-m5:582، :597 |
+| 7 | إسقاط الحقول المنمّطة إلى TermValue: تُغلق صفوف PROJECTED المفتوحة بـ R وتُدرج الجديدة بـ `FromRevision = R`. **قبل الرفع** لأن القادح يرفض إدراج صف `FromRevision` فيه لا يزيد على `ApprovedRevisionNo` (044:296-302) | cmp.TermValue | 🟢 BR-CMP-004 (12-m5:330)؛ DQ-F13-6 داخل المعاملة |
+| 8 | المراجعة APPROVED. **قبل الرفع** لأن القادح يرفض رقمًا يسمّي مراجعة غير معتمدة (044:105-108) | fac.FacilityRevision | 🟢 m13:90 |
+| 9 | **أخيرًا وفي عبارة واحدة:** `ApprovedRevisionNo = R`، و`LifecycleStatus` من DRAFT إلى ACTIVE للأولى أو من EXPIRED إلى ACTIVE للتمديد، وتطبيق `HeaderChanges` على الرأس | fac.Facility والقادح | 🟢 050:17-19؛ m13:67، :77؛ 12-m5:451 |
+| 10 | توليد بنود الأجندة حتى الأفق (ReportingInstance ليست [R] فتأتي بعد الرفع)؛ واختبارات التعهدات في S2-b | obl.ReportingInstance | 🟢 FR-OBL-003؛ DQ-F13-5 داخل المعاملة (OQ-7) |
+| 11 | الأحداث والتدقيق، وإشعار FAC.REVISION_STATE، واستبدال السابق إن حلّ تاريخ اللاحق | cfg.OutboxEvent، aud.AuditLog، fac.Facility | 🟢 12-m5:582، :597؛ OQ-15 |
+
+**تصحيح (2026-10-22، S2-GAP-2).** كان الجدول يرفع `ApprovedRevisionNo` (الخطوة 9 القديمة) قبل جعل المراجعة APPROVED (10) وقبل الإسقاط (11). وقوادح القاعدة ترفض هذا الترتيب: لا يُسمّى رقم مراجعة غير معتمدة، ولا يُدرج صف [R] برقم لا يزيد على المعتمد، ولا يُغلق صف معتمد بعد الرفع إلا برقم أكبر منه. القاعدة محقّة والجدول القديم خطأ. الترتيب أعلاه هو المبني، ويغطيه اختبار تكامل يعتمد مراجعة بكل جداول [R] (FacilityTests وLimitTests وCollateralTests وObligationTests وAgreementPackTests).
 
 ملاحظات على الإسقاط:
 
-- **الحدود والتسعير والشروط والضمانات.** لا نسخ إلى جداول أخرى. الرفع في الخطوة 9 يجعل صفوف R هي المقروءة في المتاح والمحلّل والفحص (BR-FAC-003، 12-m5:241). والسريان بالتاريخ يحكم من أي يوم يُطبَّق كل صف 🟢.
+- **الحدود والتسعير والشروط والضمانات.** لا نسخ إلى جداول أخرى. الرفع في الخطوة 9 (آخر كتابة على جداول [R]) يجعل صفوف R هي المقروءة في المتاح والمحلّل والفحص (BR-FAC-003، 12-m5:241). والسريان بالتاريخ يحكم من أي يوم يُطبَّق كل صف 🟢.
 - **مثال 🟢 (12-m5:241).** مراجعة تغير الهامش من 1.75 إلى 2.00 بنفاذ 2026-07-01. قبل الاعتماد يُحل 1.75. بعده تنتهي النسخة الأولى 2026-06-30 وتبدأ الثانية 2026-07-01.
 - **TermValue.** لكل حقل له `SourceBinding` في `cmp.TermType` (m13:549): تُغلق صفوف PROJECTED القديمة بـ R وتُدرج جديدة بـ `Origin = PROJECTED` و`ProjectedFrom` وختم المصدر نفسه (m13:575-576، :586) 🟡. القاعدة بحالة NOT_SPECIFIED_IN_AGREEMENT تُسقَط بالحالة نفسها لا بصفر (FR-CMP-003، 12-m5:223) 🟢.
 - **الضمانات.** صفوف `CollateralLink` تصير ملزمة بالرفع. سجل الضمان له اعتماده المستقل، والتغطية لا تحتسب إلا المعتمد (BR-COL-005، 12-m5:290) 🟢. نقترح تحذيرًا عند الاعتماد إن رُبط ضمان غير معتمد 🟡.

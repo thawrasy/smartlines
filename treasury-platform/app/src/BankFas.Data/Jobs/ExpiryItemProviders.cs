@@ -37,7 +37,8 @@ public static class ExpiryItemProviders
 {
     public static readonly IReadOnlyList<IExpiryItemProvider> All = [new CompanyDocumentExpiry(), new IdentityDocumentExpiry(), new BodyTermExpiry(), new AuthorityGrantExpiry(), new SignatoryExpiry(),
         new Facilities.FacilityExpiry(), new Facilities.LimitExpiry(false), new Facilities.LimitExpiry(true),
-        new Facilities.CollateralExpiry("COL_NOTE_RENEWAL"), new Facilities.CollateralExpiry("COL_INSURANCE"), new Facilities.CollateralExpiry("COL_VALUATION")];
+        new Facilities.CollateralExpiry("COL_NOTE_RENEWAL"), new Facilities.CollateralExpiry("COL_INSURANCE"), new Facilities.CollateralExpiry("COL_VALUATION"),
+        new Facilities.ObligationExpiry()];
 
     internal static Dictionary<string, string?> Text(string? ar, string? en) => new(StringComparer.Ordinal) { ["ar"] = ar ?? en, ["en"] = en ?? ar };
 }

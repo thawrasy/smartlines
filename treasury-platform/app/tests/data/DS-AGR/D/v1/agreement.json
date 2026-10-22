@@ -1,0 +1,39 @@
+{
+  "pack": "D",
+  "about": "A renewal with an Islamic financing agreement: two children at 95% of their parent, and financial covenant clauses whose values are blank in the signed copy; the year of the expiry is read from a scan.",
+  "bank": { "code": "BNK-D", "nameAr": "البنك (د)", "nameEn": "Bank D" },
+  "facility": { "facilityType": "ISLAMIC_FINANCING", "currency": "SAR", "totalAmount": 56250000, "effectiveFrom": "2027-01-19", "expiryDate": "2030-01-19", "bankReferenceNo": "SYN-D-004",
+    "precedenceLanguage": "AR", "agreementDate": "2027-01-19" },
+  "lenders": [ { "bank": "BNK-D", "sharePct": 100, "roles": [ "SOLE" ] } ],
+  "limits": [
+    { "code": "L0", "limitType": "TOTAL_FACILITY", "nameAr": "الحد الأب", "amount": 56250000, "page": "p.1 §1", "readFromScan": true },
+    { "code": "MT", "limitType": "MURABAHA_TAYSEER", "nameAr": "التورق والمرابحة الدوار", "parent": "L0", "pctOfParent": 95, "distributionMode": "SHARED_CAP", "isRevolving": true, "page": "p.2 §2" },
+    { "code": "DCS", "limitType": "DIRECT_CREDIT_SUBSTITUTES", "nameAr": "بدائل ائتمانية مباشرة", "parent": "L0", "pctOfParent": 95, "distributionMode": "SHARED_CAP", "page": "p.2 §3" }
+  ],
+  "lines": [
+    { "limit": "MT", "product": "TAYSEER_TAWARRUQ", "bankProductCode": "SYN-D-TW", "page": "p.3" },
+    { "limit": "MT", "product": "MURABAHA_FINANCING", "bankProductCode": "SYN-D-MR", "page": "p.3" },
+    { "limit": "DCS", "product": "DIRECT_CREDIT_SUBSTITUTE", "bankProductCode": "SYN-D-DC", "page": "p.3" }
+  ],
+  "pricing": [
+    { "scopeLimit": "MT", "financingType": "TAYSEER_TAWARRUQ", "method": "BASE_PLUS_MARGIN", "baseRate": "SAIBOR_3M", "marginPct": 1.75, "rateFixing": "FIXED_FOR_CONTRACT", "dayCount": "ACT_360",
+      "periodBasis": "PER_ANNUM", "effectiveFrom": "2027-01-19", "page": "p.4 §5" }
+  ],
+  "obligations": [
+    { "obligationType": "AUDITED_ANNUAL_FS", "titleAr": "القوائم المالية المدققة", "page": "p.6 §7.1",
+      "reporting": { "frequency": "ANNUAL", "anchorKind": "AFTER_FISCAL_YEAR_END", "offsetValue": 6, "offsetUnit": "MONTHS", "documentBasis": "AUDITED", "expectsEvidence": false } },
+    { "obligationType": "QUARTERLY_FS", "titleAr": "القوائم الربع سنوية عند الطلب", "page": "p.6 §7.2",
+      "reporting": { "frequency": "ON_DEMAND", "anchorKind": "ON_DEMAND_REQUEST", "offsetValue": 30, "documentBasis": "INTERNAL", "expectsEvidence": false } },
+    { "obligationType": "MIN_TANGIBLE_NET_WORTH", "titleAr": "الحد الأدنى لصافي حقوق الشركاء", "page": "p.7 §8.1",
+      "covenant": { "measureKind": "AMOUNT", "formula": "TANGIBLE_NET_WORTH", "thresholdState": "NOT_SPECIFIED_IN_AGREEMENT", "testFrequency": "ANNUAL" } },
+    { "obligationType": "DEBT_TO_EQUITY", "titleAr": "إجمالي الديون إلى حقوق الملكية", "page": "p.7 §8.2",
+      "covenant": { "measureKind": "RATIO", "formula": "DEBT_TO_EQUITY", "thresholdState": "NOT_SPECIFIED_IN_AGREEMENT", "testFrequency": "ANNUAL" } },
+    { "obligationType": "CURRENT_RATIO", "titleAr": "نسبة التداول", "page": "p.7 §8.3",
+      "covenant": { "measureKind": "RATIO", "formula": "CURRENT_RATIO", "thresholdState": "NOT_SPECIFIED_IN_AGREEMENT", "testFrequency": "ANNUAL" } },
+    { "obligationType": "FIRST_OFFER_RIGHT", "titleAr": "حق العرض الأول للبنك", "page": "p.8 §9",
+      "covenant": { "measureKind": "NONE", "thresholdState": "NOT_SPECIFIED_IN_AGREEMENT" } }
+  ],
+  "terms": [
+    { "termType": "DUR.STATEMENT_OBJECTION_DAYS", "valueNumber": 15, "page": "p.9 §10" }
+  ]
+}

@@ -138,6 +138,11 @@ public sealed class PricingTests(PlatformFixture f)
         Assert.Equal(("INCOMPLETE", "RATE_NOT_SPECIFIED", JsonValueKind.Null), (blank.GetProperty("status").GetString(), blank.GetProperty("reason").GetString(), blank.GetProperty("amount").ValueKind));
         Assert.Contains(blank.GetProperty("losers").EnumerateArray(), l => l.GetProperty("reason").GetString() == "RATE_NOT_SPECIFIED");
         Assert.Contains((await tm.GetJsonAsync($"/api/v1/facilities/{fac}/pricing-rules")).GetProperty("notSpecified").EnumerateArray(), x => x.GetProperty("feeType").GetString() == "ARRANGEMENT");
+        // AC-FAC-10: the approval projected the arrangement fee as not specified; it stays out of the ranking.
+        var fee = (await tm.GetJsonAsync($"/api/v1/facilities/{fac}/terms")).GetProperty("items").EnumerateArray().Single(x => x.GetProperty("key").GetString() == "PRC.ARRANGEMENT_FEE_PCT");
+        Assert.Equal(("NOT_SPECIFIED_IN_AGREEMENT", "PROJECTED", JsonValueKind.Null), (fee.GetProperty("valueState").GetString(), fee.GetProperty("origin").GetString(), fee.GetProperty("value").ValueKind));
+        var ranking = await tm.GetJsonAsync("/api/v1/terms/compare?key=PRC.ARRANGEMENT_FEE_PCT&asOf=2026-05-01");
+        Assert.Equal((0, 1), (ranking.GetProperty("ranked").GetArrayLength(), ranking.GetProperty("unranked").GetArrayLength()));
 
         // A correction: R1 at +0.90 from 2026-07-01 ends the old version on 2026-06-30; the addendum sets the arrangement fee at 0.50% from 2026-09-01.
         await fo.PostOkAsync($"/api/v1/facilities/{fac}/revisions", new { reasonKind = "CORRECTION", changeSummary = "New issuance pricing; arrangement fee" });
@@ -151,6 +156,7 @@ public sealed class PricingTests(PlatformFixture f)
         Assert.Equal((1.15m, 23_000m), (july.GetProperty("ratePct").GetDecimal(), july.GetProperty("amount").GetDecimal()));
         var set = await ResolveAsync(tm, new { facility = fac, limit = l2, company = a, feeType = "ARRANGEMENT", amount = 10_000_000, days = 365, asOf = "2026-09-01" });
         Assert.Equal(("PRICED", 50_000m), (set.GetProperty("status").GetString(), set.GetProperty("amount").GetDecimal()));
+        Assert.Equal(0.50m, (await tm.GetJsonAsync("/api/v1/terms/compare?key=PRC.ARRANGEMENT_FEE_PCT&asOf=2026-09-15")).GetProperty("best").GetProperty("value").GetDecimal());
         Assert.Equal("INCOMPLETE", (await ResolveAsync(tm, new { facility = fac, limit = l2, company = a, feeType = "ARRANGEMENT", amount = 10_000_000, days = 365, asOf = "2026-08-31" })).GetProperty("status").GetString());
     }
 }

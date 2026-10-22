@@ -1,0 +1,33 @@
+{
+  "pack": "C",
+  "about": "A framework facility agreement with annexes: revolving participation credits, a foreign exchange limit outside the total, a covenant to deposit a share of revenue with the bank, capital that is not withdrawn, and the bank's right to extend on its own.",
+  "bank": { "code": "BNK-C", "nameAr": "البنك (ج)", "nameEn": "Bank C" },
+  "facility": { "facilityType": "CREDIT_FACILITIES", "currency": "SAR", "totalAmount": 50000000, "effectiveFrom": "2027-02-05", "expiryDate": "2028-01-07", "bankReferenceNo": "SYN-C-003",
+    "precedenceLanguage": "AR", "agreementDate": "2027-02-05", "bankUnilateralRights": [ "EXTEND" ] },
+  "lenders": [ { "bank": "BNK-C", "sharePct": 100, "roles": [ "SOLE" ] } ],
+  "limits": [
+    { "code": "L0", "limitType": "TOTAL_FACILITY", "nameAr": "إجمالي التسهيلات", "amount": 50000000, "page": "p.1 §1" },
+    { "code": "DC", "limitType": "DOCUMENTARY_CREDITS", "nameAr": "اعتمادات بالمشاركة", "parent": "L0", "amount": 50000000, "distributionMode": "SHARED_CAP", "isRevolving": true, "page": "p.2 §2" },
+    { "code": "FX", "limitType": "FX_LIMIT", "nameAr": "حد العملات الأجنبية", "parent": "L0", "amount": 1875000, "distributionMode": "OUTSIDE_TOTAL", "page": "p.2 §2 (بين قوسين)" }
+  ],
+  "lines": [
+    { "limit": "DC", "product": "LC_PURCHASE_CONV", "bankProductCode": "SYN-C-LC", "amount": 50000000, "page": "p.3" },
+    { "limit": "FX", "product": "FX_LINE", "bankProductCode": "SYN-C-FX", "amount": 1875000, "page": "p.3" }
+  ],
+  "pricing": [],
+  "obligations": [
+    { "obligationType": "AUDITED_ANNUAL_FS", "titleAr": "القوائم المالية المدققة", "page": "p.5 §6.1",
+      "reporting": { "frequency": "ANNUAL", "anchorKind": "AFTER_FISCAL_YEAR_END", "offsetValue": 90, "documentBasis": "AUDITED", "expectsEvidence": false } },
+    { "obligationType": "QUARTERLY_FS", "titleAr": "القوائم المالية الربع سنوية", "page": "p.5 §6.2",
+      "reporting": { "frequency": "QUARTERLY", "anchorKind": "AFTER_PERIOD_END", "offsetValue": 0, "documentBasis": "INTERNAL", "expectsEvidence": false } },
+    { "obligationType": "NOTICE_OWNERSHIP_CHANGE", "titleAr": "مستندات تغيير الملكية بعد وقوعه", "page": "p.6 §7",
+      "reporting": { "frequency": "EVENT_BASED", "anchorKind": "AFTER_EVENT", "offsetValue": 15, "documentBasis": "NOT_APPLICABLE", "expectsEvidence": false } },
+    { "obligationType": "REVENUE_CHANNELLING_PCT", "titleAr": "إيداع نسبة من الإيرادات السنوية لدى البنك", "page": "p.7 §8.1",
+      "covenant": { "measureKind": "PERCENT_OF_REVENUE", "formula": "FLOW_TO_REVENUE_PCT", "operator": "GE", "thresholdState": "SET", "thresholdValue": 15, "thresholdUnit": "PERCENT", "testFrequency": "ANNUAL" } },
+    { "obligationType": "CAPITAL_PRESERVATION", "titleAr": "عدم سحب رأس المال الإضافي", "page": "p.7 §8.2",
+      "covenant": { "measureKind": "AMOUNT", "formula": "TANGIBLE_NET_WORTH", "operator": "GE", "thresholdState": "SET", "thresholdValue": 297500000, "thresholdUnit": "AMOUNT", "currency": "SAR", "testFrequency": "ANNUAL" } }
+  ],
+  "terms": [
+    { "termType": "DUR.STATEMENT_OBJECTION_DAYS", "valueNumber": 30, "page": "p.9 §10" }
+  ]
+}

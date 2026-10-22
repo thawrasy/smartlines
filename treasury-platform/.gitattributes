@@ -1,0 +1,2 @@
+# The DS-AGR packs are fingerprinted byte for byte in their manifests: no line-ending conversion.
+app/tests/data/** -text

@@ -1,0 +1,14 @@
+{
+  "pack": "DS-AGR-B",
+  "version": 1,
+  "source": "docs/04 agreement B (structure only; DOC-B06 section 6.3 anonymisation)",
+  "preparedBy": "AI agent (disclosed)",
+  "preparedOn": "2026-10-22",
+  "reviewedBy": null,
+  "approvedBy": null,
+  "status": "PROPOSED",
+  "fingerprints": {
+    "agreement.json": "sha256:76c8e64ce2b99ba490ead37b189f82c6fcf5d8ff8395d2a43c514c5b49a323e4",
+    "summary.csv": "sha256:f17b6fa8601cbafa4c93ed1d5af09507e2b62e96b923dbe0ef2747ee0ea1d7fa"
+  }
+}

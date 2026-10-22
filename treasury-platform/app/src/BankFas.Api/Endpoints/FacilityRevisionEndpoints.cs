@@ -309,6 +309,7 @@ public static class FacilityRevisionEndpoints
     /// <summary>The revisioned tables of a facility that carry its FacilityId; a later batch adds its own (limits, lines, terms, pricing).</summary>
     internal static readonly (string Table, string Key)[] RevisionedTables =
     [
+        ("cmp.TermValue", "TermValueId"), ("obl.Covenant", "CovenantId"), ("obl.ReportingObligation", "ReportingObligationId"), ("obl.Obligation", "ObligationId"),
         ("col.CollateralLink", "CollateralLinkId"),
         ("fac.FacilityLender", "FacilityLenderId"), ("fac.FacilityDocument", "FacilityDocumentId"), ("prc.PricingTier", "PricingTierId"), ("prc.PricingRule", "PricingRuleId"),
         ("fac.ProductLineTerm", "ProductLineTermId"),
@@ -319,13 +320,17 @@ public static class FacilityRevisionEndpoints
     private static async Task DiscardRowsAsync(BoundUser u, SqlTransaction tx, long facility, int revision, CancellationToken ct)
     {
         foreach (var (table, _) in RevisionedTables)
+        {
+            // The rule and the covenant of an obligation reach the facility through it.
+            var of = table is "obl.ReportingObligation" or "obl.Covenant" ? "ObligationId IN (SELECT ObligationId FROM obl.Obligation WHERE FacilityId = @f)" : "FacilityId = @f";
             await u.Connection.ExecuteAsync(new CommandDefinition(
                 $"""
                 UPDATE {table} SET ToRevision = FromRevision, UpdatedAt = SYSUTCDATETIME(), UpdatedBy = CAST(SESSION_CONTEXT(N'UserId') AS BIGINT)
-                 WHERE FacilityId = @f AND FromRevision = @r AND ToRevision IS NULL;
+                 WHERE {of} AND FromRevision = @r AND ToRevision IS NULL;
                 UPDATE {table} SET ToRevision = NULL, UpdatedAt = SYSUTCDATETIME(), UpdatedBy = CAST(SESSION_CONTEXT(N'UserId') AS BIGINT)
-                 WHERE FacilityId = @f AND ToRevision = @r AND FromRevision < @r;
+                 WHERE {of} AND ToRevision = @r AND FromRevision < @r;
                 """, new { f = facility, r = revision }, tx, cancellationToken: ct));
+        }
     }
 
     /// <summary>The users who opened, edited or submitted the revision (BR-FAC-004).</summary>
@@ -355,6 +360,9 @@ public static class FacilityRevisionEndpoints
 
         // (0) The active utilisations and reservations follow their limits and lines into this revision (S2 brief 0.1 item 6).
         await FacilityTreeStore.RelinkAsync(u.Connection, tx, f.FacilityId, rev.RevisionNo, ct);
+        // (0b) The comparable terms of the revision, projected from its typed fields (DQ-F13-6), before the approved number moves.
+        var header = rev.Header(f);
+        var projected = await TermStore.ProjectAsync(u.Connection, tx, f.FacilityId, rev.RevisionNo, header.Effective, header.Expiry, header.TotalAmount, f.CurrencyId, ct);
         // (1) The revision is APPROVED, with what the approver saw and acknowledged (DQ-F13-3).
         await SetAsync(u, tx, rev, "APPROVED", "ApprovedBy = CAST(SESSION_CONTEXT(N'UserId') AS BIGINT), ApprovedOn = SYSUTCDATETIME(), IntegrityResult = @json",
             new { json = JsonSerializer.Serialize(new { errors = Array.Empty<object>(), warnings = check.Warnings.Select(w => new { code = w.Code, message = w.Message }), acknowledged }) }, ct);
@@ -368,8 +376,11 @@ public static class FacilityRevisionEndpoints
         await FacilityEndpoints.WriteHeaderAsync(u, tx, f.FacilityId, rev.Header(f), ct,
             ", ApprovedRevisionNo = @rev, LifecycleStatus = @status, LifecycleReason = CASE WHEN @status = 'ACTIVE' THEN NULL ELSE LifecycleReason END",
             new { rev = rev.RevisionNo, status });
+        // (3) The agenda of the approved rules, up to the horizon (DQ-F13-5, OQ-7); only future scheduled items change (FR-OBL-003).
+        var agenda = await ObligationStore.GenerateAsync(u.Connection, tx, f.FacilityId, rev.RevisionNo, clock.GetUtcNow().UtcDateTime.Date, ct);
         await AuditWriter.WriteAsync(u.Connection, tx, new AuditEntry("FAC_REVISION_APPROVED", "TREASURY", "fac.FacilityRevision", rev.FacilityRevisionId,
             AfterJson: JsonSerializer.Serialize(new { facility = f.PublicId, revisionNo = rev.RevisionNo, reasonKind = rev.ReasonKind, status, acknowledged })), f.BorrowerCompanyId, ct);
+        if (projected > 0) await Outbox.EmitAsync(u.Connection, tx, "term.value.changed", "fac.Facility", f.FacilityId, new { facility = f.PublicId, revisionNo = rev.RevisionNo }, ct);
         await Outbox.EmitAsync(u.Connection, tx, "facility.revision.approved", "fac.Facility", f.FacilityId,
             new { facility = f.PublicId, revisionNo = rev.RevisionNo, reasonKind = rev.ReasonKind }, ct);
         if (status != f.LifecycleStatus)
@@ -377,7 +388,7 @@ public static class FacilityRevisionEndpoints
         await StateAsync(u, tx, f, rev, "APPROVED", null, null, ct);
         // A renewal approved on or after its start replaces its predecessor now (OQ-15).
         var superseded = await FacilityValidity.SupersedeDueAsync(u.Connection, tx, clock.GetUtcNow().UtcDateTime.Date, f.FacilityId, ct);
-        return new { revisionNo = rev.RevisionNo, status, superseded };
+        return new { revisionNo = rev.RevisionNo, status, superseded, agenda };
     }
 
     private static readonly Dictionary<string, (string Ar, string En)> StateLabels = new(StringComparer.Ordinal)

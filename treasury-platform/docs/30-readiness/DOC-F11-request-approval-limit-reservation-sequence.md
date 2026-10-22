@@ -40,7 +40,7 @@
 | صندوق Outbox | 🟢 cfg.OutboxEvent | db/model/10-platform.model:532-552 |
 | قفل التسهيل ثم الحدود، وحساب المتاح، ورموز الرفض | 🟡 مواصفة فقط | 12-m5:252-253؛ 13-m6:306 |
 | إعادة المحاولة عند الجمود حتى 3 مرات بتراجع 50 مللي ثانية | 🟡 مواصفة فقط | 13-m6:315 |
-| اختبار 100 حجز متزامن | 🟡 غير مكتوب | docs/20-database-design.md:241، :493؛ NFR-PERF-03 |
+| اختبار 100 حجز متزامن | ✅ مكتوب في S2: LimitTests (AC-FAC-12، 40 ناجحًا و60 مرفوضًا) | docs/20-database-design.md:271، :493؛ NFR-PERF-03 |
 
 ## 3. المشاركون
 
@@ -257,7 +257,7 @@ DR-43 مفتوح: الفرادة في wfl.HookExecution لا تضم ActionFilter
 
 ## 12. الاختبار وربطه بـ NFR-PERF-03
 
-NFR-PERF-03: «100 طلب حجز متزامن على الحد نفسه: لا تجاوز للمتاح، ولكل طلب نتيجة محددة»، قبل خروج S2 على SQL Server 2025 (docs/30-readiness/DOC-B03-nfr-specification.md:30؛ docs/20-database-design.md:241؛ DOC-B01 §5.3).
+NFR-PERF-03: «100 طلب حجز متزامن على الحد نفسه: لا تجاوز للمتاح، ولكل طلب نتيجة محددة»، قبل خروج S2 على SQL Server 2025 (docs/30-readiness/DOC-B03-nfr-specification.md:30؛ docs/20-database-design.md:271؛ DOC-B01 §5.3).
 
 الاختبار المقترح 🟡:
 
@@ -312,4 +312,4 @@ NFR-PERF-03: «100 طلب حجز متزامن على الحد نفسه: لا ت�
 | §9 | FR-FAC-020، BR-WFL-016، Q-WFL-07 | docs/10-detailed-analysis/12-m5-facilities-pricing-collateral-obligations.md:127؛ docs/10-detailed-analysis/13-m6-workflow-engine-notifications.md:720 |
 | §10 | FR-WFL-033، FR-WFL-034، FR-WFL-038 | docs/10-detailed-analysis/13-m6-workflow-engine-notifications.md:154-155، :159 |
 | §11 | FR-WFL-023، BR-WFL-017 | docs/10-detailed-analysis/13-m6-workflow-engine-notifications.md:144، :248، :307، :311 |
-| §12 | NFR-PERF-03 | docs/30-readiness/DOC-B03-nfr-specification.md:30؛ docs/20-database-design.md:241 |
+| §12 | NFR-PERF-03 | docs/30-readiness/DOC-B03-nfr-specification.md:30؛ docs/20-database-design.md:271 |

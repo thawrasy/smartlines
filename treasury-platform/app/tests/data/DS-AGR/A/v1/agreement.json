@@ -1,0 +1,40 @@
+{
+  "pack": "A",
+  "about": "A renewal with a pack of annexes: one general limit and revolving, non-cumulative product lines, each at the general limit; audited statements in 210 days and internal half-year statements in 45 days.",
+  "bank": { "code": "BNK-A", "nameAr": "البنك (أ)", "nameEn": "Bank A" },
+  "facility": { "facilityType": "CREDIT_FACILITIES", "currency": "SAR", "totalAmount": 50000000, "effectiveFrom": "2028-01-06", "expiryDate": "2028-11-30", "bankReferenceNo": "SYN-A-001",
+    "precedenceLanguage": "AR", "agreementDate": "2028-01-06" },
+  "lenders": [ { "bank": "BNK-A", "sharePct": 100, "roles": [ "SOLE" ] } ],
+  "limits": [
+    { "code": "L0", "limitType": "TOTAL_FACILITY", "nameAr": "الحد العام", "amount": 50000000, "page": "p.2 §1" },
+    { "code": "DC", "limitType": "DOCUMENTARY_CREDITS", "nameAr": "الاعتمادات المستندية", "parent": "L0", "amount": 50000000, "distributionMode": "SHARED_CAP", "isRevolving": true, "page": "p.3 §2.1" },
+    { "code": "MT", "limitType": "MURABAHA_TAYSEER", "nameAr": "المرابحة والتيسير", "parent": "L0", "amount": 50000000, "distributionMode": "SHARED_CAP", "isRevolving": true, "page": "p.3 §2.2" },
+    { "code": "IC", "limitType": "INWARD_COLLECTIONS", "nameAr": "التحصيلات الواردة", "parent": "L0", "amount": 50000000, "distributionMode": "SHARED_CAP", "isRevolving": true, "page": "p.3 §2.3" }
+  ],
+  "lines": [
+    { "limit": "DC", "product": "LC_PURCHASE_CONV", "bankProductCode": "SYN-LC-1", "amount": 50000000, "page": "p.4" },
+    { "limit": "DC", "product": "LC_PURCHASE_MURABAHA", "bankProductCode": "SYN-LC-2", "amount": 50000000, "page": "p.4" },
+    { "limit": "MT", "product": "MURABAHA_FINANCING", "bankProductCode": "SYN-MR-1", "amount": 50000000, "page": "p.5" },
+    { "limit": "MT", "product": "TAYSEER_TAWARRUQ", "bankProductCode": "SYN-TW-1", "amount": 50000000, "page": "p.5" },
+    { "limit": "IC", "product": "COLLECTION_IMPORT", "bankProductCode": "SYN-IC-1", "amount": 50000000, "page": "p.6" }
+  ],
+  "pricing": [
+    { "scopeLimit": "MT", "financingType": "DECLINING_MURABAHA", "method": "BASE_PLUS_MARGIN", "baseRate": "SAIBOR_3M", "marginPct": 1.6, "rateFixing": "FIXED_FOR_CONTRACT", "dayCount": "ACT_360",
+      "periodBasis": "PER_ANNUM", "effectiveFrom": "2028-01-06", "bankMayChange": "WITH_NOTICE_OBJECTION", "objectionDays": 30, "objectionDaysKind": "BUSINESS", "page": "p.7 §4" }
+  ],
+  "obligations": [
+    { "obligationType": "AUDITED_ANNUAL_FS", "titleAr": "القوائم المالية المدققة", "page": "p.9 §8.1",
+      "reporting": { "frequency": "ANNUAL", "anchorKind": "AFTER_FISCAL_YEAR_END", "offsetValue": 210, "documentBasis": "AUDITED", "channelNote": "Through the bank's statements portal", "expectsEvidence": false } },
+    { "obligationType": "INTERNAL_SEMIANNUAL_FS", "titleAr": "القوائم المالية الداخلية النصف سنوية", "page": "p.9 §8.2",
+      "reporting": { "frequency": "SEMIANNUAL", "anchorKind": "AFTER_PERIOD_END", "offsetValue": 45, "documentBasis": "INTERNAL", "expectsEvidence": false } },
+    { "obligationType": "NOTICE_OWNERSHIP_CHANGE", "titleAr": "إخطار تغيير الشكل القانوني أو الملكية", "page": "p.10 §9.3",
+      "reporting": { "frequency": "EVENT_BASED", "anchorKind": "BEFORE_EVENT", "offsetValue": 30, "offsetUnit": "BUSINESS_DAYS", "documentBasis": "NOT_APPLICABLE", "expectsEvidence": false } },
+    { "obligationType": "SALES_PROCEEDS_DIRECTION", "titleAr": "توجيه متحصلات المبيعات إلى حسابات الشركة لدى البنك", "page": "p.11 §10.1",
+      "covenant": { "measureKind": "NONE", "thresholdState": "NOT_SPECIFIED_IN_AGREEMENT" } },
+    { "obligationType": "CASH_MGMT_SHARE", "titleAr": "حصة البنك من أعمال إدارة النقد", "page": "p.11 §10.2",
+      "covenant": { "measureKind": "NONE", "thresholdState": "NOT_SPECIFIED_IN_AGREEMENT" } }
+  ],
+  "terms": [
+    { "termType": "DUR.STATEMENT_OBJECTION_DAYS", "valueNumber": 15, "page": "p.12 §11" }
+  ]
+}
