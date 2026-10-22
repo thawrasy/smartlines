@@ -66,5 +66,9 @@ SQLCMDPASSWORD="$SA_PASSWORD" "$SQLCMD" -S "$SQL_SERVER" -U sa -C -I -b -d BankF
 
 cd "$ROOT/app/web"
 E2E_SETUP_LINK="https://admin.bankfas.test:$PORT/setup#token=$TOKEN" E2E_MAIL_DIR="$W/mail" E2E_PORT="$PORT" \
-    npx playwright test || fail "the browser tests failed"
+    npx playwright test || {
+        # The page as the failing step saw it (headings, notices, form errors), since CI keeps no artifacts.
+        find test-results -name error-context.md -exec sh -c 'echo "-- page at the failure"; head -200 "$1"' _ {} \;
+        fail "the browser tests failed"
+    }
 echo "browser tests passed"
