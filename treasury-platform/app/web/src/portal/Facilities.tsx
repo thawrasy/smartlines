@@ -277,6 +277,8 @@ export function FacilityDetail() {
           { header: 'Summary', cell: r => r.changeSummary },
         ]} />
       </section>
+      <LimitTree id={id!} draft={!!draft && open?.status === 'DRAFT'} edit={card.permissions.edit} onChange={load} />
+      <Utilizations id={id!} company={card.borrower.id} approved={card.approvedRevision > 0} />
       <FacilityAccounts id={id!} company={card.borrower.id} edit={card.permissions.edit} />
     </>
   );
@@ -317,6 +319,140 @@ function FacilityAccounts({ id, company, edit }: { id: string; company: string; 
           <Select label="Default" value={draft.isDefault} onChange={v => setDraft({ ...draft, isDefault: v })} options={[{ value: 'true', label: 'Yes' }, { value: 'false', label: 'No' }]} />
         </Form>
       )}
+    </>
+  );
+}
+
+// ---------- SCR-FAC-03 the limit tree, SCR-FAC-04 utilisation ----------
+
+interface Use { used: number; reserved: number; avail: number; bindingNode: string }
+interface TreeLine { id: string; product: string; productNameAr?: string; productNameEn?: string; bankProductCode?: string; cap?: number; isActive: boolean; use?: Use | null }
+interface TreeLimit {
+  limit: { id: string; parent?: string; code: string; type: string; nameAr: string; nameEn?: string; cap: number; distributionMode: string; depth: number; amountBasis: string; amount?: number; pctOfParent?: number };
+  use?: Use | null; lines: TreeLine[]; companyRules: { id: string; company: Named; kind: string; allocationAmount?: number; allocationPct?: number }[];
+}
+interface Tree { view: string; currency: string; total: number; outsideTotal: number; limits: TreeLimit[]; checks?: { code: string; severity: string; message: string }[] | null; canEdit: boolean }
+
+function LimitTree({ id, draft, edit, onChange }: { id: string; draft: boolean; edit: boolean; onChange: () => Promise<void> }) {
+  const { t, lang } = useI18n();
+  const [view, setView] = useState<'approved' | 'draft'>('approved');
+  const [tree, setTree] = useState<Tree | null>(null);
+  const [limit, setLimit] = useState({ code: '', limitType: 'DOCUMENTARY_CREDITS', parent: '', amount: '', pctOfParent: '', distributionMode: 'SHARED_CAP', noSourceReason: '' });
+  const [line, setLine] = useState({ limit: '', product: 'LC_PURCHASE_CONV', bankProductCode: '', amount: '', noSourceReason: '' });
+  const load = useCallback(async () => {
+    try { setTree(await api<Tree>('GET', `/facilities/${id}/limits${view === 'draft' ? '?view=draft' : ''}`)); } catch { setTree(null); }
+  }, [id, view]);
+  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { if (!draft) setView('approved'); }, [draft]);
+  const after = async () => { await load(); await onChange(); };
+  return (
+    <section className="card">
+      <h2>{t('Limits')}</h2>
+      {draft && <div className="row">
+        <button className={view === 'approved' ? '' : 'link'} onClick={() => setView('approved')}>{t('Approved')}</button>
+        <button className={view === 'draft' ? '' : 'link'} onClick={() => setView('draft')}>{t('Draft')}</button>
+      </div>}
+      {tree && <>
+        <p dir="ltr">{amount(tree.total)} {tree.currency}{tree.outsideTotal > 0 && <> · {t('Outside the total')}: {amount(tree.outsideTotal)}</>}</p>
+        {tree.checks?.map((c, i) => <p key={i} className={c.severity === 'E' ? 'error' : 'warn'}>{c.code}: {t(c.message)}</p>)}
+        <Table rows={tree.limits} columns={[
+          { header: 'Limit', cell: l => <span style={{ paddingInlineStart: `${(l.limit.depth - 1) * 1.5}em` }}><b dir="ltr">{l.limit.code}</b> {name(lang, l.limit)}</span> },
+          { header: 'Type', cell: l => t(l.limit.type) },
+          { header: 'Distribution', cell: l => t(l.limit.distributionMode) },
+          { header: 'Cap', cell: l => <span dir="ltr">{amount(l.limit.cap)}{l.limit.pctOfParent != null && ` (${l.limit.pctOfParent}%)`}</span> },
+          { header: 'Used', cell: l => l.use ? <span dir="ltr">{amount(l.use.used)}</span> : null },
+          { header: 'Reserved', cell: l => l.use ? <span dir="ltr">{amount(l.use.reserved)}</span> : null },
+          { header: 'Available', cell: l => l.use ? <span dir="ltr" className={l.use.avail < 0 ? 'error' : ''}>{amount(l.use.avail)}</span> : null },
+          { header: 'Bound by', cell: l => l.use?.bindingNode },
+          { header: 'Lines', cell: l => l.lines.map(x => <div key={x.id} dir="ltr">{x.bankProductCode ?? x.product} {x.cap != null && amount(x.cap)}{x.use && ` · ${amount(x.use.avail)}`}
+            {view === 'draft' && tree.canEdit && edit && <button className="link" onClick={async () => { await api('DELETE', `/facilities/${id}/lines/${x.id}`); await after(); }}>{t('Remove')}</button>}</div>) },
+          { header: '', cell: l => view === 'draft' && tree.canEdit && edit
+            ? <button className="link" onClick={async () => { await api('DELETE', `/facilities/${id}/limits/${l.limit.id}`); await after(); }}>{t('Remove')}</button> : null },
+        ]} />
+      </>}
+      {draft && edit && view === 'draft' && tree && <>
+        <Form title="Add a limit" submit="Add" onSubmit={async () => {
+          await api('POST', `/facilities/${id}/limits`, {
+            code: limit.code, limitType: limit.limitType, nameAr: limit.code, parent: limit.parent || undefined, distributionMode: limit.distributionMode,
+            amount: limit.pctOfParent ? undefined : Number(limit.amount), pctOfParent: limit.pctOfParent ? Number(limit.pctOfParent) : undefined, noSourceReason: limit.noSourceReason,
+          });
+          setLimit({ ...limit, code: '', amount: '', pctOfParent: '' });
+          await after();
+        }}>
+          <Field label="Code" value={limit.code} onChange={v => setLimit({ ...limit, code: v })} />
+          <Select label="Type" value={limit.limitType} onChange={v => setLimit({ ...limit, limitType: v })}
+            options={['TOTAL_FACILITY', 'DOCUMENTARY_CREDITS', 'GUARANTEES', 'MURABAHA_TAYSEER', 'DIRECT_CREDIT_SUBSTITUTES', 'FX_LIMIT', 'INWARD_COLLECTIONS', 'OVERDRAFT_REVOLVING', 'CARDS'].map(c => ({ value: c, label: c }))} />
+          <Select label="Parent" value={limit.parent} onChange={v => setLimit({ ...limit, parent: v })}
+            options={[{ value: '', label: 'None' }, ...tree.limits.map(l => ({ value: l.limit.id, label: l.limit.code }))]} />
+          <Field label="Amount" value={limit.amount} onChange={v => setLimit({ ...limit, amount: v })} type="number" required={false} />
+          <Field label="Percent of the parent" value={limit.pctOfParent} onChange={v => setLimit({ ...limit, pctOfParent: v })} type="number" required={false} />
+          <Select label="Distribution" value={limit.distributionMode} onChange={v => setLimit({ ...limit, distributionMode: v })}
+            options={['SHARED_CAP', 'PARTITION', 'OUTSIDE_TOTAL'].map(m => ({ value: m, label: m }))} />
+          <Field label="Source (or why there is none)" value={limit.noSourceReason} onChange={v => setLimit({ ...limit, noSourceReason: v })} />
+        </Form>
+        <Form title="Add a product line" submit="Add" onSubmit={async () => {
+          await api('POST', `/facilities/${id}/limits/${line.limit}/lines`, {
+            product: line.product, bankProductCode: line.bankProductCode || undefined, amount: line.amount ? Number(line.amount) : undefined, noSourceReason: line.noSourceReason,
+          });
+          setLine({ ...line, bankProductCode: '', amount: '' });
+          await after();
+        }}>
+          <Select label="Limit" value={line.limit} onChange={v => setLine({ ...line, limit: v })} options={[{ value: '', label: '' }, ...tree.limits.map(l => ({ value: l.limit.id, label: l.limit.code }))]} />
+          <Field label="Product" value={line.product} onChange={v => setLine({ ...line, product: v })} />
+          <Field label="Bank product code" value={line.bankProductCode} onChange={v => setLine({ ...line, bankProductCode: v })} required={false} />
+          <Field label="Line cap" value={line.amount} onChange={v => setLine({ ...line, amount: v })} type="number" required={false} />
+          <Field label="Source (or why there is none)" value={line.noSourceReason} onChange={v => setLine({ ...line, noSourceReason: v })} />
+        </Form>
+      </>}
+    </section>
+  );
+}
+
+interface Utilization { id: string; limitCode: string; product?: string; company: Named; reference: string; amount?: number | null; currency: string; startDate: string; status: string; releaseReason?: string }
+
+function Utilizations({ id, company, approved }: { id: string; company: string; approved: boolean }) {
+  const { t, lang } = useI18n();
+  const [rows, setRows] = useState<Utilization[]>([]);
+  const [limits, setLimits] = useState<TreeLimit[]>([]);
+  const [draft, setDraft] = useState({ limit: '', reference: '', amount: '' });
+  const [reason, setReason] = useState('');
+  const [notice, setNotice] = useState<{ ok?: string; error?: string }>({});
+  const load = useCallback(async () => {
+    setRows((await api<{ items: Utilization[] }>('GET', `/facilities/${id}/utilizations`)).items);
+    if (approved) setLimits((await api<Tree>('GET', `/facilities/${id}/limits`)).limits);
+  }, [id, approved]);
+  useEffect(() => { void load(); }, [load]);
+  const act = async (u: string, action: string, body: object) => {
+    setNotice({});
+    try { await api('POST', `/facilities/${id}/utilizations/${u}/actions/${action}`, { ...body, reason }); setReason(''); await load(); } catch (e) { setNotice({ error: message(e) }); }
+  };
+  if (!approved) return null;
+  return (
+    <>
+      <section className="card">
+        <h2>{t('Utilisation')}</h2>
+        <Notice error={notice.error} />
+        <Field label="Reason" value={reason} onChange={setReason} required={false} />
+        <Table rows={rows} columns={[
+          { header: 'Reference', cell: u => <span dir="ltr">{u.reference}</span> },
+          { header: 'Limit', cell: u => <span dir="ltr">{u.limitCode}{u.product && ` / ${u.product}`}</span> },
+          { header: 'Company', cell: u => name(lang, u.company) },
+          { header: 'Amount', cell: u => u.amount == null ? t('Hidden') : <span dir="ltr">{amount(u.amount)} {u.currency}</span> },
+          { header: 'Status', cell: u => t(u.status) },
+          { header: '', cell: u => u.status === 'ACTIVE' ? <span className="actions">
+            <button className="link" onClick={() => void act(u.id, 'release', {})}>{t('Release')}</button>
+          </span> : u.releaseReason },
+        ]} />
+      </section>
+      <Form title="Record a utilisation" submit="Record" onSubmit={async () => {
+        await api('POST', `/facilities/${id}/utilizations`, { limit: draft.limit, company, reference: draft.reference, amount: Number(draft.amount) });
+        setDraft({ ...draft, reference: '', amount: '' });
+        await load();
+      }}>
+        <Select label="Limit" value={draft.limit} onChange={v => setDraft({ ...draft, limit: v })} options={[{ value: '', label: '' }, ...limits.map(l => ({ value: l.limit.id, label: l.limit.code }))]} />
+        <Field label="Reference" value={draft.reference} onChange={v => setDraft({ ...draft, reference: v })} />
+        <Field label="Amount" value={draft.amount} onChange={v => setDraft({ ...draft, amount: v })} type="number" />
+      </Form>
     </>
   );
 }
