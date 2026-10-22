@@ -102,6 +102,7 @@ CompanyEndpoints.Map(portal);
 OwnershipEndpoints.Map(portal);
 GovernanceEndpoints.Map(portal);
 GrantEndpoints.Map(portal);
+SignatoryEndpoints.Map(portal);
 PartyEndpoints.Map(portal);
 InstitutionEndpoints.Map(portal);
 AccountEndpoints.Map(portal);

@@ -24,7 +24,7 @@ const today = () => new Date().toISOString().slice(0, 10);
 export const seesStructure = (me: ReturnType<typeof useMe>) =>
   ['org.ownership.manage', 'org.company.manage', 'org.body.manage', 'org.grant.create', 'org.grant.approve', 'audit.view.treasury'].some(p => can(me, p));
 
-function PartySearch({ onPick }: { onPick: (id: string, label: string) => void }) {
+export function PartySearch({ onPick }: { onPick: (id: string, label: string) => void }) {
   const { t, lang } = useI18n();
   const [q, setQ] = useState('');
   const [found, setFound] = useState<{ id: string; partyCode: string; nameAr?: string; nameEn?: string }[]>([]);

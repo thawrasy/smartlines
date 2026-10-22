@@ -18,7 +18,7 @@ public sealed record ContactRequest(string? FullNameAr, string? FullNameEn, stri
 public sealed record ContactDeactivateRequest(string? Reason, Dictionary<string, Guid?>? ProductReplacements, Guid? SubordinatesReportTo, bool? LeaveSubordinatesEmpty);
 public sealed record LinkPartyRequest(Guid? Party);
 public sealed record RelationshipRequest(Guid? Company, Guid? Institution, string? CustomerNo, string? Status, string? StartedOn, string? Notes);
-public sealed record CloseRequest(string? ClosedOn, string? Reason);
+public sealed record CloseRequest(string? ClosedOn, string? Reason, bool? RevokeSignatories = null);
 public sealed record CoverageRequest(Guid? Contact, string? Role, int? Rank, bool? IsPrimary, string? ValidFrom, string? Notes);
 public sealed record ReplaceCoverageRequest(Guid? Contact, string? ValidFrom);
 public sealed record EndCoverageRequest(string? ValidTo);
@@ -1002,6 +1002,18 @@ public static partial class InstitutionEndpoints
         var accounts = await u.Connection.ExecuteScalarAsync<int>(new CommandDefinition("SELECT COUNT(*) FROM acc.BankAccount WHERE RelationshipId = @r AND Status <> 'CLOSED';",
             new { r = r.RelationshipId }, tx, cancellationToken: ct));
         if (accounts > 0) throw new ApiProblemException(409, "V-INS-OPEN-ACCOUNTS", $"Close the {accounts} account(s) of this relationship first.");
+        // OQ-16: the signatories in force are listed, and revoked with the closing once the user confirms.
+        var signatories = await u.Connection.ExecuteScalarAsync<int>(new CommandDefinition(
+            "SELECT COUNT(*) FROM acc.Signatory WHERE RelationshipId = @r AND Status IN ('PENDING', 'ACTIVE', 'SUSPENDED');", new { r = r.RelationshipId }, tx, cancellationToken: ct));
+        if (signatories > 0 && b.RevokeSignatories != true)
+            throw new ApiProblemException(409, "V-INS-OPEN-SIGNATORIES", $"The relationship has {signatories} signatory(ies) in force; confirm to revoke them with the closing.");
+        if (signatories > 0)
+            await u.Connection.ExecuteAsync(new CommandDefinition(
+                """
+                UPDATE acc.Signatory SET Status = 'REVOKED', RevokedAt = SYSUTCDATETIME(), RevokedReason = N'Relationship closed', UpdatedAt = SYSUTCDATETIME(),
+                       UpdatedBy = CAST(SESSION_CONTEXT(N'UserId') AS BIGINT)
+                 WHERE RelationshipId = @r AND Status IN ('PENDING', 'ACTIVE', 'SUSPENDED');
+                """, new { r = r.RelationshipId }, tx, cancellationToken: ct));
         await u.Connection.ExecuteAsync(new CommandDefinition(
             """
             UPDATE ins.RelationshipContact SET ValidTo = CASE WHEN ValidFrom > @d THEN ValidFrom ELSE @d END, UpdatedAt = SYSUTCDATETIME(),
@@ -1015,7 +1027,7 @@ public static partial class InstitutionEndpoints
             """, new { r = r.RelationshipId, d = closedOn, reason }, tx, cancellationToken: ct));
         await Outbox.EmitAsync(u.Connection, tx, "relationship.closed", "ins.Relationship", r.RelationshipId, new { relationship = r.PublicId }, ct);
         await AuditWriter.WriteAsync(u.Connection, tx, new AuditEntry("RELATIONSHIP_CLOSED", "TREASURY", "ins.Relationship", r.RelationshipId,
-            BeforeJson: JsonSerializer.Serialize(new { r.Status }), AfterJson: JsonSerializer.Serialize(new { closedOn = D(closedOn), reason })), r.CompanyId, ct);
+            BeforeJson: JsonSerializer.Serialize(new { r.Status }), AfterJson: JsonSerializer.Serialize(new { closedOn = D(closedOn), reason, revokedSignatories = signatories })), r.CompanyId, ct);
         await tx.CommitAsync(ct);
         return Results.NoContent();
     }

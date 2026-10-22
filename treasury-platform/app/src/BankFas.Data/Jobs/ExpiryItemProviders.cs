@@ -27,7 +27,7 @@ public interface IExpiryItemProvider
 /// <summary>The providers of the expiry job; a slice adds its own here.</summary>
 public static class ExpiryItemProviders
 {
-    public static readonly IReadOnlyList<IExpiryItemProvider> All = [new CompanyDocumentExpiry(), new IdentityDocumentExpiry(), new BodyTermExpiry(), new AuthorityGrantExpiry()];
+    public static readonly IReadOnlyList<IExpiryItemProvider> All = [new CompanyDocumentExpiry(), new IdentityDocumentExpiry(), new BodyTermExpiry(), new AuthorityGrantExpiry(), new SignatoryExpiry()];
 
     internal static Dictionary<string, string?> Text(string? ar, string? en) => new(StringComparer.Ordinal) { ["ar"] = ar ?? en, ["en"] = en ?? ar };
 }
@@ -207,5 +207,55 @@ internal sealed class AuthorityGrantExpiry : IExpiryItemProvider
                 ["companyName"] = ExpiryItemProviders.Text(r.CompanyNameAr, r.CompanyNameEn),
                 ["partyName"] = ExpiryItemProviders.Text(r.HolderAr, r.HolderEn),
                 ["powerTypeLabel"] = ExpiryItemProviders.Text(r.PowerAr, r.PowerEn),
+            }))];
+}
+
+/// <summary>
+/// SIGNATORY (FR-ACC-019, BR-ACC-017): an active or suspended signatory, at the earliest of its own end, the end of an open
+/// authority and the expiry of its authorisation document. It is valid through that date, so the day-0 alert says
+/// "expires today"; JOB-ACC-EXPIRY makes it EXPIRED the day after.
+/// </summary>
+public sealed class SignatoryExpiry : IExpiryItemProvider
+{
+    public string ItemType => "SIGNATORY";
+    public string EventCode => "ACC.SIGNATORY_EXPIRY";
+    public string TargetType => "acc.Signatory";
+    public bool ValidThroughExpiryDate => true;
+
+    /// <summary>The earliest date per signatory; the report R-ACC-06 reads it too.</summary>
+    public const string Earliest =
+        """
+        SELECT s.SignatoryId, s.PublicId AS Signatory, p.NameAr, p.NameEn, r.CompanyId, co.CompanyCode AS Company, co.NameAr AS CompanyNameAr, co.NameEn AS CompanyNameEn,
+               i.Code AS Institution, i.NameAr AS InstitutionNameAr, i.NameEn AS InstitutionNameEn, e.ExpiryDate
+          FROM acc.Signatory AS s JOIN ins.Relationship AS r ON r.RelationshipId = s.RelationshipId JOIN org.Company AS co ON co.CompanyId = r.CompanyId
+          JOIN ins.Institution AS i ON i.InstitutionId = r.InstitutionId JOIN pty.Party AS p ON p.PartyId = s.PartyId
+          LEFT JOIN doc.Document AS d ON d.DocumentId = s.AuthorizationDocumentId
+         CROSS APPLY (SELECT MIN(v) AS ExpiryDate FROM (VALUES (s.ValidTo), (d.ExpiryDate),
+                        ((SELECT MIN(a.ValidTo) FROM acc.SignatoryAuthority AS a WHERE a.SignatoryId = s.SignatoryId AND a.SupersededById IS NULL AND a.ValidTo IS NOT NULL))) AS t (v)) AS e
+         WHERE s.Status IN ('ACTIVE', 'SUSPENDED') AND e.ExpiryDate IS NOT NULL
+        """;
+
+    private sealed class Row
+    {
+        public long SignatoryId { get; init; }
+        public DateTime ExpiryDate { get; init; }
+        public long CompanyId { get; init; }
+        public string? CompanyNameAr { get; init; }
+        public string? CompanyNameEn { get; init; }
+        public string? NameAr { get; init; }
+        public string? NameEn { get; init; }
+        public string? InstitutionNameAr { get; init; }
+        public string? InstitutionNameEn { get; init; }
+    }
+
+    public async Task<IReadOnlyList<ExpiryItem>> ItemsAsync(SqlConnection c, DateTime today, DateTime horizon, CancellationToken ct) =>
+        [.. (await c.QueryAsync<Row>(new CommandDefinition(
+            "SELECT x.SignatoryId, x.ExpiryDate, x.CompanyId, x.CompanyNameAr, x.CompanyNameEn, x.NameAr, x.NameEn, x.InstitutionNameAr, x.InstitutionNameEn FROM (" + Earliest +
+            ") AS x WHERE x.ExpiryDate <= @horizon;", new { horizon }, cancellationToken: ct)).ConfigureAwait(false))
+            .Select(r => new ExpiryItem(r.SignatoryId, r.ExpiryDate, r.CompanyId, new Dictionary<string, object?>
+            {
+                ["companyName"] = ExpiryItemProviders.Text(r.CompanyNameAr, r.CompanyNameEn),
+                ["partyName"] = ExpiryItemProviders.Text(r.NameAr, r.NameEn),
+                ["institutionName"] = ExpiryItemProviders.Text(r.InstitutionNameAr, r.InstitutionNameEn),
             }))];
 }

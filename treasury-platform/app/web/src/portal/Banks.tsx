@@ -4,6 +4,7 @@ import { api, apiWithETag, message } from '../api';
 import { useI18n } from '../i18n';
 import { Field, Form, Notice, Select, Table } from '../ui';
 import { can, useMe } from './Portal';
+import { SignatoriesPanel } from './Signatories';
 
 // The screens of spec 11 in S1: institutions (SCR-INS-01/02), the relationship with its coverage, products and
 // channels (SCR-INS-05), the bank set-up wizard (SCR-INS-06, FR-INS-014), bank accounts masked with the audited reveal
@@ -227,6 +228,7 @@ export function RelationshipDetail() {
           <Field label="Reason" value={reason} onChange={setReason} />
         </Form>
       )}
+      <SignatoriesPanel relationship={id!} />
     </>
   );
 }
