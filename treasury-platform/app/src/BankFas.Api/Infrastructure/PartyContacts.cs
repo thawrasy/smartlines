@@ -119,9 +119,34 @@ public static partial class PartyContacts
         if (n == 0) throw ApiProblemException.NotFound();
     }
 
-    public static async Task<long> AddContactMethodAsync(SqlConnection c, SqlTransaction tx, long partyId, string? partyCountryIso2, ContactMethodRequest m,
+    public static Task<long> AddContactMethodAsync(SqlConnection c, SqlTransaction tx, long partyId, string? partyCountryIso2, ContactMethodRequest m,
+        CancellationToken ct) => AddContactMethodAsync(c, tx, Owner.Party, partyId, partyCountryIso2, m, ct);
+
+    /// <summary>The owner of a contact method: a party, an institution, one of its units or one of its contacts (pty.ContactMethod CHECK 1).</summary>
+    public enum Owner { Party, Institution, Unit, Contact }
+
+    private static string Column(Owner o) => o switch
+    {
+        Owner.Party => "PartyId", Owner.Institution => "InstitutionId", Owner.Unit => "UnitId", _ => "ContactId",
+    };
+
+    public static async Task<object[]> MethodsAsync(SqlConnection c, SqlTransaction? tx, Owner owner, long ownerId, OpaqueRefs refs, int tenantId, CancellationToken ct)
+    {
+        var methods = await c.QueryAsync<(long Id, string Kind, string Value, string NormalizedValue, string? Label, bool IsPrimary)>(new CommandDefinition(
+            $"SELECT ContactMethodId, Kind, Value, NormalizedValue, Label, IsPrimary FROM pty.ContactMethod WHERE {Column(owner)} = @o ORDER BY Kind, IsPrimary DESC, ContactMethodId;",
+            new { o = ownerId }, tx, cancellationToken: ct));
+        return [.. methods.Select(m => (object)new
+        {
+            id = refs.ItemRef(tenantId, "contact-method", m.Id), kind = m.Kind, value = m.Value, normalizedValue = m.NormalizedValue, label = m.Label, isPrimary = m.IsPrimary,
+        })];
+    }
+
+    public static async Task<long> AddContactMethodAsync(SqlConnection c, SqlTransaction tx, Owner owner, long ownerId, string? countryIso2, ContactMethodRequest m,
         CancellationToken ct)
     {
+        var column = Column(owner);
+        var partyId = ownerId;
+        var partyCountryIso2 = countryIso2;
         var kind = m.Kind?.Trim().ToUpperInvariant();
         if (kind is null || !Kinds.Contains(kind)) throw ApiProblemException.Invalid("VALIDATION_FAILED", "Choose the kind of contact.");
         var value = T(m.Value, 200, "value") ?? throw ApiProblemException.Invalid("VALIDATION_FAILED", "Enter the value.");
@@ -134,14 +159,14 @@ public static partial class PartyContacts
             _ => value.ToLowerInvariant(),
         };
         if (m.IsPrimary == true)
-            await c.ExecuteAsync(new CommandDefinition("UPDATE pty.ContactMethod SET IsPrimary = 0, UpdatedAt = SYSUTCDATETIME() WHERE PartyId = @p AND Kind = @kind AND IsPrimary = 1;",
+            await c.ExecuteAsync(new CommandDefinition($"UPDATE pty.ContactMethod SET IsPrimary = 0, UpdatedAt = SYSUTCDATETIME() WHERE {column} = @p AND Kind = @kind AND IsPrimary = 1;",
                 new { p = partyId, kind }, tx, cancellationToken: ct));
         try
         {
             return await c.ExecuteScalarAsync<long>(new CommandDefinition(
-                """
+                $"""
                 DECLARE @o TABLE (Id BIGINT);
-                INSERT pty.ContactMethod (TenantId, PartyId, Kind, Value, NormalizedValue, Label, IsPrimary, CreatedBy)
+                INSERT pty.ContactMethod (TenantId, {column}, Kind, Value, NormalizedValue, Label, IsPrimary, CreatedBy)
                 OUTPUT inserted.ContactMethodId INTO @o
                 VALUES (CAST(SESSION_CONTEXT(N'TenantId') AS INT), @p, @kind, @value, @normalized, @label, @primary, CAST(SESSION_CONTEXT(N'UserId') AS BIGINT));
                 SELECT Id FROM @o;
@@ -153,9 +178,12 @@ public static partial class PartyContacts
         }
     }
 
-    public static async Task DeleteContactMethodAsync(SqlConnection c, SqlTransaction tx, long partyId, long id, CancellationToken ct)
+    public static Task DeleteContactMethodAsync(SqlConnection c, SqlTransaction tx, long partyId, long id, CancellationToken ct) =>
+        DeleteContactMethodAsync(c, tx, Owner.Party, partyId, id, ct);
+
+    public static async Task DeleteContactMethodAsync(SqlConnection c, SqlTransaction tx, Owner owner, long ownerId, long id, CancellationToken ct)
     {
-        var n = await c.ExecuteAsync(new CommandDefinition("DELETE FROM pty.ContactMethod WHERE ContactMethodId = @id AND PartyId = @p;", new { id, p = partyId }, tx,
+        var n = await c.ExecuteAsync(new CommandDefinition($"DELETE FROM pty.ContactMethod WHERE ContactMethodId = @id AND {Column(owner)} = @p;", new { id, p = ownerId }, tx,
             cancellationToken: ct));
         if (n == 0) throw ApiProblemException.NotFound();
     }

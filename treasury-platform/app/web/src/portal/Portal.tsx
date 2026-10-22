@@ -5,6 +5,7 @@ import { LangSwitch, useI18n } from '../i18n';
 import { StepUpProvider } from '../ui';
 import { Enrol, ForgotPassword, Invitation, Login, Mfa, ResetPassword, type Tenant } from './Auth';
 import { Audit, Jobs, Numbering, Settings, Support } from './Admin';
+import { Accounts, BankSetup, BaseRates, InstitutionDetail, Institutions, RelationshipDetail } from './Banks';
 import { Catalogs } from './Catalogs';
 import { Companies, CompanyDetail, Departments, DocumentRegister } from './Companies';
 import { CustomFieldDefinitions, Parties, PartyDetail, PartyDuplicates } from './Parties';
@@ -37,6 +38,9 @@ const menu: { to: string; label: string; permission?: string; anyOf?: string[] }
   { to: '/parties', label: 'Persons and entities', permission: 'party.view' },
   { to: '/parties/duplicates', label: 'Possible duplicates', permission: 'party.merge' },
   { to: '/custom-fields', label: 'Custom fields', permission: 'party.field.manage' },
+  { to: '/institutions', label: 'Banks and lenders', permission: 'ins.view' },
+  { to: '/accounts', label: 'Bank accounts', permission: 'acc.view' },
+  { to: '/base-rates', label: 'Base rates', permission: 'cat.view' },
   { to: '/catalogs', label: 'Catalogues', anyOf: ['cat.manage.general', 'cat.manage.financial'] },
   { to: '/profile', label: 'My profile' },
 ];
@@ -89,6 +93,12 @@ function Shell() {
               <Route path="/parties/duplicates" element={<PartyDuplicates />} />
               <Route path="/parties/:id" element={<PartyDetail />} />
               <Route path="/custom-fields" element={<CustomFieldDefinitions />} />
+              <Route path="/institutions" element={<Institutions />} />
+              <Route path="/institutions/:id" element={<InstitutionDetail />} />
+              <Route path="/relationships/:id" element={<RelationshipDetail />} />
+              <Route path="/bank-setup" element={<BankSetup />} />
+              <Route path="/accounts" element={<Accounts />} />
+              <Route path="/base-rates" element={<BaseRates />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="*" element={<Navigate to="/" />} />
             </Routes>
