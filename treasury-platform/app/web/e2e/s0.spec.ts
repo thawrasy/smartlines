@@ -1,6 +1,8 @@
 // The S0 exit path (AC-PLT-5) in a browser: the operator sets up from the deployment's link and signs in with TOTP,
 // creates a tenant with a fresh code, the worker invites its first administrator, who sets a password, scans the QR
-// code, keeps the recovery codes and reaches the portal; the portal then switches to Arabic, right to left.
+// code, keeps the recovery codes and reaches the portal; the portal then switches to Arabic, right to left. Then the
+// S1 exit path (AC-INS-1): the administrator adds a company and onboards a bank with the set-up wizard, whose review
+// warns of the products without a default contact before anything is created.
 import { expect, test } from '@playwright/test';
 import { writeFileSync } from 'node:fs';
 import { Authenticator, base32Decode, linkSentTo } from './helpers';
@@ -102,4 +104,36 @@ test('an operator onboards a tenant and its first administrator signs in', async
   await expect(page.locator('html')).toHaveAttribute('lang', 'ar');
   await expect(page.getByRole('heading', { name: /^أهلًا / })).toBeVisible();
   await expect(page.getByRole('button', { name: 'English' })).toBeVisible();
+  await page.getByRole('button', { name: 'English' }).click();
+
+  // S1: a company, then a bank with the wizard (AC-INS-1).
+  await page.getByRole('link', { name: 'Companies', exact: true }).click();
+  await page.getByLabel(/^Company code/).fill('C1');
+  await page.getByLabel(/^Name \(Arabic\)/).fill('الشركة الأولى');
+  await page.getByLabel(/^Name \(English\)/).fill('First Company');
+  await page.getByLabel(/^Country/).fill('SA');
+  await page.getByLabel(/^Fiscal year ends in month/).fill('12');
+  await page.getByRole('button', { name: 'Create' }).click();
+  await expect(page.getByRole('heading', { name: /First Company|الشركة الأولى/ })).toBeVisible();
+
+  await page.getByRole('link', { name: 'Banks and lenders' }).click();
+  await page.getByRole('link', { name: 'Bank set-up wizard' }).click();
+  await page.getByLabel(/^Code/).fill('BNK1');
+  await page.getByLabel(/^Name \(Arabic\)/).fill('البنك الأول');
+  await page.getByLabel(/^Country/).fill('AE');
+  await page.getByRole('button', { name: 'Next' }).click();
+  await page.getByRole('checkbox', { name: /First Company/ }).check();
+  await page.getByPlaceholder('Customer number').fill('10001');
+  await page.getByRole('button', { name: 'Next' }).click();
+  await page.getByPlaceholder('Name (Arabic)').fill('مدير العلاقة');
+  await page.getByPlaceholder('Mobile').fill('0501234567');
+  await page.getByRole('button', { name: 'Add' }).click();
+  await page.getByLabel(/^Relationship manager/).selectOption({ label: 'مدير العلاقة' });
+  await page.getByRole('button', { name: 'Next' }).click();
+  await page.getByRole('checkbox', { name: /^Purchase letter of credit \(conventional\) · First Company$/ }).check();
+  await page.getByRole('button', { name: 'Review' }).click();
+  await expect(page.getByText('Products without a default contact (1)')).toBeVisible();
+  await page.getByRole('button', { name: 'Create' }).click();
+  await expect(page.getByRole('heading', { name: /BNK1/ })).toBeVisible();
+  await expect(page.getByRole('link', { name: /First Company|الشركة الأولى/ })).toBeVisible();
 });

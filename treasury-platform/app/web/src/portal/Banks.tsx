@@ -15,12 +15,22 @@ interface Named { id: string; companyCode?: string; code?: string; nameAr?: stri
 
 const name = (lang: string, x: { nameAr?: string; nameEn?: string }) => (lang === 'ar' ? x.nameAr ?? x.nameEn : x.nameEn ?? x.nameAr) ?? '';
 
+/** The warnings of the API, by code, in words. */
+const WARNINGS: Record<string, string> = {
+  'W-INS-NO-DEFAULT-CONTACT': 'Products without a default contact',
+  'W-INS-NO-RM': 'A relationship without a relationship manager:',
+  'W-INS-NO-MANAGER': 'Contacts left without a manager',
+  'V-INS-02-BIC': 'The BIC is used by another institution:',
+  'V-INS-02-NAME': 'A similar name to another institution:',
+  'V-INS-05-CUSTOMER-NO': 'The customer number is used for another company:',
+};
+
 function Warnings({ items }: { items: Warning[] }) {
   const { t } = useI18n();
   if (items.length === 0) return null;
   return (
     <ul className="notice">
-      {items.map((w, i) => <li key={i}>{t(w.code)}{w.count !== undefined ? ` (${w.count})` : ''}{w.institution ? ` ${w.institution}` : ''}{w.company ? ` ${w.company}` : ''}</li>)}
+      {items.map((w, i) => <li key={i}>{t(WARNINGS[w.code] ?? w.code)}{w.count !== undefined ? ` (${w.count})` : ''}{w.institution ? ` ${w.institution}` : ''}{w.company ? ` ${w.company}` : ''}</li>)}
     </ul>
   );
 }
@@ -316,16 +326,16 @@ export function BankSetup() {
                 const m = matrix[cell];
                 return (
                   <td key={cid}>
-                    <input type="checkbox" checked={!!m} onChange={e => {
+                    <input type="checkbox" checked={!!m} aria-label={`${name(lang, p)} · ${name(lang, companies.find(c => c.id === cid) ?? {})}`} onChange={e => {
                       const next = { ...matrix };
                       if (e.target.checked) next[cell] = { channel: 'MANUAL_FORM', contact: '' }; else delete next[cell];
                       setMatrix(next);
                     }} />
                     {m && <>
-                      <select value={m.channel} onChange={e => setMatrix({ ...matrix, [cell]: { ...m, channel: e.target.value } })}>
+                      <select aria-label={t('Channel')} value={m.channel} onChange={e => setMatrix({ ...matrix, [cell]: { ...m, channel: e.target.value } })}>
                         <option value="MANUAL_FORM">{t('MANUAL_FORM')}</option><option value="BANK_PORTAL">{t('BANK_PORTAL')}</option>
                       </select>
-                      <select value={m.contact} onChange={e => setMatrix({ ...matrix, [cell]: { ...m, contact: e.target.value } })}>
+                      <select aria-label={t('Default contact')} value={m.contact} onChange={e => setMatrix({ ...matrix, [cell]: { ...m, contact: e.target.value } })}>
                         <option value="">{t('The relationship manager')}</option>{contacts.map(c => <option key={c.key} value={c.key}>{c.fullNameAr}</option>)}
                       </select>
                     </>}
