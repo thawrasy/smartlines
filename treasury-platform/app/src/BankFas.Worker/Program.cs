@@ -23,6 +23,7 @@ builder.Services.AddSingleton<OutboxJob>();
 builder.Services.AddSingleton<NotificationDispatchJob>();
 builder.Services.AddSingleton<ExpiryAlertJob>();
 builder.Services.AddSingleton<SignatoryExpiryJob>();
+builder.Services.AddSingleton<GovernanceJob>();
 builder.Services.AddSingleton<OutboxPurgeJob>();
 builder.Services.AddSingleton<JobRunPurgeJob>();
 builder.Services.AddSingleton<TrialReminderJob>();

@@ -123,8 +123,8 @@ public sealed class OutboxJob(SqlConnectionFactory db, IMailSender mail) : Tenan
     {
         "company.created", "party.created", "party.merged", "identity_document.renewed", "document.uploaded", "document.version_added",
         "institution.created", "relationship.created", "relationship.closed", "account.created", "account.closed",
-        // S1-b: the structure and the signatories (the governance comparison consumes authority.granted and revoked, S1B-E)
-        "ownership.changed", "body.changed", "authority.granted", "authority.revoked", "signatory.activated",
+        // S1-b: the structure and the signatories; the governance comparison consumes authority.granted and authority.revoked below
+        "ownership.changed", "body.changed", "signatory.activated",
         "signatory.authority.changed", "authority.conflict.opened", "authority.conflict.resolved",
     };
 
@@ -186,6 +186,19 @@ public sealed class OutboxJob(SqlConnectionFactory db, IMailSender mail) : Tenan
             return;
         }
         if (NoConsumerYet.Contains(ev.EventName)) return;
+        if (ev.EventName is "authority.granted" or "authority.revoked")
+        {
+            // A grant that starts, ends or is replaced changes the comparison of its company's bank authorities (BR-ACC-015).
+            using var granted = JsonDocument.Parse(ev.PayloadJson);
+            if (!granted.RootElement.TryGetProperty("grant", out var g) || !g.TryGetGuid(out var grantId)) return;
+            var company = await c.ExecuteScalarAsync<long?>(new CommandDefinition("SELECT CompanyId FROM org.AuthorityGrant WHERE PublicId = @g;",
+                new { g = grantId }, cancellationToken: ct)).ConfigureAwait(false);
+            if (company is null) return;
+            await using var tx = (SqlTransaction)await c.BeginTransactionAsync(ct).ConfigureAwait(false);
+            await Governance.GovernanceComparer.ReconcileAsync(c, tx, company, null, DateTime.UtcNow.Date, null, ct).ConfigureAwait(false);
+            await tx.CommitAsync(ct).ConfigureAwait(false);
+            return;
+        }
         if (ev.EventName != "tenant.status_changed") throw new InvalidOperationException($"No consumer for the event {ev.EventName}.");
         using var payload = JsonDocument.Parse(ev.PayloadJson);
         var to = payload.RootElement.GetProperty("to").GetString();

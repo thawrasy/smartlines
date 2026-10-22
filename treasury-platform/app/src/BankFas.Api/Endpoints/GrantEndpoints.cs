@@ -359,7 +359,7 @@ public static class GrantEndpoints
                 new { g = old }, tx, cancellationToken: ct));
             if (oldStatus != "ACTIVE") throw new ApiProblemException(409, "V-ORG-GRANT-STATE", "The grant this one replaces is no longer active.");
             await SetStatusAsync(u, tx, old, "SUPERSEDED", ct);
-            await Outbox.EmitAsync(u.Connection, tx, "authority.revoked", "org.AuthorityGrant", old, new { grant = old, reason = "SUPERSEDED", by = g.PublicId }, ct);
+            await Outbox.EmitAsync(u.Connection, tx, "authority.revoked", "org.AuthorityGrant", old, new { grant = g.Supersedes, reason = "SUPERSEDED", by = g.PublicId }, ct);
         }
         await u.Connection.ExecuteAsync(new CommandDefinition(
             """

@@ -103,6 +103,7 @@ OwnershipEndpoints.Map(portal);
 GovernanceEndpoints.Map(portal);
 GrantEndpoints.Map(portal);
 SignatoryEndpoints.Map(portal);
+ConflictEndpoints.Map(portal);
 PartyEndpoints.Map(portal);
 InstitutionEndpoints.Map(portal);
 AccountEndpoints.Map(portal);

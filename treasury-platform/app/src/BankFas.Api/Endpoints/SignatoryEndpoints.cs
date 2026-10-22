@@ -449,7 +449,7 @@ public static class SignatoryEndpoints
     /// the same account and operation, it closes the day before and the new row supersedes it. V-ACC-05 refuses, V-ACC-06
     /// warns when the period runs past the authorisation document's expiry.
     /// </summary>
-    private static async Task<IResult> AddAuthorityAsync(Guid id, AuthorityRequest b, HttpContext http, SqlConnectionFactory db, OpaqueRefs refs)
+    private static async Task<IResult> AddAuthorityAsync(Guid id, AuthorityRequest b, HttpContext http, SqlConnectionFactory db, OpaqueRefs refs, TimeProvider clock)
     {
         var from = GovernanceEndpoints.Date(b.ValidFrom, "start date") ?? throw ApiProblemException.Invalid("V-ACC-05", "Give the start date.");
         var to = GovernanceEndpoints.Date(b.ValidTo, "end date");
@@ -518,11 +518,15 @@ public static class SignatoryEndpoints
                 new { id = open.SignatoryAuthorityId, n = newId }, tx, cancellationToken: http.RequestAborted));
         var warnings = new List<string>();
         if (s.DocumentExpiry is { } e && (to is null || to > e)) warnings.Add("V-ACC-06");
+        // V-ACC-07: the comparison with governance runs on every save; a conflict is a warning, never a refusal (Q-ACC-06).
+        var compared = await Data.Governance.GovernanceComparer.ReconcileAsync(u.Connection, tx, null, s.SignatoryId, GovernanceEndpoints.Today(clock), u.UserId, http.RequestAborted);
+        var conflicts = compared.Current.Where(c => c.AuthorityId == newId).Select(c => c.Code).ToArray();
+        if (conflicts.Length > 0) warnings.Add("V-ACC-07");
         await Outbox.EmitAsync(u.Connection, tx, "signatory.authority.changed", "acc.Signatory", s.SignatoryId, new { signatory = s.PublicId }, http.RequestAborted);
         await AuditWriter.WriteAsync(u.Connection, tx, new AuditEntry(open is null ? "AUTHORITY_ADDED" : "AUTHORITY_SUPERSEDED", "TREASURY", "acc.SignatoryAuthority", newId,
             AfterJson: JsonSerializer.Serialize(new { operation = b.OperationType, mode, from = D(from), supersedes = open?.SignatoryAuthorityId })), s.CompanyId, http.RequestAborted);
         await tx.CommitAsync(http.RequestAborted);
-        return Results.Created($"/api/v1/signatories/{s.PublicId}/authorities", new { id = refs.ItemRef(u.TenantId, "signatory-authority", newId), warnings });
+        return Results.Created($"/api/v1/signatories/{s.PublicId}/authorities", new { id = refs.ItemRef(u.TenantId, "signatory-authority", newId), warnings, conflicts });
     }
 
     private static async Task<IResult> EndAuthorityAsync(Guid id, string reference, MemberEndRequest b, HttpContext http, SqlConnectionFactory db, OpaqueRefs refs)

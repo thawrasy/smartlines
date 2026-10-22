@@ -9,6 +9,7 @@ import { Accounts, BankSetup, BaseRates, InstitutionDetail, Institutions, Relati
 import { Catalogs } from './Catalogs';
 import { Companies, CompanyDetail, Departments, DocumentRegister } from './Companies';
 import { OwnershipMismatch, StructureIntegrity } from './Structure';
+import { AuthorityConflicts } from './Signatories';
 import { CustomFieldDefinitions, Parties, PartyDetail, PartyDuplicates } from './Parties';
 import { Bell, Notifications, NotificationSettings } from './Notifications';
 import { Profile } from './Profile';
@@ -38,6 +39,7 @@ const menu: { to: string; label: string; permission?: string; anyOf?: string[] }
   { to: '/documents', label: 'Company documents', permission: 'org.document.view' },
   { to: '/reports/ownership-mismatch', label: 'Ownership check', permission: 'org.ownership.manage' },
   { to: '/reports/structure-integrity', label: 'Structure integrity', permission: 'org.body.manage' },
+  { to: '/authority-conflicts', label: 'Governance conflicts', permission: 'sig.view' },
   { to: '/departments', label: 'Departments', permission: 'org.company.manage' },
   { to: '/parties', label: 'Persons and entities', permission: 'party.view' },
   { to: '/parties/duplicates', label: 'Possible duplicates', permission: 'party.merge' },
@@ -97,6 +99,7 @@ function Shell() {
               <Route path="/documents" element={<DocumentRegister />} />
               <Route path="/reports/ownership-mismatch" element={<OwnershipMismatch />} />
               <Route path="/reports/structure-integrity" element={<StructureIntegrity />} />
+              <Route path="/authority-conflicts" element={<AuthorityConflicts />} />
               <Route path="/departments" element={<Departments />} />
               <Route path="/parties" element={<Parties />} />
               <Route path="/parties/duplicates" element={<PartyDuplicates />} />

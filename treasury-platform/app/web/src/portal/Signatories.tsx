@@ -103,3 +103,46 @@ export function SignatoriesPanel({ relationship }: { relationship: string }) {
     </section>
   );
 }
+
+interface Conflict {
+  id: string; code: string; label?: { ar: string; en: string }; status: string; detectedOn: string; reason?: string;
+  company: { id: string; code: string }; institution: string; signatory: { nameAr: string; nameEn?: string }; operation: string; account?: string;
+}
+
+/** SCR-ACC-06 and R-ACC-04: the open and acknowledged governance conflicts; acknowledging takes a written reason. */
+export function AuthorityConflicts() {
+  const { t, lang } = useI18n();
+  const [status, setStatus] = useState('');
+  const [data, setData] = useState<{ canAcknowledge: boolean; items: Conflict[] }>({ canAcknowledge: false, items: [] });
+  const [notice, setNotice] = useState<{ ok?: string; error?: string }>({});
+  const load = useCallback(async () => setData(await api<typeof data>('GET', `/authority-conflicts${status ? `?status=${status}` : ''}`)), [status]);
+  useEffect(() => { void load(); }, [load]);
+  return (
+    <section className="card">
+      <h1>{t('Governance conflicts')}</h1>
+      <Notice error={notice.error} ok={notice.ok} />
+      <div className="actions">
+        <select aria-label={t('Status')} value={status} onChange={e => setStatus(e.target.value)}>
+          <option value="">{t('Open and acknowledged')}</option>
+          <option value="ALL">{t('All')}</option>
+          <option value="RESOLVED">{t('RESOLVED')}</option>
+        </select>
+        <button className="secondary" onClick={() => void api('GET', `/authority-conflicts?status=${status || ''}&print=true`).then(() => window.print())}>{t('Print')}</button>
+      </div>
+      <Table rows={data.items} columns={[
+        { header: 'Company', cell: c => <span dir="ltr">{c.company.code}</span> },
+        { header: 'Bank', cell: c => <span dir="ltr">{c.institution}</span> },
+        { header: 'Signatory', cell: c => name(lang, c.signatory) },
+        { header: 'Operation', cell: c => t(c.operation) },
+        { header: 'Conflict', cell: c => c.label ? (lang === 'ar' ? c.label.ar : c.label.en) : c.code },
+        { header: 'Status', cell: c => t(c.status) },
+        { header: 'Decision', cell: c => c.reason ?? '' },
+        { header: '', cell: c => data.canAcknowledge && c.status === 'OPEN' ? (
+          <button className="link" onClick={() => {
+            const reason = window.prompt(t('Reason'));
+            if (reason) void api('POST', `/authority-conflicts/${c.id}/actions/acknowledge`, { reason }).then(load).catch(e => setNotice({ error: message(e) }));
+          }}>{t('Acknowledge')}</button>) : '' },
+      ]} />
+    </section>
+  );
+}

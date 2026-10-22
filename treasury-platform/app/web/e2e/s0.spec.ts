@@ -136,4 +136,12 @@ test('an operator onboards a tenant and its first administrator signs in', async
   await page.getByRole('button', { name: 'Create' }).click();
   await expect(page.getByRole('heading', { name: /BNK1/ })).toBeVisible();
   await expect(page.getByRole('link', { name: /First Company|الشركة الأولى/ })).toBeVisible();
+
+  // S1-b: the ownership tab of the company and the governance conflicts report (R-ACC-04).
+  await page.getByRole('link', { name: 'Companies', exact: true }).click();
+  await page.getByRole('link', { name: 'C1' }).click();
+  await page.getByRole('tab', { name: 'Ownership' }).click();
+  await expect(page.getByText(/Direct holdings total/)).toBeVisible();
+  await page.getByRole('link', { name: 'Governance conflicts' }).click();
+  await expect(page.getByRole('heading', { name: 'Governance conflicts' })).toBeVisible();
 });
