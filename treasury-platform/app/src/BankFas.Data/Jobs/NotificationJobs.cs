@@ -150,7 +150,118 @@ public sealed class ExpiryAlertJob(SqlConnectionFactory db, TimeProvider clock, 
                 sent++;
             }
         }
+        sent += await OwnershipMismatchAsync(c, today, ct).ConfigureAwait(false);
+        sent += await StructureChecksAsync(c, today, ct).ConfigureAwait(false);
         return sent == 0 ? null : $"alerts {sent}";
+    }
+
+    private sealed class StructureRow
+    {
+        public string Kind { get; init; } = "";
+        public long TargetId { get; init; }
+        public long PositionId { get; init; }
+        public DateTime Since { get; init; }
+        public long CompanyId { get; init; }
+        public string? CompanyNameAr { get; init; }
+        public string? CompanyNameEn { get; init; }
+        public string? BodyNameAr { get; init; }
+        public string? BodyNameEn { get; init; }
+        public string BodyType { get; init; } = "";
+        public string? PartyNameAr { get; init; }
+        public string? PartyNameEn { get; init; }
+        public string? LabelAr { get; init; }
+        public string? LabelEn { get; init; }
+    }
+
+    /// <summary>
+    /// Two daily checks of the structure, each told once: a single-holder position of an active body that had a holder
+    /// and has none today (BODY.TERM_EXPIRY "vacant", FR-ORG-022, owner default OQ-3), and an active grant to a member who
+    /// has left the position (GRANT.EXPIRY, FR-ORG-028).
+    /// </summary>
+    private static async Task<int> StructureChecksAsync(SqlConnection c, DateTime today, CancellationToken ct)
+    {
+        var rows = (await c.QueryAsync<StructureRow>(new CommandDefinition(
+            """
+            SELECT 'VACANT' AS Kind, b.GoverningBodyId AS TargetId, v.PositionId, v.Since, b.CompanyId, co.NameAr AS CompanyNameAr, co.NameEn AS CompanyNameEn,
+                   b.NameAr AS BodyNameAr, b.NameEn AS BodyNameEn, b.BodyType, p.NameAr AS PartyNameAr, p.NameEn AS PartyNameEn, pos.NameAr AS LabelAr, pos.NameEn AS LabelEn
+              FROM org.GoverningBody AS b JOIN org.Company AS co ON co.CompanyId = b.CompanyId AND co.Status = 'ACTIVE'
+             CROSS APPLY (SELECT DISTINCT m.PositionId FROM org.BodyMember AS m JOIN cat.Position AS sp ON sp.PositionId = m.PositionId AND sp.IsSingleHolder = 1
+                           WHERE m.BodyId = b.GoverningBodyId) AS sh
+             CROSS APPLY (SELECT TOP (1) m.PositionId, m.PartyId, DATEADD(DAY, 1, COALESCE(DATEADD(DAY, -1, m.ResignedOn), m.TermEnd)) AS Since
+                            FROM org.BodyMember AS m
+                           WHERE m.BodyId = b.GoverningBodyId AND m.PositionId = sh.PositionId AND m.TermStart <= @d
+                           ORDER BY m.TermStart DESC) AS v
+              JOIN pty.Party AS p ON p.PartyId = v.PartyId JOIN cat.Position AS pos ON pos.PositionId = v.PositionId
+             WHERE b.Status = 'ACTIVE' AND v.Since <= @d
+            UNION ALL
+            SELECT 'HOLDER_LEFT', g.AuthorityGrantId, 0, DATEADD(DAY, 1, COALESCE(DATEADD(DAY, -1, m.ResignedOn), m.TermEnd)), g.CompanyId, co.NameAr, co.NameEn,
+                   NULL, NULL, '', hp.NameAr, hp.NameEn, pt.NameAr, pt.NameEn
+              FROM org.AuthorityGrant AS g JOIN org.Company AS co ON co.CompanyId = g.CompanyId AND co.Status = 'ACTIVE'
+              JOIN org.BodyMember AS m ON m.BodyMemberId = g.BodyMemberId JOIN pty.Party AS hp ON hp.PartyId = m.PartyId
+              JOIN cat.PowerType AS pt ON pt.PowerTypeId = g.PowerTypeId
+             WHERE g.Status = 'ACTIVE' AND g.GranteeKind = 'BODY_MEMBER' AND COALESCE(DATEADD(DAY, -1, m.ResignedOn), m.TermEnd) < @d;
+            """, new { d = today }, cancellationToken: ct)).ConfigureAwait(false)).ToList();
+        foreach (var r in rows)
+        {
+            var since = r.Since.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+            NotificationRequest request;
+            if (r.Kind == "VACANT")
+            {
+                var type = BodyTermExpiry.BodyTypes.TryGetValue(r.BodyType, out var known) ? known : (Ar: r.BodyType, En: r.BodyType);
+                request = new NotificationRequest("BODY.TERM_EXPIRY", "org.GoverningBody", r.TargetId, $"BODY.VACANT:{r.TargetId}:{r.PositionId}:{r.Since:yyyyMMdd}", r.CompanyId,
+                    new Dictionary<string, object?>
+                    {
+                        ["companyName"] = ExpiryItemProviders.Text(r.CompanyNameAr, r.CompanyNameEn),
+                        ["bodyName"] = ExpiryItemProviders.Text(r.BodyNameAr ?? type.Ar, r.BodyNameEn ?? type.En),
+                        ["partyName"] = ExpiryItemProviders.Text(r.PartyNameAr, r.PartyNameEn), ["positionLabel"] = ExpiryItemProviders.Text(r.LabelAr, r.LabelEn),
+                        ["expiryDate"] = since, ["daysLeft"] = 0,
+                        ["stageLabel"] = new Dictionary<string, string> { ["ar"] = "المنصب شاغر", ["en"] = "the position is vacant" },
+                    });
+            }
+            else
+                request = new NotificationRequest("GRANT.EXPIRY", "org.AuthorityGrant", r.TargetId, $"GRANT.HOLDER_LEFT:{r.TargetId}:{r.Since:yyyyMMdd}", r.CompanyId,
+                    new Dictionary<string, object?>
+                    {
+                        ["companyName"] = ExpiryItemProviders.Text(r.CompanyNameAr, r.CompanyNameEn),
+                        ["partyName"] = ExpiryItemProviders.Text(r.PartyNameAr, r.PartyNameEn), ["powerTypeLabel"] = ExpiryItemProviders.Text(r.LabelAr, r.LabelEn),
+                        ["expiryDate"] = since, ["daysLeft"] = 0,
+                        ["stageLabel"] = new Dictionary<string, string> { ["ar"] = "غادر الحامل منصبه", ["en"] = "the holder left the position" },
+                    });
+            await using var tx = (SqlTransaction)await c.BeginTransactionAsync(ct).ConfigureAwait(false);
+            await Notifier.RequestAsync(c, tx, request, ct).ConfigureAwait(false);
+            await tx.CommitAsync(ct).ConfigureAwait(false);
+        }
+        return rows.Count;
+    }
+
+    /// <summary>
+    /// The daily part of OWN.TOTAL_MISMATCH (spec 13 section 9.2, S1B-GAP-12): an active company whose ownership is
+    /// recorded but whose direct holdings do not total 100% today; once a day per company. A company with no holding
+    /// recorded yet is listed by the report, not notified every day.
+    /// </summary>
+    private static async Task<int> OwnershipMismatchAsync(SqlConnection c, DateTime today, CancellationToken ct)
+    {
+        var rows = (await c.QueryAsync<(long CompanyId, string NameAr, string? NameEn, decimal Total)>(new CommandDefinition(
+            """
+            SELECT co.CompanyId, co.NameAr, co.NameEn,
+                   ISNULL(SUM(CASE WHEN s.Layer = 1 AND s.EffectiveFrom <= @d AND (s.EffectiveTo IS NULL OR s.EffectiveTo >= @d) THEN s.SharePercent END), 0)
+              FROM org.Company AS co JOIN org.Shareholding AS s ON s.CompanyId = co.CompanyId
+             WHERE co.Status = 'ACTIVE'
+             GROUP BY co.CompanyId, co.NameAr, co.NameEn
+            HAVING ISNULL(SUM(CASE WHEN s.Layer = 1 AND s.EffectiveFrom <= @d AND (s.EffectiveTo IS NULL OR s.EffectiveTo >= @d) THEN s.SharePercent END), 0) <> 100;
+            """, new { d = today }, cancellationToken: ct)).ConfigureAwait(false)).ToList();
+        foreach (var r in rows)
+        {
+            await using var tx = (SqlTransaction)await c.BeginTransactionAsync(ct).ConfigureAwait(false);
+            await Notifier.RequestAsync(c, tx, new NotificationRequest("OWN.TOTAL_MISMATCH", "org.Company", r.CompanyId, $"OWN.TOTAL_MISMATCH:{r.CompanyId}:{today:yyyyMMdd}",
+                r.CompanyId, new Dictionary<string, object?>
+                {
+                    ["companyName"] = ExpiryItemProviders.Text(r.NameAr, r.NameEn),
+                    ["totalPercent"] = r.Total.ToString("0.######", CultureInfo.InvariantCulture),
+                }), ct).ConfigureAwait(false);
+            await tx.CommitAsync(ct).ConfigureAwait(false);
+        }
+        return rows.Count;
     }
 
     private static NotificationRequest Request(IExpiryItemProvider provider, Rule rule, ExpiryItem item, string kind, int threshold, int days, IReadOnlyList<long> roles)
@@ -170,8 +281,8 @@ public sealed class ExpiryAlertJob(SqlConnectionFactory db, TimeProvider clock, 
             ["stageLabel"] = stage,
         };
         var code = provider.EventCode;
-        var target = provider.TargetType;
-        return new NotificationRequest(code, target, item.Id, $"{code}:{target}:{item.Id}:{kind}{threshold}:{item.ExpiryDate:yyyyMMdd}",
+        var target = item.TargetType ?? provider.TargetType;
+        return new NotificationRequest(code, target, Math.Abs(item.Id), $"{code}:{target}:{Math.Abs(item.Id)}:{kind}{threshold}:{item.ExpiryDate:yyyyMMdd}",
             rule.ScopeByCompany ? item.CompanyId : null, values, RecipientRoleIds: roles);
     }
 }

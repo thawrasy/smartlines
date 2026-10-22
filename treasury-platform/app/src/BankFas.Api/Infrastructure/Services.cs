@@ -158,9 +158,9 @@ public sealed class BoundUser(Microsoft.Data.SqlClient.SqlConnection connection,
         if (!await ModuleEnabledAsync(module, ct)) throw ApiProblemException.Forbidden("MODULE_DISABLED", "This module is not enabled for the account.");
     }
 
-    public async Task<bool> ModuleEnabledAsync(string module, CancellationToken ct) =>
+    public async Task<bool> ModuleEnabledAsync(string module, CancellationToken ct, Microsoft.Data.SqlClient.SqlTransaction? tx = null) =>
         await Dapper.SqlMapper.ExecuteScalarAsync<int>(Connection, new Dapper.CommandDefinition(
-            "SELECT COUNT(*) FROM plat.v_TenantModule WHERE ModuleCode = @m AND IsEnabled = 1;", new { m = module }, cancellationToken: ct)) > 0;
+            "SELECT COUNT(*) FROM plat.v_TenantModule WHERE ModuleCode = @m AND IsEnabled = 1;", new { m = module }, tx, cancellationToken: ct)) > 0;
 
     /// <summary>Opens, binds and checks one permission.</summary>
     public static async Task<BoundUser> OpenAsync(HttpContext http, SqlConnectionFactory db, string permission)

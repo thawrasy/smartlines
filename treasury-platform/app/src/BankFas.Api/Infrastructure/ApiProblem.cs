@@ -43,6 +43,7 @@ public static class DbProblemMap
         DbErrors.RolesNotSeeded => (409, "NOT_READY", "The account is still being prepared."),
         DbErrors.SeedRowsOnly => (409, "SYSTEM_ITEM", "System and locked items come from the default packs only."),
         DbErrors.GrantFinal => (409, "GRANT_FINAL", "A revoked or superseded grant is final, and an active grant keeps its terms: change it with a new grant that replaces it."),
+        DbErrors.PathThroughCompany => (422, "V-ORG-OWN-PATH", "A path through a company of the account follows from that company's own holdings; record its holders there (BR-ORG-008)."),
         DbErrors.RowFilterWriteRefused => (403, "TENANT_READ_ONLY", "The account is read-only in its current status."),
         DbErrors.PermissionDenied or DbErrors.ColumnPermissionDenied => (403, "FORBIDDEN", "You may not do this."),
         DbErrors.UniqueViolation or DbErrors.UniqueIndexViolation => (409, "CONFLICT", "A record with these values already exists."),

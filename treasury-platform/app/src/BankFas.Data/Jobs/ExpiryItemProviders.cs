@@ -4,7 +4,8 @@ using Microsoft.Data.SqlClient;
 namespace BankFas.Data.Jobs;
 
 /// <summary>An item that expires: its id (the ItemId of cfg.ExpiryAlertLog), its date, its company and the values of its message.</summary>
-public sealed record ExpiryItem(long Id, DateTime ExpiryDate, long? CompanyId, IReadOnlyDictionary<string, object?> Values);
+/// <remarks>A provider with two kinds of rows under one rule (a body and its members) gives the second its own target type and a negative id.</remarks>
+public sealed record ExpiryItem(long Id, DateTime ExpiryDate, long? CompanyId, IReadOnlyDictionary<string, object?> Values, string? TargetType = null);
 
 /// <summary>
 /// One item type of cfg.ExpiryAlertRule (S1B-GAP-3): which rows expire within the horizon, the event they raise and the
@@ -26,7 +27,7 @@ public interface IExpiryItemProvider
 /// <summary>The providers of the expiry job; a slice adds its own here.</summary>
 public static class ExpiryItemProviders
 {
-    public static readonly IReadOnlyList<IExpiryItemProvider> All = [new CompanyDocumentExpiry(), new IdentityDocumentExpiry()];
+    public static readonly IReadOnlyList<IExpiryItemProvider> All = [new CompanyDocumentExpiry(), new IdentityDocumentExpiry(), new BodyTermExpiry(), new AuthorityGrantExpiry()];
 
     internal static Dictionary<string, string?> Text(string? ar, string? en) => new(StringComparer.Ordinal) { ["ar"] = ar ?? en, ["en"] = en ?? ar };
 }
@@ -105,4 +106,106 @@ internal sealed class IdentityDocumentExpiry : IExpiryItemProvider
                     ["docKindLabel"] = ExpiryItemProviders.Text(label.Ar, label.En),
                 });
             })];
+}
+
+/// <summary>
+/// BODY_TERM (FR-ORG-022): the term of an active body, and the open term of a member who has not resigned (a member's
+/// item has the negative of its id, so the two never share a row of the alert log).
+/// </summary>
+internal sealed class BodyTermExpiry : IExpiryItemProvider
+{
+    public string ItemType => "BODY_TERM";
+    public string EventCode => "BODY.TERM_EXPIRY";
+    public string TargetType => "org.GoverningBody";
+
+    private sealed class Row
+    {
+        public long Id { get; init; }
+        public bool IsMember { get; init; }
+        public DateTime ExpiryDate { get; init; }
+        public long CompanyId { get; init; }
+        public string? CompanyNameAr { get; init; }
+        public string? CompanyNameEn { get; init; }
+        public string? BodyNameAr { get; init; }
+        public string? BodyNameEn { get; init; }
+        public string BodyType { get; init; } = "";
+        public string? PartyNameAr { get; init; }
+        public string? PartyNameEn { get; init; }
+        public string? PositionAr { get; init; }
+        public string? PositionEn { get; init; }
+    }
+
+    internal static readonly Dictionary<string, (string Ar, string En)> BodyTypes = new(StringComparer.Ordinal)
+    {
+        ["BOARD_OF_DIRECTORS"] = ("مجلس الإدارة", "the board of directors"), ["BOARD_OF_MANAGERS"] = ("مجلس المديرين", "the board of managers"),
+        ["MANAGEMENT"] = ("الإدارة", "the management"), ["GENERAL_ASSEMBLY"] = ("الجمعية العامة", "the general assembly"),
+    };
+
+    public async Task<IReadOnlyList<ExpiryItem>> ItemsAsync(SqlConnection c, DateTime today, DateTime horizon, CancellationToken ct) =>
+        [.. (await c.QueryAsync<Row>(new CommandDefinition(
+            """
+            SELECT b.GoverningBodyId AS Id, CAST(0 AS BIT) AS IsMember, b.TermEnd AS ExpiryDate, b.CompanyId, co.NameAr AS CompanyNameAr, co.NameEn AS CompanyNameEn,
+                   b.NameAr AS BodyNameAr, b.NameEn AS BodyNameEn, b.BodyType, NULL AS PartyNameAr, NULL AS PartyNameEn, NULL AS PositionAr, NULL AS PositionEn
+              FROM org.GoverningBody AS b JOIN org.Company AS co ON co.CompanyId = b.CompanyId
+             WHERE b.Status = 'ACTIVE' AND b.TermEnd IS NOT NULL AND b.TermEnd <= @horizon AND co.Status = 'ACTIVE'
+            UNION ALL
+            SELECT m.BodyMemberId, CAST(1 AS BIT), m.TermEnd, m.CompanyId, co.NameAr, co.NameEn, b.NameAr, b.NameEn, b.BodyType, p.NameAr, p.NameEn, pos.NameAr, pos.NameEn
+              FROM org.BodyMember AS m JOIN org.GoverningBody AS b ON b.GoverningBodyId = m.BodyId JOIN org.Company AS co ON co.CompanyId = m.CompanyId
+              JOIN pty.Party AS p ON p.PartyId = m.PartyId JOIN cat.Position AS pos ON pos.PositionId = m.PositionId
+             WHERE b.Status = 'ACTIVE' AND m.ResignedOn IS NULL AND m.TermEnd IS NOT NULL AND m.TermEnd <= @horizon AND co.Status = 'ACTIVE'
+               -- a member whose term ends with the body's is told once, by the body's alert
+               AND (b.TermEnd IS NULL OR m.TermEnd <> b.TermEnd);
+            """, new { horizon }, cancellationToken: ct)).ConfigureAwait(false))
+            .Select(r =>
+            {
+                var type = BodyTypes.TryGetValue(r.BodyType, out var known) ? known : (Ar: r.BodyType, En: r.BodyType);
+                return new ExpiryItem(r.IsMember ? -r.Id : r.Id, r.ExpiryDate, r.CompanyId, new Dictionary<string, object?>
+                {
+                    ["companyName"] = ExpiryItemProviders.Text(r.CompanyNameAr, r.CompanyNameEn),
+                    ["bodyName"] = ExpiryItemProviders.Text(r.BodyNameAr ?? type.Ar, r.BodyNameEn ?? type.En),
+                    ["partyName"] = r.IsMember ? ExpiryItemProviders.Text(r.PartyNameAr, r.PartyNameEn) : ExpiryItemProviders.Text("جميع الأعضاء", "all members"),
+                    ["positionLabel"] = r.IsMember ? ExpiryItemProviders.Text(r.PositionAr, r.PositionEn) : ExpiryItemProviders.Text("", ""),
+                }, r.IsMember ? "org.BodyMember" : null);
+            })];
+}
+
+/// <summary>AUTHORITY_GRANT (FR-ORG-028): an active grant with an end date; ceilings are never in the message.</summary>
+internal sealed class AuthorityGrantExpiry : IExpiryItemProvider
+{
+    public string ItemType => "AUTHORITY_GRANT";
+    public string EventCode => "GRANT.EXPIRY";
+    public string TargetType => "org.AuthorityGrant";
+
+    private sealed class Row
+    {
+        public long Id { get; init; }
+        public DateTime ExpiryDate { get; init; }
+        public long CompanyId { get; init; }
+        public string? CompanyNameAr { get; init; }
+        public string? CompanyNameEn { get; init; }
+        public string? HolderAr { get; init; }
+        public string? HolderEn { get; init; }
+        public string? PowerAr { get; init; }
+        public string? PowerEn { get; init; }
+    }
+
+    internal const string Holder =
+        """
+        COALESCE(hp.NameAr, gb.NameAr, mb.NameAr) AS HolderAr, COALESCE(hp.NameEn, gb.NameEn, mb.NameEn) AS HolderEn, pt.NameAr AS PowerAr, pt.NameEn AS PowerEn
+          FROM org.AuthorityGrant AS g JOIN org.Company AS co ON co.CompanyId = g.CompanyId JOIN cat.PowerType AS pt ON pt.PowerTypeId = g.PowerTypeId
+          LEFT JOIN org.BodyMember AS m ON m.BodyMemberId = g.BodyMemberId LEFT JOIN pty.Party AS hp ON hp.PartyId = COALESCE(g.PartyId, m.PartyId)
+          LEFT JOIN org.GoverningBody AS gb ON gb.GoverningBodyId = g.BodyId LEFT JOIN org.GoverningBody AS mb ON mb.GoverningBodyId = m.BodyId
+        """;
+
+    public async Task<IReadOnlyList<ExpiryItem>> ItemsAsync(SqlConnection c, DateTime today, DateTime horizon, CancellationToken ct) =>
+        [.. (await c.QueryAsync<Row>(new CommandDefinition(
+            "SELECT g.AuthorityGrantId AS Id, g.ValidTo AS ExpiryDate, g.CompanyId, co.NameAr AS CompanyNameAr, co.NameEn AS CompanyNameEn, " + Holder +
+            " WHERE g.Status = 'ACTIVE' AND g.ValidTo IS NOT NULL AND g.ValidTo <= @horizon AND co.Status = 'ACTIVE';",
+            new { horizon }, cancellationToken: ct)).ConfigureAwait(false))
+            .Select(r => new ExpiryItem(r.Id, r.ExpiryDate, r.CompanyId, new Dictionary<string, object?>
+            {
+                ["companyName"] = ExpiryItemProviders.Text(r.CompanyNameAr, r.CompanyNameEn),
+                ["partyName"] = ExpiryItemProviders.Text(r.HolderAr, r.HolderEn),
+                ["powerTypeLabel"] = ExpiryItemProviders.Text(r.PowerAr, r.PowerEn),
+            }))];
 }

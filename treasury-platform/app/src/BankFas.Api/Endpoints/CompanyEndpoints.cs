@@ -55,14 +55,14 @@ public static partial class CompanyEndpoints
         api.MapPatch("/departments/{reference}", PatchDepartmentAsync);
     }
 
-    internal sealed record CompanyRow(long CompanyId, Guid PublicId, string CompanyCode, string NameAr, string NameEn, long PartyId, string PartyCode,
+    internal sealed record CompanyRow(long CompanyId, Guid PublicId, string CompanyCode, string NameAr, string NameEn, long PartyId, string PartyCode, Guid PartyPublicId,
         string LegalFormCode, string? LegalFormNameAr, string? LegalFormNameEn, bool IsHolding, long? ParentCompanyId, Guid? ParentPublicId, string Country,
         string? Industry, string Status, DateTime? EstablishedOn, string? CrNumber, DateTime? CrDate, string? CrDateHijriText, string? ErpCompanyCode,
         byte FiscalYearEndMonth, byte? FiscalYearEndDay, string? BaseCurrency, string OwnershipStatus, byte[] RowVersion);
 
     private const string Select =
         """
-        SELECT c.CompanyId, c.PublicId, c.CompanyCode, c.NameAr, c.NameEn, c.PartyId, p.PartyCode, l.Code AS LegalFormCode, l.NameAr AS LegalFormNameAr,
+        SELECT c.CompanyId, c.PublicId, c.CompanyCode, c.NameAr, c.NameEn, c.PartyId, p.PartyCode, p.PublicId AS PartyPublicId, l.Code AS LegalFormCode, l.NameAr AS LegalFormNameAr,
                l.NameEn AS LegalFormNameEn, c.IsHolding, c.ParentCompanyId, pc.PublicId AS ParentPublicId, co.Iso2 AS Country, i.Code AS Industry, c.Status,
                c.EstablishedOn, c.CrNumber, c.CrDate, c.CrDateHijriText, c.ErpCompanyCode, c.FiscalYearEndMonth, c.FiscalYearEndDay, cu.Code AS BaseCurrency,
                c.OwnershipStatus, c.RowVersion
@@ -79,14 +79,14 @@ public static partial class CompanyEndpoints
 
     private static object Shape(CompanyRow c) => new
     {
-        id = c.PublicId, companyCode = c.CompanyCode, nameAr = c.NameAr, nameEn = c.NameEn, partyCode = c.PartyCode,
+        id = c.PublicId, companyCode = c.CompanyCode, nameAr = c.NameAr, nameEn = c.NameEn, partyCode = c.PartyCode, party = c.PartyPublicId,
         legalForm = new { code = c.LegalFormCode, nameAr = c.LegalFormNameAr, nameEn = c.LegalFormNameEn }, isHolding = c.IsHolding, parent = c.ParentPublicId,
         country = c.Country, industry = c.Industry, status = c.Status, establishedOn = D(c.EstablishedOn), crNumber = c.CrNumber, crDate = D(c.CrDate),
         crDateHijri = c.CrDateHijriText, erpCompanyCode = c.ErpCompanyCode, fiscalYearEndMonth = c.FiscalYearEndMonth, fiscalYearEndDay = c.FiscalYearEndDay,
         baseCurrency = c.BaseCurrency, ownershipStatus = c.OwnershipStatus, etag = ETags.Of(c.RowVersion),
     };
 
-    private static async Task<CompanyRow> FindAsync(BoundUser u, SqlTransaction? tx, Guid id, CompanyScope scope, CancellationToken ct)
+    internal static async Task<CompanyRow> FindAsync(BoundUser u, SqlTransaction? tx, Guid id, CompanyScope scope, CancellationToken ct)
     {
         var c = await u.Connection.QuerySingleOrDefaultAsync<CompanyRow>(new CommandDefinition(Select + " WHERE c.PublicId = @id;", new { id }, tx,
             cancellationToken: ct)) ?? throw ApiProblemException.NotFound();

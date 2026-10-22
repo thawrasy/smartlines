@@ -3,6 +3,8 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, apiWithETag, downloadGet, message, upload } from '../api';
 import { useFormat, useI18n } from '../i18n';
 import { Field, Form, Notice, Select, Table } from '../ui';
+import { useMe } from './Portal';
+import { GovernancePanel, GrantsPanel, OwnershipPanel, seesStructure } from './Structure';
 
 // Screens 13, 14 and 18 of spec 10: the companies as a tree, the company screen with its tabs (general, finance and
 // tax, addresses and contacts, documents), and the register of company documents across companies (FR-ORG-011).
@@ -10,7 +12,7 @@ import { Field, Form, Notice, Select, Table } from '../ui';
 interface Company {
   id: string; companyCode: string; nameAr: string; nameEn: string; partyCode: string; legalForm: { code: string; nameAr?: string; nameEn?: string };
   isHolding: boolean; parent?: string; country: string; industry?: string; status: string; establishedOn?: string; crNumber?: string; crDate?: string;
-  crDateHijri?: string; erpCompanyCode?: string; fiscalYearEndMonth: number; fiscalYearEndDay?: number; baseCurrency?: string; etag: string;
+  crDateHijri?: string; erpCompanyCode?: string; fiscalYearEndMonth: number; fiscalYearEndDay?: number; baseCurrency?: string; ownershipStatus: string; etag: string;
 }
 interface Doc {
   id: string; type: { code: string; nameAr: string; nameEn?: string }; title: string; documentNumber?: string; expiryDate?: string; validity: string;
@@ -63,6 +65,7 @@ export function Companies() {
           { header: 'Legal form', cell: r => name(lang, r.c.legalForm) },
           { header: 'Status', cell: r => t(r.c.status) },
           { header: 'Holding', cell: r => r.c.isHolding ? t('Yes') : '' },
+          { header: 'Ownership', cell: r => t(r.c.ownershipStatus) },
         ]} />
       </section>
       <Form title="New company" submit="Create" onSubmit={async () => {
@@ -90,7 +93,8 @@ export function Companies() {
 export function CompanyDetail() {
   const { id } = useParams();
   const { t, lang } = useI18n();
-  const [tab, setTab] = useState<'general' | 'finance' | 'contacts' | 'documents'>('general');
+  const me = useMe();
+  const [tab, setTab] = useState<'general' | 'finance' | 'contacts' | 'documents' | 'ownership' | 'governance' | 'grants'>('general');
   const [c, setC] = useState<Company | null>(null);
   const [etag, setEtag] = useState('');
   const load = useCallback(async () => {
@@ -106,9 +110,9 @@ export function CompanyDetail() {
         <h1>{name(lang, c)} <small dir="ltr">({c.companyCode})</small></h1>
         <p className="muted">{t('Status')}: {t(c.status)} · {t('Party code')}: <span dir="ltr">{c.partyCode}</span></p>
         <div className="actions" role="tablist">
-          {(['general', 'finance', 'contacts', 'documents'] as const).map(k => (
+          {(['general', 'finance', 'contacts', 'documents', ...(seesStructure(me) ? ['ownership', 'governance', 'grants'] as const : [])] as const).map(k => (
             <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? '' : 'secondary'} onClick={() => setTab(k)}>
-              {t({ general: 'General', finance: 'Finance and tax', contacts: 'Addresses and contacts', documents: 'Documents' }[k])}
+              {t({ general: 'General', finance: 'Finance and tax', contacts: 'Addresses and contacts', documents: 'Documents', ownership: 'Ownership', governance: 'Governance', grants: 'Authorities' }[k])}
             </button>
           ))}
         </div>
@@ -117,6 +121,9 @@ export function CompanyDetail() {
       {tab === 'finance' && <Finance c={c} etag={etag} onSaved={load} />}
       {tab === 'contacts' && <Contacts c={c} />}
       {tab === 'documents' && <DocumentPanel company={c} />}
+      {tab === 'ownership' && <OwnershipPanel company={c.id} />}
+      {tab === 'governance' && <GovernancePanel company={c.id} />}
+      {tab === 'grants' && <GrantsPanel company={c.id} />}
     </>
   );
 }

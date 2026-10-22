@@ -8,6 +8,7 @@ import { Audit, Jobs, Numbering, Settings, Support } from './Admin';
 import { Accounts, BankSetup, BaseRates, InstitutionDetail, Institutions, RelationshipDetail } from './Banks';
 import { Catalogs } from './Catalogs';
 import { Companies, CompanyDetail, Departments, DocumentRegister } from './Companies';
+import { OwnershipMismatch, StructureIntegrity } from './Structure';
 import { CustomFieldDefinitions, Parties, PartyDetail, PartyDuplicates } from './Parties';
 import { Bell, Notifications, NotificationSettings } from './Notifications';
 import { Profile } from './Profile';
@@ -35,6 +36,8 @@ const menu: { to: string; label: string; permission?: string; anyOf?: string[] }
   { to: '/jobs', label: 'Background jobs', permission: 'cfg.jobs.view' },
   { to: '/companies', label: 'Companies', permission: 'org.company.view' },
   { to: '/documents', label: 'Company documents', permission: 'org.document.view' },
+  { to: '/reports/ownership-mismatch', label: 'Ownership check', permission: 'org.ownership.manage' },
+  { to: '/reports/structure-integrity', label: 'Structure integrity', permission: 'org.body.manage' },
   { to: '/departments', label: 'Departments', permission: 'org.company.manage' },
   { to: '/parties', label: 'Persons and entities', permission: 'party.view' },
   { to: '/parties/duplicates', label: 'Possible duplicates', permission: 'party.merge' },
@@ -92,6 +95,8 @@ function Shell() {
               <Route path="/companies" element={<Companies />} />
               <Route path="/companies/:id" element={<CompanyDetail />} />
               <Route path="/documents" element={<DocumentRegister />} />
+              <Route path="/reports/ownership-mismatch" element={<OwnershipMismatch />} />
+              <Route path="/reports/structure-integrity" element={<StructureIntegrity />} />
               <Route path="/departments" element={<Departments />} />
               <Route path="/parties" element={<Parties />} />
               <Route path="/parties/duplicates" element={<PartyDuplicates />} />

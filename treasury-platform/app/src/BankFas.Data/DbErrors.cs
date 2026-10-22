@@ -31,6 +31,7 @@ public static class DbErrors
     public const int RolesNotSeeded = 50028;
     public const int SeedRowsOnly = 50174;
     public const int GrantFinal = 50175;
+    public const int PathThroughCompany = 50047;
     public const int KeyNotActive = 50098;
     public const int RowFilterWriteRefused = 33504;
     public const int PermissionDenied = 229;
