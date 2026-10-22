@@ -1002,6 +1002,13 @@ public static partial class InstitutionEndpoints
         var accounts = await u.Connection.ExecuteScalarAsync<int>(new CommandDefinition("SELECT COUNT(*) FROM acc.BankAccount WHERE RelationshipId = @r AND Status <> 'CLOSED';",
             new { r = r.RelationshipId }, tx, cancellationToken: ct));
         if (accounts > 0) throw new ApiProblemException(409, "V-INS-OPEN-ACCOUNTS", $"Close the {accounts} account(s) of this relationship first.");
+        // BR-INS-011 (S2-GAP-17): a facility in force with this bank as a lender keeps the relationship open.
+        var facilities = await u.Connection.ExecuteScalarAsync<int>(new CommandDefinition(
+            """
+            SELECT COUNT(DISTINCT f.FacilityId) FROM fac.Facility AS f JOIN fac.FacilityLender AS l ON l.FacilityId = f.FacilityId AND l.ToRevision IS NULL
+             WHERE f.BorrowerCompanyId = @c AND l.InstitutionId = @i AND f.LifecycleStatus IN ('ACTIVE', 'SUSPENDED');
+            """, new { c = r.CompanyId, i = r.InstitutionId }, tx, cancellationToken: ct));
+        if (facilities > 0) throw new ApiProblemException(409, "V-INS-OPEN-FACILITIES", $"The relationship has {facilities} facility(ies) in force with this bank; end them first.");
         // OQ-16: the signatories in force are listed, and revoked with the closing once the user confirms.
         var signatories = await u.Connection.ExecuteScalarAsync<int>(new CommandDefinition(
             "SELECT COUNT(*) FROM acc.Signatory WHERE RelationshipId = @r AND Status IN ('PENDING', 'ACTIVE', 'SUSPENDED');", new { r = r.RelationshipId }, tx, cancellationToken: ct));

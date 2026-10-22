@@ -1,0 +1,35 @@
+{
+  "PackKey": "CORE.EXPIRY",
+  "SeedVersion": 3,
+  "Slice": "S2",
+  "Status": "Version 3 keeps the rows of version 2 and adds the S2 items (spec 12 section 9): FACILITY [90,60,30,15,7] with a weekly reminder while the validity is not confirmed (FAC.VALIDITY_UNCONFIRMED); LIMIT and PRODUCT_LINE [90,60,30,15,7]; the collateral dates COL_NOTE_RENEWAL, COL_INSURANCE and COL_VALUATION [60,30,7]; and the agenda OBL_DUE [30,14,7,3,1] with a daily reminder after the due date (OBL.OVERDUE). A facility or a reporting rule may set its own lead days. A proposed default written by an AI agent; the tenant may edit or deactivate non-locked rows.",
+  "Tables": [
+    "cfg.ExpiryAlertRule.csv",
+    "cfg.ExpiryAlertRuleRole.csv"
+  ],
+  "DependsOn": [
+    "CORE.ROLES"
+  ],
+  "References": {
+    "cfg.ExpiryAlertRuleRole.csv": {
+      "ExpiryAlertRuleSeedKey": {
+        "Column": "ExpiryAlertRuleId",
+        "Table": "cfg.ExpiryAlertRule",
+        "Key": "SeedKey"
+      },
+      "RoleSeedKey": {
+        "Column": "RoleId",
+        "Table": "sec.Role",
+        "Key": "SeedKey"
+      }
+    }
+  },
+  "Sources": [
+    "docs/10-detailed-analysis/10-m0-m1-platform-organization.md section 9.2 and BR-PLT-013",
+    "db/model/10-platform.model (cfg.ExpiryAlertRule, cfg.ExpiryAlertRuleRole)",
+    "docs/30-readiness/DOC-B05-seed-and-initial-migration-plan.md section 5.1 (CORE.EXPIRY)"
+  ],
+  "NotSeeded": {
+    "Ownership and completeness alerts": "Not expiry rules: OWN.TOTAL_MISMATCH is raised on save and by the daily pass of JOB-NTF-EXPIRY (S1B-GAP-12); completeness is S2."
+  }
+}

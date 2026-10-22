@@ -126,6 +126,11 @@ public sealed class OutboxJob(SqlConnectionFactory db, IMailSender mail) : Tenan
         // S1-b: the structure and the signatories; the governance comparison consumes authority.granted and authority.revoked below
         "ownership.changed", "body.changed", "signatory.activated",
         "signatory.authority.changed", "authority.conflict.opened", "authority.conflict.resolved",
+        // S2: the facilities, their pricing, collateral, obligations and terms (spec 12 section 10; payloads carry ids only)
+        "facility.revision.approved", "facility.validity.changed", "limit.availability.changed", "reservation.created", "reservation.released",
+        "utilization.created", "utilization.adjusted", "utilization.released", "pricing.rule.changed", "tariff.approved", "collateral.changed",
+        "collateral.released", "obligation.instance.due", "obligation.instance.overdue", "obligation.instance.submitted", "breach.opened",
+        "breach.waived", "term.value.changed",
     };
 
     protected override async Task<string?> RunForTenantAsync(SqlConnection c, JobTenant tenant, Guid correlation, CancellationToken ct)

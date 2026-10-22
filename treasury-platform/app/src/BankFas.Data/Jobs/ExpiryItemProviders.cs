@@ -5,7 +5,9 @@ namespace BankFas.Data.Jobs;
 
 /// <summary>An item that expires: its id (the ItemId of cfg.ExpiryAlertLog), its date, its company and the values of its message.</summary>
 /// <remarks>A provider with two kinds of rows under one rule (a body and its members) gives the second its own target type and a negative id.</remarks>
-public sealed record ExpiryItem(long Id, DateTime ExpiryDate, long? CompanyId, IReadOnlyDictionary<string, object?> Values, string? TargetType = null);
+/// <remarks>LeadDays, when set, replaces the rule's thresholds for this item (a facility's own lead days, M13:50; a reporting rule's, M14:228).</remarks>
+public sealed record ExpiryItem(long Id, DateTime ExpiryDate, long? CompanyId, IReadOnlyDictionary<string, object?> Values, string? TargetType = null,
+    IReadOnlyList<int>? LeadDays = null);
 
 /// <summary>
 /// One item type of cfg.ExpiryAlertRule (S1B-GAP-3): which rows expire within the horizon, the event they raise and the
@@ -17,6 +19,9 @@ public interface IExpiryItemProvider
     string ItemType { get; }
     string EventCode { get; }
     string TargetType { get; }
+
+    /// <summary>The event of an alert kind (LEAD, EXPIRED, REMINDER); by default the provider's one event.</summary>
+    string EventCodeFor(string kind) => EventCode;
 
     /// <summary>True when the item is valid through its expiry date, so the day-0 alert says "expires today".</summary>
     bool ValidThroughExpiryDate => false;

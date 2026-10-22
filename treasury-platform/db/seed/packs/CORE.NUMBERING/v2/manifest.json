@@ -1,0 +1,20 @@
+{
+  "PackKey": "CORE.NUMBERING",
+  "SeedVersion": 2,
+  "Slice": "S2",
+  "Status": "Version 2 keeps the PARTY sequence and adds FACILITY, FAC-{yy}-{seq:000} per tenant and calendar year of allocation (BR-FAC-001, owner default OQ-2), gaps allowed: a number is consumed even when its draft is abandoned. A proposed default written by an AI agent.",
+  "Tables": [
+    "cfg.NumberSequenceDefinition.csv"
+  ],
+  "DependsOn": [],
+  "References": {},
+  "Sources": [
+    "docs/10-detailed-analysis/10-m0-m1-platform-organization.md FR-PLT-026, BR-PLT-010 and section 6.2 (Party.PartyCode)",
+    "db/static/039_numbering.sql (pattern rules)",
+    "docs/30-readiness/DOC-B05-seed-and-initial-migration-plan.md section 5.1 (CORE.NUMBERING)"
+  ],
+  "NotSeeded": {
+    "PROFORMA": "Its pattern {seq:000}-{erp}-{yy} needs the company scope (one counter per tenant, company and year; {erp} is accepted only with ScopeLevel COMPANY), so it is left out.",
+    "req:<TypeCode>": "Request numbers (BR-WFL-013) use one definition per request type, keyed by wfl.RequestType.Code; the types are seeded with WFL.BASE in S3, so their definitions belong there."
+  }
+}

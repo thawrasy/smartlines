@@ -135,6 +135,45 @@ export function Numbering() {
   );
 }
 
+// ---------- non-working days (FR-PLT-035) ----------
+
+interface NonWorkingDay { id: string | null; platform: boolean; country: string; onDate: string; nameAr?: string; nameEn?: string; kind: string }
+
+export function Calendar() {
+  const { t } = useI18n();
+  const [year, setYear] = useState(String(new Date().getFullYear()));
+  const [rows, setRows] = useState<NonWorkingDay[]>([]);
+  const [draft, setDraft] = useState({ country: 'SA', onDate: '', nameAr: '', nameEn: '', kind: 'HOLIDAY' });
+  const load = useCallback(async () => setRows((await api<{ items: NonWorkingDay[] }>('GET', `/non-working-days?year=${encodeURIComponent(year)}`)).items), [year]);
+  useEffect(() => { void load(); }, [load]);
+  return (
+    <>
+      <section className="card">
+        <h1>{t('Non-working days')}</h1>
+        <p>{t('The weekend and these days are skipped when a due date is counted in working days. The platform enters the public holidays; you add your own days.')}</p>
+        <Field label="Year" value={year} onChange={setYear} type="number" />
+        <Table rows={rows} columns={[
+          { header: 'Date', cell: d => <span dir="ltr">{d.onDate}</span> },
+          { header: 'Country', cell: d => d.country },
+          { header: 'Name', cell: d => d.nameAr || d.nameEn },
+          { header: 'Kind', cell: d => t(d.kind) },
+          { header: 'Source', cell: d => t(d.platform ? 'Platform' : 'This account') },
+          { header: '', cell: d => d.id
+            ? <button className="link" onClick={async () => { await api('DELETE', `/non-working-days/${d.id}`); await load(); }}>{t('Remove')}</button> : null },
+        ]} />
+      </section>
+      <Form title="Add a non-working day" submit="Add" onSubmit={async () => { await api('POST', '/non-working-days', draft); setDraft({ ...draft, onDate: '', nameAr: '', nameEn: '' }); await load(); }}>
+        <Field label="Country (ISO)" value={draft.country} onChange={v => setDraft({ ...draft, country: v })} />
+        <Field label="Date" value={draft.onDate} onChange={v => setDraft({ ...draft, onDate: v })} type="date" />
+        <Field label="Name (Arabic)" value={draft.nameAr} onChange={v => setDraft({ ...draft, nameAr: v })} />
+        <Field label="Name (English)" value={draft.nameEn} onChange={v => setDraft({ ...draft, nameEn: v })} />
+        <Select label="Kind" value={draft.kind} onChange={v => setDraft({ ...draft, kind: v })}
+          options={['HOLIDAY', 'BRIDGE', 'OTHER'].map(k => ({ value: k, label: t(k) }))} />
+      </Form>
+    </>
+  );
+}
+
 // ---------- SCR-PLT-13 audit log ----------
 
 interface AuditRow { id: string; occurredAt: string; actorType: string; action: string; category: string; severity: string; result: string; ipAddress?: string; before: unknown; after: unknown }

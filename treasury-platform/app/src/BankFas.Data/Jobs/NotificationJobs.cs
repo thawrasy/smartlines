@@ -107,9 +107,12 @@ public sealed class ExpiryAlertJob(SqlConnectionFactory db, TimeProvider clock, 
             var lead = System.Text.Json.JsonSerializer.Deserialize<int[]>(rule.LeadDays) ?? [];
             var roles = (await c.QueryAsync<long>(new CommandDefinition("SELECT RoleId FROM cfg.ExpiryAlertRuleRole WHERE ExpiryAlertRuleId = @r;",
                 new { r = rule.ExpiryAlertRuleId }, cancellationToken: ct)).ConfigureAwait(false)).ToList();
-            var horizon = today.AddDays(lead.DefaultIfEmpty(0).Max());
+            // An item may carry its own lead days, so the window looks a year ahead at least.
+            var horizon = today.AddDays(Math.Max(lead.DefaultIfEmpty(0).Max(), 366));
+            var ruleLead = lead;
             foreach (var item in await provider.ItemsAsync(c, today, horizon, ct).ConfigureAwait(false))
             {
+                lead = item.LeadDays is { Count: > 0 } own ? [.. own] : ruleLead;
                 var days = (item.ExpiryDate.Date - today).Days;
                 var logged = (await c.QueryAsync<(string Kind, int Threshold)>(new CommandDefinition(
                     "SELECT AlertKind, Threshold FROM cfg.ExpiryAlertLog WHERE ExpiryAlertRuleId = @r AND ItemId = @i AND ExpiryDate = @e;",
@@ -280,7 +283,7 @@ public sealed class ExpiryAlertJob(SqlConnectionFactory db, TimeProvider clock, 
             ["daysLeft"] = Math.Max(days, 0),
             ["stageLabel"] = stage,
         };
-        var code = provider.EventCode;
+        var code = provider.EventCodeFor(kind);
         var target = item.TargetType ?? provider.TargetType;
         return new NotificationRequest(code, target, Math.Abs(item.Id), $"{code}:{target}:{Math.Abs(item.Id)}:{kind}{threshold}:{item.ExpiryDate:yyyyMMdd}",
             rule.ScopeByCompany ? item.CompanyId : null, values, RecipientRoleIds: roles);

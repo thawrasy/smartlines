@@ -109,9 +109,11 @@ InstitutionEndpoints.Map(portal);
 AccountEndpoints.Map(portal);
 BaseRateEndpoints.Map(portal);
 NotificationEndpoints.Map(portal);
+CalendarEndpoints.MapPortal(portal);
 var panel = app.MapGroup("/api/v1/operator").AddEndpointFilter(SurfaceFilter(Surface.OperatorPanel));
 OperatorEndpoints.Map(panel);
 OperatorAdminEndpoints.Map(panel);
+CalendarEndpoints.MapOperator(panel);
 
 if (webFiles is not null) app.MapFallbackToFile("{*path:regex(^(?!api/|health/).*$)}", "index.html", webFiles);
 

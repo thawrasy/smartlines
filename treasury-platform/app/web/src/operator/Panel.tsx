@@ -248,6 +248,40 @@ function Support() {
   );
 }
 
+// Platform holidays: the public holidays of a country, counted by every account (FR-PLT-035)
+function Holidays({ me }: { me: Me }) {
+  const { t } = useI18n();
+  const [year, setYear] = useState(String(new Date().getFullYear()));
+  const [rows, setRows] = useState<{ country: string; onDate: string; nameAr?: string; nameEn?: string; kind: string }[]>([]);
+  const [f, setF] = useState({ country: 'SA', onDate: '', nameAr: '', nameEn: '', kind: 'HOLIDAY' });
+  const load = useCallback(async () => setRows((await api<{ items: typeof rows }>('GET', `/operator/non-working-days?year=${encodeURIComponent(year)}`)).items), [year]);
+  useEffect(() => { void load(); }, [load]);
+  return (
+    <>
+      <section className="card">
+        <h1>{t('Platform holidays')}</h1>
+        <Field label="Year" value={year} onChange={setYear} type="number" />
+        <Table rows={rows} columns={[
+          { header: 'Date', cell: d => <span dir="ltr">{d.onDate}</span> },
+          { header: 'Country', cell: d => d.country },
+          { header: 'Name', cell: d => d.nameAr || d.nameEn },
+          { header: 'Kind', cell: d => t(d.kind) },
+        ]} />
+      </section>
+      {me.role === 'OPERATOR_ADMIN' && (
+        <Form title="Add a holiday" submit="Add" onSubmit={async () => { await api('POST', '/operator/non-working-days', f); setF({ ...f, onDate: '', nameAr: '', nameEn: '' }); await load(); }}>
+          <Field label="Country (ISO)" value={f.country} onChange={v => setF({ ...f, country: v })} />
+          <Field label="Date" value={f.onDate} onChange={v => setF({ ...f, onDate: v })} type="date" />
+          <Field label="Name (Arabic)" value={f.nameAr} onChange={v => setF({ ...f, nameAr: v })} />
+          <Field label="Name (English)" value={f.nameEn} onChange={v => setF({ ...f, nameEn: v })} />
+          <Select label="Kind" value={f.kind} onChange={v => setF({ ...f, kind: v })}
+            options={['HOLIDAY', 'BRIDGE', 'OTHER'].map(k => ({ value: k, label: t(k) }))} />
+        </Form>
+      )}
+    </>
+  );
+}
+
 function Shell() {
   const nav = useNavigate();
   const { t } = useI18n();
@@ -268,6 +302,7 @@ function Shell() {
           <NavLink to="/" end>{t('Tenants')}</NavLink>
           {me.role === 'OPERATOR_ADMIN' && <NavLink to="/operators">{t('Operators')}</NavLink>}
           <NavLink to="/support">{t('Support access')}</NavLink>
+          <NavLink to="/holidays">{t('Platform holidays')}</NavLink>
         </nav>
         <main className="content">
           <Routes>
@@ -275,6 +310,7 @@ function Shell() {
             <Route path="/tenants/:id" element={<TenantDetail me={me} />} />
             <Route path="/operators" element={<Operators />} />
             <Route path="/support" element={<Support />} />
+            <Route path="/holidays" element={<Holidays me={me} />} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </main>

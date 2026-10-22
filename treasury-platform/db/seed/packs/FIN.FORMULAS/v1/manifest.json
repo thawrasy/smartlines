@@ -1,0 +1,27 @@
+{
+  "PackKey": "FIN.FORMULAS",
+  "SeedVersion": 1,
+  "Slice": "S2",
+  "Status": "Proposed default written by an AI agent from spec 12 section 6.6 and docs/03 section 4 (🟡 to be reviewed by the treasury manager): the seven formula templates, DEBT_TO_EQUITY in its two versions with and without the lease liabilities. Approved by the tenant's service account (owner default OQ-5); a facility copy is approved by a person (S2-b).",
+  "Tables": [
+    "fin.MeasureFormula.csv"
+  ],
+  "DependsOn": [],
+  "References": {
+    "fin.MeasureFormula.csv": {
+      "ApprovedByUserKey": {
+        "Column": "ApprovedBy",
+        "Table": "sec.AppUser",
+        "Key": "IsSystemUser"
+      }
+    }
+  },
+  "Sources": [
+    "docs/10-detailed-analysis/12-m5-facilities-pricing-collateral-obligations.md section 6.6 (formula templates) and BR-FIN-009 (the restricted grammar)",
+    "db/model/14-collateral-obligations-financials.model (fin.MeasureFormula)"
+  ],
+  "Notes": {
+    "Expression": "The restricted grammar of BR-FIN-009 with ASCII operators; line codes of the line catalogue (S2-b). Parsed into a tree in S2-b, never executed as text.",
+    "ApprovedOn": "The date the pack was approved, the same for every tenant."
+  }
+}

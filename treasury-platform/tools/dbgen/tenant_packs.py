@@ -61,6 +61,8 @@ def read_csv(path):
     return rows, errs
 
 
+# Rows the onboarding procedure creates in every tenant before any pack runs (038): the service account.
+ONBOARDING_ROWS = {('sec.AppUser', 'IsSystemUser'): {'1'}}
 OWN_CONVENTION = {'CORE.ROLES', 'NTF.BASE', 'FIN.PROVISION'}   # their SeedKeys and references follow their own checkers
 
 
@@ -148,6 +150,8 @@ class Checker:
     # ------------------------------------------------------------------ reference lookup
     def key_values(self, pack, table, key, upto_table=None, upto_row=None):
         """The values of a key column available to a reference: (values, reason when unavailable)."""
+        if (table, key) in ONBOARDING_ROWS:
+            return ONBOARDING_ROWS[(table, key)], None
         if table in self.iso:
             if key not in self.iso[table]:
                 return None, '%s.%s is not a key seeded by 101_iso_reference.sql' % (table, key)

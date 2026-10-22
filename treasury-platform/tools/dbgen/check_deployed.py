@@ -68,7 +68,7 @@ def static_scripts():
 def static_triggers():
     """The table triggers the static scripts create: the names they write out, and the families built in a loop from
     a list (044: the freeze of an approved revision per revisioned table and the draft-only parts of a template
-    version; 054: the key status; 060: the seed rows of each catalogue). A new loop of this kind is to be added here,
+    version; 054: the key status; 060: the seed rows of each catalogue; 062: the parts of a collateral version). A new loop of this kind is to be added here,
     or the count differs."""
     names = set()
     for f in static_scripts():
@@ -80,6 +80,9 @@ def static_triggers():
         if "N'_DraftOnly'" in text:
             block = re.search(r'INSERT @parts VALUES (.*?);', text, re.S).group(1)
             names.update(f'wfl.TR_{t}_DraftOnly' for t in re.findall(r"\(N'(\w+)', [01]\)", block))
+        if "N'_VersionFrozen'" in text:   # 062: the typed parts of an approved collateral version
+            block = re.search(r'INSERT @parts VALUES (.*?);', text, re.S).group(1)
+            names.update(f'col.TR_{t}_VersionFrozen' for t in re.findall(r"\(N'(\w+)', N'[\w,]*', N'\w+', [01]\)", block))
         if "N'_SeedRows'" in text:   # 060: one per catalogue (schema cat) with IsSystem and IsLocked
             t1 = open(os.path.join(DDL, '001_tables.sql'), encoding='utf-8').read()
             for m in re.finditer(r'CREATE TABLE \[cat\]\.\[(\w+)\] \((.*?)\n\);', t1, re.S):

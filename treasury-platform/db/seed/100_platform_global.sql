@@ -27,7 +27,9 @@ USING (VALUES
     ('work.end',                             'TIME', N'"17:00"', NULL, NULL, 0, N'End of the working day in the tenant time zone; 4 to 12 hours after work.start (BR-PLT-018).'),
     ('fin.calibration.max_age_months',       'INT', N'12', N'3',  N'36', 0, N'Months after which the latest rating a lender communicated no longer calibrates the company''s own assessment: the readiness turns AMBER (CALIBRATION_STALE) and the lenders are asked for a rating. Read by db/static/049 (BR-FIN-046, ADR 0030).'),
     ('fin.readiness.lead_months',            'INT', N'6',  N'1',  N'24', 0, N'Months before a renewal, a covenant test or a report to a lender that the readiness file and the early warning look ahead. Read by db/static/049 (BR-FIN-038, owner decision 34).'),
-    ('org.grant.segregation_of_duties',      'BOOL', N'true', NULL, NULL, 0, N'An authority grant is approved by a user other than its creator; when false, a DRAFT grant may be activated directly and the activator is recorded. Enforced by the application (BR-ORG-014, FR-ORG-026).')
+    ('org.grant.segregation_of_duties',      'BOOL', N'true', NULL, NULL, 0, N'An authority grant is approved by a user other than its creator; when false, a DRAFT grant may be activated directly and the activator is recorded. Enforced by the application (BR-ORG-014, FR-ORG-026).'),
+    ('fac.validity.expiring_days',           'INT', N'90', N'30', N'180', 0, N'Days before its expiry date that a facility shows as EXPIRING (BR-FAC-005, owner default OQ-8). Read by the application.'),
+    ('wf.sod.allow_same_person',             'BOOL', N'false', NULL, NULL, 0, N'When true, the preparer or an editor of a facility revision may also approve it (Q-FAC-08, BR-FAC-004); off by default. Enforced by the application.')
 ) AS s ([Key], ValueType, DefaultValueJson, MinValueJson, MaxValueJson, IsSecurity, Description)
    ON d.[Key] = s.[Key]
 WHEN MATCHED AND (d.ValueType <> s.ValueType OR d.DefaultValueJson <> s.DefaultValueJson

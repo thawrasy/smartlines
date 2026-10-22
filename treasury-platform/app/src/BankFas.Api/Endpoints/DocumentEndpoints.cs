@@ -434,7 +434,19 @@ public static class DocumentEndpoints
         UNION SELECT 'shareholding' FROM org.Shareholding WHERE SourceDocumentId = @id AND (EffectiveTo IS NULL OR EffectiveTo >= CAST(SYSUTCDATETIME() AS DATE))
         UNION SELECT 'governing body' FROM org.GoverningBody WHERE SourceDocumentId = @id AND Status = 'ACTIVE'
         UNION SELECT 'body member' FROM org.BodyMember WHERE AppointmentDocumentId = @id AND (TermEnd IS NULL OR TermEnd >= CAST(SYSUTCDATETIME() AS DATE)) AND ResignedOn IS NULL
-        UNION SELECT 'bank authority' FROM acc.SignatoryAuthority WHERE SourceDocumentId = @id AND ValidTo IS NULL AND SupersededById IS NULL;
+        UNION SELECT 'bank authority' FROM acc.SignatoryAuthority WHERE SourceDocumentId = @id AND ValidTo IS NULL AND SupersededById IS NULL
+        -- S2 (S2-GAP-18): the package of a facility, its typed rows, a collateral and its deeds, and the evidence of the agenda.
+        UNION SELECT 'facility document' FROM fac.FacilityDocument WHERE DocumentId = @id AND ToRevision IS NULL
+        UNION SELECT 'limit' FROM fac.Limit WHERE SourceDocumentId = @id AND ToRevision IS NULL
+        UNION SELECT 'product line' FROM fac.LimitProductLine WHERE SourceDocumentId = @id AND ToRevision IS NULL
+        UNION SELECT 'pricing rule' FROM prc.PricingRule WHERE SourceDocumentId = @id AND ToRevision IS NULL
+        UNION SELECT 'tariff schedule' FROM prc.TariffSchedule WHERE SourceDocumentId = @id AND Status <> 'SUPERSEDED'
+        UNION SELECT 'collateral' FROM col.Collateral WHERE (SourceDocumentId = @id OR ReleaseDocumentId = @id) AND Status <> 'DISCARDED'
+        UNION SELECT 'guarantee deed' FROM col.Guarantee AS g JOIN col.Collateral AS k ON k.CollateralId = g.CollateralId WHERE g.DeedDocumentId = @id AND k.Status <> 'DISCARDED'
+        UNION SELECT 'promissory note' FROM col.PromissoryNote AS n JOIN col.Collateral AS k ON k.CollateralId = n.CollateralId WHERE n.NoteDocumentId = @id AND k.Status <> 'DISCARDED'
+        UNION SELECT 'insurance policy' FROM col.InsurancePolicyAssignment AS a JOIN col.Collateral AS k ON k.CollateralId = a.CollateralId WHERE a.PolicyDocumentId = @id AND k.Status <> 'DISCARDED'
+        UNION SELECT 'obligation evidence' FROM obl.ReportingInstance WHERE EvidenceDocumentId = @id
+        UNION SELECT 'waiver' FROM obl.ObligationBreach WHERE WaiverDocumentId = @id;
         """;
 
     private static async Task<IResult> DeleteAsync(Guid id, DocumentDeleteRequest body, HttpContext http, SqlConnectionFactory db)

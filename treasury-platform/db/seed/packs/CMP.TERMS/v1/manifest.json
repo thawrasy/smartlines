@@ -1,0 +1,20 @@
+{
+  "PackKey": "CMP.TERMS",
+  "SeedVersion": 1,
+  "Slice": "S2",
+  "Status": "Proposed default written by an AI agent from spec 12 section 6.6 (the 35 keys observed in docs/04; 🟡 to be reviewed by the treasury manager). The code and unit of a system key do not change (BR-CMP-001, 062); the tenant may add its own keys.",
+  "Tables": [
+    "cmp.TermType.csv"
+  ],
+  "DependsOn": [],
+  "References": {},
+  "Sources": [
+    "docs/10-detailed-analysis/12-m5-facilities-pricing-collateral-obligations.md section 6.6 (TermType, 35 keys)",
+    "db/model/13-facilities-pricing-terms.model (cmp.TermType)",
+    "docs/30-readiness/DOC-B05-seed-and-initial-migration-plan.md (CMP.TERMS)"
+  ],
+  "Notes": {
+    "Direction": "From the company's side: a lower margin or fee is better; a longer tenor or objection period is better.",
+    "SourceBinding": "The typed field a value is projected from on approval (BR-CMP-004); an empty binding is entered by hand."
+  }
+}

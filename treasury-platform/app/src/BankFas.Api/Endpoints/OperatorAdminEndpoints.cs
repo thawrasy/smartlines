@@ -42,7 +42,7 @@ public static class OperatorAdminEndpoints
         await c.ExecuteScalarAsync<int?>(new CommandDefinition("SELECT TenantId FROM plat.Tenant WHERE PublicId = @id;", new { id }, cancellationToken: ct))
         ?? throw ApiProblemException.NotFound();
 
-    private static Task<int> WritePlatformAuditAsync(SqlConnection c, SqlTransaction? tx, int operatorId, string action, string entityType, long? entityId,
+    internal static Task<int> WritePlatformAuditAsync(SqlConnection c, SqlTransaction? tx, int operatorId, string action, string entityType, long? entityId,
         object? after, CancellationToken ct) =>
         c.ExecuteAsync(new CommandDefinition(
             """

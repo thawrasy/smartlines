@@ -4,7 +4,7 @@ import { api } from '../api';
 import { LangSwitch, useI18n } from '../i18n';
 import { StepUpProvider } from '../ui';
 import { Enrol, ForgotPassword, Invitation, Login, Mfa, ResetPassword, type Tenant } from './Auth';
-import { Audit, Jobs, Numbering, Settings, Support } from './Admin';
+import { Audit, Calendar, Jobs, Numbering, Settings, Support } from './Admin';
 import { Accounts, BankSetup, BaseRates, InstitutionDetail, Institutions, RelationshipDetail } from './Banks';
 import { Catalogs } from './Catalogs';
 import { Companies, CompanyDetail, Departments, DocumentRegister } from './Companies';
@@ -33,6 +33,7 @@ const menu: { to: string; label: string; permission?: string; anyOf?: string[] }
   { to: '/settings', label: 'Settings', permission: 'cfg.settings.manage' },
   { to: '/support', label: 'Support access', permission: 'sec.support.grant' },
   { to: '/numbering', label: 'Numbering', permission: 'cfg.numbering.manage' },
+  { to: '/calendar', label: 'Non-working days', permission: 'cfg.settings.manage' },
   { to: '/audit', label: 'Audit log', anyOf: ['audit.view', 'audit.view.treasury'] },
   { to: '/jobs', label: 'Background jobs', permission: 'cfg.jobs.view' },
   { to: '/companies', label: 'Companies', permission: 'org.company.view' },
@@ -91,6 +92,7 @@ function Shell() {
               <Route path="/settings" element={<Settings />} />
               <Route path="/support" element={<Support />} />
               <Route path="/numbering" element={<Numbering />} />
+              <Route path="/calendar" element={<Calendar />} />
               <Route path="/audit" element={<Audit />} />
               <Route path="/jobs" element={<Jobs />} />
               <Route path="/catalogs" element={<Catalogs />} />

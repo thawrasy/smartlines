@@ -185,6 +185,10 @@ public static partial class PartyEndpoints
         ["org.BodyMember"] = "(TermEnd IS NULL OR TermEnd >= CAST(SYSUTCDATETIME() AS DATE)) AND (ResignedOn IS NULL OR ResignedOn > CAST(SYSUTCDATETIME() AS DATE))",
         ["org.AuthorityGrant"] = "Status IN ('DRAFT', 'PENDING_APPROVAL', 'ACTIVE')",
         ["acc.Signatory"] = "Status NOT IN ('REVOKED', 'EXPIRED')",
+        // S2 (S2-GAP-11): a collateral in force, and its guarantee and note signers.
+        ["col.Collateral"] = "Status NOT IN ('RELEASED', 'EXPIRED', 'SUPERSEDED', 'DISCARDED')",
+        ["col.Guarantee"] = "EXISTS (SELECT 1 FROM col.Collateral AS k WHERE k.CollateralId = t.CollateralId AND k.Status NOT IN ('RELEASED', 'EXPIRED', 'SUPERSEDED', 'DISCARDED'))",
+        ["col.PromissoryNoteSigner"] = "EXISTS (SELECT 1 FROM col.PromissoryNote AS n JOIN col.Collateral AS k ON k.CollateralId = n.CollateralId WHERE n.PromissoryNoteId = t.PromissoryNoteId AND k.Status NOT IN ('RELEASED', 'EXPIRED', 'SUPERSEDED', 'DISCARDED'))",
     };
 
     /// <summary>The usage providers of a party, from the foreign keys that reference it, with their active rows (FR-PTY-017, 018).</summary>
@@ -205,7 +209,7 @@ public static partial class PartyEndpoints
             if (OwnTables.Contains(full)) continue;
             var active = ActiveWhen.GetValueOrDefault(full, "1 = 1");
             var (n, a) = await c.QuerySingleAsync<(int, int)>(new CommandDefinition(
-                $"SELECT COUNT(*), COUNT(CASE WHEN {active} THEN 1 END) FROM [{schema}].[{table}] WHERE [{column}] = @p;", new { p = partyId }, tx,
+                $"SELECT COUNT(*), COUNT(CASE WHEN {active} THEN 1 END) FROM [{schema}].[{table}] AS t WHERE t.[{column}] = @p;", new { p = partyId }, tx,
                 cancellationToken: ct));
             // A table with two references to the party (a holder and an intermediate) is one role.
             if (n > 0) usages[full] = usages.TryGetValue(full, out var had) ? (had.Count + n, had.Active + a) : (n, a);
@@ -446,6 +450,14 @@ public static partial class PartyEndpoints
               JOIN sys.columns AS pc ON pc.object_id = fkc.parent_object_id AND pc.column_id = fkc.parent_column_id
              WHERE fkc.referenced_object_id = OBJECT_ID(N'pty.Party') AND rc.name = N'PartyId' AND pc.name <> N'MergedIntoPartyId';
             """, transaction: tx, cancellationToken: http.RequestAborted));
+        // A guarantee names its guarantor and the guarantor's own identity document through one composite key, so the
+        // document is unlinked while both move and linked again after (S2-GAP-11).
+        var guarantees = (await u.Connection.QueryAsync<(long Id, long DocumentId)>(new CommandDefinition(
+            "SELECT GuaranteeId, GuarantorIdentityDocumentId FROM col.Guarantee WHERE GuarantorPartyId = @s AND GuarantorIdentityDocumentId IS NOT NULL;", p, tx,
+            cancellationToken: http.RequestAborted))).ToList();
+        foreach (var g in guarantees)
+            await u.Connection.ExecuteAsync(new CommandDefinition("UPDATE col.Guarantee SET GuarantorIdentityDocumentId = NULL WHERE GuaranteeId = @id;", new { id = g.Id }, tx,
+                cancellationToken: http.RequestAborted));
         var moved = new Dictionary<string, int>(StringComparer.Ordinal);
         foreach (var (schema, table, column) in refs.Distinct())
         {
@@ -459,6 +471,9 @@ public static partial class PartyEndpoints
                 $"UPDATE t SET [{column}] = @d FROM [{schema}].[{table}] AS t WHERE t.[{column}] = @s{keep};", p, tx, cancellationToken: http.RequestAborted));
             if (n > 0) moved[$"{schema}.{table}.{column}"] = n;
         }
+        foreach (var g in guarantees)
+            await u.Connection.ExecuteAsync(new CommandDefinition("UPDATE col.Guarantee SET GuarantorIdentityDocumentId = @doc WHERE GuaranteeId = @id;",
+                new { id = g.Id, doc = g.DocumentId }, tx, cancellationToken: http.RequestAborted));
         await u.Connection.ExecuteAsync(new CommandDefinition(
             "UPDATE pty.Party SET IsActive = 0, MergedIntoPartyId = @d, UpdatedAt = SYSUTCDATETIME(), UpdatedBy = CAST(SESSION_CONTEXT(N'UserId') AS BIGINT) WHERE PartyId = @s;",
             p, tx, cancellationToken: http.RequestAborted));
@@ -497,7 +512,11 @@ public static partial class PartyEndpoints
           JOIN ins.Institution AS i ON i.InstitutionId = r.InstitutionId JOIN cat.LookupItem AS cls ON cls.LookupItemId = a.SignatureClassId
          WHERE a.PartyId = @s AND EXISTS (SELECT 1 FROM acc.Signatory AS b
                  WHERE b.RelationshipId = a.RelationshipId AND b.PartyId = @d AND b.SignatureClassId = a.SignatureClassId
-                   AND ((a.ValidTo IS NULL AND a.Status <> 'REVOKED' AND b.ValidTo IS NULL AND b.Status <> 'REVOKED') OR b.ValidFrom = a.ValidFrom));
+                   AND ((a.ValidTo IS NULL AND a.Status <> 'REVOKED' AND b.ValidTo IS NULL AND b.Status <> 'REVOKED') OR b.ValidFrom = a.ValidFrom))
+        UNION ALL
+        SELECT 'col.PromissoryNoteSigner', CONCAT('note ', n.PromissoryNoteId, ' of collateral ', k.PublicId)
+          FROM col.PromissoryNoteSigner AS a JOIN col.PromissoryNote AS n ON n.PromissoryNoteId = a.PromissoryNoteId JOIN col.Collateral AS k ON k.CollateralId = n.CollateralId
+         WHERE a.PartyId = @s AND EXISTS (SELECT 1 FROM col.PromissoryNoteSigner AS b WHERE b.PromissoryNoteId = a.PromissoryNoteId AND b.PartyId = @d);
         """;
 
     // ---------- identity documents ----------
