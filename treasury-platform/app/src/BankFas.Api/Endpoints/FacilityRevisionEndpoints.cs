@@ -196,6 +196,7 @@ public static class FacilityRevisionEndpoints
         var rows = await FacilityTreeStore.LoadAsync(u.Connection, tx, f.FacilityId, int.MaxValue, ct);
         foreach (var x in LimitEndpoints.CheckTree(rows, rows.Tree(header.TotalAmount)))
             (x.Severity == "E" ? errors : warnings).Add(new(x.Code, x.Message));
+        foreach (var (code, message) in await PricingEndpoints.WarningsAsync(u.Connection, tx, f.FacilityId, ct)) warnings.Add(new(code, message));
         foreach (var code in await FacilityTreeStore.ClosedInUseAsync(u.Connection, tx, f.FacilityId, ct))
             errors.Add(new("V-FAC-IN-USE", $"The limit or line {code} carries a utilisation or a reservation: reduce its cap instead of closing it."));
         if (f.PreviousFacilityId is { } prev)
@@ -306,7 +307,8 @@ public static class FacilityRevisionEndpoints
     /// <summary>The revisioned tables of a facility that carry its FacilityId; a later batch adds its own (limits, lines, terms, pricing).</summary>
     internal static readonly (string Table, string Key)[] RevisionedTables =
     [
-        ("fac.FacilityLender", "FacilityLenderId"), ("fac.FacilityDocument", "FacilityDocumentId"), ("fac.ProductLineTerm", "ProductLineTermId"),
+        ("fac.FacilityLender", "FacilityLenderId"), ("fac.FacilityDocument", "FacilityDocumentId"), ("prc.PricingTier", "PricingTierId"), ("prc.PricingRule", "PricingRuleId"),
+        ("fac.ProductLineTerm", "ProductLineTermId"),
         ("fac.LimitCompanyRule", "LimitCompanyRuleId"), ("fac.LimitProductLine", "LimitProductLineId"), ("fac.Limit", "LimitId"),
     ];
 

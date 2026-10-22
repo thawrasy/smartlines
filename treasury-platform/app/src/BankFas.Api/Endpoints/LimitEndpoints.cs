@@ -13,7 +13,7 @@ namespace BankFas.Api.Endpoints;
 public sealed record SourceStamp(Guid? SourceDocument, string? SourcePage, bool? ReadFromScan, string? OriginalText, string? NoSourceReason);
 public sealed record LimitRequest(string? Code, string? LimitType, string? Parent, string? NameAr, string? NameEn, string? BankStructureNo, string? AmountBasis, decimal? Amount,
     decimal? PctOfParent, string? DistributionMode, bool? IsRevolving, bool? IsCommitted, string? StartDate, string? EndDate, string? DueDate, string? CompanyAllocationMode,
-    Guid? SourceDocument, string? SourcePage, bool? ReadFromScan, string? OriginalText, string? NoSourceReason);
+    string? PricingMode, Guid? SourceDocument, string? SourcePage, bool? ReadFromScan, string? OriginalText, string? NoSourceReason);
 public sealed record LineRequest(string? Product, string? BankProductCode, string? AmountBasis, decimal? Amount, decimal? PctOfParent, bool? IsRevolving, string? DueDate,
     bool? IsActive, Guid? SourceDocument, string? SourcePage, bool? ReadFromScan, string? OriginalText, string? NoSourceReason);
 public sealed record CompanyRuleRequest(Guid? Company, string? RuleKind, decimal? AllocationAmount, decimal? AllocationPct, string? Reason, string? ValidFrom, string? ValidTo,
@@ -63,11 +63,11 @@ public static class LimitEndpoints
 
     private static string? D(DateTime? d) => FacilityEndpoints.D(d);
 
-    private static DateTime? Date(string? text, string label) => FacilityEndpoints.DatePair(text, null, label).Date is { } s
+    internal static DateTime? Date(string? text, string label) => FacilityEndpoints.DatePair(text, null, label).Date is { } s
         ? DateTime.ParseExact(s, "yyyy-MM-dd", CultureInfo.InvariantCulture) : null;
 
     /// <summary>BR-FAC-018: a value from a document names it and its page; a value without one gives the reason.</summary>
-    private static async Task<(long? Doc, string? Page, bool Scan, string? Original, string? Reason, string Confidence)> SourceAsync(BoundUser u, SqlTransaction tx,
+    internal static async Task<(long? Doc, string? Page, bool Scan, string? Original, string? Reason, string Confidence)> SourceAsync(BoundUser u, SqlTransaction tx,
         FacilityEndpoints.FacilityRow f, Guid? document, string? page, bool? scan, string? original, string? reason, CancellationToken ct)
     {
         if (document is null)
@@ -81,10 +81,10 @@ public static class LimitEndpoints
         return (doc, page.Trim(), scan ?? false, original?.Trim(), reason?.Trim() is { Length: > 0 } r ? r : null, scan == true ? "READ_FROM_SCAN_UNVERIFIED" : "ENTERED_NO_DOCUMENT");
     }
 
-    private sealed record Draft(FacilityEndpoints.FacilityRow F, FacilityRevisionEndpoints.RevisionRow Rev, TreeRows Rows, decimal Total);
+    internal sealed record Draft(FacilityEndpoints.FacilityRow F, FacilityRevisionEndpoints.RevisionRow Rev, TreeRows Rows, decimal Total);
 
     /// <summary>The facility locked, its draft revision, and the tree copied into the draft (the first change copies it).</summary>
-    private static async Task<Draft> DraftAsync(BoundUser u, SqlTransaction tx, Guid id, CompanyScope scope, CancellationToken ct)
+    internal static async Task<Draft> DraftAsync(BoundUser u, SqlTransaction tx, Guid id, CompanyScope scope, CancellationToken ct)
     {
         var f = await FacilityEndpoints.FindAsync(u, tx, id, scope, ct, lockRow: true);
         var rev = await FacilityRevisionEndpoints.DraftAsync(u, tx, f, ct);
@@ -92,7 +92,7 @@ public static class LimitEndpoints
         return new Draft(f, rev, await FacilityTreeStore.LoadAsync(u.Connection, tx, f.FacilityId, int.MaxValue, ct), rev.Header(f).TotalAmount);
     }
 
-    private static async Task DoneAsync(BoundUser u, SqlTransaction tx, Draft d, string what, object detail, CancellationToken ct)
+    internal static async Task DoneAsync(BoundUser u, SqlTransaction tx, Draft d, string what, object detail, CancellationToken ct)
     {
         await FacilityTreeStore.WriteCapsAsync(u.Connection, tx, d.F.FacilityId, d.Total, ct);
         await FacilityRevisionEndpoints.EditedAsync(u, tx, d.F, d.Rev, what, JsonSerializer.Serialize(detail), ct);
@@ -105,7 +105,7 @@ public static class LimitEndpoints
         id = refs.ItemRef(tenant, "limit", l.RootId), parent = l.ParentRootId is { } p ? refs.ItemRef(tenant, "limit", p) : null, code = l.Code, type = l.LimitTypeCode,
         kind = l.Kind, nameAr = l.NameAr, nameEn = l.NameEn, bankStructureNo = l.BankStructureNo, amountBasis = l.AmountBasis, amount = l.Amount, pctOfParent = l.PctOfParent,
         cap = tree.Cap(l.RootId), distributionMode = l.DistributionMode, isRevolving = l.IsRevolving, isCommitted = l.IsCommitted, startDate = D(l.StartDate),
-        endDate = D(l.EndDate), dueDate = D(l.DueDate), companyAllocationMode = l.CompanyAllocationMode, depth = tree.Depth(l.RootId), fromRevision = l.FromRevision,
+        endDate = D(l.EndDate), dueDate = D(l.DueDate), companyAllocationMode = l.CompanyAllocationMode, pricingMode = l.PricingMode, depth = tree.Depth(l.RootId), fromRevision = l.FromRevision,
         source = new { document = l.SourceDocumentId is not null, page = l.SourcePage, readFromScan = l.ReadFromScan, noSourceReason = l.NoSourceReason, confidence = l.Confidence },
     };
 
@@ -206,6 +206,12 @@ public static class LimitEndpoints
         return m is "SHARED_CAP" or "PARTITION" or "OUTSIDE_TOTAL" ? m : throw ApiProblemException.Invalid("VALIDATION_FAILED", "The distribution is SHARED_CAP, PARTITION or OUTSIDE_TOTAL.");
     }
 
+    private static string PricingMode(string? mode, string fallback)
+    {
+        var m = mode?.Trim().ToUpperInvariant() ?? fallback;
+        return m is "INHERIT" or "OWN" ? m : throw ApiProblemException.Invalid("VALIDATION_FAILED", "The pricing of a limit is INHERIT or OWN.");
+    }
+
     private static LimitRow Find(Draft d, OpaqueRefs refs, int tenant, string reference) =>
         d.Rows.Limits.FirstOrDefault(l => l.RootId == refs.ItemId(tenant, "limit", reference)) ?? throw ApiProblemException.NotFound();
 
@@ -231,15 +237,15 @@ public static class LimitEndpoints
             """
             DECLARE @o TABLE (RootId BIGINT);
             INSERT fac.Limit (TenantId, FacilityId, ParentLimitId, LimitTypeId, Code, NameAr, NameEn, BankStructureNo, AmountBasis, Amount, PctOfParent, DistributionMode,
-                              IsRevolving, IsCommitted, StartDate, EndDate, DueDate, CompanyAllocationMode, FromRevision, SourceDocumentId, SourcePage, ReadFromScan,
-                              OriginalText, NoSourceReason, Confidence, CreatedBy)
+                              IsRevolving, IsCommitted, StartDate, EndDate, DueDate, CompanyAllocationMode, PricingMode, FromRevision, SourceDocumentId, SourcePage,
+                              ReadFromScan, OriginalText, NoSourceReason, Confidence, CreatedBy)
             OUTPUT inserted.RootId INTO @o
             VALUES (CAST(SESSION_CONTEXT(N'TenantId') AS INT), @f, @parent, @type, @code, @ar, @en, @bsn, @basis, @amount, @pct, @mode, @rev, @committed, @start, @end, @due,
-                    @alloc, @r, @doc, @page, @scan, @orig, @reason, @conf, CAST(SESSION_CONTEXT(N'UserId') AS BIGINT));
+                    @alloc, @pricing, @r, @doc, @page, @scan, @orig, @reason, @conf, CAST(SESSION_CONTEXT(N'UserId') AS BIGINT));
             SELECT RootId FROM @o;
             """, new
             {
-                f = d.F.FacilityId, parent = parent?.LimitId, type = type.TypeId, code, ar = b.NameAr.Trim(), en = b.NameEn?.Trim(), bsn = b.BankStructureNo?.Trim(), basis, amount,
+                pricing = PricingMode(b.PricingMode, "INHERIT"), f = d.F.FacilityId, parent = parent?.LimitId, type = type.TypeId, code, ar = b.NameAr.Trim(), en = b.NameEn?.Trim(), bsn = b.BankStructureNo?.Trim(), basis, amount,
                 pct, mode = Mode(b.DistributionMode, type.Mode), rev = b.IsRevolving ?? type.Revolving ?? true, committed = b.IsCommitted, start, end, due = Date(b.DueDate, "due date"),
                 alloc = (b.CompanyAllocationMode ?? "NONE").ToUpperInvariant(), r = d.Rev.RevisionNo, doc = src.Doc, page = src.Page, scan = src.Scan, orig = src.Original,
                 reason = src.Reason, conf = src.Confidence,
@@ -274,7 +280,7 @@ public static class LimitEndpoints
             $"""
             UPDATE fac.Limit SET Code = @code, ParentLimitId = @parent, NameAr = @ar, NameEn = @en, BankStructureNo = @bsn, AmountBasis = @basis, Amount = @amount,
                    PctOfParent = @pct, DistributionMode = @mode, IsRevolving = @rev, IsCommitted = @committed, StartDate = @start, EndDate = @end, DueDate = @due,
-                   CompanyAllocationMode = @alloc{(stamped ? ", SourceDocumentId = @doc, SourcePage = @page, ReadFromScan = @scan, OriginalText = @orig, NoSourceReason = @reason, Confidence = @conf" : "")},
+                   CompanyAllocationMode = @alloc, PricingMode = @pricing{(stamped ? ", SourceDocumentId = @doc, SourcePage = @page, ReadFromScan = @scan, OriginalText = @orig, NoSourceReason = @reason, Confidence = @conf" : "")},
                    UpdatedAt = SYSUTCDATETIME(), UpdatedBy = CAST(SESSION_CONTEXT(N'UserId') AS BIGINT)
              WHERE LimitId = @id;
             """, new
@@ -283,7 +289,7 @@ public static class LimitEndpoints
                 bsn = b.BankStructureNo ?? l.BankStructureNo, basis, amount, pct, mode = Mode(b.DistributionMode, l.DistributionMode), rev = b.IsRevolving ?? l.IsRevolving,
                 committed = b.IsCommitted ?? l.IsCommitted, start = b.StartDate is null ? l.StartDate : Date(b.StartDate, "start date"),
                 end = b.EndDate is null ? l.EndDate : Date(b.EndDate, "end date"), due = b.DueDate is null ? l.DueDate : Date(b.DueDate, "due date"),
-                alloc = b.CompanyAllocationMode?.ToUpperInvariant() ?? l.CompanyAllocationMode, doc = src.Doc, page = src.Page, scan = src.Scan, orig = src.Original,
+                alloc = b.CompanyAllocationMode?.ToUpperInvariant() ?? l.CompanyAllocationMode, pricing = PricingMode(b.PricingMode, l.PricingMode), doc = src.Doc, page = src.Page, scan = src.Scan, orig = src.Original,
                 reason = src.Reason, conf = src.Confidence,
             }, tx, cancellationToken: ct));
         await DoneAsync(u, tx, d, "LIMIT_CHANGED", new { code = l.Code, before = new { l.AmountBasis, l.Amount, l.PctOfParent, l.DistributionMode }, after = new { basis, amount, pct } }, ct);
@@ -311,7 +317,7 @@ public static class LimitEndpoints
     /// The draft holds a copy of every open row, so a removal voids the draft's row (ToRevision = FromRevision: valid at no
     /// revision; tp_app deletes nothing here, 005); the approved row it copied stays closed at the draft.
     /// </summary>
-    private static Task<int> DeleteDraftRowAsync(BoundUser u, SqlTransaction tx, string table, string pk, long id, CancellationToken ct) =>
+    internal static Task<int> DeleteDraftRowAsync(BoundUser u, SqlTransaction tx, string table, string pk, long id, CancellationToken ct) =>
         u.Connection.ExecuteAsync(new CommandDefinition(
             $"UPDATE {table} SET ToRevision = FromRevision, UpdatedAt = SYSUTCDATETIME(), UpdatedBy = CAST(SESSION_CONTEXT(N'UserId') AS BIGINT) WHERE {pk} = @id;",
             new { id }, tx, cancellationToken: ct));

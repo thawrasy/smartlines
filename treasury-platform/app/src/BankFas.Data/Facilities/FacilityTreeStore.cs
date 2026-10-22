@@ -28,6 +28,7 @@ public sealed class LimitRow
     public DateTime? EndDate { get; init; }
     public DateTime? DueDate { get; init; }
     public string CompanyAllocationMode { get; init; } = "";
+    public string PricingMode { get; init; } = "INHERIT";
     public int FromRevision { get; init; }
     public int? ToRevision { get; init; }
     public long? SourceDocumentId { get; init; }
@@ -135,7 +136,7 @@ public static class FacilityTreeStore
             $"""
             SELECT l.LimitId, l.RootId, l.ParentLimitId, pl.RootId AS ParentRootId, l.LimitTypeId, lt.Code AS LimitTypeCode, lt.Kind, l.Code, l.NameAr, l.NameEn,
                    l.BankStructureNo, l.AmountBasis, l.Amount, l.PctOfParent, l.EffectiveAmount, l.DistributionMode, l.IsRevolving, l.IsCommitted, l.StartDate, l.EndDate,
-                   l.DueDate, l.CompanyAllocationMode, l.FromRevision, l.ToRevision, l.SourceDocumentId, l.SourcePage, l.ReadFromScan, l.NoSourceReason, l.Confidence
+                   l.DueDate, l.CompanyAllocationMode, l.PricingMode, l.FromRevision, l.ToRevision, l.SourceDocumentId, l.SourcePage, l.ReadFromScan, l.NoSourceReason, l.Confidence
               FROM fac.Limit AS l
               JOIN cat.LimitType AS lt ON lt.LimitTypeId = l.LimitTypeId
               LEFT JOIN fac.Limit AS pl ON pl.LimitId = l.ParentLimitId
@@ -201,7 +202,9 @@ public static class FacilityTreeStore
             SELECT (SELECT COUNT(*) FROM fac.Limit WHERE FacilityId = @f AND ToRevision IS NULL AND FromRevision < @r)
                  + (SELECT COUNT(*) FROM fac.LimitProductLine WHERE FacilityId = @f AND ToRevision IS NULL AND FromRevision < @r)
                  + (SELECT COUNT(*) FROM fac.LimitCompanyRule WHERE FacilityId = @f AND ToRevision IS NULL AND FromRevision < @r)
-                 + (SELECT COUNT(*) FROM fac.ProductLineTerm WHERE FacilityId = @f AND ToRevision IS NULL AND FromRevision < @r);
+                 + (SELECT COUNT(*) FROM fac.ProductLineTerm WHERE FacilityId = @f AND ToRevision IS NULL AND FromRevision < @r)
+                 + (SELECT COUNT(*) FROM prc.PricingRule WHERE FacilityId = @f AND ToRevision IS NULL AND FromRevision < @r)
+                 + (SELECT COUNT(*) FROM prc.PricingTier WHERE FacilityId = @f AND ToRevision IS NULL AND FromRevision < @r);
             """, p, tx, cancellationToken: ct)).ConfigureAwait(false);
         if (pending == 0) return;
         await c.ExecuteAsync(new CommandDefinition(
@@ -212,11 +215,15 @@ public static class FacilityTreeStore
             INSERT @old SELECT LimitProductLineId, 2 FROM fac.LimitProductLine WHERE FacilityId = @f AND ToRevision IS NULL AND FromRevision < @r;
             INSERT @old SELECT LimitCompanyRuleId, 3 FROM fac.LimitCompanyRule WHERE FacilityId = @f AND ToRevision IS NULL AND FromRevision < @r;
             INSERT @old SELECT ProductLineTermId, 4 FROM fac.ProductLineTerm WHERE FacilityId = @f AND ToRevision IS NULL AND FromRevision < @r;
+            INSERT @old SELECT PricingRuleId, 5 FROM prc.PricingRule WHERE FacilityId = @f AND ToRevision IS NULL AND FromRevision < @r;
+            INSERT @old SELECT PricingTierId, 6 FROM prc.PricingTier WHERE FacilityId = @f AND ToRevision IS NULL AND FromRevision < @r;
             -- One open row per root: the old rows close first.
             UPDATE fac.Limit SET ToRevision = @r, UpdatedAt = SYSUTCDATETIME(), UpdatedBy = @me WHERE LimitId IN (SELECT Id FROM @old WHERE Kind = 1);
             UPDATE fac.LimitProductLine SET ToRevision = @r, UpdatedAt = SYSUTCDATETIME(), UpdatedBy = @me WHERE LimitProductLineId IN (SELECT Id FROM @old WHERE Kind = 2);
             UPDATE fac.LimitCompanyRule SET ToRevision = @r, UpdatedAt = SYSUTCDATETIME(), UpdatedBy = @me WHERE LimitCompanyRuleId IN (SELECT Id FROM @old WHERE Kind = 3);
             UPDATE fac.ProductLineTerm SET ToRevision = @r, UpdatedAt = SYSUTCDATETIME(), UpdatedBy = @me WHERE ProductLineTermId IN (SELECT Id FROM @old WHERE Kind = 4);
+            UPDATE prc.PricingRule SET ToRevision = @r, UpdatedAt = SYSUTCDATETIME(), UpdatedBy = @me WHERE PricingRuleId IN (SELECT Id FROM @old WHERE Kind = 5);
+            UPDATE prc.PricingTier SET ToRevision = @r, UpdatedAt = SYSUTCDATETIME(), UpdatedBy = @me WHERE PricingTierId IN (SELECT Id FROM @old WHERE Kind = 6);
             -- The limits, level by level: a copy whose parent was copied points to the parent's copy.
             DECLARE @n INT = 1;
             WHILE @n > 0
@@ -263,6 +270,30 @@ public static class FacilityTreeStore
               FROM fac.ProductLineTerm AS o
               LEFT JOIN fac.LimitProductLine AS nl ON nl.FacilityId = o.FacilityId AND nl.FromRevision = @r AND nl.SupersedesId = o.LimitProductLineId
              WHERE o.ProductLineTermId IN (SELECT Id FROM @old WHERE Kind = 4);
+            -- The pricing rules point to the copied limit and line; their tiers to the copied rule.
+            INSERT prc.PricingRule (TenantId, FacilityId, ScopeLimitId, ScopeLimitProductLineId, ScopeProductId, ScopeCompanyId, ComponentKind, RateState, FeeTypeId, FinancingTypeId,
+                                    Method, TariffItemId, AddOnPct, BaseRateId, MarginPct, BaseFloorPct, RatePct, RateRangeLowPct, RateRangeHighPct, FixedAmount, PerMillionAmount,
+                                    CurrencyId, PeriodBasis, PeriodDays, MinFeeAmount, MaxFeeAmount, RateFixing, RepricingMonths, DayCount, VatExclusive, BenchmarkReplacement,
+                                    ReplacementText, BankMayChange, ObjectionDays, ObjectionDaysKind, TriggerEvent, EffectiveFrom, EffectiveTo, Retroactive, RetroactiveReason,
+                                    FromRevision, SupersedesId, InheritedRootId, SourceDocumentId, SourcePage, ReadFromScan, OriginalText, NoSourceReason, Confidence, VerifiedBy,
+                                    VerifiedOn, ConflictId, CreatedBy)
+            SELECT o.TenantId, o.FacilityId, ISNULL(nl.LimitId, o.ScopeLimitId), ISNULL(nln.LimitProductLineId, o.ScopeLimitProductLineId), o.ScopeProductId, o.ScopeCompanyId,
+                   o.ComponentKind, o.RateState, o.FeeTypeId, o.FinancingTypeId, o.Method, o.TariffItemId, o.AddOnPct, o.BaseRateId, o.MarginPct, o.BaseFloorPct, o.RatePct,
+                   o.RateRangeLowPct, o.RateRangeHighPct, o.FixedAmount, o.PerMillionAmount, o.CurrencyId, o.PeriodBasis, o.PeriodDays, o.MinFeeAmount, o.MaxFeeAmount, o.RateFixing,
+                   o.RepricingMonths, o.DayCount, o.VatExclusive, o.BenchmarkReplacement, o.ReplacementText, o.BankMayChange, o.ObjectionDays, o.ObjectionDaysKind, o.TriggerEvent,
+                   o.EffectiveFrom, o.EffectiveTo, o.Retroactive, o.RetroactiveReason, @r, o.PricingRuleId, o.RootId, o.SourceDocumentId, o.SourcePage, o.ReadFromScan,
+                   o.OriginalText, o.NoSourceReason, o.Confidence, o.VerifiedBy, o.VerifiedOn, o.ConflictId, @me
+              FROM prc.PricingRule AS o
+              LEFT JOIN fac.Limit AS nl ON nl.FacilityId = o.FacilityId AND nl.FromRevision = @r AND nl.SupersedesId = o.ScopeLimitId
+              LEFT JOIN fac.LimitProductLine AS nln ON nln.FacilityId = o.FacilityId AND nln.FromRevision = @r AND nln.SupersedesId = o.ScopeLimitProductLineId
+             WHERE o.PricingRuleId IN (SELECT Id FROM @old WHERE Kind = 5);
+            INSERT prc.PricingTier (TenantId, FacilityId, PricingRuleId, AmountFrom, AmountTo, PeriodFromDays, PeriodToDays, RatePct, MarginPct, FixedAmount, SortOrder, FromRevision,
+                                    SupersedesId, InheritedRootId, CreatedBy)
+            SELECT o.TenantId, o.FacilityId, ISNULL(nr.PricingRuleId, o.PricingRuleId), o.AmountFrom, o.AmountTo, o.PeriodFromDays, o.PeriodToDays, o.RatePct, o.MarginPct,
+                   o.FixedAmount, o.SortOrder, @r, o.PricingTierId, o.RootId, @me
+              FROM prc.PricingTier AS o
+              LEFT JOIN prc.PricingRule AS nr ON nr.FacilityId = o.FacilityId AND nr.FromRevision = @r AND nr.SupersedesId = o.PricingRuleId
+             WHERE o.PricingTierId IN (SELECT Id FROM @old WHERE Kind = 6);
             """, p, tx, cancellationToken: ct)).ConfigureAwait(false);
     }
 

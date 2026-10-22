@@ -8,6 +8,7 @@ import { Audit, Calendar, Jobs, Numbering, Settings, Support } from './Admin';
 import { Accounts, BankSetup, BaseRates, InstitutionDetail, Institutions, RelationshipDetail } from './Banks';
 import { Catalogs } from './Catalogs';
 import { Facilities, FacilityDetail } from './Facilities';
+import { TariffSchedules } from './Pricing';
 import { Companies, CompanyDetail, Departments, DocumentRegister } from './Companies';
 import { OwnershipMismatch, StructureIntegrity } from './Structure';
 import { AuthorityConflicts } from './Signatories';
@@ -50,6 +51,7 @@ const menu: { to: string; label: string; permission?: string; anyOf?: string[] }
   { to: '/accounts', label: 'Bank accounts', permission: 'acc.view' },
   { to: '/base-rates', label: 'Base rates', permission: 'cat.view' },
   { to: '/facilities', label: 'Facilities', permission: 'fac.view' },
+  { to: '/tariff-schedules', label: 'Tariff schedules', permission: 'prc.view' },
   { to: '/catalogs', label: 'Catalogues', anyOf: ['cat.manage.general', 'cat.manage.financial'] },
   { to: '/notifications', label: 'Notifications', permission: 'ntf.prefs' },
   { to: '/notification-settings', label: 'Notification settings', permission: 'ntf.manage' },
@@ -117,6 +119,7 @@ function Shell() {
               <Route path="/base-rates" element={<BaseRates />} />
               <Route path="/facilities" element={<Facilities />} />
               <Route path="/facilities/:id" element={<FacilityDetail />} />
+              <Route path="/tariff-schedules" element={<TariffSchedules />} />
               <Route path="/notifications" element={<Notifications />} />
               <Route path="/notification-settings" element={<NotificationSettings />} />
               <Route path="/profile" element={<Profile />} />

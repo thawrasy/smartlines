@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, apiWithETag, message } from '../api';
 import { useI18n } from '../i18n';
 import { Field, Form, Notice, Select, Table } from '../ui';
+import { FacilityPricing } from './Pricing';
 
 // SCR-FAC-01 (the list) and SCR-FAC-02 (the facility card: header, lenders, documents, revisions, renewal chain and
 // accounts). A facility is changed through its open revision; the approved card and the draft are shown side by side.
@@ -278,6 +279,7 @@ export function FacilityDetail() {
         ]} />
       </section>
       <LimitTree id={id!} draft={!!draft && open?.status === 'DRAFT'} edit={card.permissions.edit} onChange={load} />
+      <FacilityPricing id={id!} company={card.borrower.id} draft={!!draft && open?.status === 'DRAFT'} edit={card.permissions.edit} />
       <Utilizations id={id!} company={card.borrower.id} approved={card.approvedRevision > 0} />
       <FacilityAccounts id={id!} company={card.borrower.id} edit={card.permissions.edit} />
     </>
