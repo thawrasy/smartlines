@@ -289,7 +289,7 @@ table pty.Party public  # Person or entity; no stored role (FR-PTY-001..003, BR-
   check  Kind = 'INDIVIDUAL' OR (ResidencyStatus IS NULL AND BirthDate IS NULL AND MaritalStatus IS NULL AND Gender IS NULL AND EducationLevelId IS NULL)   # حقول الفرد للأفراد فقط
   check  MergedIntoPartyId IS NULL OR (IsActive = 0 AND MergedIntoPartyId <> PartyId)
 
-table pty.IdentityDocument  # Identity document; the number is encrypted and images are restricted documents (FR-PTY-004..009, FR-PTY-020..022, BR-PTY-002..008)
+table pty.IdentityDocument public  # Identity document; the number is encrypted and images are restricted documents (FR-PTY-004..009, FR-PTY-020..022, BR-PTY-002..008)
   PartyId            ->pty.Party req
   DocKind            enum{NATIONAL_ID,RESIDENCE,PASSPORT,GCC_ID,COMMERCIAL_REG,OTHER_ORG} req
   IssuingCountryId   ->ref.Country req

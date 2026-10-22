@@ -18,10 +18,10 @@ public sealed class CompanyScope(bool all, IReadOnlySet<long> ids)
     /// <summary>The ids for an SQL "IN @ids", with -1 for an empty scope so the list is never empty.</summary>
     public long[] SqlIds => Ids.Count == 0 ? [-1] : [.. Ids];
 
-    public static async Task<CompanyScope> OfAsync(BoundUser u, CancellationToken ct)
+    public static async Task<CompanyScope> OfAsync(BoundUser u, CancellationToken ct, Microsoft.Data.SqlClient.SqlTransaction? tx = null)
     {
         var mode = await u.Connection.ExecuteScalarAsync<string>(new CommandDefinition(
-            "SELECT CompanyScopeMode FROM sec.AppUser WHERE AppUserId = @u;", new { u = u.UserId }, cancellationToken: ct)).ConfigureAwait(false);
+            "SELECT CompanyScopeMode FROM sec.AppUser WHERE AppUserId = @u;", new { u = u.UserId }, tx, cancellationToken: ct)).ConfigureAwait(false);
         if (mode == "ALL") return new CompanyScope(true, new HashSet<long>());
         var ids = await u.Connection.QueryAsync<long>(new CommandDefinition(
             """
@@ -30,7 +30,7 @@ public sealed class CompanyScope(bool all, IReadOnlySet<long> ids)
                 UNION ALL
                 SELECT ch.CompanyId, t.IncludeDescendants FROM org.Company AS ch JOIN tree AS t ON ch.ParentCompanyId = t.CompanyId WHERE t.IncludeDescendants = 1)
             SELECT DISTINCT CompanyId FROM tree OPTION (MAXRECURSION 20);
-            """, new { u = u.UserId }, cancellationToken: ct)).ConfigureAwait(false);
+            """, new { u = u.UserId }, tx, cancellationToken: ct)).ConfigureAwait(false);
         return new CompanyScope(false, ids.ToHashSet());
     }
 }

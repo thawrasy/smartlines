@@ -39,7 +39,7 @@ public static class DocumentEndpoints
         api.MapPost("/documents/{id:guid}/actions/delete", DeleteAsync);
     }
 
-    private sealed record DocType(int DocumentTypeId, string Code, string NameAr, string? NameEn, bool RequiresExpiry, bool IsSensitive, string? AllowedMime,
+    internal sealed record DocType(int DocumentTypeId, string Code, string NameAr, string? NameEn, bool RequiresExpiry, bool IsSensitive, string? AllowedMime,
         int? MaxSizeMb, string? AppliesTo, bool IsActive);
 
     internal sealed record DocRow(long DocumentId, Guid PublicId, string TypeCode, string TypeNameAr, string? TypeNameEn, bool IsSensitive, string Title,
@@ -104,12 +104,14 @@ public static class DocumentEndpoints
                AND (@company IS NULL OR c.PublicId = @company)
                AND (@q IS NULL OR d.Title LIKE @q OR d.DocumentNumber LIKE @q)
                AND (@all = 1 OR d.OwnerCompanyId IS NULL OR d.OwnerCompanyId IN @ids)
+               AND (@restricted = 1 OR d.Sensitivity <> 'RESTRICTED')
              ORDER BY d.ExpiryDate, d.DocumentId DESC;
             """,
             new
             {
                 status = q["status"].ToString() is { Length: > 0 } st ? st.ToUpperInvariant() : null, type = q["type"].ToString() is { Length: > 0 } ty ? ty : null,
                 company, q = q["q"].ToString() is { Length: > 0 } text ? "%" + text + "%" : null, all = scope.All, ids = scope.SqlIds,
+                restricted = Restricted.Any((await u.PermissionsAsync(http.RequestAborted)).Contains),
             }, cancellationToken: http.RequestAborted));
         var today = Today(clock);
         var horizon = await HorizonAsync(u.Connection, http.RequestAborted);
@@ -145,10 +147,10 @@ public static class DocumentEndpoints
 
     // ---------- upload ----------
 
-    private sealed record Checked(byte[] Content, string ContentType, string FileName, byte[] Sha256);
+    internal sealed record Checked(byte[] Content, string ContentType, string FileName, byte[] Sha256);
 
     /// <summary>The file of the form, checked against the type: content not name, allowed types, size (FR-PLT-029, BR-PLT-011).</summary>
-    private static async Task<Checked> ReadFileAsync(IFormFile? file, DocType type, CancellationToken ct)
+    internal static async Task<Checked> ReadFileAsync(IFormFile? file, DocType type, CancellationToken ct)
     {
         if (file is null || file.Length == 0) throw ApiProblemException.Invalid("FILE_REQUIRED", "Choose a file.");
         var maxMb = type.MaxSizeMb ?? DefaultMaxMb;
@@ -169,7 +171,7 @@ public static class DocumentEndpoints
         : DateTime.TryParseExact(text, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var d) ? d
         : throw ApiProblemException.Invalid("VALIDATION_FAILED", $"The {field} is a date YYYY-MM-DD.");
 
-    private static async Task<DocType> TypeAsync(BoundUser u, SqlTransaction? tx, string? code, CancellationToken ct) =>
+    internal static async Task<DocType> TypeAsync(BoundUser u, SqlTransaction? tx, string? code, CancellationToken ct) =>
         await u.Connection.QuerySingleOrDefaultAsync<DocType>(new CommandDefinition(
             "SELECT DocumentTypeId, Code, NameAr, NameEn, RequiresExpiry, IsSensitive, AllowedMime, MaxSizeMb, AppliesTo, IsActive FROM cat.DocumentType WHERE Code = @code;",
             new { code }, tx, cancellationToken: ct)) is { IsActive: true } t ? t
@@ -249,9 +251,25 @@ public static class DocumentEndpoints
         }
         else if (!scope.All) throw ApiProblemException.Invalid("COMPANY_REQUIRED", "Choose the company the document belongs to.");
         var file = await ReadFileAsync(form.Files["file"], type, http.RequestAborted);
-        var tenant = await u.Connection.ExecuteScalarAsync<Guid>(new CommandDefinition("SELECT PublicId FROM plat.v_CurrentTenant;", cancellationToken: http.RequestAborted));
+        var meta = new DocMeta(title, F("documentNumber"), issue, F("issueDateHijri"), expiry, F("expiryDateHijri"), F("issuingAuthority"));
+        var created = await CreateAsync(u, type, file, meta, company, company is null ? null : ("org.Company", company.Value.Id, "ATTACHMENT"), keys, store, scanner,
+            http.RequestAborted);
+        return Results.Created($"/api/v1/documents/{created.Id}", new { id = created.Id, version = 1, scanStatus = created.ScanStatus, duplicateOf = created.DuplicateOf });
+    }
 
-        await using var tx = (SqlTransaction)await u.Connection.BeginTransactionAsync(http.RequestAborted);
+    internal sealed record DocMeta(string Title, string? Number, DateTime? Issue, string? IssueHijri, DateTime? Expiry, string? ExpiryHijri, string? Authority);
+
+    /// <summary>
+    /// A new document with its first version in one transaction: the Document row, the encrypted file, Version 1 and
+    /// CurrentVersionId, the link to its entity, the outbox event and the audit row. Shared by the register, the company
+    /// tab and the identity images (FR-PTY-009).
+    /// </summary>
+    internal static async Task<(Guid Id, long DocumentId, string ScanStatus, Guid? DuplicateOf)> CreateAsync(BoundUser u, DocType type, Checked file, DocMeta meta,
+        (long Id, Guid PublicId)? company, (string EntityType, long EntityId, string Role)? link, TenantKeyRing keys, FileStore store, IMalwareScanner scanner,
+        CancellationToken ct)
+    {
+        var tenant = await u.Connection.ExecuteScalarAsync<Guid>(new CommandDefinition("SELECT PublicId FROM plat.v_CurrentTenant;", cancellationToken: ct));
+        await using var tx = (SqlTransaction)await u.Connection.BeginTransactionAsync(ct);
         var doc = await u.Connection.QuerySingleAsync<(long Id, Guid PublicId)>(new CommandDefinition(
             """
             DECLARE @o TABLE (Id BIGINT, PublicId UNIQUEIDENTIFIER);
@@ -264,28 +282,25 @@ public static class DocumentEndpoints
             """,
             new
             {
-                type = type.DocumentTypeId, title, num = F("documentNumber"), issue, issueH = F("issueDateHijri"), expiry, expiryH = F("expiryDateHijri"),
-                auth = F("issuingAuthority"), company = company?.Id, sens = type.IsSensitive ? "RESTRICTED" : "CONFIDENTIAL",
-            }, tx, cancellationToken: http.RequestAborted));
-        var (storageKey, keyId, scan) = await StoreAsync(u, tx, keys, store, scanner, file, tenant, doc.PublicId, 1, http.RequestAborted);
+                type = type.DocumentTypeId, title = meta.Title, num = meta.Number, issue = meta.Issue, issueH = meta.IssueHijri, expiry = meta.Expiry,
+                expiryH = meta.ExpiryHijri, auth = meta.Authority, company = company?.Id, sens = type.IsSensitive ? "RESTRICTED" : "CONFIDENTIAL",
+            }, tx, cancellationToken: ct));
+        var (storageKey, keyId, scan) = await StoreAsync(u, tx, keys, store, scanner, file, tenant, doc.PublicId, 1, ct);
         try
         {
-            await InsertVersionAsync(u, tx, doc.Id, 1, file, storageKey, keyId, scan, http.RequestAborted);
-            if (company is not null)
+            await InsertVersionAsync(u, tx, doc.Id, 1, file, storageKey, keyId, scan, ct);
+            if (link is { } l)
                 await u.Connection.ExecuteAsync(new CommandDefinition(
-                    "INSERT doc.DocumentLink (TenantId, DocumentId, EntityType, EntityId, LinkRole, CreatedBy) VALUES (CAST(SESSION_CONTEXT(N'TenantId') AS INT), @d, 'org.Company', @c, 'ATTACHMENT', CAST(SESSION_CONTEXT(N'UserId') AS BIGINT));",
-                    new { d = doc.Id, c = company.Value.Id }, tx, cancellationToken: http.RequestAborted));
-            var duplicate = await DuplicateOfAsync(u, tx, file.Sha256, doc.Id, http.RequestAborted);
+                    "INSERT doc.DocumentLink (TenantId, DocumentId, EntityType, EntityId, LinkRole, CreatedBy) VALUES (CAST(SESSION_CONTEXT(N'TenantId') AS INT), @d, @t, @e, @r, CAST(SESSION_CONTEXT(N'UserId') AS BIGINT));",
+                    new { d = doc.Id, t = l.EntityType, e = l.EntityId, r = l.Role }, tx, cancellationToken: ct));
+            var duplicate = await DuplicateOfAsync(u, tx, file.Sha256, doc.Id, ct);
             await Outbox.EmitAsync(u.Connection, tx, "document.uploaded", "doc.Document", doc.Id,
-                new { document = doc.PublicId, type = type.Code, version = 1, scan = scan.Clean ? "CLEAN" : "QUARANTINED" }, http.RequestAborted);
-            await AuditWriter.WriteAsync(u.Connection, tx, new AuditEntry("DOCUMENT_UPLOADED", "TREASURY", "doc.Document", doc.Id,
-                AfterJson: JsonSerializer.Serialize(new { type = type.Code, title, version = 1, sizeBytes = file.Content.Length, scan = scan.Detail, duplicateOf = duplicate }),
-                Severity: scan.Clean ? "INFO" : "HIGH"), company?.Id, http.RequestAborted);
-            await tx.CommitAsync(http.RequestAborted);
-            return Results.Created($"/api/v1/documents/{doc.PublicId}", new
-            {
-                id = doc.PublicId, version = 1, scanStatus = scan.Clean ? "CLEAN" : "QUARANTINED", duplicateOf = duplicate,
-            });
+                new { document = doc.PublicId, type = type.Code, version = 1, scan = scan.Clean ? "CLEAN" : "QUARANTINED" }, ct);
+            await AuditWriter.WriteAsync(u.Connection, tx, new AuditEntry("DOCUMENT_UPLOADED", type.IsSensitive ? "IDENTITY_ACCESS" : "TREASURY", "doc.Document", doc.Id,
+                AfterJson: JsonSerializer.Serialize(new { type = type.Code, title = meta.Title, version = 1, sizeBytes = file.Content.Length, scan = scan.Detail, duplicateOf = duplicate, link = link?.EntityType }),
+                Severity: scan.Clean ? "INFO" : "HIGH"), company?.Id, ct);
+            await tx.CommitAsync(ct);
+            return (doc.PublicId, doc.Id, scan.Clean ? "CLEAN" : "QUARANTINED", duplicate);
         }
         catch
         {

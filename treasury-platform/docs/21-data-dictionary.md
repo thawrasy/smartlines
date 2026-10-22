@@ -1583,12 +1583,13 @@
 | SupersededById | BIGINT | نعم |  | pty.IdentityDocument (via PartyId) | التجديد ينشئ وثيقة جديدة للطرف نفسه تستبدل القديمة (FR-PTY-022، BR-PTY-006، DR-23) |
 | VerifiedAt | DATETIME2(3) | نعم |  |  | «تم التحقق من الأصل» (FR-PTY-020) |
 | VerifiedBy | BIGINT | نعم |  | sec.AppUser |  |
+| PublicId | UNIQUEIDENTIFIER | لا | NEWSEQUENTIALID() |  |  |
 | CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
 | CreatedBy | BIGINT | نعم |  |  |  |
 | UpdatedAt | DATETIME2(3) | نعم |  |  |  |
 | UpdatedBy | BIGINT | نعم |  |  |  |
 
-**المفاتيح:** PK(IdentityDocumentId) · UQ(TenantId, DocKind, IssuingCountryId, NumberHash) WHERE IsSuperseded = 0 · UQ(TenantId, PartyId) WHERE IsPrimary = 1
+**المفاتيح:** PK(IdentityDocumentId) · UQ(PublicId) · UQ(TenantId, DocKind, IssuingCountryId, NumberHash) WHERE IsSuperseded = 0 · UQ(TenantId, PartyId) WHERE IsPrimary = 1
 
 **قيود:** `ExpiryDate IS NULL OR IssueDate IS NULL OR ExpiryDate > IssueDate` · `SupersededById IS NULL OR (SupersededById <> IdentityDocumentId AND IsSuperseded = 1)` · `DATALENGTH(NumberEnc) >= 29` · `IsSuperseded = 0 OR IsPrimary = 0` · `VerifiedBy IS NULL OR VerifiedAt IS NOT NULL`
 

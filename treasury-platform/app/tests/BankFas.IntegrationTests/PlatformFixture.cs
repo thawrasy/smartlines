@@ -90,6 +90,25 @@ public sealed class PlatformFixture : IAsyncLifetime
         return new TestTenant(code, portal, adminEmail, password, secretAndCodes.Secret, secretAndCodes.Codes);
     }
 
+    /// <summary>A user of the tenant with one role, invited by its administrator, signed in with MFA; every company in scope unless told otherwise.</summary>
+    public async Task<(HttpClient Client, byte[] Secret, string Email)> UserWithRoleAsync(TestTenant t, string roleCode, bool allCompanies = true)
+    {
+        var roles = await t.Portal.GetJsonAsync("/api/v1/roles");
+        var roleId = roles.GetProperty("items").EnumerateArray().First(r => r.GetProperty("code").GetString() == roleCode).GetProperty("id").GetString()!;
+        var email = $"{roleCode.ToLowerInvariant()}-{Guid.NewGuid().ToString("N")[..8]}@{t.Code}.test.invalid";
+        var invited = await t.Portal.PostOkAsync("/api/v1/users", new { email, displayNameEn = roleCode + " user", roleIds = new[] { roleId }, stepUpCode = NextCode(t.AdminSecret) });
+        if (allCompanies)
+        {
+            var (_, etag) = await t.Portal.GetWithETagAsync($"/api/v1/users/{Id(invited)}");
+            await t.Portal.OkAsync(HttpMethod.Put, $"/api/v1/users/{Id(invited)}/company-scope", new { mode = "ALL" }, etag);
+        }
+        var client = await Env.BrowserAsync($"{t.Code}.{TestEnvironment.Domain}");
+        const string password = "a role user passphrase";
+        await client.PostOkAsync("/api/v1/auth/invitation", new { token = Env.LinkTokenSentTo(email), password });
+        var (secret, _) = await SignInFirstTimeAsync(client, email, password);
+        return (client, secret, email);
+    }
+
     /// <summary>Signs a user in for the first time: password, then authenticator enrolment.</summary>
     public async Task<(byte[] Secret, IReadOnlyList<string> Codes)> SignInFirstTimeAsync(HttpClient portal, string email, string password, string? reenrolment = null)
     {

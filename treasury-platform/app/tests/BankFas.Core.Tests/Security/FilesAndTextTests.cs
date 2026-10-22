@@ -34,6 +34,20 @@ public class FilesAndTextTests
     }
 
     [Fact]
+    public void Identity_numbers_have_a_normal_form_a_mask_and_a_blind_index_per_kind_and_country()
+    {
+        Assert.Equal("1012345678", BankFas.Core.Security.IdentityNumbers.Normalize("١٠١٢ ٣٤٥-٦٧٨"));
+        Assert.Equal("A1234567", BankFas.Core.Security.IdentityNumbers.Normalize(" a123-4567 "));
+        Assert.Equal("******5678", BankFas.Core.Security.IdentityNumbers.Mask("1012345678"));
+        Assert.Equal("***", BankFas.Core.Security.IdentityNumbers.Mask("123"));
+        var key = RandomNumberGenerator.GetBytes(32);
+        var a = BankFas.Core.Security.IdentityNumbers.BlindIndex(key, "NATIONAL_ID", "SA", "1012345678");
+        Assert.Equal(a, BankFas.Core.Security.IdentityNumbers.BlindIndex(key, "NATIONAL_ID", "sa", "1012345678"));
+        Assert.NotEqual(a, BankFas.Core.Security.IdentityNumbers.BlindIndex(key, "PASSPORT", "SA", "1012345678"));
+        Assert.NotEqual(a, BankFas.Core.Security.IdentityNumbers.BlindIndex(RandomNumberGenerator.GetBytes(32), "NATIONAL_ID", "SA", "1012345678"));
+    }
+
+    [Fact]
     public void Names_phones_and_emails_have_one_normal_form()
     {
         Assert.Equal(Normalizer.Name("أحمد  عبدالله"), Normalizer.Name("احمد عبدالله"));

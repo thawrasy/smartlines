@@ -99,6 +99,7 @@ SupportEndpoints.Map(portal);
 CatalogEndpoints.Map(portal);
 DocumentEndpoints.Map(portal);
 CompanyEndpoints.Map(portal);
+PartyEndpoints.Map(portal);
 var panel = app.MapGroup("/api/v1/operator").AddEndpointFilter(SurfaceFilter(Surface.OperatorPanel));
 OperatorEndpoints.Map(panel);
 OperatorAdminEndpoints.Map(panel);

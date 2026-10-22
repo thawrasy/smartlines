@@ -7,6 +7,7 @@ import { Enrol, ForgotPassword, Invitation, Login, Mfa, ResetPassword, type Tena
 import { Audit, Jobs, Numbering, Settings, Support } from './Admin';
 import { Catalogs } from './Catalogs';
 import { Companies, CompanyDetail, Departments, DocumentRegister } from './Companies';
+import { CustomFieldDefinitions, Parties, PartyDetail, PartyDuplicates } from './Parties';
 import { Profile } from './Profile';
 import { RoleDetail, Roles } from './Roles';
 import { UserDetail, Users } from './Users';
@@ -33,6 +34,9 @@ const menu: { to: string; label: string; permission?: string; anyOf?: string[] }
   { to: '/companies', label: 'Companies', permission: 'org.company.view' },
   { to: '/documents', label: 'Company documents', permission: 'org.document.view' },
   { to: '/departments', label: 'Departments', permission: 'org.company.manage' },
+  { to: '/parties', label: 'Persons and entities', permission: 'party.view' },
+  { to: '/parties/duplicates', label: 'Possible duplicates', permission: 'party.merge' },
+  { to: '/custom-fields', label: 'Custom fields', permission: 'party.field.manage' },
   { to: '/catalogs', label: 'Catalogues', anyOf: ['cat.manage.general', 'cat.manage.financial'] },
   { to: '/profile', label: 'My profile' },
 ];
@@ -81,6 +85,10 @@ function Shell() {
               <Route path="/companies/:id" element={<CompanyDetail />} />
               <Route path="/documents" element={<DocumentRegister />} />
               <Route path="/departments" element={<Departments />} />
+              <Route path="/parties" element={<Parties />} />
+              <Route path="/parties/duplicates" element={<PartyDuplicates />} />
+              <Route path="/parties/:id" element={<PartyDetail />} />
+              <Route path="/custom-fields" element={<CustomFieldDefinitions />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="*" element={<Navigate to="/" />} />
             </Routes>
