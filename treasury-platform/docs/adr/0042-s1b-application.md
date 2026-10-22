@@ -1,7 +1,7 @@
 # ADR 0042: Slice S1-b of the application, its defaults and the gaps it closed
 
 Status: built on 2026-10-22 on the owner's request "I approve the defaults and start building S1-b" (docs/31, row 39).
-The defaults below were taken from the S1-b brief and wait for the owner's approval. Written by an AI agent.
+The defaults below were taken from the S1-b brief. The owner approved OQ-6, OQ-9, OQ-10 and OQ-16 on 2026-10-22; the others wait for approval. Written by an AI agent.
 
 ## Context
 
@@ -44,7 +44,7 @@ specifications and the database (S1B-GAP-1 to 19) and nineteen open questions (O
 
 ### 4. The defaults taken
 
-OQ-1 to OQ-19 as listed in docs/44 section 4, waiting for the owner's approval.
+OQ-1 to OQ-19 as listed in docs/44 section 4. Approved by the owner on 2026-10-22: OQ-6 (a change of bank on an active grant is substantive), OQ-9 (only ACTIVE grants are compared and queried), OQ-10 (conflicts are read with sig.view and acknowledged with sig.conflict.review) and OQ-16 (closing a relationship revokes its signatories in force after confirmation). The other fifteen wait for approval.
 
 ## Consequences
 
