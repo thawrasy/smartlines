@@ -19,8 +19,8 @@ A pack of the generic convention has a manifest with a Tables list, a DependsOn 
   - catalogue codes match the check of the model (BR-CAT-001), a locked row is system and active, a system row has
     NameEn (BR-CAT-003), and the CHECK constraints of the S1 tables hold (limit kinds, obligation families, Shariah
     pairs, base-rate scope, list scope, numbering patterns of db/static/039, descending lead days).
-The other packs (CORE.ROLES, NTF.BASE, FIN.PROVISION keep their own conventions and checkers, core_roles_pack.py and
-ntf_pack.py) are parsed: their files must exist, their SeedKeys be unique, and columns outside the model are noted.
+The other packs (CORE.ROLES, NTF.BASE, FIN.PROVISION) keep their own conventions and checkers, core_roles_pack.py and
+ntf_pack.py, even where their manifest has References the seeder reads (NTF.BASE v2); they are parsed: their files must exist, their SeedKeys be unique, and columns outside the model are noted.
 """
 import csv, glob, json, os, re, sys
 
@@ -61,9 +61,12 @@ def read_csv(path):
     return rows, errs
 
 
+OWN_CONVENTION = {'CORE.ROLES', 'NTF.BASE', 'FIN.PROVISION'}   # their SeedKeys and references follow their own checkers
+
+
 def is_new_convention(man):
     refs = man.get('References', {})
-    return ('DependsOn' in man and isinstance(man.get('Tables'), list) and isinstance(refs, dict)
+    return (man.get('PackKey') not in OWN_CONVENTION and 'DependsOn' in man and isinstance(man.get('Tables'), list) and isinstance(refs, dict)
             and all(isinstance(v, dict) and all(isinstance(x, dict) for x in v.values()) for v in refs.values()))
 
 

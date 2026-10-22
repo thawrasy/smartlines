@@ -11,7 +11,7 @@ namespace BankFas.Data;
 /// </summary>
 public static class Outbox
 {
-    public static Task EmitAsync(SqlConnection c, SqlTransaction tx, string eventName, string aggregateType, long aggregateId, object payload, CancellationToken ct) =>
+    public static Task EmitAsync(SqlConnection c, SqlTransaction? tx, string eventName, string aggregateType, long aggregateId, object payload, CancellationToken ct) =>
         c.ExecuteAsync(new CommandDefinition(
             """
             INSERT cfg.OutboxEvent (TenantId, EventName, AggregateType, AggregateId, PayloadJson, CorrelationId, CreatedBy)

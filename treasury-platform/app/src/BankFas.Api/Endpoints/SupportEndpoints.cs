@@ -79,6 +79,14 @@ public static class SupportEndpoints
             """, new { op = op.OperatorId, by = u.UserId, hours, reason = body.Reason.Trim() }, cancellationToken: http.RequestAborted));
         await TenantAdminProcedures.WriteAuditAsync(u.Connection, null, new AuditEntry("SUPPORT_ACCESS_GRANTED", "SECURITY", "plat.SupportAccessGrant", id,
             AfterJson: JsonSerializer.Serialize(new { @operator = op.PublicId, hours, reason = body.Reason.Trim() }), Severity: "HIGH"), http.RequestAborted);
+        var (actor, ends) = await u.Connection.QuerySingleAsync<(string Name, DateTime EndsAt)>(new CommandDefinition(
+            "SELECT ISNULL(u.DisplayNameAr, u.Email), g.EndsAt FROM plat.SupportAccessGrant AS g JOIN sec.AppUser AS u ON u.AppUserId = g.GrantedBy WHERE g.SupportAccessGrantId = @id;",
+            new { id }, cancellationToken: http.RequestAborted));
+        await BankFas.Data.Notifications.Notifier.RequestAsync(u.Connection, null, new BankFas.Data.Notifications.NotificationRequest("SEC.SUPPORT_ACCESS",
+            "plat.SupportAccessGrant", id, $"SEC.SUPPORT_ACCESS:{id}", Values: new Dictionary<string, object?>
+            {
+                ["hours"] = hours, ["endsAt"] = ends.ToString("yyyy-MM-dd HH:mm 'UTC'", System.Globalization.CultureInfo.InvariantCulture), ["actorName"] = actor,
+            }, ActorUserId: u.UserId), http.RequestAborted);
         return Results.Created("/api/v1/support-grants", new { id = refs.Cursor("grant", id), hours });
     }
 

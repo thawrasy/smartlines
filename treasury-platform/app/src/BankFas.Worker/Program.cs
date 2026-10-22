@@ -20,6 +20,8 @@ builder.Services.AddSingleton(new BankFas.Data.Seeding.SeedPacks(BankFas.Data.Se
 builder.Services.AddSingleton<OnboardingJob>();
 builder.Services.AddSingleton<SeedUpgradeJob>();
 builder.Services.AddSingleton<OutboxJob>();
+builder.Services.AddSingleton<NotificationDispatchJob>();
+builder.Services.AddSingleton<ExpiryAlertJob>();
 builder.Services.AddSingleton<OutboxPurgeJob>();
 builder.Services.AddSingleton<JobRunPurgeJob>();
 builder.Services.AddSingleton<TrialReminderJob>();

@@ -57,7 +57,26 @@ public abstract class TenantJob(SqlConnectionFactory db)
         catch (Exception ex) when (ex is SqlException or IOException or InvalidOperationException or JsonException)
         {
             await FinishAsync(c, run, "FAILED", null, ex.Message, ct).ConfigureAwait(false);
+            await JobFailedAsync(c, run, ct).ConfigureAwait(false);
             return false;
+        }
+    }
+
+    /// <summary>JOB.FAILED to the account administrators (spec 13 section 9.2), once a day per job; a failure here never hides the job's own.</summary>
+    private async Task JobFailedAsync(SqlConnection c, long run, CancellationToken ct)
+    {
+        try
+        {
+            var now = DateTime.UtcNow;
+            await Notifications.Notifier.RequestAsync(c, null, new Notifications.NotificationRequest("JOB.FAILED", "cfg.JobRun", run,
+                $"JOB.FAILED:{JobKey}:{now:yyyyMMdd}", Values: new Dictionary<string, object?>
+                {
+                    ["jobKey"] = JobKey, ["occurredAt"] = now.ToString("yyyy-MM-dd HH:mm 'UTC'", System.Globalization.CultureInfo.InvariantCulture),
+                }), ct).ConfigureAwait(false);
+        }
+        catch (SqlException)
+        {
+            // The job's run already says FAILED; the notification is best effort.
         }
     }
 
@@ -87,21 +106,30 @@ public abstract class TenantJob(SqlConnectionFactory db)
 /// UPDLOCK and READPAST, oldest first, skipping an event whose aggregate has an older undelivered one; each is leased
 /// for 60 seconds, delivered in its own step, and marked DELIVERED only while this worker still holds it. A failure
 /// waits 1 minute, 5, 30, 2 hours and 12 hours; after the fifth it is DEAD with its error, never deleted. tenant.created
-/// belongs to the onboarding job. In S0 the one consumer is the account administrators' e-mail about a status change;
-/// an event with no consumer is delivered as is.
+/// belongs to the onboarding job. The consumers: the account administrators' e-mail about a status change, and the
+/// notifications (notification.requested, Notifier). The domain events of S1 that no module consumes yet are listed and
+/// delivered as they are; any other name fails, then is DEAD, so an event without a consumer is seen, never lost
+/// silently (S1 brief S1-GAP-3).
 /// </summary>
 public sealed class OutboxJob(SqlConnectionFactory db, IMailSender mail) : TenantJob(db)
 {
     public override string JobKey => "JOB-PLT-OUTBOX";
     private readonly string _worker = "outbox-" + Environment.MachineName;
 
-    private sealed record Claimed(long OutboxEventId, string EventName, string PayloadJson, int AttemptCount);
+    private sealed record Claimed(long OutboxEventId, Guid MessageId, string EventName, string PayloadJson, int AttemptCount);
+
+    /// <summary>The domain events that have no consumer in S1; the later slices subscribe to them.</summary>
+    private static readonly HashSet<string> NoConsumerYet = new(StringComparer.Ordinal)
+    {
+        "company.created", "party.created", "party.merged", "identity_document.renewed", "document.uploaded", "document.version_added",
+        "institution.created", "relationship.created", "relationship.closed", "account.created", "account.closed",
+    };
 
     protected override async Task<string?> RunForTenantAsync(SqlConnection c, JobTenant tenant, Guid correlation, CancellationToken ct)
     {
         var batch = (await c.QueryAsync<Claimed>(new CommandDefinition(
             """
-            DECLARE @o TABLE (OutboxEventId BIGINT, EventName VARCHAR(100), PayloadJson NVARCHAR(MAX), AttemptCount INT);
+            DECLARE @o TABLE (OutboxEventId BIGINT, MessageId UNIQUEIDENTIFIER, EventName VARCHAR(100), PayloadJson NVARCHAR(MAX), AttemptCount INT);
             WITH due AS (
                 SELECT TOP (50) e.OutboxEventId FROM cfg.OutboxEvent AS e WITH (UPDLOCK, READPAST, ROWLOCK)
                 WHERE e.EventName <> 'tenant.created'
@@ -112,9 +140,9 @@ public sealed class OutboxJob(SqlConnectionFactory db, IMailSender mail) : Tenan
                                     AND o.EventName <> 'tenant.created' AND o.Status IN ('PENDING', 'PROCESSING', 'FAILED'))
                 ORDER BY e.OutboxEventId)
             UPDATE e SET Status = 'PROCESSING', LockedBy = @me, LockedUntil = DATEADD(SECOND, 60, SYSUTCDATETIME()), AttemptCount = AttemptCount + 1
-            OUTPUT inserted.OutboxEventId, inserted.EventName, inserted.PayloadJson, inserted.AttemptCount INTO @o
+            OUTPUT inserted.OutboxEventId, inserted.MessageId, inserted.EventName, inserted.PayloadJson, inserted.AttemptCount INTO @o
             FROM cfg.OutboxEvent AS e JOIN due ON due.OutboxEventId = e.OutboxEventId;
-            SELECT OutboxEventId, EventName, PayloadJson, AttemptCount FROM @o ORDER BY OutboxEventId;
+            SELECT OutboxEventId, MessageId, EventName, PayloadJson, AttemptCount FROM @o ORDER BY OutboxEventId;
             """, new { me = _worker }, cancellationToken: ct)).ConfigureAwait(false)).ToList();
         if (batch.Count == 0) return null;
         int delivered = 0, failed = 0;
@@ -130,7 +158,7 @@ public sealed class OutboxJob(SqlConnectionFactory db, IMailSender mail) : Tenan
                     """, new { id = ev.OutboxEventId, me = _worker }, cancellationToken: ct)).ConfigureAwait(false);
                 delivered++;
             }
-            catch (Exception ex) when (ex is IOException or InvalidOperationException or JsonException or System.Net.Mail.SmtpException)
+            catch (Exception ex) when (ex is IOException or InvalidOperationException or JsonException or System.Net.Mail.SmtpException or SqlException)
             {
                 failed++;
                 await c.ExecuteAsync(new CommandDefinition(
@@ -149,7 +177,13 @@ public sealed class OutboxJob(SqlConnectionFactory db, IMailSender mail) : Tenan
 
     private async Task DeliverAsync(SqlConnection c, JobTenant tenant, Claimed ev, CancellationToken ct)
     {
-        if (ev.EventName != "tenant.status_changed") return;
+        if (ev.EventName == Notifications.Notifier.EventName)
+        {
+            await Notifications.Notifier.ConsumeAsync(c, ev.MessageId, ev.PayloadJson, ct).ConfigureAwait(false);
+            return;
+        }
+        if (NoConsumerYet.Contains(ev.EventName)) return;
+        if (ev.EventName != "tenant.status_changed") throw new InvalidOperationException($"No consumer for the event {ev.EventName}.");
         using var payload = JsonDocument.Parse(ev.PayloadJson);
         var to = payload.RootElement.GetProperty("to").GetString();
         var name = await c.ExecuteScalarAsync<string>(new CommandDefinition("SELECT NameEn FROM plat.v_CurrentTenant;", cancellationToken: ct)).ConfigureAwait(false);
@@ -197,7 +231,7 @@ public sealed class JobRunPurgeJob(SqlConnectionFactory db) : TenantJob(db)
 /// <summary>
 /// JOB-PLT-TRIAL-REMIND (DOC-F05 6.3): the account administrators of a TRIAL tenant hear 7, 3 and 1 days before the
 /// trial ends, once each: a reminder is recorded in the run's DetailJson with the end date it was for, so an
-/// extended trial reminds again.
+/// extended trial reminds again. The same reminder is a PLT.TRIAL_ENDING notification in the application.
 /// </summary>
 public sealed class TrialReminderJob(SqlConnectionFactory db, IMailSender mail, TimeProvider clock) : TenantJob(db)
 {
@@ -224,6 +258,8 @@ public sealed class TrialReminderJob(SqlConnectionFactory db, IMailSender mail, 
         foreach (var email in await AdministratorEmailsAsync(c, ct).ConfigureAwait(false))
             await mail.SendAsync(new OutgoingMail(email, "Your BankFas trial ends soon",
                 $"The trial of the BankFas account of {name} ends on {endText} ({left} day(s) left). Contact us to continue without interruption.\r\n"), ct).ConfigureAwait(false);
+        await Notifications.Notifier.RequestAsync(c, null, new Notifications.NotificationRequest("PLT.TRIAL_ENDING", "plat.Tenant", tenant.TenantId,
+            $"PLT.TRIAL_ENDING:{endText}:{due.Value}", Values: new Dictionary<string, object?> { ["trialEndsOn"] = endText, ["daysLeft"] = left }), ct).ConfigureAwait(false);
         await c.ExecuteAsync(new CommandDefinition(
             "UPDATE cfg.JobRun SET DetailJson = @j WHERE JobRunId = (SELECT MAX(JobRunId) FROM cfg.JobRun WHERE JobKey = 'JOB-PLT-TRIAL-REMIND' AND Status = 'RUNNING');",
             new { j = JsonSerializer.Serialize(new { days = due.Value, trialEndsOn = endText }) }, cancellationToken: ct)).ConfigureAwait(false);

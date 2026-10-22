@@ -92,6 +92,16 @@ BEGIN
          WHERE TenantId = @TenantId AND AppUserId = @UserId;
         INSERT sec.LoginAttempt (TenantId, UserId, Outcome, IpAddress, UserAgent)
         VALUES (@TenantId, @UserId, 'LOCKOUT', @ClientIp, @UserAgent);
+        -- SEC.LOCKOUT to the account administrators (spec 13 section 9.2, S1-GAP-9): a notification request in the outbox,
+        -- with the user's name and the time only; JOB-PLT-OUTBOX turns it into notifications within the minute.
+        INSERT cfg.OutboxEvent (TenantId, EventName, AggregateType, AggregateId, PayloadJson)
+        SELECT @TenantId, 'notification.requested', 'sec.AppUser', @UserId,
+               (SELECT 'SEC.LOCKOUT' AS eventCode, 'sec.AppUser' AS targetType, @UserId AS targetId,
+                       CONCAT('SEC.LOCKOUT:sec.AppUser:', @UserId, ':', CONVERT(CHAR(8), @now, 112), REPLACE(CONVERT(CHAR(8), @now, 108), ':', '')) AS dedupKey,
+                       JSON_QUERY((SELECT ISNULL(u.DisplayNameAr, u.Email) AS userName, CONCAT(CONVERT(CHAR(16), @now, 120), ' UTC') AS occurredAt
+                                   FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)) AS [values]
+                FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)
+          FROM sec.AppUser AS u WHERE u.TenantId = @TenantId AND u.AppUserId = @UserId;
         SET @Locked = 1;
     END
     ELSE

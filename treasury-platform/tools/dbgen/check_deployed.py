@@ -66,9 +66,10 @@ def static_scripts():
 
 
 def static_triggers():
-    """The table triggers the static scripts create: the names they write out, and the two families 044 builds in a
-    loop from a list (the freeze of an approved revision per revisioned table, and the draft-only parts of a template
-    version). A new loop of this kind is to be added here, or the count differs."""
+    """The table triggers the static scripts create: the names they write out, and the families built in a loop from
+    a list (044: the freeze of an approved revision per revisioned table and the draft-only parts of a template
+    version; 054: the key status; 060: the seed rows of each catalogue). A new loop of this kind is to be added here,
+    or the count differs."""
     names = set()
     for f in static_scripts():
         text = open(f, encoding='utf-8').read()
@@ -79,6 +80,11 @@ def static_triggers():
         if "N'_DraftOnly'" in text:
             block = re.search(r'INSERT @parts VALUES (.*?);', text, re.S).group(1)
             names.update(f'wfl.TR_{t}_DraftOnly' for t in re.findall(r"\(N'(\w+)', [01]\)", block))
+        if "N'_SeedRows'" in text:   # 060: one per catalogue (schema cat) with IsSystem and IsLocked
+            t1 = open(os.path.join(DDL, '001_tables.sql'), encoding='utf-8').read()
+            for m in re.finditer(r'CREATE TABLE \[cat\]\.\[(\w+)\] \((.*?)\n\);', t1, re.S):
+                if '[IsSystem]' in m.group(2) and '[IsLocked]' in m.group(2):
+                    names.add(f'cat.TR_{m.group(1)}_SeedRows')
         if "N'_KeyStatus'" in text:   # 054: one per table with a foreign key to sec.TenantKey, but the key log
             fks = open(os.path.join(DDL, '002_foreign_keys.sql'), encoding='utf-8').read()
             names.update(f'{a}.TR_{b}_KeyStatus'

@@ -153,6 +153,7 @@ public static class RoleEndpoints
         await TenantAdminProcedures.WriteAuditAsync(u.Connection, tx, new AuditEntry("ROLE_PERMISSIONS_CHANGED", "IDENTITY_ACCESS", "sec.Role", role.RoleId,
             BeforeJson: JsonSerializer.Serialize(new { permissions = before }), AfterJson: JsonSerializer.Serialize(new { permissions = after }),
             Severity: sensitiveChanged ? "HIGH" : "INFO"), http.RequestAborted);
+        await SensitiveChangedAsync(u, tx, role.RoleId, role.Code, before, after, http.RequestAborted);
         await tx.CommitAsync(http.RequestAborted);
         ETags.Set(http.Response, rv);
         return Results.NoContent();
@@ -186,6 +187,32 @@ public static class RoleEndpoints
             new { r = roleId }, tx, cancellationToken: ct))];
 
     private sealed record Perm(int Id, string Code, bool Sensitive, string? Locked);
+
+    /// <summary>SEC.SENSITIVE_PERMISSION_CHANGED (spec 10 section 9.3, spec 13 section 9.2): one request per sensitive permission given or taken.</summary>
+    private static async Task SensitiveChangedAsync(BoundUser u, SqlTransaction tx, long roleId, string roleCode, IReadOnlyCollection<string> before,
+        IReadOnlyCollection<string> after, CancellationToken ct)
+    {
+        var added = after.Except(before).ToList();
+        var removed = before.Except(after).ToList();
+        if (added.Count + removed.Count == 0) return;
+        var sensitive = await u.Connection.QueryAsync<(string Code, string NameAr, string NameEn)>(new CommandDefinition(
+            "SELECT Code, NameAr, NameEn FROM sec.Permission WHERE IsSensitive = 1 AND Code IN @codes;", new { codes = added.Concat(removed).ToArray() }, tx,
+            cancellationToken: ct));
+        var actor = await u.Connection.ExecuteScalarAsync<string>(new CommandDefinition(
+            "SELECT ISNULL(DisplayNameAr, Email) FROM sec.AppUser WHERE AppUserId = @u;", new { u = u.UserId }, tx, cancellationToken: ct));
+        var stamp = DateTime.UtcNow.ToString("yyyyMMddHHmmss", System.Globalization.CultureInfo.InvariantCulture);
+        foreach (var p in sensitive)
+        {
+            var given = added.Contains(p.Code);
+            await BankFas.Data.Notifications.Notifier.RequestAsync(u.Connection, tx, new BankFas.Data.Notifications.NotificationRequest(
+                "SEC.SENSITIVE_PERMISSION_CHANGED", "sec.Role", roleId, $"SEC.SENSITIVE_PERMISSION_CHANGED:{roleId}:{p.Code}:{stamp}",
+                Values: new Dictionary<string, object?>
+                {
+                    ["roleName"] = roleCode, ["permissionName"] = new Dictionary<string, string> { ["ar"] = p.NameAr, ["en"] = p.NameEn },
+                    ["change"] = new Dictionary<string, string> { ["ar"] = given ? "أُسندت" : "سُحبت", ["en"] = given ? "gave" : "took away" }, ["actorName"] = actor,
+                }, ActorUserId: u.UserId), ct);
+        }
+    }
 
     /// <summary>The permissions by code; unknown codes are 422, a locked one for this role is 403 PERMISSION_LOCKED, audited HIGH.</summary>
     private static async Task<List<Perm>> ResolvePermissionsAsync(BoundUser u, string[] codes, string roleCode, bool isSystem, CancellationToken ct)

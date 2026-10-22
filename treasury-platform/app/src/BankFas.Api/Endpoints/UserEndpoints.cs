@@ -265,6 +265,7 @@ public static class UserEndpoints
                 if (self) throw new ApiProblemException(409, "STATUS_CHANGE_NOT_ALLOWED", "Another administrator resets your authenticator.");
                 await TenantAdminProcedures.ResetMfaAsync(u.Connection, null, u.TenantId, target.AppUserId, http.RequestAborted);
                 await SendLinkAsync(u, mail, rc.TenantCode, target.AppUserId, "MFA_REENROLMENT", http.RequestAborted);
+                await MfaResetNotifiedAsync(u, target.AppUserId, http.RequestAborted);
                 break;
             case "resend-invitation":
                 await SendLinkAsync(u, mail, rc.TenantCode, target.AppUserId, "INVITATION", http.RequestAborted);
@@ -283,6 +284,18 @@ public static class UserEndpoints
         var status = await u.Connection.ExecuteScalarAsync<string>(new CommandDefinition(
             "SELECT Status FROM sec.AppUser WHERE AppUserId = @id;", new { id = target.AppUserId }, cancellationToken: http.RequestAborted));
         return Results.Ok(new { id, status });
+    }
+
+    /// <summary>SEC.MFA_RESET (spec 13 section 9.2) to the other account administrators and to the user concerned.</summary>
+    private static async Task MfaResetNotifiedAsync(BoundUser u, long target, CancellationToken ct)
+    {
+        var names = (await u.Connection.QueryAsync<(long Id, string Name)>(new CommandDefinition(
+            "SELECT AppUserId, ISNULL(DisplayNameAr, Email) FROM sec.AppUser WHERE AppUserId IN (@t, @a);", new { t = target, a = u.UserId }, cancellationToken: ct)))
+            .ToDictionary(x => x.Id, x => x.Name);
+        await BankFas.Data.Notifications.Notifier.RequestAsync(u.Connection, null, new BankFas.Data.Notifications.NotificationRequest("SEC.MFA_RESET", "sec.AppUser", target,
+            $"SEC.MFA_RESET:{target}:{DateTime.UtcNow:yyyyMMddHHmmss}",
+            Values: new Dictionary<string, object?> { ["userName"] = names.GetValueOrDefault(target), ["actorName"] = names.GetValueOrDefault(u.UserId) },
+            ActorUserId: u.UserId, RecipientUserIds: [target]), ct);
     }
 
     private static async Task<IResult> SessionsAsync(Guid id, HttpContext http, SqlConnectionFactory db, OpaqueRefs refs)

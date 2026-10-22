@@ -112,6 +112,32 @@ public static class AuditWriter
             """,
             new { accessKind, entityType, entityId, partyId, companyId, result = granted ? "GRANTED" : "DENIED", denyReason, reason, userAgent, auditId }, tx,
             cancellationToken: ct)).ConfigureAwait(false);
+        if (granted) await RevealAnomalyAsync(c, tx, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>The reveals above which an hour is unusual (BR-PTY-009).</summary>
+    public const int RevealsPerHour = 20;
+
+    /// <summary>
+    /// SEC.REVEAL_ANOMALY (spec 13 section 9.2): the signed-in user's 21st reveal within an hour, of an identity number or
+    /// image, a custom field or a bank account, tells the account administrators and the treasury manager, once an hour.
+    /// </summary>
+    public static async Task RevealAnomalyAsync(SqlConnection c, SqlTransaction? tx, CancellationToken ct)
+    {
+        var (count, name, userId) = await c.QuerySingleAsync<(int Count, string Name, long UserId)>(new CommandDefinition(
+            """
+            DECLARE @u BIGINT = CAST(SESSION_CONTEXT(N'UserId') AS BIGINT);
+            DECLARE @since DATETIME2(3) = DATEADD(HOUR, -1, SYSUTCDATETIME());
+            SELECT (SELECT COUNT(*) FROM aud.SensitiveAccessLog WHERE ActorUserId = @u AND Result = 'GRANTED' AND OccurredAt >= @since)
+                 + (SELECT COUNT(*) FROM aud.AuditLog AS a JOIN sec.AppUser AS x ON x.PublicId = a.ActorId
+                     WHERE x.AppUserId = @u AND a.Action = 'ACCOUNT_REVEALED' AND a.OccurredAt >= @since),
+                   ISNULL(u.DisplayNameAr, u.Email), u.AppUserId
+              FROM sec.AppUser AS u WHERE u.AppUserId = @u;
+            """, transaction: tx, cancellationToken: ct)).ConfigureAwait(false);
+        if (count != RevealsPerHour + 1) return;
+        await Notifications.Notifier.RequestAsync(c, tx, new Notifications.NotificationRequest("SEC.REVEAL_ANOMALY", "sec.AppUser", userId,
+            $"SEC.REVEAL_ANOMALY:{userId}:{DateTime.UtcNow:yyyyMMddHH}", Values: new Dictionary<string, object?> { ["userName"] = name, ["count"] = count }), ct)
+            .ConfigureAwait(false);
     }
 }
 

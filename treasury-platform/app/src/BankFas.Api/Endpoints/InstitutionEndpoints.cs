@@ -4,6 +4,7 @@ using System.Text.RegularExpressions;
 using BankFas.Api.Infrastructure;
 using BankFas.Core.Text;
 using BankFas.Data;
+using BankFas.Data.Notifications;
 using Dapper;
 using Microsoft.Data.SqlClient;
 
@@ -789,6 +790,9 @@ public static partial class InstitutionEndpoints
             if (manager is null) warnings.Add(new { code = "W-INS-NO-MANAGER", count = reports.Count });
         }
         var today = Today(clock);
+        var covered = await u.Connection.QueryAsync<long>(new CommandDefinition(
+            "SELECT DISTINCT RelationshipId FROM ins.RelationshipContact WHERE ContactId = @k AND (ValidTo IS NULL OR ValidTo > @today);",
+            new { k = k.ContactId, today }, tx, cancellationToken: ct));
         await u.Connection.ExecuteAsync(new CommandDefinition(
             """
             UPDATE ins.RelationshipContact SET ValidTo = CASE WHEN ValidFrom > @today THEN ValidFrom ELSE @today END, UpdatedAt = SYSUTCDATETIME(),
@@ -799,6 +803,7 @@ public static partial class InstitutionEndpoints
             """, new { today, k = k.ContactId, reason }, tx, cancellationToken: ct));
         await AuditWriter.WriteAsync(u.Connection, tx, new AuditEntry("INSTITUTION_CONTACT_DEACTIVATED", "TREASURY", "ins.Contact", k.ContactId,
             AfterJson: JsonSerializer.Serialize(new { reason, products = products.Count, reports = reports.Count })), null, ct);
+        await NoRelationshipManagerAsync(u, tx, covered, today, ct);
         await tx.CommitAsync(ct);
         return Results.Ok(new { warnings });
     }
@@ -1165,8 +1170,35 @@ public static partial class InstitutionEndpoints
             new { to, id = row.Id }, tx, cancellationToken: ct));
         await AuditWriter.WriteAsync(u.Connection, tx, new AuditEntry("RELATIONSHIP_COVERAGE_ENDED", "TREASURY", "ins.RelationshipContact", row.Id,
             AfterJson: JsonSerializer.Serialize(new { validTo = D(to) })), r.CompanyId, ct);
+        await NoRelationshipManagerAsync(u, tx, [r.RelationshipId], Today(clock), ct);
         await tx.CommitAsync(ct);
         return Results.NoContent();
+    }
+
+    /// <summary>
+    /// INS.RELATIONSHIP_NO_RM (spec 13 section 9.2): an active relationship of these that is left without an active
+    /// relationship manager after today tells TM and FO of its company, once a day.
+    /// </summary>
+    private static async Task NoRelationshipManagerAsync(BoundUser u, SqlTransaction tx, IEnumerable<long> relationshipIds, DateTime today, CancellationToken ct)
+    {
+        var ids = relationshipIds.Distinct().ToArray();
+        if (ids.Length == 0) return;
+        var bare = await u.Connection.QueryAsync<(long Id, long CompanyId, string? CompanyAr, string? CompanyEn, string Code, string NameAr, string? NameEn)>(new CommandDefinition(
+            """
+            SELECT r.RelationshipId, r.CompanyId, c.NameAr, c.NameEn, i.Code, i.NameAr, i.NameEn
+              FROM ins.Relationship AS r JOIN org.Company AS c ON c.CompanyId = r.CompanyId JOIN ins.Institution AS i ON i.InstitutionId = r.InstitutionId
+             WHERE r.RelationshipId IN @ids AND r.Status = 'ACTIVE'
+               AND NOT EXISTS (SELECT 1 FROM ins.RelationshipContact AS rc JOIN cat.LookupItem AS ro ON ro.LookupItemId = rc.RoleId AND ro.Code = 'RM'
+                                 JOIN ins.Contact AS k ON k.ContactId = rc.ContactId AND k.Status = 'ACTIVE'
+                                WHERE rc.RelationshipId = r.RelationshipId AND (rc.ValidTo IS NULL OR rc.ValidTo > @today));
+            """, new { ids, today }, tx, cancellationToken: ct));
+        foreach (var r in bare)
+            await Notifier.RequestAsync(u.Connection, tx, new NotificationRequest("INS.RELATIONSHIP_NO_RM", "ins.Relationship", r.Id,
+                $"INS.RELATIONSHIP_NO_RM:ins.Relationship:{r.Id}:{today:yyyyMMdd}", r.CompanyId, new Dictionary<string, object?>
+                {
+                    ["companyName"] = new Dictionary<string, string?> { ["ar"] = r.CompanyAr ?? r.CompanyEn, ["en"] = r.CompanyEn ?? r.CompanyAr },
+                    ["institutionCode"] = r.Code, ["institutionName"] = new Dictionary<string, string?> { ["ar"] = r.NameAr, ["en"] = r.NameEn ?? r.NameAr },
+                }, ActorUserId: u.UserId), ct);
     }
 
     // ---------- products and channels (FR-INS-011 to 013, BR-INS-010) ----------

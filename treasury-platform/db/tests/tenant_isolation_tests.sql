@@ -541,7 +541,11 @@ SELECT @n = COUNT(*) FROM sec.AppUser WHERE AppUserId = @u1 AND Status = 'LOCKED
 SELECT @n2 = COUNT(*) FROM sec.LoginAttempt WHERE UserId = @u1 AND Outcome = 'LOCKOUT';
 SELECT @rows = COUNT(*) FROM sec.LoginAttempt WHERE UserId = @u1 AND Outcome = 'DENIED_LOCKED';
 SELECT @i = COUNT(*) FROM sec.UserSession WHERE TokenHash = HASHBYTES('SHA2_256', @tokNew);
-IF @err = 50005 AND @n = 1 AND @n2 = 1 AND @rows = 1 AND @i = 0 PRINT 'PASS T34: five failures lock the account and the right password is then refused';
+-- The lockout queues SEC.LOCKOUT for the account administrators (S1-GAP-9).
+SELECT @i = @i + 10 * COUNT(*) FROM cfg.OutboxEvent
+ WHERE TenantId = @t1 AND EventName = 'notification.requested' AND AggregateId = @u1 AND JSON_VALUE(PayloadJson, '$.eventCode') = 'SEC.LOCKOUT'
+   AND JSON_VALUE(PayloadJson, '$.values.userName') IS NOT NULL;
+IF @err = 50005 AND @n = 1 AND @n2 = 1 AND @rows = 1 AND @i = 10 PRINT 'PASS T34: five failures lock the account, queue SEC.LOCKOUT, and the right password is then refused';
 ELSE PRINT 'FAIL T34: the lockout rule was not applied';
 ROLLBACK TRANSACTION sp_t34;
 

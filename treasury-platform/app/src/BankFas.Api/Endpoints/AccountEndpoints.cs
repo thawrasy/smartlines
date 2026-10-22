@@ -352,6 +352,7 @@ public static class AccountEndpoints
             : Encoding.UTF8.GetString(Envelope.Open(key, row.IbanEnc, EnvelopeAad.ForColumn(u.TenantId, "acc.BankAccount", "IbanEnc", a.PublicId)));
         await AuditWriter.WriteAsync(u.Connection, null, new AuditEntry("ACCOUNT_REVEALED", "IDENTITY_ACCESS", "acc.BankAccount", a.BankAccountId,
             AfterJson: JsonSerializer.Serialize(new { reason, last4 = a.AccountNoLast4 }), UserAgent: ua), a.CompanyId, ct);
+        await AuditWriter.RevealAnomalyAsync(u.Connection, null, ct);
         var remask = await u.Connection.ExecuteScalarAsync<string>(new CommandDefinition(
             "SELECT ISNULL(t.ValueJson, d.DefaultValueJson) FROM cfg.SettingDefinition AS d LEFT JOIN cfg.TenantSetting AS t ON t.[Key] = d.[Key] WHERE d.[Key] = 'security.reveal.remask_seconds';",
             cancellationToken: ct));

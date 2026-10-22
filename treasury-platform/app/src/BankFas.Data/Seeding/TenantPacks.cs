@@ -57,16 +57,27 @@ public sealed record SeedResult(string PackKey, int SeedVersion, bool AlreadyRun
 /// </summary>
 public static class TenantSeeder
 {
-    /// <summary>The packs of S1, in dependency order (the folder of each holds v1).</summary>
-    public static readonly string[] S1Packs = ["CAT.ORG", "CAT.BANKING", "CAT.DOCTYPES", "CAT.LOOKUPS", "CAT.CURRENCY", "CORE.NUMBERING", "CORE.EXPIRY", "CORE.DEPARTMENTS"];
+    /// <summary>The packs of S1, in dependency order; each is applied at the latest version of its folder.</summary>
+    public static readonly string[] S1Packs = ["CAT.ORG", "CAT.BANKING", "CAT.DOCTYPES", "CAT.LOOKUPS", "CAT.CURRENCY", "CORE.NUMBERING", "CORE.EXPIRY", "CORE.DEPARTMENTS",
+        "NTF.BASE"];
 
     /// <summary>The packs folder: configuration Seed:PacksDirectory, else "packs" next to the application.</summary>
     public static string PacksDirectory(string? configured) =>
         string.IsNullOrEmpty(configured) ? Path.Combine(AppContext.BaseDirectory, "packs") : configured;
 
-    /// <summary>Loads the S1 packs present in the folder (a pack not written yet is left out).</summary>
+    /// <summary>
+    /// Loads the S1 packs present in the folder (a pack not written yet is left out), each at its latest version vN: a
+    /// later version keeps every row of the earlier ones, so a tenant that never ran the earlier one gets them all.
+    /// </summary>
     public static IReadOnlyList<TenantPack> LoadS1(string packsDirectory) =>
-        [.. S1Packs.Select(k => Path.Combine(packsDirectory, k, "v1")).Where(p => File.Exists(Path.Combine(p, "manifest.json"))).Select(TenantPack.Load)];
+        [.. S1Packs.Select(k => Latest(Path.Combine(packsDirectory, k))).OfType<string>().Select(TenantPack.Load)];
+
+    private static string? Latest(string pack) =>
+        !Directory.Exists(pack) ? null
+        : Directory.GetDirectories(pack, "v*")
+            .Select(d => (Dir: d, Ok: int.TryParse(Path.GetFileName(d)[1..], NumberStyles.None, CultureInfo.InvariantCulture, out var n), N: n))
+            .Where(x => x.Ok && File.Exists(Path.Combine(x.Dir, "manifest.json")))
+            .OrderByDescending(x => x.N).Select(x => x.Dir).FirstOrDefault();
 
     /// <summary>Applies the packs in order inside the transaction; the connection is bound to the tenant (a job binding).</summary>
     public static async Task<IReadOnlyList<SeedResult>> ApplyAsync(SqlConnection c, SqlTransaction tx, IEnumerable<TenantPack> packs, CancellationToken ct)

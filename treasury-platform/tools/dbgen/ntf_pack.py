@@ -20,7 +20,8 @@ The checks (BR-NTF-008, FR-NTF-012, FR-NTF-021, DOC-F17 6.4):
 import csv, json, os, re, sys
 
 ROOT = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', '..'))
-PACK = os.path.join(ROOT, 'db', 'seed', 'packs', 'NTF.BASE', 'v1')
+PACKS = os.path.join(ROOT, 'db', 'seed', 'packs', 'NTF.BASE')
+PACK = os.path.join(PACKS, 'v1')   # the fixture of the database tests is written from version 1 (the FIN events)
 MODEL = os.path.join(ROOT, 'db', 'model', '15-workflow-notifications.model')
 VIEW = os.path.join(ROOT, 'db', 'static', '051_early_warning_job.sql')
 TEST = os.path.join(ROOT, 'db', 'tests', 'credit_assessment_tests.sql')
@@ -46,17 +47,41 @@ def model_columns(table, model=MODEL):
     return cols
 
 
-def read(name):
-    with open(os.path.join(PACK, name), encoding='utf-8', newline='') as f:
+def read(name, pack=None):
+    with open(os.path.join(pack or PACK, name), encoding='utf-8', newline='') as f:
         return list(csv.DictReader(f))
 
 
-def check():
+def versions():
+    """Every version folder of the pack, oldest first; each later version keeps every row of the one before (insert only)."""
+    return sorted((d for d in os.listdir(PACKS) if re.fullmatch(r'v\d+', d)), key=lambda d: int(d[1:]))
+
+
+def check_all():
+    errs, tables, prev = [], None, None
+    for v in versions():
+        e, t = check(os.path.join(PACKS, v))
+        errs += ['%s: %s' % (v, x) for x in e]
+        if prev is not None:
+            for name in prev:
+                if name.startswith('ntf.'):
+                    keep = {json.dumps(r, sort_keys=True) for r in t[name]}
+                    for r in prev[name]:
+                        if json.dumps(r, sort_keys=True) not in keep:
+                            errs.append('%s: %s drops or changes a row of the version before: %s' % (v, name, r.get('SeedKey') or r.get('EventTypeCode')))
+        prev = t
+        if v == 'v1':
+            tables = t
+    return errs, tables
+
+
+def check(pack=None):
+    pack = pack or PACK
     errs = []
-    man = json.load(open(os.path.join(PACK, 'manifest.json'), encoding='utf-8'))
-    tables = {'ntf.NotificationEventType': read('ntf.NotificationEventType.csv'),
-              'ntf.NotificationRule': read('ntf.NotificationRule.csv'),
-              'ntf.NotificationTemplate': read('ntf.NotificationTemplate.csv')}
+    man = json.load(open(os.path.join(pack, 'manifest.json'), encoding='utf-8'))
+    tables = {'ntf.NotificationEventType': read('ntf.NotificationEventType.csv', pack),
+              'ntf.NotificationRule': read('ntf.NotificationRule.csv', pack),
+              'ntf.NotificationTemplate': read('ntf.NotificationTemplate.csv', pack)}
     refs = {'EventTypeCode', 'RoleSeedKey', 'PermissionCode'}
     for t, rows in tables.items():
         cols = model_columns(t)
@@ -72,7 +97,8 @@ def check():
     pmap = man['Placeholders']['map']
     for code, e in ev.items():
         allowed = json.loads(e['AllowedPlaceholdersJson'])
-        for p in allowed:
+        # The FIN events take their values from fin.v_EarlyWarningMessageValues; the others from their payload (manifest Placeholders.payload).
+        for p in allowed if e['OwnerModule'] == 'FIN' else []:
             base = pmap.get(p)
             if base is None:
                 errs.append('%s: placeholder {%s} has no column in the manifest map' % (code, p))
@@ -157,7 +183,7 @@ def fixture(tables):
 
 
 def main():
-    errs, tables = check()
+    errs, tables = check_all()
     for e in errs:
         print('FAIL', e)
     if errs:

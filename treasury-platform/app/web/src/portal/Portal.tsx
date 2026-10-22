@@ -9,6 +9,7 @@ import { Accounts, BankSetup, BaseRates, InstitutionDetail, Institutions, Relati
 import { Catalogs } from './Catalogs';
 import { Companies, CompanyDetail, Departments, DocumentRegister } from './Companies';
 import { CustomFieldDefinitions, Parties, PartyDetail, PartyDuplicates } from './Parties';
+import { Bell, Notifications, NotificationSettings } from './Notifications';
 import { Profile } from './Profile';
 import { RoleDetail, Roles } from './Roles';
 import { UserDetail, Users } from './Users';
@@ -42,6 +43,8 @@ const menu: { to: string; label: string; permission?: string; anyOf?: string[] }
   { to: '/accounts', label: 'Bank accounts', permission: 'acc.view' },
   { to: '/base-rates', label: 'Base rates', permission: 'cat.view' },
   { to: '/catalogs', label: 'Catalogues', anyOf: ['cat.manage.general', 'cat.manage.financial'] },
+  { to: '/notifications', label: 'Notifications', permission: 'ntf.prefs' },
+  { to: '/notification-settings', label: 'Notification settings', permission: 'ntf.manage' },
   { to: '/profile', label: 'My profile' },
 ];
 
@@ -64,6 +67,7 @@ function Shell() {
           <header className="top">
             <strong>{lang === 'ar' ? me.user.tenantNameAr : me.user.tenantNameEn}</strong>
             <span className="grow" />
+            {can(me, 'ntf.prefs') && <Bell />}
             <span className="muted">{me.user.email}</span>
             <LangSwitch />
             <button className="link" onClick={async () => { await api('POST', '/auth/logout', {}); nav('/login'); }}>{t('Sign out')}</button>
@@ -99,6 +103,8 @@ function Shell() {
               <Route path="/bank-setup" element={<BankSetup />} />
               <Route path="/accounts" element={<Accounts />} />
               <Route path="/base-rates" element={<BaseRates />} />
+              <Route path="/notifications" element={<Notifications />} />
+              <Route path="/notification-settings" element={<NotificationSettings />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="*" element={<Navigate to="/" />} />
             </Routes>

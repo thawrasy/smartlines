@@ -1,0 +1,123 @@
+EventTypeCode,Channel,Lang,SubjectTemplate,BodyTemplate,IsTenantOverride
+FIN.READINESS_RED,IN_APP,ar,إنذار أحمر: {eventLabel} {reference} في {eventDate},{companyName} غير جاهزة لموعد {eventLabel} {reference} في {eventDate} ({stageLabel}، الأيام الباقية: {daysLeft}). السبب: {reason}. درجة التقييم {grade} والسيولة {liquidity}. افتح ملف الجاهزية لترى ما ستطلبه جهة التمويل والإجراءات قبل الموعد.,0
+FIN.READINESS_RED,IN_APP,en,Red warning: {eventLabel} {reference} on {eventDate},"{companyName} is not ready for the {eventLabel} {reference} on {eventDate} ({stageLabel}, days left: {daysLeft}). Reason: {reason}. Assessment grade {grade}, liquidity {liquidity}. Open the readiness file to see what the lender will ask for and the actions due before the date.",0
+FIN.READINESS_RED,EMAIL,ar,إنذار أحمر من BankFas: {companyName} غير جاهزة لموعد {eventLabel} {reference},"موعد {eventLabel} {reference} في {eventDate}، والأيام الباقية: {daysLeft} ({stageLabel}).
+
+جاهزية {companyName} لهذا الموعد حمراء. السبب: {reason}.
+درجة التقييم الداخلي للشركة {grade} والسيولة {liquidity}.
+
+ما يُنصح به قبل الموعد:
+1. راجع في ملف الجاهزية ما ستطلبه جهة التمويل على الأغلب، وجهّز مستنداته.
+2. نفّذ الحلول ذات الأثر قبل نهاية الفترة المالية، فالحل لا يُحتسب إلا بمستند مؤرخ قبل نهايتها.
+3. تواصل مع جهة التمويل مبكرًا بخطة واضحة، ولا تنتظر طلبها.
+
+يصلك هذا الإنذار عند دخول الموعد مدة التنبيه (بالأشهر: {leadMonths})، ثم عند 90 و30 و7 أيام، ومرة إن ساءت الجاهزية. والدرجة معايرة النظام الداخلية للشركة، لا تصنيف جهة التمويل.
+افتح ملف الجاهزية من الرابط في هذه الرسالة؛ ويلزم الدخول إلى المنصة.",0
+FIN.READINESS_RED,EMAIL,en,BankFas red warning: {companyName} is not ready for the {eventLabel} {reference},"The {eventLabel} {reference} is on {eventDate}; days left: {daysLeft} ({stageLabel}).
+
+The readiness of {companyName} for this date is red. Reason: {reason}.
+The company's internal assessment grade is {grade}, its liquidity {liquidity}.
+
+Recommended before the date:
+1. Review in the readiness file what the lender will most likely ask for, and prepare its documents.
+2. Carry out the remedies with an effect before the fiscal period ends: a remedy counts only on a document dated by its end.
+3. Contact the lender early with a clear plan; do not wait for its request.
+
+This warning comes when the date enters the lead time ({leadMonths} months), then at 90, 30 and 7 days, and once if the readiness worsens. The grade is the system's internal calibration for the company, not the lender's rating.
+Open the readiness file from the link in this message; signing in to the platform is required.",0
+FIN.READINESS_AMBER,IN_APP,ar,تنبيه أصفر: {eventLabel} {reference} في {eventDate},جاهزية {companyName} لموعد {eventLabel} {reference} في {eventDate} ناقصة ({stageLabel}، الأيام الباقية: {daysLeft}). السبب: {reason}. درجة التقييم {grade} والسيولة {liquidity}. في ملف الجاهزية ما يمكن تداركه قبل الموعد.,0
+FIN.READINESS_AMBER,IN_APP,en,Amber warning: {eventLabel} {reference} on {eventDate},"{companyName} is not fully ready for the {eventLabel} {reference} on {eventDate} ({stageLabel}, days left: {daysLeft}). Reason: {reason}. Assessment grade {grade}, liquidity {liquidity}. The readiness file shows what can still be fixed before the date.",0
+FIN.READINESS_AMBER,EMAIL,ar,تنبيه أصفر من BankFas: جاهزية {companyName} لموعد {eventLabel} {reference} ناقصة,"موعد {eventLabel} {reference} في {eventDate}، والأيام الباقية: {daysLeft} ({stageLabel}).
+
+جاهزية {companyName} لهذا الموعد صفراء. السبب: {reason}.
+درجة التقييم الداخلي للشركة {grade} والسيولة {liquidity}.
+
+الوقت يتسع للتدارك: راجع في ملف الجاهزية الطلبات المتوقعة والحلول ومواعيدها، فإن ساءت الجاهزية إلى الأحمر وصلك إنذار.
+
+الدرجة معايرة النظام الداخلية للشركة، لا تصنيف جهة التمويل. افتح ملف الجاهزية من الرابط في هذه الرسالة؛ ويلزم الدخول إلى المنصة.",0
+FIN.READINESS_AMBER,EMAIL,en,BankFas amber warning: {companyName} is not fully ready for the {eventLabel} {reference},"The {eventLabel} {reference} is on {eventDate}; days left: {daysLeft} ({stageLabel}).
+
+The readiness of {companyName} for this date is amber. Reason: {reason}.
+The company's internal assessment grade is {grade}, its liquidity {liquidity}.
+
+There is time to act: review in the readiness file the expected requests, the remedies and their deadlines. If the readiness worsens to red, you will receive a warning.
+
+The grade is the system's internal calibration for the company, not the lender's rating. Open the readiness file from the link in this message; signing in to the platform is required.",0
+DOC.EXPIRY,IN_APP,ar,{documentType} لـ {companyName}: {stageLabel},ينتهي {documentType} «{documentTitle}» لـ {companyName} في {expiryDate} ({stageLabel}، الأيام الباقية: {daysLeft}). جدّد المستند وارفع النسخة الجديدة.,0
+DOC.EXPIRY,EMAIL,ar,{documentType} لـ {companyName}: {stageLabel},"ينتهي {documentType} «{documentTitle}» لـ {companyName} في {expiryDate} ({stageLabel}، الأيام الباقية: {daysLeft}).
+جدّد المستند وارفع النسخة الجديدة في سجل مستندات الشركة.",0
+DOC.EXPIRY,IN_APP,en,{documentType} of {companyName}: {stageLabel},"The {documentType} ""{documentTitle}"" of {companyName} expires on {expiryDate} ({stageLabel}, days left: {daysLeft}). Renew it and upload the new version.",0
+DOC.EXPIRY,EMAIL,en,{documentType} of {companyName}: {stageLabel},"The {documentType} ""{documentTitle}"" of {companyName} expires on {expiryDate} ({stageLabel}, days left: {daysLeft}).
+Renew it and upload the new version to the company documents.",0
+IDDOC.EXPIRY,IN_APP,ar,{docKindLabel} لـ {partyName}: {stageLabel},تنتهي {docKindLabel} لـ {partyName} في {expiryDate} ({stageLabel}، الأيام الباقية: {daysLeft}). سجّل الوثيقة المجدّدة في بطاقة الطرف.,0
+IDDOC.EXPIRY,EMAIL,ar,{docKindLabel} لـ {partyName}: {stageLabel},"تنتهي {docKindLabel} لـ {partyName} في {expiryDate} ({stageLabel}، الأيام الباقية: {daysLeft}).
+سجّل الوثيقة المجدّدة في بطاقة الطرف. لا يظهر رقم الوثيقة في الرسائل.",0
+IDDOC.EXPIRY,IN_APP,en,{docKindLabel} of {partyName}: {stageLabel},"The {docKindLabel} of {partyName} expires on {expiryDate} ({stageLabel}, days left: {daysLeft}). Record the renewed document on the party card.",0
+IDDOC.EXPIRY,EMAIL,en,{docKindLabel} of {partyName}: {stageLabel},"The {docKindLabel} of {partyName} expires on {expiryDate} ({stageLabel}, days left: {daysLeft}).
+Record the renewed document on the party card. Document numbers are never shown in messages.",0
+INS.RELATIONSHIP_NO_RM,IN_APP,ar,علاقة {companyName} مع {institutionCode} بلا مدير علاقة,لم يعد لعلاقة {companyName} مع {institutionName} ({institutionCode}) مدير علاقة نشط. أضف مدير العلاقة في التغطية.,0
+INS.RELATIONSHIP_NO_RM,EMAIL,ar,علاقة {companyName} مع {institutionCode} بلا مدير علاقة,"لم يعد لعلاقة {companyName} مع {institutionName} ({institutionCode}) مدير علاقة نشط.
+أضف مدير العلاقة في تغطية العلاقة.",0
+INS.RELATIONSHIP_NO_RM,IN_APP,en,{companyName} and {institutionCode}: no relationship manager,The relationship of {companyName} with {institutionName} ({institutionCode}) has no active relationship manager. Add one to the coverage.,0
+INS.RELATIONSHIP_NO_RM,EMAIL,en,{companyName} and {institutionCode}: no relationship manager,"The relationship of {companyName} with {institutionName} ({institutionCode}) has no active relationship manager.
+Add one to the coverage of the relationship.",0
+SEC.LOCKOUT,IN_APP,ar,قُفل حساب {userName},قُفل حساب {userName} في {occurredAt} بعد محاولات دخول فاشلة. تحقّق مع المستخدم ثم افتح الحساب من شاشة المستخدمين.,0
+SEC.LOCKOUT,EMAIL,ar,قُفل حساب {userName},"قُفل حساب {userName} في {occurredAt} بعد محاولات دخول فاشلة.
+تحقّق مع المستخدم ثم افتح الحساب من شاشة المستخدمين. إن لم تكن المحاولات منه فراجع سجل التدقيق.",0
+SEC.LOCKOUT,IN_APP,en,The account of {userName} is locked,"The account of {userName} was locked at {occurredAt} after failed sign-ins. Check with the user, then unlock it from the users screen.",0
+SEC.LOCKOUT,EMAIL,en,The account of {userName} is locked,"The account of {userName} was locked at {occurredAt} after failed sign-ins.
+Check with the user, then unlock it from the users screen. If the attempts were not theirs, review the audit log.",0
+SEC.SENSITIVE_PERMISSION_CHANGED,IN_APP,ar,تغيّرت صلاحية حساسة في الدور {roleName},{change} الصلاحية الحساسة «{permissionName}» في الدور {roleName} بواسطة {actorName}.,0
+SEC.SENSITIVE_PERMISSION_CHANGED,EMAIL,ar,تغيّرت صلاحية حساسة في الدور {roleName},"{change} الصلاحية الحساسة «{permissionName}» في الدور {roleName} بواسطة {actorName}.
+إن لم يكن التغيير مقصودًا فأعده وراجع سجل التدقيق.",0
+SEC.SENSITIVE_PERMISSION_CHANGED,IN_APP,en,A sensitive permission changed in the role {roleName},"{actorName}: {change} the sensitive permission ""{permissionName}"" in the role {roleName}.",0
+SEC.SENSITIVE_PERMISSION_CHANGED,EMAIL,en,A sensitive permission changed in the role {roleName},"{actorName}: {change} the sensitive permission ""{permissionName}"" in the role {roleName}.
+If this was not intended, change it back and review the audit log.",0
+SEC.MFA_RESET,IN_APP,ar,أُعيد تعيين المصادقة الثنائية لـ {userName},أعاد {actorName} تعيين المصادقة الثنائية لحساب {userName}؛ سيضبطها المستخدم من جديد عند الدخول التالي.,0
+SEC.MFA_RESET,EMAIL,ar,أُعيد تعيين المصادقة الثنائية لـ {userName},"أعاد {actorName} تعيين المصادقة الثنائية لحساب {userName}.
+سيضبط المستخدم تطبيق المصادقة من جديد عند الدخول التالي. إن لم يطلب ذلك فراجع سجل التدقيق.",0
+SEC.MFA_RESET,IN_APP,en,Two-factor authentication of {userName} was reset,{actorName} reset the two-factor authentication of {userName}; they set it up again at their next sign-in.,0
+SEC.MFA_RESET,EMAIL,en,Two-factor authentication of {userName} was reset,"{actorName} reset the two-factor authentication of {userName}.
+They set up their authenticator again at their next sign-in. If they did not ask for it, review the audit log.",0
+SEC.REVEAL_ANOMALY,IN_APP,ar,كشف غير معتاد من {userName},كشف {userName} بيانات حساسة {count} مرة خلال ساعة، فوق الحد المعتاد (20). راجع سجل الوصول إلى البيانات الحساسة.,0
+SEC.REVEAL_ANOMALY,EMAIL,ar,كشف غير معتاد من {userName},"كشف {userName} بيانات حساسة {count} مرة خلال ساعة، فوق الحد المعتاد (20).
+راجع سجل الوصول إلى البيانات الحساسة وتحقّق من سبب الكشف.",0
+SEC.REVEAL_ANOMALY,IN_APP,en,Unusual reveals by {userName},"{userName} revealed sensitive data {count} times within an hour, above the usual limit (20). Review the sensitive access log.",0
+SEC.REVEAL_ANOMALY,EMAIL,en,Unusual reveals by {userName},"{userName} revealed sensitive data {count} times within an hour, above the usual limit (20).
+Review the sensitive access log and check the reason for the reveals.",0
+SEC.SUPPORT_ACCESS,IN_APP,ar,مُنح الدعم وصولًا للقراءة حتى {endsAt},منح {actorName} فريق دعم BankFas وصولًا للقراءة فقط لمدة {hours} ساعة حتى {endsAt}. كل صفحة يفتحها الدعم تُسجَّل في سجل التدقيق.,0
+SEC.SUPPORT_ACCESS,EMAIL,ar,مُنح الدعم وصولًا للقراءة حتى {endsAt},"منح {actorName} فريق دعم BankFas وصولًا للقراءة فقط لمدة {hours} ساعة حتى {endsAt}.
+كل صفحة يفتحها الدعم تُسجَّل في سجل التدقيق، ويمكنك سحب الوصول في أي وقت.",0
+SEC.SUPPORT_ACCESS,IN_APP,en,Support has read access until {endsAt},"{actorName} gave BankFas support read-only access for {hours} hours, until {endsAt}. Every page support opens is in the audit log.",0
+SEC.SUPPORT_ACCESS,EMAIL,en,Support has read access until {endsAt},"{actorName} gave BankFas support read-only access for {hours} hours, until {endsAt}.
+Every page support opens is in the audit log, and you can revoke the access at any time.",0
+PLT.TRIAL_ENDING,IN_APP,ar,تنتهي التجربة في {trialEndsOn},تنتهي فترة تجربة الحساب في {trialEndsOn} (الأيام الباقية: {daysLeft}). تواصل معنا للاستمرار دون انقطاع.,0
+PLT.TRIAL_ENDING,EMAIL,ar,تنتهي التجربة في {trialEndsOn},"تنتهي فترة تجربة الحساب في {trialEndsOn} (الأيام الباقية: {daysLeft}).
+تواصل معنا للاستمرار دون انقطاع.",0
+PLT.TRIAL_ENDING,IN_APP,en,The trial ends on {trialEndsOn},The trial of the account ends on {trialEndsOn} (days left: {daysLeft}). Contact us to continue without interruption.,0
+PLT.TRIAL_ENDING,EMAIL,en,The trial ends on {trialEndsOn},"The trial of the account ends on {trialEndsOn} (days left: {daysLeft}).
+Contact us to continue without interruption.",0
+PLT.QUOTA,IN_APP,ar,بلغ {limitName} نسبة 90% من الحد,بلغ استخدام {limitName} {used} من {limit}. راجع الباقة قبل بلوغ الحد.,0
+PLT.QUOTA,EMAIL,ar,بلغ {limitName} نسبة 90% من الحد,"بلغ استخدام {limitName} {used} من {limit}.
+راجع الباقة قبل بلوغ الحد.",0
+PLT.QUOTA,IN_APP,en,{limitName} is at 90% of the limit,{limitName}: {used} of {limit} used. Review the plan before the limit is reached.,0
+PLT.QUOTA,EMAIL,en,{limitName} is at 90% of the limit,"{limitName}: {used} of {limit} used.
+Review the plan before the limit is reached.",0
+PLT.INTEGRITY_FAIL,IN_APP,ar,فشل فحص السلامة {checkName},فشل فحص السلامة {checkName} في {occurredAt}. أُبلغ فريق المنصة، ولا يلزمك إجراء الآن.,0
+PLT.INTEGRITY_FAIL,EMAIL,ar,فشل فحص السلامة {checkName},"فشل فحص السلامة {checkName} في {occurredAt}.
+أُبلغ فريق المنصة، ولا يلزمك إجراء الآن.",0
+PLT.INTEGRITY_FAIL,IN_APP,en,The integrity check {checkName} failed,The integrity check {checkName} failed at {occurredAt}. The platform team has been told; nothing is needed from you now.,0
+PLT.INTEGRITY_FAIL,EMAIL,en,The integrity check {checkName} failed,"The integrity check {checkName} failed at {occurredAt}.
+The platform team has been told; nothing is needed from you now.",0
+JOB.FAILED,IN_APP,ar,فشلت المهمة {jobKey},فشلت المهمة الخلفية {jobKey} في {occurredAt}، وستُعاد تلقائيًا. تجد التفاصيل في شاشة المهام الخلفية.,0
+JOB.FAILED,EMAIL,ar,فشلت المهمة {jobKey},"فشلت المهمة الخلفية {jobKey} في {occurredAt}، وستُعاد تلقائيًا.
+تجد التفاصيل في شاشة المهام الخلفية.",0
+JOB.FAILED,IN_APP,en,The job {jobKey} failed,The background job {jobKey} failed at {occurredAt} and will run again. The details are on the background jobs screen.,0
+JOB.FAILED,EMAIL,en,The job {jobKey} failed,"The background job {jobKey} failed at {occurredAt} and will run again.
+The details are on the background jobs screen.",0
+NTF.DELIVERY_DEAD,IN_APP,ar,تعذّر تسليم إشعار إلى {userName},تعذّر تسليم إشعار «{eventName}» إلى {userName} عبر {channel} بعد خمس محاولات. تحقّق من عنوان البريد.,0
+NTF.DELIVERY_DEAD,EMAIL,ar,تعذّر تسليم إشعار إلى {userName},"تعذّر تسليم إشعار «{eventName}» إلى {userName} عبر {channel} بعد خمس محاولات.
+تحقّق من عنوان البريد. الإشعار نفسه ظاهر للمستخدم في التطبيق.",0
+NTF.DELIVERY_DEAD,IN_APP,en,A notification to {userName} could not be delivered,"The notification ""{eventName}"" to {userName} by {channel} failed five times. Check the e-mail address.",0
+NTF.DELIVERY_DEAD,EMAIL,en,A notification to {userName} could not be delivered,"The notification ""{eventName}"" to {userName} by {channel} failed five times.
+Check the e-mail address. The notification itself is shown to the user in the application.",0
