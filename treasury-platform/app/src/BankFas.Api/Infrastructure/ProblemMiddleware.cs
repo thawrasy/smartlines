@@ -13,6 +13,9 @@ public sealed partial class ProblemMiddleware(RequestDelegate next, ILogger<Prob
         }
         catch (ApiProblemException ex)
         {
+            // The rule that refused the request, so a failure seen only in a log can be explained. Only the generic field
+            // messages of VALIDATION_FAILED are written out; other titles may name amounts of a facility.
+            LogProblem(logger, ex.Status, ex.Code, ex.Code == "VALIDATION_FAILED" ? ex.Message : "-");
             await WriteAsync(context, ex.Status, ex.Code, ex.Message);
         }
         catch (SqlException ex) when (DbProblemMap.Map(ex.Number) is { } p)
@@ -31,6 +34,9 @@ public sealed partial class ProblemMiddleware(RequestDelegate next, ILogger<Prob
             await WriteAsync(context, 500, "INTERNAL_ERROR", "Something went wrong. Quote the correlation id when you report it.");
         }
     }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Refused {Status} {Code}: {Title}")]
+    private static partial void LogProblem(ILogger logger, int status, string code, string title);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Database refused the request ({Number})")]
     private static partial void LogRefused(ILogger logger, Exception ex, int number);
