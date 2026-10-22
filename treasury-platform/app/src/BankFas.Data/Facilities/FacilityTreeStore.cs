@@ -204,7 +204,8 @@ public static class FacilityTreeStore
                  + (SELECT COUNT(*) FROM fac.LimitCompanyRule WHERE FacilityId = @f AND ToRevision IS NULL AND FromRevision < @r)
                  + (SELECT COUNT(*) FROM fac.ProductLineTerm WHERE FacilityId = @f AND ToRevision IS NULL AND FromRevision < @r)
                  + (SELECT COUNT(*) FROM prc.PricingRule WHERE FacilityId = @f AND ToRevision IS NULL AND FromRevision < @r)
-                 + (SELECT COUNT(*) FROM prc.PricingTier WHERE FacilityId = @f AND ToRevision IS NULL AND FromRevision < @r);
+                 + (SELECT COUNT(*) FROM prc.PricingTier WHERE FacilityId = @f AND ToRevision IS NULL AND FromRevision < @r)
+                 + (SELECT COUNT(*) FROM col.CollateralLink WHERE FacilityId = @f AND ToRevision IS NULL AND FromRevision < @r);
             """, p, tx, cancellationToken: ct)).ConfigureAwait(false);
         if (pending == 0) return;
         await c.ExecuteAsync(new CommandDefinition(
@@ -217,6 +218,7 @@ public static class FacilityTreeStore
             INSERT @old SELECT ProductLineTermId, 4 FROM fac.ProductLineTerm WHERE FacilityId = @f AND ToRevision IS NULL AND FromRevision < @r;
             INSERT @old SELECT PricingRuleId, 5 FROM prc.PricingRule WHERE FacilityId = @f AND ToRevision IS NULL AND FromRevision < @r;
             INSERT @old SELECT PricingTierId, 6 FROM prc.PricingTier WHERE FacilityId = @f AND ToRevision IS NULL AND FromRevision < @r;
+            INSERT @old SELECT CollateralLinkId, 7 FROM col.CollateralLink WHERE FacilityId = @f AND ToRevision IS NULL AND FromRevision < @r;
             -- One open row per root: the old rows close first.
             UPDATE fac.Limit SET ToRevision = @r, UpdatedAt = SYSUTCDATETIME(), UpdatedBy = @me WHERE LimitId IN (SELECT Id FROM @old WHERE Kind = 1);
             UPDATE fac.LimitProductLine SET ToRevision = @r, UpdatedAt = SYSUTCDATETIME(), UpdatedBy = @me WHERE LimitProductLineId IN (SELECT Id FROM @old WHERE Kind = 2);
@@ -224,6 +226,7 @@ public static class FacilityTreeStore
             UPDATE fac.ProductLineTerm SET ToRevision = @r, UpdatedAt = SYSUTCDATETIME(), UpdatedBy = @me WHERE ProductLineTermId IN (SELECT Id FROM @old WHERE Kind = 4);
             UPDATE prc.PricingRule SET ToRevision = @r, UpdatedAt = SYSUTCDATETIME(), UpdatedBy = @me WHERE PricingRuleId IN (SELECT Id FROM @old WHERE Kind = 5);
             UPDATE prc.PricingTier SET ToRevision = @r, UpdatedAt = SYSUTCDATETIME(), UpdatedBy = @me WHERE PricingTierId IN (SELECT Id FROM @old WHERE Kind = 6);
+            UPDATE col.CollateralLink SET ToRevision = @r, UpdatedAt = SYSUTCDATETIME(), UpdatedBy = @me WHERE CollateralLinkId IN (SELECT Id FROM @old WHERE Kind = 7);
             -- The limits, level by level: a copy whose parent was copied points to the parent's copy.
             DECLARE @n INT = 1;
             WHILE @n > 0
@@ -294,6 +297,12 @@ public static class FacilityTreeStore
               FROM prc.PricingTier AS o
               LEFT JOIN prc.PricingRule AS nr ON nr.FacilityId = o.FacilityId AND nr.FromRevision = @r AND nr.SupersedesId = o.PricingRuleId
              WHERE o.PricingTierId IN (SELECT Id FROM @old WHERE Kind = 6);
+            -- The collateral links point to the copied limit; the collateral is named by its root (DR-36).
+            INSERT col.CollateralLink (TenantId, CollateralId, FacilityId, LimitId, CoverageAmount, LienRank, LinkedOn, UnlinkedOn, FromRevision, SupersedesId, InheritedRootId, CreatedBy)
+            SELECT o.TenantId, o.CollateralId, o.FacilityId, ISNULL(nl.LimitId, o.LimitId), o.CoverageAmount, o.LienRank, o.LinkedOn, o.UnlinkedOn, @r, o.CollateralLinkId, o.RootId, @me
+              FROM col.CollateralLink AS o
+              LEFT JOIN fac.Limit AS nl ON nl.FacilityId = o.FacilityId AND nl.FromRevision = @r AND nl.SupersedesId = o.LimitId
+             WHERE o.CollateralLinkId IN (SELECT Id FROM @old WHERE Kind = 7);
             """, p, tx, cancellationToken: ct)).ConfigureAwait(false);
     }
 

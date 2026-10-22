@@ -59,3 +59,12 @@ dialog::backdrop { background: rgb(0 0 0 / 35%); }
 .feed li.sev-high { border-color: #b42318; }
 .feed li.sev-warning { border-color: #dc6803; }
 .feed li p { margin: 0.25rem 0; }
+
+/* The guarantor pack (FR-PTY-026): printed alone, with the draft's watermark across it. */
+.pack { position: relative; }
+.pack .watermark { position: absolute; inset: 30% 0 auto 0; text-align: center; font-size: 2.5rem; opacity: .15; transform: rotate(-20deg); pointer-events: none; }
+@media print {
+  .top, .side, .no-print, form, .banner { display: none !important; }
+  .card:not(:has(.pack)) { display: none; }
+  .pack .watermark { opacity: .25; }
+}

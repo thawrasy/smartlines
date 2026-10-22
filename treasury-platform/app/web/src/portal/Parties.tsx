@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, apiWithETag, downloadGet, message, upload } from '../api';
 import { useFormat, useI18n } from '../i18n';
 import { Field, Form, Notice, Select, Table } from '../ui';
+import { PartyCompleteness } from './Collateral';
 import { can, useMe } from './Portal';
 
 // Screens 21 to 23 of spec 10: the search of persons and entities (by name, or by an exact identity number through the
@@ -222,6 +223,7 @@ export function PartyDetail() {
           { header: 'Value', cell: c => <span dir="ltr">{c.value} {c.restricted && <Reveal path={`/parties/${p.id}/custom-fields/${c.key}/actions/reveal`} onError={m => setNotice({ error: m })} />}</span> },
         ]} />
       </section>
+      {p.kind === 'INDIVIDUAL' && <PartyCompleteness id={p.id} />}
       {can(me, 'party.merge') && p.isActive && !p.mirrorOfCompany && (
         <Form title="Merge into another party" submit="Merge" onSubmit={() => act(() => api('POST', `/parties/${p.id}/actions/merge`, { into: mergeInto, reason: (document.getElementById('merge-reason') as HTMLInputElement).value }), 'Saved.')}>
           <p className="muted">{t('Every record of this party moves to the party kept; this party becomes inactive for good.')}</p>

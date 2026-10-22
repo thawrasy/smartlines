@@ -197,6 +197,8 @@ public static class FacilityRevisionEndpoints
         foreach (var x in LimitEndpoints.CheckTree(rows, rows.Tree(header.TotalAmount)))
             (x.Severity == "E" ? errors : warnings).Add(new(x.Code, x.Message));
         foreach (var (code, message) in await PricingEndpoints.WarningsAsync(u.Connection, tx, f.FacilityId, ct)) warnings.Add(new(code, message));
+        var bank = await KycEndpoints.LeadBankAsync(u.Connection, tx, f.FacilityId, int.MaxValue, ct);
+        foreach (var (code, message) in await CollateralEndpoints.WarningsAsync(u, tx, f, bank, ct)) warnings.Add(new(code, message));
         foreach (var code in await FacilityTreeStore.ClosedInUseAsync(u.Connection, tx, f.FacilityId, ct))
             errors.Add(new("V-FAC-IN-USE", $"The limit or line {code} carries a utilisation or a reservation: reduce its cap instead of closing it."));
         if (f.PreviousFacilityId is { } prev)
@@ -307,6 +309,7 @@ public static class FacilityRevisionEndpoints
     /// <summary>The revisioned tables of a facility that carry its FacilityId; a later batch adds its own (limits, lines, terms, pricing).</summary>
     internal static readonly (string Table, string Key)[] RevisionedTables =
     [
+        ("col.CollateralLink", "CollateralLinkId"),
         ("fac.FacilityLender", "FacilityLenderId"), ("fac.FacilityDocument", "FacilityDocumentId"), ("prc.PricingTier", "PricingTierId"), ("prc.PricingRule", "PricingRuleId"),
         ("fac.ProductLineTerm", "ProductLineTermId"),
         ("fac.LimitCompanyRule", "LimitCompanyRuleId"), ("fac.LimitProductLine", "LimitProductLineId"), ("fac.Limit", "LimitId"),
@@ -333,7 +336,7 @@ public static class FacilityRevisionEndpoints
              WHERE a.EntityType = 'fac.FacilityRevision' AND a.EntityId = @r AND a.Action IN ('FAC_REVISION_OPENED', 'FAC_REVISION_EDITED') AND x.AppUserId = @u;
             """, new { r = rev.FacilityRevisionId, u = u.UserId }, tx, cancellationToken: ct)) > 0;
 
-    private static async Task<bool> SamePersonAllowedAsync(BoundUser u, SqlTransaction tx, CancellationToken ct) =>
+    internal static async Task<bool> SamePersonAllowedAsync(BoundUser u, SqlTransaction tx, CancellationToken ct) =>
         await u.Connection.ExecuteScalarAsync<string>(new CommandDefinition(
             "SELECT ISNULL(t.ValueJson, d.DefaultValueJson) FROM cfg.SettingDefinition AS d LEFT JOIN cfg.TenantSetting AS t ON t.[Key] = d.[Key] WHERE d.[Key] = 'wf.sod.allow_same_person';",
             transaction: tx, cancellationToken: ct)) == "true";

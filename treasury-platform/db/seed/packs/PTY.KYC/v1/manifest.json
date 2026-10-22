@@ -1,0 +1,38 @@
+{
+  "PackKey": "PTY.KYC",
+  "SeedVersion": 1,
+  "Slice": "S2",
+  "Status": "Proposed default written by an AI agent from BR-PTY-013 (🟡 until the banks' KYC forms arrive, Q-PTY-01): the baseline completeness profile of an individual guarantor, written as DRAFT, given its items and then activated (041). A bank's own profile replaces it for that bank when entered.",
+  "Tables": [
+    "pty.CustomFieldDefinition.csv",
+    "pty.KycProfile.csv",
+    "pty.KycProfileItem.csv"
+  ],
+  "DependsOn": [],
+  "References": {
+    "pty.KycProfileItem.csv": {
+      "ProfileSeedKey": {
+        "Column": "ProfileId",
+        "Table": "pty.KycProfile",
+        "Key": "SeedKey"
+      }
+    }
+  },
+  "Activate": [
+    {
+      "Table": "pty.KycProfile",
+      "Column": "Status",
+      "From": "DRAFT",
+      "To": "ACTIVE"
+    }
+  ],
+  "Sources": [
+    "docs/10-detailed-analysis/10-m0-m1-platform-organization.md BR-PTY-013 (the baseline profile) and FR-PTY-023, FR-PTY-024",
+    "db/static/041_kyc_profile_versions.sql (a profile is a DRAFT while its items are written)"
+  ],
+  "Notes": {
+    "PASSPORT": "Required of a GCC national only (BR-PTY-013: the passport for a Gulf national); the condition is evaluated by the application.",
+    "EMPLOYER, OCCUPATION": "Party has no column for them; they are custom fields of the tenant, seeded here.",
+    "Income and source of funds": "Not in the baseline; only when a bank's form asks for them (BR-PTY-013)."
+  }
+}

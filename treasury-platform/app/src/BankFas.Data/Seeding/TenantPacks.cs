@@ -13,9 +13,14 @@ public sealed record PackTable(string Table, IReadOnlyList<string> Header, IRead
 /// <summary>A CSV column whose value is the key of a row of another table (manifest.json, "References").</summary>
 public sealed record PackReference(string Column, string Table, string Key);
 
+/// <summary>After the rows: a status column of the pack's own rows moves From -> To (manifest.json, "Activate"; a KYC profile is written as DRAFT, 041).</summary>
+public sealed record PackActivation(string Table, string Column, string From, string To);
+
 /// <summary>A tenant seed pack of db/seed/packs/&lt;PackKey&gt;/v&lt;n&gt; (DOC-B05 section 5.1, FR-PLT-008).</summary>
 public sealed record TenantPack(string PackKey, int SeedVersion, IReadOnlyList<string> DependsOn, IReadOnlyList<PackTable> Tables)
 {
+    public IReadOnlyList<PackActivation> Activate { get; init; } = [];
+
     private static readonly Regex TableName = new(@"^[a-z]{2,4}\.[A-Z][A-Za-z0-9]{1,80}$", RegexOptions.CultureInvariant);
 
     /// <summary>Reads a pack folder: manifest.json and its CSV files, in the manifest's order.</summary>
@@ -41,7 +46,13 @@ public sealed record TenantPack(string PackKey, int SeedVersion, IReadOnlyList<s
             tables.Add(new PackTable(table, rows[0]!.Select(h => h ?? "").ToList(), rows.Skip(1).ToList(), fileRefs));
         }
         var depends = root.TryGetProperty(nameof(DependsOn), out var d) ? d.EnumerateArray().Select(e => e.GetString()!).ToList() : [];
-        return new TenantPack(root.GetProperty(nameof(PackKey)).GetString()!, root.GetProperty(nameof(SeedVersion)).GetInt32(), depends, tables);
+        var activate = root.TryGetProperty(nameof(Activate), out var a)
+            ? a.EnumerateArray().Select(x => new PackActivation(x.GetProperty("Table").GetString()!, x.GetProperty("Column").GetString()!, x.GetProperty("From").GetString()!,
+                x.GetProperty("To").GetString()!)).ToList()
+            : [];
+        foreach (var x in activate)
+            if (!tables.Any(t => t.Table == x.Table)) throw new InvalidDataException($"{directory}: Activate names {x.Table}, which is not a table of the pack.");
+        return new TenantPack(root.GetProperty(nameof(PackKey)).GetString()!, root.GetProperty(nameof(SeedVersion)).GetInt32(), depends, tables) { Activate = activate };
     }
 }
 
@@ -59,7 +70,7 @@ public static class TenantSeeder
 {
     /// <summary>The packs of S1, S1-b and S2, in dependency order; each is applied at the latest version of its folder.</summary>
     public static readonly string[] S1Packs = ["CAT.ORG", "CAT.BANKING", "CAT.DOCTYPES", "CAT.LOOKUPS", "CAT.CURRENCY", "CORE.NUMBERING", "CORE.EXPIRY", "CORE.DEPARTMENTS",
-        "CMP.TERMS", "FIN.FORMULAS",
+        "CMP.TERMS", "FIN.FORMULAS", "PTY.KYC",
         "NTF.BASE"];
 
     /// <summary>The packs folder: configuration Seed:PacksDirectory, else "packs" next to the application.</summary>
@@ -102,6 +113,18 @@ public static class TenantSeeder
                 var (n, s) = await ApplyTableAsync(c, tx, pack, t, info, columns, ct).ConfigureAwait(false);
                 created += n; skipped += s;
                 diff.Add($"{t.Table}: {n} created, {s} present");
+            }
+            foreach (var a in pack.Activate)
+            {
+                var info = await TableInfoAsync(c, tx, a.Table, columns, ct).ConfigureAwait(false);
+                if (!info.Columns.Contains(a.Column) || !info.Columns.Contains("SeedKey"))
+                    throw new InvalidDataException($"{pack.PackKey}: {a.Table} has no column {a.Column} or no SeedKey.");
+                var t = pack.Tables.First(x => x.Table == a.Table);
+                var keys = t.Rows.Select(r => r[t.Header.ToList().IndexOf("SeedKey")]).OfType<string>().ToArray();
+                var n = await c.ExecuteAsync(new CommandDefinition(
+                    $"UPDATE {QT(a.Table)} SET {Q(a.Column)} = @to WHERE {Q("SeedKey")} IN @keys AND {Q(a.Column)} = @from;",
+                    new { to = a.To, from = a.From, keys }, tx, cancellationToken: ct)).ConfigureAwait(false);
+                diff.Add($"{a.Table}: {n} {a.From} -> {a.To}");
             }
             await c.ExecuteAsync(new CommandDefinition(
                 """

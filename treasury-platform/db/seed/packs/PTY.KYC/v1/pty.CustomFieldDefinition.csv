@@ -1,0 +1,3 @@
+FieldKey,LabelAr,LabelEn,DataType,Sensitivity,AppliesToKind,IsActive,SeedKey
+EMPLOYER,جهة العمل,Employer,TEXT,CONFIDENTIAL,INDIVIDUAL,1,PTY.KYC.EMPLOYER
+OCCUPATION,المهنة,Occupation,TEXT,CONFIDENTIAL,INDIVIDUAL,1,PTY.KYC.OCCUPATION

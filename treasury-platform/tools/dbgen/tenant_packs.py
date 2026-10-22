@@ -204,6 +204,18 @@ class Checker:
                 self.err('%s: References name %s, which is not in Tables' % (rel, f))
         for table, (header, rows) in pack['tables'].items():
             self.check_table(pack, table, header, rows)
+        # Activate: after the rows, a status column of the pack's rows moves From -> To (a KYC profile is written as a
+        # DRAFT, given its items, then activated, 041).
+        for a in man.get('Activate', []):
+            t = self.model.get(a.get('Table'))
+            if a.get('Table') not in pack['tables'] or t is None:
+                self.err('%s: Activate names %s, which is not a table of the pack' % (rel, a.get('Table')))
+                continue
+            c = t.colmap.get(a.get('Column'))
+            if c is None or not c.enum or a.get('From') not in c.enum or a.get('To') not in c.enum:
+                self.err('%s: Activate %s.%s: From and To are values of the column' % (rel, a.get('Table'), a.get('Column')))
+            elif any(r.get(a['Column']) != a['From'] for r in (dict(zip(pack['tables'][a['Table']][0], x)) for x in pack['tables'][a['Table']][1])):
+                self.err('%s: Activate %s: every row is written as %s' % (rel, a['Table'], a['From']))
 
     def check_table(self, pack, table, header, rows):
         where0 = '%s/%s.csv' % (pack['rel'], table)

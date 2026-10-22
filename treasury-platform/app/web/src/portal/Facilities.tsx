@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, apiWithETag, message } from '../api';
 import { useI18n } from '../i18n';
 import { Field, Form, Notice, Select, Table } from '../ui';
+import { FacilityCollateral } from './Collateral';
 import { FacilityPricing } from './Pricing';
 
 // SCR-FAC-01 (the list) and SCR-FAC-02 (the facility card: header, lenders, documents, revisions, renewal chain and
@@ -281,6 +282,7 @@ export function FacilityDetail() {
       <LimitTree id={id!} draft={!!draft && open?.status === 'DRAFT'} edit={card.permissions.edit} onChange={load} />
       <FacilityPricing id={id!} company={card.borrower.id} draft={!!draft && open?.status === 'DRAFT'} edit={card.permissions.edit} />
       <Utilizations id={id!} company={card.borrower.id} approved={card.approvedRevision > 0} />
+      <FacilityCollateral id={id!} draft={!!draft && open?.status === 'DRAFT'} edit={card.permissions.edit} />
       <FacilityAccounts id={id!} company={card.borrower.id} edit={card.permissions.edit} />
     </>
   );
