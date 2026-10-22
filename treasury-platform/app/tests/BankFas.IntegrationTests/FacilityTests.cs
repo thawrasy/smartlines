@@ -177,18 +177,19 @@ public sealed class FacilityTests(PlatformFixture f)
         Assert.Equal((2, 50_000_000m), (card.GetProperty("approvedRevision").GetInt32(), card.GetProperty("header").GetProperty("totalAmount").GetDecimal()));
         Assert.Equal([40m, 30m, 30m], card.GetProperty("lenders").EnumerateArray().Select(l => l.GetProperty("sharePct").GetDecimal()).ToArray());
         Assert.Equal(2, card.GetProperty("documents").GetArrayLength());
-        // A lender keeps its reference across revisions (its root).
-        Assert.Contains(card.GetProperty("lenders").EnumerateArray(), l => l.GetProperty("id").GetString() == lead);
-        Assert.Contains(card.GetProperty("lenders").EnumerateArray(), l => l.GetProperty("id").GetString() == b2);
+        // A lender keeps its reference across revisions (its root): the reference of revision 1 changes it in revision 3.
+        var rev3 = (await s.Fo.PostOkAsync($"/api/v1/facilities/{id}/revisions", new { reasonKind = "CORRECTION" })).GetProperty("id").GetString()!;
+        Assert.Equal(HttpStatusCode.NoContent, (await s.Fo.SendAsync(HttpMethod.Patch, $"/api/v1/facilities/{id}/lenders/{lead}", new { roles = new[] { "LEAD" } })).StatusCode);
+        await ActAsync(s.Fo, id, rev3, "discard");
 
-        // The rows of revision 1 are kept, closed at 2; the database refuses to change an approved row.
+        // The rows of revision 1 are kept, closed at 2; the discarded revision 3 left one void row; the database refuses to change an approved row.
         var tenantId = await TestEnvironment.TenantIdAsync(s.TenantCode);
         await using var c = await f.Env.Db.OpenAsync(BankFas.Data.DbLogin.Jobs, ct);
         await BankFas.Data.JobProcedures.BindAsync(c, tenantId, "JOB-FAC-VALIDITY", Guid.NewGuid(), ct);
         var rows = (await Dapper.SqlMapper.QueryAsync<(decimal Share, int From, int? To)>(c,
             "SELECT l.SharePct, l.FromRevision, l.ToRevision FROM fac.FacilityLender AS l JOIN fac.Facility AS x ON x.FacilityId = l.FacilityId WHERE x.PublicId = @f ORDER BY l.FacilityLenderId;",
             new { f = Guid.Parse(id) })).ToList();
-        Assert.Equal([(40m, 1, null), (35m, 1, 2), (25m, 1, 2), (30m, 2, null), (30m, 2, null)], rows.Select(r => (r.Share, r.From, r.To)).ToArray());
+        Assert.Equal([(40m, 1, null), (35m, 1, 2), (25m, 1, 2), (30m, 2, null), (30m, 2, null), (40m, 3, 3)], rows.Select(r => (r.Share, r.From, r.To)).ToArray());
         var error = await Assert.ThrowsAsync<Microsoft.Data.SqlClient.SqlException>(() => Dapper.SqlMapper.ExecuteAsync(c,
             "UPDATE l SET SharePct = 41 FROM fac.FacilityLender AS l JOIN fac.Facility AS x ON x.FacilityId = l.FacilityId WHERE x.PublicId = @f AND l.ToRevision IS NULL AND l.FromRevision = 1;",
             new { f = Guid.Parse(id) }));
@@ -207,8 +208,8 @@ public sealed class FacilityTests(PlatformFixture f)
         {
             await new FacilityValidityJob(f.Env.Db, new DayClock(day)).RunOnceAsync(ct);
             await new ExpiryAlertJob(f.Env.Db, new DayClock(day)).RunOnceAsync(ct);
-            await outbox.RunOnceAsync(ct);
-            await outbox.RunOnceAsync(ct);
+            // The outbox delivers one event of an aggregate per pass, in order.
+            while (await outbox.RunOnceAsync(ct) > 0) { }
         }
 
         // X expires in 51 days: EXPIRING; one alert at 60 (90 recorded with it), then at 30 when 30 days are left.
@@ -217,19 +218,17 @@ public sealed class FacilityTests(PlatformFixture f)
         Assert.Equal(("EXPIRING", 51), (card.GetProperty("validity").GetString(), card.GetProperty("daysToExpiry").GetInt32()));
         await RunAsync(Today);
         await RunAsync(Today);
-        var due = await AlertsAsync("FAC.EXPIRY_DUE");
-        Assert.Single(due);
-        Assert.Contains("60", due[0].GetProperty("title").GetString(), StringComparison.Ordinal);
+        var lead = await AlertsAsync("FAC.EXPIRY_DUE");
+        Assert.Single(lead);
+        Assert.Contains("60", lead[0].GetProperty("title").GetString(), StringComparison.Ordinal);
         await RunAsync(Today.AddDays(21));
         Assert.Equal(2, (await AlertsAsync("FAC.EXPIRY_DUE")).Count);
 
         // Y expired ten days ago: NOT_CONFIRMED, its alert, and a weekly reminder.
         var y = await ApprovedAsync(s, Today.AddMonths(-13), Today.AddDays(-10));
         Assert.Equal("NOT_CONFIRMED", (await CardAsync(s.Tm, y)).GetProperty("validity").GetString());
-        Assert.Contains(await s.Tm.GetJsonAsync("/api/v1/facilities?validity=NOT_CONFIRMED") is var list ? list.GetProperty("items").EnumerateArray() : default,
-            i => i.GetProperty("id").GetString() == y);
-        await new ExpiryAlertJob(f.Env.Db, new DayClock(Today)).RunOnceAsync(ct);
-        await outbox.RunOnceAsync(ct);
+        Assert.Contains((await s.Tm.GetJsonAsync("/api/v1/facilities?validity=NOT_CONFIRMED")).GetProperty("items").EnumerateArray(), i => i.GetProperty("id").GetString() == y);
+        await RunAsync(Today);
         Assert.Single(await AlertsAsync("FAC.VALIDITY_UNCONFIRMED"));
         await RunAsync(Today.AddDays(11));
         Assert.Equal(2, (await AlertsAsync("FAC.VALIDITY_UNCONFIRMED")).Count);
