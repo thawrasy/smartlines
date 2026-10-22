@@ -18,7 +18,7 @@ interface IdDoc {
   verified: boolean; etag: string; images: { document: string; side: string }[] | null; imageCount: number;
 }
 interface Detail {
-  party: Party; identityDocuments: IdDoc[]; roles: { role: string; count: number }[];
+  party: Party; identityDocuments: IdDoc[]; roles: { role: string; count: number; active: number }[];
   customFields: { key: string; labelAr: string; labelEn: string; restricted: boolean; value?: string }[];
   contacts: { addresses: Record<string, unknown>[]; contactMethods: { id: string; kind: string; value: string; isPrimary: boolean }[] };
 }
@@ -152,7 +152,7 @@ export function PartyDetail() {
           {p.mirrorOfCompany && <> · <Link to={`/companies/${p.mirrorOfCompany}`}>{t('Company mirror')}</Link></>}
           {p.mergedInto && <> · <Link to={`/parties/${p.mergedInto}`}>{t('Merged into another party')}</Link></>}
         </p>
-        <p>{t('Roles')}: {d.roles.length === 0 ? t('Not used yet') : d.roles.map(r => `${t(r.role)} (${r.count})`).join('، ')}</p>
+        <p>{t('Roles')}: {d.roles.length === 0 ? t('Not used yet') : d.roles.map(r => `${t(r.role)} (${r.active} ${t('active of')} ${r.count})`).join('، ')}</p>
         <Notice ok={notice.ok} error={notice.error} />
       </section>
       <section className="card">

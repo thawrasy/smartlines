@@ -520,7 +520,10 @@ table acc.AuthorityConflict  # Result of checking a signatory's authority agains
   ReviewedBy    ->sec.AppUser   # TM/FO
   ReviewedOn    ts
   DetectedOn    ts         req
+  AuthorityGrantId ->org.AuthorityGrant   # منحة الحوكمة المقارَنة (أقرب مرشح)؛ فارغة لـ NO_GRANT وNOT_MAPPED (S1B-GAP-13)
+  ResolvedOn    ts         # وقت زوال السبب آليًا
   unique SignatoryAuthorityId,ConflictCode,Fingerprint
   index  Status,DetectedOn   # SCR-ACC-06 وR-ACC-04
   check  Status <> 'ACKNOWLEDGED' OR (ReviewedBy IS NOT NULL AND ReviewedOn IS NOT NULL AND Reason IS NOT NULL)   # OPEN→ACKNOWLEDGED بسبب مدوَّن (القسم 8)
   check  ReviewedBy IS NULL OR ReviewedOn IS NOT NULL
+  check  (Status = 'RESOLVED' AND ResolvedOn IS NOT NULL) OR (Status <> 'RESOLVED' AND ResolvedOn IS NULL)

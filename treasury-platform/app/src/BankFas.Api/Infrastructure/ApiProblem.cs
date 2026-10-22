@@ -42,6 +42,7 @@ public static class DbProblemMap
         DbErrors.CloseWaitsForExport => (409, "EXPORT_REQUIRED", "Closing waits for the data export."),
         DbErrors.RolesNotSeeded => (409, "NOT_READY", "The account is still being prepared."),
         DbErrors.SeedRowsOnly => (409, "SYSTEM_ITEM", "System and locked items come from the default packs only."),
+        DbErrors.GrantFinal => (409, "GRANT_FINAL", "A revoked or superseded grant is final, and an active grant keeps its terms: change it with a new grant that replaces it."),
         DbErrors.RowFilterWriteRefused => (403, "TENANT_READ_ONLY", "The account is read-only in its current status."),
         DbErrors.PermissionDenied or DbErrors.ColumnPermissionDenied => (403, "FORBIDDEN", "You may not do this."),
         DbErrors.UniqueViolation or DbErrors.UniqueIndexViolation => (409, "CONFLICT", "A record with these values already exists."),

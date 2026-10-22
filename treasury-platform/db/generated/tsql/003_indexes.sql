@@ -309,6 +309,7 @@ CREATE NONCLUSTERED INDEX [IX_SignatoryAuthority_SupersededById] ON [acc].[Signa
 CREATE NONCLUSTERED INDEX [IX_SignatoryAuthorityJointClass_SignatureClassId] ON [acc].[SignatoryAuthorityJointClass] ([TenantId], [SignatureClassId]);
 CREATE NONCLUSTERED INDEX [IX_AuthorityConflict_Status_DetectedOn] ON [acc].[AuthorityConflict] ([TenantId], [Status], [DetectedOn]);
 CREATE NONCLUSTERED INDEX [IX_AuthorityConflict_ReviewedBy] ON [acc].[AuthorityConflict] ([TenantId], [ReviewedBy]);
+CREATE NONCLUSTERED INDEX [IX_AuthorityConflict_AuthorityGrantId] ON [acc].[AuthorityConflict] ([TenantId], [AuthorityGrantId]);
 CREATE UNIQUE NONCLUSTERED INDEX [UQ_Facility_PreviousFacilityId] ON [fac].[Facility] ([TenantId], [PreviousFacilityId]) WHERE PreviousFacilityId IS NOT NULL;
 CREATE NONCLUSTERED INDEX [IX_Facility_BorrowerCompanyId_LifecycleStatus] ON [fac].[Facility] ([TenantId], [BorrowerCompanyId], [LifecycleStatus]) INCLUDE ([ExpiryDate], [FacilityTypeId]);
 CREATE NONCLUSTERED INDEX [IX_Facility_LifecycleStatus_ExpiryDate] ON [fac].[Facility] ([TenantId], [LifecycleStatus], [ExpiryDate]);

@@ -2934,6 +2934,8 @@
 | ReviewedBy | BIGINT | نعم |  | sec.AppUser | TM/FO |
 | ReviewedOn | DATETIME2(3) | نعم |  |  |  |
 | DetectedOn | DATETIME2(3) | لا |  |  |  |
+| AuthorityGrantId | BIGINT | نعم |  | org.AuthorityGrant | منحة الحوكمة المقارَنة (أقرب مرشح)؛ فارغة لـ NO_GRANT وNOT_MAPPED (S1B-GAP-13) |
+| ResolvedOn | DATETIME2(3) | نعم |  |  | وقت زوال السبب آليًا |
 | CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
 | CreatedBy | BIGINT | نعم |  |  |  |
 | UpdatedAt | DATETIME2(3) | نعم |  |  |  |
@@ -2941,7 +2943,7 @@
 
 **المفاتيح:** PK(AuthorityConflictId) · UQ(TenantId, SignatoryAuthorityId, ConflictCode, Fingerprint)
 
-**قيود:** `Status <> 'ACKNOWLEDGED' OR (ReviewedBy IS NOT NULL AND ReviewedOn IS NOT NULL AND Reason IS NOT NULL)` · `ReviewedBy IS NULL OR ReviewedOn IS NOT NULL`
+**قيود:** `Status <> 'ACKNOWLEDGED' OR (ReviewedBy IS NOT NULL AND ReviewedOn IS NOT NULL AND Reason IS NOT NULL)` · `ReviewedBy IS NULL OR ReviewedOn IS NOT NULL` · `(Status = 'RESOLVED' AND ResolvedOn IS NOT NULL) OR (Status <> 'RESOLVED' AND ResolvedOn IS NULL)`
 
 ## FAC
 

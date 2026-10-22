@@ -2996,6 +2996,8 @@ CREATE TABLE [acc].[AuthorityConflict] (
     [ReviewedBy] BIGINT NULL,
     [ReviewedOn] DATETIME2(3) NULL,
     [DetectedOn] DATETIME2(3) NOT NULL,
+    [AuthorityGrantId] BIGINT NULL,
+    [ResolvedOn] DATETIME2(3) NULL,
     [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_AuthorityConflict_CreatedAt] DEFAULT SYSUTCDATETIME(),
     [CreatedBy] BIGINT NULL,
     [UpdatedAt] DATETIME2(3) NULL,
@@ -3006,6 +3008,7 @@ CREATE TABLE [acc].[AuthorityConflict] (
     CONSTRAINT [UQ_AuthorityConflict_SignatoryAuthorityId_ConflictCode_Fingerprint] UNIQUE ([TenantId], [SignatoryAuthorityId], [ConflictCode], [Fingerprint]),
     CONSTRAINT [CK_AuthorityConflict_1] CHECK (Status <> 'ACKNOWLEDGED' OR (ReviewedBy IS NOT NULL AND ReviewedOn IS NOT NULL AND Reason IS NOT NULL)),
     CONSTRAINT [CK_AuthorityConflict_2] CHECK (ReviewedBy IS NULL OR ReviewedOn IS NOT NULL),
+    CONSTRAINT [CK_AuthorityConflict_3] CHECK ((Status = 'RESOLVED' AND ResolvedOn IS NOT NULL) OR (Status <> 'RESOLVED' AND ResolvedOn IS NULL)),
     CONSTRAINT [CK_AuthorityConflict_ConflictCode] CHECK ([ConflictCode] IS NULL OR [ConflictCode] IN ('NO_GRANT', 'CEILING_EXCEEDS', 'JOINT_MISMATCH', 'GRANT_EXPIRED', 'GRANT_CEILING_UNSPECIFIED', 'NOT_COMPARABLE_CURRENCY', 'NOT_MAPPED')),
     CONSTRAINT [CK_AuthorityConflict_Status] CHECK ([Status] IS NULL OR [Status] IN ('OPEN', 'ACKNOWLEDGED', 'RESOLVED'))
 );

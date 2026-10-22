@@ -2752,6 +2752,8 @@ CREATE TABLE "acc"."AuthorityConflict" (
   "ReviewedBy" bigint NULL,
   "ReviewedOn" timestamp(3) NULL,
   "DetectedOn" timestamp(3) NOT NULL,
+  "AuthorityGrantId" bigint NULL,
+  "ResolvedOn" timestamp(3) NULL,
   "CreatedAt" timestamp(3) NOT NULL DEFAULT (now() at time zone 'utc'),
   "CreatedBy" bigint NULL,
   "UpdatedAt" timestamp(3) NULL,
@@ -2761,6 +2763,7 @@ CREATE TABLE "acc"."AuthorityConflict" (
   CONSTRAINT "UQ_AuthorityConflict_SignatoryAuthorityId_Conflict_95440547" UNIQUE ("TenantId", "SignatoryAuthorityId", "ConflictCode", "Fingerprint"),
   CONSTRAINT "CK_AuthorityConflict_1" CHECK ("Status" <> 'ACKNOWLEDGED' OR ("ReviewedBy" IS NOT NULL AND "ReviewedOn" IS NOT NULL AND "Reason" IS NOT NULL)),
   CONSTRAINT "CK_AuthorityConflict_2" CHECK ("ReviewedBy" IS NULL OR "ReviewedOn" IS NOT NULL),
+  CONSTRAINT "CK_AuthorityConflict_3" CHECK (("Status" = 'RESOLVED' AND "ResolvedOn" IS NOT NULL) OR ("Status" <> 'RESOLVED' AND "ResolvedOn" IS NULL)),
   CONSTRAINT "CK_AuthorityConflict_ConflictCode" CHECK ("ConflictCode" IS NULL OR "ConflictCode" IN ('NO_GRANT', 'CEILING_EXCEEDS', 'JOINT_MISMATCH', 'GRANT_EXPIRED', 'GRANT_CEILING_UNSPECIFIED', 'NOT_COMPARABLE_CURRENCY', 'NOT_MAPPED')),
   CONSTRAINT "CK_AuthorityConflict_Status" CHECK ("Status" IS NULL OR "Status" IN ('OPEN', 'ACKNOWLEDGED', 'RESOLVED'))
 );
@@ -7930,6 +7933,7 @@ ALTER TABLE "acc"."SignatoryAuthorityJointClass" ADD CONSTRAINT "FK_SignatoryAut
 ALTER TABLE "acc"."AuthorityConflict" ADD CONSTRAINT "FK_AuthorityConflict_Tenant" FOREIGN KEY ("TenantId") REFERENCES "plat"."Tenant" ("TenantId");
 ALTER TABLE "acc"."AuthorityConflict" ADD CONSTRAINT "FK_AuthorityConflict_SignatoryAuthorityId" FOREIGN KEY ("TenantId", "SignatoryAuthorityId") REFERENCES "acc"."SignatoryAuthority" ("TenantId", "SignatoryAuthorityId");
 ALTER TABLE "acc"."AuthorityConflict" ADD CONSTRAINT "FK_AuthorityConflict_ReviewedBy" FOREIGN KEY ("TenantId", "ReviewedBy") REFERENCES "sec"."AppUser" ("TenantId", "AppUserId");
+ALTER TABLE "acc"."AuthorityConflict" ADD CONSTRAINT "FK_AuthorityConflict_AuthorityGrantId" FOREIGN KEY ("TenantId", "AuthorityGrantId") REFERENCES "org"."AuthorityGrant" ("TenantId", "AuthorityGrantId");
 ALTER TABLE "fac"."Facility" ADD CONSTRAINT "FK_Facility_Tenant" FOREIGN KEY ("TenantId") REFERENCES "plat"."Tenant" ("TenantId");
 ALTER TABLE "fac"."Facility" ADD CONSTRAINT "FK_Facility_BorrowerCompanyId" FOREIGN KEY ("TenantId", "BorrowerCompanyId") REFERENCES "org"."Company" ("TenantId", "CompanyId");
 ALTER TABLE "fac"."Facility" ADD CONSTRAINT "FK_Facility_FacilityTypeId" FOREIGN KEY ("TenantId", "FacilityTypeId") REFERENCES "cat"."FacilityType" ("TenantId", "FacilityTypeId");
@@ -8864,6 +8868,7 @@ CREATE INDEX "IX_SignatoryAuthority_SupersededById" ON "acc"."SignatoryAuthority
 CREATE INDEX "IX_SignatoryAuthorityJointClass_SignatureClassId" ON "acc"."SignatoryAuthorityJointClass" ("TenantId", "SignatureClassId");
 CREATE INDEX "IX_AuthorityConflict_Status_DetectedOn" ON "acc"."AuthorityConflict" ("TenantId", "Status", "DetectedOn");
 CREATE INDEX "IX_AuthorityConflict_ReviewedBy" ON "acc"."AuthorityConflict" ("TenantId", "ReviewedBy");
+CREATE INDEX "IX_AuthorityConflict_AuthorityGrantId" ON "acc"."AuthorityConflict" ("TenantId", "AuthorityGrantId");
 CREATE UNIQUE INDEX "UQ_Facility_PreviousFacilityId" ON "fac"."Facility" ("TenantId", "PreviousFacilityId") WHERE "PreviousFacilityId" IS NOT NULL;
 CREATE INDEX "IX_Facility_BorrowerCompanyId_LifecycleStatus" ON "fac"."Facility" ("TenantId", "BorrowerCompanyId", "LifecycleStatus");
 CREATE INDEX "IX_Facility_LifecycleStatus_ExpiryDate" ON "fac"."Facility" ("TenantId", "LifecycleStatus", "ExpiryDate");

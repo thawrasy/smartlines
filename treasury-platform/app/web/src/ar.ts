@@ -313,6 +313,9 @@ export const ar: Record<string, string> = {
   'A field is not one of this catalogue.': 'حقل ليس من هذا الكتالوج.',
   'A required field is missing.': 'حقل مطلوب ناقص.',
   'System and locked items come from the default packs only.': 'بنود النظام والبنود المقفلة من الحزم الافتراضية فقط.',
+  'A revoked or superseded grant is final, and an active grant keeps its terms: change it with a new grant that replaces it.': 'التفويض المسحوب أو المستبدَل نهائي، والتفويض النافذ يحتفظ بشروطه: غيّره بتفويض جديد يحل محله.',
+  'active of': 'نشط من',
+  'This module is not enabled for the account.': 'هذه الوحدة غير مفعّلة لهذا الحساب.',
   // companies and documents (S1)
   'English': 'English',
   'Companies': 'الشركات',
@@ -889,6 +892,8 @@ export const ar: Record<string, string> = {
   'PLATFORM': 'المنصة',
   'INSTITUTIONS': 'المنشآت والعلاقات',
   'FIN_READINESS': 'جاهزية التمويل',
+  'STRUCTURE': 'هيكل الشركة',
+  'SIGNATORIES': 'المفوَّضون بالتوقيع',
   'The channel is IN_APP or EMAIL.': 'القناة داخل التطبيق أو البريد الإلكتروني.',
   'The mode is IMMEDIATE or OFF; digests come in a later version.': 'الوضع فوري أو متوقف؛ الملخصات تأتي في إصدار لاحق.',
   'Choose a notification group.': 'اختر مجموعة إشعارات.',

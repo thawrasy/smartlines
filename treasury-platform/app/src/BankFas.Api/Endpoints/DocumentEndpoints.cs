@@ -422,6 +422,21 @@ public static class DocumentEndpoints
         return Results.File(content, v.ContentType ?? "application/octet-stream", v.FileName ?? $"document-v{v.VersionNo}");
     }
 
+    /// <summary>
+    /// What a document is the basis of while it is in force (BR-ORG-013, BR-PLT-011, S1B-GAP-9): a grant not yet final,
+    /// an active or suspended signatory, an open holding, an active body, a current member or an open bank authority.
+    /// The soft delete is an update, so no foreign key protects them.
+    /// </summary>
+    private const string InUse =
+        """
+        SELECT 'authority grant' FROM org.AuthorityGrant WHERE SourceDocumentId = @id AND Status IN ('PENDING_APPROVAL', 'ACTIVE')
+        UNION SELECT 'signatory' FROM acc.Signatory WHERE AuthorizationDocumentId = @id AND Status IN ('ACTIVE', 'SUSPENDED')
+        UNION SELECT 'shareholding' FROM org.Shareholding WHERE SourceDocumentId = @id AND (EffectiveTo IS NULL OR EffectiveTo >= CAST(SYSUTCDATETIME() AS DATE))
+        UNION SELECT 'governing body' FROM org.GoverningBody WHERE SourceDocumentId = @id AND Status = 'ACTIVE'
+        UNION SELECT 'body member' FROM org.BodyMember WHERE AppointmentDocumentId = @id AND (TermEnd IS NULL OR TermEnd >= CAST(SYSUTCDATETIME() AS DATE)) AND ResignedOn IS NULL
+        UNION SELECT 'bank authority' FROM acc.SignatoryAuthority WHERE SourceDocumentId = @id AND ValidTo IS NULL AND SupersededById IS NULL;
+        """;
+
     private static async Task<IResult> DeleteAsync(Guid id, DocumentDeleteRequest body, HttpContext http, SqlConnectionFactory db)
     {
         if (string.IsNullOrWhiteSpace(body.Reason) || body.Reason.Length > 500) throw ApiProblemException.Invalid("VALIDATION_FAILED", "Give the reason (up to 500 characters).");
@@ -429,7 +444,10 @@ public static class DocumentEndpoints
         var scope = await CompanyScope.OfAsync(u, http.RequestAborted);
         var d = await FindAsync(u, null, id, scope, http.RequestAborted);
         if (d.Status == "SOFT_DELETED") throw new ApiProblemException(409, "DOCUMENT_NOT_ACTIVE", "This document is not active.");
-        await using var tx = (SqlTransaction)await u.Connection.BeginTransactionAsync(http.RequestAborted);
+        await using var tx = (SqlTransaction)await u.Connection.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, http.RequestAborted);
+        var uses = (await u.Connection.QueryAsync<string>(new CommandDefinition(InUse, new { id = d.DocumentId }, tx, cancellationToken: http.RequestAborted))).ToList();
+        if (uses.Count > 0)
+            throw new ApiProblemException(409, "DOCUMENT_IN_USE", "This document is the source of a record still in force (" + string.Join(", ", uses) + "); replace it there first.");
         await u.Connection.ExecuteAsync(new CommandDefinition(
             """
             UPDATE doc.Document SET Status = 'SOFT_DELETED', DeletedAt = SYSUTCDATETIME(), DeletedBy = CAST(SESSION_CONTEXT(N'UserId') AS BIGINT), DeleteReason = @r,

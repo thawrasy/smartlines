@@ -78,65 +78,37 @@ public sealed class NotificationDispatchJob(SqlConnectionFactory db, IMailSender
 }
 
 /// <summary>
-/// JOB-NTF-EXPIRY (FR-PLT-038, BR-PLT-013, BR-NTF-002): daily, for each active expiry rule, every item with an expiry
-/// date: when a lead threshold is crossed the nearest one is sent once (several crossed at the first look give one
-/// alert, and the farther ones are recorded so they never come later); on and after the expiry date one EXPIRED alert,
-/// then a reminder every ReminderAfterExpiryDays. Each alert is a row of cfg.ExpiryAlertLog keyed by the item's
-/// expiry date, so a renewal (a new date) starts again. The recipients are the rule's roles and the event's rules,
-/// within the company of the item. S1 has the company documents and the identity documents (OQ-3); the numbers of
-/// identity documents are never in the message.
+/// JOB-NTF-EXPIRY (FR-PLT-038, BR-PLT-013, BR-NTF-002): daily, for each active expiry rule that has a provider, every
+/// item with an expiry date: when a lead threshold is crossed the nearest one is sent once (several crossed at the
+/// first look give one alert, and the farther ones are recorded so they never come later); on and after the expiry
+/// date one EXPIRED alert, then a reminder every ReminderAfterExpiryDays. Each alert is a row of cfg.ExpiryAlertLog
+/// keyed by the item's expiry date, so a renewal (a new date) starts again. The recipients are the rule's roles and the
+/// event's rules, within the company of the item. What an item is, its event and its values come from its provider
+/// (<see cref="ExpiryItemProviders"/>); no provider puts a restricted value in a message.
 /// </summary>
-public sealed class ExpiryAlertJob(SqlConnectionFactory db, TimeProvider clock) : TenantJob(db)
+public sealed class ExpiryAlertJob(SqlConnectionFactory db, TimeProvider clock, IReadOnlyList<IExpiryItemProvider>? providers = null) : TenantJob(db)
 {
     public override string JobKey => "JOB-NTF-EXPIRY";
 
+    private readonly Dictionary<string, IExpiryItemProvider> byType = (providers ?? ExpiryItemProviders.All).ToDictionary(p => p.ItemType, StringComparer.Ordinal);
+
     private sealed record Rule(long ExpiryAlertRuleId, string ItemType, string LeadDays, bool ScopeByCompany, int? ReminderAfterExpiryDays);
-
-    private sealed class Item
-    {
-        public long Id { get; init; }
-        public DateTime ExpiryDate { get; init; }
-        public long? CompanyId { get; init; }
-        public string? CompanyNameAr { get; init; }
-        public string? CompanyNameEn { get; init; }
-        public string? TypeAr { get; init; }
-        public string? TypeEn { get; init; }
-        public string? Title { get; init; }
-        public string? Kind { get; init; }
-    }
-
-    private static readonly Dictionary<string, (string Ar, string En)> DocKinds = new(StringComparer.Ordinal)
-    {
-        ["NATIONAL_ID"] = ("الهوية الوطنية", "national ID"), ["RESIDENCE"] = ("الإقامة", "residence permit"), ["PASSPORT"] = ("جواز السفر", "passport"),
-        ["GCC_ID"] = ("هوية مجلس التعاون", "GCC ID"), ["COMMERCIAL_REG"] = ("السجل التجاري", "commercial registration"), ["OTHER_ORG"] = ("وثيقة الجهة", "organisation document"),
-    };
 
     protected override async Task<string?> RunForTenantAsync(SqlConnection c, JobTenant tenant, Guid correlation, CancellationToken ct)
     {
         var today = clock.GetUtcNow().UtcDateTime.Date;
         var rules = (await c.QueryAsync<Rule>(new CommandDefinition(
-            "SELECT ExpiryAlertRuleId, ItemType, LeadDays, ScopeByCompany, ReminderAfterExpiryDays FROM cfg.ExpiryAlertRule WHERE IsActive = 1 AND ItemType IN ('COMPANY_DOCUMENT', 'IDENTITY_DOCUMENT');",
+            "SELECT ExpiryAlertRuleId, ItemType, LeadDays, ScopeByCompany, ReminderAfterExpiryDays FROM cfg.ExpiryAlertRule WHERE IsActive = 1;",
             cancellationToken: ct)).ConfigureAwait(false)).ToList();
         var sent = 0;
         foreach (var rule in rules)
         {
+            if (!byType.TryGetValue(rule.ItemType, out var provider)) continue;
             var lead = System.Text.Json.JsonSerializer.Deserialize<int[]>(rule.LeadDays) ?? [];
             var roles = (await c.QueryAsync<long>(new CommandDefinition("SELECT RoleId FROM cfg.ExpiryAlertRuleRole WHERE ExpiryAlertRuleId = @r;",
                 new { r = rule.ExpiryAlertRuleId }, cancellationToken: ct)).ConfigureAwait(false)).ToList();
             var horizon = today.AddDays(lead.DefaultIfEmpty(0).Max());
-            var items = (await c.QueryAsync<Item>(new CommandDefinition(rule.ItemType == "COMPANY_DOCUMENT"
-                ? """
-                  SELECT d.DocumentId AS Id, d.ExpiryDate, d.OwnerCompanyId AS CompanyId, co.NameAr AS CompanyNameAr, co.NameEn AS CompanyNameEn, t.NameAr AS TypeAr,
-                         t.NameEn AS TypeEn, d.Title
-                    FROM doc.Document AS d JOIN cat.DocumentType AS t ON t.DocumentTypeId = d.DocumentTypeId JOIN org.Company AS co ON co.CompanyId = d.OwnerCompanyId
-                   WHERE d.Status = 'ACTIVE' AND d.SupersededByDocumentId IS NULL AND d.ExpiryDate IS NOT NULL AND d.ExpiryDate <= @horizon AND co.Status <> 'ARCHIVED';
-                  """
-                : """
-                  SELECT i.IdentityDocumentId AS Id, i.ExpiryDate, co.CompanyId, p.NameAr AS CompanyNameAr, p.NameEn AS CompanyNameEn, i.DocKind AS Kind
-                    FROM pty.IdentityDocument AS i JOIN pty.Party AS p ON p.PartyId = i.PartyId LEFT JOIN org.Company AS co ON co.PartyId = p.PartyId
-                   WHERE i.IsSuperseded = 0 AND i.ExpiryDate IS NOT NULL AND i.ExpiryDate <= @horizon AND p.IsActive = 1;
-                  """, new { horizon }, cancellationToken: ct)).ConfigureAwait(false)).ToList();
-            foreach (var item in items)
+            foreach (var item in await provider.ItemsAsync(c, today, horizon, ct).ConfigureAwait(false))
             {
                 var days = (item.ExpiryDate.Date - today).Days;
                 var logged = (await c.QueryAsync<(string Kind, int Threshold)>(new CommandDefinition(
@@ -173,7 +145,7 @@ public sealed class ExpiryAlertJob(SqlConnectionFactory db, TimeProvider clock) 
                         INSERT cfg.ExpiryAlertLog (TenantId, ExpiryAlertRuleId, ItemId, ExpiryDate, AlertKind, Threshold)
                         VALUES (CAST(SESSION_CONTEXT(N'TenantId') AS INT), @r, @i, @e, @k, @t);
                         """, new { r = rule.ExpiryAlertRuleId, i = item.Id, e = item.ExpiryDate, k, t = th }, tx, cancellationToken: ct)).ConfigureAwait(false);
-                await Notifier.RequestAsync(c, tx, Request(rule, item, kind, threshold, days, roles), ct).ConfigureAwait(false);
+                await Notifier.RequestAsync(c, tx, Request(provider, rule, item, kind, threshold, days, roles), ct).ConfigureAwait(false);
                 await tx.CommitAsync(ct).ConfigureAwait(false);
                 sent++;
             }
@@ -181,32 +153,24 @@ public sealed class ExpiryAlertJob(SqlConnectionFactory db, TimeProvider clock) 
         return sent == 0 ? null : $"alerts {sent}";
     }
 
-    private static NotificationRequest Request(Rule rule, Item item, string kind, int threshold, int days, IReadOnlyList<long> roles)
+    private static NotificationRequest Request(IExpiryItemProvider provider, Rule rule, ExpiryItem item, string kind, int threshold, int days, IReadOnlyList<long> roles)
     {
         var stage = kind switch
         {
             "LEAD" => new Dictionary<string, string> { ["ar"] = $"بقي {threshold} يومًا أو أقل", ["en"] = $"{threshold} days or fewer left" },
+            // An item valid through its date (a signatory, BR-ACC-017) ends at the close of that day.
+            "EXPIRED" when days == 0 && provider.ValidThroughExpiryDate => new Dictionary<string, string> { ["ar"] = "ينتهي اليوم", ["en"] = "expires today" },
             "EXPIRED" => new Dictionary<string, string> { ["ar"] = "انتهى", ["en"] = "expired" },
             _ => new Dictionary<string, string> { ["ar"] = $"منتهٍ، التذكير {threshold}", ["en"] = $"expired, reminder {threshold}" },
         };
-        var expiry = item.ExpiryDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-        var company = new Dictionary<string, string?> { ["ar"] = item.CompanyNameAr ?? item.CompanyNameEn, ["en"] = item.CompanyNameEn ?? item.CompanyNameAr };
-        var isDoc = rule.ItemType == "COMPANY_DOCUMENT";
-        var code = isDoc ? "DOC.EXPIRY" : "IDDOC.EXPIRY";
-        var target = isDoc ? "doc.Document" : "pty.IdentityDocument";
-        var values = new Dictionary<string, object?> { ["expiryDate"] = expiry, ["daysLeft"] = Math.Max(days, 0), ["stageLabel"] = stage };
-        if (isDoc)
+        var values = new Dictionary<string, object?>(item.Values, StringComparer.Ordinal)
         {
-            values["companyName"] = company;
-            values["documentType"] = new Dictionary<string, string?> { ["ar"] = item.TypeAr ?? item.TypeEn, ["en"] = item.TypeEn ?? item.TypeAr };
-            values["documentTitle"] = item.Title;
-        }
-        else
-        {
-            var label = DocKinds.TryGetValue(item.Kind ?? "", out var known) ? known : (Ar: item.Kind ?? "", En: item.Kind ?? "");
-            values["partyName"] = company;
-            values["docKindLabel"] = new Dictionary<string, string> { ["ar"] = label.Ar, ["en"] = label.En };
-        }
+            ["expiryDate"] = item.ExpiryDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            ["daysLeft"] = Math.Max(days, 0),
+            ["stageLabel"] = stage,
+        };
+        var code = provider.EventCode;
+        var target = provider.TargetType;
         return new NotificationRequest(code, target, item.Id, $"{code}:{target}:{item.Id}:{kind}{threshold}:{item.ExpiryDate:yyyyMMdd}",
             rule.ScopeByCompany ? item.CompanyId : null, values, RecipientRoleIds: roles);
     }

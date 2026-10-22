@@ -175,8 +175,20 @@ public static partial class PartyEndpoints
           LEFT JOIN pty.IdentityDocument AS s ON s.IdentityDocumentId = d.SupersededById
         """;
 
-    /// <summary>The usage providers of a party, from the foreign keys that reference it (FR-PTY-017).</summary>
-    private static async Task<List<(string Table, string Role, int Count)>> UsagesAsync(SqlConnection c, SqlTransaction? tx, long partyId, CancellationToken ct)
+    /// <summary>
+    /// What makes a usage active (FR-PTY-018, S1B-GAP-17): an open holding, a current term, a grant not yet final, a
+    /// signatory neither revoked nor expired. A table not listed here is active for every row.
+    /// </summary>
+    private static readonly Dictionary<string, string> ActiveWhen = new(StringComparer.Ordinal)
+    {
+        ["org.Shareholding"] = "(EffectiveTo IS NULL OR EffectiveTo >= CAST(SYSUTCDATETIME() AS DATE))",
+        ["org.BodyMember"] = "(TermEnd IS NULL OR TermEnd >= CAST(SYSUTCDATETIME() AS DATE)) AND (ResignedOn IS NULL OR ResignedOn > CAST(SYSUTCDATETIME() AS DATE))",
+        ["org.AuthorityGrant"] = "Status IN ('DRAFT', 'PENDING_APPROVAL', 'ACTIVE')",
+        ["acc.Signatory"] = "Status NOT IN ('REVOKED', 'EXPIRED')",
+    };
+
+    /// <summary>The usage providers of a party, from the foreign keys that reference it, with their active rows (FR-PTY-017, 018).</summary>
+    private static async Task<List<(string Table, string Role, int Count, int Active)>> UsagesAsync(SqlConnection c, SqlTransaction? tx, long partyId, CancellationToken ct)
     {
         var refs = await c.QueryAsync<(string Schema, string Table, string Column)>(new CommandDefinition(
             """
@@ -186,16 +198,19 @@ public static partial class PartyEndpoints
               JOIN sys.columns AS pc ON pc.object_id = fkc.parent_object_id AND pc.column_id = fkc.parent_column_id
              WHERE fkc.referenced_object_id = OBJECT_ID(N'pty.Party') AND rc.name = N'PartyId';
             """, transaction: tx, cancellationToken: ct));
-        var usages = new List<(string, string, int)>();
+        var usages = new Dictionary<string, (int Count, int Active)>(StringComparer.Ordinal);
         foreach (var (schema, table, column) in refs.Distinct())
         {
             var full = schema + "." + table;
             if (OwnTables.Contains(full)) continue;
-            var n = await c.ExecuteScalarAsync<int>(new CommandDefinition($"SELECT COUNT(*) FROM [{schema}].[{table}] WHERE [{column}] = @p;", new { p = partyId }, tx,
+            var active = ActiveWhen.GetValueOrDefault(full, "1 = 1");
+            var (n, a) = await c.QuerySingleAsync<(int, int)>(new CommandDefinition(
+                $"SELECT COUNT(*), COUNT(CASE WHEN {active} THEN 1 END) FROM [{schema}].[{table}] WHERE [{column}] = @p;", new { p = partyId }, tx,
                 cancellationToken: ct));
-            if (n > 0) usages.Add((full, Roles.GetValueOrDefault(full, full), n));
+            // A table with two references to the party (a holder and an intermediate) is one role.
+            if (n > 0) usages[full] = usages.TryGetValue(full, out var had) ? (had.Count + n, had.Active + a) : (n, a);
         }
-        return usages;
+        return [.. usages.Select(x => (x.Key, Roles.GetValueOrDefault(x.Key, x.Key), x.Value.Count, x.Value.Active))];
     }
 
     /// <summary>Party 360 (FR-PTY-028): the party, its documents masked, addresses, contacts, custom fields and roles.</summary>
@@ -242,7 +257,7 @@ public static partial class PartyEndpoints
                 key = f.FieldKey, labelAr = f.LabelAr, labelEn = f.LabelEn, dataType = f.DataType, restricted = f.Sensitivity == "RESTRICTED",
                 value = f.Sensitivity == "RESTRICTED" ? f.ValueMask : f.ValueText, currency = f.Currency,
             }),
-            roles = usages.Select(x => new { role = x.Role, table = x.Table, count = x.Count }),
+            roles = usages.Select(x => new { role = x.Role, table = x.Table, count = x.Count, active = x.Active }),
         });
     }
 
@@ -362,8 +377,9 @@ public static partial class PartyEndpoints
         await using var tx = (SqlTransaction)await u.Connection.BeginTransactionAsync(http.RequestAborted);
         var p = await FindAsync(u, tx, id, http.RequestAborted);
         var usages = await UsagesAsync(u.Connection, tx, p.PartyId, http.RequestAborted);
-        if (usages.Count > 0)
-            throw new ApiProblemException(409, "V-PTY-IN-USE", "The party is in use: " + string.Join(", ", usages.Select(x => $"{x.Role} {x.Count}")) + ".");
+        var inUse = usages.Where(x => x.Active > 0).ToList();
+        if (inUse.Count > 0)
+            throw new ApiProblemException(409, "V-PTY-IN-USE", "The party is in use: " + string.Join(", ", inUse.Select(x => $"{x.Role} {x.Active}")) + ".");
         await u.Connection.ExecuteAsync(new CommandDefinition(
             "UPDATE pty.Party SET IsActive = 0, UpdatedAt = SYSUTCDATETIME(), UpdatedBy = CAST(SESSION_CONTEXT(N'UserId') AS BIGINT) WHERE PartyId = @p;",
             new { p = p.PartyId }, tx, cancellationToken: http.RequestAborted));
@@ -410,6 +426,11 @@ public static partial class PartyEndpoints
         if (!src.IsActive || !dst.IsActive) throw new ApiProblemException(409, "V-PTY-INACTIVE", "Both parties must be active.");
         if (src.Kind != dst.Kind) throw ApiProblemException.Invalid("V-PTY-KIND", "Only parties of the same kind merge.");
         var p = new { s = src.PartyId, d = dst.PartyId };
+        var collisions = (await u.Connection.QueryAsync<(string Table, string Reference)>(new CommandDefinition(MergeCollisions, p, tx,
+            cancellationToken: http.RequestAborted))).ToList();
+        if (collisions.Count > 0)
+            throw new ApiProblemException(409, "V-PTY-MERGE-COLLISION",
+                "Both parties hold the same place, so one row must be closed first: " + string.Join("; ", collisions.Select(x => $"{x.Table} {x.Reference}")) + ".");
         await u.Connection.ExecuteAsync(new CommandDefinition(
             """
             UPDATE pty.IdentityDocument SET IsPrimary = 0 WHERE PartyId = @s AND IsPrimary = 1 AND EXISTS (SELECT 1 FROM pty.IdentityDocument WHERE PartyId = @d AND IsPrimary = 1);
@@ -447,6 +468,37 @@ public static partial class PartyEndpoints
         await tx.CommitAsync(http.RequestAborted);
         return Results.Ok(new { into = dst.PublicId, moved });
     }
+
+    /// <summary>
+    /// The rows a merge would make collide (S1B-GAP-8): the merged and the surviving party both open in the same
+    /// holding, membership or signing class, or one standing in the other's row as intermediate or representative.
+    /// The generic move would fail on a unique index or a CHECK; the user closes one of the two rows first.
+    /// </summary>
+    private const string MergeCollisions =
+        """
+        SELECT 'org.Shareholding' AS [Table], CONCAT(co.CompanyCode, ' ', 'layer ', a.Layer, ' from ', CONVERT(CHAR(10), a.EffectiveFrom, 23)) AS Reference
+          FROM org.Shareholding AS a JOIN org.Company AS co ON co.CompanyId = a.CompanyId
+         WHERE (a.HolderPartyId = @s AND a.IntermediatePartyId = @d) OR (a.HolderPartyId = @d AND a.IntermediatePartyId = @s)
+            OR (a.HolderPartyId = @s AND EXISTS (SELECT 1 FROM org.Shareholding AS b
+                 WHERE b.CompanyId = a.CompanyId AND b.HolderPartyId = @d AND b.Layer = a.Layer
+                   AND (b.IntermediatePartyId = a.IntermediatePartyId OR (b.IntermediatePartyId IS NULL AND a.IntermediatePartyId IS NULL))
+                   AND ((a.EffectiveTo IS NULL AND b.EffectiveTo IS NULL) OR b.EffectiveFrom = a.EffectiveFrom)))
+        UNION ALL
+        SELECT 'org.BodyMember', CONCAT(co.CompanyCode, ' ', g.BodyType, ' ', pos.Code, ' from ', CONVERT(CHAR(10), a.TermStart, 23))
+          FROM org.BodyMember AS a JOIN org.GoverningBody AS g ON g.GoverningBodyId = a.BodyId JOIN org.Company AS co ON co.CompanyId = a.CompanyId
+          JOIN cat.Position AS pos ON pos.PositionId = a.PositionId
+         WHERE (a.PartyId = @s AND a.RepresentedPartyId = @d) OR (a.PartyId = @d AND a.RepresentedPartyId = @s)
+            OR (a.PartyId = @s AND EXISTS (SELECT 1 FROM org.BodyMember AS b
+                 WHERE b.BodyId = a.BodyId AND b.PartyId = @d AND b.PositionId = a.PositionId
+                   AND ((a.TermEnd IS NULL AND a.ResignedOn IS NULL AND b.TermEnd IS NULL AND b.ResignedOn IS NULL) OR b.TermStart = a.TermStart)))
+        UNION ALL
+        SELECT 'acc.Signatory', CONCAT(co.CompanyCode, ' ', i.Code, ' class ', cls.Code, ' from ', CONVERT(CHAR(10), a.ValidFrom, 23))
+          FROM acc.Signatory AS a JOIN ins.Relationship AS r ON r.RelationshipId = a.RelationshipId JOIN org.Company AS co ON co.CompanyId = r.CompanyId
+          JOIN ins.Institution AS i ON i.InstitutionId = r.InstitutionId JOIN cat.LookupItem AS cls ON cls.LookupItemId = a.SignatureClassId
+         WHERE a.PartyId = @s AND EXISTS (SELECT 1 FROM acc.Signatory AS b
+                 WHERE b.RelationshipId = a.RelationshipId AND b.PartyId = @d AND b.SignatureClassId = a.SignatureClassId
+                   AND ((a.ValidTo IS NULL AND a.Status <> 'REVOKED' AND b.ValidTo IS NULL AND b.Status <> 'REVOKED') OR b.ValidFrom = a.ValidFrom));
+        """;
 
     // ---------- identity documents ----------
 

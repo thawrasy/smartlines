@@ -277,6 +277,7 @@ erDiagram
 
 | الجدول | العمود | يشير إلى |
 |---|---|---|
+| AuthorityConflict | AuthorityGrantId | org.AuthorityGrant |
 | AuthorityConflict | ReviewedBy | sec.AppUser |
 | BankAccount | AccountTypeId | cat.AccountType |
 | BankAccount | BranchUnitId | ins.InstitutionUnit |

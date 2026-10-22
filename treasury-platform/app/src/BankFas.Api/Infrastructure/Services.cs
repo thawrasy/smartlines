@@ -149,6 +149,19 @@ public sealed class BoundUser(Microsoft.Data.SqlClient.SqlConnection connection,
         if (!(await PermissionsAsync(ct)).Contains(permission)) throw ApiProblemException.Forbidden();
     }
 
+    /// <summary>
+    /// 403 MODULE_DISABLED unless the tenant's plan or override enables the module (spec 10 section 10; S1B-GAP-16):
+    /// the screens hide what a module does not have, and the server refuses it too.
+    /// </summary>
+    public async Task RequireModuleAsync(string module, CancellationToken ct)
+    {
+        if (!await ModuleEnabledAsync(module, ct)) throw ApiProblemException.Forbidden("MODULE_DISABLED", "This module is not enabled for the account.");
+    }
+
+    public async Task<bool> ModuleEnabledAsync(string module, CancellationToken ct) =>
+        await Dapper.SqlMapper.ExecuteScalarAsync<int>(Connection, new Dapper.CommandDefinition(
+            "SELECT COUNT(*) FROM plat.v_TenantModule WHERE ModuleCode = @m AND IsEnabled = 1;", new { m = module }, cancellationToken: ct)) > 0;
+
     /// <summary>Opens, binds and checks one permission.</summary>
     public static async Task<BoundUser> OpenAsync(HttpContext http, SqlConnectionFactory db, string permission)
     {
