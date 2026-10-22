@@ -7,6 +7,7 @@ import { Enrol, ForgotPassword, Invitation, Login, Mfa, ResetPassword, type Tena
 import { Audit, Calendar, Jobs, Numbering, Settings, Support } from './Admin';
 import { Accounts, BankSetup, BaseRates, InstitutionDetail, Institutions, RelationshipDetail } from './Banks';
 import { Catalogs } from './Catalogs';
+import { Facilities, FacilityDetail } from './Facilities';
 import { Companies, CompanyDetail, Departments, DocumentRegister } from './Companies';
 import { OwnershipMismatch, StructureIntegrity } from './Structure';
 import { AuthorityConflicts } from './Signatories';
@@ -48,6 +49,7 @@ const menu: { to: string; label: string; permission?: string; anyOf?: string[] }
   { to: '/institutions', label: 'Banks and lenders', permission: 'ins.view' },
   { to: '/accounts', label: 'Bank accounts', permission: 'acc.view' },
   { to: '/base-rates', label: 'Base rates', permission: 'cat.view' },
+  { to: '/facilities', label: 'Facilities', permission: 'fac.view' },
   { to: '/catalogs', label: 'Catalogues', anyOf: ['cat.manage.general', 'cat.manage.financial'] },
   { to: '/notifications', label: 'Notifications', permission: 'ntf.prefs' },
   { to: '/notification-settings', label: 'Notification settings', permission: 'ntf.manage' },
@@ -113,6 +115,8 @@ function Shell() {
               <Route path="/bank-setup" element={<BankSetup />} />
               <Route path="/accounts" element={<Accounts />} />
               <Route path="/base-rates" element={<BaseRates />} />
+              <Route path="/facilities" element={<Facilities />} />
+              <Route path="/facilities/:id" element={<FacilityDetail />} />
               <Route path="/notifications" element={<Notifications />} />
               <Route path="/notification-settings" element={<NotificationSettings />} />
               <Route path="/profile" element={<Profile />} />

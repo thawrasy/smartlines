@@ -26,13 +26,17 @@ public interface IExpiryItemProvider
     /// <summary>True when the item is valid through its expiry date, so the day-0 alert says "expires today".</summary>
     bool ValidThroughExpiryDate => false;
 
+    /// <summary>True when the expired alert waits for the day after the date, so the date itself is a lead alert of 0 days (a facility, NOT_CONFIRMED from D+1, BR-FAC-005).</summary>
+    bool ExpiredFromNextDay => false;
+
     Task<IReadOnlyList<ExpiryItem>> ItemsAsync(SqlConnection c, DateTime today, DateTime horizon, CancellationToken ct);
 }
 
 /// <summary>The providers of the expiry job; a slice adds its own here.</summary>
 public static class ExpiryItemProviders
 {
-    public static readonly IReadOnlyList<IExpiryItemProvider> All = [new CompanyDocumentExpiry(), new IdentityDocumentExpiry(), new BodyTermExpiry(), new AuthorityGrantExpiry(), new SignatoryExpiry()];
+    public static readonly IReadOnlyList<IExpiryItemProvider> All = [new CompanyDocumentExpiry(), new IdentityDocumentExpiry(), new BodyTermExpiry(), new AuthorityGrantExpiry(), new SignatoryExpiry(),
+        new Facilities.FacilityExpiry()];
 
     internal static Dictionary<string, string?> Text(string? ar, string? en) => new(StringComparer.Ordinal) { ["ar"] = ar ?? en, ["en"] = en ?? ar };
 }

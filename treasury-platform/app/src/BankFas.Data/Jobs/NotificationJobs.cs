@@ -120,11 +120,11 @@ public sealed class ExpiryAlertJob(SqlConnectionFactory db, TimeProvider clock, 
                 string kind;
                 int threshold;
                 int[] alsoRecord = [];
-                if (days > 0)
+                if (days > 0 || (days == 0 && provider.ExpiredFromNextDay))
                 {
                     var crossed = lead.Where(l => days <= l).ToArray();
-                    if (crossed.Length == 0) continue;
-                    threshold = crossed.Min();
+                    if (crossed.Length == 0 && days > 0) continue;
+                    threshold = days == 0 ? 0 : crossed.Min();
                     kind = "LEAD";
                     alsoRecord = [.. crossed.Where(l => l != threshold && !logged.Contains(("LEAD", l)))];
                 }
@@ -271,6 +271,7 @@ public sealed class ExpiryAlertJob(SqlConnectionFactory db, TimeProvider clock, 
     {
         var stage = kind switch
         {
+            "LEAD" when threshold == 0 => new Dictionary<string, string> { ["ar"] = "ينتهي اليوم", ["en"] = "expires today" },
             "LEAD" => new Dictionary<string, string> { ["ar"] = $"بقي {threshold} يومًا أو أقل", ["en"] = $"{threshold} days or fewer left" },
             // An item valid through its date (a signatory, BR-ACC-017) ends at the close of that day.
             "EXPIRED" when days == 0 && provider.ValidThroughExpiryDate => new Dictionary<string, string> { ["ar"] = "ينتهي اليوم", ["en"] = "expires today" },
