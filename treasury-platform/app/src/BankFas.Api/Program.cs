@@ -112,6 +112,7 @@ NotificationEndpoints.Map(portal);
 CalendarEndpoints.MapPortal(portal);
 FacilityEndpoints.Map(portal);
 FacilityRevisionEndpoints.Map(portal);
+LimitEndpoints.Map(portal);
 var panel = app.MapGroup("/api/v1/operator").AddEndpointFilter(SurfaceFilter(Surface.OperatorPanel));
 OperatorEndpoints.Map(panel);
 OperatorAdminEndpoints.Map(panel);

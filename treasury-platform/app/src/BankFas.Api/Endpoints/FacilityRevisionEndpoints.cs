@@ -192,6 +192,12 @@ public static class FacilityRevisionEndpoints
         if (await u.Connection.ExecuteScalarAsync<int>(new CommandDefinition(
                 "SELECT COUNT(*) FROM fac.ValueConflict WHERE FacilityId = @f AND Status = 'OPEN';", new { f = f.FacilityId }, tx, cancellationToken: ct)) > 0)
             errors.Add(new("V-FAC-CONFLICT", "A value of the facility has two readings that are not decided (FR-FAC-026)."));
+        // The limit tree (V-FAC-04 to 10), and no limit or line closed while it carries a utilisation or a reservation (DQ-F13-9).
+        var rows = await FacilityTreeStore.LoadAsync(u.Connection, tx, f.FacilityId, int.MaxValue, ct);
+        foreach (var x in LimitEndpoints.CheckTree(rows, rows.Tree(header.TotalAmount)))
+            (x.Severity == "E" ? errors : warnings).Add(new(x.Code, x.Message));
+        foreach (var code in await FacilityTreeStore.ClosedInUseAsync(u.Connection, tx, f.FacilityId, ct))
+            errors.Add(new("V-FAC-IN-USE", $"The limit or line {code} carries a utilisation or a reservation: reduce its cap instead of closing it."));
         if (f.PreviousFacilityId is { } prev)
         {
             // BR-FAC-006: a successor that overlaps its predecessor by more than 31 days is a warning.
@@ -298,7 +304,11 @@ public static class FacilityRevisionEndpoints
     }
 
     /// <summary>The revisioned tables of a facility that carry its FacilityId; a later batch adds its own (limits, lines, terms, pricing).</summary>
-    internal static readonly (string Table, string Key)[] RevisionedTables = [("fac.FacilityLender", "FacilityLenderId"), ("fac.FacilityDocument", "FacilityDocumentId")];
+    internal static readonly (string Table, string Key)[] RevisionedTables =
+    [
+        ("fac.FacilityLender", "FacilityLenderId"), ("fac.FacilityDocument", "FacilityDocumentId"), ("fac.ProductLineTerm", "ProductLineTermId"),
+        ("fac.LimitCompanyRule", "LimitCompanyRuleId"), ("fac.LimitProductLine", "LimitProductLineId"), ("fac.Limit", "LimitId"),
+    ];
 
     /// <summary>A discarded draft: its rows are voided (ToRevision = FromRevision, valid at no revision) and the rows it closed are open again (M13:10).</summary>
     private static async Task DiscardRowsAsync(BoundUser u, SqlTransaction tx, long facility, int revision, CancellationToken ct)
@@ -338,6 +348,8 @@ public static class FacilityRevisionEndpoints
         var open = check.Warnings.Where(w => !acknowledged.Contains(w.Code)).Select(w => w.Code).Distinct().ToList();
         if (open.Count > 0) throw ApiProblemException.Invalid("V-FAC-ACK", "Acknowledge the warnings of the revision first: " + string.Join(", ", open) + ".");
 
+        // (0) The active utilisations and reservations follow their limits and lines into this revision (S2 brief 0.1 item 6).
+        await FacilityTreeStore.RelinkAsync(u.Connection, tx, f.FacilityId, rev.RevisionNo, ct);
         // (1) The revision is APPROVED, with what the approver saw and acknowledged (DQ-F13-3).
         await SetAsync(u, tx, rev, "APPROVED", "ApprovedBy = CAST(SESSION_CONTEXT(N'UserId') AS BIGINT), ApprovedOn = SYSUTCDATETIME(), IntegrityResult = @json",
             new { json = JsonSerializer.Serialize(new { errors = Array.Empty<object>(), warnings = check.Warnings.Select(w => new { code = w.Code, message = w.Message }), acknowledged }) }, ct);

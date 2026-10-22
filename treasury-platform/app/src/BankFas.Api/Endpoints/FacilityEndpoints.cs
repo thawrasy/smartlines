@@ -686,13 +686,12 @@ public static class FacilityEndpoints
             $"UPDATE {table} SET ToRevision = @r, UpdatedAt = SYSUTCDATETIME(), UpdatedBy = CAST(SESSION_CONTEXT(N'UserId') AS BIGINT) WHERE {pk} = @id;",
             new { r = revision, id }, tx, cancellationToken: ct));
 
-    /// <summary>A row written in this draft is deleted; an approved row is closed at this revision (it stays in the history of the earlier ones).</summary>
-    private static async Task RemoveRowAsync(BoundUser u, SqlTransaction tx, string table, string pk, long id, int from, int revision, CancellationToken ct)
-    {
-        if (from == revision)
-            await u.Connection.ExecuteAsync(new CommandDefinition($"DELETE FROM {table} WHERE {pk} = @id;", new { id }, tx, cancellationToken: ct));
-        else await CloseAsync(u, tx, table, pk, id, revision, ct);
-    }
+    /// <summary>
+    /// A row written in this draft is voided (ToRevision = FromRevision: valid at no revision; tp_app deletes nothing
+    /// here, 005); an approved row is closed at this revision (it stays in the history of the earlier ones).
+    /// </summary>
+    private static Task RemoveRowAsync(BoundUser u, SqlTransaction tx, string table, string pk, long id, int from, int revision, CancellationToken ct) =>
+        CloseAsync(u, tx, table, pk, id, from == revision ? from : revision, ct);
 
     private static async Task<IResult> RemoveLenderAsync(Guid id, string reference, HttpContext http, SqlConnectionFactory db, OpaqueRefs refs)
     {
@@ -1054,6 +1053,39 @@ public static class FacilityEndpoints
             INSERT fac.FacilityLender (TenantId, FacilityId, InstitutionId, Roles, SharePct, ContactId, FromRevision, CreatedBy)
             SELECT TenantId, @to, InstitutionId, Roles, SharePct, ContactId, 1, CAST(SESSION_CONTEXT(N'UserId') AS BIGINT)
               FROM fac.FacilityLender WHERE FacilityId = @from AND FromRevision <= @rev AND (ToRevision IS NULL OR ToRevision > @rev);
+            """, new { from, to, rev }, tx, cancellationToken: ct));
+        // The limit tree: new roots in the successor, the parents and the rows they belong to found by code (the key of the transfer, BR-FAC-006).
+        await u.Connection.ExecuteAsync(new CommandDefinition(
+            """
+            DECLARE @me BIGINT = CAST(SESSION_CONTEXT(N'UserId') AS BIGINT), @n INT = 1;
+            WHILE @n > 0
+            BEGIN
+                INSERT fac.Limit (TenantId, FacilityId, ParentLimitId, LimitTypeId, Code, NameAr, NameEn, BankStructureNo, AmountBasis, Amount, PctOfParent, EffectiveAmount,
+                                  DistributionMode, IsRevolving, IsCommitted, StartDate, EndDate, DueDate, PricingMode, CompanyAllocationMode, FromRevision, SourceDocumentId,
+                                  SourcePage, ReadFromScan, OriginalText, NoSourceReason, Confidence, CreatedBy)
+                SELECT o.TenantId, @to, np.LimitId, o.LimitTypeId, o.Code, o.NameAr, o.NameEn, o.BankStructureNo, o.AmountBasis, o.Amount, o.PctOfParent, o.EffectiveAmount,
+                       o.DistributionMode, o.IsRevolving, o.IsCommitted, NULL, NULL, NULL, o.PricingMode, o.CompanyAllocationMode, 1, o.SourceDocumentId, o.SourcePage,
+                       o.ReadFromScan, o.OriginalText, ISNULL(o.NoSourceReason, N'Copied from the renewed facility'), o.Confidence, @me
+                  FROM fac.Limit AS o
+                  LEFT JOIN fac.Limit AS op ON op.LimitId = o.ParentLimitId
+                  LEFT JOIN fac.Limit AS np ON np.FacilityId = @to AND np.Code = op.Code
+                 WHERE o.FacilityId = @from AND o.FromRevision <= @rev AND (o.ToRevision IS NULL OR o.ToRevision > @rev)
+                   AND NOT EXISTS (SELECT 1 FROM fac.Limit AS d WHERE d.FacilityId = @to AND d.Code = o.Code)
+                   AND (o.ParentLimitId IS NULL OR np.LimitId IS NOT NULL);
+                SET @n = @@ROWCOUNT;
+            END;
+            INSERT fac.LimitProductLine (TenantId, FacilityId, LimitId, ProductId, BankProductCode, AmountBasis, Amount, PctOfParent, IsRevolving, DueDate, IsActive, FromRevision,
+                                         SourceDocumentId, SourcePage, ReadFromScan, OriginalText, NoSourceReason, Confidence, CreatedBy)
+            SELECT o.TenantId, @to, nl.LimitId, o.ProductId, o.BankProductCode, o.AmountBasis, o.Amount, o.PctOfParent, o.IsRevolving, NULL, o.IsActive, 1, o.SourceDocumentId,
+                   o.SourcePage, o.ReadFromScan, o.OriginalText, ISNULL(o.NoSourceReason, N'Copied from the renewed facility'), o.Confidence, @me
+              FROM fac.LimitProductLine AS o JOIN fac.Limit AS ol ON ol.LimitId = o.LimitId JOIN fac.Limit AS nl ON nl.FacilityId = @to AND nl.Code = ol.Code
+             WHERE o.FacilityId = @from AND o.FromRevision <= @rev AND (o.ToRevision IS NULL OR o.ToRevision > @rev);
+            INSERT fac.LimitCompanyRule (TenantId, FacilityId, LimitId, CompanyId, RuleKind, AllocationAmount, AllocationPct, Reason, ValidFrom, ValidTo, FromRevision,
+                                         SourceDocumentId, SourcePage, NoSourceReason, Confidence, CreatedBy)
+            SELECT o.TenantId, @to, nl.LimitId, o.CompanyId, o.RuleKind, o.AllocationAmount, o.AllocationPct, o.Reason, o.ValidFrom, NULL, 1, o.SourceDocumentId, o.SourcePage,
+                   ISNULL(o.NoSourceReason, N'Copied from the renewed facility'), o.Confidence, @me
+              FROM fac.LimitCompanyRule AS o JOIN fac.Limit AS ol ON ol.LimitId = o.LimitId JOIN fac.Limit AS nl ON nl.FacilityId = @to AND nl.Code = ol.Code
+             WHERE o.FacilityId = @from AND o.FromRevision <= @rev AND (o.ToRevision IS NULL OR o.ToRevision > @rev) AND (o.ValidTo IS NULL OR o.ValidTo >= SYSUTCDATETIME());
             """, new { from, to, rev }, tx, cancellationToken: ct));
         // The documents keep their order; what they amend is left to the user, since an amendment of the old agreement may not apply.
         await u.Connection.ExecuteAsync(new CommandDefinition(

@@ -125,3 +125,56 @@ internal sealed class FacilityExpiry : IExpiryItemProvider
                 ["bankName"] = ExpiryItemProviders.Text(r.BankNameAr, r.BankNameEn),
             }, LeadDays: r.AlertLeadDays is { Length: > 0 } own ? [.. own.Split(',').Select(x => int.Parse(x, CultureInfo.InvariantCulture))] : null))];
 }
+
+/// <summary>
+/// LIMIT and PRODUCT_LINE (CORE.EXPIRY v3; S2-GAP-4): the end date of a limit and the due date of a line of the
+/// approved revision of an ACTIVE facility, at the facility's own lead days or the rule's. The item is the root, so a
+/// new revision of the same limit keeps its alerts (M10:579).
+/// </summary>
+internal sealed class LimitExpiry(bool lines) : IExpiryItemProvider
+{
+    public string ItemType => lines ? "PRODUCT_LINE" : "LIMIT";
+    public string EventCode => "FAC.EXPIRY_DUE";
+    public string TargetType => lines ? "fac.LimitProductLine" : "fac.Limit";
+    public bool ValidThroughExpiryDate => true;
+    public bool ExpiredFromNextDay => true;
+
+    private sealed class Row
+    {
+        public long Id { get; init; }
+        public DateTime ExpiryDate { get; init; }
+        public long CompanyId { get; init; }
+        public string FacilityNo { get; init; } = "";
+        public string Code { get; init; } = "";
+        public string? AlertLeadDays { get; init; }
+        public string? CompanyNameAr { get; init; }
+        public string? CompanyNameEn { get; init; }
+        public string? BankNameAr { get; init; }
+        public string? BankNameEn { get; init; }
+    }
+
+    public async Task<IReadOnlyList<ExpiryItem>> ItemsAsync(SqlConnection c, DateTime today, DateTime horizon, CancellationToken ct) =>
+        [.. (await c.QueryAsync<Row>(new CommandDefinition(
+            $"""
+            SELECT x.RootId AS Id, x.{(lines ? "DueDate" : "EndDate")} AS ExpiryDate, f.BorrowerCompanyId AS CompanyId, f.FacilityNo,
+                   {(lines ? "CONCAT(l.Code, '/', ISNULL(x.BankProductCode, pr.Code))" : "x.Code")} AS Code, f.AlertLeadDays,
+                   co.NameAr AS CompanyNameAr, co.NameEn AS CompanyNameEn, b.NameAr AS BankNameAr, b.NameEn AS BankNameEn
+              FROM {(lines ? "fac.LimitProductLine AS x JOIN fac.Limit AS l ON l.LimitId = x.LimitId JOIN cat.Product AS pr ON pr.ProductId = x.ProductId" : "fac.Limit AS x")}
+              JOIN fac.Facility AS f ON f.FacilityId = x.FacilityId
+              JOIN org.Company AS co ON co.CompanyId = f.BorrowerCompanyId
+              OUTER APPLY (SELECT TOP (1) i.NameAr, i.NameEn FROM fac.FacilityLender AS fl JOIN ins.Institution AS i ON i.InstitutionId = fl.InstitutionId
+                            WHERE fl.FacilityId = f.FacilityId AND fl.FromRevision <= f.ApprovedRevisionNo AND (fl.ToRevision IS NULL OR fl.ToRevision > f.ApprovedRevisionNo)
+                            ORDER BY fl.SharePct DESC) AS b
+             WHERE f.LifecycleStatus = 'ACTIVE' AND f.ApprovedRevisionNo >= 1 AND x.FromRevision <= f.ApprovedRevisionNo
+               AND (x.ToRevision IS NULL OR x.ToRevision > f.ApprovedRevisionNo) AND x.{(lines ? "DueDate" : "EndDate")} <= @h
+               {(lines ? "AND x.IsActive = 1" : "")};
+            """, new { h = horizon }, cancellationToken: ct)).ConfigureAwait(false))
+            .Select(r => new ExpiryItem(r.Id, r.ExpiryDate, r.CompanyId, new Dictionary<string, object?>
+            {
+                ["facilityNo"] = r.FacilityNo,
+                ["itemLabel"] = ExpiryItemProviders.Text(lines ? $"خط المنتج {r.Code} في التسهيل" : $"الحد {r.Code} في التسهيل",
+                    lines ? $"product line {r.Code} of facility" : $"limit {r.Code} of facility"),
+                ["companyName"] = ExpiryItemProviders.Text(r.CompanyNameAr, r.CompanyNameEn),
+                ["bankName"] = ExpiryItemProviders.Text(r.BankNameAr, r.BankNameEn),
+            }, TargetType, r.AlertLeadDays is { Length: > 0 } own ? [.. own.Split(',').Select(x => int.Parse(x, CultureInfo.InvariantCulture))] : null))];
+}

@@ -36,7 +36,7 @@ public interface IExpiryItemProvider
 public static class ExpiryItemProviders
 {
     public static readonly IReadOnlyList<IExpiryItemProvider> All = [new CompanyDocumentExpiry(), new IdentityDocumentExpiry(), new BodyTermExpiry(), new AuthorityGrantExpiry(), new SignatoryExpiry(),
-        new Facilities.FacilityExpiry()];
+        new Facilities.FacilityExpiry(), new Facilities.LimitExpiry(false), new Facilities.LimitExpiry(true)];
 
     internal static Dictionary<string, string?> Text(string? ar, string? en) => new(StringComparer.Ordinal) { ["ar"] = ar ?? en, ["en"] = en ?? ar };
 }
