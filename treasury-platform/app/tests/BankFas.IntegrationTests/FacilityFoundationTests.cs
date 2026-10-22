@@ -66,8 +66,9 @@ public sealed class FacilityFoundationTests(PlatformFixture f)
         var other = await f.CreateTenantAsync();
         var (otherTm, _, _) = await f.UserWithRoleAsync(other, "TM");
         Assert.Equal("2026-10-13", (await otherTm.GetJsonAsync("/api/v1/services/working-days?country=SA&from=2026-10-08&days=3")).GetProperty("date").GetString());
-        // Only the administrator enters the days; the tenant removes its own, never the platform's.
-        Assert.Equal((403, "FORBIDDEN"), await tm.PostProblemAsync("/api/v1/non-working-days", new { country = "SA", onDate = "2026-10-12", nameEn = "No" }));
+        // A reader does not enter days; the tenant removes its own, never the platform's.
+        var (au, _, _) = await f.UserWithRoleAsync(t, "AU");
+        Assert.Equal((403, "FORBIDDEN"), await au.PostProblemAsync("/api/v1/non-working-days", new { country = "SA", onDate = "2026-10-12", nameEn = "No" }));
         Assert.Equal(HttpStatusCode.NoContent, (await t.Portal.DeleteAsync($"/api/v1/non-working-days/{own}", TestContext.Current.CancellationToken)).StatusCode);
         Assert.Equal("2026-10-13", await AddAsync("2026-10-08", 3));
     }
@@ -106,7 +107,7 @@ public sealed class FacilityFoundationTests(PlatformFixture f)
                 SELECT Id FROM @o;
                 """, new { b = Guid.Parse(bank) });
             var fee = await Dapper.SqlMapper.ExecuteScalarAsync<int>(c, "SELECT TOP (1) FeeTypeId FROM cat.FeeType ORDER BY FeeTypeId;");
-            var itemSql = "INSERT prc.TariffItem (TenantId, ScheduleId, FeeTypeId, ItemCode, NameAr, ChargeKind, Rate) VALUES (CAST(SESSION_CONTEXT(N'TenantId') AS INT), @s, @f, @code, N'بند', 'PERCENT', 1.0);";
+            var itemSql = "INSERT prc.TariffItem (TenantId, ScheduleId, FeeTypeId, ItemCode, NameAr, ChargeKind, Rate, Confidence, NoSourceReason) VALUES (CAST(SESSION_CONTEXT(N'TenantId') AS INT), @s, @f, @code, N'بند', 'PERCENT', 1.0, 'ENTERED_NO_DOCUMENT', N'Test');";
             var draftItem = await Try(itemSql, new { s = schedule, f = fee, code = "I1" });
             var approve = await Try("UPDATE prc.TariffSchedule SET Status = 'APPROVED', ApprovedBy = @u, ApprovedOn = SYSUTCDATETIME() WHERE TariffScheduleId = @s;", new { s = schedule, u = svc });
             var approvedItem = await Try(itemSql, new { s = schedule, f = fee, code = "I2" });

@@ -209,7 +209,7 @@ public static partial class PartyEndpoints
             if (OwnTables.Contains(full)) continue;
             var active = ActiveWhen.GetValueOrDefault(full, "1 = 1");
             var (n, a) = await c.QuerySingleAsync<(int, int)>(new CommandDefinition(
-                $"SELECT COUNT(*), COUNT(CASE WHEN {active} THEN 1 END) FROM [{schema}].[{table}] AS t WHERE t.[{column}] = @p;", new { p = partyId }, tx,
+                $"SELECT COUNT(*), ISNULL(SUM(x.IsActive), 0) FROM (SELECT CASE WHEN {active} THEN 1 ELSE 0 END AS IsActive FROM [{schema}].[{table}] AS t WHERE t.[{column}] = @p) AS x;", new { p = partyId }, tx,
                 cancellationToken: ct));
             // A table with two references to the party (a holder and an intermediate) is one role.
             if (n > 0) usages[full] = usages.TryGetValue(full, out var had) ? (had.Count + n, had.Active + a) : (n, a);
