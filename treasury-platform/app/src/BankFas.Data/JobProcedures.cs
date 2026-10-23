@@ -4,7 +4,16 @@ using Microsoft.Data.SqlClient;
 
 namespace BankFas.Data;
 
-public sealed record JobTenant(int TenantId, string Status, string TimeZone);
+public sealed record JobTenant(int TenantId, string Status, string TimeZone)
+{
+    /// <summary>
+    /// The tenant's calendar date at an instant, in its time zone (S2-b brief S2B-GAP-13): what a daily job counts days
+    /// from, and the @AsOf that fin.usp_RunEarlyWarnings accepts (within a day of UTC, db/static/051). An unknown zone
+    /// falls back to UTC.
+    /// </summary>
+    public DateTime LocalDate(DateTimeOffset now) =>
+        (TimeZoneInfo.TryFindSystemTimeZoneById(TimeZone, out var zone) ? TimeZoneInfo.ConvertTime(now, zone) : now.ToUniversalTime()).Date;
+}
 
 /// <summary>The job worker's procedures (db/static/037, 038, 057), as tp_jobs.</summary>
 public static class JobProcedures

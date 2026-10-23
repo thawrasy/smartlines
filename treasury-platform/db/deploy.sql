@@ -66,6 +66,7 @@ GO
 :r static/060_catalog_guards.sql
 :r static/061_s1b_guards.sql
 :r static/062_s2_guards.sql
+:r static/063_s2b_guards.sql
 :r static/090_readonly_denies.sql
 :r seed/100_platform_global.sql
 :r seed/101_iso_reference.sql

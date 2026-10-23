@@ -101,6 +101,7 @@ python3 tools/dbgen/check_grants.py
 python3 tools/dbgen/check_review_fixes.py | tail -1   # the design-review fixes in the generated DDL (C-12, O-15)
 python3 tools/dbgen/ntf_pack.py   # the tenant pack NTF.BASE: columns, placeholders, templates and rules (ADR 0028)
 python3 tools/dbgen/tenant_packs.py > /dev/null   # the S1 tenant packs: columns, references, checks and counts (S1-A)
+python3 tools/dbgen/fin_lines_pack.py --check   # FIN.LINES is generated from the standard lines of db/seed/104 (S2-b)
 # The stress cases of the independent credit review fall within the reviewer's grade ranges (docs/35 section 13).
 python3 tools/dbgen/credit_stress.py > "$TMP/stress.out" || {
     cat "$TMP/stress.out"

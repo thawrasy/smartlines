@@ -107,7 +107,7 @@ flowchart TD
 | FIN.PROVISION | fin.ReceivableLossRate | نسب خسارة افتراضية لمصفوفة مخصص الذمم: 1 و5 و20 و50%، و10% للحكومي فوق سنة، بحالة مسودة تعتمدها الخزينة؛ في `db/seed/packs/FIN.PROVISION/v1/` (ADR 0030) | القرار 35 (D4) | S2-ب |
 | PTY.KYC | pty.KycProfile، pty.KycProfileItem | ملفات KYC المسبقة من 05 §3؛ يُكتب كل ملف مسودة ثم بنوده ثم يُفعَّل، لأن بنود النسخة الفعّالة لا تتغير (ADR 0006) | db/model/11-organization-party.model:407-441 | S2 |
 | CMP.TERMS | cmp.TermType | مفاتيح الشروط القابلة للمقارنة | db/model/13-facilities-pricing-terms.model:542 | S2 |
-| FIN.LINES | fin.LineCatalogItem | 39 بندًا | db/model/14-collateral-obligations-financials.model:383 | S2-ب |
+| FIN.LINES | fin.LineCatalogItem | 157 بندًا من البنود المعيارية (db/seed/104)، تُعرض منها 51 أولًا (S2-ب OQ-1)؛ يولّدها `tools/dbgen/fin_lines_pack.py` | db/model/14-collateral-obligations-financials.model:422 | S2-ب |
 | WFL.BASE | wfl.ExternalPhase، wfl.RequestType، wfl.WorkflowTemplate | 8 مراحل ظاهرة وأنواع الطلبات وقوالبها | db/model/15-workflow-notifications.model:20-96 | S3 |
 | LC.BASE | lc.LcFieldDefinition، lc.LcDocumentClause | تعريفات الحقول و13 بندًا | db/model/16-letters-of-credit.model:64-83، :123-143 | S3 |
 

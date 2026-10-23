@@ -97,8 +97,9 @@ def check(pack=None):
     pmap = man['Placeholders']['map']
     for code, e in ev.items():
         allowed = json.loads(e['AllowedPlaceholdersJson'])
-        # The FIN events take their values from fin.v_EarlyWarningMessageValues; the others from their payload (manifest Placeholders.payload).
-        for p in allowed if e['OwnerModule'] == 'FIN' else []:
+        # The readiness events take their values from fin.v_EarlyWarningMessageValues, as Notifier does for FIN.READINESS_*; the
+        # others (the S2-b FIN events among them) from their payload (manifest Placeholders.payload).
+        for p in allowed if code.startswith('FIN.READINESS_') else []:
             base = pmap.get(p)
             if base is None:
                 errs.append('%s: placeholder {%s} has no column in the manifest map' % (code, p))

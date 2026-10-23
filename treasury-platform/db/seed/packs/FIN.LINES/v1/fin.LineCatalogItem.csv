@@ -1,0 +1,158 @@
+Code,NameAr,NameEn,Description,IsActive,IsSystem,IsLocked,SortOrder,SeedKey,Section,IsTotal,TotalFormula,IsRequired
+CASH,النقد وما في حكمه,Cash and cash equivalents,,1,1,1,10,FIN.LINES.CASH,BS_ASSET,0,,1
+CASH_RESTRICTED,منه نقد مقيد (هوامش اعتمادات وضمانات، ودائع محجوزة، حساب احتياطي خدمة الدين),"of which restricted cash (LC and LG margins, blocked deposits, DSRA)","Of which, part of CASH",1,1,0,20,FIN.LINES.CASH_RESTRICTED,BS_ASSET,0,,0
+CASH_PLEDGED,منه نقد مرهون ضمانًا لتسهيلات,of which cash pledged as security,"Of which, part of CASH",1,1,0,30,FIN.LINES.CASH_PLEDGED,BS_ASSET,0,,0
+SHORT_TERM_INVESTMENTS,استثمارات قصيرة الأجل (ودائع لأكثر من ثلاثة أشهر وأوراق مالية للمتاجرة),"Short-term investments (deposits over three months, trading securities)",,1,1,1,40,FIN.LINES.SHORT_TERM_INVESTMENTS,BS_ASSET,0,,0
+AR,الذمم المدينة التجارية (بالصافي بعد المخصص),Trade receivables (net of allowance),,1,1,1,50,FIN.LINES.AR,BS_ASSET,0,,1
+AR_GROSS,إجمالي الذمم المدينة قبل مخصص الخسائر الائتمانية المتوقعة,Gross trade receivables before the expected credit loss allowance,Detail of AR,1,1,0,60,FIN.LINES.AR_GROSS,BS_ASSET,0,,0
+AR_ECL_ALLOWANCE,مخصص الخسائر الائتمانية المتوقعة للذمم,Expected credit loss allowance on receivables,Detail of AR,1,1,0,70,FIN.LINES.AR_ECL_ALLOWANCE,BS_ASSET,0,,0
+AR_GOVERNMENT,منها مستحقات على جهات حكومية,of which due from government entities,"Of which, part of AR",1,1,0,80,FIN.LINES.AR_GOVERNMENT,BS_ASSET,0,,0
+AR_SEMI_GOVERNMENT,منها مستحقات على شركات حكومية أو شبه حكومية,of which due from government-related companies,"Of which, part of AR",1,1,0,90,FIN.LINES.AR_SEMI_GOVERNMENT,BS_ASSET,0,,0
+AR_RELATED_TRADE,منها ذمم تجارية على أطراف ذات علاقة,of which trade receivables from related parties,"Of which, part of AR",1,1,0,100,FIN.LINES.AR_RELATED_TRADE,BS_ASSET,0,,0
+AR_AGE_0_90,أعمار الذمم (الإجمالي): حتى 90 يومًا,Receivables aging (gross): up to 90 days,"Of which, part of AR_GROSS",1,1,0,110,FIN.LINES.AR_AGE_0_90,BS_ASSET,0,,0
+AR_AGE_91_180,أعمار الذمم: من 91 إلى 180 يومًا,Receivables aging: 91 to 180 days,"Of which, part of AR_GROSS",1,1,0,120,FIN.LINES.AR_AGE_91_180,BS_ASSET,0,,0
+AR_AGE_181_365,أعمار الذمم: من 181 إلى 365 يومًا,Receivables aging: 181 to 365 days,"Of which, part of AR_GROSS",1,1,0,130,FIN.LINES.AR_AGE_181_365,BS_ASSET,0,,0
+AR_AGE_OVER_365,أعمار الذمم: أكثر من 365 يومًا,Receivables aging: over 365 days,"Of which, part of AR_GROSS",1,1,0,140,FIN.LINES.AR_AGE_OVER_365,BS_ASSET,0,,0
+AR_AGE_OVER_365_GOV,منها على جهات حكومية وشبه حكومية: أكثر من 365 يومًا,of which government and government-related: over 365 days,"Of which, part of AR_AGE_OVER_365",1,1,0,150,FIN.LINES.AR_AGE_OVER_365_GOV,BS_ASSET,0,,0
+AR_INSURED,منها ذمم مؤمَّن عليها ضد مخاطر الائتمان,of which credit-insured receivables,"Of which, part of AR",1,1,0,160,FIN.LINES.AR_INSURED,BS_ASSET,0,,0
+AR_NOTES_PDC,منها أوراق قبض وشيكات مؤجلة,of which notes receivable and post-dated cheques,"Of which, part of AR",1,1,0,170,FIN.LINES.AR_NOTES_PDC,BS_ASSET,0,,0
+AR_FACTORED_RECOURSE,ذمم مخصومة أو محالة لبنك مع حق الرجوع,Receivables factored or assigned with recourse,Memorandum item,1,1,0,180,FIN.LINES.AR_FACTORED_RECOURSE,BS_ASSET,0,,0
+AR_TOP5,منها مستحقات أكبر خمسة عملاء,of which due from the five largest customers,"Of which, part of AR",1,1,0,190,FIN.LINES.AR_TOP5,BS_ASSET,0,,0
+CONTRACT_ASSETS,أصول العقود (أعمال منجزة غير مفوترة) والمحتجزات المتداولة,Contract assets (unbilled work) and current retentions,,1,1,1,200,FIN.LINES.CONTRACT_ASSETS,BS_ASSET,0,,0
+RETENTIONS,منها محتجزات لدى العملاء (المتداولة وغير المتداولة),of which retentions held by customers (current and non-current),"Of which, part of CONTRACT_ASSETS",1,1,0,210,FIN.LINES.RETENTIONS,BS_ASSET,0,,0
+RETENTIONS_OVERDUE,منها محتجزات تجاوزت موعد الإفراج,of which retentions past their release date,"Of which, part of CONTRACT_ASSETS",1,1,0,220,FIN.LINES.RETENTIONS_OVERDUE,BS_ASSET,0,,0
+INVENTORY,المخزون (بالصافي بعد المخصص),Inventory (net of provision),,1,1,1,230,FIN.LINES.INVENTORY,BS_ASSET,0,,1
+INV_RAW,منه مواد خام,of which raw materials,"Of which, part of INVENTORY",1,1,0,240,FIN.LINES.INV_RAW,BS_ASSET,0,,0
+INV_WIP,منه إنتاج تحت التشغيل,of which work in progress,"Of which, part of INVENTORY",1,1,0,250,FIN.LINES.INV_WIP,BS_ASSET,0,,0
+INV_FINISHED,منه بضاعة تامة الصنع أو للبيع,of which finished goods and goods for resale,"Of which, part of INVENTORY",1,1,0,260,FIN.LINES.INV_FINISHED,BS_ASSET,0,,0
+INV_SPARES,منه قطع غيار ومستهلكات,of which spare parts and consumables,"Of which, part of INVENTORY",1,1,0,270,FIN.LINES.INV_SPARES,BS_ASSET,0,,0
+INV_IN_TRANSIT,منه بضاعة في الطريق,of which goods in transit,"Of which, part of INVENTORY",1,1,0,280,FIN.LINES.INV_IN_TRANSIT,BS_ASSET,0,,0
+INV_SLOW_MOVING,منه مخزون راكد أو بطيء الحركة بلا حركة أكثر من 12 شهرًا (بتكلفته قبل المخصص),"of which slow-moving inventory, no movement for over 12 months (at cost before the provision)","Of which, part of INVENTORY",1,1,0,290,FIN.LINES.INV_SLOW_MOVING,BS_ASSET,0,,0
+INV_PROVISION,مخصص تقادم المخزون المخصوم,Inventory obsolescence provision already deducted,Detail of INVENTORY,1,1,0,300,FIN.LINES.INV_PROVISION,BS_ASSET,0,,0
+DUE_FROM_RELATED,المستحق من أطراف ذات علاقة (غير تجاري),Due from related parties (non-trade),,1,1,1,310,FIN.LINES.DUE_FROM_RELATED,BS_ASSET,0,,0
+DUE_FROM_SHAREHOLDERS,منه قروض ومسحوبات الشركاء والملاك,of which loans to and drawings of partners and owners,"Of which, part of DUE_FROM_RELATED",1,1,0,320,FIN.LINES.DUE_FROM_SHAREHOLDERS,BS_ASSET,0,,0
+OTHER_CA,أصول متداولة أخرى,Other current assets,,1,1,1,330,FIN.LINES.OTHER_CA,BS_ASSET,0,,0
+ADVANCES_TO_SUPPLIERS,منها دفعات مقدمة للموردين,of which advances to suppliers,"Of which, part of OTHER_CA",1,1,0,340,FIN.LINES.ADVANCES_TO_SUPPLIERS,BS_ASSET,0,,0
+ADVANCES_TO_RELATED,منها دفعات مقدمة لأطراف ذات علاقة,of which advances to related parties,"Of which, part of OTHER_CA",1,1,0,350,FIN.LINES.ADVANCES_TO_RELATED,BS_ASSET,0,,0
+PREPAYMENTS,منها مصروفات مدفوعة مقدمًا,of which prepaid expenses,"Of which, part of OTHER_CA",1,1,0,360,FIN.LINES.PREPAYMENTS,BS_ASSET,0,,0
+VAT_RECEIVABLE,منها ضريبة قيمة مضافة مستردة,of which VAT receivable,"Of which, part of OTHER_CA",1,1,0,370,FIN.LINES.VAT_RECEIVABLE,BS_ASSET,0,,0
+TOTAL_CA,إجمالي الأصول المتداولة,Total current assets,,1,1,1,380,FIN.LINES.TOTAL_CA,BS_ASSET,1,CASH + SHORT_TERM_INVESTMENTS + AR + CONTRACT_ASSETS + INVENTORY + DUE_FROM_RELATED + OTHER_CA,1
+PPE,الممتلكات والآلات والمعدات (بالصافي),"Property, plant and equipment (net)",,1,1,1,390,FIN.LINES.PPE,BS_ASSET,0,,1
+PPE_LAND_BUILDINGS,منها أراضٍ ومبانٍ,of which land and buildings,"Of which, part of PPE",1,1,0,400,FIN.LINES.PPE_LAND_BUILDINGS,BS_ASSET,0,,0
+PPE_MACHINERY,منها آلات ومعدات,of which machinery and equipment,"Of which, part of PPE",1,1,0,410,FIN.LINES.PPE_MACHINERY,BS_ASSET,0,,0
+PPE_VEHICLES,منها سيارات ووسائل نقل,of which vehicles,"Of which, part of PPE",1,1,0,420,FIN.LINES.PPE_VEHICLES,BS_ASSET,0,,0
+PPE_CWIP,منها مشروعات تحت التنفيذ,of which capital work in progress,"Of which, part of PPE",1,1,0,430,FIN.LINES.PPE_CWIP,BS_ASSET,0,,0
+PPE_GROSS,تكلفة الممتلكات والآلات والمعدات قبل الاستهلاك,"Cost of property, plant and equipment before depreciation",Detail of PPE,1,1,0,440,FIN.LINES.PPE_GROSS,BS_ASSET,0,,0
+PPE_ACC_DEPRECIATION,مجمع استهلاك الممتلكات والآلات والمعدات,"Accumulated depreciation of property, plant and equipment",Detail of PPE,1,1,0,450,FIN.LINES.PPE_ACC_DEPRECIATION,BS_ASSET,0,,0
+PPE_REVALUATION_SURPLUS,منها زيادة القيمة الدفترية بإعادة التقييم,of which carrying uplift from revaluation,"Of which, part of PPE",1,1,0,460,FIN.LINES.PPE_REVALUATION_SURPLUS,BS_ASSET,0,,0
+ROU_ASSETS,أصول حق الاستخدام,Right-of-use assets,,1,1,1,470,FIN.LINES.ROU_ASSETS,BS_ASSET,0,,0
+INVESTMENT_PROPERTY,العقارات الاستثمارية,Investment property,,1,1,1,480,FIN.LINES.INVESTMENT_PROPERTY,BS_ASSET,0,,0
+INVESTMENTS_IN_ASSOCIATES,الاستثمارات في الشركات التابعة والزميلة والمشاريع المشتركة,"Investments in subsidiaries, associates and joint ventures",,1,1,1,490,FIN.LINES.INVESTMENTS_IN_ASSOCIATES,BS_ASSET,0,,0
+LT_INVESTMENTS,استثمارات مالية طويلة الأجل أخرى,Other long-term financial investments,,1,1,1,500,FIN.LINES.LT_INVESTMENTS,BS_ASSET,0,,0
+INTANGIBLES,الأصول غير الملموسة (ومنها الشهرة),Intangible assets (including goodwill),,1,1,1,510,FIN.LINES.INTANGIBLES,BS_ASSET,0,,0
+GOODWILL,منها الشهرة,of which goodwill,"Of which, part of INTANGIBLES",1,1,0,520,FIN.LINES.GOODWILL,BS_ASSET,0,,0
+LT_RECEIVABLES,ذمم ومحتجزات غير متداولة,Non-current receivables and retentions,,1,1,1,530,FIN.LINES.LT_RECEIVABLES,BS_ASSET,0,,0
+OTHER_NCA,أصول غير متداولة أخرى,Other non-current assets,,1,1,1,540,FIN.LINES.OTHER_NCA,BS_ASSET,0,,0
+ASSETS_PLEDGED,القيمة الدفترية للأصول المرهونة ضمانًا (أي نوع),Carrying value of assets pledged as security (any class),Memorandum item,1,1,0,550,FIN.LINES.ASSETS_PLEDGED,BS_ASSET,0,,0
+TOTAL_ASSETS,إجمالي الأصول,Total assets,,1,1,1,560,FIN.LINES.TOTAL_ASSETS,BS_ASSET,1,TOTAL_CA + PPE + ROU_ASSETS + INVESTMENT_PROPERTY + INVESTMENTS_IN_ASSOCIATES + LT_INVESTMENTS + INTANGIBLES + LT_RECEIVABLES + OTHER_NCA,1
+ST_LOANS,تمويل قصير الأجل (مرابحة، تورق، سحب على المكشوف، قروض استيراد),"Short-term financing (murabaha, tawarruq, overdraft, import loans)",,1,1,1,570,FIN.LINES.ST_LOANS,BS_LIABILITY,0,,1
+BANK_ACCEPTANCES,القبولات البنكية وتمويل التجارة المستحق,Bank acceptances and trade finance due,,1,1,1,580,FIN.LINES.BANK_ACCEPTANCES,BS_LIABILITY,0,,0
+CURRENT_PORTION_LTD,الجزء المتداول من التمويل طويل الأجل,Current portion of long-term financing,,1,1,1,590,FIN.LINES.CURRENT_PORTION_LTD,BS_LIABILITY,0,,1
+LEASE_LIABS_CURRENT,التزامات الإيجار المتداولة,Current lease liabilities,,1,1,1,600,FIN.LINES.LEASE_LIABS_CURRENT,BS_LIABILITY,0,,0
+AP,الذمم الدائنة التجارية,Trade payables,,1,1,1,610,FIN.LINES.AP,BS_LIABILITY,0,,1
+AP_OVERDUE,منها ذمم تجاوزت شروط السداد مع الموردين,of which payables past the supplier terms,"Of which, part of AP",1,1,0,620,FIN.LINES.AP_OVERDUE,BS_LIABILITY,0,,0
+AP_RELATED,منها ذمم دائنة لأطراف ذات علاقة,of which payables to related parties,"Of which, part of AP",1,1,0,630,FIN.LINES.AP_RELATED,BS_LIABILITY,0,,0
+AP_TOP5,منها مستحق لأكبر خمسة موردين,of which due to the five largest suppliers,"Of which, part of AP",1,1,0,640,FIN.LINES.AP_TOP5,BS_LIABILITY,0,,0
+SUPPLIER_FINANCE,منها ذمم ضمن برنامج تمويل الموردين من بنك (الخصم العكسي),of which payables under a bank supplier-finance (reverse factoring) programme,"Of which, part of AP",1,1,0,650,FIN.LINES.SUPPLIER_FINANCE,BS_LIABILITY,0,,0
+AP_NOTES,منها أوراق دفع,of which notes payable,"Of which, part of AP",1,1,0,660,FIN.LINES.AP_NOTES,BS_LIABILITY,0,,0
+CONTRACT_LIABILITIES,دفعات مقدمة من العملاء ومطلوبات العقود,Advances from customers and contract liabilities,,1,1,1,670,FIN.LINES.CONTRACT_LIABILITIES,BS_LIABILITY,0,,0
+DUE_TO_RELATED,المستحق لأطراف ذات علاقة (غير تجاري),Due to related parties (non-trade),,1,1,1,680,FIN.LINES.DUE_TO_RELATED,BS_LIABILITY,0,,0
+PARTNERS_CURRENT_ACCOUNTS,جاري الشركاء الدائن (مستحق عند الطلب),"Partners' current accounts, credit balances (payable on demand)",,1,1,1,690,FIN.LINES.PARTNERS_CURRENT_ACCOUNTS,BS_LIABILITY,0,,0
+DIVIDENDS_PAYABLE,توزيعات أرباح مستحقة,Dividends payable,,1,1,1,700,FIN.LINES.DIVIDENDS_PAYABLE,BS_LIABILITY,0,,0
+ZAKAT_TAX_PAYABLE,مخصص الزكاة والضريبة المستحق,Zakat and tax payable,,1,1,1,710,FIN.LINES.ZAKAT_TAX_PAYABLE,BS_LIABILITY,0,,0
+OTHER_CL,خصوم متداولة أخرى (مصروفات مستحقة وغيرها),Other current liabilities (accruals and other),,1,1,1,720,FIN.LINES.OTHER_CL,BS_LIABILITY,0,,0
+TOTAL_CL,إجمالي الخصوم المتداولة,Total current liabilities,,1,1,1,730,FIN.LINES.TOTAL_CL,BS_LIABILITY,1,ST_LOANS + BANK_ACCEPTANCES + CURRENT_PORTION_LTD + LEASE_LIABS_CURRENT + AP + CONTRACT_LIABILITIES + DUE_TO_RELATED + PARTNERS_CURRENT_ACCOUNTS + DIVIDENDS_PAYABLE + ZAKAT_TAX_PAYABLE + OTHER_CL,1
+LT_LOANS,التمويل طويل الأجل (قروض لأجل وصكوك) دون الجزء المتداول,Long-term financing (term loans and sukuk) excluding the current portion,,1,1,1,740,FIN.LINES.LT_LOANS,BS_LIABILITY,0,,1
+LEASE_LIABS,التزامات الإيجار غير المتداولة,Non-current lease liabilities,,1,1,1,750,FIN.LINES.LEASE_LIABS,BS_LIABILITY,0,,1
+SHAREHOLDER_LOANS_SUB,قروض الشركاء المساندة (بخطاب تبعية لصالح البنوك),Subordinated shareholder loans (with a subordination letter in favour of the banks),,1,1,1,760,FIN.LINES.SHAREHOLDER_LOANS_SUB,BS_LIABILITY,0,,0
+SHAREHOLDER_LOANS_UNSUB,قروض الشركاء غير المساندة,Shareholder loans without subordination,,1,1,1,770,FIN.LINES.SHAREHOLDER_LOANS_UNSUB,BS_LIABILITY,0,,0
+EOSB,مخصص مكافأة نهاية الخدمة,End-of-service benefits,,1,1,1,780,FIN.LINES.EOSB,BS_LIABILITY,0,,0
+OTHER_NCL,خصوم غير متداولة أخرى,Other non-current liabilities,,1,1,1,790,FIN.LINES.OTHER_NCL,BS_LIABILITY,0,,0
+TOTAL_LIABS,إجمالي الخصوم,Total liabilities,,1,1,1,800,FIN.LINES.TOTAL_LIABS,BS_LIABILITY,1,TOTAL_CL + LT_LOANS + LEASE_LIABS + SHAREHOLDER_LOANS_SUB + SHAREHOLDER_LOANS_UNSUB + EOSB + OTHER_NCL,1
+DEBT_SECURED,التمويل المضمون برهن أصول أو نقد,Debt secured by pledged assets or cash,Memorandum item,1,1,0,810,FIN.LINES.DEBT_SECURED,BS_LIABILITY,0,,0
+DEBT_FLOATING,التمويل بسعر متغير (مرتبط بسايبور أو غيره),Floating-rate debt (SAIBOR-linked or other),Memorandum item,1,1,0,820,FIN.LINES.DEBT_FLOATING,BS_LIABILITY,0,,0
+DEBT_FOREIGN_CCY,التمويل بعملة غير عملة القائمة وغير مرتبطة بها,Debt in a currency other than the statement currency and not pegged to it,Memorandum item,1,1,0,830,FIN.LINES.DEBT_FOREIGN_CCY,BS_LIABILITY,0,,0
+DEBT_DUE_1Y,استحقاق التمويل والإيجار: خلال سنة,Maturity of debt and leases: within one year,Memorandum item,1,1,0,840,FIN.LINES.DEBT_DUE_1Y,BS_LIABILITY,0,,0
+DEBT_DUE_1_2Y,استحقاق التمويل والإيجار: من سنة إلى سنتين,Maturity of debt and leases: one to two years,Memorandum item,1,1,0,850,FIN.LINES.DEBT_DUE_1_2Y,BS_LIABILITY,0,,0
+DEBT_DUE_2_5Y,استحقاق التمويل والإيجار: من سنتين إلى خمس,Maturity of debt and leases: two to five years,Memorandum item,1,1,0,860,FIN.LINES.DEBT_DUE_2_5Y,BS_LIABILITY,0,,0
+DEBT_DUE_OVER_5Y,استحقاق التمويل والإيجار: أكثر من خمس سنوات,Maturity of debt and leases: over five years,Memorandum item,1,1,0,870,FIN.LINES.DEBT_DUE_OVER_5Y,BS_LIABILITY,0,,0
+SHARE_CAPITAL,رأس المال,Share capital,,1,1,1,880,FIN.LINES.SHARE_CAPITAL,BS_EQUITY,0,,1
+STATUTORY_RESERVE,الاحتياطي النظامي,Statutory reserve,,1,1,1,890,FIN.LINES.STATUTORY_RESERVE,BS_EQUITY,0,,0
+CAPITAL_CONTRIBUTIONS,مبالغ تحت حساب زيادة رأس المال,Amounts towards a capital increase,,1,1,1,900,FIN.LINES.CAPITAL_CONTRIBUTIONS,BS_EQUITY,0,,0
+RETAINED_EARNINGS,الأرباح المبقاة (الخسائر المتراكمة),Retained earnings (accumulated losses),,1,1,1,910,FIN.LINES.RETAINED_EARNINGS,BS_EQUITY,0,,1
+REVALUATION_RESERVE,احتياطي إعادة التقييم,Revaluation reserve,,1,1,1,920,FIN.LINES.REVALUATION_RESERVE,BS_EQUITY,0,,0
+OTHER_EQUITY,احتياطيات وحقوق ملكية أخرى,Other reserves and equity,,1,1,1,930,FIN.LINES.OTHER_EQUITY,BS_EQUITY,0,,1
+TREASURY_SHARES,أسهم خزينة (تُدخل موجبة وتُطرح),"Treasury shares (entered positive, deducted)",,1,1,1,940,FIN.LINES.TREASURY_SHARES,BS_EQUITY,0,,0
+MINORITY_INTEREST,حقوق الملكية غير المسيطرة,Non-controlling interests,,1,1,1,950,FIN.LINES.MINORITY_INTEREST,BS_EQUITY,0,,1
+TOTAL_EQUITY,إجمالي حقوق الملكية,Total equity,,1,1,1,960,FIN.LINES.TOTAL_EQUITY,BS_EQUITY,1,SHARE_CAPITAL + STATUTORY_RESERVE + CAPITAL_CONTRIBUTIONS + RETAINED_EARNINGS + REVALUATION_RESERVE + OTHER_EQUITY - TREASURY_SHARES + MINORITY_INTEREST,1
+REVENUE,الإيرادات,Revenue,,1,1,1,970,FIN.LINES.REVENUE,IS,0,,1
+REV_GOVERNMENT,منها مبيعات وعقود لجهات حكومية,of which sales and contracts with government entities,"Of which, part of REVENUE",1,1,0,980,FIN.LINES.REV_GOVERNMENT,IS,0,,0
+REV_SEMI_GOVERNMENT,منها لشركات حكومية أو شبه حكومية,of which with government-related companies,"Of which, part of REVENUE",1,1,0,990,FIN.LINES.REV_SEMI_GOVERNMENT,IS,0,,0
+REV_EXPORT,منها صادرات,of which exports,"Of which, part of REVENUE",1,1,0,1000,FIN.LINES.REV_EXPORT,IS,0,,0
+REV_CASH,منها مبيعات نقدية وبالبطاقات,of which cash and card sales,"Of which, part of REVENUE",1,1,0,1010,FIN.LINES.REV_CASH,IS,0,,0
+REV_RELATED,منها مبيعات لأطراف ذات علاقة,of which sales to related parties,"Of which, part of REVENUE",1,1,0,1020,FIN.LINES.REV_RELATED,IS,0,,0
+REV_RECURRING,منها إيرادات متكررة بعقود (توريد طويل، اشتراكات، صيانة),"of which recurring contracted revenue (long-term supply, subscriptions, maintenance)","Of which, part of REVENUE",1,1,0,1030,FIN.LINES.REV_RECURRING,IS,0,,0
+REV_TOP_CUSTOMER,منها مبيعات أكبر عميل,of which sales to the largest customer,"Of which, part of REVENUE",1,1,0,1040,FIN.LINES.REV_TOP_CUSTOMER,IS,0,,0
+REV_TOP5,منها مبيعات أكبر خمسة عملاء,of which sales to the five largest customers,"Of which, part of REVENUE",1,1,0,1050,FIN.LINES.REV_TOP5,IS,0,,0
+COGS,تكلفة المبيعات,Cost of sales,,1,1,1,1060,FIN.LINES.COGS,IS,0,,1
+COGS_MATERIALS,منها مواد وبضاعة مشتراة,of which materials and goods purchased,"Of which, part of COGS",1,1,0,1070,FIN.LINES.COGS_MATERIALS,IS,0,,0
+COGS_LABOUR,منها عمالة مباشرة,of which direct labour,"Of which, part of COGS",1,1,0,1080,FIN.LINES.COGS_LABOUR,IS,0,,0
+COGS_DEPRECIATION,منها استهلاك ضمن تكلفة المبيعات,of which depreciation in cost of sales,"Of which, part of COGS",1,1,0,1090,FIN.LINES.COGS_DEPRECIATION,IS,0,,0
+PURCHASES_RELATED,مشتريات من أطراف ذات علاقة,Purchases from related parties,Memorandum item,1,1,0,1100,FIN.LINES.PURCHASES_RELATED,IS,0,,0
+PURCHASES_TOP5,مشتريات من أكبر خمسة موردين,Purchases from the five largest suppliers,Memorandum item,1,1,0,1110,FIN.LINES.PURCHASES_TOP5,IS,0,,0
+PURCHASES_IMPORTED,مشتريات مستوردة,Imported purchases,Memorandum item,1,1,0,1120,FIN.LINES.PURCHASES_IMPORTED,IS,0,,0
+GROSS_PROFIT,مجمل الربح,Gross profit,,1,1,1,1130,FIN.LINES.GROSS_PROFIT,IS,1,REVENUE - COGS,1
+OPEX,المصاريف التشغيلية (بيع وتوزيع وعمومية وإدارية),"Operating expenses (selling, distribution, general and administrative)",,1,1,1,1140,FIN.LINES.OPEX,IS,0,,1
+SELLING_DISTRIBUTION,منها مصاريف بيع وتوزيع,of which selling and distribution,"Of which, part of OPEX",1,1,0,1150,FIN.LINES.SELLING_DISTRIBUTION,IS,0,,0
+GENERAL_ADMIN,منها مصاريف عمومية وإدارية,of which general and administrative,"Of which, part of OPEX",1,1,0,1160,FIN.LINES.GENERAL_ADMIN,IS,0,,0
+STAFF_COSTS,تكاليف الموظفين كلها (في التكلفة والمصاريف),All staff costs (in cost of sales and expenses),Memorandum item,1,1,0,1170,FIN.LINES.STAFF_COSTS,IS,0,,0
+RENT_SHORT_TERM,منها إيجارات قصيرة الأجل غير مرسملة,of which short-term rent not capitalised,"Of which, part of OPEX",1,1,0,1180,FIN.LINES.RENT_SHORT_TERM,IS,0,,0
+ECL_CHARGE,منها مخصص خسائر ائتمانية مكوَّن في الفترة,of which expected credit loss charge for the period,"Of which, part of OPEX",1,1,0,1190,FIN.LINES.ECL_CHARGE,IS,0,,0
+IMPAIRMENTS,منها هبوط في قيمة الأصول,of which impairments,"Of which, part of OPEX",1,1,0,1200,FIN.LINES.IMPAIRMENTS,IS,0,,0
+RND_EXPENSE,منها بحث وتطوير,of which research and development,"Of which, part of OPEX",1,1,0,1210,FIN.LINES.RND_EXPENSE,IS,0,,0
+OPERATING_PROFIT,الربح التشغيلي,Operating profit,,1,1,1,1220,FIN.LINES.OPERATING_PROFIT,IS,1,GROSS_PROFIT - OPEX,1
+DEPR_AMORT,الاستهلاك والإطفاء (كله، ومنه حق الاستخدام),"Depreciation and amortisation (all, including right-of-use)",,1,1,1,1230,FIN.LINES.DEPR_AMORT,IS,0,,1
+EBITDA,الأرباح قبل التمويل والزكاة والاستهلاك (EBITDA),EBITDA,,1,1,1,1240,FIN.LINES.EBITDA,IS,1,OPERATING_PROFIT + DEPR_AMORT,1
+FINANCE_COSTS,تكاليف التمويل,Finance costs,,1,1,1,1250,FIN.LINES.FINANCE_COSTS,IS,0,,1
+CAPITALISED_INTEREST,تكاليف تمويل رُسملت على الأصول في الفترة,Borrowing costs capitalised in the period,Memorandum item,1,1,0,1260,FIN.LINES.CAPITALISED_INTEREST,IS,0,,0
+BANK_CHARGES_LC_LG,منها عمولات الاعتمادات والضمانات والرسوم البنكية,"of which LC, LG commissions and bank charges","Of which, part of FINANCE_COSTS",1,1,0,1270,FIN.LINES.BANK_CHARGES_LC_LG,IS,0,,0
+OTHER_INCOME,إيرادات (مصاريف) أخرى بالصافي,"Other income (expense), net",,1,1,1,1280,FIN.LINES.OTHER_INCOME,IS,0,,1
+NONRECURRING_GAINS,منها مكاسب غير متكررة (بيع أصول، إعادة تقييم، قيمة عادلة، إيراد لمرة واحدة),"of which non-recurring gains (disposals, revaluation, fair value, one-off income)","Of which, part of OTHER_INCOME",1,1,0,1290,FIN.LINES.NONRECURRING_GAINS,IS,0,,0
+NONRECURRING_LOSSES,منها خسائر غير متكررة (إعادة هيكلة، تكاليف لمرة واحدة),"of which non-recurring losses (restructuring, one-off costs)","Of which, part of OTHER_INCOME",1,1,0,1300,FIN.LINES.NONRECURRING_LOSSES,IS,0,,0
+SHARE_OF_ASSOCIATES,الحصة في نتائج الشركات الزميلة والمشاريع المشتركة,Share of results of associates and joint ventures,,1,1,1,1310,FIN.LINES.SHARE_OF_ASSOCIATES,IS,0,,0
+ZAKAT_TAX,الزكاة وضريبة الدخل,Zakat and income tax,,1,1,1,1320,FIN.LINES.ZAKAT_TAX,IS,0,,1
+NET_PROFIT,صافي الربح,Net profit,,1,1,1,1330,FIN.LINES.NET_PROFIT,IS,1,OPERATING_PROFIT - FINANCE_COSTS + OTHER_INCOME + SHARE_OF_ASSOCIATES - ZAKAT_TAX,1
+CFO_BEFORE_WC,التدفق من العمليات قبل تغيرات رأس المال العامل,Funds from operations (before working capital changes),,1,1,0,1340,FIN.LINES.CFO_BEFORE_WC,CF,0,,0
+OP_CASH_FLOW,صافي التدفق النقدي من الأنشطة التشغيلية,Net cash from operating activities,,1,1,0,1350,FIN.LINES.OP_CASH_FLOW,CF,0,,0
+CAPEX,شراء ممتلكات وآلات ومعدات,"Purchase of property, plant and equipment",,1,1,0,1360,FIN.LINES.CAPEX,CF,0,,0
+ACQUISITIONS,الاستحواذات والاستثمارات في شركات,Acquisitions and investments in companies,,1,1,0,1370,FIN.LINES.ACQUISITIONS,CF,0,,0
+ASSET_DISPOSALS,متحصلات بيع أصول,Proceeds from asset disposals,,1,1,0,1380,FIN.LINES.ASSET_DISPOSALS,CF,0,,0
+DEBT_DRAWDOWNS,متحصلات تمويل جديد,Proceeds from new financing,,1,1,0,1390,FIN.LINES.DEBT_DRAWDOWNS,CF,0,,0
+PRINCIPAL_REPAID,سداد أصل التمويل,Repayment of financing principal,,1,1,1,1400,FIN.LINES.PRINCIPAL_REPAID,CF,0,,0
+INTEREST_PAID,تكاليف التمويل المدفوعة,Finance costs paid,,1,1,1,1410,FIN.LINES.INTEREST_PAID,CF,0,,0
+DIVIDENDS,توزيعات الأرباح المدفوعة,Dividends paid,,1,1,0,1420,FIN.LINES.DIVIDENDS,CF,0,,0
+PARTNER_DRAWINGS,مسحوبات الشركاء والقروض المقدمة لهم,Partners' drawings and loans made to them,,1,1,0,1430,FIN.LINES.PARTNER_DRAWINGS,CF,0,,0
+CAPITAL_INJECTION,زيادة رأس المال وإسهامات الشركاء النقدية,Capital increase and cash contributions of partners,,1,1,0,1440,FIN.LINES.CAPITAL_INJECTION,CF,0,,0
+LC_OUTSTANDING,الاعتمادات المستندية القائمة,Letters of credit outstanding,Memorandum item,1,1,0,1450,FIN.LINES.LC_OUTSTANDING,MEMO,0,,0
+LG_PERFORMANCE,خطابات ضمان حسن التنفيذ والابتدائية,Performance and bid guarantees,Memorandum item,1,1,0,1460,FIN.LINES.LG_PERFORMANCE,MEMO,0,,0
+LG_ADVANCE_PAYMENT,خطابات ضمان الدفعة المقدمة,Advance payment guarantees,Memorandum item,1,1,0,1470,FIN.LINES.LG_ADVANCE_PAYMENT,MEMO,0,,0
+LG_FINANCIAL,خطابات الضمان المالية,Financial guarantees issued by banks for the company,Memorandum item,1,1,0,1480,FIN.LINES.LG_FINANCIAL,MEMO,0,,0
+GUARANTEES_GIVEN,الكفالات المقدَّمة من الشركة لالتزامات الغير,Guarantees given by the company for others' obligations,Memorandum item,1,1,0,1490,FIN.LINES.GUARANTEES_GIVEN,MEMO,0,,0
+GUARANTEES_GIVEN_RELATED,منها لأطراف ذات علاقة,of which for related parties,"Of which, part of GUARANTEES_GIVEN",1,1,0,1500,FIN.LINES.GUARANTEES_GIVEN_RELATED,MEMO,0,,0
+ZAKAT_DISPUTED,ربوط الزكاة والضريبة المتنازع عليها وغير المخصصة,Disputed zakat and tax assessments not provided for,Memorandum item,1,1,0,1510,FIN.LINES.ZAKAT_DISPUTED,MEMO,0,,0
+CAPITAL_COMMITMENTS,الارتباطات الرأسمالية المتعاقد عليها,Contracted capital commitments,Memorandum item,1,1,0,1520,FIN.LINES.CAPITAL_COMMITMENTS,MEMO,0,,0
+LEGAL_CLAIMS,قضايا ومطالبات على الشركة غير مخصصة,Legal claims against the company not provided for,Memorandum item,1,1,0,1530,FIN.LINES.LEGAL_CLAIMS,MEMO,0,,0
+DERIVATIVES_NOTIONAL,القيمة الاسمية لعقود التحوط والمشتقات,Notional amount of hedges and derivatives,Memorandum item,1,1,0,1540,FIN.LINES.DERIVATIVES_NOTIONAL,MEMO,0,,0
+NET_FX_OPEN_POSITION,صافي المركز المكشوف بعملات غير مرتبطة (قيمة مطلقة),Net open position in non-pegged currencies (absolute),Memorandum item,1,1,0,1550,FIN.LINES.NET_FX_OPEN_POSITION,MEMO,0,,0
+BACKLOG,قيمة العقود الموقعة غير المنفذة (الأعمال المتبقية),Signed backlog not yet executed,Memorandum item,1,1,0,1560,FIN.LINES.BACKLOG,MEMO,0,,0
+EMPLOYEES,عدد الموظفين (عدد لا مبلغ),"Number of employees (a count, not an amount)",Memorandum item,1,1,0,1570,FIN.LINES.EMPLOYEES,MEMO,0,,0

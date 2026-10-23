@@ -68,9 +68,9 @@ public sealed record SeedResult(string PackKey, int SeedVersion, bool AlreadyRun
 /// </summary>
 public static class TenantSeeder
 {
-    /// <summary>The packs of S1, S1-b and S2, in dependency order; each is applied at the latest version of its folder.</summary>
+    /// <summary>The packs of S1, S1-b, S2 and S2-b, in dependency order; each is applied at the latest version of its folder.</summary>
     public static readonly string[] S1Packs = ["CAT.ORG", "CAT.BANKING", "CAT.DOCTYPES", "CAT.LOOKUPS", "CAT.CURRENCY", "CORE.NUMBERING", "CORE.EXPIRY", "CORE.DEPARTMENTS",
-        "CMP.TERMS", "FIN.FORMULAS", "PTY.KYC",
+        "CMP.TERMS", "FIN.LINES", "FIN.FORMULAS", "FIN.PROVISION", "PTY.KYC",
         "NTF.BASE"];
 
     /// <summary>The packs folder: configuration Seed:PacksDirectory, else "packs" next to the application.</summary>

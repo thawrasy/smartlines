@@ -484,14 +484,14 @@ table fin.FinancialStatement public  # Financial statement header; highly confid
   check  GoingConcernUncertainty = 0 OR Assurance IN ('AUDITED','REVIEWED')
   check  Nature = 'ACTUAL' OR (Assurance = 'MANAGEMENT' AND Status = 'DRAFT' AND AuditOpinion IS NULL)   # الموازنة إعداد الإدارة، مسودة لا تُقدَّم ولا تُعتمد (BR-FIN-039)
 
-table fin.StatementLine  # Statement line in the header currency; stored value = input x UnitScale; Variance is derived; highly confidential (BR-FIN-001/002)
+table fin.StatementLine deletable  # Statement line in the header currency; stored value = input x UnitScale; Variance is derived; highly confidential (BR-FIN-001/002)
   StatementId        ->fin.FinancialStatement req
   LineCatalogItemId  ->fin.LineCatalogItem req
   EnteredAmount      money      sens=confidential   # الخانة الفارغة لغير الإلزامي تُحفظ صفرًا صريحًا عند التقديم (BR-FIN-002)
   ComputedAmount     money      sens=confidential   # للإجماليات
   unique StatementId,LineCatalogItemId
 
-table fin.ConsolidationMember  # A unit of a holding's consolidated statement: the parent, each subsidiary, associate and joint venture, with its method and ownership (FR-FIN-015, BR-FIN-013; owner request 2026-10-18)
+table fin.ConsolidationMember deletable  # A unit of a holding's consolidated statement: the parent, each subsidiary, associate and joint venture, with its method and ownership (FR-FIN-015, BR-FIN-013; owner request 2026-10-18)
   StatementBasis    enum{CONSOLIDATED} req =CONSOLIDATED   # ثابت: الوحدات للقائمة الموحدة وحدها
   StatementId       ->fin.FinancialStatement req via=StatementBasis>Basis
   MemberCompanyId   ->org.Company req   # الوحدة شركة من شركات المشترك؛ القابضة نفسها PARENT

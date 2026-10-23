@@ -100,6 +100,6 @@ start"); the exit in DOC-B02 section 10 holds.
 
 - S3 adds the reservation hooks, override, convert and adjust, the LC condition check (AC-FAC-3) and the utilisation
   services (AC-FAC-9), and re-runs AC-FAC-12 through the engine.
-- S2-b adds covenant tests from statements (AC-FAC-7), WARNING and NeedsReview breaches, the manual review of
-  descriptive covenants (FR-OBL-007, OQ-4) and the expression parser of formulas.
+- S2-b adds covenant tests from statements (AC-FAC-7), WARNING and NeedsReview breaches and the expression parser of
+  formulas. The manual review of descriptive covenants (FR-OBL-007, OQ-4) was built in S2 (docs/45 section 3.6).
 - A change of a default is a later change, not a rebuild.

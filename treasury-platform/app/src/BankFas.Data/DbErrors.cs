@@ -34,6 +34,26 @@ public static class DbErrors
     public const int PathThroughCompany = 50047;
     public const int ApprovedFinal = 50176;
     public const int KeyNotActive = 50098;
+    // S2-b (044, 045, 046-053, 058): covenant tests, statements, flows, assessments, period close, actors.
+    public const int CovenantTestFinal = 50053;
+    public const int CovenantSnapshotRefused = 50054;
+    public const int StatementFinal = 50060;
+    public const int ConsolidationRefused = 50061;
+    public const int FlowLevel = 50062;
+    public const int AssessmentState = 50063;
+    public const int AssessmentBudget = 50064;
+    public const int GroupSupportRefused = 50065;
+    public const int ScorecardFinal = 50066;
+    public const int VersionRefused = 50090;
+    public const int EndorsementRefused = 50093;
+    public const int FigureConfirmed = 50094;
+    public const int AssessmentUnknown = 50095;
+    public const int PeriodClosed = 50096;
+    public const int CloseRefused = 50097;
+    public const int ActorMismatch = 50170;
+    public const int ActorPermission = 50171;
+    public const int SamePerson = 50172;
+    public const int RateFinal = 50173;
     public const int RowFilterWriteRefused = 33504;
     public const int PermissionDenied = 229;
     public const int ColumnPermissionDenied = 230;

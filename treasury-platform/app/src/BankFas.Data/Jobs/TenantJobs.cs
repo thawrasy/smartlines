@@ -131,6 +131,9 @@ public sealed class OutboxJob(SqlConnectionFactory db, IMailSender mail) : Tenan
         "utilization.created", "utilization.adjusted", "utilization.released", "pricing.rule.changed", "tariff.approved", "collateral.changed",
         "collateral.released", "obligation.instance.due", "obligation.instance.overdue", "obligation.instance.submitted", "breach.opened",
         "breach.waived", "term.value.changed",
+        // S2-b: the financial data and the covenant tests (spec 12 section 10); statement.approved gets its consumer with the engine (S2-b batch E)
+        "statement.approved", "statement.submitted", "covenant.test.evaluated", "monthly.figure.confirmed", "bank.flow.confirmed", "formula.approved",
+        "credit.assessment.approved", "revenue.estimate.approved",
     };
 
     protected override async Task<string?> RunForTenantAsync(SqlConnection c, JobTenant tenant, Guid correlation, CancellationToken ct)

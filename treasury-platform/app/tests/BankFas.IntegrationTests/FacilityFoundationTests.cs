@@ -31,7 +31,7 @@ public sealed class FacilityFoundationTests(PlatformFixture f)
                      WHERE m.Scope = 'TEMPLATE' AND m.Status = 'APPROVED'),
                    (SELECT COUNT(*) FROM cfg.NumberSequenceDefinition WHERE SequenceKey = 'FACILITY' AND Pattern = 'FAC-{yy}-{seq:000}'),
                    (SELECT COUNT(*) FROM cfg.ExpiryAlertRule),
-                   (SELECT COUNT(*) FROM ntf.NotificationEventType WHERE OwnerModule IN ('FAC', 'COL', 'OBL') OR Code = 'ACC.FACILITY_ACCOUNT_FROZEN'),
+                   (SELECT COUNT(*) FROM ntf.NotificationEventType WHERE (OwnerModule IN ('FAC', 'COL', 'OBL') OR Code = 'ACC.FACILITY_ACCOUNT_FROZEN') AND Code <> 'CMP.WARNING'),
                    (SELECT COUNT(*) FROM ntf.NotificationRule AS r JOIN ntf.NotificationEventType AS e ON e.NotificationEventTypeId = r.EventTypeId WHERE e.Code = 'FAC.RESERVATION_ALERT');
             """));
         Assert.Equal((35, 8, 1, 12, 10, 3), counts);
