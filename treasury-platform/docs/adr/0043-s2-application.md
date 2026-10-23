@@ -1,8 +1,7 @@
 # ADR 0043: Slice S2 of the application, its defaults and the gaps it closed
 
 Status: built on 2026-10-22 on the owner's requests "start building S2", "continue the build after the study" and
-"continue" (docs/31, row 40). The defaults below were taken from the S2 brief (OQ-1 to OQ-17) and wait for the owner's
-approval. Written by an AI agent.
+"continue" (docs/31, row 40). The defaults below were taken from the S2 brief (OQ-1 to OQ-17); the owner approved all of them on 2026-10-23. Written by an AI agent.
 
 ## Context
 
@@ -94,8 +93,8 @@ are PROPOSED; the roles of DOC-B06 section 6.2 sign them before UAT. The loader 
 
 ### 8. The defaults taken
 
-OQ-1 to OQ-17 as listed in docs/45 section 4. None is approved yet; the exit in DOC-B02 section 10 holds once OQ-1
-and OQ-17 are.
+OQ-1 to OQ-17 as listed in docs/45 section 4, all approved by the owner on 2026-10-23 ("I approve the defaults and
+start"); the exit in DOC-B02 section 10 holds.
 
 ## Consequences
 
