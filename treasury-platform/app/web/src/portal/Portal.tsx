@@ -16,6 +16,7 @@ import { StatementDetail, Statements } from './Statements';
 import { MonthlyFigures } from './MonthlyFigures';
 import { Formulas } from './Formulas';
 import { StatementBreaches } from './CovenantTests';
+import { AssessmentDetail, Assessments, PresentationVersions } from './Credit';
 import { Companies, CompanyDetail, Departments, DocumentRegister } from './Companies';
 import { OwnershipMismatch, StructureIntegrity } from './Structure';
 import { AuthorityConflicts } from './Signatories';
@@ -65,6 +66,8 @@ const menu: { to: string; label: string; permission?: string; anyOf?: string[] }
   { to: '/financial-statements', label: 'Financial statements', anyOf: ['fin.stmt.enter', 'fin.stmt.approve', 'fin.verify.run', 'fin.credit.assess'] },
   { to: '/monthly-figures', label: 'Monthly balances', permission: 'fin.view' },
   { to: '/formulas', label: 'Formula library', permission: 'fin.view' },
+  { to: '/assessments', label: 'Credit self-assessments', anyOf: ['fin.credit.assess', 'fin.credit.approve', 'fin.credit.endorse'] },
+  { to: '/presentation-versions', label: 'Presentation versions', anyOf: ['fin.stmt.enter', 'fin.stmt.approve'] },
   { to: '/reports/statement-breaches', label: 'Breaches found on the statements', anyOf: ['fin.stmt.enter', 'fin.stmt.approve', 'fin.verify.run', 'fin.credit.assess'] },
   { to: '/catalogs', label: 'Catalogues', anyOf: ['cat.manage.general', 'cat.manage.financial'] },
   { to: '/notifications', label: 'Notifications', permission: 'ntf.prefs' },
@@ -143,6 +146,9 @@ function Shell() {
               <Route path="/monthly-figures" element={<MonthlyFigures />} />
               <Route path="/formulas" element={<Formulas />} />
               <Route path="/reports/statement-breaches" element={<StatementBreaches />} />
+              <Route path="/assessments" element={<Assessments />} />
+              <Route path="/assessments/:id" element={<AssessmentDetail />} />
+              <Route path="/presentation-versions" element={<PresentationVersions />} />
               <Route path="/notifications" element={<Notifications />} />
               <Route path="/notification-settings" element={<NotificationSettings />} />
               <Route path="/profile" element={<Profile />} />
