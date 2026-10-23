@@ -3,7 +3,7 @@
 // code, keeps the recovery codes and reaches the portal; the portal then switches to Arabic, right to left. Then the
 // S1 exit path (AC-INS-1): the administrator adds a company and onboards a bank with the set-up wizard, whose review
 // warns of the products without a default contact before anything is created. Then S2-b (docs/47 §4): the administrator
-// invites a treasury manager, who signs in, enters a statement in the grid and sees its totals live, and opens the formula
+// invites a financial analyst, who signs in, enters a statement in the grid and sees its totals live, and opens the formula
 // library, the credit self-assessments and the group compliance.
 import { expect, test } from '@playwright/test';
 import { writeFileSync } from 'node:fs';
@@ -155,24 +155,22 @@ test('an operator onboards a tenant and its first administrator signs in', async
   await page.getByLabel(/^Key/).selectOption({ value: 'PRC.ARRANGEMENT_FEE_PCT' });
   await expect(page.getByText('Lower is better')).toBeVisible();   // no facility yet: the direction, and nothing ranked
   await expect(page.getByText('Nothing here yet.')).toBeVisible();
-  // S2-b: a treasury manager, invited with a fresh code and given every company.
-  const tmEmail = `tm@${code}.test.invalid`;
+  // S2-b: a financial analyst (FA enters statements and assessments; TM only approves them), given every company.
+  const tmEmail = `fa@${code}.test.invalid`;
   await page.getByRole('link', { name: 'Users', exact: true }).click();
   await page.getByLabel(/^E-mail/).fill(tmEmail);
-  await page.getByLabel(/^Name \(English\)/).fill('Treasury Manager');
-  await page.getByRole('checkbox', { name: /^TM · / }).check();
+  await page.getByLabel(/^Name \(English\)/).fill('Financial Analyst');
+  await page.getByRole('checkbox', { name: /^FA · / }).check();
   await page.getByRole('button', { name: 'Send the invitation' }).click();
-  await dialog.getByLabel('6-digit code').fill(await admin.next());
-  await dialog.getByRole('button', { name: 'Confirm' }).click();
   await expect(page.getByText('The invitation is on its way.')).toBeVisible();
-  await page.getByRole('link', { name: 'Treasury Manager' }).click();
+  await page.getByRole('link', { name: 'Financial Analyst' }).click();
   await page.getByRole('button', { name: 'Save scope' }).click();
   await expect(page.getByText('Sees every company.')).toBeVisible();
 
   const tmContext = await browser.newContext();
   const tmPage = await tmContext.newPage();
   await tmPage.goto(await linkSentTo(mailDir, tmEmail, '/invitation', 90_000));
-  const tmPassword = 'an e2e treasury manager passphrase';
+  const tmPassword = 'an e2e financial analyst passphrase';
   await tmPage.getByLabel(/^New password/).fill(tmPassword);
   await tmPage.getByLabel(/^Repeat the password/).fill(tmPassword);
   await tmPage.getByRole('button', { name: 'Save password' }).click();
