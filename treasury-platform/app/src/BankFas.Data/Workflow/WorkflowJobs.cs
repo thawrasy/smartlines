@@ -266,3 +266,28 @@ public sealed class WorkflowStaleJob(SqlConnectionFactory db, TimeProvider clock
         return reminded + archived + aged == 0 ? null : $"reminded {reminded}, archived {archived}, aging {aged}";
     }
 }
+
+/// <summary>JOB-LC-EXPIRY (BR-LCI-009, 015), daily: expired purchase credits and the reminders of those not closed (<see cref="Lc.LcStore.ExpireAsync"/>).</summary>
+public sealed class LcExpiryJob(SqlConnectionFactory db, TimeProvider clock) : TenantJob(db)
+{
+    public override string JobKey => "JOB-LC-EXPIRY";
+
+    protected override async Task<string?> RunForTenantAsync(SqlConnection c, JobTenant tenant, Guid correlation, CancellationToken ct)
+    {
+        var me = await c.ExecuteScalarAsync<long>(new CommandDefinition("SELECT CAST(SESSION_CONTEXT(N'UserId') AS BIGINT);", cancellationToken: ct)).ConfigureAwait(false);
+        var (expired, reminded) = await Lc.LcStore.ExpireAsync(c, tenant.LocalDate(clock.GetUtcNow()), me, ct).ConfigureAwait(false);
+        return expired + reminded == 0 ? null : $"expired {expired}, reminded {reminded}";
+    }
+}
+
+/// <summary>JOB-LC-RECONCILE (FR-LCI-031), daily: the reconciliation of the purchase credits (<see cref="Lc.LcStore.ReconcileAsync"/>).</summary>
+public sealed class LcReconcileJob(SqlConnectionFactory db, TimeProvider clock) : TenantJob(db)
+{
+    public override string JobKey => "JOB-LC-RECONCILE";
+
+    protected override async Task<string?> RunForTenantAsync(SqlConnection c, JobTenant tenant, Guid correlation, CancellationToken ct)
+    {
+        var n = await Lc.LcStore.ReconcileAsync(c, tenant.LocalDate(clock.GetUtcNow()), ct).ConfigureAwait(false);
+        return n == 0 ? null : $"mismatches {n}";
+    }
+}

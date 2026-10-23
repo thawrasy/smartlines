@@ -220,6 +220,41 @@ public static class TermsStore
         return (await CurrentAsync(c, tx, requestId, ct).ConfigureAwait(false))!;
     }
 
+    /// <summary>
+    /// A copy of a terms version under another owner and purpose (the amendment's terms from the credit's ISSUED ones, and
+    /// the credit's next ISSUED version from an applied amendment, BR-LCT-019), with its documents and charges.
+    /// </summary>
+    internal static async Task<long> CopyAsync(SqlConnection c, SqlTransaction tx, long fromTermsId, string ownerType, long ownerId, string purpose, int versionNo, string status,
+        CancellationToken ct, long? supersedes = null)
+    {
+        var cols = (await c.QueryAsync<string>(new CommandDefinition(
+            """
+            SELECT name FROM sys.columns WHERE object_id = OBJECT_ID(N'lc.LcTerms') AND is_computed = 0 AND system_type_id <> 189
+               AND name NOT IN ('LcTermsId', 'PublicId', 'VersionNo', 'Status', 'SnapshotHash', 'TreasuryHash', 'LockedAt', 'LockedBy', 'SupersedesTermsId', 'CreatedAt',
+                                'CreatedBy', 'UpdatedAt', 'UpdatedBy', 'ChangeReason', 'OwnerType', 'OwnerId', 'Purpose');
+            """, transaction: tx, cancellationToken: ct)).ConfigureAwait(false)).Select(n => $"[{n}]").ToList();
+        return await c.ExecuteScalarAsync<long>(new CommandDefinition(
+            $"""
+            DECLARE @o TABLE (Id BIGINT);
+            INSERT lc.LcTerms ({string.Join(", ", cols)}, OwnerType, OwnerId, Purpose, VersionNo, Status, SupersedesTermsId, SnapshotHash, LockedAt, LockedBy, CreatedBy)
+            OUTPUT inserted.LcTermsId INTO @o
+            SELECT {string.Join(", ", cols)}, @ot, @oid, @purpose, @v, 'DRAFT', @sup, NULL, NULL, NULL, CAST(SESSION_CONTEXT(N'UserId') AS BIGINT)
+              FROM lc.LcTerms WHERE LcTermsId = @t;
+            DECLARE @n BIGINT = (SELECT Id FROM @o);
+            INSERT lc.LcTermsDocument (TenantId, LcTermsId, SeqNo, ClauseId, ClauseVersion, Originals, Copies, ParamsJson, IsFreeText, [FreeText], CreatedBy)
+            SELECT TenantId, @n, SeqNo, ClauseId, ClauseVersion, Originals, Copies, ParamsJson, IsFreeText, [FreeText], CAST(SESSION_CONTEXT(N'UserId') AS BIGINT)
+              FROM lc.LcTermsDocument WHERE LcTermsId = @t;
+            INSERT lc.LcChargesMatrix (TenantId, LcTermsId, ChargeCategory, Payer, ApplicantSharePct, PresetCode, Note, CreatedBy)
+            SELECT TenantId, @n, ChargeCategory, Payer, ApplicantSharePct, PresetCode, Note, CAST(SESSION_CONTEXT(N'UserId') AS BIGINT)
+              FROM lc.LcChargesMatrix WHERE LcTermsId = @t;
+            -- A version is written as DRAFT with its clauses and charges and then locked (044); a locked copy keeps its source's hash.
+            IF @status = 'LOCKED'
+                UPDATE n SET Status = 'LOCKED', SnapshotHash = src.SnapshotHash, LockedAt = SYSUTCDATETIME(), LockedBy = CAST(SESSION_CONTEXT(N'UserId') AS BIGINT)
+                  FROM lc.LcTerms AS n JOIN lc.LcTerms AS src ON src.LcTermsId = @t WHERE n.LcTermsId = @n;
+            SELECT @n;
+            """, new { t = fromTermsId, ot = ownerType, oid = ownerId, purpose, v = versionNo, status, sup = supersedes }, tx, cancellationToken: ct)).ConfigureAwait(false);
+    }
+
     /// <summary>The document clauses of a draft version: replaced as a list of (clause code, originals, copies, parameters) or free texts (FR-LCT-018).</summary>
     public static async Task SetDocumentsAsync(SqlConnection c, SqlTransaction tx, TermsRow t, JsonElement items, CancellationToken ct)
     {
@@ -347,6 +382,8 @@ public static class TermsStore
     /// </summary>
     public static async Task<object?> ValidateHookAsync(RequestEngine.HookContext h)
     {
+        ArgumentNullException.ThrowIfNull(h);
+        if (h.Request.TypeCode == "LC_AMENDMENT") return await AmendmentStore.ValidateHookAsync(h).ConfigureAwait(false);
         var t = await CurrentAsync(h.C, h.Tx, h.Request.RequestId, h.Ct).ConfigureAwait(false)
             ?? throw WorkflowRefusalException.Missing("V-LCT-REQUIRED", "The terms of the letter of credit are required.");
         if (t.Status == "LOCKED") return new { termsId = t.LcTermsId, version = t.VersionNo, locked = true };

@@ -36,5 +36,7 @@ builder.Services.AddSingleton<BankFas.Data.Workflow.WorkflowDelegationJob>();
 builder.Services.AddSingleton<BankFas.Data.Workflow.NotificationReminderJob>();
 builder.Services.AddSingleton<BankFas.Data.Workflow.FacilityReservationJob>();
 builder.Services.AddSingleton<BankFas.Data.Workflow.WorkflowStaleJob>();
+builder.Services.AddSingleton<BankFas.Data.Workflow.LcExpiryJob>();
+builder.Services.AddSingleton<BankFas.Data.Workflow.LcReconcileJob>();
 builder.Services.AddHostedService<JobLoop>();
 builder.Build().Run();

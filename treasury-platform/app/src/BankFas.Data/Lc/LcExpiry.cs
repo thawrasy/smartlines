@@ -82,3 +82,20 @@ internal sealed class LcDateExpiry(bool shipment) : IExpiryItemProvider
                 ["stageLabel"] = shipment ? ExpiryItemProviders.Text("آخر موعد للشحن", "the latest shipment date") : ExpiryItemProviders.Text("انتهاء الاعتماد", "the expiry of the credit"),
             }))];
 }
+
+/// <summary>LC_DRAWING_DUE (CORE.EXPIRY v4; JOB-LC-MATURITY): the maturity of an accepted or pending deferred drawing not yet paid raises LC.DRAWING_DUE at 7, 3, 1 and 0 days.</summary>
+internal sealed class LcDrawingDue : IExpiryItemProvider
+{
+    public string ItemType => "LC_DRAWING_DUE";
+    public string EventCode => "LC.DRAWING_DUE";
+    public string TargetType => "lc.LcDrawing";
+    public bool ValidThroughExpiryDate => true;
+
+    public async Task<IReadOnlyList<ExpiryItem>> ItemsAsync(SqlConnection c, DateTime today, DateTime horizon, CancellationToken ct) =>
+        [.. (await c.QueryAsync<(long Id, DateTime Due, long CompanyId, string LcNumber, int DrawingNo)>(new CommandDefinition(
+            """
+            SELECT d.LcDrawingId, d.MaturityDate, d.CompanyId, l.LcNumber, d.DrawingNo FROM lc.LcDrawing AS d JOIN lc.LetterOfCredit AS l ON l.LetterOfCreditId = d.LcId
+             WHERE d.MaturityDate IS NOT NULL AND d.MaturityDate <= @horizon AND d.Status IN ('PRESENTED', 'DISCREPANT', 'ACCEPTED');
+            """, new { horizon }, cancellationToken: ct)).ConfigureAwait(false))
+            .Select(r => new ExpiryItem(r.Id, r.Due, r.CompanyId, new Dictionary<string, object?> { ["lcNo"] = r.LcNumber, ["drawingNo"] = r.DrawingNo }))];
+}

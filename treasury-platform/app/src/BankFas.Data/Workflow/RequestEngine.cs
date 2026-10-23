@@ -1241,6 +1241,8 @@ public static class RequestEngine
         [HookKeys.ReserveLimit] = FacilityHooks.ReserveLimitAsync,
         [HookKeys.ConvertReservation] = Lc.IssuanceHooks.ConvertAsync,
         [HookKeys.RecordIssuance] = Lc.IssuanceHooks.RecordAsync,
+        [HookKeys.AdjustUtilization] = Lc.AmendmentStore.AdjustUtilizationHookAsync,
+        [HookKeys.ApplyAmendment] = Lc.AmendmentStore.ApplyHookAsync,
     };
 
     /// <summary>Registers the code of a hook key (the facility and letter-of-credit modules do, S3 batches D to G).</summary>
@@ -1309,6 +1311,11 @@ public static class RequestEngine
     /// <summary>fac.release_reservation (OQ-6): the request's active reservation, if any, is released with the reason of the stage; without one it does nothing.</summary>
     private static async Task<object?> ReleaseReservationAsync(HookContext h)
     {
+        // An amendment's request that ends without its result withdraws the amendment, so it no longer counts as open (V-LCI-07).
+        if (h.Request.TypeCode == "LC_AMENDMENT")
+            await h.C.ExecuteAsync(new CommandDefinition(
+                "UPDATE lc.LcAmendment SET Status = 'WITHDRAWN', UpdatedAt = SYSUTCDATETIME(), UpdatedBy = @u WHERE RequestId = @r AND Status IN ('DRAFT', 'REQUESTED');",
+                new { u = h.Actor.UserId, r = h.Request.RequestId }, h.Tx, cancellationToken: h.Ct)).ConfigureAwait(false);
         var reservation = await h.C.ExecuteScalarAsync<long?>(new CommandDefinition(
             "SELECT LimitReservationId FROM fac.LimitReservation WHERE RequestId = @r AND Status = 'ACTIVE';", new { r = h.Request.RequestId }, h.Tx, cancellationToken: h.Ct))
             .ConfigureAwait(false);

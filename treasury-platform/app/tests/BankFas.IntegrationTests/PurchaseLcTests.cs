@@ -232,6 +232,132 @@ namespace BankFas.IntegrationTests
             Assert.Equal(("ILC/26/0042", 3_000_000m, 3_150_000m, "ACTIVE", "CONVERTED", "ISSUED"), lc);
         }
 
+        /// <summary>From the treasury manager's approval to the issued credit: the ERP reference, the second approval, the execution and the issuance.</summary>
+        private async Task<string> IssuedAsync(Bed b, string id, string lcNumber, DateTime? issueDate = null)
+        {
+            await ActAsync(b.Tm, id, "approve");
+            await b.Rq.PostOkAsync($"/api/v1/requests/{id}/external-refs", new { systemCode = "ERP", refType = "PURCHASE_REQUEST", value = "45" + Guid.NewGuid().ToString("N")[..8] });
+            await ActAsync(b.Rq, id, "complete");
+            await ActAsync(b.Mgr, id, "approve");
+            await ActAsync(b.Te, id, "claim");
+            await ActAsync(b.Te, id, "complete");
+            var copy = await DocumentAsync(b.Tm, b.Company, "LC_COPY", "LC copy " + lcNumber);
+            await b.Tm.PostOkAsync($"/api/v1/requests/{id}/attachments", new { document = copy, slot = "LC_COPY" });
+            await b.Te.OkAsync(HttpMethod.Put, $"/api/v1/requests/{id}/issuance", new { lcNumber, issueDate = D(issueDate ?? Today), institution = b.Bank });
+            await ActAsync(b.Te, id, "complete");
+            var list = (await b.Tm.GetJsonAsync($"/api/v1/lcs?q={Uri.EscapeDataString(lcNumber)}")).GetProperty("items").EnumerateArray().ToList();
+            return list.Single().GetProperty("id").GetString()!;
+        }
+
+        /// <summary>
+        /// The credit after its issuance (S3 batches F and G; FR-LCI-023, 030, 031; BR-LCI-009, 013): the register finds
+        /// it by its number written differently and the requester sees their own; a presentation within the exposure,
+        /// one above it refused (V-LCI-05); the bank accepts, the payment lowers the utilisation; the close waits for
+        /// the open presentations and then releases the rest; the nightly reconciliation finds nothing; and a second
+        /// credit past its expiry is EXPIRED by its job with its utilisation released.
+        /// </summary>
+        [Fact]
+        public async Task An_issued_credit_is_drawn_paid_closed_and_another_expires()
+        {
+            var b = await BedAsync(10_000_000);
+            var supplier = PlatformFixture.Id(await b.Rq.PostOkAsync("/api/v1/counterparties", new { kind = "SUPPLIER", nameEn = "Steel Pipes Ltd", country = "CN", erpCode = "V-1001" }));
+            var r1 = await AtTreasuryApprovalAsync(b, supplier, 3_000_000, "One");
+            var lc = await IssuedAsync(b, r1, "ILC/26/0101");
+            Assert.Equal((3_150_000m, 0m, 6_850_000m), await b.LineAsync());
+            Assert.Single((await b.Tm.GetJsonAsync("/api/v1/lcs?q=ilc%2F26%2F%200101")).GetProperty("items").EnumerateArray());
+            Assert.Single((await b.Rq.GetJsonAsync("/api/v1/lcs")).GetProperty("items").EnumerateArray());
+            var mine = await b.Rq.GetJsonAsync($"/api/v1/lcs/{lc}");
+            Assert.False(mine.GetProperty("lc").TryGetProperty("utilized", out _));
+            Assert.Equal(3_150_000m, (await b.Tm.GetJsonAsync($"/api/v1/lcs/{lc}")).GetProperty("lc").GetProperty("utilized").GetDecimal());
+
+            // Presentations: within the exposure of 3,150,000; the bank's decision; the payment.
+            Assert.Equal((403, "FORBIDDEN"), await b.Rq.PostProblemAsync($"/api/v1/lcs/{lc}/drawings", new { amount = 1_000_000, presentationDate = D(Today) }));
+            Assert.Equal(1, (await b.Te.PostOkAsync($"/api/v1/lcs/{lc}/drawings", new { amount = 1_000_000, presentationDate = D(Today), bankAdviceRef = "ADV-1" })).GetProperty("drawingNo").GetInt32());
+            Assert.Equal((422, "V-LCI-05"), await b.Te.PostProblemAsync($"/api/v1/lcs/{lc}/drawings", new { amount = 2_200_000, presentationDate = D(Today) }));
+            Assert.Equal((409, "INVALID_STATE"), await b.Te.PostProblemAsync($"/api/v1/lcs/{lc}/drawings/1/settlements", new { amount = 1_000_000, settledOn = D(Today) }));
+            await b.Te.PostOkAsync($"/api/v1/lcs/{lc}/drawings/1/decision", new { status = "ACCEPTED" });
+            Assert.Equal((409, "INVALID_STATE"), await b.Tm.PostProblemAsync($"/api/v1/lcs/{lc}/close", new { reason = "Done" }));
+            await b.Te.PostOkAsync($"/api/v1/lcs/{lc}/drawings/1/settlements", new { amount = 1_000_000, settledOn = D(Today) });
+            Assert.Equal((2_150_000m, 0m, 7_850_000m), await b.LineAsync());
+            var card = await b.Tm.GetJsonAsync($"/api/v1/lcs/{lc}");
+            Assert.Equal(("SETTLED", 1_000_000m), (card.GetProperty("drawings")[0].GetProperty("status").GetString(), card.GetProperty("lc").GetProperty("settled").GetDecimal()));
+
+            var ct = TestContext.Current.CancellationToken;
+            var tenantId = await TestEnvironment.TenantIdAsync(b.T.Code);
+            await using var c = await f.Env.Db.OpenAsync(BankFas.Data.DbLogin.Jobs, ct);
+            await BankFas.Data.JobProcedures.BindAsync(c, tenantId, "JOB-LC-RECONCILE", Guid.NewGuid(), ct);
+            Assert.Equal(0, await BankFas.Data.Lc.LcStore.ReconcileAsync(c, Today, ct));
+
+            // The close releases the rest.
+            Assert.Equal((422, "V-WFL-REASON"), await b.Tm.PostProblemAsync($"/api/v1/lcs/{lc}/close", new { reason = "" }));
+            await b.Tm.PostOkAsync($"/api/v1/lcs/{lc}/close", new { reason = "Shipment complete" });
+            Assert.Equal((0m, 0m, 10_000_000m), await b.LineAsync());
+            Assert.Equal("CLOSED", (await b.Tm.GetJsonAsync($"/api/v1/lcs/{lc}")).GetProperty("lc").GetProperty("status").GetString());
+
+            // A second credit past its expiry.
+            var r2 = await AtTreasuryApprovalAsync(b, supplier, 2_000_000, "Two");
+            var lc2 = await IssuedAsync(b, r2, "ILC/26/0102", Today.AddDays(-30));
+            Assert.Equal((2_100_000m, 0m, 7_900_000m), await b.LineAsync());
+            await Dapper.SqlMapper.ExecuteAsync(c, "UPDATE lc.LetterOfCredit SET ExpiryDate = DATEADD(DAY, -2, CAST(SYSUTCDATETIME() AS DATE)), LatestShipmentDate = NULL WHERE PublicId = @id;",
+                new { id = Guid.Parse(lc2) });
+            var zone = await Dapper.SqlMapper.ExecuteScalarAsync<string>(c, "SELECT TimeZone FROM plat.v_CurrentTenant;");
+            var job = new BankFas.Data.Workflow.LcExpiryJob(f.Env.Db, TimeProvider.System);
+            Assert.True(await job.RunTenantAsync(new BankFas.Data.JobTenant(tenantId, "ACTIVE", zone!), ct));
+            Assert.Equal("EXPIRED", (await b.Tm.GetJsonAsync($"/api/v1/lcs/{lc2}")).GetProperty("lc").GetProperty("status").GetString());
+            Assert.Equal((0m, 0m, 10_000_000m), await b.LineAsync());
+            Assert.Equal(0, await BankFas.Data.Lc.LcStore.ReconcileAsync(c, Today, ct));
+        }
+
+        /// <summary>
+        /// Amendments (FR-LCI-018 to 022, BR-LCI-011, AC-WFL-7 on a line of 4,000,000): the credit of 3,000,000 (exposure
+        /// 3,150,000) leaves 850,000; an increase of 500,000 (exposure 525,000) goes to the treasury manager, whose approval
+        /// reserves it (325,000 left); a second amendment is refused while the first is open (V-LCI-07); the bank's result
+        /// with the beneficiary's acceptance applies it: the credit is 3,500,000 with amendment 1 and its utilisation
+        /// 3,675,000, the reservation gone. A second increase of 500,000 is then refused at the TM's approval
+        /// (INSUFFICIENT_AVAILABLE), and an extension alone does not pass the TM.
+        /// </summary>
+        [Fact]
+        public async Task An_increase_is_reserved_at_the_TM_approval_and_applied_on_the_beneficiarys_acceptance()
+        {
+            var b = await BedAsync(4_000_000);
+            var supplier = PlatformFixture.Id(await b.Rq.PostOkAsync("/api/v1/counterparties", new { kind = "SUPPLIER", nameEn = "Steel Pipes Ltd", country = "CN", erpCode = "V-1001" }));
+            var r1 = await AtTreasuryApprovalAsync(b, supplier, 3_000_000, "Base");
+            var lc = await IssuedAsync(b, r1, "ILC/26/0201");
+            Assert.Equal((3_150_000m, 0m, 850_000m), await b.LineAsync());
+
+            Assert.Equal((422, "V-LCI-07"), await b.Rq.PostProblemAsync($"/api/v1/lcs/{lc}/amendments", new { changeKinds = new[] { "INCREASE_AMOUNT" }, amountDelta = -5 }));
+            var amd = PlatformFixture.Id(await b.Rq.PostOkAsync($"/api/v1/lcs/{lc}/amendments", new { changeKinds = new[] { "INCREASE_AMOUNT" }, amountDelta = 500_000, reason = "More pipes" }));
+            Assert.Equal((422, "V-LCI-07"), await b.Rq.PostProblemAsync($"/api/v1/lcs/{lc}/amendments",
+                new { changeKinds = new[] { "EXTEND_EXPIRY" }, newExpiryDate = D(Today.AddDays(200)) }));
+            await ActAsync(b.Rq, amd, "submit");
+            await ActAsync(b.Mgr, amd, "approve");
+            Assert.Equal("TM_APPROVAL", (await b.Tm.GetJsonAsync($"/api/v1/requests/{amd}")).GetProperty("staff").GetProperty("stage").GetString());
+            await ActAsync(b.Tm, amd, "approve");
+            Assert.Equal((3_150_000m, 525_000m, 325_000m), await b.LineAsync());
+            await ActAsync(b.Te, amd, "claim");
+            var advice = await DocumentAsync(b.Tm, b.Company, "LC_AMENDMENT_ADVICE", "Amendment advice");
+            await b.Tm.PostOkAsync($"/api/v1/requests/{amd}/attachments", new { document = advice, slot = "AMENDMENT_ADVICE" });
+            await ActAsync(b.Te, amd, "complete");
+            Assert.Equal((422, "V-LCI-08"), await RefusedAsync(b.Te, amd, "complete"));
+            await b.Te.OkAsync(HttpMethod.Put, $"/api/v1/requests/{amd}/amendment-result",
+                new { amendmentNo = 1, bankIssuedOn = D(Today), bankAmendmentRef = "AMD-1", beneficiaryResponse = "ACCEPTED" });
+            await ActAsync(b.Te, amd, "complete");
+            Assert.Equal((3_675_000m, 0m, 325_000m), await b.LineAsync());
+            var card = (await b.Tm.GetJsonAsync($"/api/v1/lcs/{lc}")).GetProperty("lc");
+            Assert.Equal((3_500_000m, 1, 3_675_000m), (card.GetProperty("amount").GetDecimal(), card.GetProperty("amendmentNo").GetInt32(), card.GetProperty("utilized").GetDecimal()));
+
+            // The second increase does not fit; an extension alone skips the TM.
+            var amd2 = PlatformFixture.Id(await b.Rq.PostOkAsync($"/api/v1/lcs/{lc}/amendments", new { changeKinds = new[] { "INCREASE_AMOUNT" }, amountDelta = 500_000 }));
+            await ActAsync(b.Rq, amd2, "submit");
+            await ActAsync(b.Mgr, amd2, "approve");
+            Assert.Equal((409, "INSUFFICIENT_AVAILABLE"), await RefusedAsync(b.Tm, amd2, "approve"));
+            await ActAsync(b.Tm, amd2, "cancel", new { comment = "Not now" });
+            var ext = PlatformFixture.Id(await b.Rq.PostOkAsync($"/api/v1/lcs/{lc}/amendments", new { changeKinds = new[] { "EXTEND_EXPIRY" }, newExpiryDate = D(Today.AddDays(200)) }));
+            await ActAsync(b.Rq, ext, "submit");
+            await ActAsync(b.Mgr, ext, "approve");
+            Assert.Equal("TREASURY_QUEUE", (await b.Tm.GetJsonAsync($"/api/v1/requests/{ext}")).GetProperty("staff").GetProperty("stage").GetString());
+        }
+
         /// <summary>
         /// AC-WFL-3 and the S3 part of AC-FAC-2: two requests on a line of 5,000,000 that holds one of them. A's approval
         /// reserves 3,150,000; B's is refused INSUFFICIENT_AVAILABLE and nothing of it is kept (B stays at the treasury
