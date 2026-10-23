@@ -580,7 +580,7 @@ BEGIN
     SET NOCOUNT ON;
     IF EXISTS (SELECT 1
                FROM (SELECT TenantId, LcTermsId FROM inserted UNION SELECT TenantId, LcTermsId FROM deleted) AS r
-               JOIN lc.LcTerms AS t WITH (UPDLOCK, HOLDLOCK) ON t.TenantId = r.TenantId AND t.LcTermsId = r.LcTermsId
+               JOIN lc.LcTerms AS t WITH (UPDLOCK, HOLDLOCK, INDEX(PK_LcTerms), FORCESEEK) ON t.TenantId = r.TenantId AND t.LcTermsId = r.LcTermsId
                WHERE t.Status <> 'DRAFT')
         THROW 50056, 'The document clauses of locked terms do not change; create a new version (BR-LCT-012, BR-LCT-019)', 1;
 END;
@@ -592,7 +592,7 @@ BEGIN
     SET NOCOUNT ON;
     IF EXISTS (SELECT 1
                FROM (SELECT TenantId, LcTermsId FROM inserted UNION SELECT TenantId, LcTermsId FROM deleted) AS r
-               JOIN lc.LcTerms AS t WITH (UPDLOCK, HOLDLOCK) ON t.TenantId = r.TenantId AND t.LcTermsId = r.LcTermsId
+               JOIN lc.LcTerms AS t WITH (UPDLOCK, HOLDLOCK, INDEX(PK_LcTerms), FORCESEEK) ON t.TenantId = r.TenantId AND t.LcTermsId = r.LcTermsId
                WHERE t.Status <> 'DRAFT')
         THROW 50056, 'The charges of locked terms do not change; create a new version (BR-LCT-014, BR-LCT-019)', 1;
 END;
@@ -683,8 +683,10 @@ BEGIN
     UPDATE r
     SET CurrentStageId = s.StageId, AssigneeUserId = s.AssigneeUserId, QueueEnteredAt = s.QueuedAt, ClaimedAt = s.ClaimedAt,
         DueAt = s.DueAt, SlaState = s.SlaState
-    FROM wfl.Request AS r
-    JOIN inserted AS s ON s.TenantId = r.TenantId AND s.RequestStageInstanceId = r.CurrentStageInstanceId
+    -- The request is sought by its key (FORCESEEK): a scan would take update locks on other requests' rows, and
+    -- concurrent drafts of one tenant deadlocked on them (AC-FAC-12 over HTTP).
+    FROM inserted AS s
+    JOIN wfl.Request AS r WITH (FORCESEEK) ON r.RequestId = s.RequestId AND r.TenantId = s.TenantId AND r.CurrentStageInstanceId = s.RequestStageInstanceId
     WHERE EXISTS (SELECT r.CurrentStageId, r.AssigneeUserId, r.QueueEnteredAt, r.ClaimedAt, r.DueAt, r.SlaState
                   EXCEPT SELECT s.StageId, s.AssigneeUserId, s.QueuedAt, s.ClaimedAt, s.DueAt, s.SlaState);
 END;
@@ -701,14 +703,14 @@ BEGIN
         SELECT lr.*, ROW_NUMBER() OVER (PARTITION BY lr.TenantId, lr.RequestId
                                         ORDER BY CASE WHEN lr.Status = 'ACTIVE' THEN 0 ELSE 1 END, lr.LimitReservationId DESC) AS rn
         FROM inserted AS lr
-        JOIN wfl.Request AS r0 ON r0.TenantId = lr.TenantId AND r0.RequestId = lr.RequestId
+        JOIN wfl.Request AS r0 WITH (FORCESEEK) ON r0.RequestId = lr.RequestId AND r0.TenantId = lr.TenantId
         WHERE lr.Status = 'ACTIVE' OR lr.LimitReservationId = r0.ReservationId)
     UPDATE r
     SET ReservationId = lr.LimitReservationId, ReservedAmount = lr.Amount,
         ReservationState = CASE lr.Status WHEN 'ACTIVE' THEN 'RESERVED' WHEN 'CONVERTED' THEN 'CONVERTED'
                                 ELSE CASE WHEN lr.ReleaseReason IN ('EXPIRED','MANUAL') THEN 'LOST' ELSE 'RELEASED' END END
-    FROM wfl.Request AS r
-    JOIN src AS lr ON lr.TenantId = r.TenantId AND lr.RequestId = r.RequestId AND lr.rn = 1
+    FROM src AS lr
+    JOIN wfl.Request AS r WITH (FORCESEEK) ON r.RequestId = lr.RequestId AND r.TenantId = lr.TenantId AND lr.rn = 1
     WHERE EXISTS (SELECT r.ReservationId, r.ReservedAmount, r.ReservationState
                   EXCEPT SELECT lr.LimitReservationId, lr.Amount,
                                 CASE lr.Status WHEN 'ACTIVE' THEN 'RESERVED' WHEN 'CONVERTED' THEN 'CONVERTED'
@@ -736,10 +738,11 @@ BEGIN
         ReservationState = CASE WHEN lr.LimitReservationId IS NULL THEN 'NONE' WHEN lr.Status = 'ACTIVE' THEN 'RESERVED'
                                 WHEN lr.Status = 'CONVERTED' THEN 'CONVERTED'
                                 WHEN lr.ReleaseReason IN ('EXPIRED','MANUAL') THEN 'LOST' ELSE 'RELEASED' END
-    FROM wfl.Request AS r
-    JOIN inserted AS i ON i.RequestId = r.RequestId
-    LEFT JOIN wfl.RequestStageInstance AS s ON s.TenantId = r.TenantId AND s.RequestStageInstanceId = r.CurrentStageInstanceId
-    LEFT JOIN fac.LimitReservation AS lr ON lr.TenantId = r.TenantId AND lr.LimitReservationId = r.ReservationId
+    -- By key, not by a scan of the requests (see TR_RequestStageInstance_Copy).
+    FROM inserted AS i
+    JOIN wfl.Request AS r WITH (FORCESEEK) ON r.RequestId = i.RequestId
+    LEFT JOIN wfl.RequestStageInstance AS s WITH (FORCESEEK) ON s.RequestStageInstanceId = r.CurrentStageInstanceId AND s.TenantId = r.TenantId
+    LEFT JOIN fac.LimitReservation AS lr WITH (FORCESEEK) ON lr.LimitReservationId = r.ReservationId AND lr.TenantId = r.TenantId
     WHERE EXISTS (SELECT r.CurrentStageId, r.AssigneeUserId, r.QueueEnteredAt, r.ClaimedAt, r.DueAt, r.SlaState, r.ReservedAmount, r.ReservationState
                   EXCEPT SELECT s.StageId, s.AssigneeUserId, s.QueuedAt, s.ClaimedAt, s.DueAt, ISNULL(s.SlaState, 'NONE'), lr.Amount,
                                 CASE WHEN lr.LimitReservationId IS NULL THEN 'NONE' WHEN lr.Status = 'ACTIVE' THEN 'RESERVED'

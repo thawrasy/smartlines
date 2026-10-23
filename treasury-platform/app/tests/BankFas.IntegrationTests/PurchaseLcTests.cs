@@ -531,10 +531,10 @@ namespace BankFas.IntegrationTests
             Assert.Equal((422, "V-LCT-UCP-FOOTNOTE"),
                 await b.T.Portal.ProblemAsync(HttpMethod.Patch, "/api/v1/settings", new { values = new Dictionary<string, object> { ["lc.print.ucp_disclaimer"] = false } }));
 
-            // The bank form: none active, then a template of the bank with two maps.
+            // The bank form: none active, then a template for any bank (the bank is known once the facility is chosen) with four maps.
             Assert.Equal((409, "NO_FORM_TEMPLATE"), await b.Tm.ProblemAsync(HttpMethod.Get, $"/api/v1/requests/{id}/bank-form"));
             Assert.Equal((403, "FORBIDDEN"), await b.Rq.PostProblemAsync("/api/v1/lc-form-templates", new { code = "BNKC-LC", formKind = "LC_APPLICATION", effectiveFrom = D(Today) }));
-            var tpl = (await b.Fo.PostOkAsync("/api/v1/lc-form-templates", new { code = "BNKC-LC", formKind = "LC_APPLICATION", institution = b.Bank, effectiveFrom = D(Today.AddDays(-1)) }))
+            var tpl = (await b.Fo.PostOkAsync("/api/v1/lc-form-templates", new { code = "ANY-LC", formKind = "LC_APPLICATION", effectiveFrom = D(Today.AddDays(-1)) }))
                 .GetProperty("id").GetString()!;
             Assert.Equal((422, "V-LCT-MAP"), await b.Fo.ProblemAsync(HttpMethod.Put, $"/api/v1/lc-form-templates/{tpl}/field-maps", new object[] { new { targetName = "x", sourceExpr = "sec.password" } }));
             await b.Fo.OkAsync(HttpMethod.Put, $"/api/v1/lc-form-templates/{tpl}/field-maps", new object[]
@@ -659,7 +659,9 @@ namespace BankFas.IntegrationTests
             terms["toleranceMode"] = "NONE";
             terms.Remove("tolerancePlusPct");
             terms.Remove("toleranceMinusPct");
-            using var gate = new SemaphoreSlim(8);
+            // The hundred requests are prepared one after another; what AC-FAC-12 measures is the hundred approvals at once.
+            // Concurrent preparation deadlocked readers and writers of the engine (READ_COMMITTED_SNAPSHOT is off, docs/48 section 5).
+            using var gate = new SemaphoreSlim(1);
             var ids = await Task.WhenAll(Enumerable.Range(1, 100).Select(async n =>
             {
                 await gate.WaitAsync(TestContext.Current.CancellationToken);

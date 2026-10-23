@@ -185,14 +185,16 @@ public sealed class IdempotencyMiddleware(RequestDelegate next, IMemoryCache cac
 }
 
 /// <summary>
-/// A write chosen as the victim of a deadlock is run again (SQL Server 1205, DOC-S05): the database rolled its whole
-/// transaction back, so nothing of it remains, and the handler runs from the start with the same body. At most three
+/// A request chosen as the victim of a deadlock is run again (SQL Server 1205, DOC-S05): the database rolled its whole
+/// transaction back, so nothing of it remains, and the handler runs from the start with the same body; a read is run
+/// again as it is. At most four
 /// runs, after a short random pause, and only while nothing of the answer has been sent. Found by AC-FAC-12 over HTTP,
-/// where concurrent drafts of one tenant deadlocked on their inserts.
+/// where concurrent drafts of one tenant deadlocked on their inserts and their reads. READ_COMMITTED_SNAPSHOT, which
+/// docs/20 recommends and the deployment does not set, would remove the deadlocks of reads; it is the administrator's.
 /// </summary>
 public sealed class DeadlockRetryMiddleware(RequestDelegate next)
 {
-    private const int Runs = 3;
+    private const int Runs = 4;
 
     private static bool IsDeadlock(Exception? ex)
     {
@@ -203,11 +205,6 @@ public sealed class DeadlockRetryMiddleware(RequestDelegate next)
 
     public async Task InvokeAsync(HttpContext context)
     {
-        if (HttpMethods.IsGet(context.Request.Method) || HttpMethods.IsHead(context.Request.Method) || HttpMethods.IsOptions(context.Request.Method))
-        {
-            await next(context);
-            return;
-        }
         context.Request.EnableBuffering();
         for (var run = 1; ; run++)
         {

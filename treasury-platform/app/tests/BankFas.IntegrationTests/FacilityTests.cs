@@ -280,10 +280,10 @@ public sealed class FacilityTests(PlatformFixture f)
         var (fo, _, _) = await f.UserWithRoleAsync(t, "FO");
         Assert.Equal((422, "V-ORG-REF"), await tm.PostProblemAsync("/api/v1/companies", new { companyCode = "IMPX", refCode = "1MP", nameAr = "شركة", nameEn = "Co", legalForm = "LLC", country = "SA", fiscalYearEndMonth = 12 }));
         var co = PlatformFixture.Id(await tm.PostOkAsync("/api/v1/companies", new { companyCode = "IMP", nameAr = "شركة الاستيراد", nameEn = "Importer", legalForm = "LLC", country = "SA", fiscalYearEndMonth = 12 }));
-        Assert.Equal("IMP", (await tm.GetJsonAsync($"/api/v1/companies/{co}")).GetProperty("refCode").GetString());
+        Assert.Equal("IMP", (await tm.GetJsonAsync($"/api/v1/companies/{co}")).GetProperty("company").GetProperty("refCode").GetString());
         Assert.Equal((422, "V-INS-REF"), await tm.PostProblemAsync("/api/v1/institutions", new { code = "SNB1", refCode = "SN1", nameAr = "بنك", type = "BANK", country = "SA" }));
         var bank = PlatformFixture.Id(await tm.PostOkAsync("/api/v1/institutions", new { code = "SNB", nameAr = "البنك", nameEn = "The Bank", type = "BANK", country = "SA" }));
-        Assert.Equal("SNB", (await tm.GetJsonAsync($"/api/v1/institutions/{bank}")).GetProperty("refCode").GetString());
+        Assert.Equal("SNB", (await tm.GetJsonAsync($"/api/v1/institutions/{bank}")).GetProperty("institution").GetProperty("refCode").GetString());
         Assert.Equal((409, "V-INS-REF-TAKEN"), await tm.PostProblemAsync("/api/v1/institutions", new { code = "SNB-2", refCode = "SNB", nameAr = "بنك آخر", type = "BANK", country = "SA" }));
 
         var from = Today.AddMonths(-1);

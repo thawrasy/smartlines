@@ -111,13 +111,15 @@ public static class TermsStore
             "SPLIT_50" => "SHARED",
             _ => cat is "ISSUING_BANK_LOCAL" or "AMENDMENT" ? "APPLICANT" : "BENEFICIARY",
         };
-        // The matrix keeps one row per category; a preset rewrites the rows in place (the table takes no delete).
+        // The matrix keeps one row per category; a preset rewrites the rows in place (the table takes no delete). The
+        // category is compared as varchar and with the tenant, so the update seeks its row in the unique index: an
+        // nvarchar parameter made it scan the index and deadlock with the matrices of other requests (AC-FAC-12).
         foreach (var cat in TermsRules.ChargeCategories)
             await c.ExecuteAsync(new CommandDefinition(
                 """
                 UPDATE lc.LcChargesMatrix SET Payer = @payer, ApplicantSharePct = @share, PresetCode = @preset, UpdatedAt = SYSUTCDATETIME(),
                        UpdatedBy = CAST(SESSION_CONTEXT(N'UserId') AS BIGINT)
-                 WHERE LcTermsId = @t AND ChargeCategory = @cat;
+                 WHERE TenantId = CAST(SESSION_CONTEXT(N'TenantId') AS INT) AND LcTermsId = @t AND ChargeCategory = CAST(@cat AS VARCHAR(22));
                 IF @@ROWCOUNT = 0
                     INSERT lc.LcChargesMatrix (TenantId, LcTermsId, ChargeCategory, Payer, ApplicantSharePct, PresetCode, CreatedBy)
                     VALUES (CAST(SESSION_CONTEXT(N'TenantId') AS INT), @t, @cat, @payer, @share, @preset, CAST(SESSION_CONTEXT(N'UserId') AS BIGINT));

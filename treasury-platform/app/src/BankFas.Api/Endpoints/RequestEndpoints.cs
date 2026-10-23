@@ -26,8 +26,12 @@ public sealed record RequestAllocationBody(Guid? Facility, string? Limit, string
 /// </summary>
 public static class RequestEndpoints
 {
+    // The platform's clock (the TimeProvider of the services): a delegate's period is read on the same day as the inbox's.
+    private static TimeProvider Clock { get; set; } = TimeProvider.System;
+
     public static void Map(RouteGroupBuilder api)
     {
+        Clock = ((IEndpointRouteBuilder)api).ServiceProvider.GetService<TimeProvider>() ?? TimeProvider.System;
         api.MapGet("/request-types", TypesAsync);
         api.MapPost("/requests", CreateAsync);
         api.MapGet("/requests", ListAsync);
@@ -86,7 +90,7 @@ public static class RequestEndpoints
                           OR EXISTS (SELECT 1 FROM wfl.RequestStageInstance WHERE RequestId = @r AND AssigneeUserId = @u)
                         THEN 1 ELSE 0 END;
             """, new { r = r.RequestId, u = actor.UserId, roles = actor.RoleIds.DefaultIfEmpty(-1).ToArray() }, tx, cancellationToken: ct));
-        if (involved == 1 || await Delegations.SeesAsync(u.Connection, tx, r.RequestId, r.RequestTypeId, actor.UserId, DateTimeOffset.UtcNow, ct))
+        if (involved == 1 || await Delegations.SeesAsync(u.Connection, tx, r.RequestId, r.RequestTypeId, actor.UserId, Clock.GetUtcNow(), ct))
             return (true, actor.Permissions.Contains("req.view.internal") && scope.Allows(r.CompanyId));
         var inst = await RequestEngine.CurrentInstanceAsync(u.Connection, tx, r.RequestId, ct);
         if (inst is { Status: "QUEUED" } && scope.Allows(r.CompanyId)
@@ -315,7 +319,7 @@ public static class RequestEndpoints
             if (mine && inst.Kind == "DRAFT") actions.Add("submit");
             if (mine && inst.StageKey == "RETURNED") actions.Add("resubmit");
             if (inst.Kind == "APPROVAL" && (approvals.Any(a => (int)a.mine == 1 && (string)a.decision == "PENDING")
-                    || (!mine && await Delegations.SeesAsync(u.Connection, null, r.RequestId, r.RequestTypeId, actor.UserId, DateTimeOffset.UtcNow, ct))))
+                    || (!mine && await Delegations.SeesAsync(u.Connection, null, r.RequestId, r.RequestTypeId, actor.UserId, Clock.GetUtcNow(), ct))))
                 actions.AddRange(["approve", "return", "reject"]);
             var eligible = inst.PoolPermission is { } pool ? actor.Permissions.Contains(pool)
                 : inst.AssigneeRoleId is { } ar ? actor.RoleIds.Contains(ar) : actor.Permissions.Contains("req.claim");
