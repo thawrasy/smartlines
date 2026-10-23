@@ -54,7 +54,7 @@ public static class DbProblemMap
         DbErrors.VersionRefused => (409, "VERSION_REFUSED", "Only a built presentation version is chosen, with a reason (BR-FIN-037)."),
         DbErrors.EndorsementRefused => (409, "ENDORSEMENT_REFUSED", "The assessment cannot be endorsed by this user or without its reason (BR-FIN-042)."),
         DbErrors.FigureConfirmed => (409, "FIGURE_CONFIRMED", "A confirmed monthly figure is fixed: another user reopens it first."),
-        DbErrors.AssessmentUnknown => (404, "NOT_FOUND", "Not found."),
+        DbErrors.AssessmentUnknown => (409, "EVIDENCE_PACK_REFUSED", "An evidence pack is built of the endorsed assessment that is still the approved one (BR-FIN-049)."),
         DbErrors.PeriodClosed => (409, "PERIOD_CLOSED", "The reporting period is closed."),
         DbErrors.CloseRefused => (409, "CLOSE_REFUSED", "Reopen the latest close of the company first."),
         DbErrors.ActorMismatch => (403, "ACTOR_MISMATCH", "Only the signed-in user may be recorded as the preparer, approver or confirmer."),

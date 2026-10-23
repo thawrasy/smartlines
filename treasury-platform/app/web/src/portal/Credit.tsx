@@ -83,7 +83,8 @@ export function AssessmentDetail() {
   return (
     <>
       <section className="card">
-        <h1>{str(r.CompanyNameAr)} <small className="muted" dir="ltr">{str(r.ScorecardCode)} · {str(r.AssessmentDate).slice(0, 10)}</small></h1>
+        <h1>{str(r.CompanyNameAr)} <small className="muted" dir="ltr">{str(r.ScorecardCode)} · {str(r.AssessmentDate).slice(0, 10)}</small>
+          {' '}<small><Link to={`/assessments/${id}/readiness`}>{t('Readiness before the lenders')}</Link></small></h1>
         <p>{t(data.status)}{data.isTrial && ` · ${t('Trial')}`} · {t(str(r.ResultState))}</p>
         <p><strong dir="ltr">{str(r.FinalGrade ?? r.FinancialGrade)}</strong> {pick(lang, r, 'FinalGradeDescription')} · {t('Liquidity')} <span dir="ltr">{str(r.LiquidityLabel)}</span>
           · {t('Outlook')} {pick(lang, r, 'OutlookName')}</p>

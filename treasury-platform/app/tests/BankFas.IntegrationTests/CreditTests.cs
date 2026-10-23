@@ -13,7 +13,7 @@ namespace BankFas.IntegrationTests;
 public sealed class CreditTests(PlatformFixture f)
 {
     /// <summary>The worked example's 2025 lines in SAR millions (docs/35 section 14).</summary>
-    private static readonly Dictionary<string, decimal> Base = new()
+    internal static readonly Dictionary<string, decimal> Base = new()
     {
         ["CASH"] = 45, ["AR"] = 160, ["INVENTORY"] = 130, ["DUE_FROM_RELATED"] = 20, ["OTHER_CA"] = 25, ["TOTAL_CA"] = 380, ["PPE"] = 520, ["INTANGIBLES"] = 30, ["OTHER_NCA"] = 70,
         ["TOTAL_ASSETS"] = 1000, ["ST_LOANS"] = 120, ["CURRENT_PORTION_LTD"] = 60, ["AP"] = 110, ["DUE_TO_RELATED"] = 10, ["OTHER_CL"] = 50, ["TOTAL_CL"] = 350,
@@ -24,7 +24,7 @@ public sealed class CreditTests(PlatformFixture f)
         ["LG_FINANCIAL"] = 20, ["GUARANTEES_GIVEN"] = 0,
     };
 
-    private static async Task<string> StatementAsync(HttpClient fa, HttpClient tm, string company, string periodEnd, IReadOnlyDictionary<string, decimal> lines, bool approve = true)
+    internal static async Task<string> StatementAsync(HttpClient fa, HttpClient tm, string company, string periodEnd, IReadOnlyDictionary<string, decimal> lines, bool approve = true)
     {
         var id = await StatementTests.StatementAsync(fa, company, new { periodEnd, assurance = "AUDITED", auditorName = "Auditor (test)", auditOpinion = "UNQUALIFIED", unitScale = 1_000_000 });
         await StatementTests.SaveAsync(fa, id, lines);

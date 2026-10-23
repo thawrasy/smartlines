@@ -28,8 +28,8 @@ public sealed record PresentationVersionRequest(Guid? SourceStatement, Guid? Sou
 /// </summary>
 public static class CreditEndpoints
 {
-    private const string Assess = "fin.credit.assess";
-    private const string ApproveCredit = "fin.credit.approve";
+    internal const string Assess = "fin.credit.assess";
+    internal const string ApproveCredit = "fin.credit.approve";
 
     private static readonly Dictionary<string, (string View, string Key)> Parts = new(StringComparer.Ordinal)
     {

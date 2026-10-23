@@ -125,6 +125,7 @@ MonthlyFigureEndpoints.Map(portal);
 FormulaEndpoints.Map(portal);
 CovenantTestEndpoints.Map(portal);
 CreditEndpoints.Map(portal);
+ReadinessEndpoints.Map(portal);
 var panel = app.MapGroup("/api/v1/operator").AddEndpointFilter(SurfaceFilter(Surface.OperatorPanel));
 OperatorEndpoints.Map(panel);
 OperatorAdminEndpoints.Map(panel);

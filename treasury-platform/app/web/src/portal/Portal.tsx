@@ -17,6 +17,7 @@ import { MonthlyFigures } from './MonthlyFigures';
 import { Formulas } from './Formulas';
 import { StatementBreaches } from './CovenantTests';
 import { AssessmentDetail, Assessments, PresentationVersions } from './Credit';
+import { LenderRatings, Provision, ReadinessFile } from './Readiness';
 import { Companies, CompanyDetail, Departments, DocumentRegister } from './Companies';
 import { OwnershipMismatch, StructureIntegrity } from './Structure';
 import { AuthorityConflicts } from './Signatories';
@@ -67,6 +68,8 @@ const menu: { to: string; label: string; permission?: string; anyOf?: string[] }
   { to: '/monthly-figures', label: 'Monthly balances', permission: 'fin.view' },
   { to: '/formulas', label: 'Formula library', permission: 'fin.view' },
   { to: '/assessments', label: 'Credit self-assessments', anyOf: ['fin.credit.assess', 'fin.credit.approve', 'fin.credit.endorse'] },
+  { to: '/lender-ratings', label: 'Lender ratings', anyOf: ['fin.credit.assess', 'fin.credit.approve', 'fin.credit.endorse'] },
+  { to: '/provision', label: 'Provision matrix', anyOf: ['fin.formula.manage', 'fin.formula.approve', 'fin.credit.assess'] },
   { to: '/presentation-versions', label: 'Presentation versions', anyOf: ['fin.stmt.enter', 'fin.stmt.approve'] },
   { to: '/reports/statement-breaches', label: 'Breaches found on the statements', anyOf: ['fin.stmt.enter', 'fin.stmt.approve', 'fin.verify.run', 'fin.credit.assess'] },
   { to: '/catalogs', label: 'Catalogues', anyOf: ['cat.manage.general', 'cat.manage.financial'] },
@@ -149,6 +152,9 @@ function Shell() {
               <Route path="/assessments" element={<Assessments />} />
               <Route path="/assessments/:id" element={<AssessmentDetail />} />
               <Route path="/presentation-versions" element={<PresentationVersions />} />
+              <Route path="/assessments/:id/readiness" element={<ReadinessFile />} />
+              <Route path="/lender-ratings" element={<LenderRatings />} />
+              <Route path="/provision" element={<Provision />} />
               <Route path="/notifications" element={<Notifications />} />
               <Route path="/notification-settings" element={<NotificationSettings />} />
               <Route path="/profile" element={<Profile />} />
