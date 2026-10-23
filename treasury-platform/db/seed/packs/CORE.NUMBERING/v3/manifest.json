@@ -1,0 +1,18 @@
+{
+  "PackKey": "CORE.NUMBERING",
+  "SeedVersion": 3,
+  "Slice": "S3",
+  "Status": "Version 3 keeps PARTY and FACILITY and adds one gap-free sequence per request type of WFL.BASE v1, req:<TypeCode> with the pattern <prefix>-{yy}-{seq:0000}, per tenant and calendar year in the tenant's time zone (BR-WFL-013, Q-PLT-08; S3 brief section 3.5). The prefixes are those of BR-WFL-013 (LCP, AMD, DOC, SWF, GEN); the two generic types would share GEN and so print the same number twice, so the approval type takes GNA. A proposed default written by an AI agent.",
+  "Tables": [
+    "cfg.NumberSequenceDefinition.csv"
+  ],
+  "DependsOn": [],
+  "References": {},
+  "Sources": [
+    "docs/10-detailed-analysis/13-m6-workflow-engine-notifications.md BR-WFL-013 and FR-WFL-026",
+    "db/static/039_numbering.sql (pattern rules; req:<TypeCode> must be GAP_FREE, 50031)"
+  ],
+  "NotSeeded": {
+    "PROFORMA": "Its pattern {seq:000}-{erp}-{yy} needs the company scope; it belongs to S4 (proformas)."
+  }
+}

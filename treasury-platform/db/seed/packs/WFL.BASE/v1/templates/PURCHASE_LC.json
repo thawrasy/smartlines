@@ -1,0 +1,603 @@
+{
+ "templateKey": "PURCHASE_LC",
+ "requestType": "PURCHASE_LC",
+ "nameAr": "اعتماد مستندي للمشتريات",
+ "nameEn": "Purchase letter of credit",
+ "numberOnStageKey": "SIGNED_ORIGINAL",
+ "stages": [
+  {
+   "key": "DRAFT",
+   "kind": "DRAFT",
+   "nameAr": "مسودة",
+   "nameEn": "Draft",
+   "phase": "DRAFT",
+   "seq": 1,
+   "assignee": {
+    "rule": "REQUESTER"
+   },
+   "allowRequesterCancel": true,
+   "hooks": [
+    {
+     "trigger": "ON_ACTION",
+     "action": "SUBMIT",
+     "key": "lc.validate_terms"
+    }
+   ]
+  },
+  {
+   "key": "PARALLEL_APPROVALS",
+   "kind": "APPROVAL",
+   "nameAr": "موافقة المنشئ والمدير",
+   "nameEn": "Originator and manager approval",
+   "phase": "IN_APPROVAL",
+   "seq": 2,
+   "approvalMode": "ALL",
+   "slaHours": 16,
+   "allowReturn": true,
+   "allowRequesterCancel": true,
+   "slots": [
+    {
+     "key": "ORIGINATOR",
+     "labelAr": "منشئ الطلب",
+     "labelEn": "Originator",
+     "workflowRole": "CREATOR",
+     "subject": "REQUESTER",
+     "autoCompleteBySubmitter": true
+    },
+    {
+     "key": "MANAGER",
+     "labelAr": "مدير الطالب",
+     "labelEn": "Requester's manager",
+     "workflowRole": "APPROVER",
+     "subject": "REQUESTER_MANAGER",
+     "fallbackRole": "TM"
+    }
+   ]
+  },
+  {
+   "key": "SIGNED_ORIGINAL",
+   "kind": "TASK",
+   "nameAr": "الأصل الموقّع",
+   "nameEn": "Signed original",
+   "phase": "AWAITING_REQUESTER",
+   "seq": 3,
+   "assignee": {
+    "rule": "REQUESTER"
+   },
+   "slaHours": 24,
+   "allowRequesterCancel": true
+  },
+  {
+   "key": "FACILITY_SELECTION",
+   "kind": "TREASURY_QUEUE",
+   "nameAr": "اختيار التسهيل",
+   "nameEn": "Facility selection",
+   "phase": "IN_PROGRESS",
+   "seq": 4,
+   "assignee": {
+    "rule": "ROLE",
+    "poolPermission": "req.facility.select"
+   },
+   "claimSlaHours": 4,
+   "slaHours": 8,
+   "allowReturn": true,
+   "hooks": [
+    {
+     "trigger": "ON_ACTION",
+     "action": "COMPLETE",
+     "key": "fac.check_availability"
+    }
+   ]
+  },
+  {
+   "key": "TM_APPROVAL",
+   "kind": "APPROVAL",
+   "nameAr": "موافقة مدير الخزينة",
+   "nameEn": "Treasury manager approval",
+   "phase": "IN_PROGRESS",
+   "seq": 5,
+   "approvalMode": "ANY",
+   "slaHours": 8,
+   "allowReturn": true,
+   "isReservationPoint": true,
+   "slots": [
+    {
+     "key": "TM",
+     "labelAr": "مدير الخزينة",
+     "labelEn": "Treasury manager",
+     "workflowRole": "APPROVER",
+     "subject": "ROLE",
+     "role": "TM",
+     "allowDelegation": true
+    }
+   ],
+   "hooks": [
+    {
+     "trigger": "ON_ACTION",
+     "action": "APPROVE",
+     "key": "fac.reserve_limit"
+    },
+    {
+     "trigger": "ON_ACTION",
+     "action": "REJECT",
+     "key": "fac.release_reservation",
+     "params": {
+      "reason": "REJECTED"
+     }
+    }
+   ]
+  },
+  {
+   "key": "ERP_ENTRY",
+   "kind": "TASK",
+   "nameAr": "مرجع النظام المحاسبي",
+   "nameEn": "ERP reference",
+   "phase": "AWAITING_REQUESTER",
+   "seq": 6,
+   "assignee": {
+    "rule": "REQUESTER"
+   },
+   "slaHours": 24
+  },
+  {
+   "key": "POST_ERP_APPROVAL",
+   "kind": "APPROVAL",
+   "nameAr": "موافقة المدير بعد المرجع",
+   "nameEn": "Manager approval after the ERP reference",
+   "phase": "IN_APPROVAL",
+   "seq": 7,
+   "approvalMode": "ANY",
+   "slaHours": 8,
+   "allowReturn": true,
+   "slots": [
+    {
+     "key": "MANAGER",
+     "labelAr": "مدير الطالب",
+     "labelEn": "Requester's manager",
+     "workflowRole": "APPROVER",
+     "subject": "REQUESTER_MANAGER",
+     "fallbackRole": "TM"
+    }
+   ]
+  },
+  {
+   "key": "TREASURY_QUEUE",
+   "kind": "TREASURY_QUEUE",
+   "nameAr": "طابور الخزينة",
+   "nameEn": "Treasury queue",
+   "phase": "IN_PROGRESS",
+   "seq": 8,
+   "assignee": {
+    "rule": "ROLE",
+    "poolPermission": "req.claim"
+   },
+   "claimSlaHours": 4
+  },
+  {
+   "key": "EXECUTION",
+   "kind": "TASK",
+   "nameAr": "التنفيذ",
+   "nameEn": "Execution",
+   "phase": "IN_PROGRESS",
+   "seq": 9,
+   "assignee": {
+    "rule": "CLAIMER"
+   },
+   "slaHours": 40,
+   "subStatuses": [
+    {
+     "key": "PREPARATION",
+     "nameAr": "إعداد",
+     "nameEn": "Preparation",
+     "pausesSla": false
+    },
+    {
+     "key": "SIGNING",
+     "nameAr": "توقيع",
+     "nameEn": "Signing",
+     "pausesSla": false
+    },
+    {
+     "key": "BANK_COMMUNICATION",
+     "nameAr": "تواصل مع البنك",
+     "nameEn": "Bank communication",
+     "pausesSla": false
+    },
+    {
+     "key": "AT_BANK",
+     "nameAr": "في البنك",
+     "nameEn": "At the bank",
+     "pausesSla": true
+    },
+    {
+     "key": "FOLLOW_UP",
+     "nameAr": "متابعة",
+     "nameEn": "Follow-up",
+     "pausesSla": false
+    }
+   ]
+  },
+  {
+   "key": "ISSUANCE",
+   "kind": "TASK",
+   "nameAr": "الإصدار",
+   "nameEn": "Issuance",
+   "phase": "IN_PROGRESS",
+   "seq": 10,
+   "assignee": {
+    "rule": "CLAIMER"
+   },
+   "slaHours": 8,
+   "hooks": [
+    {
+     "trigger": "ON_EXIT",
+     "key": "fac.convert_reservation",
+     "seq": 1
+    },
+    {
+     "trigger": "ON_EXIT",
+     "key": "lc.record_issuance",
+     "seq": 2
+    }
+   ]
+  },
+  {
+   "key": "RETURNED",
+   "kind": "TASK",
+   "nameAr": "معاد للطالب",
+   "nameEn": "Returned to the requester",
+   "phase": "RETURNED",
+   "seq": 11,
+   "assignee": {
+    "rule": "REQUESTER"
+   },
+   "allowRequesterCancel": true,
+   "hooks": [
+    {
+     "trigger": "ON_ACTION",
+     "action": "RESUBMIT",
+     "key": "lc.validate_terms"
+    }
+   ]
+  },
+  {
+   "key": "COMPLETED",
+   "kind": "TERMINAL",
+   "nameAr": "مكتمل",
+   "nameEn": "Completed",
+   "phase": "COMPLETED",
+   "seq": 12,
+   "outcome": "COMPLETED"
+  },
+  {
+   "key": "REJECTED",
+   "kind": "TERMINAL",
+   "nameAr": "مرفوض",
+   "nameEn": "Rejected",
+   "phase": "REJECTED",
+   "seq": 13,
+   "outcome": "REJECTED",
+   "hooks": [
+    {
+     "trigger": "ON_ENTER",
+     "key": "fac.release_reservation",
+     "params": {
+      "reason": "REJECTED"
+     }
+    }
+   ]
+  },
+  {
+   "key": "CANCELLED",
+   "kind": "TERMINAL",
+   "nameAr": "ملغى",
+   "nameEn": "Cancelled",
+   "phase": "CANCELLED",
+   "seq": 14,
+   "outcome": "CANCELLED",
+   "hooks": [
+    {
+     "trigger": "ON_ENTER",
+     "key": "fac.release_reservation",
+     "params": {
+      "reason": "CANCELLED"
+     }
+    }
+   ]
+  }
+ ],
+ "transitions": [
+  {
+   "from": "DRAFT",
+   "action": "SUBMIT",
+   "to": "PARALLEL_APPROVALS",
+   "priority": 1
+  },
+  {
+   "from": "PARALLEL_APPROVALS",
+   "action": "APPROVE",
+   "to": "SIGNED_ORIGINAL",
+   "priority": 1
+  },
+  {
+   "from": "PARALLEL_APPROVALS",
+   "action": "RETURN",
+   "to": "RETURNED",
+   "priority": 1,
+   "resume": "PARALLEL_APPROVALS",
+   "requiresComment": true
+  },
+  {
+   "from": "PARALLEL_APPROVALS",
+   "action": "REJECT",
+   "to": "REJECTED",
+   "priority": 1,
+   "requiresComment": true
+  },
+  {
+   "from": "SIGNED_ORIGINAL",
+   "action": "COMPLETE",
+   "to": "FACILITY_SELECTION",
+   "priority": 1
+  },
+  {
+   "from": "FACILITY_SELECTION",
+   "action": "COMPLETE",
+   "to": "TM_APPROVAL",
+   "priority": 1
+  },
+  {
+   "from": "FACILITY_SELECTION",
+   "action": "RETURN",
+   "to": "RETURNED",
+   "priority": 1,
+   "resume": "PARALLEL_APPROVALS",
+   "requiresComment": true
+  },
+  {
+   "from": "TM_APPROVAL",
+   "action": "APPROVE",
+   "to": "ERP_ENTRY",
+   "priority": 1
+  },
+  {
+   "from": "TM_APPROVAL",
+   "action": "RETURN",
+   "to": "FACILITY_SELECTION",
+   "priority": 1,
+   "labelAr": "إلى اختيار التسهيل",
+   "labelEn": "To facility selection",
+   "requiresComment": true
+  },
+  {
+   "from": "TM_APPROVAL",
+   "action": "RETURN",
+   "to": "RETURNED",
+   "priority": 2,
+   "resume": "PARALLEL_APPROVALS",
+   "labelAr": "إلى الطالب",
+   "labelEn": "To the requester",
+   "requiresComment": true
+  },
+  {
+   "from": "TM_APPROVAL",
+   "action": "REJECT",
+   "to": "REJECTED",
+   "priority": 1,
+   "requiresComment": true
+  },
+  {
+   "from": "ERP_ENTRY",
+   "action": "COMPLETE",
+   "to": "POST_ERP_APPROVAL",
+   "priority": 1
+  },
+  {
+   "from": "POST_ERP_APPROVAL",
+   "action": "APPROVE",
+   "to": "TREASURY_QUEUE",
+   "priority": 1
+  },
+  {
+   "from": "POST_ERP_APPROVAL",
+   "action": "RETURN",
+   "to": "ERP_ENTRY",
+   "priority": 1,
+   "requiresComment": true
+  },
+  {
+   "from": "POST_ERP_APPROVAL",
+   "action": "REJECT",
+   "to": "REJECTED",
+   "priority": 1,
+   "requiresComment": true
+  },
+  {
+   "from": "TREASURY_QUEUE",
+   "action": "COMPLETE",
+   "to": "EXECUTION",
+   "priority": 1
+  },
+  {
+   "from": "EXECUTION",
+   "action": "COMPLETE",
+   "to": "ISSUANCE",
+   "priority": 1
+  },
+  {
+   "from": "ISSUANCE",
+   "action": "COMPLETE",
+   "to": "COMPLETED",
+   "priority": 1
+  },
+  {
+   "from": "RETURNED",
+   "action": "RESUBMIT",
+   "to": "PARALLEL_APPROVALS",
+   "priority": 1
+  }
+ ],
+ "fields": [
+  {
+   "key": "title",
+   "labelAr": "عنوان الطلب",
+   "labelEn": "Title",
+   "type": "TEXT",
+   "required": true,
+   "indexRole": "TITLE",
+   "seq": 1,
+   "validation": {
+    "maxLength": 200
+   }
+  },
+  {
+   "key": "amount",
+   "labelAr": "المبلغ",
+   "labelEn": "Amount",
+   "type": "AMOUNT",
+   "required": true,
+   "indexRole": "AMOUNT",
+   "seq": 2
+  },
+  {
+   "key": "requiredByDate",
+   "labelAr": "مطلوب قبل",
+   "labelEn": "Required by",
+   "type": "DATE",
+   "indexRole": "REQUIRED_BY_DATE",
+   "seq": 3
+  },
+  {
+   "key": "notes",
+   "labelAr": "تفاصيل",
+   "labelEn": "Details",
+   "type": "LONGTEXT",
+   "seq": 9,
+   "validation": {
+    "maxLength": 4000
+   }
+  },
+  {
+   "key": "supplierName",
+   "labelAr": "المورّد",
+   "labelEn": "Supplier",
+   "type": "TEXT",
+   "required": true,
+   "indexRole": "COUNTERPARTY_NAME",
+   "seq": 4
+  },
+  {
+   "key": "supplierCode",
+   "labelAr": "رمز المورّد",
+   "labelEn": "Supplier code",
+   "type": "TEXT",
+   "indexRole": "COUNTERPARTY_CODE",
+   "seq": 5
+  },
+  {
+   "key": "lcTerms",
+   "labelAr": "شروط الاعتماد",
+   "labelEn": "Letter of credit terms",
+   "type": "MODULE_FORM",
+   "required": true,
+   "seq": 6,
+   "config": {
+    "component": "lc.terms",
+    "purpose": "REQUEST"
+   },
+   "editableStages": [
+    "DRAFT",
+    "RETURNED"
+   ]
+  },
+  {
+   "key": "limitSelection",
+   "labelAr": "التسهيل والحد",
+   "labelEn": "Facility and limit",
+   "type": "LIMIT_SELECTION",
+   "required": true,
+   "seq": 7,
+   "visibleStages": [
+    "FACILITY_SELECTION",
+    "TM_APPROVAL",
+    "ERP_ENTRY",
+    "POST_ERP_APPROVAL",
+    "TREASURY_QUEUE",
+    "EXECUTION",
+    "ISSUANCE"
+   ],
+   "editableStages": [
+    "FACILITY_SELECTION"
+   ]
+  },
+  {
+   "key": "erpReference",
+   "labelAr": "مرجع طلب الشراء",
+   "labelEn": "Purchase request reference",
+   "type": "EXTERNAL_REF",
+   "required": true,
+   "seq": 8,
+   "config": {
+    "systemCode": "ERP",
+    "refType": "PURCHASE_REQUEST"
+   },
+   "editableStages": [
+    "ERP_ENTRY"
+   ],
+   "visibleStages": [
+    "ERP_ENTRY",
+    "POST_ERP_APPROVAL",
+    "TREASURY_QUEUE",
+    "EXECUTION",
+    "ISSUANCE"
+   ]
+  },
+  {
+   "key": "issuance",
+   "labelAr": "بيانات الإصدار",
+   "labelEn": "Issuance",
+   "type": "MODULE_FORM",
+   "seq": 10,
+   "config": {
+    "component": "lc.issuance"
+   },
+   "visibleStages": [
+    "ISSUANCE"
+   ],
+   "editableStages": [
+    "ISSUANCE"
+   ]
+  }
+ ],
+ "attachments": [
+  {
+   "slot": "SIGNED_ORIGINAL",
+   "labelAr": "أصل الطلب الموقّع",
+   "labelEn": "Signed original",
+   "documentType": "SIGNED_REQUEST_ORIGINAL",
+   "min": 1,
+   "max": 3,
+   "requiredBeforeStage": "SIGNED_ORIGINAL",
+   "visibleToRequester": true
+  },
+  {
+   "slot": "SUPPLIER_PROFORMA",
+   "labelAr": "بروفورما المورّد",
+   "labelEn": "Supplier proforma",
+   "documentType": "SUPPLIER_PROFORMA",
+   "min": 0,
+   "max": 5,
+   "visibleToRequester": true
+  },
+  {
+   "slot": "LC_COPY",
+   "labelAr": "نسخة الاعتماد",
+   "labelEn": "Letter of credit copy",
+   "documentType": "LC_COPY",
+   "min": 1,
+   "max": 3,
+   "requiredBeforeStage": "ISSUANCE",
+   "visibleToRequester": true
+  }
+ ]
+}

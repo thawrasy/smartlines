@@ -1,0 +1,37 @@
+{
+  "PackKey": "CORE.EXPIRY",
+  "SeedVersion": 4,
+  "Slice": "S3",
+  "Status": "Version 4 keeps the rows of version 3 and adds the S3 items (BR-NTF-012, spec 13 section 7; spec 14 section 7): LC_EXPIRY [30,15,7] with a weekly reminder after expiry while the letter of credit is not closed, LC_LATEST_SHIPMENT [30,15,7], RESERVATION [7,1] (FAC.RESERVATION_ALERT before a reservation of a request expires) and LC_DRAWING_DUE [7,3,1,0] with a daily reminder after the due date. Each goes to TM and FO in the company scope; a rule without its item provider is skipped by JOB-NTF-EXPIRY until the provider is built. A proposed default written by an AI agent; the tenant may edit or deactivate non-locked rows.",
+  "Tables": [
+    "cfg.ExpiryAlertRule.csv",
+    "cfg.ExpiryAlertRuleRole.csv"
+  ],
+  "DependsOn": [
+    "CORE.ROLES"
+  ],
+  "References": {
+    "cfg.ExpiryAlertRuleRole.csv": {
+      "ExpiryAlertRuleSeedKey": {
+        "Column": "ExpiryAlertRuleId",
+        "Table": "cfg.ExpiryAlertRule",
+        "Key": "SeedKey"
+      },
+      "RoleSeedKey": {
+        "Column": "RoleId",
+        "Table": "sec.Role",
+        "Key": "SeedKey"
+      }
+    }
+  },
+  "Sources": [
+    "docs/10-detailed-analysis/10-m0-m1-platform-organization.md section 9.2 and BR-PLT-013",
+    "db/model/10-platform.model (cfg.ExpiryAlertRule, cfg.ExpiryAlertRuleRole)",
+    "docs/30-readiness/DOC-B05-seed-and-initial-migration-plan.md section 5.1 (CORE.EXPIRY)",
+    "docs/10-detailed-analysis/13-m6-workflow-engine-notifications.md BR-NTF-012",
+    "docs/10-detailed-analysis/14-m7-m8-letters-of-credit.md section 7 (LC.EXPIRY_DUE, LC.DRAWING_DUE)"
+  ],
+  "NotSeeded": {
+    "Ownership and completeness alerts": "Not expiry rules: OWN.TOTAL_MISMATCH is raised on save and by the daily pass of JOB-NTF-EXPIRY (S1B-GAP-12); completeness is S2."
+  }
+}

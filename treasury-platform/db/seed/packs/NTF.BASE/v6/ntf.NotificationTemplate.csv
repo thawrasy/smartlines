@@ -1,0 +1,433 @@
+EventTypeCode,Channel,Lang,SubjectTemplate,BodyTemplate,IsTenantOverride
+FIN.READINESS_RED,IN_APP,ar,إنذار أحمر: {eventLabel} {reference} في {eventDate},{companyName} غير جاهزة لموعد {eventLabel} {reference} في {eventDate} ({stageLabel}، الأيام الباقية: {daysLeft}). السبب: {reason}. درجة التقييم {grade} والسيولة {liquidity}. افتح ملف الجاهزية لترى ما ستطلبه جهة التمويل والإجراءات قبل الموعد.,0
+FIN.READINESS_RED,IN_APP,en,Red warning: {eventLabel} {reference} on {eventDate},"{companyName} is not ready for the {eventLabel} {reference} on {eventDate} ({stageLabel}, days left: {daysLeft}). Reason: {reason}. Assessment grade {grade}, liquidity {liquidity}. Open the readiness file to see what the lender will ask for and the actions due before the date.",0
+FIN.READINESS_RED,EMAIL,ar,إنذار أحمر من BankFas: {companyName} غير جاهزة لموعد {eventLabel} {reference},"موعد {eventLabel} {reference} في {eventDate}، والأيام الباقية: {daysLeft} ({stageLabel}).
+
+جاهزية {companyName} لهذا الموعد حمراء. السبب: {reason}.
+درجة التقييم الداخلي للشركة {grade} والسيولة {liquidity}.
+
+ما يُنصح به قبل الموعد:
+1. راجع في ملف الجاهزية ما ستطلبه جهة التمويل على الأغلب، وجهّز مستنداته.
+2. نفّذ الحلول ذات الأثر قبل نهاية الفترة المالية، فالحل لا يُحتسب إلا بمستند مؤرخ قبل نهايتها.
+3. تواصل مع جهة التمويل مبكرًا بخطة واضحة، ولا تنتظر طلبها.
+
+يصلك هذا الإنذار عند دخول الموعد مدة التنبيه (بالأشهر: {leadMonths})، ثم عند 90 و30 و7 أيام، ومرة إن ساءت الجاهزية. والدرجة معايرة النظام الداخلية للشركة، لا تصنيف جهة التمويل.
+افتح ملف الجاهزية من الرابط في هذه الرسالة؛ ويلزم الدخول إلى المنصة.",0
+FIN.READINESS_RED,EMAIL,en,BankFas red warning: {companyName} is not ready for the {eventLabel} {reference},"The {eventLabel} {reference} is on {eventDate}; days left: {daysLeft} ({stageLabel}).
+
+The readiness of {companyName} for this date is red. Reason: {reason}.
+The company's internal assessment grade is {grade}, its liquidity {liquidity}.
+
+Recommended before the date:
+1. Review in the readiness file what the lender will most likely ask for, and prepare its documents.
+2. Carry out the remedies with an effect before the fiscal period ends: a remedy counts only on a document dated by its end.
+3. Contact the lender early with a clear plan; do not wait for its request.
+
+This warning comes when the date enters the lead time ({leadMonths} months), then at 90, 30 and 7 days, and once if the readiness worsens. The grade is the system's internal calibration for the company, not the lender's rating.
+Open the readiness file from the link in this message; signing in to the platform is required.",0
+FIN.READINESS_AMBER,IN_APP,ar,تنبيه أصفر: {eventLabel} {reference} في {eventDate},جاهزية {companyName} لموعد {eventLabel} {reference} في {eventDate} ناقصة ({stageLabel}، الأيام الباقية: {daysLeft}). السبب: {reason}. درجة التقييم {grade} والسيولة {liquidity}. في ملف الجاهزية ما يمكن تداركه قبل الموعد.,0
+FIN.READINESS_AMBER,IN_APP,en,Amber warning: {eventLabel} {reference} on {eventDate},"{companyName} is not fully ready for the {eventLabel} {reference} on {eventDate} ({stageLabel}, days left: {daysLeft}). Reason: {reason}. Assessment grade {grade}, liquidity {liquidity}. The readiness file shows what can still be fixed before the date.",0
+FIN.READINESS_AMBER,EMAIL,ar,تنبيه أصفر من BankFas: جاهزية {companyName} لموعد {eventLabel} {reference} ناقصة,"موعد {eventLabel} {reference} في {eventDate}، والأيام الباقية: {daysLeft} ({stageLabel}).
+
+جاهزية {companyName} لهذا الموعد صفراء. السبب: {reason}.
+درجة التقييم الداخلي للشركة {grade} والسيولة {liquidity}.
+
+الوقت يتسع للتدارك: راجع في ملف الجاهزية الطلبات المتوقعة والحلول ومواعيدها، فإن ساءت الجاهزية إلى الأحمر وصلك إنذار.
+
+الدرجة معايرة النظام الداخلية للشركة، لا تصنيف جهة التمويل. افتح ملف الجاهزية من الرابط في هذه الرسالة؛ ويلزم الدخول إلى المنصة.",0
+FIN.READINESS_AMBER,EMAIL,en,BankFas amber warning: {companyName} is not fully ready for the {eventLabel} {reference},"The {eventLabel} {reference} is on {eventDate}; days left: {daysLeft} ({stageLabel}).
+
+The readiness of {companyName} for this date is amber. Reason: {reason}.
+The company's internal assessment grade is {grade}, its liquidity {liquidity}.
+
+There is time to act: review in the readiness file the expected requests, the remedies and their deadlines. If the readiness worsens to red, you will receive a warning.
+
+The grade is the system's internal calibration for the company, not the lender's rating. Open the readiness file from the link in this message; signing in to the platform is required.",0
+DOC.EXPIRY,IN_APP,ar,{documentType} لـ {companyName}: {stageLabel},ينتهي {documentType} «{documentTitle}» لـ {companyName} في {expiryDate} ({stageLabel}، الأيام الباقية: {daysLeft}). جدّد المستند وارفع النسخة الجديدة.,0
+DOC.EXPIRY,EMAIL,ar,{documentType} لـ {companyName}: {stageLabel},"ينتهي {documentType} «{documentTitle}» لـ {companyName} في {expiryDate} ({stageLabel}، الأيام الباقية: {daysLeft}).
+جدّد المستند وارفع النسخة الجديدة في سجل مستندات الشركة.",0
+DOC.EXPIRY,IN_APP,en,{documentType} of {companyName}: {stageLabel},"The {documentType} ""{documentTitle}"" of {companyName} expires on {expiryDate} ({stageLabel}, days left: {daysLeft}). Renew it and upload the new version.",0
+DOC.EXPIRY,EMAIL,en,{documentType} of {companyName}: {stageLabel},"The {documentType} ""{documentTitle}"" of {companyName} expires on {expiryDate} ({stageLabel}, days left: {daysLeft}).
+Renew it and upload the new version to the company documents.",0
+IDDOC.EXPIRY,IN_APP,ar,{docKindLabel} لـ {partyName}: {stageLabel},تنتهي {docKindLabel} لـ {partyName} في {expiryDate} ({stageLabel}، الأيام الباقية: {daysLeft}). سجّل الوثيقة المجدّدة في بطاقة الطرف.,0
+IDDOC.EXPIRY,EMAIL,ar,{docKindLabel} لـ {partyName}: {stageLabel},"تنتهي {docKindLabel} لـ {partyName} في {expiryDate} ({stageLabel}، الأيام الباقية: {daysLeft}).
+سجّل الوثيقة المجدّدة في بطاقة الطرف. لا يظهر رقم الوثيقة في الرسائل.",0
+IDDOC.EXPIRY,IN_APP,en,{docKindLabel} of {partyName}: {stageLabel},"The {docKindLabel} of {partyName} expires on {expiryDate} ({stageLabel}, days left: {daysLeft}). Record the renewed document on the party card.",0
+IDDOC.EXPIRY,EMAIL,en,{docKindLabel} of {partyName}: {stageLabel},"The {docKindLabel} of {partyName} expires on {expiryDate} ({stageLabel}, days left: {daysLeft}).
+Record the renewed document on the party card. Document numbers are never shown in messages.",0
+INS.RELATIONSHIP_NO_RM,IN_APP,ar,علاقة {companyName} مع {institutionCode} بلا مدير علاقة,لم يعد لعلاقة {companyName} مع {institutionName} ({institutionCode}) مدير علاقة نشط. أضف مدير العلاقة في التغطية.,0
+INS.RELATIONSHIP_NO_RM,EMAIL,ar,علاقة {companyName} مع {institutionCode} بلا مدير علاقة,"لم يعد لعلاقة {companyName} مع {institutionName} ({institutionCode}) مدير علاقة نشط.
+أضف مدير العلاقة في تغطية العلاقة.",0
+INS.RELATIONSHIP_NO_RM,IN_APP,en,{companyName} and {institutionCode}: no relationship manager,The relationship of {companyName} with {institutionName} ({institutionCode}) has no active relationship manager. Add one to the coverage.,0
+INS.RELATIONSHIP_NO_RM,EMAIL,en,{companyName} and {institutionCode}: no relationship manager,"The relationship of {companyName} with {institutionName} ({institutionCode}) has no active relationship manager.
+Add one to the coverage of the relationship.",0
+SEC.LOCKOUT,IN_APP,ar,قُفل حساب {userName},قُفل حساب {userName} في {occurredAt} بعد محاولات دخول فاشلة. تحقّق مع المستخدم ثم افتح الحساب من شاشة المستخدمين.,0
+SEC.LOCKOUT,EMAIL,ar,قُفل حساب {userName},"قُفل حساب {userName} في {occurredAt} بعد محاولات دخول فاشلة.
+تحقّق مع المستخدم ثم افتح الحساب من شاشة المستخدمين. إن لم تكن المحاولات منه فراجع سجل التدقيق.",0
+SEC.LOCKOUT,IN_APP,en,The account of {userName} is locked,"The account of {userName} was locked at {occurredAt} after failed sign-ins. Check with the user, then unlock it from the users screen.",0
+SEC.LOCKOUT,EMAIL,en,The account of {userName} is locked,"The account of {userName} was locked at {occurredAt} after failed sign-ins.
+Check with the user, then unlock it from the users screen. If the attempts were not theirs, review the audit log.",0
+SEC.SENSITIVE_PERMISSION_CHANGED,IN_APP,ar,تغيّرت صلاحية حساسة في الدور {roleName},{change} الصلاحية الحساسة «{permissionName}» في الدور {roleName} بواسطة {actorName}.,0
+SEC.SENSITIVE_PERMISSION_CHANGED,EMAIL,ar,تغيّرت صلاحية حساسة في الدور {roleName},"{change} الصلاحية الحساسة «{permissionName}» في الدور {roleName} بواسطة {actorName}.
+إن لم يكن التغيير مقصودًا فأعده وراجع سجل التدقيق.",0
+SEC.SENSITIVE_PERMISSION_CHANGED,IN_APP,en,A sensitive permission changed in the role {roleName},"{actorName}: {change} the sensitive permission ""{permissionName}"" in the role {roleName}.",0
+SEC.SENSITIVE_PERMISSION_CHANGED,EMAIL,en,A sensitive permission changed in the role {roleName},"{actorName}: {change} the sensitive permission ""{permissionName}"" in the role {roleName}.
+If this was not intended, change it back and review the audit log.",0
+SEC.MFA_RESET,IN_APP,ar,أُعيد تعيين المصادقة الثنائية لـ {userName},أعاد {actorName} تعيين المصادقة الثنائية لحساب {userName}؛ سيضبطها المستخدم من جديد عند الدخول التالي.,0
+SEC.MFA_RESET,EMAIL,ar,أُعيد تعيين المصادقة الثنائية لـ {userName},"أعاد {actorName} تعيين المصادقة الثنائية لحساب {userName}.
+سيضبط المستخدم تطبيق المصادقة من جديد عند الدخول التالي. إن لم يطلب ذلك فراجع سجل التدقيق.",0
+SEC.MFA_RESET,IN_APP,en,Two-factor authentication of {userName} was reset,{actorName} reset the two-factor authentication of {userName}; they set it up again at their next sign-in.,0
+SEC.MFA_RESET,EMAIL,en,Two-factor authentication of {userName} was reset,"{actorName} reset the two-factor authentication of {userName}.
+They set up their authenticator again at their next sign-in. If they did not ask for it, review the audit log.",0
+SEC.REVEAL_ANOMALY,IN_APP,ar,كشف غير معتاد من {userName},كشف {userName} بيانات حساسة {count} مرة خلال ساعة، فوق الحد المعتاد (20). راجع سجل الوصول إلى البيانات الحساسة.,0
+SEC.REVEAL_ANOMALY,EMAIL,ar,كشف غير معتاد من {userName},"كشف {userName} بيانات حساسة {count} مرة خلال ساعة، فوق الحد المعتاد (20).
+راجع سجل الوصول إلى البيانات الحساسة وتحقّق من سبب الكشف.",0
+SEC.REVEAL_ANOMALY,IN_APP,en,Unusual reveals by {userName},"{userName} revealed sensitive data {count} times within an hour, above the usual limit (20). Review the sensitive access log.",0
+SEC.REVEAL_ANOMALY,EMAIL,en,Unusual reveals by {userName},"{userName} revealed sensitive data {count} times within an hour, above the usual limit (20).
+Review the sensitive access log and check the reason for the reveals.",0
+SEC.SUPPORT_ACCESS,IN_APP,ar,مُنح الدعم وصولًا للقراءة حتى {endsAt},منح {actorName} فريق دعم BankFas وصولًا للقراءة فقط لمدة {hours} ساعة حتى {endsAt}. كل صفحة يفتحها الدعم تُسجَّل في سجل التدقيق.,0
+SEC.SUPPORT_ACCESS,EMAIL,ar,مُنح الدعم وصولًا للقراءة حتى {endsAt},"منح {actorName} فريق دعم BankFas وصولًا للقراءة فقط لمدة {hours} ساعة حتى {endsAt}.
+كل صفحة يفتحها الدعم تُسجَّل في سجل التدقيق، ويمكنك سحب الوصول في أي وقت.",0
+SEC.SUPPORT_ACCESS,IN_APP,en,Support has read access until {endsAt},"{actorName} gave BankFas support read-only access for {hours} hours, until {endsAt}. Every page support opens is in the audit log.",0
+SEC.SUPPORT_ACCESS,EMAIL,en,Support has read access until {endsAt},"{actorName} gave BankFas support read-only access for {hours} hours, until {endsAt}.
+Every page support opens is in the audit log, and you can revoke the access at any time.",0
+PLT.TRIAL_ENDING,IN_APP,ar,تنتهي التجربة في {trialEndsOn},تنتهي فترة تجربة الحساب في {trialEndsOn} (الأيام الباقية: {daysLeft}). تواصل معنا للاستمرار دون انقطاع.,0
+PLT.TRIAL_ENDING,EMAIL,ar,تنتهي التجربة في {trialEndsOn},"تنتهي فترة تجربة الحساب في {trialEndsOn} (الأيام الباقية: {daysLeft}).
+تواصل معنا للاستمرار دون انقطاع.",0
+PLT.TRIAL_ENDING,IN_APP,en,The trial ends on {trialEndsOn},The trial of the account ends on {trialEndsOn} (days left: {daysLeft}). Contact us to continue without interruption.,0
+PLT.TRIAL_ENDING,EMAIL,en,The trial ends on {trialEndsOn},"The trial of the account ends on {trialEndsOn} (days left: {daysLeft}).
+Contact us to continue without interruption.",0
+PLT.QUOTA,IN_APP,ar,بلغ {limitName} نسبة 90% من الحد,بلغ استخدام {limitName} {used} من {limit}. راجع الباقة قبل بلوغ الحد.,0
+PLT.QUOTA,EMAIL,ar,بلغ {limitName} نسبة 90% من الحد,"بلغ استخدام {limitName} {used} من {limit}.
+راجع الباقة قبل بلوغ الحد.",0
+PLT.QUOTA,IN_APP,en,{limitName} is at 90% of the limit,{limitName}: {used} of {limit} used. Review the plan before the limit is reached.,0
+PLT.QUOTA,EMAIL,en,{limitName} is at 90% of the limit,"{limitName}: {used} of {limit} used.
+Review the plan before the limit is reached.",0
+PLT.INTEGRITY_FAIL,IN_APP,ar,فشل فحص السلامة {checkName},فشل فحص السلامة {checkName} في {occurredAt}. أُبلغ فريق المنصة، ولا يلزمك إجراء الآن.,0
+PLT.INTEGRITY_FAIL,EMAIL,ar,فشل فحص السلامة {checkName},"فشل فحص السلامة {checkName} في {occurredAt}.
+أُبلغ فريق المنصة، ولا يلزمك إجراء الآن.",0
+PLT.INTEGRITY_FAIL,IN_APP,en,The integrity check {checkName} failed,The integrity check {checkName} failed at {occurredAt}. The platform team has been told; nothing is needed from you now.,0
+PLT.INTEGRITY_FAIL,EMAIL,en,The integrity check {checkName} failed,"The integrity check {checkName} failed at {occurredAt}.
+The platform team has been told; nothing is needed from you now.",0
+JOB.FAILED,IN_APP,ar,فشلت المهمة {jobKey},فشلت المهمة الخلفية {jobKey} في {occurredAt}، وستُعاد تلقائيًا. تجد التفاصيل في شاشة المهام الخلفية.,0
+JOB.FAILED,EMAIL,ar,فشلت المهمة {jobKey},"فشلت المهمة الخلفية {jobKey} في {occurredAt}، وستُعاد تلقائيًا.
+تجد التفاصيل في شاشة المهام الخلفية.",0
+JOB.FAILED,IN_APP,en,The job {jobKey} failed,The background job {jobKey} failed at {occurredAt} and will run again. The details are on the background jobs screen.,0
+JOB.FAILED,EMAIL,en,The job {jobKey} failed,"The background job {jobKey} failed at {occurredAt} and will run again.
+The details are on the background jobs screen.",0
+NTF.DELIVERY_DEAD,IN_APP,ar,تعذّر تسليم إشعار إلى {userName},تعذّر تسليم إشعار «{eventName}» إلى {userName} عبر {channel} بعد خمس محاولات. تحقّق من عنوان البريد.,0
+NTF.DELIVERY_DEAD,EMAIL,ar,تعذّر تسليم إشعار إلى {userName},"تعذّر تسليم إشعار «{eventName}» إلى {userName} عبر {channel} بعد خمس محاولات.
+تحقّق من عنوان البريد. الإشعار نفسه ظاهر للمستخدم في التطبيق.",0
+NTF.DELIVERY_DEAD,IN_APP,en,A notification to {userName} could not be delivered,"The notification ""{eventName}"" to {userName} by {channel} failed five times. Check the e-mail address.",0
+NTF.DELIVERY_DEAD,EMAIL,en,A notification to {userName} could not be delivered,"The notification ""{eventName}"" to {userName} by {channel} failed five times.
+Check the e-mail address. The notification itself is shown to the user in the application.",0
+BODY.TERM_EXPIRY,IN_APP,ar,{bodyName} لـ {companyName}: {stageLabel},تنتهي مدة {positionLabel} {partyName} في {bodyName} لـ {companyName} في {expiryDate} ({stageLabel}، الأيام الباقية: {daysLeft}). جدّد المدة أو سجّل التشكيل الجديد.,0
+BODY.TERM_EXPIRY,EMAIL,ar,{bodyName} لـ {companyName}: {stageLabel},"تنتهي مدة {positionLabel} {partyName} في {bodyName} لـ {companyName} في {expiryDate} ({stageLabel}، الأيام الباقية: {daysLeft}).
+سجّل قرار التجديد أو التشكيل الجديد في هيكل الحوكمة للشركة.",0
+BODY.TERM_EXPIRY,IN_APP,en,{bodyName} of {companyName}: {stageLabel},"The term of {positionLabel} {partyName} in {bodyName} of {companyName} ends on {expiryDate} ({stageLabel}, days left: {daysLeft}). Renew it or record the new composition.",0
+BODY.TERM_EXPIRY,EMAIL,en,{bodyName} of {companyName}: {stageLabel},"The term of {positionLabel} {partyName} in {bodyName} of {companyName} ends on {expiryDate} ({stageLabel}, days left: {daysLeft}).
+Record the renewal or the new composition in the company's governance.",0
+GRANT.EXPIRY,IN_APP,ar,تفويض {powerTypeLabel} لـ {partyName}: {stageLabel},ينتهي تفويض {powerTypeLabel} الممنوح لـ {partyName} في {companyName} في {expiryDate} ({stageLabel}، الأيام الباقية: {daysLeft}). جدّد التفويض أو استبدله.,0
+GRANT.EXPIRY,EMAIL,ar,تفويض {powerTypeLabel} لـ {partyName}: {stageLabel},"ينتهي تفويض {powerTypeLabel} الممنوح لـ {partyName} في {companyName} في {expiryDate} ({stageLabel}، الأيام الباقية: {daysLeft}).
+جدّد التفويض أو استبدله في تفويضات الشركة، ثم راجع صلاحيات البنوك المبنية عليه.",0
+GRANT.EXPIRY,IN_APP,en,{powerTypeLabel} grant of {partyName}: {stageLabel},"The {powerTypeLabel} grant of {partyName} in {companyName} expires on {expiryDate} ({stageLabel}, days left: {daysLeft}). Renew or replace it.",0
+GRANT.EXPIRY,EMAIL,en,{powerTypeLabel} grant of {partyName}: {stageLabel},"The {powerTypeLabel} grant of {partyName} in {companyName} expires on {expiryDate} ({stageLabel}, days left: {daysLeft}).
+Renew or replace it in the company's grants, then review the bank authorities that rest on it.",0
+OWN.TOTAL_MISMATCH,IN_APP,ar,ملكية {companyName} لا تساوي 100%,مجموع الملكية المباشرة المسجلة لـ {companyName} اليوم {totalPercent}%، لا 100%. أكمل هيكل الملكية أو صحّحه.,0
+OWN.TOTAL_MISMATCH,EMAIL,ar,ملكية {companyName} لا تساوي 100%,"مجموع الملكية المباشرة المسجلة لـ {companyName} اليوم {totalPercent}%، لا 100%.
+افتح هيكل الملكية للشركة وأكمل المساهمين أو صحّح النسب.",0
+OWN.TOTAL_MISMATCH,IN_APP,en,The ownership of {companyName} is not 100%,"The direct ownership recorded for {companyName} today totals {totalPercent}%, not 100%. Complete or correct the ownership structure.",0
+OWN.TOTAL_MISMATCH,EMAIL,en,The ownership of {companyName} is not 100%,"The direct ownership recorded for {companyName} today totals {totalPercent}%, not 100%.
+Open the company's ownership structure and complete the holders or correct the shares.",0
+ACC.SIGNATORY_EXPIRY,IN_APP,ar,مفوَّض {partyName} لدى {institutionName}: {stageLabel},تنتهي صلاحية {partyName} مفوَّضًا بالتوقيع لـ {companyName} لدى {institutionName} في {expiryDate} ({stageLabel}، الأيام الباقية: {daysLeft}). جدّد التفويض أو عيّن بديلًا.,0
+ACC.SIGNATORY_EXPIRY,EMAIL,ar,مفوَّض {partyName} لدى {institutionName}: {stageLabel},"تنتهي صلاحية {partyName} مفوَّضًا بالتوقيع لـ {companyName} لدى {institutionName} في {expiryDate} ({stageLabel}، الأيام الباقية: {daysLeft}).
+جدّد التفويض أو عيّن بديلًا في مفوَّضي الحسابات، وأبلغ البنك بالتغيير.",0
+ACC.SIGNATORY_EXPIRY,IN_APP,en,Signatory {partyName} at {institutionName}: {stageLabel},"{partyName}, a signatory of {companyName} at {institutionName}, expires on {expiryDate} ({stageLabel}, days left: {daysLeft}). Renew the mandate or appoint a replacement.",0
+ACC.SIGNATORY_EXPIRY,EMAIL,en,Signatory {partyName} at {institutionName}: {stageLabel},"{partyName}, a signatory of {companyName} at {institutionName}, expires on {expiryDate} ({stageLabel}, days left: {daysLeft}).
+Renew the mandate or appoint a replacement among the signatories, and tell the bank.",0
+ACC.NO_SIGNATORY,IN_APP,ar,{companyName} بلا مفوَّض نشط لدى {institutionName},لم يعد لـ {accountLabel} لـ {companyName} لدى {institutionName} مفوَّض بالتوقيع نشط. عيّن مفوَّضًا قبل أي عملية.,0
+ACC.NO_SIGNATORY,EMAIL,ar,{companyName} بلا مفوَّض نشط لدى {institutionName},"لم يعد لـ {accountLabel} لـ {companyName} لدى {institutionName} مفوَّض بالتوقيع نشط.
+عيّن مفوَّضًا بالتوقيع وأبلغ البنك قبل أي عملية على الحساب.",0
+ACC.NO_SIGNATORY,IN_APP,en,{companyName} has no active signatory at {institutionName},{accountLabel} of {companyName} at {institutionName} has no active signatory any more. Appoint one before any transaction.,0
+ACC.NO_SIGNATORY,EMAIL,en,{companyName} has no active signatory at {institutionName},"{accountLabel} of {companyName} at {institutionName} has no active signatory any more.
+Appoint a signatory and tell the bank before any transaction on the account.",0
+ACC.GOV_CONFLICT,IN_APP,ar,تعارض صلاحية {partyName} لدى {institutionName},صلاحية {partyName} في {operationLabel} لـ {companyName} لدى {institutionName} لا يغطيها تفويض الحوكمة: {conflictCodeLabel}. راجع الصلاحية أو التفويض.,0
+ACC.GOV_CONFLICT,EMAIL,ar,تعارض صلاحية {partyName} لدى {institutionName},"صلاحية {partyName} في {operationLabel} لـ {companyName} لدى {institutionName} لا يغطيها تفويض الحوكمة: {conflictCodeLabel}.
+افتح تعارضات الصلاحيات لترى الصلاحية والتفويض المقارَن، ثم صحّح أحدهما أو سجّل المراجعة.",0
+ACC.GOV_CONFLICT,IN_APP,en,Authority conflict of {partyName} at {institutionName},The authority of {partyName} for {operationLabel} of {companyName} at {institutionName} is not covered by the governance grant: {conflictCodeLabel}. Review the authority or the grant.,0
+ACC.GOV_CONFLICT,EMAIL,en,Authority conflict of {partyName} at {institutionName},"The authority of {partyName} for {operationLabel} of {companyName} at {institutionName} is not covered by the governance grant: {conflictCodeLabel}.
+Open the authority conflicts to see the authority and the grant compared, then correct one or record the review.",0
+FAC.EXPIRY_DUE,IN_APP,ar,{itemLabel} {facilityNo} لـ {companyName}: {stageLabel},ينتهي {itemLabel} {facilityNo} لـ {companyName} لدى {bankName} في {expiryDate} ({stageLabel}، الأيام الباقية: {daysLeft}). ابدأ التجديد أو سجّل التمديد.,0
+FAC.EXPIRY_DUE,EMAIL,ar,{itemLabel} {facilityNo} لـ {companyName}: {stageLabel},"ينتهي {itemLabel} {facilityNo} لـ {companyName} لدى {bankName} في {expiryDate} ({stageLabel}، الأيام الباقية: {daysLeft}). ابدأ التجديد أو سجّل التمديد.
+ابدأ التجديد مع البنك أو سجّل التمديد في ملف التسهيل.",0
+FAC.EXPIRY_DUE,IN_APP,en,{itemLabel} {facilityNo} of {companyName}: {stageLabel},"The {itemLabel} {facilityNo} of {companyName} with {bankName} expires on {expiryDate} ({stageLabel}, days left: {daysLeft}). Start the renewal or record the extension.",0
+FAC.EXPIRY_DUE,EMAIL,en,{itemLabel} {facilityNo} of {companyName}: {stageLabel},"The {itemLabel} {facilityNo} of {companyName} with {bankName} expires on {expiryDate} ({stageLabel}, days left: {daysLeft}). Start the renewal or record the extension.
+Start the renewal with the bank or record the extension in the facility file.",0
+FAC.VALIDITY_UNCONFIRMED,IN_APP,ar,سريان التسهيل {facilityNo} غير مؤكد,انتهى التسهيل {facilityNo} لـ {companyName} لدى {bankName} في {expiryDate} ولم يُسجَّل تجديد ولا تمديد ({stageLabel}). أكّد السريان أو سجّل الانتهاء.,0
+FAC.VALIDITY_UNCONFIRMED,EMAIL,ar,سريان التسهيل {facilityNo} غير مؤكد,"انتهى التسهيل {facilityNo} لـ {companyName} لدى {bankName} في {expiryDate} ولم يُسجَّل تجديد ولا تمديد ({stageLabel}). أكّد السريان أو سجّل الانتهاء.
+سجّل التجديد أو التمديد أو الانتهاء في ملف التسهيل.",0
+FAC.VALIDITY_UNCONFIRMED,IN_APP,en,The validity of facility {facilityNo} is not confirmed,Facility {facilityNo} of {companyName} with {bankName} expired on {expiryDate} and no renewal or extension is recorded ({stageLabel}). Confirm the validity or record the expiry.,0
+FAC.VALIDITY_UNCONFIRMED,EMAIL,en,The validity of facility {facilityNo} is not confirmed,"Facility {facilityNo} of {companyName} with {bankName} expired on {expiryDate} and no renewal or extension is recorded ({stageLabel}). Confirm the validity or record the expiry.
+Record the renewal, the extension or the expiry in the facility file.",0
+FAC.REVISION_STATE,IN_APP,ar,مراجعة التسهيل {facilityNo}: {stateLabel},المراجعة {revisionNo} للتسهيل {facilityNo} لـ {companyName} لدى {bankName}: {stateLabel}.,0
+FAC.REVISION_STATE,EMAIL,ar,مراجعة التسهيل {facilityNo}: {stateLabel},"المراجعة {revisionNo} للتسهيل {facilityNo} لـ {companyName} لدى {bankName}: {stateLabel}.
+افتح المراجعة في ملف التسهيل.",0
+FAC.REVISION_STATE,IN_APP,en,Facility {facilityNo} revision: {stateLabel},Revision {revisionNo} of facility {facilityNo} of {companyName} with {bankName}: {stateLabel}.,0
+FAC.REVISION_STATE,EMAIL,en,Facility {facilityNo} revision: {stateLabel},"Revision {revisionNo} of facility {facilityNo} of {companyName} with {bankName}: {stateLabel}.
+Open the revision in the facility file.",0
+FAC.RESERVATION_ALERT,IN_APP,ar,تنبيه حجز على {itemLabel} {facilityNo},حجز على {itemLabel} من التسهيل {facilityNo} لـ {companyName} لدى {bankName}: {reasonLabel}.,0
+FAC.RESERVATION_ALERT,EMAIL,ar,تنبيه حجز على {itemLabel} {facilityNo},"حجز على {itemLabel} من التسهيل {facilityNo} لـ {companyName} لدى {bankName}: {reasonLabel}.
+راجع المتاح والحجوزات في ملف التسهيل.",0
+FAC.RESERVATION_ALERT,IN_APP,en,Reservation alert on {itemLabel} {facilityNo},A reservation on {itemLabel} of facility {facilityNo} of {companyName} with {bankName}: {reasonLabel}.,0
+FAC.RESERVATION_ALERT,EMAIL,en,Reservation alert on {itemLabel} {facilityNo},"A reservation on {itemLabel} of facility {facilityNo} of {companyName} with {bankName}: {reasonLabel}.
+Review the availability and the reservations in the facility file.",0
+COL.RENEWAL_DUE,IN_APP,ar,{itemLabel} للتسهيل {facilityNo}: {stageLabel},موعد {itemLabel} للتسهيل {facilityNo} لـ {companyName} لدى {bankName} في {expiryDate} ({stageLabel}، الأيام الباقية: {daysLeft}).,0
+COL.RENEWAL_DUE,EMAIL,ar,{itemLabel} للتسهيل {facilityNo}: {stageLabel},"موعد {itemLabel} للتسهيل {facilityNo} لـ {companyName} لدى {bankName} في {expiryDate} ({stageLabel}، الأيام الباقية: {daysLeft}).
+جدّد الضمان أو حدّث بياناته في ملف التسهيل.",0
+COL.RENEWAL_DUE,IN_APP,en,{itemLabel} of facility {facilityNo}: {stageLabel},"The {itemLabel} of facility {facilityNo} of {companyName} with {bankName} is due on {expiryDate} ({stageLabel}, days left: {daysLeft}).",0
+COL.RENEWAL_DUE,EMAIL,en,{itemLabel} of facility {facilityNo}: {stageLabel},"The {itemLabel} of facility {facilityNo} of {companyName} with {bankName} is due on {expiryDate} ({stageLabel}, days left: {daysLeft}).
+Renew the collateral or update it in the facility file.",0
+OBL.DUE,IN_APP,ar,{obligationTitle}: {stageLabel},يستحق {obligationTitle} للتسهيل {facilityNo} لـ {companyName} لدى {bankName} في {expiryDate} ({stageLabel}، الأيام الباقية: {daysLeft}).,0
+OBL.DUE,EMAIL,ar,{obligationTitle}: {stageLabel},"يستحق {obligationTitle} للتسهيل {facilityNo} لـ {companyName} لدى {bankName} في {expiryDate} ({stageLabel}، الأيام الباقية: {daysLeft}).
+جهّز المطلوب وسجّل التسليم في أجندة الالتزامات.",0
+OBL.DUE,IN_APP,en,{obligationTitle}: {stageLabel},"{obligationTitle} for facility {facilityNo} of {companyName} with {bankName} is due on {expiryDate} ({stageLabel}, days left: {daysLeft}).",0
+OBL.DUE,EMAIL,en,{obligationTitle}: {stageLabel},"{obligationTitle} for facility {facilityNo} of {companyName} with {bankName} is due on {expiryDate} ({stageLabel}, days left: {daysLeft}).
+Prepare what is due and record the submission in the obligations calendar.",0
+OBL.OVERDUE,IN_APP,ar,{obligationTitle} متأخر,تأخر {obligationTitle} للتسهيل {facilityNo} لـ {companyName} لدى {bankName}، وكان مستحقًا في {expiryDate} ({stageLabel}).,0
+OBL.OVERDUE,EMAIL,ar,{obligationTitle} متأخر,"تأخر {obligationTitle} للتسهيل {facilityNo} لـ {companyName} لدى {bankName}، وكان مستحقًا في {expiryDate} ({stageLabel}).
+سلّم المطلوب أو سجّل التنازل في أجندة الالتزامات.",0
+OBL.OVERDUE,IN_APP,en,{obligationTitle} is overdue,{obligationTitle} for facility {facilityNo} of {companyName} with {bankName} was due on {expiryDate} ({stageLabel}).,0
+OBL.OVERDUE,EMAIL,en,{obligationTitle} is overdue,"{obligationTitle} for facility {facilityNo} of {companyName} with {bankName} was due on {expiryDate} ({stageLabel}).
+Submit what is due or record the waiver in the obligations calendar.",0
+OBL.REVIEW_OVERDUE,IN_APP,ar,مراجعة {obligationTitle} متأخرة,مراجعة {obligationTitle} للتسهيل {facilityNo} لـ {companyName} لدى {bankName} كانت مستحقة في {dueDate} ({stageLabel}).,0
+OBL.REVIEW_OVERDUE,EMAIL,ar,مراجعة {obligationTitle} متأخرة,"مراجعة {obligationTitle} للتسهيل {facilityNo} لـ {companyName} لدى {bankName} كانت مستحقة في {dueDate} ({stageLabel}).
+سجّل المراجعة في أجندة الالتزامات.",0
+OBL.REVIEW_OVERDUE,IN_APP,en,Review of {obligationTitle} is overdue,The review of {obligationTitle} for facility {facilityNo} of {companyName} with {bankName} was due on {dueDate} ({stageLabel}).,0
+OBL.REVIEW_OVERDUE,EMAIL,en,Review of {obligationTitle} is overdue,"The review of {obligationTitle} for facility {facilityNo} of {companyName} with {bankName} was due on {dueDate} ({stageLabel}).
+Record the review in the obligations calendar.",0
+CMP.BREACH,IN_APP,ar,خرق: {obligationTitle},سُجّل خرق ({breachLabel}) لـ {obligationTitle} في التسهيل {facilityNo} لـ {companyName} لدى {bankName}، تاريخ الاستحقاق {dueDate}.,0
+CMP.BREACH,EMAIL,ar,خرق: {obligationTitle},"سُجّل خرق ({breachLabel}) لـ {obligationTitle} في التسهيل {facilityNo} لـ {companyName} لدى {bankName}، تاريخ الاستحقاق {dueDate}.
+راجع الخرق وسجّل إشعار البنك أو التصحيح أو التنازل.",0
+CMP.BREACH,IN_APP,en,Breach: {obligationTitle},"A breach ({breachLabel}) of {obligationTitle} is recorded in facility {facilityNo} of {companyName} with {bankName}, due on {dueDate}.",0
+CMP.BREACH,EMAIL,en,Breach: {obligationTitle},"A breach ({breachLabel}) of {obligationTitle} is recorded in facility {facilityNo} of {companyName} with {bankName}, due on {dueDate}.
+Review the breach and record the notice to the bank, the cure or the waiver.",0
+ACC.FACILITY_ACCOUNT_FROZEN,IN_APP,ar,{accountLabel} للتسهيل {facilityNo}: {stateLabel},{accountLabel} المرتبط بالتسهيل {facilityNo} لـ {companyName} لدى {bankName}: {stateLabel}.,0
+ACC.FACILITY_ACCOUNT_FROZEN,EMAIL,ar,{accountLabel} للتسهيل {facilityNo}: {stateLabel},"{accountLabel} المرتبط بالتسهيل {facilityNo} لـ {companyName} لدى {bankName}: {stateLabel}.
+راجع أثر ذلك على التسهيل وأبلغ البنك.",0
+ACC.FACILITY_ACCOUNT_FROZEN,IN_APP,en,{accountLabel} of facility {facilityNo}: {stateLabel},{accountLabel} linked to facility {facilityNo} of {companyName} with {bankName}: {stateLabel}.,0
+ACC.FACILITY_ACCOUNT_FROZEN,EMAIL,en,{accountLabel} of facility {facilityNo}: {stateLabel},"{accountLabel} linked to facility {facilityNo} of {companyName} with {bankName}: {stateLabel}.
+Review the effect on the facility and tell the bank.",0
+CMP.WARNING,IN_APP,ar,إنذار مبكر: {obligationTitle},اقترب {obligationTitle} من حده في اختبار الفترة المنتهية في {periodEnd} بالتسهيل {facilityNo} لـ {companyName} لدى {bankName}. لم يقع خرق.,0
+CMP.WARNING,IN_APP,en,Early warning: {obligationTitle},{obligationTitle} came close to its limit in the test of the period ending {periodEnd} in facility {facilityNo} of {companyName} with {bankName}. It is not a breach.,0
+CMP.WARNING,EMAIL,ar,إنذار مبكر: {obligationTitle},اقترب {obligationTitle} من حده في اختبار الفترة المنتهية في {periodEnd} بالتسهيل {facilityNo} لـ {companyName} لدى {bankName}. لم يقع خرق.,0
+CMP.WARNING,EMAIL,en,Early warning: {obligationTitle},{obligationTitle} came close to its limit in the test of the period ending {periodEnd} in facility {facilityNo} of {companyName} with {bankName}. It is not a breach.,0
+FIN.DATA_MISSING,IN_APP,ar,بيانات ناقصة: {obligationTitle},لم تكتمل بيانات اختبار {obligationTitle} للفترة المنتهية في {periodEnd} في التسهيل {facilityNo} لـ {companyName} لدى {bankName}، وقد حلّ موعدها في {dueDate}. أدخل القوائم أو الأرصدة الناقصة.,0
+FIN.DATA_MISSING,IN_APP,en,Missing data: {obligationTitle},The data of the {obligationTitle} test for the period ending {periodEnd} in facility {facilityNo} of {companyName} with {bankName} is incomplete; it was due on {dueDate}. Enter the missing statements or balances.,0
+FIN.DATA_MISSING,EMAIL,ar,بيانات ناقصة: {obligationTitle},لم تكتمل بيانات اختبار {obligationTitle} للفترة المنتهية في {periodEnd} في التسهيل {facilityNo} لـ {companyName} لدى {bankName}، وقد حلّ موعدها في {dueDate}. أدخل القوائم أو الأرصدة الناقصة.,0
+FIN.DATA_MISSING,EMAIL,en,Missing data: {obligationTitle},The data of the {obligationTitle} test for the period ending {periodEnd} in facility {facilityNo} of {companyName} with {bankName} is incomplete; it was due on {dueDate}. Enter the missing statements or balances.,0
+FIN.BALANCES_MISSING,IN_APP,ar,أرصدة {monthLabel} لم تُدخل,لم يُدخل متوسط رصيد {monthLabel} للحساب {accountLabel} لدى {bankName} لـ {companyName}.,0
+FIN.BALANCES_MISSING,IN_APP,en,Balances of {monthLabel} not entered,The average balance of {monthLabel} for account {accountLabel} with {bankName} of {companyName} is not entered.,0
+FIN.BALANCES_MISSING,EMAIL,ar,أرصدة {monthLabel} لم تُدخل,لم يُدخل متوسط رصيد {monthLabel} للحساب {accountLabel} لدى {bankName} لـ {companyName}.,0
+FIN.BALANCES_MISSING,EMAIL,en,Balances of {monthLabel} not entered,The average balance of {monthLabel} for account {accountLabel} with {bankName} of {companyName} is not entered.,0
+FIN.STATEMENT_PENDING,IN_APP,ar,{statementLabel}: {stageLabel},القائمة المالية {statementLabel} لـ {companyName}: {stageLabel}.,0
+FIN.STATEMENT_PENDING,IN_APP,en,{statementLabel}: {stageLabel},The financial statement {statementLabel} of {companyName}: {stageLabel}.,0
+FIN.STATEMENT_PENDING,EMAIL,ar,{statementLabel}: {stageLabel},القائمة المالية {statementLabel} لـ {companyName}: {stageLabel}.,0
+FIN.STATEMENT_PENDING,EMAIL,en,{statementLabel}: {stageLabel},The financial statement {statementLabel} of {companyName}: {stageLabel}.,0
+REQ.SUBMITTED,IN_APP,ar,قُدّم الطلب {requestNo},قُدّم الطلب {requestNo} ({typeName}) لـ {companyName}، وحالته الآن: {phaseLabel}.,0
+REQ.SUBMITTED,EMAIL,ar,قُدّم الطلب {requestNo},"قُدّم الطلب {requestNo} ({typeName}) لـ {companyName}، وحالته الآن: {phaseLabel}.
+تابع الطلب من «طلباتي».",0
+REQ.SUBMITTED,IN_APP,en,Request {requestNo} submitted,Request {requestNo} ({typeName}) for {companyName} was submitted; it is now: {phaseLabel}.,0
+REQ.SUBMITTED,EMAIL,en,Request {requestNo} submitted,"Request {requestNo} ({typeName}) for {companyName} was submitted; it is now: {phaseLabel}.
+Follow it in My requests.",0
+REQ.APPROVAL_NEEDED,IN_APP,ar,الطلب {requestNo} بانتظار موافقتك,الطلب {requestNo} ({typeName}) لـ {companyName} بمبلغ {amount} {currency} بانتظار موافقتك في مرحلة {stageLabel} قبل {dueDate}.,0
+REQ.APPROVAL_NEEDED,EMAIL,ar,الطلب {requestNo} بانتظار موافقتك,"الطلب {requestNo} ({typeName}) لـ {companyName} بمبلغ {amount} {currency} بانتظار موافقتك في مرحلة {stageLabel} قبل {dueDate}.
+افتح الطلب لتوافق أو تعيده أو ترفضه.",0
+REQ.APPROVAL_NEEDED,IN_APP,en,Request {requestNo} awaits your approval,"Request {requestNo} ({typeName}) for {companyName}, {amount} {currency}, awaits your approval at {stageLabel} by {dueDate}.",0
+REQ.APPROVAL_NEEDED,EMAIL,en,Request {requestNo} awaits your approval,"Request {requestNo} ({typeName}) for {companyName}, {amount} {currency}, awaits your approval at {stageLabel} by {dueDate}.
+Open the request to approve, return or reject it.",0
+REQ.PHASE_CHANGED,IN_APP,ar,الطلب {requestNo}: {phaseLabel},صار الطلب {requestNo} ({typeName}) في حالة: {phaseLabel}.,0
+REQ.PHASE_CHANGED,EMAIL,ar,الطلب {requestNo}: {phaseLabel},"صار الطلب {requestNo} ({typeName}) في حالة: {phaseLabel}.
+تابع الطلب من «طلباتي».",0
+REQ.PHASE_CHANGED,IN_APP,en,Request {requestNo}: {phaseLabel},Request {requestNo} ({typeName}) is now: {phaseLabel}.,0
+REQ.PHASE_CHANGED,EMAIL,en,Request {requestNo}: {phaseLabel},"Request {requestNo} ({typeName}) is now: {phaseLabel}.
+Follow it in My requests.",0
+REQ.RETURNED,IN_APP,ar,أُعيد الطلب {requestNo} للتعديل,أُعيد الطلب {requestNo} ({typeName}) إليك للتعديل. اقرأ ملاحظة الإرجاع في الطلب ثم أعد تقديمه.,0
+REQ.RETURNED,EMAIL,ar,أُعيد الطلب {requestNo} للتعديل,"أُعيد الطلب {requestNo} ({typeName}) إليك للتعديل. اقرأ ملاحظة الإرجاع في الطلب ثم أعد تقديمه.
+افتح الطلب لتعدّله وتعيد تقديمه.",0
+REQ.RETURNED,IN_APP,en,Request {requestNo} returned for changes,"Request {requestNo} ({typeName}) was returned to you for changes. Read the return note in the request, then resubmit it.",0
+REQ.RETURNED,EMAIL,en,Request {requestNo} returned for changes,"Request {requestNo} ({typeName}) was returned to you for changes. Read the return note in the request, then resubmit it.
+Open the request to change and resubmit it.",0
+REQ.READY_TO_CLOSE,IN_APP,ar,الطلب {requestNo} جاهز للإقفال,اكتمل تنفيذ الطلب {requestNo} ({typeName}) لـ {companyName} وهو جاهز للإقفال.,0
+REQ.READY_TO_CLOSE,EMAIL,ar,الطلب {requestNo} جاهز للإقفال,"اكتمل تنفيذ الطلب {requestNo} ({typeName}) لـ {companyName} وهو جاهز للإقفال.
+راجع الطلب وأقفله.",0
+REQ.READY_TO_CLOSE,IN_APP,en,Request {requestNo} is ready to close,Request {requestNo} ({typeName}) for {companyName} is executed and ready to close.,0
+REQ.READY_TO_CLOSE,EMAIL,en,Request {requestNo} is ready to close,"Request {requestNo} ({typeName}) for {companyName} is executed and ready to close.
+Review the request and close it.",0
+REQ.COMPLETED,IN_APP,ar,اكتمل الطلب {requestNo},اكتمل الطلب {requestNo} ({typeName}) لـ {companyName}.,0
+REQ.COMPLETED,EMAIL,ar,اكتمل الطلب {requestNo},"اكتمل الطلب {requestNo} ({typeName}) لـ {companyName}.
+افتح الطلب لترى نتيجته.",0
+REQ.COMPLETED,IN_APP,en,Request {requestNo} completed,Request {requestNo} ({typeName}) for {companyName} is completed.,0
+REQ.COMPLETED,EMAIL,en,Request {requestNo} completed,"Request {requestNo} ({typeName}) for {companyName} is completed.
+Open the request to see its outcome.",0
+REQ.REJECTED,IN_APP,ar,رُفض الطلب {requestNo},رُفض الطلب {requestNo} ({typeName}) لـ {companyName}. سبب الرفض مدوّن في الطلب.,0
+REQ.REJECTED,EMAIL,ar,رُفض الطلب {requestNo},"رُفض الطلب {requestNo} ({typeName}) لـ {companyName}. سبب الرفض مدوّن في الطلب.
+افتح الطلب لترى السبب.",0
+REQ.REJECTED,IN_APP,en,Request {requestNo} rejected,Request {requestNo} ({typeName}) for {companyName} was rejected. The reason is recorded in the request.,0
+REQ.REJECTED,EMAIL,en,Request {requestNo} rejected,"Request {requestNo} ({typeName}) for {companyName} was rejected. The reason is recorded in the request.
+Open the request to see the reason.",0
+REQ.CANCELLED,IN_APP,ar,أُلغي الطلب {requestNo},أُلغي الطلب {requestNo} ({typeName}) لـ {companyName}.,0
+REQ.CANCELLED,EMAIL,ar,أُلغي الطلب {requestNo},"أُلغي الطلب {requestNo} ({typeName}) لـ {companyName}.
+افتح الطلب لترى سبب الإلغاء.",0
+REQ.CANCELLED,IN_APP,en,Request {requestNo} cancelled,Request {requestNo} ({typeName}) for {companyName} was cancelled.,0
+REQ.CANCELLED,EMAIL,en,Request {requestNo} cancelled,"Request {requestNo} ({typeName}) for {companyName} was cancelled.
+Open the request to see why.",0
+REQ.QUEUED,IN_APP,ar,الطلب {requestNo} في قائمة الانتظار,دخل الطلب {requestNo} ({typeName}) لـ {companyName} قائمة {stageLabel} بانتظار من يسحبه.,0
+REQ.QUEUED,EMAIL,ar,الطلب {requestNo} في قائمة الانتظار,"دخل الطلب {requestNo} ({typeName}) لـ {companyName} قائمة {stageLabel} بانتظار من يسحبه.
+افتح قائمة الانتظار لتسحبه.",0
+REQ.QUEUED,IN_APP,en,Request {requestNo} is in the queue,Request {requestNo} ({typeName}) for {companyName} entered the {stageLabel} queue and waits to be claimed.,0
+REQ.QUEUED,EMAIL,en,Request {requestNo} is in the queue,"Request {requestNo} ({typeName}) for {companyName} entered the {stageLabel} queue and waits to be claimed.
+Open the queue to claim it.",0
+REQ.CLAIMED,IN_APP,ar,سُحب الطلب {requestNo},سُحب الطلب {requestNo} ({typeName}) لـ {companyName} في مرحلة {stageLabel} وصار مسندًا إليك.,0
+REQ.CLAIMED,EMAIL,ar,سُحب الطلب {requestNo},"سُحب الطلب {requestNo} ({typeName}) لـ {companyName} في مرحلة {stageLabel} وصار مسندًا إليك.
+افتح الطلب لتتابع تنفيذه.",0
+REQ.CLAIMED,IN_APP,en,Request {requestNo} claimed,Request {requestNo} ({typeName}) for {companyName} at {stageLabel} was claimed and is assigned to you.,0
+REQ.CLAIMED,EMAIL,en,Request {requestNo} claimed,"Request {requestNo} ({typeName}) for {companyName} at {stageLabel} was claimed and is assigned to you.
+Open the request to carry on.",0
+REQ.RELEASED,IN_APP,ar,أُعيد الطلب {requestNo} إلى القائمة,أُعيد الطلب {requestNo} ({typeName}) لـ {companyName} إلى قائمة {stageLabel} بعمره الأصلي.,0
+REQ.RELEASED,EMAIL,ar,أُعيد الطلب {requestNo} إلى القائمة,"أُعيد الطلب {requestNo} ({typeName}) لـ {companyName} إلى قائمة {stageLabel} بعمره الأصلي.
+افتح قائمة الانتظار لتسحبه.",0
+REQ.RELEASED,IN_APP,en,Request {requestNo} back in the queue,Request {requestNo} ({typeName}) for {companyName} was released to the {stageLabel} queue with its original age.,0
+REQ.RELEASED,EMAIL,en,Request {requestNo} back in the queue,"Request {requestNo} ({typeName}) for {companyName} was released to the {stageLabel} queue with its original age.
+Open the queue to claim it.",0
+REQ.REASSIGNED,IN_APP,ar,أُسند إليك الطلب {requestNo},أُسند إليك الطلب {requestNo} ({typeName}) لـ {companyName} في مرحلة {stageLabel}، والموعد {dueDate}.,0
+REQ.REASSIGNED,EMAIL,ar,أُسند إليك الطلب {requestNo},"أُسند إليك الطلب {requestNo} ({typeName}) لـ {companyName} في مرحلة {stageLabel}، والموعد {dueDate}.
+افتح الطلب لتتابع تنفيذه.",0
+REQ.REASSIGNED,IN_APP,en,Request {requestNo} reassigned to you,"Request {requestNo} ({typeName}) for {companyName} at {stageLabel} is now assigned to you, due {dueDate}.",0
+REQ.REASSIGNED,EMAIL,en,Request {requestNo} reassigned to you,"Request {requestNo} ({typeName}) for {companyName} at {stageLabel} is now assigned to you, due {dueDate}.
+Open the request to carry on.",0
+REQ.STAGE_CHANGED,IN_APP,ar,الطلب {requestNo}: مرحلة {stageLabel},انتقل الطلب {requestNo} ({typeName}) لـ {companyName} إلى مرحلة {stageLabel}.,0
+REQ.STAGE_CHANGED,EMAIL,ar,الطلب {requestNo}: مرحلة {stageLabel},"انتقل الطلب {requestNo} ({typeName}) لـ {companyName} إلى مرحلة {stageLabel}.
+افتح الطلب.",0
+REQ.STAGE_CHANGED,IN_APP,en,Request {requestNo}: stage {stageLabel},Request {requestNo} ({typeName}) for {companyName} moved to {stageLabel}.,0
+REQ.STAGE_CHANGED,EMAIL,en,Request {requestNo}: stage {stageLabel},"Request {requestNo} ({typeName}) for {companyName} moved to {stageLabel}.
+Open the request.",0
+REQ.ACTION_REQUIRED_REQUESTER,IN_APP,ar,الطلب {requestNo} بانتظار إجراء منك,الطلب {requestNo} ({typeName}) بانتظار إجراء منك: {stageLabel}، قبل {dueDate}.,0
+REQ.ACTION_REQUIRED_REQUESTER,EMAIL,ar,الطلب {requestNo} بانتظار إجراء منك,"الطلب {requestNo} ({typeName}) بانتظار إجراء منك: {stageLabel}، قبل {dueDate}.
+افتح الطلب لتكمل المطلوب.",0
+REQ.ACTION_REQUIRED_REQUESTER,IN_APP,en,Request {requestNo} awaits your action,"Request {requestNo} ({typeName}) awaits your action: {stageLabel}, by {dueDate}.",0
+REQ.ACTION_REQUIRED_REQUESTER,EMAIL,en,Request {requestNo} awaits your action,"Request {requestNo} ({typeName}) awaits your action: {stageLabel}, by {dueDate}.
+Open the request to complete what is asked.",0
+REQ.COMMENT_VISIBLE,IN_APP,ar,تعليق جديد على الطلب {requestNo},أُضيف تعليق جديد على الطلب {requestNo} ({typeName}).,0
+REQ.COMMENT_VISIBLE,EMAIL,ar,تعليق جديد على الطلب {requestNo},"أُضيف تعليق جديد على الطلب {requestNo} ({typeName}).
+افتح الطلب لتقرأه.",0
+REQ.COMMENT_VISIBLE,IN_APP,en,New comment on request {requestNo},A new comment was added to request {requestNo} ({typeName}).,0
+REQ.COMMENT_VISIBLE,EMAIL,en,New comment on request {requestNo},"A new comment was added to request {requestNo} ({typeName}).
+Open the request to read it.",0
+REQ.COMMENT_INTERNAL,IN_APP,ar,ملاحظة داخلية على الطلب {requestNo},أُضيفت ملاحظة داخلية على الطلب {requestNo} ({typeName}) لـ {companyName}. لا يراها الطالب.,0
+REQ.COMMENT_INTERNAL,EMAIL,ar,ملاحظة داخلية على الطلب {requestNo},"أُضيفت ملاحظة داخلية على الطلب {requestNo} ({typeName}) لـ {companyName}. لا يراها الطالب.
+افتح الطلب لتقرأها.",0
+REQ.COMMENT_INTERNAL,IN_APP,en,Internal note on request {requestNo},An internal note was added to request {requestNo} ({typeName}) for {companyName}. The requester does not see it.,0
+REQ.COMMENT_INTERNAL,EMAIL,en,Internal note on request {requestNo},"An internal note was added to request {requestNo} ({typeName}) for {companyName}. The requester does not see it.
+Open the request to read it.",0
+REQ.SLA_AT_RISK,IN_APP,ar,الطلب {requestNo} يقترب من موعده,الطلب {requestNo} ({typeName}) لـ {companyName} في مرحلة {stageLabel} يقترب من موعده {dueDate}.,0
+REQ.SLA_AT_RISK,EMAIL,ar,الطلب {requestNo} يقترب من موعده,"الطلب {requestNo} ({typeName}) لـ {companyName} في مرحلة {stageLabel} يقترب من موعده {dueDate}.
+افتح الطلب لتنجزه قبل الموعد.",0
+REQ.SLA_AT_RISK,IN_APP,en,Request {requestNo} is close to its due time,Request {requestNo} ({typeName}) for {companyName} at {stageLabel} is close to its due time {dueDate}.,0
+REQ.SLA_AT_RISK,EMAIL,en,Request {requestNo} is close to its due time,"Request {requestNo} ({typeName}) for {companyName} at {stageLabel} is close to its due time {dueDate}.
+Open the request to finish it in time.",0
+REQ.SLA_BREACHED,IN_APP,ar,الطلب {requestNo} تجاوز موعده,تجاوز الطلب {requestNo} ({typeName}) لـ {companyName} في مرحلة {stageLabel} موعده {dueDate}.,0
+REQ.SLA_BREACHED,EMAIL,ar,الطلب {requestNo} تجاوز موعده,"تجاوز الطلب {requestNo} ({typeName}) لـ {companyName} في مرحلة {stageLabel} موعده {dueDate}.
+افتح الطلب لتعالجه أو تعيد إسناده.",0
+REQ.SLA_BREACHED,IN_APP,en,Request {requestNo} passed its due time,Request {requestNo} ({typeName}) for {companyName} at {stageLabel} passed its due time {dueDate}.,0
+REQ.SLA_BREACHED,EMAIL,en,Request {requestNo} passed its due time,"Request {requestNo} ({typeName}) for {companyName} at {stageLabel} passed its due time {dueDate}.
+Open the request to act on it or reassign it.",0
+REQ.CHILD_CREATED,IN_APP,ar,طلب فرعي {requestNo},أُنشئ الطلب الفرعي {requestNo} ({typeName}) لـ {companyName}.,0
+REQ.CHILD_CREATED,EMAIL,ar,طلب فرعي {requestNo},"أُنشئ الطلب الفرعي {requestNo} ({typeName}) لـ {companyName}.
+افتح الطلب.",0
+REQ.CHILD_CREATED,IN_APP,en,Child request {requestNo},Child request {requestNo} ({typeName}) for {companyName} was created.,0
+REQ.CHILD_CREATED,EMAIL,en,Child request {requestNo},"Child request {requestNo} ({typeName}) for {companyName} was created.
+Open the request.",0
+REQ.RESERVATION_LOST,IN_APP,ar,فُقد حجز الطلب {requestNo},انتهى حجز الحد للطلب {requestNo} ({typeName}) لـ {companyName} قبل الإصدار، فلم يعد المبلغ محجوزًا.,0
+REQ.RESERVATION_LOST,EMAIL,ar,فُقد حجز الطلب {requestNo},"انتهى حجز الحد للطلب {requestNo} ({typeName}) لـ {companyName} قبل الإصدار، فلم يعد المبلغ محجوزًا.
+أعد الطلب إلى موافقة الخزينة ليُحجز من جديد أو ألغه.",0
+REQ.RESERVATION_LOST,IN_APP,en,Request {requestNo} lost its reservation,The limit reservation of request {requestNo} ({typeName}) for {companyName} ended before issuance; the amount is no longer reserved.,0
+REQ.RESERVATION_LOST,EMAIL,en,Request {requestNo} lost its reservation,"The limit reservation of request {requestNo} ({typeName}) for {companyName} ended before issuance; the amount is no longer reserved.
+Return the request to the treasury approval to reserve again, or cancel it.",0
+REQ.RESERVATION_AGING,IN_APP,ar,حجز الطلب {requestNo} منذ {daysLeft} يومًا,حجز الحد للطلب {requestNo} ({typeName}) لـ {companyName} قائم منذ {daysLeft} يومًا دون إصدار.,0
+REQ.RESERVATION_AGING,EMAIL,ar,حجز الطلب {requestNo} منذ {daysLeft} يومًا,"حجز الحد للطلب {requestNo} ({typeName}) لـ {companyName} قائم منذ {daysLeft} يومًا دون إصدار.
+راجع الطلب: أكمله أو حرّر الحجز.",0
+REQ.RESERVATION_AGING,IN_APP,en,Reservation of request {requestNo} for {daysLeft} days,The limit reservation of request {requestNo} ({typeName}) for {companyName} has been open {daysLeft} days without issuance.,0
+REQ.RESERVATION_AGING,EMAIL,en,Reservation of request {requestNo} for {daysLeft} days,"The limit reservation of request {requestNo} ({typeName}) for {companyName} has been open {daysLeft} days without issuance.
+Review the request: finish it or release the reservation.",0
+REQ.DELEGATION,IN_APP,ar,تفويض من {delegatorName} إلى {delegateName},فُوّضت موافقات {delegatorName} إلى {delegateName} من {fromDate} إلى {toDate}.,0
+REQ.DELEGATION,EMAIL,ar,تفويض من {delegatorName} إلى {delegateName},"فُوّضت موافقات {delegatorName} إلى {delegateName} من {fromDate} إلى {toDate}.
+راجع التفويضات من صفحة التفويض.",0
+REQ.DELEGATION,IN_APP,en,Delegation from {delegatorName} to {delegateName},The approvals of {delegatorName} are delegated to {delegateName} from {fromDate} to {toDate}.,0
+REQ.DELEGATION,EMAIL,en,Delegation from {delegatorName} to {delegateName},"The approvals of {delegatorName} are delegated to {delegateName} from {fromDate} to {toDate}.
+Review the delegations page.",0
+REQ.DRAFT_STALE,IN_APP,ar,مسودة {requestNo} متوقفة منذ {daysLeft} يومًا,لم تُعدَّل مسودة الطلب {requestNo} ({typeName}) منذ {daysLeft} يومًا.,0
+REQ.DRAFT_STALE,EMAIL,ar,مسودة {requestNo} متوقفة منذ {daysLeft} يومًا,"لم تُعدَّل مسودة الطلب {requestNo} ({typeName}) منذ {daysLeft} يومًا.
+أكملها وقدّمها أو احذفها.",0
+REQ.DRAFT_STALE,IN_APP,en,Draft {requestNo} idle for {daysLeft} days,The draft request {requestNo} ({typeName}) has not changed for {daysLeft} days.,0
+REQ.DRAFT_STALE,EMAIL,en,Draft {requestNo} idle for {daysLeft} days,"The draft request {requestNo} ({typeName}) has not changed for {daysLeft} days.
+Finish and submit it, or delete it.",0
+REQ.NO_ELIGIBLE_ASSIGNEE,IN_APP,ar,الطلب {requestNo} بلا مسند مؤهل,لم يُعثر على مستخدم مؤهل لمرحلة {stageLabel} في الطلب {requestNo} ({typeName}) لـ {companyName}.,0
+REQ.NO_ELIGIBLE_ASSIGNEE,EMAIL,ar,الطلب {requestNo} بلا مسند مؤهل,"لم يُعثر على مستخدم مؤهل لمرحلة {stageLabel} في الطلب {requestNo} ({typeName}) لـ {companyName}.
+عيّن مدير المستخدم أو رئيس الإدارة أو أعد إسناد الطلب.",0
+REQ.NO_ELIGIBLE_ASSIGNEE,IN_APP,en,Request {requestNo} has no eligible assignee,No eligible user was found for {stageLabel} of request {requestNo} ({typeName}) for {companyName}.,0
+REQ.NO_ELIGIBLE_ASSIGNEE,EMAIL,en,Request {requestNo} has no eligible assignee,"No eligible user was found for {stageLabel} of request {requestNo} ({typeName}) for {companyName}.
+Set the user's manager or department head, or reassign the request.",0
+LC.ISSUED,IN_APP,ar,صدر الاعتماد {lcNo},صدر الاعتماد المستندي {lcNo} للطلب {requestNo} لـ {companyName} لدى {bankName} بمبلغ {amount} {currency}.,0
+LC.ISSUED,EMAIL,ar,صدر الاعتماد {lcNo},"صدر الاعتماد المستندي {lcNo} للطلب {requestNo} لـ {companyName} لدى {bankName} بمبلغ {amount} {currency}.
+افتح بطاقة الاعتماد.",0
+LC.ISSUED,IN_APP,en,Letter of credit {lcNo} issued,Letter of credit {lcNo} of request {requestNo} for {companyName} was issued by {bankName} for {amount} {currency}.,0
+LC.ISSUED,EMAIL,en,Letter of credit {lcNo} issued,"Letter of credit {lcNo} of request {requestNo} for {companyName} was issued by {bankName} for {amount} {currency}.
+Open the letter of credit.",0
+LC.AMENDED,IN_APP,ar,عُدّل الاعتماد {lcNo},طُبّق تعديل على الاعتماد المستندي {lcNo} لـ {companyName} لدى {bankName}.,0
+LC.AMENDED,EMAIL,ar,عُدّل الاعتماد {lcNo},"طُبّق تعديل على الاعتماد المستندي {lcNo} لـ {companyName} لدى {bankName}.
+افتح بطاقة الاعتماد لترى التعديل.",0
+LC.AMENDED,IN_APP,en,Letter of credit {lcNo} amended,An amendment of letter of credit {lcNo} for {companyName} with {bankName} was applied.,0
+LC.AMENDED,EMAIL,en,Letter of credit {lcNo} amended,"An amendment of letter of credit {lcNo} for {companyName} with {bankName} was applied.
+Open the letter of credit to see the amendment.",0
+LC.EXPIRY_DUE,IN_APP,ar,الاعتماد {lcNo} ينتهي في {dueDate},ينتهي {itemLabel} للاعتماد المستندي {lcNo} لـ {companyName} لدى {bankName} في {dueDate} (الأيام الباقية: {daysLeft}).,0
+LC.EXPIRY_DUE,EMAIL,ar,الاعتماد {lcNo} ينتهي في {dueDate},"ينتهي {itemLabel} للاعتماد المستندي {lcNo} لـ {companyName} لدى {bankName} في {dueDate} (الأيام الباقية: {daysLeft}).
+راجع الشحن والمستندات أو اطلب تمديدًا.",0
+LC.EXPIRY_DUE,IN_APP,en,Letter of credit {lcNo} ends on {dueDate},The {itemLabel} of letter of credit {lcNo} for {companyName} with {bankName} is {dueDate} (days left: {daysLeft}).,0
+LC.EXPIRY_DUE,EMAIL,en,Letter of credit {lcNo} ends on {dueDate},"The {itemLabel} of letter of credit {lcNo} for {companyName} with {bankName} is {dueDate} (days left: {daysLeft}).
+Review the shipment and documents, or ask for an extension.",0
+LC.DRAWING_RECORDED,IN_APP,ar,سحب على الاعتماد {lcNo},سُجّل سحب على الاعتماد المستندي {lcNo} لـ {companyName} بمبلغ {amount} {currency}، والاستحقاق {dueDate}.,0
+LC.DRAWING_RECORDED,EMAIL,ar,سحب على الاعتماد {lcNo},"سُجّل سحب على الاعتماد المستندي {lcNo} لـ {companyName} بمبلغ {amount} {currency}، والاستحقاق {dueDate}.
+افتح بطاقة الاعتماد.",0
+LC.DRAWING_RECORDED,IN_APP,en,Drawing on letter of credit {lcNo},"A drawing of {amount} {currency} was recorded on letter of credit {lcNo} for {companyName}, due {dueDate}.",0
+LC.DRAWING_RECORDED,EMAIL,en,Drawing on letter of credit {lcNo},"A drawing of {amount} {currency} was recorded on letter of credit {lcNo} for {companyName}, due {dueDate}.
+Open the letter of credit.",0
+LC.DRAWING_DUE,IN_APP,ar,سحب الاعتماد {lcNo} يستحق في {dueDate},يستحق سحب بمبلغ {amount} {currency} على الاعتماد المستندي {lcNo} لـ {companyName} لدى {bankName} في {dueDate} (الأيام الباقية: {daysLeft}).,0
+LC.DRAWING_DUE,EMAIL,ar,سحب الاعتماد {lcNo} يستحق في {dueDate},"يستحق سحب بمبلغ {amount} {currency} على الاعتماد المستندي {lcNo} لـ {companyName} لدى {bankName} في {dueDate} (الأيام الباقية: {daysLeft}).
+جهّز السداد وسجّل التسوية بعده.",0
+LC.DRAWING_DUE,IN_APP,en,Drawing on {lcNo} due on {dueDate},A drawing of {amount} {currency} on letter of credit {lcNo} for {companyName} with {bankName} is due on {dueDate} (days left: {daysLeft}).,0
+LC.DRAWING_DUE,EMAIL,en,Drawing on {lcNo} due on {dueDate},"A drawing of {amount} {currency} on letter of credit {lcNo} for {companyName} with {bankName} is due on {dueDate} (days left: {daysLeft}).
+Prepare the payment and record the settlement after it.",0
+LC.DISCREPANCY_OPEN,IN_APP,ar,مخالفة مفتوحة على الاعتماد {lcNo},على الاعتماد المستندي {lcNo} لـ {companyName} لدى {bankName} مخالفة مفتوحة تنتظر القرار.,0
+LC.DISCREPANCY_OPEN,EMAIL,ar,مخالفة مفتوحة على الاعتماد {lcNo},"على الاعتماد المستندي {lcNo} لـ {companyName} لدى {bankName} مخالفة مفتوحة تنتظر القرار.
+افتح السحب لتقرر: تنازل أو تصحيح أو رفض.",0
+LC.DISCREPANCY_OPEN,IN_APP,en,Open discrepancy on letter of credit {lcNo},Letter of credit {lcNo} for {companyName} with {bankName} has an open discrepancy waiting for a decision.,0
+LC.DISCREPANCY_OPEN,EMAIL,en,Open discrepancy on letter of credit {lcNo},"Letter of credit {lcNo} for {companyName} with {bankName} has an open discrepancy waiting for a decision.
+Open the drawing to waive, correct or refuse it.",0
+LC.AMENDMENT_RESPONSE,IN_APP,ar,رد على تعديل الاعتماد {lcNo},رد المستفيد على تعديل الاعتماد المستندي {lcNo} لـ {companyName}: {responseLabel}.,0
+LC.AMENDMENT_RESPONSE,EMAIL,ar,رد على تعديل الاعتماد {lcNo},"رد المستفيد على تعديل الاعتماد المستندي {lcNo} لـ {companyName}: {responseLabel}.
+افتح بطاقة الاعتماد.",0
+LC.AMENDMENT_RESPONSE,IN_APP,en,Response to the amendment of {lcNo},The beneficiary answered the amendment of letter of credit {lcNo} for {companyName}: {responseLabel}.,0
+LC.AMENDMENT_RESPONSE,EMAIL,en,Response to the amendment of {lcNo},"The beneficiary answered the amendment of letter of credit {lcNo} for {companyName}: {responseLabel}.
+Open the letter of credit.",0
+LC.EXPIRED_UNCLOSED,IN_APP,ar,الاعتماد {lcNo} منتهٍ ولم يُقفل,انتهى الاعتماد المستندي {lcNo} لـ {companyName} لدى {bankName} في {dueDate} ولم يُقفل بعد.,0
+LC.EXPIRED_UNCLOSED,EMAIL,ar,الاعتماد {lcNo} منتهٍ ولم يُقفل,"انتهى الاعتماد المستندي {lcNo} لـ {companyName} لدى {bankName} في {dueDate} ولم يُقفل بعد.
+راجع السحوبات ثم أقفل الاعتماد.",0
+LC.EXPIRED_UNCLOSED,IN_APP,en,Letter of credit {lcNo} expired and not closed,Letter of credit {lcNo} for {companyName} with {bankName} expired on {dueDate} and is not closed.,0
+LC.EXPIRED_UNCLOSED,EMAIL,en,Letter of credit {lcNo} expired and not closed,"Letter of credit {lcNo} for {companyName} with {bankName} expired on {dueDate} and is not closed.
+Review its drawings, then close it.",0
+LC.RECONCILE_MISMATCH,IN_APP,ar,فرق في مطابقة الاعتماد {lcNo},القائم على الاعتماد المستندي {lcNo} لـ {companyName} لا يطابق استغلاله في حد التسهيل.,0
+LC.RECONCILE_MISMATCH,EMAIL,ar,فرق في مطابقة الاعتماد {lcNo},"القائم على الاعتماد المستندي {lcNo} لـ {companyName} لا يطابق استغلاله في حد التسهيل.
+افتح تقرير المطابقة وصحّح الفرق.",0
+LC.RECONCILE_MISMATCH,IN_APP,en,Letter of credit {lcNo} does not reconcile,The outstanding of letter of credit {lcNo} for {companyName} does not match its utilisation of the facility limit.,0
+LC.RECONCILE_MISMATCH,EMAIL,en,Letter of credit {lcNo} does not reconcile,"The outstanding of letter of credit {lcNo} for {companyName} does not match its utilisation of the facility limit.
+Open the reconciliation report and correct the difference.",0

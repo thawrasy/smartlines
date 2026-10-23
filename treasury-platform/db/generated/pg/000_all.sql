@@ -7381,6 +7381,8 @@ CREATE TABLE "lc"."LcAmendment" (
   CONSTRAINT "CK_LcAmendment_10" CHECK ("Status" NOT IN ('BANK_ISSUED','APPLIED') OR ("AmendmentNo" IS NOT NULL AND "BankIssuedOn" IS NOT NULL)),
   CONSTRAINT "CK_LcAmendment_11" CHECK ("Status" <> 'APPLIED' OR ("BeneficiaryResponse" = 'ACCEPTED' AND "AppliedOn" IS NOT NULL AND "AppliedBy" IS NOT NULL)),
   CONSTRAINT "CK_LcAmendment_12" CHECK ("BeneficiaryResponse" IS NULL OR "BeneficiaryResponse" = 'PENDING' OR "RespondedOn" IS NOT NULL),
+  CONSTRAINT "CK_LcAmendment_13" CHECK ("Status" <> 'REJECTED' OR "BeneficiaryResponse" = 'REJECTED'),
+  CONSTRAINT "CK_LcAmendment_14" CHECK ("Status" <> 'WITHDRAWN' OR "BeneficiaryResponse" IS NULL OR "BeneficiaryResponse" = 'PENDING'),
   CONSTRAINT "CK_LcAmendment_Origin" CHECK ("Origin" IS NULL OR "Origin" IN ('OUR_REQUEST', 'RECEIVED_FROM_CUSTOMER')),
   CONSTRAINT "CK_LcAmendment_ChangeKinds" CHECK ("ChangeKinds" IS NULL OR length("ChangeKinds") + 1 = CASE WHEN position(',INCREASE_AMOUNT,' in ',' || "ChangeKinds" || ',') > 0 THEN 16 ELSE 0 END + CASE WHEN position(',DECREASE_AMOUNT,' in ',' || "ChangeKinds" || ',') > 0 THEN 16 ELSE 0 END + CASE WHEN position(',EXTEND_EXPIRY,' in ',' || "ChangeKinds" || ',') > 0 THEN 14 ELSE 0 END + CASE WHEN position(',CHANGE_SHIPMENT_DATE,' in ',' || "ChangeKinds" || ',') > 0 THEN 21 ELSE 0 END + CASE WHEN position(',CHANGE_TERMS,' in ',' || "ChangeKinds" || ',') > 0 THEN 13 ELSE 0 END + CASE WHEN position(',CANCEL,' in ',' || "ChangeKinds" || ',') > 0 THEN 7 ELSE 0 END),
   CONSTRAINT "CK_LcAmendment_TermsPurpose" CHECK ("TermsPurpose" IS NULL OR "TermsPurpose" IN ('AMENDMENT')),

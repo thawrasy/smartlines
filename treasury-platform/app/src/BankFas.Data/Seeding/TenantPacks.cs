@@ -21,6 +21,12 @@ public sealed record TenantPack(string PackKey, int SeedVersion, IReadOnlyList<s
 {
     public IReadOnlyList<PackActivation> Activate { get; init; } = [];
 
+    /// <summary>The pack's folder, for an installer that reads files other than its CSV tables.</summary>
+    public string? Directory { get; init; }
+
+    /// <summary>A step after the rows that the CSV seeder cannot do (manifest.json, "Installer"): WFL.TEMPLATES publishes the template graphs.</summary>
+    public string? Installer { get; init; }
+
     private static readonly Regex TableName = new(@"^[a-z]{2,4}\.[A-Z][A-Za-z0-9]{1,80}$", RegexOptions.CultureInvariant);
 
     /// <summary>Reads a pack folder: manifest.json and its CSV files, in the manifest's order.</summary>
@@ -52,7 +58,11 @@ public sealed record TenantPack(string PackKey, int SeedVersion, IReadOnlyList<s
             : [];
         foreach (var x in activate)
             if (!tables.Any(t => t.Table == x.Table)) throw new InvalidDataException($"{directory}: Activate names {x.Table}, which is not a table of the pack.");
-        return new TenantPack(root.GetProperty(nameof(PackKey)).GetString()!, root.GetProperty(nameof(SeedVersion)).GetInt32(), depends, tables) { Activate = activate };
+        var installer = root.TryGetProperty(nameof(Installer), out var ins) ? ins.GetString() : null;
+        return new TenantPack(root.GetProperty(nameof(PackKey)).GetString()!, root.GetProperty(nameof(SeedVersion)).GetInt32(), depends, tables)
+        {
+            Activate = activate, Directory = directory, Installer = installer,
+        };
     }
 }
 
@@ -68,10 +78,10 @@ public sealed record SeedResult(string PackKey, int SeedVersion, bool AlreadyRun
 /// </summary>
 public static class TenantSeeder
 {
-    /// <summary>The packs of S1, S1-b, S2 and S2-b, in dependency order; each is applied at the latest version of its folder.</summary>
+    /// <summary>The packs of S1 to S3, in dependency order; each is applied at the latest version of its folder.</summary>
     public static readonly string[] S1Packs = ["CAT.ORG", "CAT.BANKING", "CAT.DOCTYPES", "CAT.LOOKUPS", "CAT.CURRENCY", "CORE.NUMBERING", "CORE.EXPIRY", "CORE.DEPARTMENTS",
         "CMP.TERMS", "FIN.LINES", "FIN.FORMULAS", "FIN.PROVISION", "PTY.KYC",
-        "NTF.BASE"];
+        "NTF.BASE", "WFL.BASE"];
 
     /// <summary>The packs folder: configuration Seed:PacksDirectory, else "packs" next to the application.</summary>
     public static string PacksDirectory(string? configured) =>
@@ -125,6 +135,14 @@ public static class TenantSeeder
                     $"UPDATE {QT(a.Table)} SET {Q(a.Column)} = @to WHERE {Q("SeedKey")} IN @keys AND {Q(a.Column)} = @from;",
                     new { to = a.To, from = a.From, keys }, tx, cancellationToken: ct)).ConfigureAwait(false);
                 diff.Add($"{a.Table}: {n} {a.From} -> {a.To}");
+            }
+            if (pack.Installer is { } installer)
+            {
+                if (installer != Workflow.WorkflowSeed.InstallerName || pack.Directory is null)
+                    throw new InvalidDataException($"{pack.PackKey}: the installer {installer} is unknown.");
+                var (n, s, d) = await Workflow.WorkflowSeed.InstallAsync(c, tx, pack.Directory, pack.SeedVersion, ct).ConfigureAwait(false);
+                created += n; skipped += s;
+                diff.AddRange(d);
             }
             await c.ExecuteAsync(new CommandDefinition(
                 """

@@ -526,6 +526,8 @@ table lc.LcAmendment  # Amendment to an issued or received letter of credit (FR-
   check  Status NOT IN ('BANK_ISSUED','APPLIED') OR (AmendmentNo IS NOT NULL AND BankIssuedOn IS NOT NULL)   # التسجيل عند صدور البنك
   check  Status <> 'APPLIED' OR (BeneficiaryResponse = 'ACCEPTED' AND AppliedOn IS NOT NULL AND AppliedBy IS NOT NULL)   # التطبيق عند القبول فقط (BR-LCI-012)
   check  BeneficiaryResponse IS NULL OR BeneficiaryResponse = 'PENDING' OR RespondedOn IS NOT NULL
+  check  Status <> 'REJECTED' OR BeneficiaryResponse = 'REJECTED'   # الرفض رفض المستفيد (DQ-F16-7)
+  check  Status <> 'WITHDRAWN' OR BeneficiaryResponse IS NULL OR BeneficiaryResponse = 'PENDING'   # لا سحب بعد رد المستفيد (DQ-F16-7)
 
 table lc.LcDrawing  # Drawing or presentation of documents under a credit; for exports includes transfer of allocation (FR-LCI-023, BR-LCI-013, BR-LCE-011); statuses in section 8
   CompanyId          ->org.Company req   # شركة الطلب الفرعي: تُقيَّد بها الصلة بالطلب (DR-10)

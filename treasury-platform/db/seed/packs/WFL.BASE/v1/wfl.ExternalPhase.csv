@@ -1,0 +1,9 @@
+Code,NameAr,NameEn,Description,IsActive,IsSystem,IsLocked,SortOrder,SeedKey,ColorKey,RequiresRequesterAction,IsFinal
+DRAFT,مسودة,Draft,A request not yet submitted (BR-WFL-011).,1,1,1,1,WFL.PHASE.DRAFT,grey,0,0
+IN_APPROVAL,قيد الموافقة,In approval,The requester's side approves: the originator and the manager (BR-WFL-011).,1,1,1,2,WFL.PHASE.IN_APPROVAL,blue,0,0
+RETURNED,معاد للتعديل,Returned for changes,Returned to the requester with a reason (BR-WFL-008).,1,1,1,3,WFL.PHASE.RETURNED,amber,1,0
+AWAITING_REQUESTER,بانتظار إجراء منك,Awaiting your action,A task of the requester: the signed original or the ERP reference.,1,1,1,4,WFL.PHASE.AWAITING_REQUESTER,amber,1,0
+IN_PROGRESS,تحت الإجراء,In progress,With the treasury: facility selection to issuance and until the close (BR-WFL-027).,1,1,1,5,WFL.PHASE.IN_PROGRESS,blue,0,0
+COMPLETED,مكتمل,Completed,Closed by the treasury.,1,1,1,6,WFL.PHASE.COMPLETED,green,0,1
+REJECTED,مرفوض,Rejected,Rejected with a reason.,1,1,1,7,WFL.PHASE.REJECTED,red,0,1
+CANCELLED,ملغى,Cancelled,Cancelled.,1,1,1,8,WFL.PHASE.CANCELLED,grey,0,1

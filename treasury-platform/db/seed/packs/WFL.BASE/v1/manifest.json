@@ -1,0 +1,44 @@
+{
+  "PackKey": "WFL.BASE",
+  "SeedVersion": 1,
+  "Slice": "S3",
+  "Status": "The base of the requests (FR-WFL-002, FR-REQ-001): the eight visible phases of BR-WFL-011, the six request types of S3 with their audiences (the roles that hold req.create: RQ, TM, FO, TE), and the five seeded template graphs of spec 13 section 5.5 (PURCHASE_LC, CHILD_AMENDMENT, CHILD_STANDARD for the document and the SWIFT request, GENERIC_SIMPLE, GENERIC_APPROVAL). The types are written inactive; the installer publishes each template as the tenant's service user and then activates its type (BR-REQ-001: a type is active only with a published template, an audience and a numbering key, CORE.NUMBERING v3). CANCEL is not a template row: the engine adds it from every non-terminal stage, and the release of a reservation runs on entering the REJECTED and CANCELLED stages (S3 brief OQ-6). The SLA hours are spec 13's proposals. A proposed default written by an AI agent.",
+  "Tables": [
+    "wfl.ExternalPhase.csv",
+    "wfl.RequestType.csv",
+    "wfl.RequestTypeAudience.csv"
+  ],
+  "Installer": "WFL.TEMPLATES",
+  "DependsOn": [
+    "CORE.ROLES",
+    "CORE.NUMBERING",
+    "CAT.DOCTYPES",
+    "CAT.LOOKUPS",
+    "NTF.BASE"
+  ],
+  "References": {
+    "wfl.RequestTypeAudience.csv": {
+      "RequestTypeSeedKey": {
+        "Column": "RequestTypeId",
+        "Table": "wfl.RequestType",
+        "Key": "SeedKey"
+      },
+      "RoleSeedKey": {
+        "Column": "RoleId",
+        "Table": "sec.Role",
+        "Key": "SeedKey"
+      }
+    }
+  },
+  "Sources": [
+    "docs/10-detailed-analysis/13-m6-workflow-engine-notifications.md section 5.5 (seeded templates), FR-WFL-002, BR-WFL-011, BR-WFL-013",
+    "docs/10-detailed-analysis/14-m7-m8-letters-of-credit.md section 5 (lc.validate_terms, lc.record_issuance, lc.apply_amendment)",
+    "db/model/15-workflow-notifications.model (wfl.*)",
+    "docs/30-readiness/DOC-F10 and DOC-F11 (template proposals DQ-F10-1 to 13, hooks DQ-F11-1 to 9)"
+  ],
+  "Templates": "templates/*.json: one graph per file (BankFas.Core.Workflow.TemplateGraph), stages and roles named by key and code.",
+  "NotSeeded": {
+    "PROFORMA_REQUEST, SALES_ORDER_APPROVAL, COLLECTION_DOCS_REQUEST": "Templates of S4 (sales letters of credit).",
+    "req.assign_number": "The request number is allocated by the engine on entering the template's NumberOnStageKey (BR-WFL-013), so no hook row carries it."
+  }
+}

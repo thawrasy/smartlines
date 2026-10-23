@@ -201,8 +201,8 @@ sq -d BankFas -i db/seed/102_permissions.sql >/dev/null
 sq -d BankFas -i db/seed/103_lc_reference.sql >/dev/null
 sq -d BankFas -i db/seed/104_credit_scorecard.sql >/dev/null
 seed_after="$(seed_state)"
-if [ "$seed_before" != "$seed_after" ] || [ "$seed_before" != "16/34/1/9/23/249/157/144/16/39/21/112/16/3130/0" ]; then
-    echo "platform seed is not safe to run again, or incomplete: settings/jobs/plans/plan modules/reserved/countries/currencies/permissions/Incoterms/unverified UCP articles/grades/credit metrics/approved scorecards/scorecard rows/updated before $seed_before, after $seed_after (expected 16/34/1/9/23/249/157/144/16/39/21/112/16/3130/0)"
+if [ "$seed_before" != "$seed_after" ] || [ "$seed_before" != "36/34/1/9/23/249/157/144/16/39/21/112/16/3130/0" ]; then
+    echo "platform seed is not safe to run again, or incomplete: settings/jobs/plans/plan modules/reserved/countries/currencies/permissions/Incoterms/unverified UCP articles/grades/credit metrics/approved scorecards/scorecard rows/updated before $seed_before, after $seed_after (expected 36/34/1/9/23/249/157/144/16/39/21/112/16/3130/0)"
     exit 1
 fi
 echo "platform seed unchanged on a second run ($seed_after)"
