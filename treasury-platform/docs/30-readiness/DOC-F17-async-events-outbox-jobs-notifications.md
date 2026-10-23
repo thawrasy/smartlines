@@ -199,9 +199,9 @@ stateDiagram-v2
 flowchart TB
   A["02:00 JOB-LC-RECONCILE<br/>مطابقة القائم بالاستغلال"]
   B["03:00 JOB-CMP-SYNC<br/>مطابقة الإسقاط"]
-  C["04:30 JOB-FIN-EVAL<br/>تقييم البيانات المالية"]
+  E["04:30 JOB-FAC-VALIDITY<br/>مؤشر السريان"]
   D["05:00 JOB-OBL-CALENDAR<br/>بنود الالتزامات"]
-  E["05:15 JOB-FAC-VALIDITY<br/>مؤشر السريان"]
+  C["05:10 JOB-FIN-EVAL<br/>جدول الاختبارات وتقييمها"]
   E2["05:20 JOB-FIN-READINESS<br/>الإنذار المبكر"]
   F["05:30 JOB-NTF-EXPIRY<br/>كل مزوّدي الانتهاء"]
   G["05:45 JOB-LC-EXPIRY<br/>تغيير الحالة وفك غير المسحوب"]
@@ -209,10 +209,12 @@ flowchart TB
   I["06:15 JOB-LC-MATURITY"]
   J["06:30 JOB-LCE-NOLC"]
   K["07:30 JOB-NTF-DIGEST<br/>آخر السلسلة"]
-  A --> B --> C --> D --> E --> E2 --> F --> G --> H --> I --> J --> K
+  A --> B --> E --> D --> C --> E2 --> F --> G --> H --> I --> J --> K
 ```
 
 المواعيد 02:00 و05:30 و05:45 و06:00 و06:15 و06:30 و07:30 من المصادر (13-m6:640-644؛ 14-m7-m8:615-618). الباقية مقترحة.
+
+تصحيح S2-ب (2026-10-23، الموجز OQ-5، `docs/46` §5): الترتيب FAC-VALIDITY ثم OBL-CALENDAR ثم FIN-EVAL ثم FIN-READINESS ثم NTF-EXPIRY. فالتقييم يقرأ الأجندة والسريان المحدَّثين، والإنذار المبكر يقرأ الاختبارات المقيَّمة لتوه. وكانت JOB-FIN-EVAL قبل الأجندة في النسخة السابقة من هذا الشكل. العامل في S2-ب يشغّل السلسلة بهذا الترتيب مرة في اليوم، كل مهمة بتاريخ المشترك المحلي. JOB-FIN-EVAL تمدّ جدول الاختبارات إلى الأفق قبل التقييم، وترسل FIN.BALANCES_MISSING (NTF-FIN-01).
 
 قواعد الاعتماد 🟡 (DQ-F17-3):
 1. JOB-NTF-EXPIRY يقرأ نتائج JOB-OBL-CALENDAR وJOB-FAC-VALIDITY، فيأتي بعدهما.
