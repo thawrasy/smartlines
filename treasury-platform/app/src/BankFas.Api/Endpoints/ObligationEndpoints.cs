@@ -42,9 +42,9 @@ public sealed record BreachActionRequest(string? On, string? Reason, string? Wai
 /// </summary>
 public static class ObligationEndpoints
 {
-    private const string View = "obl.view";
+    internal const string View = "obl.view";
     private const string Manage = "obl.manage";
-    private const string Record = "obl.record";
+    internal const string Record = "obl.record";
     private const string WaiverApprove = "obl.waiver.approve";
     private const string BreachManage = "obl.breach.manage";
 

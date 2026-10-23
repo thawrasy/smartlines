@@ -5,6 +5,7 @@ import { useI18n } from '../i18n';
 import { Field, Form, Notice, Select, Table } from '../ui';
 import { FacilityCollateral } from './Collateral';
 import { FacilityObligations } from './Obligations';
+import { FacilityCovenantTests } from './CovenantTests';
 import { FacilityTerms } from './Terms';
 import { FacilityPricing } from './Pricing';
 
@@ -286,6 +287,7 @@ export function FacilityDetail() {
       <Utilizations id={id!} company={card.borrower.id} approved={card.approvedRevision > 0} />
       <FacilityCollateral id={id!} draft={!!draft && open?.status === 'DRAFT'} edit={card.permissions.edit} />
       <FacilityObligations id={id!} draft={!!draft && open?.status === 'DRAFT'} edit={card.permissions.edit} />
+      <FacilityCovenantTests id={id!} />
       <FacilityTerms id={id!} draft={!!draft && open?.status === 'DRAFT'} edit={card.permissions.edit} />
       <FacilityAccounts id={id!} company={card.borrower.id} edit={card.permissions.edit} />
     </>

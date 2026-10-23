@@ -6,12 +6,12 @@ namespace BankFas.Worker;
 
 /// <summary>
 /// The schedule (S0 brief section 6, S1): every 10 seconds JOB-PLT-ONBOARD, JOB-PLT-OUTBOX (which also makes the
-/// notifications) and JOB-NTF-DISPATCH (their e-mails); once a day (UTC) the facility validity JOB-FAC-VALIDITY, the agenda JOB-OBL-CALENDAR, the expiry alerts JOB-NTF-EXPIRY then the signatory states JOB-ACC-EXPIRY and the governance comparison JOB-ACC-GOV, the tenant
+/// notifications) and JOB-NTF-DISPATCH (their e-mails); once a day (UTC) the facility validity JOB-FAC-VALIDITY, the agenda JOB-OBL-CALENDAR, the covenant tests JOB-FIN-EVAL, the expiry alerts JOB-NTF-EXPIRY then the signatory states JOB-ACC-EXPIRY and the governance comparison JOB-ACC-GOV, the tenant
 /// transitions JOB-PLT-TRIAL-EXPIRE and JOB-PLT-ARCHIVE, the trial reminders, and the two purges, which themselves run
 /// at most weekly per tenant, and the UPGRADE run of the tenant packs (S1). A failed pass is logged and taken up again on the next one; every job is safe to run twice.
 /// One worker process in S0 (DOC-F17 section 3).
 /// </summary>
-public sealed partial class JobLoop(OnboardingJob onboarding, OutboxJob outbox, NotificationDispatchJob dispatch, BankFas.Data.Facilities.FacilityValidityJob validity, BankFas.Data.Facilities.ObligationCalendarJob calendar, ExpiryAlertJob expiry, SignatoryExpiryJob signatories, GovernanceJob governance, TrialReminderJob reminders,
+public sealed partial class JobLoop(OnboardingJob onboarding, OutboxJob outbox, NotificationDispatchJob dispatch, BankFas.Data.Facilities.FacilityValidityJob validity, BankFas.Data.Facilities.ObligationCalendarJob calendar, BankFas.Data.Finance.FinanceEvaluationJob evaluation, ExpiryAlertJob expiry, SignatoryExpiryJob signatories, GovernanceJob governance, TrialReminderJob reminders,
     OutboxPurgeJob outboxPurge, JobRunPurgeJob runPurge, SeedUpgradeJob seedUpgrade, SqlConnectionFactory db, TimeProvider clock, ILogger<JobLoop> logger) : BackgroundService
 {
     private DateOnly _dailyDoneOn;
@@ -42,6 +42,8 @@ public sealed partial class JobLoop(OnboardingJob onboarding, OutboxJob outbox, 
                 await RunAsync(validity.JobKey, () => validity.RunOnceAsync(stoppingToken));
                 // The agenda before its alerts (OQ-7).
                 await RunAsync(calendar.JobKey, () => calendar.RunOnceAsync(stoppingToken));
+                // The covenant tests after the agenda, before the alerts (OQ-5 of S2-b).
+                await RunAsync(evaluation.JobKey, () => evaluation.RunOnceAsync(stoppingToken));
                 await RunAsync(expiry.JobKey, () => expiry.RunOnceAsync(stoppingToken));
                 await RunAsync(signatories.JobKey, () => signatories.RunOnceAsync(stoppingToken));
                 await RunAsync(governance.JobKey, () => governance.RunOnceAsync(stoppingToken));

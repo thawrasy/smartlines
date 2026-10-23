@@ -378,6 +378,8 @@ public static class FacilityRevisionEndpoints
             new { rev = rev.RevisionNo, status });
         // (3) The agenda of the approved rules, up to the horizon (DQ-F13-5, OQ-7); only future scheduled items change (FR-OBL-003).
         var agenda = await ObligationStore.GenerateAsync(u.Connection, tx, f.FacilityId, rev.RevisionNo, clock.GetUtcNow().UtcDateTime.Date, ct);
+        // The covenant tests to the horizon, and the move of those not yet evaluated to the new covenant rows (S2-b, S2B-GAP-8).
+        await BankFas.Data.Finance.CovenantEngine.ScheduleAsync(u.Connection, tx, f.FacilityId, clock.GetUtcNow().UtcDateTime.Date, ct);
         await AuditWriter.WriteAsync(u.Connection, tx, new AuditEntry("FAC_REVISION_APPROVED", "TREASURY", "fac.FacilityRevision", rev.FacilityRevisionId,
             AfterJson: JsonSerializer.Serialize(new { facility = f.PublicId, revisionNo = rev.RevisionNo, reasonKind = rev.ReasonKind, status, acknowledged })), f.BorrowerCompanyId, ct);
         if (projected > 0) await Outbox.EmitAsync(u.Connection, tx, "term.value.changed", "fac.Facility", f.FacilityId, new { facility = f.PublicId, revisionNo = rev.RevisionNo }, ct);

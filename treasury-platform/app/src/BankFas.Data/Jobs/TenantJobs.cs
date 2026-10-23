@@ -132,7 +132,7 @@ public sealed class OutboxJob(SqlConnectionFactory db, IMailSender mail) : Tenan
         "collateral.released", "obligation.instance.due", "obligation.instance.overdue", "obligation.instance.submitted", "breach.opened",
         "breach.waived", "term.value.changed",
         // S2-b: the financial data and the covenant tests (spec 12 section 10); statement.approved gets its consumer with the engine (S2-b batch E)
-        "statement.approved", "statement.submitted", "covenant.test.evaluated", "monthly.figure.confirmed", "bank.flow.confirmed", "formula.approved",
+        "statement.submitted", "covenant.test.evaluated", "monthly.figure.confirmed", "bank.flow.confirmed", "formula.approved",
         "credit.assessment.approved", "revenue.estimate.approved",
     };
 
@@ -194,6 +194,14 @@ public sealed class OutboxJob(SqlConnectionFactory db, IMailSender mail) : Tenan
             return;
         }
         if (NoConsumerYet.Contains(ev.EventName)) return;
+        if (ev.EventName == "statement.approved")
+        {
+            // The covenant tests that read the company's statements of the period are evaluated again (OQ-13, FR-FIN-014).
+            var statement = await c.ExecuteScalarAsync<long?>(new CommandDefinition("SELECT AggregateId FROM cfg.OutboxEvent WHERE OutboxEventId = @id;",
+                new { id = ev.OutboxEventId }, cancellationToken: ct)).ConfigureAwait(false);
+            if (statement is { } sid) await Finance.CovenantEngine.StatementApprovedAsync(c, sid, tenant.LocalDate(DateTimeOffset.UtcNow), ct).ConfigureAwait(false);
+            return;
+        }
         if (ev.EventName is "authority.granted" or "authority.revoked")
         {
             // A grant that starts, ends or is replaced changes the comparison of its company's bank authorities (BR-ACC-015).

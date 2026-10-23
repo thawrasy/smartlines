@@ -415,7 +415,9 @@ GO
    - for each kind of input the formula reads (an average balance reads account figures and a flow volume bank flows
      when there is no formula) the snapshot holds an array: statements of {statementId, version, basis}, each a
      statement of the tested company with that version and basis; accounts of {accountId, month, value}; flows of
-     {entryId, amount}. The array may be empty only when the result is MISSING_DATA.
+     {entryId, amount}. The array may be empty only when the result is MISSING_DATA, or, for the statements, when a share
+     of revenue is read against the company's approved manual estimate, which the snapshot names in revenue.estimateId
+     (BR-FIN-008; S2-b).
    Manual results (MANUAL_VALUE, MANUAL_STATUS) carry their evidence instead and are not checked here. */
 CREATE OR ALTER TRIGGER obl.TR_CovenantTest_Evaluation ON obl.CovenantTest
 AFTER INSERT, UPDATE
@@ -465,7 +467,13 @@ BEGIN
                         OR JSON_VALUE(i.InputsSnapshot, '$.threshold.operator') IS DISTINCT FROM i.OperatorApplied))
                OR (k.Kinds LIKE '%STATEMENT%'
                    AND (ISNULL(ISJSON(JSON_QUERY(i.InputsSnapshot, '$.statements'), ARRAY), 0) = 0
-                        OR (k.NeedRows = 1 AND NOT EXISTS (SELECT 1 FROM OPENJSON(i.InputsSnapshot, '$.statements')))
+                        -- a share of revenue read against the approved manual estimate (BR-FIN-008, MANUAL_ESTIMATE) may
+                        -- have no statement of the year; the snapshot then names that estimate of the tested company
+                        OR (k.NeedRows = 1 AND NOT EXISTS (SELECT 1 FROM OPENJSON(i.InputsSnapshot, '$.statements'))
+                            AND NOT (c.RevenueBasisRule = 'MANUAL_ESTIMATE'
+                                     AND EXISTS (SELECT 1 FROM fin.RevenueEstimate AS re
+                                                 WHERE re.TenantId = i.TenantId AND re.CompanyId = c.TestedCompanyId AND re.Status IN ('APPROVED', 'SUPERSEDED')
+                                                   AND re.RevenueEstimateId = TRY_CAST(JSON_VALUE(i.InputsSnapshot, '$.revenue.estimateId') AS BIGINT))))
                         OR EXISTS (SELECT 1
                                    FROM OPENJSON(i.InputsSnapshot, '$.statements')
                                         WITH (StatementId NVARCHAR(40) '$.statementId', VersionNo NVARCHAR(40) '$.version',
