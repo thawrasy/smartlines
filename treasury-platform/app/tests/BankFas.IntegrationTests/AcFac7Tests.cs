@@ -182,6 +182,31 @@ public sealed class AcFac7Tests(PlatformFixture f)
         Assert.Equal(("WARNING", 15.9m, 0.9m, 6m), Judged(await EvaluateAsync(x, share, "2025-12-31")));
     }
 
+    /// <summary>
+    /// Deviation 4 of docs/46 (044 relaxed): a share of revenue read against the approved manual estimate is judged with no
+    /// statement, and its snapshot names the estimate; without an approved estimate the data is missing.
+    /// </summary>
+    [Fact]
+    public async Task A_share_of_revenue_on_the_manual_estimate_needs_no_statement()
+    {
+        const string share = "حصة الإيراد التقديرية";
+        var x = await SetupAsync("2025-01-01", "2027-12-31", Covenant("REVENUE_CHANNELLING_PCT", share,
+            new { measureKind = "PERCENT_OF_REVENUE", formula = "FLOW_TO_REVENUE_PCT", thresholdState = "SET", @operator = "GE", thresholdValue = 15, thresholdUnit = "PERCENT", testFrequency = "ANNUAL", revenueBasisRule = "MANUAL_ESTIMATE" }));
+        var flow = PlatformFixture.Id(await x.Fo.PostOkAsync("/api/v1/bank-flows", new { company = x.Company, institution = x.Bank, facility = x.Facility, month = "2025-06", amount = 14_200_000, currency = "SAR" }));
+        await x.Tm.PostOkAsync("/api/v1/bank-flows/actions/confirm", new { ids = new[] { flow } });
+        Assert.Equal("MISSING_DATA", (await EvaluateAsync(x, share, "2025-12-31")).GetProperty("result").GetString());
+        var estimate = PlatformFixture.Id(await x.Fo.PostOkAsync("/api/v1/revenue-estimates", new
+        {
+            company = x.Company, fiscalYear = 2025, basis = "STANDALONE", amount = 100_000_000, currency = "SAR", basisNote = "The budget of 2025",
+        }));
+        await x.Tm.PostOkAsync($"/api/v1/revenue-estimates/{estimate}/actions/approve", new { });
+        var t = await EvaluateAsync(x, share, "2025-12-31");
+        Assert.Equal(("BREACH", 14.2m), (t.GetProperty("result").GetString(), t.GetProperty("actualValue").GetDecimal()));
+        var inputs = t.GetProperty("inputs");
+        Assert.Equal(("MANUAL_ESTIMATE", true, 0), (inputs.GetProperty("revenue").GetProperty("source").GetString(), inputs.GetProperty("revenue").GetProperty("estimated").GetBoolean(),
+            inputs.GetProperty("statements").GetArrayLength()));
+    }
+
     [Fact]
     public async Task Given_no_threshold_the_value_is_not_assessed_and_leaves_the_colour()
     {

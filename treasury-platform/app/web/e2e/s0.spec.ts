@@ -2,7 +2,9 @@
 // creates a tenant with a fresh code, the worker invites its first administrator, who sets a password, scans the QR
 // code, keeps the recovery codes and reaches the portal; the portal then switches to Arabic, right to left. Then the
 // S1 exit path (AC-INS-1): the administrator adds a company and onboards a bank with the set-up wizard, whose review
-// warns of the products without a default contact before anything is created.
+// warns of the products without a default contact before anything is created. Then S2-b (docs/47 §4): the administrator
+// invites a treasury manager, who signs in, enters a statement in the grid and sees its totals live, and opens the formula
+// library, the credit self-assessments and the group compliance.
 import { expect, test } from '@playwright/test';
 import { writeFileSync } from 'node:fs';
 import { Authenticator, base32Decode, linkSentTo } from './helpers';
@@ -13,7 +15,7 @@ const port = process.env.E2E_PORT ?? '8443';
 const operatorEmail = process.env.E2E_OPERATOR_EMAIL ?? 'e2e-operator@test.invalid';
 const leaked = 'correct horse battery staple';   // on the throwaway leaked-password list of tools/ci/e2e.sh
 
-test('an operator onboards a tenant and its first administrator signs in', async ({ page }) => {
+test('an operator onboards a tenant and its first administrator signs in', async ({ page, browser }) => {
   expect(setupLink, 'E2E_SETUP_LINK (tools/ci/e2e.sh)').not.toBe('');
 
   // The operator's set-up page: password, authenticator key and first code.
@@ -153,4 +155,57 @@ test('an operator onboards a tenant and its first administrator signs in', async
   await page.getByLabel(/^Key/).selectOption({ value: 'PRC.ARRANGEMENT_FEE_PCT' });
   await expect(page.getByText('Lower is better')).toBeVisible();   // no facility yet: the direction, and nothing ranked
   await expect(page.getByText('Nothing here yet.')).toBeVisible();
+  // S2-b: a treasury manager, invited with a fresh code and given every company.
+  const tmEmail = `tm@${code}.test.invalid`;
+  await page.getByRole('link', { name: 'Users', exact: true }).click();
+  await page.getByLabel(/^E-mail/).fill(tmEmail);
+  await page.getByLabel(/^Name \(English\)/).fill('Treasury Manager');
+  await page.getByRole('checkbox', { name: /^TM · / }).check();
+  await page.getByRole('button', { name: 'Send the invitation' }).click();
+  await dialog.getByLabel('6-digit code').fill(await admin.next());
+  await dialog.getByRole('button', { name: 'Confirm' }).click();
+  await expect(page.getByText('The invitation is on its way.')).toBeVisible();
+  await page.getByRole('link', { name: 'Treasury Manager' }).click();
+  await page.getByRole('button', { name: 'Save scope' }).click();
+  await expect(page.getByText('Sees every company.')).toBeVisible();
+
+  const tmContext = await browser.newContext();
+  const tmPage = await tmContext.newPage();
+  await tmPage.goto(await linkSentTo(mailDir, tmEmail, '/invitation', 90_000));
+  const tmPassword = 'an e2e treasury manager passphrase';
+  await tmPage.getByLabel(/^New password/).fill(tmPassword);
+  await tmPage.getByLabel(/^Repeat the password/).fill(tmPassword);
+  await tmPage.getByRole('button', { name: 'Save password' }).click();
+  await tmPage.getByLabel(/^E-mail/).fill(tmEmail);
+  await tmPage.getByLabel(/^Password/).fill(tmPassword);
+  await tmPage.getByRole('button', { name: 'Sign in' }).click();
+  const tmAuth = new Authenticator(base32Decode(await tmPage.locator('.secret code').innerText()));
+  await tmPage.getByLabel('6-digit code').fill(await tmAuth.next());
+  await tmPage.getByRole('button', { name: 'Confirm' }).click();
+  await tmPage.getByRole('button', { name: 'I have saved them' }).click();
+  await expect(tmPage.getByRole('heading', { name: /^Welcome, / })).toBeVisible();
+
+  // A statement in its grid: the current assets add up as the cells are typed.
+  await tmPage.getByRole('link', { name: 'Financial statements' }).click();
+  await expect(tmPage.getByRole('heading', { name: 'Financial statements' })).toBeVisible();
+  const create = tmPage.locator('form', { hasText: 'New statement' });
+  await create.getByLabel(/^Company/).selectOption({ label: 'First Company' });
+  await create.getByLabel(/^Period end/).fill('2025-12-31');
+  await create.getByLabel(/^Assurance/).selectOption('MANAGEMENT');
+  await create.getByRole('button', { name: 'Create' }).click();
+  await expect(tmPage.getByRole('heading', { name: 'Statement lines' })).toBeVisible();
+  await tmPage.getByLabel('CASH', { exact: true }).fill('120');
+  await tmPage.getByLabel('AR', { exact: true }).fill('80');
+  await expect(tmPage.getByRole('row', { name: /TOTAL_CA/ })).toContainText('200');
+  await tmPage.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(tmPage.getByText('Saved.')).toBeVisible();
+
+  // The formula library with its templates, the self-assessments with their disclaimer, and the group compliance.
+  await tmPage.getByRole('link', { name: 'Formula library' }).click();
+  await expect(tmPage.getByText('CURRENT_RATIO').first()).toBeVisible();
+  await tmPage.getByRole('link', { name: 'Credit self-assessments' }).click();
+  await expect(tmPage.getByText("not an agency rating")).toBeVisible();
+  await tmPage.getByRole('link', { name: 'Group compliance' }).click();
+  await expect(tmPage.getByRole('heading', { name: 'Group compliance' })).toBeVisible();
+  await tmContext.close();
 });
