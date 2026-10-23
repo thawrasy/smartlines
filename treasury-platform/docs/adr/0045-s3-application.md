@@ -21,7 +21,8 @@ AC-REQ-1, AC-WFL-3 and AC-LCI-1 (OQ-19).
 | S3-B | The engine (submit, slots and SoD, tasks, return and resubmit, reject, cancel, close, claim, release), the two projections, the request API and screens | 5ebba67 |
 | S3-D, E, F core | Terms store and V-LCT checks, fac.check_availability, fac.reserve_limit with the override, fac.convert_reservation, lc.record_issuance; AC-REQ-1 | aa614ce |
 | S3-C, D | Delegations, reassignment, sub-statuses with the SLA pause, priority, the inbox; JOB-WFL-SLA, JOB-WFL-DELEGATION, JOB-NTF-REMIND, JOB-FAC-RESERVATION, JOB-WFL-STALE; AC-WFL-1 (delegation), AC-WFL-2, AC-WFL-3, AC-WFL-5, AC-WFL-10 | f63a30e |
-| S3-F, G | The register and card of credits, presentations and payments, the close, JOB-LC-EXPIRY, JOB-LC-RECONCILE, the drawing-due alerts; amendments as child requests with fac.adjust_utilization and lc.apply_amendment | this commit |
+| S3-F, G | The register and card of credits, presentations and payments, the close, JOB-LC-EXPIRY, JOB-LC-RECONCILE, the drawing-due alerts; amendments as child requests with fac.adjust_utilization and lc.apply_amendment | eaff077 |
+| OQ-9 | At the reservation point, the user who chose the facility does not approve its reservation; docs/48, docs/31 row 42 | the documents commit |
 
 ### 2. The engine is C# (OQ-1)
 
@@ -89,8 +90,9 @@ providers of the expiry job: RESERVATION, LC_EXPIRY, LC_LATEST_SHIPMENT and LC_D
 
 ## Deviations and what is still open
 
-- **SoD at the TM's approval (OQ-9).** The rule against the user who completed the facility selection is not built
-  yet. The requester, creator and two-slot rules are.
+- **SoD at the TM's approval (OQ-9).** Built: the assignee of the last facility-selection stage (the stage with
+  fac.check_availability) does not decide the reservation point, nor does a delegate acting for them, unless the
+  template allows the same person (tagged). A TM creator's approval is refused, not rerouted to another TM or TA.
 - **The response hash of a replayed action (OQ-10).** The replay is keyed by Idempotency-Key in `wfl.RequestAction`,
   but the response hash is not stored.
 - **The execution channel and the bank's receipt (FR-LCI-010, `lc.execution.require_receipt`).** Not built; the
@@ -98,5 +100,6 @@ providers of the expiry job: RESERVATION, LC_EXPIRY, LC_LATEST_SHIPMENT and LC_D
 - **The terms.** IBAN encryption on the terms, the clause rendering with the UCP footnote, the form templates and the
   printing (OQ-14) are batch E's rest.
 - **Load test.** AC-FAC-12 over HTTP (100 concurrent approvals) is not run yet.
-- **Data and documents.** DS-LC-C (OQ-13), docs/48, docs/31 row 42, and the DOC-B02 and DOC-B07 addenda come with
-  batch H.
+- **Data and documents.** DS-LC-C (OQ-13) and the DOC-B02 and DOC-B07 addenda come with batch H; docs/48 and
+  docs/31 row 42 are written.
+- **Screens.** The requester, officer and manager dashboards (FR-REQ-018 to 020) and the terms editor are not built.

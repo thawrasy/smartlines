@@ -638,6 +638,18 @@ public static class RequestEngine
             if (!sodAllowed) throw WorkflowRefusalException.Forbidden("You may not approve a request you created or asked for (BR-WFL-006).");
             sod = true;
         }
+        // OQ-9 (DQ-F10-9): at the reservation point, not the user who chose the facility for this request.
+        if (x.Inst.IsReservationPoint && await x.C.ExecuteScalarAsync<long?>(new CommandDefinition(
+                """
+                SELECT TOP (1) i.AssigneeUserId FROM wfl.RequestStageInstance AS i
+                  JOIN wfl.WorkflowStageHook AS hk ON hk.StageId = i.StageId AND hk.HookKey = 'fac.check_availability'
+                 WHERE i.RequestId = @r AND i.ExitedAt IS NOT NULL ORDER BY i.ExitedAt DESC, i.RequestStageInstanceId DESC;
+                """, new { r = x.R.RequestId }, x.Tx, cancellationToken: x.Ct)).ConfigureAwait(false) is { } selector
+            && (selector == x.Actor.UserId || selector == via?.FromUserId))
+        {
+            if (!sodAllowed) throw WorkflowRefusalException.Forbidden("The user who chose the facility does not approve its reservation (BR-WFL-006).");
+            sod = true;
+        }
         if (slots.Any(s => s.Id != slot.Id && s.ActedBy == x.Actor.UserId && s.Decision == "APPROVED"))
         {
             if (!sodAllowed) throw WorkflowRefusalException.Forbidden("One user does not fill two approvals of one stage (BR-WFL-006).");

@@ -101,8 +101,9 @@ namespace BankFas.IntegrationTests
         };
 
         /// <summary>A purchase LC request driven to the treasury manager's approval: terms, submission, manager, signed original, facility selection.</summary>
-        private async Task<string> AtTreasuryApprovalAsync(Bed b, string supplier, decimal amount, string title)
+        private async Task<string> AtTreasuryApprovalAsync(Bed b, string supplier, decimal amount, string title, HttpClient? selector = null)
         {
+            var sel = selector ?? b.Fo;
             var id = (await b.Rq.PostOkAsync("/api/v1/requests", new { type = "PURCHASE_LC", company = b.Company, data = new { title, supplierName = "Steel Pipes Ltd", supplierCode = "V-1001" } }))
                 .GetProperty("id").GetString()!;
             await b.Rq.OkAsync(HttpMethod.Put, $"/api/v1/requests/{id}/terms", new { fields = Terms(supplier, amount) });
@@ -115,9 +116,9 @@ namespace BankFas.IntegrationTests
             var original = await DocumentAsync(b.Tm, b.Company, "SIGNED_REQUEST_ORIGINAL", "Signed original " + title);
             await b.Tm.PostOkAsync($"/api/v1/requests/{id}/attachments", new { document = original, slot = "SIGNED_ORIGINAL" });
             await ActAsync(b.Rq, id, "complete");
-            await ActAsync(b.Fo, id, "claim");
-            await b.Fo.OkAsync(HttpMethod.Put, $"/api/v1/requests/{id}/allocation", new { facility = b.Fac, line = b.Line });
-            await ActAsync(b.Fo, id, "complete");
+            await ActAsync(sel, id, "claim");
+            await sel.OkAsync(HttpMethod.Put, $"/api/v1/requests/{id}/allocation", new { facility = b.Fac, line = b.Line });
+            await ActAsync(sel, id, "complete");
             return id;
         }
 
@@ -356,6 +357,20 @@ namespace BankFas.IntegrationTests
             await ActAsync(b.Rq, ext, "submit");
             await ActAsync(b.Mgr, ext, "approve");
             Assert.Equal("TREASURY_QUEUE", (await b.Tm.GetJsonAsync($"/api/v1/requests/{ext}")).GetProperty("staff").GetProperty("stage").GetString());
+        }
+
+        /// <summary>OQ-9 (DQ-F10-9, BR-WFL-006): the treasury manager who chose the facility does not approve its reservation; another treasury manager does.</summary>
+        [Fact]
+        public async Task The_user_who_chose_the_facility_does_not_approve_its_reservation()
+        {
+            var b = await BedAsync(5_000_000);
+            var supplier = PlatformFixture.Id(await b.Rq.PostOkAsync("/api/v1/counterparties", new { kind = "SUPPLIER", nameEn = "Steel Pipes Ltd", country = "CN", erpCode = "V-1001" }));
+            var id = await AtTreasuryApprovalAsync(b, supplier, 1_000_000, "Chosen by TM", b.Tm);
+            Assert.Equal((403, "FORBIDDEN"), await RefusedAsync(b.Tm, id, "approve"));
+            Assert.Equal((0m, 0m, 5_000_000m), await b.LineAsync());
+            var (tm2, _, _) = await f.UserWithRoleAsync(b.T, "TM");
+            await ActAsync(tm2, id, "approve");
+            Assert.Equal((0m, 1_050_000m, 3_950_000m), await b.LineAsync());
         }
 
         /// <summary>
