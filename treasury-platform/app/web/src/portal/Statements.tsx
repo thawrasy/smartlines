@@ -4,6 +4,7 @@ import { api, apiWithETag, message } from '../api';
 import { useI18n } from '../i18n';
 import { Field, Form, Notice, Select, Table } from '../ui';
 import { can, useMe } from './Portal';
+import { StatementRatios } from './Formulas';
 
 // SCR-FIN-01 (the statements of the companies: versions, the entry grid by section with live totals and the balance,
 // paste with a preview of the matches, submit, approve, return and new version) and SCR-FIN-04 (the units of a
@@ -229,6 +230,7 @@ export function StatementDetail() {
         </section>
       )}
       {s.basis === 'CONSOLIDATED' && <ConsolidationUnits id={id} holding={s.company.id} draft={draft && enter} />}
+      <StatementRatios id={id} approved={s.status === 'APPROVED'} />
     </>
   );
 }

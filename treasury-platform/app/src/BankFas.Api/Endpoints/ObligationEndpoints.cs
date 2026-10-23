@@ -1,6 +1,7 @@
 using System.Data;
 using System.Text.Json;
 using BankFas.Api.Infrastructure;
+using BankFas.Core.Finance;
 using BankFas.Core.Obligations;
 using BankFas.Data;
 using BankFas.Data.Facilities;
@@ -13,7 +14,9 @@ namespace BankFas.Api.Endpoints;
 public sealed record ReportingRequest(string? Frequency, string? AnchorKind, int? OffsetValue, string? OffsetUnit, string? FixedDueDate, string? Direction, string? DocumentBasis,
     string? StatementScope, string? ChannelNote, string? AlertLeadDays, string? FirstPeriodEnd, int? HorizonMonths, bool? ExpectsEvidence);
 public sealed record CovenantRequest(string? MeasureKind, string? Formula, string? Operator, string? ThresholdState, decimal? ThresholdValue, string? ThresholdUnit, string? Currency,
-    string? TestFrequency, Guid? TestedCompany, string? FirstTestPeriodEnd, string? StatementBasis, string? RequiredAssurance, string? ValidFrom);
+    string? TestFrequency, Guid? TestedCompany, string? FirstTestPeriodEnd, string? StatementBasis, string? RequiredAssurance, string? ValidFrom, string? AggregationMode = null,
+    string? AnnualWindowBasis = null, string? RevenueBasisRule = null, string? AccountScope = null, Guid[]? Accounts = null, int? SubmissionLagDays = null,
+    decimal? EarlyWarningPct = null, string? ValidTo = null);
 public sealed record ObligationRequest(string? ObligationType, string? TitleAr, string? TitleEn, string? Phase, string? ScopeLimit, string? ClauseRef, string? ClauseText,
     string? ConsequenceText, int? GraceDays, int? CureDays, decimal? ParamValue, string? ParamUnit, string? ParamCurrency, string? CheckMode, string? ValidFrom, string? ValidTo,
     Guid[]? Companies, Guid? SourceDocument, string? SourcePage, bool? ReadFromScan, string? OriginalText, string? NoSourceReason, ReportingRequest? Reporting,
@@ -106,6 +109,15 @@ public static class ObligationEndpoints
         public decimal? ThresholdValue { get; init; }
         public string? ThresholdUnit { get; init; }
         public string? TestFrequency { get; init; }
+        public string? AggregationMode { get; init; }
+        public string? AnnualWindowBasis { get; init; }
+        public string? RevenueBasisRule { get; init; }
+        public string? AccountScopeKind { get; init; }
+        public string? StatementBasis { get; init; }
+        public string? RequiredAssurance { get; init; }
+        public int? SubmissionLagDays { get; init; }
+        public decimal? EarlyWarningPct { get; init; }
+        public DateTime? FirstTestPeriodEnd { get; init; }
     }
 
     private static string Valid(string a, int rev) => rev == int.MaxValue ? $"{a}.ToRevision IS NULL" : $"{a}.FromRevision <= {rev} AND ({a}.ToRevision IS NULL OR {a}.ToRevision > {rev})";
@@ -116,7 +128,9 @@ public static class ObligationEndpoints
             SELECT o.ObligationId, o.RootId, o.Family, t.Code AS TypeCode, o.TitleAr, o.TitleEn, o.Phase, l.RootId AS ScopeLimitRoot, l.Code AS ScopeLimitCode, o.ClauseRef,
                    o.ClauseText, o.GraceDays, o.CureDays, o.ParamValue, o.ParamUnit, o.CheckMode, o.Status, o.ValidFrom, o.ValidTo, o.FromRevision,
                    r.ReportingObligationId, r.Frequency, r.AnchorKind, r.OffsetValue, r.OffsetUnit, r.FixedDueDate, r.Direction, r.DocumentBasis, r.AlertLeadDays,
-                   cv.CovenantId, cv.MeasureKind, mf.Code AS FormulaCode, cv.Operator, cv.ThresholdState, cv.ThresholdValue, cv.ThresholdUnit, cv.TestFrequency
+                   cv.CovenantId, cv.MeasureKind, mf.Code AS FormulaCode, cv.Operator, cv.ThresholdState, cv.ThresholdValue, cv.ThresholdUnit, cv.TestFrequency,
+                   cv.AggregationMode, cv.AnnualWindowBasis, cv.RevenueBasisRule, cv.AccountScopeKind, cv.StatementBasis, cv.RequiredAssurance, cv.SubmissionLagDays,
+                   cv.EarlyWarningPct, cv.FirstTestPeriodEnd
               FROM obl.Obligation AS o
               JOIN cat.ObligationType AS t ON t.ObligationTypeId = o.ObligationTypeId
               LEFT JOIN fac.Limit AS l ON l.LimitId = o.ScopeLimitId
@@ -140,7 +154,9 @@ public static class ObligationEndpoints
         covenant = o.CovenantId is null ? null : new
         {
             measureKind = o.MeasureKind, formula = o.FormulaCode, @operator = o.Operator, thresholdState = o.ThresholdState, thresholdValue = o.ThresholdValue,
-            thresholdUnit = o.ThresholdUnit, testFrequency = o.TestFrequency,
+            thresholdUnit = o.ThresholdUnit, testFrequency = o.TestFrequency, aggregationMode = o.AggregationMode, annualWindowBasis = o.AnnualWindowBasis,
+            revenueBasisRule = o.RevenueBasisRule, accountScope = o.AccountScopeKind, statementBasis = o.StatementBasis, requiredAssurance = o.RequiredAssurance,
+            submissionLagDays = o.SubmissionLagDays, earlyWarningPct = o.EarlyWarningPct, firstTestPeriodEnd = FacilityEndpoints.D(o.FirstTestPeriodEnd),
         },
     };
 
@@ -249,14 +265,45 @@ public static class ObligationEndpoints
             var tested = cv.TestedCompany is null ? d.F.BorrowerCompanyId : await u.Connection.ExecuteScalarAsync<long?>(new CommandDefinition(
                 "SELECT CompanyId FROM org.Company WHERE PublicId = @c;", new { c = cv.TestedCompany }, tx, cancellationToken: ct))
                 ?? throw ApiProblemException.Invalid("VALIDATION_FAILED", "The tested company is not a company of the account.");
-            var firstTest = Date(cv.FirstTestPeriodEnd, "first test period") ?? new DateTime(from.Year, 12, 31);
+            var covFrom = Date(cv.ValidFrom, "covenant start") ?? from;
+            var covTo = Date(cv.ValidTo, "covenant end");
+            if (covTo < covFrom) throw ApiProblemException.Invalid("V-OBL-01", "A covenant ends on or after it starts.");
+            var fye = await u.Connection.ExecuteScalarAsync<byte>(new CommandDefinition("SELECT FiscalYearEndMonth FROM org.Company WHERE CompanyId = @c;", new { c = tested }, tx,
+                cancellationToken: ct));
+            var firstTest = Date(cv.FirstTestPeriodEnd, "first test period") ?? CovenantPeriods.FirstPeriodEnd(covFrom, freq, fye);
+            // The evaluation fields of the engine (S2-b brief S2B-GAP-9, OQ-9; BR-FIN-005 to 008).
+            string? Pick(string? value, string[] allowed, string label)
+            {
+                var x = value?.Trim().ToUpperInvariant();
+                return x is null || allowed.Contains(x) ? x : throw ApiProblemException.Invalid("V-OBL-01", $"The {label} is one of {string.Join(", ", allowed)}.");
+            }
+            var aggregation = Pick(cv.AggregationMode, ["POINT_IN_TIME", "PERIOD_AVERAGE", "EACH_MONTH_MIN", "PERIOD_SUM"], "aggregation");
+            if (kind == "AVERAGE_BALANCE" && aggregation is null)
+                throw ApiProblemException.Invalid("V-OBL-01", "An average balance covenant says how the months are taken: each month, the period average, the last month or the sum (BR-FIN-005).");
+            if (aggregation is not null && kind is not ("AVERAGE_BALANCE" or "FLOW_VOLUME")) throw ApiProblemException.Invalid("V-OBL-01", "Only a balance or flow covenant aggregates months.");
+            var window = Pick(cv.AnnualWindowBasis, ["FISCAL_YEAR", "CALENDAR_YEAR", "FACILITY_YEAR"], "annual window")
+                ?? (kind is "FLOW_VOLUME" or "PERCENT_OF_REVENUE" ? "FISCAL_YEAR" : null);
+            var revenueRule = Pick(cv.RevenueBasisRule, ["SAME_PERIOD", "PRIOR_YEAR", "MANUAL_ESTIMATE"], "revenue basis") ?? (kind == "PERCENT_OF_REVENUE" ? "SAME_PERIOD" : null);
+            if (revenueRule is not null && kind != "PERCENT_OF_REVENUE") throw ApiProblemException.Invalid("V-OBL-01", "A revenue basis belongs to a share of revenue covenant (BR-FIN-008).");
+            var accountScope = Pick(cv.AccountScope, ["ALL_COMPANY_ACCOUNTS_AT_BANK", "SELECTED_ACCOUNTS", "GROUP_ACCOUNTS"], "account scope")
+                ?? (kind == "AVERAGE_BALANCE" ? "ALL_COMPANY_ACCOUNTS_AT_BANK" : null);
+            if (accountScope is not null && kind != "AVERAGE_BALANCE") throw ApiProblemException.Invalid("V-OBL-01", "An account scope belongs to an average balance covenant (BR-FIN-006).");
+            var accounts = new List<long>();
+            if ((cv.Accounts?.Length ?? 0) > 0 != (accountScope == "SELECTED_ACCOUNTS"))
+                throw ApiProblemException.Invalid("V-OBL-01", "Selected accounts are given with the scope SELECTED_ACCOUNTS, and only with it (BR-FIN-006).");
+            foreach (var acc in (cv.Accounts ?? []).Distinct())
+                accounts.Add(await u.Connection.ExecuteScalarAsync<long?>(new CommandDefinition(
+                    "SELECT BankAccountId FROM acc.BankAccount WHERE PublicId = @a AND CompanyId = @c;", new { a = acc, c = tested }, tx, cancellationToken: ct))
+                    ?? throw ApiProblemException.Invalid("V-OBL-01", "A selected account is an account of the tested company."));
+            if (cv.SubmissionLagDays is < 0 or > 365) throw ApiProblemException.Invalid("V-OBL-01", "The submission lag is from 0 to 365 days.");
+            if (cv.EarlyWarningPct is < 0 or > 100) throw ApiProblemException.Invalid("V-OBL-01", "The early warning is from 0 to 100 percent of the threshold.");
             covenant = new
             {
                 kind, formula = formula?.Id, fUnit = formula?.Unit, fStatements = formula?.Statements, op = state == "SET" ? op : null, state, value = cv.ThresholdValue, tUnit = state == "SET" ? tUnit : null,
                 currency = cv.Currency is null || state != "SET" ? (int?)null : await FacilityEndpoints.CurrencyAsync(u, tx, cv.Currency, ct), freq, tested, firstTest,
                 basis = formula is { Statements: true } ? cv.StatementBasis?.ToUpperInvariant() ?? "STANDALONE" : cv.StatementBasis?.ToUpperInvariant(),
                 assurance = formula is { Statements: true } ? cv.RequiredAssurance?.ToUpperInvariant() ?? "PREFER_AUDITED" : cv.RequiredAssurance?.ToUpperInvariant(),
-                from = Date(cv.ValidFrom, "covenant start") ?? from,
+                from = covFrom, to = covTo, aggregation, window, revenueRule, accountScope, accounts, lag = cv.SubmissionLagDays, warning = cv.EarlyWarningPct,
             };
         }
         else if (b.Covenant is not null) throw ApiProblemException.Invalid("V-OBL-01", "Only a covenant has a measure and a threshold.");
@@ -303,18 +350,27 @@ public static class ObligationEndpoints
                 DECLARE @me BIGINT = CAST(SESSION_CONTEXT(N'UserId') AS BIGINT);
                 UPDATE obl.Covenant SET MeasureKind = @kind, FormulaId = @formula, FormulaResultUnit = @fUnit, FormulaUsesStatements = @fStatements, Operator = @op,
                        ThresholdState = @state, ThresholdValue = @value, ThresholdUnit = @tUnit, CurrencyId = @currency, TestFrequency = @freq, TestedCompanyId = @tested,
-                       FirstTestPeriodEnd = @firstTest, StatementBasis = @basis, RequiredAssurance = @assurance, ValidFrom = @from, UpdatedAt = SYSUTCDATETIME(), UpdatedBy = @me
+                       FirstTestPeriodEnd = @firstTest, StatementBasis = @basis, RequiredAssurance = @assurance, ValidFrom = @from, ValidTo = @to, AggregationMode = @aggregation,
+                       AnnualWindowBasis = @window, RevenueBasisRule = @revenueRule, AccountScopeKind = @accountScope, SubmissionLagDays = @lag, EarlyWarningPct = @warning,
+                       UpdatedAt = SYSUTCDATETIME(), UpdatedBy = @me
                  WHERE ObligationId = @o AND ToRevision IS NULL;
                 IF @@ROWCOUNT = 0
                     INSERT obl.Covenant (TenantId, ObligationId, MeasureKind, FormulaId, FormulaResultUnit, FormulaUsesStatements, Operator, ThresholdState, ThresholdValue, ThresholdUnit,
-                                         CurrencyId, TestFrequency, TestedCompanyId, FirstTestPeriodEnd, StatementBasis, RequiredAssurance, ValidFrom, FromRevision, CreatedBy)
+                                         CurrencyId, TestFrequency, TestedCompanyId, FirstTestPeriodEnd, StatementBasis, RequiredAssurance, ValidFrom, ValidTo, AggregationMode,
+                                         AnnualWindowBasis, RevenueBasisRule, AccountScopeKind, SubmissionLagDays, EarlyWarningPct, FromRevision, CreatedBy)
                     VALUES (CAST(SESSION_CONTEXT(N'TenantId') AS INT), @o, @kind, @formula, @fUnit, @fStatements, @op, @state, @value, @tUnit, @currency, @freq, @tested, @firstTest,
-                            @basis, @assurance, @from, @rev, @me);
+                            @basis, @assurance, @from, @to, @aggregation, @window, @revenueRule, @accountScope, @lag, @warning, @rev, @me);
+                DECLARE @k BIGINT = (SELECT CovenantId FROM obl.Covenant WHERE ObligationId = @o AND ToRevision IS NULL);
+                DELETE obl.CovenantAccount WHERE CovenantId = @k;
+                INSERT obl.CovenantAccount (TenantId, CovenantId, BankAccountId, CreatedBy)
+                SELECT CAST(SESSION_CONTEXT(N'TenantId') AS INT), @k, value, @me FROM OPENJSON(@accounts) WITH (value BIGINT '$');
                 """, new
                 {
                     o = obligation, rev, kind = (string)k.kind, formula = (long?)k.formula, fUnit = (string?)k.fUnit, fStatements = (bool?)k.fStatements, op = (string?)k.op,
                     state = (string)k.state, value = (decimal?)k.value, tUnit = (string?)k.tUnit, currency = (int?)k.currency, freq = (string)k.freq, tested = (long)k.tested,
-                    firstTest = (DateTime)k.firstTest, basis = (string?)k.basis, assurance = (string?)k.assurance, from = (DateTime)k.from,
+                    firstTest = (DateTime)k.firstTest, basis = (string?)k.basis, assurance = (string?)k.assurance, from = (DateTime)k.from, to = (DateTime?)k.to,
+                    aggregation = (string?)k.aggregation, window = (string?)k.window, revenueRule = (string?)k.revenueRule, accountScope = (string?)k.accountScope,
+                    lag = (int?)k.lag, warning = (decimal?)k.warning, accounts = System.Text.Json.JsonSerializer.Serialize((List<long>)k.accounts),
                 }, tx, cancellationToken: ct));
         }
     }
@@ -393,7 +449,11 @@ public static class ObligationEndpoints
         var o = (await RowsAsync(u.Connection, tx, d.F.FacilityId, int.MaxValue, ct)).FirstOrDefault(x => x.RootId == refs.ItemId(u.TenantId, "obligation", reference))
             ?? throw ApiProblemException.NotFound();
         if (o.ReportingObligationId is { } r) await LimitEndpoints.DeleteDraftRowAsync(u, tx, "obl.ReportingObligation", "ReportingObligationId", r, ct);
-        if (o.CovenantId is { } k) await LimitEndpoints.DeleteDraftRowAsync(u, tx, "obl.Covenant", "CovenantId", k, ct);
+        if (o.CovenantId is { } k)
+        {
+            await u.Connection.ExecuteAsync(new CommandDefinition("DELETE obl.CovenantAccount WHERE CovenantId = @k;", new { k }, tx, cancellationToken: ct));
+            await LimitEndpoints.DeleteDraftRowAsync(u, tx, "obl.Covenant", "CovenantId", k, ct);
+        }
         await LimitEndpoints.DeleteDraftRowAsync(u, tx, "obl.Obligation", "ObligationId", o.ObligationId, ct);
         await LimitEndpoints.DoneAsync(u, tx, d, "OBLIGATION_REMOVED", new { type = o.TypeCode, title = o.TitleAr }, ct);
         await tx.CommitAsync(ct);

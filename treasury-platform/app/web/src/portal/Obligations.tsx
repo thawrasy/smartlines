@@ -33,7 +33,8 @@ export function FacilityObligations({ id, draft, edit }: { id: string; draft: bo
   const [compliance, setCompliance] = useState<{ status: string; overdue: number; dueSoon: number; openBreaches: number } | null>(null);
   const [notice, setNotice] = useState<{ ok?: string; error?: string }>({});
   const [d, setD] = useState({ obligationType: 'AUDITED_ANNUAL_FS', titleAr: '', frequency: 'ANNUAL', anchorKind: 'AFTER_FISCAL_YEAR_END', offsetValue: '', offsetUnit: 'CALENDAR_DAYS',
-    fixedDueDate: '', measureKind: 'RATIO', formula: '', operator: 'LE', thresholdState: 'SET', thresholdValue: '', cureDays: '', noSourceReason: '' });
+    fixedDueDate: '', measureKind: 'RATIO', formula: '', operator: 'LE', thresholdState: 'SET', thresholdValue: '', cureDays: '', noSourceReason: '',
+    testFrequency: 'ANNUAL', currency: 'SAR', aggregationMode: 'EACH_MONTH_MIN', annualWindowBasis: 'FISCAL_YEAR', revenueBasisRule: 'SAME_PERIOD', earlyWarningPct: '', submissionLagDays: '' });
   const [submit, setSubmit] = useState<{ item: string; on: string }>({ item: '', on: '' });
   const [event, setEvent] = useState({ obligation: '', on: '' });
   const [review, setReview] = useState({ obligation: '', status: 'COMPLIANT', next: '', note: '' });
@@ -94,8 +95,15 @@ export function FacilityObligations({ id, draft, edit }: { id: string; draft: bo
           fixedDueDate: d.anchorKind === 'FIXED_DATE' ? d.fixedDueDate : undefined, expectsEvidence: false,
         } : undefined,
         covenant: family === 'COVENANT' ? d.measureKind === 'NONE' ? { measureKind: 'NONE' } : {
-          measureKind: d.measureKind, formula: d.formula || d.obligationType, operator: d.thresholdState === 'SET' ? d.operator : undefined, thresholdState: d.thresholdState,
-          thresholdValue: d.thresholdState === 'SET' ? Number(d.thresholdValue) : undefined,
+          measureKind: d.measureKind, formula: ['RATIO', 'AMOUNT', 'PERCENT_OF_REVENUE'].includes(d.measureKind) ? d.formula || d.obligationType : undefined,
+          operator: d.thresholdState === 'SET' ? d.operator : undefined, thresholdState: d.thresholdState,
+          thresholdValue: d.thresholdState === 'SET' ? Number(d.thresholdValue) : undefined, testFrequency: d.testFrequency,
+          thresholdUnit: d.thresholdState === 'SET' && ['AVERAGE_BALANCE', 'FLOW_VOLUME'].includes(d.measureKind) ? 'AMOUNT' : undefined,
+          currency: d.thresholdState === 'SET' && ['AMOUNT', 'AVERAGE_BALANCE', 'FLOW_VOLUME'].includes(d.measureKind) ? d.currency : undefined,
+          aggregationMode: d.measureKind === 'AVERAGE_BALANCE' ? d.aggregationMode : undefined,
+          annualWindowBasis: ['FLOW_VOLUME', 'PERCENT_OF_REVENUE'].includes(d.measureKind) ? d.annualWindowBasis : undefined,
+          revenueBasisRule: d.measureKind === 'PERCENT_OF_REVENUE' ? d.revenueBasisRule : undefined,
+          earlyWarningPct: d.earlyWarningPct === '' ? undefined : Number(d.earlyWarningPct), submissionLagDays: d.submissionLagDays === '' ? undefined : Number(d.submissionLagDays),
         } : undefined,
       }))}>
         <Field label="Obligation type" value={d.obligationType} onChange={v => setD({ ...d, obligationType: v.toUpperCase() })} />
@@ -111,14 +119,26 @@ export function FacilityObligations({ id, draft, edit }: { id: string; draft: bo
               <Select label="Unit" value={d.offsetUnit} onChange={v => setD({ ...d, offsetUnit: v })} options={['CALENDAR_DAYS', 'BUSINESS_DAYS', 'MONTHS'].map(x => ({ value: x, label: x }))} /></>}
         </>}
         {family === 'COVENANT' && <>
-          <Select label="Measure" value={d.measureKind} onChange={v => setD({ ...d, measureKind: v })} options={['RATIO', 'AMOUNT', 'PERCENT_OF_REVENUE', 'NONE'].map(x => ({ value: x, label: x }))} />
+          <Select label="Measure" value={d.measureKind} onChange={v => setD({ ...d, measureKind: v })} options={['RATIO', 'AMOUNT', 'PERCENT_OF_REVENUE', 'AVERAGE_BALANCE', 'FLOW_VOLUME', 'NONE'].map(x => ({ value: x, label: x }))} />
           {d.measureKind !== 'NONE' && <><Field label="Formula" value={d.formula} onChange={v => setD({ ...d, formula: v })} required={false} />
           <Select label="Threshold" value={d.thresholdState} onChange={v => setD({ ...d, thresholdState: v })}
             options={['SET', 'NOT_SPECIFIED_IN_AGREEMENT', 'TO_BE_DETERMINED'].map(x => ({ value: x, label: x }))} />
           {d.thresholdState === 'SET' && <>
             <Select label="Operator" value={d.operator} onChange={v => setD({ ...d, operator: v })} options={['LE', 'GE', 'LT', 'GT', 'EQ'].map(x => ({ value: x, label: x }))} />
             <Field label="Threshold value" value={d.thresholdValue} onChange={v => setD({ ...d, thresholdValue: v })} type="number" />
-          </>}</>}
+            {['AMOUNT', 'AVERAGE_BALANCE', 'FLOW_VOLUME'].includes(d.measureKind) && <Field label="Currency" value={d.currency} onChange={v => setD({ ...d, currency: v })} />}
+          </>}
+          <Select label="Test frequency" value={d.testFrequency} onChange={v => setD({ ...d, testFrequency: v })}
+            options={['ANNUAL', 'SEMIANNUAL', 'QUARTERLY', 'MONTHLY', 'ROLLING_12M'].map(x => ({ value: x, label: x }))} />
+          {d.measureKind === 'AVERAGE_BALANCE' && <Select label="Months taken" value={d.aggregationMode} onChange={v => setD({ ...d, aggregationMode: v })}
+            options={['EACH_MONTH_MIN', 'PERIOD_AVERAGE', 'POINT_IN_TIME', 'PERIOD_SUM'].map(x => ({ value: x, label: x }))} />}
+          {['FLOW_VOLUME', 'PERCENT_OF_REVENUE'].includes(d.measureKind) && <Select label="Annual window" value={d.annualWindowBasis} onChange={v => setD({ ...d, annualWindowBasis: v })}
+            options={['FISCAL_YEAR', 'CALENDAR_YEAR', 'FACILITY_YEAR'].map(x => ({ value: x, label: x }))} />}
+          {d.measureKind === 'PERCENT_OF_REVENUE' && <Select label="Revenue basis" value={d.revenueBasisRule} onChange={v => setD({ ...d, revenueBasisRule: v })}
+            options={['SAME_PERIOD', 'PRIOR_YEAR', 'MANUAL_ESTIMATE'].map(x => ({ value: x, label: x }))} />}
+          <Field label="Early warning %" value={d.earlyWarningPct} onChange={v => setD({ ...d, earlyWarningPct: v })} type="number" required={false} />
+          <Field label="Submission lag (days)" value={d.submissionLagDays} onChange={v => setD({ ...d, submissionLagDays: v })} type="number" required={false} />
+          </>}
         </>}
         <Field label="Cure days" value={d.cureDays} onChange={v => setD({ ...d, cureDays: v })} type="number" required={false} />
         <Field label="Source (or why there is none)" value={d.noSourceReason} onChange={v => setD({ ...d, noSourceReason: v })} />

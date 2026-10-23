@@ -122,6 +122,7 @@ TermEndpoints.Map(portal);
 StatementEndpoints.Map(portal);
 FinanceCatalogEndpoints.Map(portal);
 MonthlyFigureEndpoints.Map(portal);
+FormulaEndpoints.Map(portal);
 var panel = app.MapGroup("/api/v1/operator").AddEndpointFilter(SurfaceFilter(Surface.OperatorPanel));
 OperatorEndpoints.Map(panel);
 OperatorAdminEndpoints.Map(panel);

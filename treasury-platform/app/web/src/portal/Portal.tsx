@@ -14,6 +14,7 @@ import { TariffSchedules } from './Pricing';
 import { TermCompare } from './Terms';
 import { StatementDetail, Statements } from './Statements';
 import { MonthlyFigures } from './MonthlyFigures';
+import { Formulas } from './Formulas';
 import { Companies, CompanyDetail, Departments, DocumentRegister } from './Companies';
 import { OwnershipMismatch, StructureIntegrity } from './Structure';
 import { AuthorityConflicts } from './Signatories';
@@ -62,6 +63,7 @@ const menu: { to: string; label: string; permission?: string; anyOf?: string[] }
   { to: '/terms/compare', label: 'Compare terms', permission: 'cmp.view' },
   { to: '/financial-statements', label: 'Financial statements', anyOf: ['fin.stmt.enter', 'fin.stmt.approve', 'fin.verify.run', 'fin.credit.assess'] },
   { to: '/monthly-figures', label: 'Monthly balances', permission: 'fin.view' },
+  { to: '/formulas', label: 'Formula library', permission: 'fin.view' },
   { to: '/catalogs', label: 'Catalogues', anyOf: ['cat.manage.general', 'cat.manage.financial'] },
   { to: '/notifications', label: 'Notifications', permission: 'ntf.prefs' },
   { to: '/notification-settings', label: 'Notification settings', permission: 'ntf.manage' },
@@ -137,6 +139,7 @@ function Shell() {
               <Route path="/financial-statements" element={<Statements />} />
               <Route path="/financial-statements/:id" element={<StatementDetail />} />
               <Route path="/monthly-figures" element={<MonthlyFigures />} />
+              <Route path="/formulas" element={<Formulas />} />
               <Route path="/notifications" element={<Notifications />} />
               <Route path="/notification-settings" element={<NotificationSettings />} />
               <Route path="/profile" element={<Profile />} />
