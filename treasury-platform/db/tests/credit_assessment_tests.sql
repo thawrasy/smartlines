@@ -1001,7 +1001,7 @@ BEGIN
     INSERT col.CollateralLink (TenantId, CollateralId, FacilityId, CoverageAmount, LinkedOn, FromRevision) VALUES (@t, @cg, @f, @Limit * 1000000.0, '2026-01-01', 1);
     INSERT fac.FacilityRevision (TenantId, FacilityId, RevisionNo, ReasonKind, Status, EffectiveOn, SubmittedBy, SubmittedOn, ApprovedBy, ApprovedOn)
     VALUES (@t, @f, 1, 'INITIAL', 'APPROVED', '2026-01-01', @u1, SYSUTCDATETIME(), @u2, SYSUTCDATETIME());
-    UPDATE fac.Facility SET ApprovedRevisionNo = 1, LifecycleStatus = 'ACTIVE' WHERE FacilityId = @f;
+    UPDATE fac.Facility SET ApprovedRevisionNo = 1, LifecycleStatus = 'ACTIVE', PlatformRef = CONCAT('TST-BNK-CAP-26-', FacilityId) WHERE FacilityId = @f;   -- BR-FAC-021
     INSERT fin.CreditAssessmentGuarantor (TenantId, AssessmentId, PartyId, NetWorth, LiquidAssets, GuaranteesGiven, GuaranteedAmount, AsOfDate, DocumentId)
     VALUES (@t, @a, @pp, 400000000, 150000000, 40000000, @Limit * 1000000.0, '2026-03-31', 1);
     IF @Bureau = 1

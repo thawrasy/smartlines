@@ -216,7 +216,7 @@ BEGIN
     VALUES (@t, @f, @l, @ind, N'test utilisation', 250000000, @cur, '2026-02-01');
     INSERT fac.FacilityRevision (TenantId, FacilityId, RevisionNo, ReasonKind, Status, EffectiveOn, SubmittedBy, SubmittedOn, ApprovedBy, ApprovedOn)
     VALUES (@t, @f, 1, 'INITIAL', 'APPROVED', '2026-01-01', @u1, SYSUTCDATETIME(), @u2, SYSUTCDATETIME());
-    UPDATE fac.Facility SET ApprovedRevisionNo = 1, LifecycleStatus = 'ACTIVE' WHERE FacilityId = @f;
+    UPDATE fac.Facility SET ApprovedRevisionNo = 1, LifecycleStatus = 'ACTIVE', PlatformRef = CONCAT('TST-BNK-CAP-26-', FacilityId) WHERE FacilityId = @f;   -- BR-FAC-021
     DELETE FROM #K WHERE k = 'f';
     INSERT #K VALUES ('f', @f);
 END;

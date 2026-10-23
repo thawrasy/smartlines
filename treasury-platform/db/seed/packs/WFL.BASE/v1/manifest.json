@@ -40,5 +40,6 @@
   "NotSeeded": {
     "PROFORMA_REQUEST, SALES_ORDER_APPROVAL, COLLECTION_DOCS_REQUEST": "Templates of S4 (sales letters of credit).",
     "req.assign_number": "The request number is allocated by the engine on entering the template's NumberOnStageKey (BR-WFL-013), so no hook row carries it."
-  }
+  },
+  "SeedKeyPrefix": "WFL."
 }

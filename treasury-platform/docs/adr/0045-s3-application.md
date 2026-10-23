@@ -95,10 +95,12 @@ providers of the expiry job: RESERVATION, LC_EXPIRY, LC_LATEST_SHIPMENT and LC_D
   template allows the same person (tagged). A TM creator's approval is refused, not rerouted to another TM or TA.
 - **The response hash of a replayed action (OQ-10).** The replay is keyed by Idempotency-Key in `wfl.RequestAction`,
   but the response hash is not stored.
-- **Not yet run.** At the owner's request the last batch's tests are written and compiled, not run: AC-FAC-12
-  over HTTP (100 concurrent TM approvals of 100,000 on 4,000,000), the exit on DS-LC-C, the IBAN, print, bank form
-  and dashboards test, and the S3 part of the browser test. AC-REQ-1, the drawn credit and the amendment changed with
-  the receipt. They run in one CI cycle once the build is complete.
+- **Read isolation.** READ_COMMITTED_SNAPSHOT, recommended by docs/20, is not set by the deployment. Full request
+  flows run at once in one tenant deadlocked readers and writers of the engine. The copy triggers of 044 now seek the
+  request by key, the charges matrix compares its category as varchar, and DeadlockRetryMiddleware runs a victim again
+  (up to four runs); setting the option is the database administrator's decision, after a review of the guards that
+  read without a lock. AC-FAC-12 prepares its hundred requests one after another and sends the hundred approvals at
+  once. The full check passed on 5991dad (157 unit, the browser test, 104 integration tests).
 - **Bank form templates.** Written and activated through the API; no screen writes a template or its maps, and the
   form has no visual layout (the sheet lists each target's value).
 - **DS-AGR C moved in time.** The S3 exit test loads agreement C with its dates moved by whole months so that it is

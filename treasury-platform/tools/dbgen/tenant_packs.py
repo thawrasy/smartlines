@@ -49,7 +49,15 @@ def load_iso():
     currency = text.split('MERGE ref.Currency', 1)[1]
     return {'ref.Country': {'Iso2': set(re.findall(r"\(\s*'([A-Z]{2})',\s*'[A-Z]{3}'", country)),
                             'Iso3': set(re.findall(r"\(\s*'[A-Z]{2}',\s*'([A-Z]{3})'", country))},
-            'ref.Currency': {'Code': set(re.findall(r"\(\s*'([A-Z]{3})',\s*'[0-9]{3}'", currency))}}
+            'ref.Currency': {'Code': set(re.findall(r"\(\s*'([A-Z]{3})',\s*'[0-9]{3}'", currency))},
+            # The platform rows of UCP 600 in db/seed/103: SeedKey UCP600-nn from the article number (LC.BASE refers to them).
+            'ref.UcpArticle': {'SeedKey': load_ucp()}}
+
+
+def load_ucp():
+    text = open(os.path.join(os.path.dirname(ISO), '103_lc_reference.sql'), encoding='utf-8').read()
+    block = text.split('MERGE ref.UcpArticle', 1)[1].split('ON d.TenantId', 1)[0]
+    return {'UCP600-%02d' % int(n) for n in re.findall(r"\(\s*'([0-9]{1,2})',\s*N'", block)}
 
 
 def read_csv(path):
@@ -302,8 +310,9 @@ class Checker:
                     self.err('%s: SeedKey %s repeats row %d' % (where, sk, seen_seed[sk]))
                 else:
                     seen_seed[sk] = n + 1
-                    if not sk.startswith(pack['key'] + '.'):
-                        self.err('%s: SeedKey %s does not start with %s.' % (where, sk, pack['key']))
+                    prefix = pack['man'].get('SeedKeyPrefix', pack['key'] + '.')   # WFL.BASE keeps the WFL.* keys of spec 13
+                    if not sk.startswith(prefix):
+                        self.err('%s: SeedKey %s does not start with %s' % (where, sk, prefix))
             else:
                 k = tuple(row)
                 if k in seen_rows:
@@ -391,9 +400,9 @@ class Checker:
         elif n == 'cfg.ExpiryAlertRule':
             try:
                 lead = json.loads(g('LeadDays'))
-                if not (isinstance(lead, list) and lead and all(isinstance(x, int) and x > 0 for x in lead) and lead == sorted(lead, reverse=True)
+                if not (isinstance(lead, list) and lead and all(isinstance(x, int) and x >= 0 for x in lead) and lead == sorted(lead, reverse=True)
                         and len(set(lead)) == len(lead)):
-                    self.err('%s: LeadDays is a descending list of positive days' % where)
+                    self.err('%s: LeadDays is a descending list of days, 0 the day itself' % where)
             except ValueError:
                 pass
             if g('ReminderAfterExpiryDays') and int(g('ReminderAfterExpiryDays')) <= 0:

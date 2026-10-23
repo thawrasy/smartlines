@@ -169,7 +169,7 @@ BEGIN
     FROM obl.Obligation AS o JOIN fac.Facility AS f ON f.TenantId = o.TenantId AND f.FacilityId = o.FacilityId WHERE o.TenantId = @t;
     INSERT fac.FacilityRevision (TenantId, FacilityId, RevisionNo, ReasonKind, Status, EffectiveOn, SubmittedBy, SubmittedOn, ApprovedBy, ApprovedOn)
     SELECT @t, f.FacilityId, 1, 'INITIAL', 'APPROVED', '2025-01-01', @u1, SYSUTCDATETIME(), @u2, SYSUTCDATETIME() FROM fac.Facility AS f WHERE f.TenantId = @t;
-    UPDATE fac.Facility SET ApprovedRevisionNo = 1, LifecycleStatus = 'ACTIVE' WHERE TenantId = @t;
+    UPDATE fac.Facility SET ApprovedRevisionNo = 1, LifecycleStatus = 'ACTIVE', PlatformRef = CONCAT('PRF-BNK-CAP-26-', FacilityId) WHERE TenantId = @t;   -- BR-FAC-021
     -- entered by the treasury employee u4, confirmed by the treasury manager u2 (058, ADR 0037)
     DECLARE @u4 BIGINT = (SELECT v FROM #P WHERE k = 'u4');
     EXEC #Bind @t, @u4;
