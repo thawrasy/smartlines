@@ -4,7 +4,8 @@
 // S1 exit path (AC-INS-1): the administrator adds a company and onboards a bank with the set-up wizard, whose review
 // warns of the products without a default contact before anything is created. Then S2-b (docs/47 §4): the administrator
 // invites a financial analyst, who signs in, enters a statement in the grid and sees its totals live, and opens the formula
-// library, the credit self-assessments and the group compliance.
+// library, the credit self-assessments and the group compliance. Then S3 (docs/48): the dashboards, the inbox and the
+// bank form templates.
 import { expect, test } from '@playwright/test';
 import { writeFileSync } from 'node:fs';
 import { Authenticator, base32Decode, linkSentTo } from './helpers';
@@ -206,4 +207,16 @@ test('an operator onboards a tenant and its first administrator signs in', async
   await tmPage.getByRole('link', { name: 'Group compliance' }).click();
   await expect(tmPage.getByRole('heading', { name: 'Group compliance' })).toBeVisible();
   await tmContext.close();
+
+  // S3 (docs/48): the administrator's dashboards with the manager's view, the inbox and the bank form templates.
+  await page.getByRole('link', { name: 'Dashboards', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Dashboards' })).toBeVisible();
+  await page.getByLabel(/^View/).selectOption('manager');
+  await expect(page.getByRole('heading', { name: 'SLA breaches' })).toBeVisible();
+  await expect(page.getByText('No approval waits for you.')).toBeVisible();
+  await page.getByRole('link', { name: 'Inbox', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Inbox' })).toBeVisible();
+  await page.getByRole('link', { name: 'Bank form templates', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Bank form templates' })).toBeVisible();
+  await expect(page.getByText('No bank form template yet.')).toBeVisible();
 });

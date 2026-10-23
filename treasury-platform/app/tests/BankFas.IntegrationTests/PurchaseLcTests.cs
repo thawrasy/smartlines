@@ -122,12 +122,13 @@ namespace BankFas.IntegrationTests
         };
 
         /// <summary>A purchase LC request driven to the treasury manager's approval: terms, submission, manager, signed original, facility selection.</summary>
-        private async Task<string> AtTreasuryApprovalAsync(Bed b, string supplier, decimal amount, string title, HttpClient? selector = null)
+        private async Task<string> AtTreasuryApprovalAsync(Bed b, string supplier, decimal amount, string title, HttpClient? selector = null,
+            Dictionary<string, object?>? terms = null)
         {
             var sel = selector ?? b.Fo;
             var id = (await b.Rq.PostOkAsync("/api/v1/requests", new { type = "PURCHASE_LC", company = b.Company, data = new { title, supplierName = "Steel Pipes Ltd", supplierCode = "V-1001" } }))
                 .GetProperty("id").GetString()!;
-            await b.Rq.OkAsync(HttpMethod.Put, $"/api/v1/requests/{id}/terms", new { fields = Terms(supplier, amount) });
+            await b.Rq.OkAsync(HttpMethod.Put, $"/api/v1/requests/{id}/terms", new { fields = terms ?? Terms(supplier, amount) });
             await b.Rq.OkAsync(HttpMethod.Put, $"/api/v1/requests/{id}/terms/documents", new object[]
             {
                 new { clause = "COMMERCIAL_INVOICE", originals = 3, copies = 2 }, new { clause = "BL_SEA", originals = 3, copies = 3 },
@@ -640,6 +641,59 @@ namespace BankFas.IntegrationTests
                 }
                 Assert.Equal(expected[key], await b.LineAsync());
             }
+        }
+
+        /// <summary>
+        /// AC-FAC-12 (NFR-PERF-03) through the reservation hook over HTTP: one hundred requests of 100,000 with no
+        /// tolerance wait for the treasury manager on a line of 4,000,000; the hundred approvals are sent at once. Forty
+        /// pass and reserve 4,000,000 in all, sixty are refused INSUFFICIENT_AVAILABLE and keep nothing; sending the same
+        /// hundred again with the same idempotency keys changes nothing.
+        /// </summary>
+        [Fact]
+        public async Task AC_FAC_12_one_hundred_concurrent_approvals_on_four_million_over_HTTP()
+        {
+            var b = await BedAsync(4_000_000);
+            var supplier = PlatformFixture.Id(await b.Rq.PostOkAsync("/api/v1/counterparties", new { kind = "SUPPLIER", nameEn = "Steel Pipes Ltd", country = "CN", erpCode = "V-1001" }));
+            var terms = Terms(supplier, 100_000);
+            terms["toleranceMode"] = "NONE";
+            terms.Remove("tolerancePlusPct");
+            terms.Remove("toleranceMinusPct");
+            using var gate = new SemaphoreSlim(8);
+            var ids = await Task.WhenAll(Enumerable.Range(1, 100).Select(async n =>
+            {
+                await gate.WaitAsync(TestContext.Current.CancellationToken);
+                try { return await AtTreasuryApprovalAsync(b, supplier, 100_000, $"Load {n:000}", terms: terms); }
+                finally { gate.Release(); }
+            }));
+            Assert.Equal((0m, 0m, 4_000_000m), await b.LineAsync());
+
+            var sends = new List<(string Id, string ETag, string Key)>();
+            foreach (var id in ids)
+            {
+                var (_, etag) = await b.Tm.GetWithETagAsync($"/api/v1/requests/{id}");
+                sends.Add((id, etag, Guid.NewGuid().ToString()));
+            }
+            async Task<(int Status, string Code)[]> FireAsync() => await Task.WhenAll(sends.Select(async x =>
+            {
+                using var response = await b.Tm.SendAsync(HttpMethod.Post, $"/api/v1/requests/{x.Id}/actions/approve", new { }, x.ETag, x.Key);
+                var text = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+                var code = !response.IsSuccessStatusCode && text.Length > 0 && JsonDocument.Parse(text).RootElement.TryGetProperty("code", out var c) ? c.GetString()! : "";
+                return ((int)response.StatusCode, code);
+            }));
+            var first = await FireAsync();
+            Assert.Equal(40, first.Count(r => r.Status == 200));
+            Assert.Equal(60, first.Count(r => r == (409, "INSUFFICIENT_AVAILABLE")));
+            Assert.Equal((0m, 4_000_000m, 0m), await b.LineAsync());
+
+            var again = await FireAsync();
+            Assert.Equal(40, again.Count(r => r.Status == 200));
+            Assert.Equal((0m, 4_000_000m, 0m), await b.LineAsync());
+            var ct = TestContext.Current.CancellationToken;
+            var tenantId = await TestEnvironment.TenantIdAsync(b.T.Code);
+            await using var c = await f.Env.Db.OpenAsync(BankFas.Data.DbLogin.Jobs, ct);
+            await BankFas.Data.JobProcedures.BindAsync(c, tenantId, "JOB-LC-RECONCILE", Guid.NewGuid(), ct);
+            Assert.Equal((40, 4_000_000m), await Dapper.SqlMapper.QuerySingleAsync<(int, decimal)>(c,
+                "SELECT COUNT(*), ISNULL(SUM(Amount), 0) FROM fac.LimitReservation WHERE Status = 'ACTIVE';"));
         }
 }
 }

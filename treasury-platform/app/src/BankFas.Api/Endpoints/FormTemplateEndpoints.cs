@@ -33,11 +33,16 @@ public static class FormTemplateEndpoints
         api.MapGet("/requests/{id:guid}/bank-form", SheetAsync);
     }
 
+    // The list and a template read for who prints the forms (lc.print) and who keeps them (lc.template.manage).
+    private const string Readers = "lc.print|lc.template.manage";
+
     private static async Task<BoundUser> OpenAsync(HttpContext http, SqlConnectionFactory db, string permission)
     {
-        var u = await BoundUser.OpenAsync(http, db, permission);
+        var anyOf = permission.Split('|');
+        var u = anyOf.Length == 1 ? await BoundUser.OpenAsync(http, db, permission) : await BoundUser.OpenAsync(http, db);
         try
         {
+            if (anyOf.Length > 1 && !(await u.PermissionsAsync(http.RequestAborted)).Overlaps(anyOf)) throw ApiProblemException.Forbidden();
             await u.RequireModuleAsync("LC_PURCHASE", http.RequestAborted);
             return u;
         }
@@ -61,7 +66,7 @@ public static class FormTemplateEndpoints
     private static async Task<IResult> ListAsync(HttpContext http, SqlConnectionFactory db)
     {
         Query.Allow(http.Request);
-        await using var u = await OpenAsync(http, db, "lc.print");
+        await using var u = await OpenAsync(http, db, Readers);
         var rows = await u.Connection.QueryAsync(new CommandDefinition($"SELECT {Columns} FROM {From} ORDER BY t.Code, t.VersionNo DESC;", cancellationToken: http.RequestAborted));
         return Results.Ok(new { items = rows });
     }
@@ -73,7 +78,7 @@ public static class FormTemplateEndpoints
     private static async Task<IResult> GetAsync(Guid id, HttpContext http, SqlConnectionFactory db)
     {
         Query.Allow(http.Request);
-        await using var u = await OpenAsync(http, db, "lc.print");
+        await using var u = await OpenAsync(http, db, Readers);
         var ct = http.RequestAborted;
         var tid = await IdAsync(u, null, id, ct);
         var head = await u.Connection.QuerySingleAsync(new CommandDefinition($"SELECT {Columns} FROM {From} WHERE t.LcFormTemplateId = @tid;", new { tid }, cancellationToken: ct));

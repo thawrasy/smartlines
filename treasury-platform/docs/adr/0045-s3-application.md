@@ -95,11 +95,28 @@ providers of the expiry job: RESERVATION, LC_EXPIRY, LC_LATEST_SHIPMENT and LC_D
   template allows the same person (tagged). A TM creator's approval is refused, not rerouted to another TM or TA.
 - **The response hash of a replayed action (OQ-10).** The replay is keyed by Idempotency-Key in `wfl.RequestAction`,
   but the response hash is not stored.
-- **The execution channel and the bank's receipt (FR-LCI-010, `lc.execution.require_receipt`).** Not built; the
-  issuance needs the credit's copy only.
-- **The terms.** IBAN encryption on the terms, the clause rendering with the UCP footnote, the form templates and the
-  printing (OQ-14) are batch E's rest.
-- **Load test.** AC-FAC-12 over HTTP (100 concurrent approvals) is not run yet.
-- **Data and documents.** DS-LC-C (OQ-13) and the DOC-B02 and DOC-B07 addenda come with batch H; docs/48 and
-  docs/31 row 42 are written.
-- **Screens.** The requester, officer and manager dashboards (FR-REQ-018 to 020) and the terms editor are not built.
+- **Not yet run.** At the owner's request the last batch's tests are written and compiled, not run: AC-FAC-12
+  over HTTP (100 concurrent TM approvals of 100,000 on 4,000,000), the exit on DS-LC-C, the IBAN, print, bank form
+  and dashboards test, and the S3 part of the browser test. AC-REQ-1, the drawn credit and the amendment changed with
+  the receipt. They run in one CI cycle once the build is complete.
+- **Bank form templates.** Written and activated through the API; no screen writes a template or its maps, and the
+  form has no visual layout (the sheet lists each target's value).
+- **DS-AGR C moved in time.** The S3 exit test loads agreement C with its dates moved by whole months so that it is
+  in force on the run date; the file and its fingerprint do not change.
+
+## Batches E and H (built after the first draft of this record)
+
+- **Execution.** The assignee of the execution or issuance stage records the channel, the bank's reference and the
+  receipt (a stored BANK_ACKNOWLEDGEMENT of the company). The conversion refuses without the receipt (V-LCI-RECEIPT)
+  unless `lc.execution.require_receipt` is false.
+- **Beneficiary IBAN.** Checked (country length, check digits), sealed with the tenant's DATA key with an AAD bound
+  to the tenant and the column (not the row), so a copied terms version keeps the same sealed value; masked and
+  blind-indexed. The reveal needs lc.view.internal and a reason; the reveal and each refusal are audited.
+- **Printed terms (OQ-14).** Server-rendered HTML with its own Content-Security-Policy that allows its one style by
+  hash. The UCP footnote cannot be switched off while any article in use is UNVERIFIED (V-LCT-UCP-FOOTNOTE, in the
+  settings PATCH and in the page itself).
+- **Bank forms.** Versioned templates with field maps from a fixed set of roots and transforms; the most specific
+  active template (company 4, bank 2, product 1) is resolved per request; missing required targets make the sheet
+  unofficial; the print is audited with the terms hash.
+- **Dashboards.** Requester, officer and manager views, each gated by its permission.
+- **DS-LC-C (OQ-13).** Two suppliers and four credits on C's documentary credit line, with the expected line figures.

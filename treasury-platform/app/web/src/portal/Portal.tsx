@@ -24,6 +24,7 @@ import { NewRequest, RequestDetail, RequestList } from './Requests';
 import { Delegations, Inbox } from './Inbox';
 import { LcCard, LcRegister } from './Lcs';
 import { Dashboards } from './Dashboards';
+import { FormTemplateDetail, FormTemplates } from './FormTemplates';
 import { TermsEditor } from './TermsEditor';
 import { Companies, CompanyDetail, Departments, DocumentRegister } from './Companies';
 import { OwnershipMismatch, StructureIntegrity } from './Structure';
@@ -70,6 +71,7 @@ const menu: { to: string; label: string; permission?: string; anyOf?: string[] }
   { to: '/inbox', label: 'Inbox', anyOf: ['req.view.own', 'req.view.all', 'req.approve', 'req.claim'] },
   { to: '/requests', label: 'Requests', anyOf: ['req.view.own', 'req.view.all'] },
   { to: '/lcs', label: 'Letters of credit', anyOf: ['lc.view.all', 'lc.view.own'] },
+  { to: '/lc-form-templates', label: 'Bank form templates', anyOf: ['lc.print', 'lc.template.manage'] },
   { to: '/delegations', label: 'Delegations', anyOf: ['req.delegate.own', 'req.delegate.manage'] },
   { to: '/facilities', label: 'Facilities', permission: 'fac.view' },
   { to: '/tariff-schedules', label: 'Tariff schedules', permission: 'prc.view' },
@@ -174,6 +176,8 @@ function Shell() {
               <Route path="/delegations" element={<Delegations />} />
               <Route path="/lcs" element={<LcRegister />} />
               <Route path="/lcs/:id" element={<LcCard />} />
+              <Route path="/lc-form-templates" element={<FormTemplates />} />
+              <Route path="/lc-form-templates/:id" element={<FormTemplateDetail />} />
               <Route path="/requests" element={<RequestList />} />
               <Route path="/requests/new" element={<NewRequest />} />
               <Route path="/requests/:id" element={<RequestDetail />} />
