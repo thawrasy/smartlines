@@ -1,0 +1,13 @@
+{
+ "pack": "DS-FIN-C",
+ "version": 1,
+ "source": "Synthetic (S2-b brief OQ-17); figures invented for the exit test",
+ "preparedBy": "AI agent (disclosed)",
+ "preparedOn": "2026-10-23",
+ "reviewedBy": null,
+ "approvedBy": null,
+ "status": "PROPOSED",
+ "fingerprints": {
+  "finance.json": "sha256:008cf04531d14054b46299d4497d96f081d0aebdcaec9fdf2d63a597d4bc25db"
+ }
+}

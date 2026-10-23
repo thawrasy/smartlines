@@ -1,0 +1,206 @@
+{
+ "pack": "DS-FIN-C",
+ "about": "Synthetic figures of the borrower of DS-AGR C for the S2-b exit (AC-FAC-13, S2-b brief OQ-17): written by an AI agent, disclosed; amounts are invented and match no company.",
+ "agreement": "DS-AGR-C",
+ "statements": [
+  {
+   "key": "FY2027",
+   "periodType": "ANNUAL",
+   "periodEnd": "2027-12-31",
+   "basis": "STANDALONE",
+   "assurance": "AUDITED",
+   "auditorName": "Synthetic auditor",
+   "auditOpinion": "UNQUALIFIED",
+   "currency": "SAR",
+   "unitScale": 1000,
+   "lines": {
+    "CASH": 60000,
+    "AR": 50000,
+    "INVENTORY": 40000,
+    "PPE": 300000,
+    "ST_LOANS": 48000,
+    "CURRENT_PORTION_LTD": 2000,
+    "AP": 40000,
+    "LT_LOANS": 67000,
+    "LEASE_LIABS": 3000,
+    "SHARE_CAPITAL": 250000,
+    "RETAINED_EARNINGS": 39000,
+    "OTHER_EQUITY": 1000,
+    "MINORITY_INTEREST": 0,
+    "REVENUE": 100000,
+    "COGS": 70000,
+    "GROSS_PROFIT": 30000,
+    "OPEX": 15000,
+    "OPERATING_PROFIT": 15000,
+    "DEPR_AMORT": 3000,
+    "EBITDA": 18000,
+    "FINANCE_COSTS": 2000,
+    "OTHER_INCOME": 500,
+    "ZAKAT_TAX": 1000,
+    "NET_PROFIT": 12500
+   },
+   "note": "Tangible net worth 290,000 thousand, under the covenant's 297,500 thousand."
+  },
+  {
+   "key": "FY2027-R",
+   "restates": "FY2027",
+   "reason": "RESTATED",
+   "lines": {
+    "CASH": 100000,
+    "RETAINED_EARNINGS": 79000
+   },
+   "note": "The restatement: tangible net worth 330,000 thousand."
+  }
+ ],
+ "flows": [
+  {
+   "month": "2027-01",
+   "amount": 1200000
+  },
+  {
+   "month": "2027-02",
+   "amount": 1200000
+  },
+  {
+   "month": "2027-03",
+   "amount": 1200000
+  },
+  {
+   "month": "2027-04",
+   "amount": 1200000
+  },
+  {
+   "month": "2027-05",
+   "amount": 1200000
+  },
+  {
+   "month": "2027-06",
+   "amount": 1200000
+  },
+  {
+   "month": "2027-07",
+   "amount": 1200000
+  },
+  {
+   "month": "2027-08",
+   "amount": 1200000
+  },
+  {
+   "month": "2027-09",
+   "amount": 1200000
+  },
+  {
+   "month": "2027-10",
+   "amount": 1200000
+  },
+  {
+   "month": "2027-11",
+   "amount": 1200000
+  },
+  {
+   "month": "2027-12",
+   "amount": 1000000
+  }
+ ],
+ "flowsNote": "14,200,000 routed to the bank in 2027 against revenue of 100,000,000: 14.2% against 15%.",
+ "revenueEstimate": {
+  "fiscalYear": 2027,
+  "basis": "STANDALONE",
+  "amount": 100000000,
+  "currency": "SAR",
+  "basisNote": "The budget of 2027, before the audit."
+ },
+ "addedCovenant": {
+  "obligationType": "MIN_AVG_BALANCE",
+  "titleAr": "الحد الأدنى لمتوسط الرصيد الشهري",
+  "clauseRef": "Side letter (synthetic)",
+  "covenant": {
+   "measureKind": "AVERAGE_BALANCE",
+   "thresholdState": "SET",
+   "operator": "GE",
+   "thresholdValue": 500000,
+   "thresholdUnit": "AMOUNT",
+   "currency": "SAR",
+   "testFrequency": "QUARTERLY",
+   "aggregationMode": "EACH_MONTH_MIN"
+  }
+ },
+ "account": {
+  "type": "CURRENT",
+  "currency": "SAR",
+  "accountNumber": "SYN-C-ACC-1",
+  "openedOn": "2026-12-01"
+ },
+ "balances": [
+  {
+   "month": "2027-01",
+   "avgDailyBalance": 620000
+  },
+  {
+   "month": "2027-02",
+   "avgDailyBalance": 580000
+  },
+  {
+   "month": "2027-03",
+   "avgDailyBalance": 700000
+  },
+  {
+   "month": "2027-04",
+   "avgDailyBalance": 640000
+  },
+  {
+   "month": "2027-05",
+   "avgDailyBalance": 610000
+  },
+  {
+   "month": "2027-06",
+   "avgDailyBalance": 660000
+  },
+  {
+   "month": "2027-07",
+   "avgDailyBalance": 590000
+  },
+  {
+   "month": "2027-08",
+   "avgDailyBalance": 720000
+  },
+  {
+   "month": "2027-09",
+   "avgDailyBalance": 680000
+  },
+  {
+   "month": "2027-10",
+   "avgDailyBalance": 630000
+  },
+  {
+   "month": "2027-11",
+   "avgDailyBalance": 650000
+  },
+  {
+   "month": "2027-12",
+   "avgDailyBalance": 700000
+  }
+ ],
+ "expected": {
+  "asOf": "2028-02-15",
+  "colour": "RED",
+  "measures": {
+   "REVENUE_CHANNELLING_PCT": {
+    "result": "BREACH",
+    "actual": 14.2
+   },
+   "CAPITAL_PRESERVATION": {
+    "result": "COMPLIANT",
+    "evaluationNo": 2,
+    "trend": [
+     "BREACH",
+     "COMPLIANT"
+    ]
+   },
+   "MIN_AVG_BALANCE": {
+    "result": "COMPLIANT",
+    "actual": 630000
+   }
+  }
+ }
+}

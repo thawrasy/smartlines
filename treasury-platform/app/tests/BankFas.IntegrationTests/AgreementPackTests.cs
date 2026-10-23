@@ -23,12 +23,12 @@ public sealed class AgreementPackTests(PlatformFixture f)
         public override DateTimeOffset GetUtcNow() => new(day, TimeSpan.Zero);
     }
 
-    private static string PackDir(string pack) => Path.Combine(AppContext.BaseDirectory, "DS-AGR", pack, "v1");
+    internal static string PackDir(string pack) => Path.Combine(AppContext.BaseDirectory, "DS-AGR", pack, "v1");
 
-    private sealed record Loaded(string Facility, string? Predecessor, Dictionary<string, string> Limits);
+    internal sealed record Loaded(string Facility, string? Predecessor, Dictionary<string, string> Limits);
 
     /// <summary>Loads a pack: the bank, the facility (or the predecessor and its renewal), lenders, the agreement document, limits, lines, pricing, obligations and terms; then submit and approve.</summary>
-    private async Task<Loaded> LoadAsync(HttpClient fo, HttpClient tm, string company, string pack)
+    internal static async Task<Loaded> LoadAsync(PlatformFixture f, HttpClient fo, HttpClient tm, string company, string pack)
     {
         // The manifest fingerprints bind the pack to what its reviewer signs (DOC-B06 section 6.2).
         var manifest = JsonNode.Parse(await File.ReadAllTextAsync(Path.Combine(PackDir(pack), "manifest.json")))!["fingerprints"]!.AsObject();
@@ -180,7 +180,7 @@ public sealed class AgreementPackTests(PlatformFixture f)
         var loaded = new Dictionary<string, Loaded>(StringComparer.Ordinal);
         foreach (var pack in new[] { "A", "B", "C", "D" })
         {
-            loaded[pack] = await LoadAsync(fo, tm, company, pack);
+            loaded[pack] = await LoadAsync(f, fo, tm, company, pack);
             await CheckAsync(tm, pack, loaded[pack], failures);
         }
         Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));

@@ -13,6 +13,8 @@
   <ItemGroup>
     <!-- DS-AGR: the four synthetic agreements (AC-FAC-11, DOC-B06 section 6). -->
     <None Include="..\data\DS-AGR\**\*" LinkBase="DS-AGR" CopyToOutputDirectory="PreserveNewest" />
+    <!-- DS-FIN-C: the figures of agreement C for the S2-b exit (AC-FAC-13). -->
+    <None Include="..\data\DS-FIN-C\**\*" LinkBase="DS-FIN-C" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\BankFas.Api\BankFas.Api.csproj" />
