@@ -34,7 +34,7 @@ internal sealed class CollateralExpiry(string kind) : IExpiryItemProvider
     }
 
     private const string Linked = """
-        SELECT k.RootId AS Id, k.CollateralId, k.TitleAr, f.BorrowerCompanyId AS CompanyId, f.FacilityNo, co.NameAr AS CompanyNameAr, co.NameEn AS CompanyNameEn,
+        SELECT k.RootId AS Id, k.CollateralId, k.TitleAr, f.BorrowerCompanyId AS CompanyId, ISNULL(f.PlatformRef, f.FacilityNo) AS FacilityNo, co.NameAr AS CompanyNameAr, co.NameEn AS CompanyNameEn,
                b.NameAr AS BankNameAr, b.NameEn AS BankNameEn
           FROM col.Collateral AS k
           CROSS APPLY (SELECT TOP (1) x.FacilityId FROM col.CollateralLink AS l JOIN fac.Facility AS x ON x.FacilityId = l.FacilityId

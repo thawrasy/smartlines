@@ -132,7 +132,7 @@ public sealed class NotificationTests(PlatformFixture f)
         {
             companyCode = "C1", nameAr = "شركة الأولى", nameEn = "First Company", legalForm = "LLC", country = "SA", fiscalYearEndMonth = 12,
         }));
-        var bank = PlatformFixture.Id(await tm.PostOkAsync("/api/v1/institutions", new { code = "BNK1", nameAr = "البنك الأول", type = "BANK", country = "AE" }));
+        var bank = PlatformFixture.Id(await tm.PostOkAsync("/api/v1/institutions", new { code = "BNK1", refCode = "BNA", nameAr = "البنك الأول", type = "BANK", country = "AE" }));
         var rm = PlatformFixture.Id(await tm.PostOkAsync($"/api/v1/institutions/{bank}/contacts", new
         {
             fullNameAr = "مدير العلاقة", contactMethods = new[] { new { kind = "EMAIL", value = "rm@bank.example" } },

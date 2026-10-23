@@ -223,7 +223,7 @@ public static class FormTemplateEndpoints
         var context = await u.Connection.QuerySingleAsync<(string? CoAr, string? CoEn, string? CpEn, string? CpAr, string? CpCountry, string? FacNo, string? Cur, int Dec, string? CurAr, string? CurEn)>(
             new CommandDefinition(
                 """
-                SELECT co.NameAr, co.NameEn, cp.NameEn, cp.NameAr, ctry.Iso2, f.FacilityNo, cur.Code, ISNULL(cur.Decimals, 2), cur.NameAr, cur.NameEn
+                SELECT co.NameAr, co.NameEn, cp.NameEn, cp.NameAr, ctry.Iso2, ISNULL(f.PlatformRef, f.FacilityNo) AS FacilityNo, cur.Code, ISNULL(cur.Decimals, 2), cur.NameAr, cur.NameEn
                   FROM lc.LcTerms AS t JOIN org.Company AS co ON co.CompanyId = @co
                   LEFT JOIN lc.Counterparty AS cp ON cp.CounterpartyId = t.BeneficiaryCounterpartyId LEFT JOIN ref.Country AS ctry ON ctry.CountryId = cp.CountryId
                   LEFT JOIN fac.Facility AS f ON f.FacilityId = @f LEFT JOIN ref.Currency AS cur ON cur.CurrencyId = t.CurrencyId

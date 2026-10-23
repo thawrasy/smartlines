@@ -201,6 +201,10 @@ public static class FacilityRevisionEndpoints
         foreach (var (code, message) in await CollateralEndpoints.WarningsAsync(u, tx, f, bank, ct)) warnings.Add(new(code, message));
         foreach (var code in await FacilityTreeStore.ClosedInUseAsync(u.Connection, tx, f.FacilityId, ct))
             errors.Add(new("V-FAC-IN-USE", $"The limit or line {code} carries a utilisation or a reservation: reduce its cap instead of closing it."));
+        // BR-FAC-021: the first approval writes the platform reference, so its parts are there.
+        if (f.PlatformRef is null)
+            foreach (var missing in FacilityRefs.Missing(await FacilityRefs.PartsAsync(u.Connection, tx, f.FacilityId, ct)))
+                errors.Add(new("V-FAC-REF", missing));
         if (f.PreviousFacilityId is { } prev)
         {
             // BR-FAC-006: a successor that overlaps its predecessor by more than 31 days is a warning.
@@ -366,6 +370,8 @@ public static class FacilityRevisionEndpoints
         // (1) The revision is APPROVED, with what the approver saw and acknowledged (DQ-F13-3).
         await SetAsync(u, tx, rev, "APPROVED", "ApprovedBy = CAST(SESSION_CONTEXT(N'UserId') AS BIGINT), ApprovedOn = SYSUTCDATETIME(), IntegrityResult = @json",
             new { json = JsonSerializer.Serialize(new { errors = Array.Empty<object>(), warnings = check.Warnings.Select(w => new { code = w.Code, message = w.Message }), acknowledged }) }, ct);
+        // (1b) The platform reference, written once by the first approval (BR-FAC-021).
+        var reference = f.PlatformRef ?? await FacilityRefs.AssignAsync(u.Connection, tx, f.FacilityId, header.Effective, ct);
         // (2) Last, in one statement: the approved revision number, the lifecycle and the header (S2-GAP-2 step 6).
         var status = f.LifecycleStatus switch
         {
@@ -381,7 +387,7 @@ public static class FacilityRevisionEndpoints
         // The covenant tests to the horizon, and the move of those not yet evaluated to the new covenant rows (S2-b, S2B-GAP-8).
         await BankFas.Data.Finance.CovenantEngine.ScheduleAsync(u.Connection, tx, f.FacilityId, clock.GetUtcNow().UtcDateTime.Date, ct);
         await AuditWriter.WriteAsync(u.Connection, tx, new AuditEntry("FAC_REVISION_APPROVED", "TREASURY", "fac.FacilityRevision", rev.FacilityRevisionId,
-            AfterJson: JsonSerializer.Serialize(new { facility = f.PublicId, revisionNo = rev.RevisionNo, reasonKind = rev.ReasonKind, status, acknowledged })), f.BorrowerCompanyId, ct);
+            AfterJson: JsonSerializer.Serialize(new { facility = f.PublicId, revisionNo = rev.RevisionNo, reasonKind = rev.ReasonKind, status, acknowledged, platformRef = reference })), f.BorrowerCompanyId, ct);
         if (projected > 0) await Outbox.EmitAsync(u.Connection, tx, "term.value.changed", "fac.Facility", f.FacilityId, new { facility = f.PublicId, revisionNo = rev.RevisionNo }, ct);
         await Outbox.EmitAsync(u.Connection, tx, "facility.revision.approved", "fac.Facility", f.FacilityId,
             new { facility = f.PublicId, revisionNo = rev.RevisionNo, reasonKind = rev.ReasonKind }, ct);
@@ -390,7 +396,7 @@ public static class FacilityRevisionEndpoints
         await StateAsync(u, tx, f, rev, "APPROVED", null, null, ct);
         // A renewal approved on or after its start replaces its predecessor now (OQ-15).
         var superseded = await FacilityValidity.SupersedeDueAsync(u.Connection, tx, clock.GetUtcNow().UtcDateTime.Date, f.FacilityId, ct);
-        return new { revisionNo = rev.RevisionNo, status, superseded, agenda };
+        return new { revisionNo = rev.RevisionNo, status, superseded, agenda, platformRef = reference };
     }
 
     private static readonly Dictionary<string, (string Ar, string En)> StateLabels = new(StringComparer.Ordinal)

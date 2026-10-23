@@ -10,7 +10,7 @@ import { SignatoriesPanel } from './Signatories';
 // channels (SCR-INS-05), the bank set-up wizard (SCR-INS-06, FR-INS-014), bank accounts masked with the audited reveal
 // (SCR-ACC-01), and base rates with their values on a date (FR-CAT-015/016).
 
-interface Institution { id: string; code: string; nameAr: string; nameEn?: string; type: string; country: string; locality: string; swiftBic?: string; status: string; etag: string }
+interface Institution { id: string; code: string; refCode?: string | null; nameAr: string; nameEn?: string; type: string; country: string; locality: string; swiftBic?: string; status: string; etag: string }
 interface Warning { code: string; count?: number; institution?: string; company?: string; name?: string }
 interface Named { id: string; companyCode?: string; code?: string; nameAr?: string; nameEn?: string }
 
@@ -42,7 +42,7 @@ export function Institutions() {
   const nav = useNavigate();
   const [items, setItems] = useState<Institution[]>([]);
   const [q, setQ] = useState('');
-  const [draft, setDraft] = useState({ code: '', nameAr: '', nameEn: '', type: 'BANK', country: 'SA', swiftBic: '' });
+  const [draft, setDraft] = useState({ code: '', refCode: '', nameAr: '', nameEn: '', type: 'BANK', country: 'SA', swiftBic: '' });
   const find = useCallback(async () => setItems((await api<{ items: Institution[] }>('GET', `/institutions${q ? '?q=' + encodeURIComponent(q) : ''}`)).items), [q]);
   useEffect(() => { void find(); }, []);   // eslint-disable-line react-hooks/exhaustive-deps
   return (
@@ -65,10 +65,12 @@ export function Institutions() {
       </section>
       {can(me, 'ins.manage') && (
         <Form title="New institution" submit="Create" onSubmit={async () => {
-          const r = await api<{ id: string }>('POST', '/institutions', { ...draft, swiftBic: draft.swiftBic || undefined });
+          const r = await api<{ id: string }>('POST', '/institutions', { ...draft, swiftBic: draft.swiftBic || undefined, refCode: draft.refCode || undefined });
           nav(`/institutions/${r.id}`);
         }}>
           <Field label="Code" value={draft.code} onChange={v => setDraft({ ...draft, code: v.toUpperCase() })} />
+          <Field label="Reference code" value={draft.refCode} onChange={v => setDraft({ ...draft, refCode: v.toUpperCase() })} required={false}
+            hint="Three capital letters in the facility references (IMP-SNB-CAP-26); left empty, the code when it has that shape." />
           <Field label="Name (Arabic)" value={draft.nameAr} onChange={v => setDraft({ ...draft, nameAr: v })} />
           <Field label="Name (English)" value={draft.nameEn} onChange={v => setDraft({ ...draft, nameEn: v })} required={false} />
           <Select label="Type" value={draft.type} onChange={v => setDraft({ ...draft, type: v })}
@@ -107,7 +109,21 @@ export function InstitutionDetail() {
     <>
       <section className="card">
         <h1><span dir="ltr">{i.code}</span> {i.nameAr}</h1>
-        <p>{t(i.type)} · {i.country} · {t(i.locality)} · {t(i.status)} {i.swiftBic && <span dir="ltr">· {i.swiftBic}</span>}</p>
+        <p>{t(i.type)} · {i.country} · {t(i.locality)} · {t(i.status)} {i.swiftBic && <span dir="ltr">· {i.swiftBic}</span>}
+          {' · '}{t('Reference code')}: <span dir="ltr">{i.refCode ?? '—'}</span></p>
+        {can(me, 'ins.manage') && i.status !== 'INACTIVE' && (
+          <form className="row" onSubmit={e => {
+            e.preventDefault();
+            const v = (new FormData(e.currentTarget).get('refCode') as string).trim().toUpperCase();
+            void (async () => {
+              try { await api('PATCH', `/institutions/${id}`, { refCode: v }, i.etag); setNotice({ ok: t('Saved.') }); await load(); }
+              catch (x) { setNotice({ error: message(x) }); }
+            })();
+          }}>
+            <label><span>{t('Reference code')}</span><input name="refCode" defaultValue={i.refCode ?? ''} maxLength={3} dir="ltr" /></label>
+            <button type="submit">{t('Save')}</button>
+          </form>
+        )}
         <Notice error={notice.error} ok={notice.ok} />
         {can(me, 'ins.deactivate') && i.status === 'ACTIVE' && <button onClick={() => void act(`/institutions/${id}/actions/deactivate`)}>{t('Deactivate')}</button>}
         {can(me, 'ins.manage') && i.status !== 'ACTIVE' && <button onClick={() => void act(`/institutions/${id}/actions/activate`)}>{t('Activate')}</button>}
@@ -240,7 +256,7 @@ export function BankSetup() {
   const { t, lang } = useI18n();
   const nav = useNavigate();
   const [step, setStep] = useState(1);
-  const [institution, setInstitution] = useState({ code: '', nameAr: '', nameEn: '', type: 'BANK', country: 'SA', swiftBic: '' });
+  const [institution, setInstitution] = useState({ code: '', refCode: '', nameAr: '', nameEn: '', type: 'BANK', country: 'SA', swiftBic: '' });
   const [companies, setCompanies] = useState<Named[]>([]);
   const [products, setProducts] = useState<Named[]>([]);
   const [chosen, setChosen] = useState<Record<string, { customerNo: string; rm: string }>>({});
@@ -256,7 +272,7 @@ export function BankSetup() {
   }, []);
   const body = (dryRun: boolean) => ({
     dryRun,
-    institution: { ...institution, swiftBic: institution.swiftBic || undefined },
+    institution: { ...institution, swiftBic: institution.swiftBic || undefined, refCode: institution.refCode || undefined },
     contacts: contacts.map(c => ({ key: c.key, fullNameAr: c.fullNameAr, contactMethods: [{ kind: 'MOBILE', value: c.mobile }] })),
     companies: Object.entries(chosen).map(([company, c]) => ({
       company, customerNo: c.customerNo || undefined, coverage: c.rm ? [{ contactKey: c.rm, role: 'RM' }] : [],
@@ -280,6 +296,8 @@ export function BankSetup() {
       <p className="muted">{t('Step {n} of 5', { n: String(step) })}</p>
       {step === 1 && <>
         <Field label="Code" value={institution.code} onChange={v => setInstitution({ ...institution, code: v.toUpperCase() })} />
+        <Field label="Reference code" value={institution.refCode} onChange={v => setInstitution({ ...institution, refCode: v.toUpperCase() })} required={false}
+          hint="Three capital letters in the facility references." />
         <Field label="Name (Arabic)" value={institution.nameAr} onChange={v => setInstitution({ ...institution, nameAr: v })} />
         <Field label="Name (English)" value={institution.nameEn} onChange={v => setInstitution({ ...institution, nameEn: v })} required={false} />
         <Field label="Country" value={institution.country} onChange={v => setInstitution({ ...institution, country: v.toUpperCase() })} />

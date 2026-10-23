@@ -59,9 +59,11 @@ public sealed class AgreementPackTests(PlatformFixture f)
         if (shiftMonths != 0) Shift(a, shiftMonths);
         var today = f.Env.Clock.GetUtcNow().UtcDateTime.Date;
         var bank = a["bank"]!.AsObject();
-        var bankId = PlatformFixture.Id(await tm.PostOkAsync("/api/v1/institutions", new { code = (string)bank["code"]!, nameAr = (string)bank["nameAr"]!, nameEn = (string)bank["nameEn"]!, type = "BANK", country = "SA" }));
+        var bankId = PlatformFixture.Id(await tm.PostOkAsync("/api/v1/institutions", new { code = (string)bank["code"]!, refCode = "BK" + ((string)bank["code"]!)[^1..], nameAr = (string)bank["nameAr"]!, nameEn = (string)bank["nameEn"]!, type = "BANK", country = "SA" }));
         var fac = a["facility"]!.AsObject();
         fac["borrower"] = company;
+        // BR-FAC-021: the class of the platform reference is the platform's, not the agreement's; the packs are working capital facilities.
+        fac["facilityClass"] ??= "CAP";
         string? predecessor = null;
         string id;
         async Task ApproveAsync(string facility)
@@ -78,7 +80,7 @@ public sealed class AgreementPackTests(PlatformFixture f)
         {
             predecessor = PlatformFixture.Id(await fo.PostOkAsync("/api/v1/facilities", new
             {
-                borrower = company, facilityType = (string)fac["facilityType"]!, currency = (string)fac["currency"]!, totalAmount = (decimal)p["totalAmount"]!,
+                facilityClass = "CAP", borrower = company, facilityType = (string)fac["facilityType"]!, currency = (string)fac["currency"]!, totalAmount = (decimal)p["totalAmount"]!,
                 effectiveFrom = (string)p["effectiveFrom"]!, expiryDate = (string)p["expiryDate"]!, bankReferenceNo = (string)fac["bankReferenceNo"]! + "-P",
             }));
             await fo.PostOkAsync($"/api/v1/facilities/{predecessor}/lenders", new { institution = bankId, sharePct = 100, roles = new[] { "SOLE" } });

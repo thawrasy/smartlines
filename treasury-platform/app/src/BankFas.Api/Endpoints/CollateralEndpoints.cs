@@ -470,7 +470,7 @@ public static class CollateralEndpoints
             "SELECT PublicId, Status, ApprovalState, CreatedAt FROM col.Collateral WHERE RootId = @r ORDER BY CollateralId;", new { r = k.RootId }, cancellationToken: ct));
         var links = await u.Connection.QueryAsync<(Guid Facility, string FacilityNo, DateTime LinkedOn, DateTime? UnlinkedOn)>(new CommandDefinition(
             """
-            SELECT f.PublicId, f.FacilityNo, l.LinkedOn, l.UnlinkedOn FROM col.CollateralLink AS l JOIN fac.Facility AS f ON f.FacilityId = l.FacilityId
+            SELECT f.PublicId, ISNULL(f.PlatformRef, f.FacilityNo) AS FacilityNo, l.LinkedOn, l.UnlinkedOn FROM col.CollateralLink AS l JOIN fac.Facility AS f ON f.FacilityId = l.FacilityId
              WHERE l.CollateralId = @r AND l.FromRevision <= f.ApprovedRevisionNo AND (l.ToRevision IS NULL OR l.ToRevision > f.ApprovedRevisionNo);
             """, new { r = k.RootId }, cancellationToken: ct));
         var phaseList = phases.Select(p => new ValuationPhase(p.PhaseNo, p.FromYear, p.ToYear, p.Valuers, p.Freq, p.Ref)).ToList();
@@ -1005,7 +1005,7 @@ public static class CollateralEndpoints
         var rows = await u.Connection.QueryAsync<(Guid Collateral, string TitleAr, string Status, string Mode, decimal? Amount, string? Currency, Guid? Facility, string? FacilityNo,
             long? Borrower, string? FacilityStatus)>(new CommandDefinition(
             """
-            SELECT k.PublicId, k.TitleAr, k.Status, g.AmountMode, g.Amount, cu.Code, f.PublicId, f.FacilityNo, f.BorrowerCompanyId, f.LifecycleStatus
+            SELECT k.PublicId, k.TitleAr, k.Status, g.AmountMode, g.Amount, cu.Code, f.PublicId, ISNULL(f.PlatformRef, f.FacilityNo) AS FacilityNo, f.BorrowerCompanyId, f.LifecycleStatus
               FROM col.Guarantee AS g
               JOIN col.Collateral AS k ON k.CollateralId = g.CollateralId AND (k.Status = 'DRAFT' OR (k.ApprovalState = 'APPROVED' AND k.Status <> 'SUPERSEDED'))
               LEFT JOIN ref.Currency AS cu ON cu.CurrencyId = g.CurrencyId

@@ -108,7 +108,7 @@ public sealed class InstitutionTests(PlatformFixture f)
         Assert.Equal("V-INS-05-CUSTOMER-NO", dup.GetProperty("warnings")[0].GetProperty("code").GetString());
 
         // The BIC is 8 or 11 characters (BR-INS-001); a relationship with an open account does not close (BR-INS-011).
-        Assert.Equal((422, "V-INS-01"), await tm.PostProblemAsync("/api/v1/institutions", new { code = "BNK9", nameAr = "بنك", type = "BANK", country = "AE", swiftBic = "AAAASA" }));
+        Assert.Equal((422, "V-INS-01"), await tm.PostProblemAsync("/api/v1/institutions", new { code = "BNK9", refCode = "BNI", nameAr = "بنك", type = "BANK", country = "AE", swiftBic = "AAAASA" }));
         await tm.PostOkAsync("/api/v1/accounts", new { company = c1, institution = bank, type = "CURRENT", currency = "SAR", accountNumber = "900-1" });
         Assert.Equal((409, "V-INS-OPEN-ACCOUNTS"), await tm.PostProblemAsync($"/api/v1/relationships/{rel}/actions/close", new { reason = "Moved" }));
         Assert.Equal((409, "V-INS-OPEN-RELATIONSHIPS"), await tm.PostProblemAsync($"/api/v1/institutions/{bank}/actions/deactivate", new { }));
@@ -188,7 +188,7 @@ public sealed class InstitutionTests(PlatformFixture f)
         }));
         var p1 = await PartyAsync("ممول فرد", "1970-01-01");
         // An individual lender is linked to its party (BR-INS-003); a bank is not.
-        Assert.Equal((422, "V-INS-PARTY"), await tm.PostProblemAsync("/api/v1/institutions", new { code = "IND0", nameAr = "فرد", type = "INDIVIDUAL", country = "AE" }));
+        Assert.Equal((422, "V-INS-PARTY"), await tm.PostProblemAsync("/api/v1/institutions", new { code = "IND0", refCode = "IND", nameAr = "فرد", type = "INDIVIDUAL", country = "AE" }));
         await InstitutionAsync(tm, "IND1", "INDIVIDUAL", p1);
         var bank = await InstitutionAsync(tm, "BNK1");
         var k1 = await ContactAsync(tm, bank, "K1");

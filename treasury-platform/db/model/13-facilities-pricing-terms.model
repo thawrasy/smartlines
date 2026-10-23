@@ -24,6 +24,8 @@ table fac.Facility public  # Facility agreement package: root of the aggregate (
   FacilityNo               ascii(40)  req   # FAC-YY-NNN من NumberSequence (BR-FAC-001)
   BankReferenceNo          str(80)          # مرجع البنك: نص حر بلا صيغة (Q-FAC-01)
   BankStructureNo          str(80)          # رقم هيكل البنك: نص حر (Q-FAC-01)
+  PlatformRef              ascii(30)        # مرجع المنصة: الشركة-البنك-الفئة-السنة، مثل IMP-SNB-CAP-26؛ يُخصَّص عند الاعتماد الأول ولا يتغير، والتجديد بسنته (BR-FAC-021)
+  FacilityClassId          ->cat.LookupItem   # فئة التسهيل في المرجع: قائمة FACILITY_CLASS (CAP وSTL وMTL وLTL ...) (BR-FAC-021)
   BorrowerCompanyId        ->org.Company req
   FacilityTypeId           ->cat.FacilityType req
   CurrencyId               ->ref.Currency req   # عملة واحدة لكل التسهيل (BR-FAC-002)
@@ -50,6 +52,8 @@ table fac.Facility public  # Facility agreement package: root of the aggregate (
   AlertLeadDays            set{90,60,30,15,7,0}   # أيام ما قبل الانتهاء مفصولة بفواصل؛ الفارغ = افتراضي ExpiryAlertRule (FR-FAC-008)
   ApprovedRevisionNo       int        req =0   # آخر مراجعة معتمدة؛ 0 = لا مراجعة معتمدة بعد (BR-FAC-003)
   unique FacilityNo
+  unique PlatformRef where PlatformRef IS NOT NULL   # BR-FAC-021
+  index  FacilityClassId where FacilityClassId IS NOT NULL
   unique PublicId
   unique PreviousFacilityId where PreviousFacilityId IS NOT NULL   # لاحق واحد لكل تسهيل (BR-FAC-006)
   index  BorrowerCompanyId,LifecycleStatus include ExpiryDate,FacilityTypeId   # قائمة التسهيلات بالشركة والحالة (FR-FAC-028)
@@ -58,6 +62,8 @@ table fac.Facility public  # Facility agreement package: root of the aggregate (
   check  ExpiryDate >= EffectiveFrom       # BR-FAC-001
   check  AgreementDate IS NULL OR AgreementDate <= EffectiveFrom   # BR-FAC-001
   check  TotalAmount > 0
+  check  PlatformRef IS NULL OR PlatformRef COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9-]%'   # BR-FAC-021
+  check  LifecycleStatus = 'DRAFT' OR PlatformRef IS NOT NULL   # BR-FAC-021: كل تسهيل معتمد له مرجع
   check  PreviousFacilityId IS NULL OR PreviousFacilityId <> FacilityId
   check  NoticeDays IS NULL OR NoticeDays >= 0
   check  BankUnilateralRights IS NULL OR BankUnilateralRights NOT LIKE '%CHANGE_PRICING%' OR NoticeDays IS NOT NULL   # FR-FAC-023: المهلة أو «بلا»

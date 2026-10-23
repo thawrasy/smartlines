@@ -35,14 +35,14 @@ public sealed class ReadinessTests(PlatformFixture f)
         var (fo, _, _) = await f.UserWithRoleAsync(t, "FO");
         var (au, _, _) = await f.UserWithRoleAsync(t, "AU");
         var ind = PlatformFixture.Id(await tm.PostOkAsync("/api/v1/companies", new { companyCode = "IND", nameAr = "صناعية", nameEn = "Industrial", legalForm = "LLC", country = "SA", fiscalYearEndMonth = 12 }));
-        var bank = PlatformFixture.Id(await tm.PostOkAsync("/api/v1/institutions", new { code = "BNK1", nameAr = "البنك الأول", nameEn = "Bank One", type = "BANK", country = "SA" }));
+        var bank = PlatformFixture.Id(await tm.PostOkAsync("/api/v1/institutions", new { code = "BNK1", refCode = "BNA", nameAr = "البنك الأول", nameEn = "Bank One", type = "BANK", country = "SA" }));
         await tm.PostOkAsync("/api/v1/accounts", new { company = ind, institution = bank, type = "CURRENT", currency = "SAR", accountNumber = "900-1", openedOn = "2024-01-01", createRelationship = true });
 
         // A facility of the company that expires in 90 days: a renewal within the lead time (six months).
         var expiry = today.AddDays(90);
         var fac = PlatformFixture.Id(await fo.PostOkAsync("/api/v1/facilities", new
         {
-            borrower = ind, facilityType = "CREDIT_FACILITIES", currency = "SAR", totalAmount = 150_000_000, effectiveFrom = D(today.AddYears(-1)), expiryDate = D(expiry),
+            facilityClass = "CAP", borrower = ind, facilityType = "CREDIT_FACILITIES", currency = "SAR", totalAmount = 150_000_000, effectiveFrom = D(today.AddYears(-1)), expiryDate = D(expiry),
         }));
         await fo.PostOkAsync($"/api/v1/facilities/{fac}/lenders", new { institution = bank, sharePct = 100, roles = new[] { "SOLE" } });
         await fo.PostOkAsync($"/api/v1/facilities/{fac}/limits", new { code = "L0", limitType = "TOTAL_FACILITY", nameAr = "الحد الكلي", amount = 150_000_000, noSourceReason = "Clause 1" });

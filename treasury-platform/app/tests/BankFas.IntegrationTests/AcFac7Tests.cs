@@ -30,9 +30,9 @@ public sealed class AcFac7Tests(PlatformFixture f)
         var (tm, _, _) = await f.UserWithRoleAsync(t, "TM");
         var (fo, _, _) = await f.UserWithRoleAsync(t, "FO");
         var company = PlatformFixture.Id(await tm.PostOkAsync("/api/v1/companies", new { companyCode = "C7", nameAr = "شركة الاختبار", nameEn = "Test Co", legalForm = "LLC", country = "SA", fiscalYearEndMonth = 12 }));
-        var bank = PlatformFixture.Id(await tm.PostOkAsync("/api/v1/institutions", new { code = "BNK7", nameAr = "بنك الاختبار", nameEn = "Test Bank", type = "BANK", country = "SA" }));
+        var bank = PlatformFixture.Id(await tm.PostOkAsync("/api/v1/institutions", new { code = "BNK7", refCode = "BNG", nameAr = "بنك الاختبار", nameEn = "Test Bank", type = "BANK", country = "SA" }));
         var account = PlatformFixture.Id(await tm.PostOkAsync("/api/v1/accounts", new { company, institution = bank, type = "CURRENT", currency = "SAR", accountNumber = "700-1", openedOn = "2024-01-01", createRelationship = true }));
-        var fac = PlatformFixture.Id(await fo.PostOkAsync("/api/v1/facilities", new { borrower = company, facilityType = "CREDIT_FACILITIES", currency = "SAR", totalAmount = 40_000_000, effectiveFrom = from, expiryDate = to }));
+        var fac = PlatformFixture.Id(await fo.PostOkAsync("/api/v1/facilities", new { facilityClass = "CAP", borrower = company, facilityType = "CREDIT_FACILITIES", currency = "SAR", totalAmount = 40_000_000, effectiveFrom = from, expiryDate = to }));
         await fo.PostOkAsync($"/api/v1/facilities/{fac}/lenders", new { institution = bank, sharePct = 100, roles = new[] { "SOLE" } });
         await fo.PostOkAsync($"/api/v1/facilities/{fac}/limits", new { code = "L0", limitType = "TOTAL_FACILITY", nameAr = "الحد الكلي", amount = 40_000_000, noSourceReason = "Clause 1" });
         foreach (var c in covenants) await fo.PostOkAsync($"/api/v1/facilities/{fac}/obligations", c);

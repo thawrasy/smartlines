@@ -154,7 +154,7 @@ public static class DashboardEndpoints
         var now = clock.GetUtcNow().UtcDateTime;
         var load = await u.Connection.QueryAsync(new CommandDefinition(
             """
-            SELECT asg.PublicId AS id, asg.DisplayNameEn AS displayNameEn, asg.DisplayNameAr AS displayNameAr, COUNT(*) AS open,
+            SELECT asg.PublicId AS id, asg.DisplayNameEn AS displayNameEn, asg.DisplayNameAr AS displayNameAr, COUNT(*) AS [open],
                    SUM(CASE WHEN i.SlaState = 'OVERDUE' THEN 1 ELSE 0 END) AS overdue
               FROM wfl.RequestStageInstance AS i JOIN sec.AppUser AS asg ON asg.AppUserId = i.AssigneeUserId
              WHERE i.ExitedAt IS NULL AND i.Status = 'CLAIMED'

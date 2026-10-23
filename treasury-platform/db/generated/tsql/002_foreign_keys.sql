@@ -314,6 +314,7 @@ ALTER TABLE [acc].[AuthorityConflict] ADD CONSTRAINT [FK_AuthorityConflict_Signa
 ALTER TABLE [acc].[AuthorityConflict] ADD CONSTRAINT [FK_AuthorityConflict_ReviewedBy] FOREIGN KEY ([TenantId], [ReviewedBy]) REFERENCES [sec].[AppUser] ([TenantId], [AppUserId]);
 ALTER TABLE [acc].[AuthorityConflict] ADD CONSTRAINT [FK_AuthorityConflict_AuthorityGrantId] FOREIGN KEY ([TenantId], [AuthorityGrantId]) REFERENCES [org].[AuthorityGrant] ([TenantId], [AuthorityGrantId]);
 ALTER TABLE [fac].[Facility] ADD CONSTRAINT [FK_Facility_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
+ALTER TABLE [fac].[Facility] ADD CONSTRAINT [FK_Facility_FacilityClassId] FOREIGN KEY ([TenantId], [FacilityClassId]) REFERENCES [cat].[LookupItem] ([TenantId], [LookupItemId]);
 ALTER TABLE [fac].[Facility] ADD CONSTRAINT [FK_Facility_BorrowerCompanyId] FOREIGN KEY ([TenantId], [BorrowerCompanyId]) REFERENCES [org].[Company] ([TenantId], [CompanyId]);
 ALTER TABLE [fac].[Facility] ADD CONSTRAINT [FK_Facility_FacilityTypeId] FOREIGN KEY ([TenantId], [FacilityTypeId]) REFERENCES [cat].[FacilityType] ([TenantId], [FacilityTypeId]);
 ALTER TABLE [fac].[Facility] ADD CONSTRAINT [FK_Facility_CurrencyId] FOREIGN KEY ([CurrencyId]) REFERENCES [ref].[Currency] ([CurrencyId]);

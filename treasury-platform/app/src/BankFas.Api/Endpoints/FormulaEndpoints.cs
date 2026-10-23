@@ -70,7 +70,7 @@ public static class FormulaEndpoints
     }
 
     private const string Select = """
-        SELECT m.MeasureFormulaId, m.Code, m.NameAr, m.NameEn, m.Scope, m.FacilityId, f.PublicId AS FacilityPublicId, f.FacilityNo, f.BorrowerCompanyId,
+        SELECT m.MeasureFormulaId, m.Code, m.NameAr, m.NameEn, m.Scope, m.FacilityId, f.PublicId AS FacilityPublicId, ISNULL(f.PlatformRef, f.FacilityNo) AS FacilityNo, f.BorrowerCompanyId,
                m.BaseTemplateId, b.Code AS BaseTemplateCode, m.Expression, m.InputKinds, m.ResultUnit, m.UsesStatements, m.DefinitionNote, m.VersionNo, m.Status,
                m.ApprovedOn, m.CreatedBy, m.UpdatedBy
           FROM fin.MeasureFormula AS m

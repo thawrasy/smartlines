@@ -1139,6 +1139,7 @@
 | TenantId | INT | لا | | plat.Tenant | عزل المشترك |
 | **CompanyId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
 | CompanyCode | VARCHAR(20) | لا |  |  | رمز داخلي فريد في المشترك (BR-ORG-001) |
+| RefCode | VARCHAR(3) | نعم |  |  | رمز الشركة في مرجع التسهيل: حرفان أو ثلاثة، فريد في المشترك (BR-FAC-021، طلب المالك 2026-10-23) |
 | NameAr | NVARCHAR(200) | لا |  |  |  |
 | NameEn | NVARCHAR(200) | لا |  |  |  |
 | PartyKind | VARCHAR(12) | لا | ORGANIZATION |  | ثابت: المرآة جهة اعتبارية (DR-24) enum: ORGANIZATION |
@@ -1165,9 +1166,9 @@
 | UpdatedAt | DATETIME2(3) | نعم |  |  |  |
 | UpdatedBy | BIGINT | نعم |  |  |  |
 
-**المفاتيح:** PK(CompanyId) · UQ(PublicId) · UQ(TenantId, CompanyCode) · UQ(TenantId, PartyId) · UQ(TenantId, CountryId, CrNumber) WHERE CrNumber IS NOT NULL AND Status <> 'ARCHIVED' · UQ(TenantId, ErpCodeNormalized) WHERE ErpCompanyCode IS NOT NULL AND Status <> 'ARCHIVED'
+**المفاتيح:** PK(CompanyId) · UQ(PublicId) · UQ(TenantId, CompanyCode) · UQ(TenantId, RefCode) WHERE RefCode IS NOT NULL · UQ(TenantId, PartyId) · UQ(TenantId, CountryId, CrNumber) WHERE CrNumber IS NOT NULL AND Status <> 'ARCHIVED' · UQ(TenantId, ErpCodeNormalized) WHERE ErpCompanyCode IS NOT NULL AND Status <> 'ARCHIVED'
 
-**قيود:** `FiscalYearEndMonth BETWEEN 1 AND 12` · `FiscalYearEndDay IS NULL OR FiscalYearEndDay BETWEEN 1 AND 31` · `ParentCompanyId IS NULL OR ParentCompanyId <> CompanyId` · `ErpCompanyCode IS NULL OR LEN(ErpCompanyCode) > 0`
+**قيود:** `FiscalYearEndMonth BETWEEN 1 AND 12` · `RefCode IS NULL OR RefCode COLLATE Arabic_100_BIN2 LIKE '[A-Z][A-Z0-9]' OR RefCode COLLATE Arabic_100_BIN2 LIKE '[A-Z][A-Z0-9][A-Z0-9]'` · `FiscalYearEndDay IS NULL OR FiscalYearEndDay BETWEEN 1 AND 31` · `ParentCompanyId IS NULL OR ParentCompanyId <> CompanyId` · `ErpCompanyCode IS NULL OR LEN(ErpCompanyCode) > 0`
 
 ### `org.CompanyTaxRate` — Tax rate with an effective date; NULL CompanyId = tenant default (FR-ORG-007, BR-ORG-005)
 
@@ -2618,6 +2619,7 @@
 | TenantId | INT | لا | | plat.Tenant | عزل المشترك |
 | **InstitutionId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
 | Code | VARCHAR(40) | لا |  |  | رمز مطبَّع أحرف كبيرة بلا مسافات فريد في المشترك (BR-INS-001) |
+| RefCode | VARCHAR(3) | نعم |  |  | رمز البنك الثلاثي في مرجع التسهيل، فريد في المشترك (BR-FAC-021، طلب المالك 2026-10-23) |
 | NameAr | NVARCHAR(200) | لا |  |  |  |
 | NameEn | NVARCHAR(200) | نعم |  |  |  |
 | InstitutionTypeId | INT | لا |  | cat.InstitutionType |  |
@@ -2634,9 +2636,9 @@
 | UpdatedAt | DATETIME2(3) | نعم |  |  |  |
 | UpdatedBy | BIGINT | نعم |  |  |  |
 
-**المفاتيح:** PK(InstitutionId) · UQ(PublicId) · UQ(TenantId, Code) · UQ(TenantId, PartyId) WHERE PartyId IS NOT NULL
+**المفاتيح:** PK(InstitutionId) · UQ(PublicId) · UQ(TenantId, Code) · UQ(TenantId, RefCode) WHERE RefCode IS NOT NULL · UQ(TenantId, PartyId) WHERE PartyId IS NOT NULL
 
-**قيود:** `Code NOT LIKE '% %'` · `SwiftBic IS NULL OR SwiftBic COLLATE Arabic_100_BIN2 LIKE '[A-Z][A-Z][A-Z][A-Z][A-Z][A-Z][A-Z0-9][A-Z0-9]' OR SwiftBic COLLATE Arabic_100_BIN2 LIKE '[A-Z][A-Z][A-Z][A-Z][A-Z][A-Z][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9]'`
+**قيود:** `Code NOT LIKE '% %'` · `RefCode IS NULL OR RefCode COLLATE Arabic_100_BIN2 LIKE '[A-Z][A-Z][A-Z]'` · `SwiftBic IS NULL OR SwiftBic COLLATE Arabic_100_BIN2 LIKE '[A-Z][A-Z][A-Z][A-Z][A-Z][A-Z][A-Z0-9][A-Z0-9]' OR SwiftBic COLLATE Arabic_100_BIN2 LIKE '[A-Z][A-Z][A-Z][A-Z][A-Z][A-Z][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9]'`
 
 ### `ins.InstitutionUnit` — Unit in an institution's structure: division, department or branch; self-referencing tree of up to four levels (FR-INS-005/006, BR-INS-004)
 
@@ -2958,6 +2960,8 @@
 | FacilityNo | VARCHAR(40) | لا |  |  | FAC-YY-NNN من NumberSequence (BR-FAC-001) |
 | BankReferenceNo | NVARCHAR(80) | نعم |  |  | مرجع البنك: نص حر بلا صيغة (Q-FAC-01) |
 | BankStructureNo | NVARCHAR(80) | نعم |  |  | رقم هيكل البنك: نص حر (Q-FAC-01) |
+| PlatformRef | VARCHAR(30) | نعم |  |  | مرجع المنصة: الشركة-البنك-الفئة-السنة، مثل IMP-SNB-CAP-26؛ يُخصَّص عند الاعتماد الأول ولا يتغير، والتجديد بسنته (BR-FAC-021) |
+| FacilityClassId | INT | نعم |  | cat.LookupItem | فئة التسهيل في المرجع: قائمة FACILITY_CLASS (CAP وSTL وMTL وLTL ...) (BR-FAC-021) |
 | BorrowerCompanyId | BIGINT | لا |  | org.Company |  |
 | FacilityTypeId | INT | لا |  | cat.FacilityType |  |
 | CurrencyId | INT | لا |  | ref.Currency | عملة واحدة لكل التسهيل (BR-FAC-002) |
@@ -2989,9 +2993,9 @@
 | UpdatedAt | DATETIME2(3) | نعم |  |  |  |
 | UpdatedBy | BIGINT | نعم |  |  |  |
 
-**المفاتيح:** PK(FacilityId) · UQ(PublicId) · UQ(TenantId, FacilityNo) · UQ(TenantId, PreviousFacilityId) WHERE PreviousFacilityId IS NOT NULL
+**المفاتيح:** PK(FacilityId) · UQ(PublicId) · UQ(TenantId, FacilityNo) · UQ(TenantId, PlatformRef) WHERE PlatformRef IS NOT NULL · UQ(TenantId, PreviousFacilityId) WHERE PreviousFacilityId IS NOT NULL
 
-**قيود:** `ExpiryDate >= EffectiveFrom` · `AgreementDate IS NULL OR AgreementDate <= EffectiveFrom` · `TotalAmount > 0` · `PreviousFacilityId IS NULL OR PreviousFacilityId <> FacilityId` · `NoticeDays IS NULL OR NoticeDays >= 0` · `BankUnilateralRights IS NULL OR BankUnilateralRights NOT LIKE '%CHANGE_PRICING%' OR NoticeDays IS NOT NULL` · `HijriAdjusted = 0 OR HijriAdjustReason IS NOT NULL` · `LifecycleStatus NOT IN ('SUSPENDED','EXPIRED','TERMINATED') OR LifecycleReason IS NOT NULL` · `ApprovedRevisionNo >= 0` · `LifecycleStatus = 'DRAFT' OR ApprovedRevisionNo >= 1` · `AlertLeadDays IS NULL OR AlertLeadDays NOT LIKE '%[^0-9,]%'`
+**قيود:** `ExpiryDate >= EffectiveFrom` · `AgreementDate IS NULL OR AgreementDate <= EffectiveFrom` · `TotalAmount > 0` · `PlatformRef IS NULL OR PlatformRef COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9-]%'` · `LifecycleStatus = 'DRAFT' OR PlatformRef IS NOT NULL` · `PreviousFacilityId IS NULL OR PreviousFacilityId <> FacilityId` · `NoticeDays IS NULL OR NoticeDays >= 0` · `BankUnilateralRights IS NULL OR BankUnilateralRights NOT LIKE '%CHANGE_PRICING%' OR NoticeDays IS NOT NULL` · `HijriAdjusted = 0 OR HijriAdjustReason IS NOT NULL` · `LifecycleStatus NOT IN ('SUSPENDED','EXPIRED','TERMINATED') OR LifecycleReason IS NOT NULL` · `ApprovedRevisionNo >= 0` · `LifecycleStatus = 'DRAFT' OR ApprovedRevisionNo >= 1` · `AlertLeadDays IS NULL OR AlertLeadDays NOT LIKE '%[^0-9,]%'`
 
 ### `fac.FacilityRevision` — Preparer and approver revision of facility terms (FR-FAC-024, BR-FAC-003/004, section 8)
 
@@ -7209,7 +7213,7 @@
 
 **المفاتيح:** PK(LcAmendmentId) · UQ(TenantId, LcId, AmendmentNo) WHERE AmendmentNo IS NOT NULL · UQ(TenantId, RequestId) WHERE RequestId IS NOT NULL · UQ(TenantId, TermsId)
 
-**قيود:** `AmendmentNo IS NULL OR AmendmentNo >= 1` · `ChangeKinds <> ''` · `ChangeKinds NOT LIKE '%INCREASE_AMOUNT%' OR ChangeKinds NOT LIKE '%DECREASE_AMOUNT%'` · `Status = 'DRAFT' OR ChangeKinds NOT LIKE '%INCREASE_AMOUNT%' OR AmountDelta > 0` · `Status = 'DRAFT' OR ChangeKinds NOT LIKE '%DECREASE_AMOUNT%' OR AmountDelta < 0` · `Status = 'DRAFT' OR (ChangeKinds NOT LIKE '%INCREASE_AMOUNT%' AND ChangeKinds NOT LIKE '%DECREASE_AMOUNT%') OR NewAmount IS NOT NULL` · `Status = 'DRAFT' OR ChangeKinds NOT LIKE '%EXTEND_EXPIRY%' OR NewExpiryDate IS NOT NULL` · `NewAmount IS NULL OR NewAmount > 0` · `Status <> 'WITHDRAWN' OR BankIssuedOn IS NULL OR (WithdrawalDocumentId IS NOT NULL AND Reason IS NOT NULL)` · `Status NOT IN ('BANK_ISSUED','APPLIED') OR (AmendmentNo IS NOT NULL AND BankIssuedOn IS NOT NULL)` · `Status <> 'APPLIED' OR (BeneficiaryResponse = 'ACCEPTED' AND AppliedOn IS NOT NULL AND AppliedBy IS NOT NULL)` · `BeneficiaryResponse IS NULL OR BeneficiaryResponse = 'PENDING' OR RespondedOn IS NOT NULL`
+**قيود:** `AmendmentNo IS NULL OR AmendmentNo >= 1` · `ChangeKinds <> ''` · `ChangeKinds NOT LIKE '%INCREASE_AMOUNT%' OR ChangeKinds NOT LIKE '%DECREASE_AMOUNT%'` · `Status = 'DRAFT' OR ChangeKinds NOT LIKE '%INCREASE_AMOUNT%' OR AmountDelta > 0` · `Status = 'DRAFT' OR ChangeKinds NOT LIKE '%DECREASE_AMOUNT%' OR AmountDelta < 0` · `Status = 'DRAFT' OR (ChangeKinds NOT LIKE '%INCREASE_AMOUNT%' AND ChangeKinds NOT LIKE '%DECREASE_AMOUNT%') OR NewAmount IS NOT NULL` · `Status = 'DRAFT' OR ChangeKinds NOT LIKE '%EXTEND_EXPIRY%' OR NewExpiryDate IS NOT NULL` · `NewAmount IS NULL OR NewAmount > 0` · `Status <> 'WITHDRAWN' OR BankIssuedOn IS NULL OR (WithdrawalDocumentId IS NOT NULL AND Reason IS NOT NULL)` · `Status NOT IN ('BANK_ISSUED','APPLIED') OR (AmendmentNo IS NOT NULL AND BankIssuedOn IS NOT NULL)` · `Status <> 'APPLIED' OR (BeneficiaryResponse = 'ACCEPTED' AND AppliedOn IS NOT NULL AND AppliedBy IS NOT NULL)` · `BeneficiaryResponse IS NULL OR BeneficiaryResponse = 'PENDING' OR RespondedOn IS NOT NULL` · `Status <> 'REJECTED' OR BeneficiaryResponse = 'REJECTED'` · `Status <> 'WITHDRAWN' OR BeneficiaryResponse IS NULL OR BeneficiaryResponse = 'PENDING'`
 
 ### `lc.LcDrawing` — Drawing or presentation of documents under a credit; for exports includes transfer of allocation (FR-LCI-023, BR-LCI-013, BR-LCE-011); statuses in section 8
 

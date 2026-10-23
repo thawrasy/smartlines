@@ -68,10 +68,10 @@ namespace BankFas.IntegrationTests
             // The facility in SAR, a documentary credit limit with one purchase LC line.
             var company = PlatformFixture.Id(await tm.PostOkAsync("/api/v1/companies", new { companyCode = "IMP", nameAr = "شركة الاستيراد", nameEn = "Importer", legalForm = "LLC", country = "SA", fiscalYearEndMonth = 12 }));
             if (pack is not null) return await PackBedAsync(t, tm, fo, te, rq, mgr, company, pack);
-            var bank = PlatformFixture.Id(await tm.PostOkAsync("/api/v1/institutions", new { code = "BNKC", nameAr = "بنك الاعتمادات", nameEn = "Credits Bank", type = "BANK", country = "SA" }));
+            var bank = PlatformFixture.Id(await tm.PostOkAsync("/api/v1/institutions", new { code = "BNKC", refCode = "BNC", nameAr = "بنك الاعتمادات", nameEn = "Credits Bank", type = "BANK", country = "SA" }));
             var fac = PlatformFixture.Id(await fo.PostOkAsync("/api/v1/facilities", new
             {
-                borrower = company, facilityType = "CREDIT_FACILITIES", currency = "SAR", totalAmount = total, effectiveFrom = D(Today.AddMonths(-1)), expiryDate = D(Today.AddYears(2)),
+                facilityClass = "CAP", borrower = company, facilityType = "CREDIT_FACILITIES", currency = "SAR", totalAmount = total, effectiveFrom = D(Today.AddMonths(-1)), expiryDate = D(Today.AddYears(2)),
             }));
             await fo.PostOkAsync($"/api/v1/facilities/{fac}/lenders", new { institution = bank, sharePct = 100, roles = new[] { "SOLE" } });
             var l0 = (await fo.PostOkAsync($"/api/v1/facilities/{fac}/limits", new { code = "L0", limitType = "TOTAL_FACILITY", nameAr = "الكلي", amount = total, noSourceReason = "Clause 1" })).GetProperty("id").GetString()!;
@@ -511,7 +511,8 @@ namespace BankFas.IntegrationTests
             Assert.Equal((403, "FORBIDDEN"), await b.Rq.ProblemAsync(HttpMethod.Get, "/api/v1/dashboards/manager"));
 
             await ActAsync(b.Rq, id, "submit");
-            Assert.Equal((409, "TERMS_LOCKED"), await b.Rq.ProblemAsync(HttpMethod.Put, $"/api/v1/requests/{id}/terms/beneficiary-iban", new { iban = "" }));
+            // Submitted, the request is no longer the requester's to edit; the IBAN is locked with the terms.
+            Assert.Equal((403, "FORBIDDEN"), await b.Rq.ProblemAsync(HttpMethod.Put, $"/api/v1/requests/{id}/terms/beneficiary-iban", new { iban = "" }));
             Assert.Equal((403, "FORBIDDEN"), await b.Rq.PostProblemAsync($"/api/v1/requests/{id}/terms/beneficiary-iban/reveal", new { reason = "Check" }));
             Assert.Equal((422, "VALIDATION_FAILED"), await b.Tm.PostProblemAsync($"/api/v1/requests/{id}/terms/beneficiary-iban/reveal", new { reason = "" }));
             Assert.Equal("SA0380000000608010167519",

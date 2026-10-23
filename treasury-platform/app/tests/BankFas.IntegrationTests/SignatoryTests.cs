@@ -184,7 +184,7 @@ public sealed class SignatoryTests(PlatformFixture f)
         Assert.Contains("DOCUMENT_DOWNLOAD_DENIED", log);
 
         // OQ-16: a relationship with signatories in force closes only on confirmation, and revokes them.
-        var bank2 = PlatformFixture.Id(await tm.PostOkAsync("/api/v1/institutions", new { code = "BNK2", nameAr = "البنك الثاني", type = "BANK", country = "SA" }));
+        var bank2 = PlatformFixture.Id(await tm.PostOkAsync("/api/v1/institutions", new { code = "BNK2", refCode = "BNB", nameAr = "البنك الثاني", type = "BANK", country = "SA" }));
         var rel2 = PlatformFixture.Id(await tm.PostOkAsync("/api/v1/relationships", new { company = s.Company, institution = bank2 }));
         var sig2 = PlatformFixture.Id(await tm.PostOkAsync($"/api/v1/relationships/{rel2}/signatories", new { party = await PersonAsync(tm, "SG2"), signatureClass = "A", validFrom = "2024-01-01" }));
         Assert.Equal((409, "V-INS-OPEN-SIGNATORIES"), await tm.PostProblemAsync($"/api/v1/relationships/{rel2}/actions/close", new { reason = "Moved" }));

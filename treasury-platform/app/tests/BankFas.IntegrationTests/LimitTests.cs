@@ -41,10 +41,10 @@ public sealed class LimitTests(PlatformFixture f)
         var (fo, _, _) = await f.UserWithRoleAsync(t, "FO");
         var co = PlatformFixture.Id(await tm.PostOkAsync("/api/v1/companies", new { companyCode = "C1", nameAr = "شركة الأولى", nameEn = "First", legalForm = "LLC", country = "SA", fiscalYearEndMonth = 12 }));
         var co2 = PlatformFixture.Id(await tm.PostOkAsync("/api/v1/companies", new { companyCode = "C2", nameAr = "شركة الثانية", nameEn = "Second", legalForm = "LLC", country = "SA", fiscalYearEndMonth = 12 }));
-        var bank = PlatformFixture.Id(await tm.PostOkAsync("/api/v1/institutions", new { code = "BNK1", nameAr = "البنك الأول", nameEn = "Bank One", type = "BANK", country = "SA" }));
+        var bank = PlatformFixture.Id(await tm.PostOkAsync("/api/v1/institutions", new { code = "BNK1", refCode = "BNA", nameAr = "البنك الأول", nameEn = "Bank One", type = "BANK", country = "SA" }));
         var fac = PlatformFixture.Id(await fo.PostOkAsync("/api/v1/facilities", new
         {
-            borrower = co, facilityType = "CREDIT_FACILITIES", currency = "SAR", totalAmount = total, effectiveFrom = D(Today.AddMonths(-1)), expiryDate = D(Today.AddMonths(11)),
+            facilityClass = "CAP", borrower = co, facilityType = "CREDIT_FACILITIES", currency = "SAR", totalAmount = total, effectiveFrom = D(Today.AddMonths(-1)), expiryDate = D(Today.AddMonths(11)),
         }));
         await fo.PostOkAsync($"/api/v1/facilities/{fac}/lenders", new { institution = bank, sharePct = 100, roles = new[] { "SOLE" } });
         return new Setup(tm, fo, co, co2, bank, t.Code, fac);

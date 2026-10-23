@@ -76,7 +76,7 @@ public static class CovenantEngine
     }
 
     private const string CovenantSelect = """
-        SELECT c.CovenantId, c.RootId, o.ObligationId, o.RootId AS ObligationRootId, f.FacilityId, f.FacilityNo, f.ApprovedRevisionNo, f.ExpiryDate AS FacilityExpiry,
+        SELECT c.CovenantId, c.RootId, o.ObligationId, o.RootId AS ObligationRootId, f.FacilityId, ISNULL(f.PlatformRef, f.FacilityNo) AS FacilityNo, f.ApprovedRevisionNo, f.ExpiryDate AS FacilityExpiry,
                f.EffectiveFrom AS FacilityEffective, c.MeasureKind, c.FormulaId, c.Operator, c.ThresholdState, c.ThresholdValue, c.ThresholdUnit, c.CurrencyId,
                f.CurrencyId AS FacilityCurrencyId, c.TestFrequency, c.AggregationMode, c.StatementBasis, c.RequiredAssurance, c.RevenueBasisRule, c.AccountScopeKind,
                c.TestedCompanyId, c.SubmissionLagDays, c.FirstTestPeriodEnd, c.EarlyWarningPct, c.ValidFrom, c.ValidTo, o.CureDays, co.FiscalYearEndMonth AS FyeMonth,

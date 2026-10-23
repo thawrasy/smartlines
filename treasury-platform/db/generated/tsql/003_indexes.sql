@@ -92,6 +92,7 @@ CREATE NONCLUSTERED INDEX [IX_OutboxEvent_LockedUntil] ON [cfg].[OutboxEvent] ([
 CREATE NONCLUSTERED INDEX [IX_JobRun_JobKey_StartedAt] ON [cfg].[JobRun] ([TenantId], [JobKey], [StartedAt]);
 CREATE NONCLUSTERED INDEX [IX_JobRun_NextRetryAt] ON [cfg].[JobRun] ([TenantId], [NextRetryAt]) WHERE Status = 'FAILED';
 CREATE NONCLUSTERED INDEX [IX_SeedRun_PackKey_SeedVersion] ON [cfg].[SeedRun] ([TenantId], [PackKey], [SeedVersion]);
+CREATE UNIQUE NONCLUSTERED INDEX [UQ_Company_RefCode] ON [org].[Company] ([TenantId], [RefCode]) WHERE RefCode IS NOT NULL;
 CREATE UNIQUE NONCLUSTERED INDEX [UQ_Company_CountryId_CrNumber] ON [org].[Company] ([TenantId], [CountryId], [CrNumber]) WHERE CrNumber IS NOT NULL AND Status <> 'ARCHIVED';
 CREATE UNIQUE NONCLUSTERED INDEX [UQ_Company_ErpCodeNormalized] ON [org].[Company] ([TenantId], [ErpCodeNormalized]) WHERE ErpCompanyCode IS NOT NULL AND Status <> 'ARCHIVED';
 CREATE NONCLUSTERED INDEX [IX_Company_Status_CountryId] ON [org].[Company] ([TenantId], [Status], [CountryId]);
@@ -245,6 +246,7 @@ CREATE NONCLUSTERED INDEX [IX_BaseRateValue_EnteredBy] ON [cat].[BaseRateValue] 
 CREATE UNIQUE NONCLUSTERED INDEX [UQ_LookupList_SeedKey] ON [cat].[LookupList] ([TenantId], [SeedKey]) WHERE SeedKey IS NOT NULL;
 CREATE UNIQUE NONCLUSTERED INDEX [UQ_LookupItem_LookupListId_SeedKey] ON [cat].[LookupItem] ([TenantId], [LookupListId], [SeedKey]) WHERE SeedKey IS NOT NULL;
 CREATE NONCLUSTERED INDEX [IX_LookupItem_LookupListId_IsActive_SortOrder] ON [cat].[LookupItem] ([TenantId], [LookupListId], [IsActive], [SortOrder]);
+CREATE UNIQUE NONCLUSTERED INDEX [UQ_Institution_RefCode] ON [ins].[Institution] ([TenantId], [RefCode]) WHERE RefCode IS NOT NULL;
 CREATE UNIQUE NONCLUSTERED INDEX [UQ_Institution_PartyId] ON [ins].[Institution] ([TenantId], [PartyId]) WHERE PartyId IS NOT NULL;
 CREATE NONCLUSTERED INDEX [IX_Institution_SwiftBic] ON [ins].[Institution] ([TenantId], [SwiftBic]) WHERE SwiftBic IS NOT NULL;
 CREATE NONCLUSTERED INDEX [IX_Institution_InstitutionTypeId_Status] ON [ins].[Institution] ([TenantId], [InstitutionTypeId], [Status]);
@@ -310,7 +312,9 @@ CREATE NONCLUSTERED INDEX [IX_SignatoryAuthorityJointClass_SignatureClassId] ON 
 CREATE NONCLUSTERED INDEX [IX_AuthorityConflict_Status_DetectedOn] ON [acc].[AuthorityConflict] ([TenantId], [Status], [DetectedOn]);
 CREATE NONCLUSTERED INDEX [IX_AuthorityConflict_ReviewedBy] ON [acc].[AuthorityConflict] ([TenantId], [ReviewedBy]);
 CREATE NONCLUSTERED INDEX [IX_AuthorityConflict_AuthorityGrantId] ON [acc].[AuthorityConflict] ([TenantId], [AuthorityGrantId]);
+CREATE UNIQUE NONCLUSTERED INDEX [UQ_Facility_PlatformRef] ON [fac].[Facility] ([TenantId], [PlatformRef]) WHERE PlatformRef IS NOT NULL;
 CREATE UNIQUE NONCLUSTERED INDEX [UQ_Facility_PreviousFacilityId] ON [fac].[Facility] ([TenantId], [PreviousFacilityId]) WHERE PreviousFacilityId IS NOT NULL;
+CREATE NONCLUSTERED INDEX [IX_Facility_FacilityClassId] ON [fac].[Facility] ([TenantId], [FacilityClassId]) WHERE FacilityClassId IS NOT NULL;
 CREATE NONCLUSTERED INDEX [IX_Facility_BorrowerCompanyId_LifecycleStatus] ON [fac].[Facility] ([TenantId], [BorrowerCompanyId], [LifecycleStatus]) INCLUDE ([ExpiryDate], [FacilityTypeId]);
 CREATE NONCLUSTERED INDEX [IX_Facility_LifecycleStatus_ExpiryDate] ON [fac].[Facility] ([TenantId], [LifecycleStatus], [ExpiryDate]);
 CREATE NONCLUSTERED INDEX [IX_Facility_BankReferenceNo] ON [fac].[Facility] ([TenantId], [BankReferenceNo]) WHERE BankReferenceNo IS NOT NULL;

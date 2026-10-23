@@ -149,7 +149,10 @@ public sealed class WorkflowQueueTests(PlatformFixture f)
     public async Task AC_WFL_1_a_delegate_approves_for_the_manager_and_a_revoked_delegation_shows_nothing()
     {
         var p = await SetUpAsync();
-        var today = DateOnly.FromDateTime(f.Env.Clock.GetUtcNow().UtcDateTime);
+        // The tenant's own date (the server's "today" of a delegation), not the UTC date: the test clock runs ahead and may cross midnight in Riyadh.
+        string? zoneId;
+        await using (var bound = await BoundAsync(p.T)) zoneId = await bound.ExecuteScalarAsync<string>("SELECT TimeZone FROM plat.v_CurrentTenant;");
+        var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(f.Env.Clock.GetUtcNow().UtcDateTime, TimeZoneInfo.FindSystemTimeZoneById(zoneId!)));
         string D(DateOnly d) => d.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
 
         // BR-WFL-021 and V-WFL-06.

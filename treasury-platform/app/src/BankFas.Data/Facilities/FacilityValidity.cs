@@ -40,7 +40,7 @@ public static class FacilityValidity
     {
         var rows = (await c.QueryAsync<(long Previous, Guid PreviousId, string SuccessorNo, string Was)>(new CommandDefinition(
             """
-            SELECT p.FacilityId, p.PublicId, s.FacilityNo, p.LifecycleStatus
+            SELECT p.FacilityId, p.PublicId, ISNULL(s.PlatformRef, s.FacilityNo) AS FacilityNo, p.LifecycleStatus
               FROM fac.Facility AS s JOIN fac.Facility AS p WITH (UPDLOCK) ON p.FacilityId = s.PreviousFacilityId
              WHERE s.ApprovedRevisionNo >= 1 AND s.LifecycleStatus = 'ACTIVE' AND s.EffectiveFrom <= @today
                AND p.LifecycleStatus IN ('ACTIVE', 'SUSPENDED', 'EXPIRED') AND (@s IS NULL OR s.FacilityId = @s);
@@ -108,7 +108,7 @@ internal sealed class FacilityExpiry : IExpiryItemProvider
     public async Task<IReadOnlyList<ExpiryItem>> ItemsAsync(SqlConnection c, DateTime today, DateTime horizon, CancellationToken ct) =>
         [.. (await c.QueryAsync<Row>(new CommandDefinition(
             """
-            SELECT f.FacilityId AS Id, f.ExpiryDate, f.BorrowerCompanyId AS CompanyId, f.FacilityNo, f.AlertLeadDays, co.NameAr AS CompanyNameAr, co.NameEn AS CompanyNameEn,
+            SELECT f.FacilityId AS Id, f.ExpiryDate, f.BorrowerCompanyId AS CompanyId, ISNULL(f.PlatformRef, f.FacilityNo) AS FacilityNo, f.AlertLeadDays, co.NameAr AS CompanyNameAr, co.NameEn AS CompanyNameEn,
                    b.NameAr AS BankNameAr, b.NameEn AS BankNameEn
               FROM fac.Facility AS f
               JOIN org.Company AS co ON co.CompanyId = f.BorrowerCompanyId
@@ -156,7 +156,7 @@ internal sealed class LimitExpiry(bool lines) : IExpiryItemProvider
     public async Task<IReadOnlyList<ExpiryItem>> ItemsAsync(SqlConnection c, DateTime today, DateTime horizon, CancellationToken ct) =>
         [.. (await c.QueryAsync<Row>(new CommandDefinition(
             $"""
-            SELECT x.RootId AS Id, x.{(lines ? "DueDate" : "EndDate")} AS ExpiryDate, f.BorrowerCompanyId AS CompanyId, f.FacilityNo,
+            SELECT x.RootId AS Id, x.{(lines ? "DueDate" : "EndDate")} AS ExpiryDate, f.BorrowerCompanyId AS CompanyId, ISNULL(f.PlatformRef, f.FacilityNo) AS FacilityNo,
                    {(lines ? "CONCAT(l.Code, '/', ISNULL(x.BankProductCode, pr.Code))" : "x.Code")} AS Code, f.AlertLeadDays,
                    co.NameAr AS CompanyNameAr, co.NameEn AS CompanyNameEn, b.NameAr AS BankNameAr, b.NameEn AS BankNameEn
               FROM {(lines ? "fac.LimitProductLine AS x JOIN fac.Limit AS l ON l.LimitId = x.LimitId JOIN cat.Product AS pr ON pr.ProductId = x.ProductId" : "fac.Limit AS x")}

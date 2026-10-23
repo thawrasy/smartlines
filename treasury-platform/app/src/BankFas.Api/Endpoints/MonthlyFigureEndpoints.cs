@@ -323,7 +323,7 @@ public static class MonthlyFigureEndpoints
 
     private const string FlowSelect = """
         SELECT e.BankFlowEntryId, e.PublicId, e.CompanyId, c.PublicId AS CompanyPublicId, c.NameAr AS CompanyNameAr, e.InstitutionId, i.PublicId AS InstitutionPublicId,
-               i.Code AS InstitutionCode, e.FacilityId, f.PublicId AS FacilityPublicId, f.FacilityNo, e.MonthEnd, k.Code AS Kind, e.Amount, cu.Code AS Currency, e.BasisNote,
+               i.Code AS InstitutionCode, e.FacilityId, f.PublicId AS FacilityPublicId, ISNULL(f.PlatformRef, f.FacilityNo) AS FacilityNo, e.MonthEnd, k.Code AS Kind, e.Amount, cu.Code AS Currency, e.BasisNote,
                e.Status, e.EnteredBy, e.LastReopenedBy, e.LastReopenReason
           FROM fin.BankFlowEntry AS e
           JOIN org.Company AS c ON c.CompanyId = e.CompanyId

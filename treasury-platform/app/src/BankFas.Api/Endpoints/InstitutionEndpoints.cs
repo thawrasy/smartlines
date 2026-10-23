@@ -11,7 +11,7 @@ using Microsoft.Data.SqlClient;
 namespace BankFas.Api.Endpoints;
 
 public sealed record InstitutionRequest(string? Code, string? NameAr, string? NameEn, string? Type, string? Country, string? SwiftBic, string? Website, Guid? Party,
-    string? Notes);
+    string? Notes, string? RefCode = null);
 public sealed record UnitRequest(string? Parent, bool? ToRoot, string? UnitType, string? NameAr, string? NameEn, bool? IsActive);
 public sealed record ContactRequest(string? FullNameAr, string? FullNameEn, string? JobTitleAr, string? JobTitleEn, string? Unit, Guid? ReportsTo, bool? ClearReportsTo,
     string? Notes, List<ContactMethodRequest>? ContactMethods);
@@ -140,13 +140,13 @@ public static partial class InstitutionEndpoints
     // ---------- institutions ----------
 
     internal sealed record InstitutionRow(long InstitutionId, Guid PublicId, string Code, string NameAr, string? NameEn, string Type, bool RequiresParty, string Country,
-        string Locality, string? SwiftBic, string? Website, long? PartyId, Guid? Party, string? PartyCode, string Status, string? Notes, byte[] RowVersion);
+        string Locality, string? SwiftBic, string? Website, long? PartyId, Guid? Party, string? PartyCode, string Status, string? Notes, string? RefCode, byte[] RowVersion);
 
     private const string InstitutionSelect =
         """
         SELECT i.InstitutionId, i.PublicId, i.Code, i.NameAr, i.NameEn, t.Code AS Type, t.RequiresParty, co.Iso2 AS Country,
                CASE WHEN i.CountryId = ct.HomeCountryId THEN 'LOCAL' ELSE 'FOREIGN' END AS Locality, i.SwiftBic, i.Website, i.PartyId, p.PublicId AS Party,
-               p.PartyCode, i.Status, i.Notes, i.RowVersion
+               p.PartyCode, i.Status, i.Notes, i.RefCode, i.RowVersion
           FROM ins.Institution AS i
           JOIN cat.InstitutionType AS t ON t.InstitutionTypeId = i.InstitutionTypeId
           JOIN ref.Country AS co ON co.CountryId = i.CountryId
@@ -157,7 +157,7 @@ public static partial class InstitutionEndpoints
     private static object Shape(InstitutionRow i) => new
     {
         id = i.PublicId, code = i.Code, nameAr = i.NameAr, nameEn = i.NameEn, type = i.Type, country = i.Country, locality = i.Locality, swiftBic = i.SwiftBic,
-        website = i.Website, party = i.Party, partyCode = i.PartyCode, status = i.Status, notes = i.Notes, etag = ETags.Of(i.RowVersion),
+        website = i.Website, party = i.Party, partyCode = i.PartyCode, status = i.Status, notes = i.Notes, refCode = i.RefCode, etag = ETags.Of(i.RowVersion),
     };
 
     internal static async Task<InstitutionRow> FindAsync(SqlConnection c, SqlTransaction? tx, Guid id, CancellationToken ct) =>
@@ -191,7 +191,23 @@ public static partial class InstitutionEndpoints
     private static string? Up(Microsoft.Extensions.Primitives.StringValues v) => v.ToString() is { Length: > 0 } s ? s.Trim().ToUpperInvariant() : null;
 
     private sealed record InstitutionValues(string NameAr, string? NameEn, int TypeId, bool RequiresParty, int CountryId, string? Bic, string? Website, long? PartyId,
-        string? Notes);
+        string? Notes, string? RefCode);
+
+    /// <summary>BR-FAC-021: the bank's three capital letters in its facilities' platform references; empty clears it.</summary>
+    private static string? Ref(string? text)
+    {
+        var v = text?.Trim().ToUpperInvariant();
+        if (string.IsNullOrEmpty(v)) return null;
+        return BankFas.Core.Facilities.FacilityReference.IsBankCode(v) ? v
+            : throw ApiProblemException.Invalid("V-INS-REF", "The reference code of a bank is three capital letters.");
+    }
+
+    private static async Task RefFreeAsync(SqlConnection c, SqlTransaction tx, string? refCode, long? except, CancellationToken ct)
+    {
+        if (refCode is not null && await c.ExecuteScalarAsync<int>(new CommandDefinition(
+                "SELECT COUNT(*) FROM ins.Institution WHERE RefCode = @r AND InstitutionId <> ISNULL(@except, -1);", new { r = refCode, except }, tx, cancellationToken: ct)) > 0)
+            throw new ApiProblemException(409, "V-INS-REF-TAKEN", $"Another institution has the reference code {refCode}.");
+    }
 
     private static async Task<InstitutionValues> InstitutionValuesAsync(SqlConnection c, SqlTransaction? tx, InstitutionRequest b, InstitutionRow? current, CancellationToken ct)
     {
@@ -213,7 +229,8 @@ public static partial class InstitutionEndpoints
         if (type.RequiresParty && partyId is null) throw ApiProblemException.Invalid("V-INS-PARTY", "An institution of this type is linked to a party.");
         if (!type.RequiresParty && partyId is not null) throw ApiProblemException.Invalid("V-INS-PARTY", "Only an individual lender is linked to a party.");
         return new InstitutionValues(nameAr, b.NameEn is null ? current?.NameEn : T(b.NameEn, 200, "English name"), type.Id, type.RequiresParty, countryId, bic,
-            b.Website is null ? current?.Website : T(b.Website, 300, "web site"), partyId, b.Notes is null ? current?.Notes : T(b.Notes, 2000, "notes"));
+            b.Website is null ? current?.Website : T(b.Website, 300, "web site"), partyId, b.Notes is null ? current?.Notes : T(b.Notes, 2000, "notes"),
+            b.RefCode is null ? current is null ? BankFas.Core.Facilities.FacilityReference.BankDefault(Normalizer.Code(b.Code ?? "")) : current.RefCode : Ref(b.RefCode));
     }
 
     /// <summary>V-INS-02 (a warning): another institution with the same BIC or a similar name.</summary>
@@ -239,15 +256,16 @@ public static partial class InstitutionEndpoints
                 new { p = v.PartyId }, tx, cancellationToken: ct)) > 0)
             throw new ApiProblemException(409, "V-INS-07", "This party is already an institution.");
         var warnings = await InstitutionWarningsAsync(u.Connection, tx, v, null, ct);
+        await RefFreeAsync(u.Connection, tx, v.RefCode, null, ct);
         var row = await u.Connection.QuerySingleAsync<(long Id, Guid PublicId)>(new CommandDefinition(
             """
             DECLARE @o TABLE (Id BIGINT, PublicId UNIQUEIDENTIFIER);
-            INSERT ins.Institution (TenantId, Code, NameAr, NameEn, InstitutionTypeId, CountryId, SwiftBic, Website, PartyId, Status, Notes, CreatedBy)
+            INSERT ins.Institution (TenantId, Code, NameAr, NameEn, InstitutionTypeId, CountryId, SwiftBic, Website, PartyId, Status, Notes, RefCode, CreatedBy)
             OUTPUT inserted.InstitutionId, inserted.PublicId INTO @o
-            VALUES (CAST(SESSION_CONTEXT(N'TenantId') AS INT), @code, @ar, @en, @type, @country, @bic, @web, @party, @status, @notes, CAST(SESSION_CONTEXT(N'UserId') AS BIGINT));
+            VALUES (CAST(SESSION_CONTEXT(N'TenantId') AS INT), @code, @ar, @en, @type, @country, @bic, @web, @party, @status, @notes, @refCode, CAST(SESSION_CONTEXT(N'UserId') AS BIGINT));
             SELECT Id, PublicId FROM @o;
             """,
-            new { code, ar = v.NameAr, en = v.NameEn, type = v.TypeId, country = v.CountryId, bic = v.Bic, web = v.Website, party = v.PartyId, status, notes = v.Notes },
+            new { code, ar = v.NameAr, en = v.NameEn, type = v.TypeId, country = v.CountryId, bic = v.Bic, web = v.Website, party = v.PartyId, status, notes = v.Notes, refCode = v.RefCode },
             tx, cancellationToken: ct));
         await Outbox.EmitAsync(u.Connection, tx, "institution.created", "ins.Institution", row.Id, new { institution = row.PublicId, code }, ct);
         await AuditWriter.WriteAsync(u.Connection, tx, new AuditEntry("INSTITUTION_CREATED", "TREASURY", "ins.Institution", row.Id,
@@ -335,6 +353,7 @@ public static partial class InstitutionEndpoints
         if (i.Status == "INACTIVE") throw new ApiProblemException(409, "V-INS-INACTIVE", "An inactive institution is read-only.");
         var v = await InstitutionValuesAsync(u.Connection, tx, b, i, http.RequestAborted);
         var warnings = await InstitutionWarningsAsync(u.Connection, tx, v, i.InstitutionId, http.RequestAborted);
+        await RefFreeAsync(u.Connection, tx, v.RefCode, i.InstitutionId, http.RequestAborted);
         byte[] rv;
         try
         {
@@ -342,11 +361,11 @@ public static partial class InstitutionEndpoints
                 """
                 DECLARE @o TABLE (RowVersion BINARY(8));
                 UPDATE ins.Institution SET NameAr = @ar, NameEn = @en, InstitutionTypeId = @type, CountryId = @country, SwiftBic = @bic, Website = @web, PartyId = @party,
-                       Notes = @notes, UpdatedAt = SYSUTCDATETIME(), UpdatedBy = CAST(SESSION_CONTEXT(N'UserId') AS BIGINT)
+                       Notes = @notes, RefCode = @refCode, UpdatedAt = SYSUTCDATETIME(), UpdatedBy = CAST(SESSION_CONTEXT(N'UserId') AS BIGINT)
                 OUTPUT inserted.RowVersion INTO @o WHERE InstitutionId = @id AND RowVersion = @rv;
                 SELECT RowVersion FROM @o;
                 """,
-                new { ar = v.NameAr, en = v.NameEn, type = v.TypeId, country = v.CountryId, bic = v.Bic, web = v.Website, party = v.PartyId, notes = v.Notes, id = i.InstitutionId, rv = expected },
+                new { ar = v.NameAr, en = v.NameEn, type = v.TypeId, country = v.CountryId, bic = v.Bic, web = v.Website, party = v.PartyId, notes = v.Notes, refCode = v.RefCode, id = i.InstitutionId, rv = expected },
                 tx, cancellationToken: http.RequestAborted)) ?? throw ETags.Conflict();
         }
         catch (SqlException ex) when (ex.Number is DbErrors.UniqueViolation or DbErrors.UniqueIndexViolation)

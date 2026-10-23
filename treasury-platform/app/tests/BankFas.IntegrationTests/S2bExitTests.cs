@@ -153,7 +153,7 @@ public sealed class S2bExitTests(PlatformFixture f)
         // A facility with no obligation is GREY.
         var bare = PlatformFixture.Id(await fo.PostOkAsync("/api/v1/facilities", new
         {
-            borrower = company, facilityType = "CREDIT_FACILITIES", currency = "SAR", totalAmount = 5_000_000, effectiveFrom = "2027-01-01", expiryDate = "2029-12-31", bankReferenceNo = "BARE-1",
+            facilityClass = "CAP", borrower = company, facilityType = "CREDIT_FACILITIES", currency = "SAR", totalAmount = 5_000_000, effectiveFrom = "2027-01-01", expiryDate = "2029-12-31", bankReferenceNo = "BARE-1",
         }));
         await fo.PostOkAsync($"/api/v1/facilities/{bare}/lenders", new { institution = bank, sharePct = 100, roles = new[] { "SOLE" } });
         var bareRev = (await fo.GetJsonAsync($"/api/v1/facilities/{bare}")).GetProperty("draft").GetProperty("revision").GetString()!;

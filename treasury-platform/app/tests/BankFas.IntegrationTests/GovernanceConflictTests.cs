@@ -25,8 +25,8 @@ public sealed class GovernanceConflictTests(PlatformFixture f)
         var outbox = new OutboxJob(f.Env.Db, f.Env.Mail);
 
         var co = PlatformFixture.Id(await tm.PostOkAsync("/api/v1/companies", new { companyCode = "C1", nameAr = "شركة الأولى", nameEn = "First", legalForm = "LLC", country = "SA", fiscalYearEndMonth = 12 }));
-        var bnk1 = PlatformFixture.Id(await tm.PostOkAsync("/api/v1/institutions", new { code = "BNK1", nameAr = "البنك الأول", nameEn = "Bank One", type = "BANK", country = "SA" }));
-        var bnk2 = PlatformFixture.Id(await tm.PostOkAsync("/api/v1/institutions", new { code = "BNK2", nameAr = "البنك الثاني", nameEn = "Bank Two", type = "BANK", country = "SA" }));
+        var bnk1 = PlatformFixture.Id(await tm.PostOkAsync("/api/v1/institutions", new { code = "BNK1", refCode = "BNA", nameAr = "البنك الأول", nameEn = "Bank One", type = "BANK", country = "SA" }));
+        var bnk2 = PlatformFixture.Id(await tm.PostOkAsync("/api/v1/institutions", new { code = "BNK2", refCode = "BNB", nameAr = "البنك الثاني", nameEn = "Bank Two", type = "BANK", country = "SA" }));
         var rel = PlatformFixture.Id(await tm.PostOkAsync("/api/v1/relationships", new { company = co, institution = bnk1 }));
         var sg1 = PlatformFixture.Id(await tm.PostOkAsync("/api/v1/parties", new { kind = "INDIVIDUAL", nameAr = "المفوض الأول", nameEn = "SG1", country = "SA", residencyStatus = "CITIZEN" }));
         var up = await CompanyDocumentTests.UploadAsync(tm, "/api/v1/documents", CompanyDocumentTests.Pdf("resolution"), "resolution.pdf", new Dictionary<string, string>

@@ -492,7 +492,7 @@ public static class ObligationEndpoints
     }
 
     private const string ItemSelect = """
-        SELECT i.ReportingInstanceId, i.PublicId, i.ReportingObligationRootId, o.ObligationId, o.RootId AS ObligationRootId, f.FacilityId, f.PublicId AS FacilityPublicId, f.FacilityNo,
+        SELECT i.ReportingInstanceId, i.PublicId, i.ReportingObligationRootId, o.ObligationId, o.RootId AS ObligationRootId, f.FacilityId, f.PublicId AS FacilityPublicId, ISNULL(f.PlatformRef, f.FacilityNo) AS FacilityNo,
                f.BorrowerCompanyId, o.TitleAr, o.TitleEn, r.Frequency, i.PeriodStart, i.PeriodEnd, i.EventDate, i.DueDate, i.DueDateOverrideReason, i.Status, i.StatusReason,
                i.SubmittedOn, o.GraceDays, o.CureDays, r.ExpectsEvidence, CAST(CASE WHEN i.EvidenceDocumentId IS NULL THEN 0 ELSE 1 END AS BIT) AS HasEvidence
           FROM obl.ReportingInstance AS i
@@ -792,7 +792,7 @@ public static class ObligationEndpoints
             cancellationToken: ct));
         var f = await u.Connection.QuerySingleAsync<(string FacilityNo, long Company, string? CoAr, string? CoEn, string TitleAr, string? TitleEn, DateTime? Due)>(new CommandDefinition(
             """
-            SELECT f.FacilityNo, f.BorrowerCompanyId, co.NameAr, co.NameEn, o.TitleAr, o.TitleEn, i.DueDate
+            SELECT ISNULL(f.PlatformRef, f.FacilityNo) AS FacilityNo, f.BorrowerCompanyId, co.NameAr, co.NameEn, o.TitleAr, o.TitleEn, i.DueDate
               FROM fac.Facility AS f JOIN org.Company AS co ON co.CompanyId = f.BorrowerCompanyId JOIN obl.Obligation AS o ON o.ObligationId = @o
               LEFT JOIN obl.ReportingInstance AS i ON i.ReportingInstanceId = @inst
              WHERE f.FacilityId = @f;
@@ -848,7 +848,7 @@ public static class ObligationEndpoints
     }
 
     private const string BreachSelect = """
-        SELECT b.ObligationBreachId, b.PublicId, f.PublicId AS FacilityPublicId, f.FacilityNo, f.BorrowerCompanyId, o.TitleAr, b.Kind, b.DetectedOn, b.Description, b.Status,
+        SELECT b.ObligationBreachId, b.PublicId, f.PublicId AS FacilityPublicId, ISNULL(f.PlatformRef, f.FacilityNo) AS FacilityNo, f.BorrowerCompanyId, o.TitleAr, b.Kind, b.DetectedOn, b.Description, b.Status,
                b.CureDeadline, b.BankNotifiedOn, b.WaiverRef, b.WaiverDate, b.WaiverDocumentId, b.UpdatedBy, b.ResolvedOn, o.CureDays, i.PublicId AS Item
           FROM obl.ObligationBreach AS b
           JOIN obl.Obligation AS o ON o.ObligationId = b.ObligationId

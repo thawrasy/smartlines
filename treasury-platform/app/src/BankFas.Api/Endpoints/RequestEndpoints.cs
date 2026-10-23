@@ -521,7 +521,7 @@ public static class RequestEndpoints
             """, new { r = requestId }, cancellationToken: ct));
         var facilities = await u.Connection.QueryAsync<(long FacilityId, Guid PublicId, string? FacilityNo, int Rev, decimal Total, string Currency)>(new CommandDefinition(
             """
-            SELECT f.FacilityId, f.PublicId, f.FacilityNo, f.ApprovedRevisionNo, f.TotalAmount, c.Code FROM fac.Facility AS f JOIN ref.Currency AS c ON c.CurrencyId = f.CurrencyId
+            SELECT f.FacilityId, f.PublicId, ISNULL(f.PlatformRef, f.FacilityNo) AS FacilityNo, f.ApprovedRevisionNo, f.TotalAmount, c.Code FROM fac.Facility AS f JOIN ref.Currency AS c ON c.CurrencyId = f.CurrencyId
              WHERE f.LifecycleStatus = 'ACTIVE' AND f.ApprovedRevisionNo > 0 AND (f.BorrowerCompanyId = @co OR f.FacilityId = @fac);
             """, new { co = r.CompanyId, fac = allocated.FacilityId ?? -1 }, cancellationToken: ct));
         var items = new List<object>();

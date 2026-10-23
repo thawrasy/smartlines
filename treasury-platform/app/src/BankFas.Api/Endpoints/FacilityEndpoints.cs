@@ -14,7 +14,8 @@ namespace BankFas.Api.Endpoints;
 public sealed record FacilityRequest(Guid? Borrower, string? FacilityType, string? Currency, decimal? TotalAmount, bool? IsSyndicated, string? PrecedenceLanguage,
     string? PrecedenceClauseRef, string? BankReferenceNo, string? BankStructureNo, string? AgreementDate, string? AgreementDateHijri, string? EffectiveFrom,
     string? EffectiveFromHijri, string? ExpiryDate, string? ExpiryDateHijri, string? OperativeCalendar, bool? HijriAdjusted, string? HijriAdjustReason,
-    string[]? BankUnilateralRights, int? NoticeDays, bool? UsageBlockOnBreach, bool? UsageBlockOnUnconfirmed, int[]? AlertLeadDays, string? ChangeSummary);
+    string[]? BankUnilateralRights, int? NoticeDays, bool? UsageBlockOnBreach, bool? UsageBlockOnUnconfirmed, int[]? AlertLeadDays, string? ChangeSummary,
+    string? FacilityClass = null);
 public sealed record LenderRequest(Guid? Institution, string[]? Roles, decimal? SharePct);
 public sealed record FacilityDocumentRequest(Guid? Document, string? DocumentDate, string? DocumentDateHijri, string? Language, int? PrecedenceRank, string? Amends,
     int? PageCount, bool? IsSignedCopy, bool? IsScanned);
@@ -68,6 +69,9 @@ public static class FacilityEndpoints
         public long FacilityId { get; init; }
         public Guid PublicId { get; init; }
         public string FacilityNo { get; init; } = "";
+        public string? PlatformRef { get; init; }
+        public int? FacilityClassId { get; init; }
+        public string? FacilityClass { get; init; }
         public long BorrowerCompanyId { get; init; }
         public Guid BorrowerId { get; init; }
         public string? BorrowerNameAr { get; init; }
@@ -153,7 +157,7 @@ public static class FacilityEndpoints
 
     internal const string FacilitySelect =
         """
-        SELECT f.FacilityId, f.PublicId, f.FacilityNo, f.BorrowerCompanyId, co.PublicId AS BorrowerId, co.NameAr AS BorrowerNameAr, co.NameEn AS BorrowerNameEn,
+        SELECT f.FacilityId, f.PublicId, f.FacilityNo, f.PlatformRef, f.FacilityClassId, fc.Code AS FacilityClass, f.BorrowerCompanyId, co.PublicId AS BorrowerId, co.NameAr AS BorrowerNameAr, co.NameEn AS BorrowerNameEn,
                f.FacilityTypeId, ft.Code AS FacilityTypeCode, f.CurrencyId, cu.Code AS CurrencyCode, f.PreviousFacilityId, pf.PublicId AS PreviousId,
                f.LifecycleStatus, f.LifecycleReason, f.ApprovedRevisionNo, f.RowVersion, f.CreatedBy,
                f.TotalAmount, f.IsSyndicated, f.PrecedenceLanguage, f.PrecedenceClauseRef, f.BankReferenceNo, f.BankStructureNo, f.AgreementDate, f.AgreementDateHijri,
@@ -164,6 +168,7 @@ public static class FacilityEndpoints
           JOIN cat.FacilityType AS ft ON ft.FacilityTypeId = f.FacilityTypeId
           JOIN ref.Currency AS cu ON cu.CurrencyId = f.CurrencyId
           LEFT JOIN fac.Facility AS pf ON pf.FacilityId = f.PreviousFacilityId
+          LEFT JOIN cat.LookupItem AS fc ON fc.LookupItemId = f.FacilityClassId
         """;
 
     /// <summary>The facility, 404 when it does not exist or its borrower is outside the user's scope; locked for update in a write.</summary>
@@ -318,8 +323,9 @@ public static class FacilityEndpoints
             "SELECT FacilityTypeId FROM cat.FacilityType WHERE Code = @c AND IsActive = 1;", new { c = b.FacilityType.Trim().ToUpperInvariant() }, tx, cancellationToken: ct))
             ?? throw ApiProblemException.Invalid("VALIDATION_FAILED", "The facility type is not an active type of the catalogue.");
         var currency = await CurrencyAsync(u, tx, b.Currency, ct);
+        int? facilityClass = string.IsNullOrWhiteSpace(b.FacilityClass) ? null : await FacilityRefs.ClassAsync(u.Connection, tx, b.FacilityClass, ct);
         var (no, issue) = await AllocateAsync(u, tx, ct);
-        var id = await InsertFacilityAsync(u, tx, no, company.CompanyId, type, currency, header, null, ct);
+        var id = await InsertFacilityAsync(u, tx, no, company.CompanyId, type, currency, header, null, ct, facilityClass);
         await u.Connection.ExecuteAsync(new CommandDefinition("UPDATE cfg.NumberIssue SET EntityType = 'fac.Facility', EntityId = @f WHERE NumberIssueId = @i;",
             new { f = id.FacilityId, i = issue }, tx, cancellationToken: ct));
         var rev = await FacilityRevisionEndpoints.InsertRevisionAsync(u, tx, id.FacilityId, 1, "INITIAL", header.EffectiveFrom, b.ChangeSummary, null, ct);
@@ -335,23 +341,23 @@ public static class FacilityEndpoints
         ?? throw ApiProblemException.Invalid("VALIDATION_FAILED", "The currency is an ISO code of the reference list.");
 
     internal static async Task<(long FacilityId, Guid PublicId)> InsertFacilityAsync(BoundUser u, SqlTransaction tx, string no, long company, int type, int currency,
-        FacilityHeader h, long? previous, CancellationToken ct) =>
+        FacilityHeader h, long? previous, CancellationToken ct, int? facilityClass = null) =>
         await u.Connection.QuerySingleAsync<(long, Guid)>(new CommandDefinition(
             """
             DECLARE @o TABLE (Id BIGINT, PublicId UNIQUEIDENTIFIER);
             INSERT fac.Facility (TenantId, FacilityNo, BankReferenceNo, BankStructureNo, BorrowerCompanyId, FacilityTypeId, CurrencyId, TotalAmount, IsSyndicated,
                                  PrecedenceLanguage, PrecedenceClauseRef, AgreementDate, AgreementDateHijri, EffectiveFrom, EffectiveFromHijri, ExpiryDate, ExpiryDateHijri,
                                  OperativeCalendar, HijriAdjusted, HijriAdjustReason, PreviousFacilityId, LifecycleStatus, BankUnilateralRights, NoticeDays,
-                                 UsageBlockOnBreach, UsageBlockOnUnconfirmed, AlertLeadDays, CreatedBy)
+                                 UsageBlockOnBreach, UsageBlockOnUnconfirmed, AlertLeadDays, FacilityClassId, CreatedBy)
             OUTPUT inserted.FacilityId, inserted.PublicId INTO @o
             VALUES (CAST(SESSION_CONTEXT(N'TenantId') AS INT), @no, @BankReferenceNo, @BankStructureNo, @company, @type, @currency, @TotalAmount, @IsSyndicated,
                     @PrecedenceLanguage, @PrecedenceClauseRef, @AgreementDate, @AgreementDateHijri, @EffectiveFrom, @EffectiveFromHijri, @ExpiryDate, @ExpiryDateHijri,
                     @OperativeCalendar, @HijriAdjusted, @HijriAdjustReason, @previous, 'DRAFT', @BankUnilateralRights, @NoticeDays,
-                    @UsageBlockOnBreach, @UsageBlockOnUnconfirmed, @AlertLeadDays, CAST(SESSION_CONTEXT(N'UserId') AS BIGINT));
+                    @UsageBlockOnBreach, @UsageBlockOnUnconfirmed, @AlertLeadDays, @facilityClass, CAST(SESSION_CONTEXT(N'UserId') AS BIGINT));
             SELECT Id, PublicId FROM @o;
             """, new
             {
-                no, company, type, currency, previous, h.BankReferenceNo, h.BankStructureNo, h.TotalAmount, h.IsSyndicated, h.PrecedenceLanguage, h.PrecedenceClauseRef,
+                no, company, type, currency, previous, facilityClass, h.BankReferenceNo, h.BankStructureNo, h.TotalAmount, h.IsSyndicated, h.PrecedenceLanguage, h.PrecedenceClauseRef,
                 h.AgreementDate, h.AgreementDateHijri, h.EffectiveFrom, h.EffectiveFromHijri, h.ExpiryDate, h.ExpiryDateHijri, h.OperativeCalendar, h.HijriAdjusted,
                 h.HijriAdjustReason, h.BankUnilateralRights, h.NoticeDays, h.UsageBlockOnBreach, h.UsageBlockOnUnconfirmed, h.AlertLeadDays,
             }, tx, cancellationToken: ct));
@@ -372,6 +378,19 @@ public static class FacilityEndpoints
         var f = await FindAsync(u, tx, id, scope, ct, lockRow: true);
         if (!expected.AsSpan().SequenceEqual(f.RowVersion)) throw ETags.Conflict();
         var rev = await FacilityRevisionEndpoints.DraftAsync(u, tx, f, ct);
+        // BR-FAC-021: the class is chosen until the reference is written; after, the reference stays as it is.
+        if (!string.IsNullOrWhiteSpace(b.FacilityClass))
+        {
+            var cls = await FacilityRefs.ClassAsync(u.Connection, tx, b.FacilityClass, ct);
+            if (cls != f.FacilityClassId)
+            {
+                if (f.PlatformRef is not null)
+                    throw ApiProblemException.Invalid("V-FAC-REF-FIXED", $"The facility's reference {f.PlatformRef} is written; its class does not change.");
+                await u.Connection.ExecuteAsync(new CommandDefinition(
+                    "UPDATE fac.Facility SET FacilityClassId = @c, UpdatedAt = SYSUTCDATETIME(), UpdatedBy = CAST(SESSION_CONTEXT(N'UserId') AS BIGINT) WHERE FacilityId = @f;",
+                    new { c = cls, f = f.FacilityId }, tx, cancellationToken: ct));
+            }
+        }
         var was = rev.Header(f);
         var now = Merge(was, b);
         if (rev.ReasonKind == "EXTENSION" && (now with { ExpiryDate = was.ExpiryDate, ExpiryDateHijri = was.ExpiryDateHijri, AlertLeadDays = was.AlertLeadDays }) != was)
@@ -411,7 +430,7 @@ public static class FacilityEndpoints
              WHERE (@all = 1 OR f.BorrowerCompanyId IN @ids)
                AND (@company IS NULL OR co.PublicId = @company)
                AND (@status IS NULL OR f.LifecycleStatus = @status)
-               AND (@text IS NULL OR f.FacilityNo LIKE @text OR f.BankReferenceNo LIKE @text)
+               AND (@text IS NULL OR f.FacilityNo LIKE @text OR f.BankReferenceNo LIKE @text OR f.PlatformRef LIKE @text)
                AND (@institution IS NULL OR EXISTS (SELECT 1 FROM fac.FacilityLender AS l JOIN ins.Institution AS i ON i.InstitutionId = l.InstitutionId
                                                     WHERE l.FacilityId = f.FacilityId AND i.PublicId = @institution AND l.ToRevision IS NULL))
              ORDER BY f.FacilityNo DESC;
@@ -422,7 +441,8 @@ public static class FacilityEndpoints
         var validity = q["validity"].ToString() is { Length: > 0 } v ? v.ToUpperInvariant() : null;
         var items = rows.Select(f => new
         {
-            id = f.PublicId, facilityNo = f.FacilityNo, borrower = new { id = f.BorrowerId, nameAr = f.BorrowerNameAr, nameEn = f.BorrowerNameEn },
+            id = f.PublicId, facilityNo = f.FacilityNo, platformRef = f.PlatformRef, facilityClass = f.FacilityClass,
+            borrower = new { id = f.BorrowerId, nameAr = f.BorrowerNameAr, nameEn = f.BorrowerNameEn },
             type = f.FacilityTypeCode, currency = f.CurrencyCode, totalAmount = f.TotalAmount, status = f.LifecycleStatus,
             validity = FacilityValidity.Indicator(f.LifecycleStatus, f.EffectiveFrom, f.ExpiryDate, today, settings),
             effectiveFrom = D(f.EffectiveFrom), expiryDate = D(f.ExpiryDate), bankReferenceNo = f.BankReferenceNo, approvedRevision = f.ApprovedRevisionNo,
@@ -560,7 +580,9 @@ public static class FacilityEndpoints
         ETags.Set(http.Response, f.RowVersion);
         return Results.Ok(new
         {
-            id = f.PublicId, facilityNo = f.FacilityNo, borrower = new { id = f.BorrowerId, nameAr = f.BorrowerNameAr, nameEn = f.BorrowerNameEn },
+            id = f.PublicId, facilityNo = f.FacilityNo, platformRef = f.PlatformRef, facilityClass = f.FacilityClass,
+            referenceParts = f.PlatformRef is null ? await ReferencePartsAsync(u, f, ct) : null,
+            borrower = new { id = f.BorrowerId, nameAr = f.BorrowerNameAr, nameEn = f.BorrowerNameEn },
             type = f.FacilityTypeCode, currency = f.CurrencyCode, status = f.LifecycleStatus, statusReason = f.LifecycleReason,
             validity = FacilityValidity.Indicator(f.LifecycleStatus, f.EffectiveFrom, f.ExpiryDate, today, settings),
             daysToExpiry = (f.ExpiryDate - today).Days, approvedRevision = approved, header = HeaderShape(f.Header()),
@@ -575,6 +597,17 @@ public static class FacilityEndpoints
         });
     }
 
+    /// <summary>Before its reference is written: the parts it will take and what is still missing (BR-FAC-021).</summary>
+    private static async Task<object> ReferencePartsAsync(BoundUser u, FacilityRow f, CancellationToken ct)
+    {
+        var p = await FacilityRefs.PartsAsync(u.Connection, null, f.FacilityId, ct);
+        return new
+        {
+            company = p.Company, bank = p.Bank, facilityClass = p.Class, stem = p.Stem,
+            preview = p.Stem is null ? null : BankFas.Core.Facilities.FacilityReference.Compose(p.Stem, f.EffectiveFrom.Year), missing = FacilityRefs.Missing(p).ToArray(),
+        };
+    }
+
     /// <summary>The renewal chain (FR-FAC-005, BR-FAC-006): every predecessor and successor, oldest first.</summary>
     private static async Task<IResult> ChainAsync(Guid id, HttpContext http, SqlConnectionFactory db)
     {
@@ -587,7 +620,7 @@ public static class FacilityEndpoints
                         UNION ALL SELECT p.FacilityId, p.PreviousFacilityId, up.Depth - 1 FROM fac.Facility AS p JOIN up ON p.FacilityId = up.PreviousFacilityId),
                  down AS (SELECT FacilityId, 0 AS Depth FROM fac.Facility WHERE FacilityId = @f
                           UNION ALL SELECT n.FacilityId, down.Depth + 1 FROM fac.Facility AS n JOIN down ON n.PreviousFacilityId = down.FacilityId)
-            SELECT x.PublicId, x.FacilityNo, x.LifecycleStatus, x.EffectiveFrom, x.ExpiryDate, c.Depth
+            SELECT x.PublicId, ISNULL(x.PlatformRef, x.FacilityNo) AS FacilityNo, x.LifecycleStatus, x.EffectiveFrom, x.ExpiryDate, c.Depth
               FROM (SELECT FacilityId, Depth FROM up UNION SELECT FacilityId, Depth FROM down) AS c JOIN fac.Facility AS x ON x.FacilityId = c.FacilityId
              ORDER BY c.Depth OPTION (MAXRECURSION 50);
             """, new { f = f.FacilityId }, cancellationToken: http.RequestAborted));
@@ -1034,7 +1067,7 @@ public static class FacilityEndpoints
         var header = Merge(was with { AgreementDate = null, AgreementDateHijri = null, HijriAdjusted = false, HijriAdjustReason = null }, new FacilityRequest(
             null, null, null, b.TotalAmount, null, null, null, b.BankReferenceNo, null, null, null, start, null, expiry, null, null, null, null, null, null, null, null, null, null));
         var (no, issue) = await AllocateAsync(u, tx, ct);
-        var next = await InsertFacilityAsync(u, tx, no, f.BorrowerCompanyId, f.FacilityTypeId, f.CurrencyId, header, f.FacilityId, ct);
+        var next = await InsertFacilityAsync(u, tx, no, f.BorrowerCompanyId, f.FacilityTypeId, f.CurrencyId, header, f.FacilityId, ct, f.FacilityClassId);
         await u.Connection.ExecuteAsync(new CommandDefinition("UPDATE cfg.NumberIssue SET EntityType = 'fac.Facility', EntityId = @f WHERE NumberIssueId = @i;",
             new { f = next.FacilityId, i = issue }, tx, cancellationToken: ct));
         var rev = await FacilityRevisionEndpoints.InsertRevisionAsync(u, tx, next.FacilityId, 1, "RENEWAL_COPY", header.EffectiveFrom, $"Renewal of {f.FacilityNo}", null, ct);

@@ -19,7 +19,7 @@ const name = (lang: string, x?: { nameAr?: string | null; nameEn?: string | null
 const amount = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 2 });
 
 interface Row {
-  id: string; facilityNo: string; borrower: Named; type: string; currency: string; totalAmount: number; status: string; validity?: string;
+  id: string; facilityNo: string; platformRef?: string | null; borrower: Named; type: string; currency: string; totalAmount: number; status: string; validity?: string;
   effectiveFrom: string; expiryDate: string; bankReferenceNo?: string; lenders: { code: string; nameAr: string; nameEn?: string; sharePct: number }[];
 }
 
@@ -29,13 +29,19 @@ function Validity({ v }: { v?: string | null }) {
   return <span className={`badge ${v === 'NOT_CONFIRMED' ? 'error' : v === 'EXPIRING' ? 'warn' : ''}`}>{t(v)}</span>;
 }
 
+// BR-FAC-021: the classes of the platform reference COMPANY-BANK-CLASS-YY (the FACILITY_CLASS list of CAT.LOOKUPS).
+const CLASSES: [string, string][] = [
+  ['CAP', 'Working capital facilities'], ['STL', 'Short-term loan'], ['MTL', 'Medium-term loan'], ['LTL', 'Long-term loan'], ['RCF', 'Revolving credit facility'],
+  ['TRF', 'Trade finance facilities'], ['GTE', 'Letters of guarantee facilities'], ['PRJ', 'Project finance'], ['FXL', 'Foreign exchange and treasury line'],
+];
+
 export function Facilities() {
   const { t, lang } = useI18n();
   const nav = useNavigate();
   const [rows, setRows] = useState<Row[]>([]);
   const [filter, setFilter] = useState({ status: '', validity: '' });
   const [companies, setCompanies] = useState<Named[]>([]);
-  const [draft, setDraft] = useState({ borrower: '', facilityType: 'CREDIT_FACILITIES', currency: 'SAR', totalAmount: '', isSyndicated: 'false', effectiveFrom: '', expiryDate: '', bankReferenceNo: '' });
+  const [draft, setDraft] = useState({ borrower: '', facilityClass: 'CAP', facilityType: 'CREDIT_FACILITIES', currency: 'SAR', totalAmount: '', isSyndicated: 'false', effectiveFrom: '', expiryDate: '', bankReferenceNo: '' });
   const load = useCallback(async () => {
     const q = new URLSearchParams(Object.entries(filter).filter(([, v]) => v));
     setRows((await api<{ items: Row[] }>('GET', `/facilities${q.size ? '?' + q : ''}`)).items);
@@ -53,7 +59,7 @@ export function Facilities() {
             options={['', 'SCHEDULED', 'VALID', 'EXPIRING', 'NOT_CONFIRMED'].map(s => ({ value: s, label: s || 'All' }))} />
         </div>
         <Table rows={rows} columns={[
-          { header: 'Facility', cell: r => <Link to={`/facilities/${r.id}`} dir="ltr">{r.facilityNo}</Link> },
+          { header: 'Facility', cell: r => <Link to={`/facilities/${r.id}`} dir="ltr">{r.platformRef ?? r.facilityNo}</Link> },
           { header: 'Borrower', cell: r => name(lang, r.borrower) },
           { header: 'Banks', cell: r => r.lenders.map(l => l.code).join(', ') },
           { header: 'Total', cell: r => <span dir="ltr">{amount(r.totalAmount)} {r.currency}</span> },
@@ -68,6 +74,8 @@ export function Facilities() {
         nav(`/facilities/${r.id}`);
       }}>
         <Select label="Borrower" value={draft.borrower} onChange={v => setDraft({ ...draft, borrower: v })} options={companies.map(c => ({ value: c.id, label: name(lang, c) }))} />
+        <Select label="Class in the reference" value={draft.facilityClass} onChange={v => setDraft({ ...draft, facilityClass: v })}
+          options={CLASSES.map(([code, label]) => ({ value: code, label: `${code} · ${t(label)}` }))} />
         <Select label="Facility type" value={draft.facilityType} onChange={v => setDraft({ ...draft, facilityType: v })}
           options={[{ value: 'CREDIT_FACILITIES', label: 'Credit facilities' }, { value: 'ISLAMIC_FINANCING', label: 'Islamic financing' }]} />
         <Field label="Currency" value={draft.currency} onChange={v => setDraft({ ...draft, currency: v })} />
@@ -90,7 +98,9 @@ interface Lender { id: string; institution: Named; roles: string[]; sharePct: nu
 interface Doc { id: string; document: string; title: string; documentType: string; documentDate?: string; language: string; precedenceRank: number; amends?: string; fromRevision: number }
 interface Revision { id: string; revisionNo: number; reasonKind: string; status: string; effectiveOn: string; changeSummary?: string; rejectionReason?: string; approvedOn?: string }
 interface Card {
-  id: string; facilityNo: string; borrower: Named; type: string; currency: string; status: string; statusReason?: string; validity?: string; daysToExpiry: number;
+  id: string; facilityNo: string; platformRef?: string | null; facilityClass?: string | null;
+  referenceParts?: { company?: string; bank?: string; facilityClass?: string; preview?: string | null; missing: string[] } | null;
+  borrower: Named; type: string; currency: string; status: string; statusReason?: string; validity?: string; daysToExpiry: number;
   approvedRevision: number; header: Header; previous?: string; successor?: { id: string; facilityNo: string; status: string };
   lenders: Lender[]; documents: Doc[]; revisions: Revision[];
   draft?: { revision: string; revisionNo: number; header: Header; lenders: Lender[]; documents: Doc[] } | null;
@@ -125,7 +135,7 @@ export function FacilityDetail() {
   const [notice, setNotice] = useState<{ ok?: string; error?: string }>({});
   const [lender, setLender] = useState({ institution: '', sharePct: '', roles: 'SOLE' });
   const [doc, setDoc] = useState({ document: '', precedenceRank: '1', language: 'AR' });
-  const [header, setHeader] = useState({ totalAmount: '', expiryDate: '', bankReferenceNo: '' });
+  const [header, setHeader] = useState({ totalAmount: '', expiryDate: '', bankReferenceNo: '', facilityClass: '' });
   const [revision, setRevision] = useState({ reasonKind: 'AMENDMENT', changeSummary: '', expiryDate: '' });
   const [reason, setReason] = useState('');
   const load = useCallback(async () => {
@@ -134,7 +144,7 @@ export function FacilityDetail() {
     setEtag(r.etag);
     setCheck(r.data.draft ? await api('GET', `/facilities/${id}/revisions/${r.data.draft.revision}/check`) : null);
     const d = r.data.draft?.header;
-    if (d) setHeader({ totalAmount: String(d.totalAmount), expiryDate: d.expiryDate, bankReferenceNo: d.bankReferenceNo ?? '' });
+    if (d) setHeader({ totalAmount: String(d.totalAmount), expiryDate: d.expiryDate, bankReferenceNo: d.bankReferenceNo ?? '', facilityClass: '' });
   }, [id]);
   useEffect(() => { void load(); }, [load]);
   useEffect(() => { void api<{ items: Named[] }>('GET', '/institutions?status=ACTIVE').then(r => setBanks(r.items)); }, []);
@@ -158,7 +168,12 @@ export function FacilityDetail() {
   return (
     <>
       <section className="card">
-        <h1><span dir="ltr">{card.facilityNo}</span> · {name(lang, card.borrower)}</h1>
+        <h1><span dir="ltr">{card.platformRef ?? card.facilityNo}</span> · {name(lang, card.borrower)}</h1>
+        <p>{t('Platform reference')}: {card.platformRef
+          ? <strong dir="ltr">{card.platformRef}</strong>
+          : <>{card.referenceParts?.preview ? <span dir="ltr">{card.referenceParts.preview}</span> : '—'} <small className="muted">({t('written at the first approval')})</small></>}
+          {' · '}{t('Internal number')}: <span dir="ltr">{card.facilityNo}</span>{card.facilityClass && <> · {t('Class')}: <span dir="ltr">{card.facilityClass}</span></>}</p>
+        {card.referenceParts?.missing.map(m => <p key={m} className="error">{t(m)}</p>)}
         <p>{t(card.status)} <Validity v={card.validity} /> {card.validity && <small className="muted">{card.daysToExpiry} {t('days to expiry')}</small>}
           {card.statusReason && <small className="muted"> · {card.statusReason}</small>}</p>
         {card.previous && <p><Link to={`/facilities/${card.previous}`}>{t('Previous facility')}</Link></p>}
@@ -232,12 +247,16 @@ export function FacilityDetail() {
       {draft && open?.status === 'DRAFT' && card.permissions.edit && (
         <>
           <Form title="Change the header" submit="Save changes" onSubmit={async () => {
-            await api('PATCH', `/facilities/${id}`, { totalAmount: Number(header.totalAmount), expiryDate: header.expiryDate, bankReferenceNo: header.bankReferenceNo }, etag);
+            await api('PATCH', `/facilities/${id}`, {
+              totalAmount: Number(header.totalAmount), expiryDate: header.expiryDate, bankReferenceNo: header.bankReferenceNo, facilityClass: header.facilityClass || undefined,
+            }, etag);
             await load();
           }}>
             <Field label="Total" value={header.totalAmount} onChange={v => setHeader({ ...header, totalAmount: v })} type="number" />
             <Field label="Expiry date" value={header.expiryDate} onChange={v => setHeader({ ...header, expiryDate: v })} type="date" />
             <Field label="Bank reference" value={header.bankReferenceNo} onChange={v => setHeader({ ...header, bankReferenceNo: v })} required={false} />
+            {!card.platformRef && <Select label="Class in the reference" value={header.facilityClass || card.facilityClass || ''} onChange={v => setHeader({ ...header, facilityClass: v })}
+              options={[{ value: '', label: '—' }, ...CLASSES.map(([code, label]) => ({ value: code, label: `${code} · ${t(label)}` }))]} />}
           </Form>
           <Form title="Add a lender" submit="Add" onSubmit={async () => {
             await api('POST', `/facilities/${id}/lenders`, { institution: lender.institution, sharePct: Number(lender.sharePct), roles: lender.roles.split(',') });

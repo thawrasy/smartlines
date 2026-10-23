@@ -8,11 +8,13 @@ using BankFas.Data;
 using Dapper;
 using Microsoft.Data.SqlClient;
 
+using BankFas.Core.Facilities;
+
 namespace BankFas.Api.Endpoints;
 
 public sealed record CompanyRequest(string? CompanyCode, string? NameAr, string? NameEn, string? LegalForm, bool? IsHolding, Guid? Parent, bool? ClearParent,
     string? Country, string? Industry, string? Status, string? EstablishedOn, string? CrNumber, string? CrDate, string? CrDateHijri, string? ErpCompanyCode,
-    int? FiscalYearEndMonth, int? FiscalYearEndDay, bool? FiscalYearEndOfMonth, string? BaseCurrency);
+    int? FiscalYearEndMonth, int? FiscalYearEndDay, bool? FiscalYearEndOfMonth, string? BaseCurrency, string? RefCode = null);
 public sealed record ArchiveRequest(string? Reason);
 public sealed record TaxRateRequest(string? TaxCode, decimal? RatePercent, string? EffectiveFrom);
 /// <summary>Head: the user who heads the department (BR-WFL-005 resolves a requester's manager to it); ClearHead removes it.</summary>
@@ -60,14 +62,14 @@ public static partial class CompanyEndpoints
     internal sealed record CompanyRow(long CompanyId, Guid PublicId, string CompanyCode, string NameAr, string NameEn, long PartyId, string PartyCode, Guid PartyPublicId,
         string LegalFormCode, string? LegalFormNameAr, string? LegalFormNameEn, bool IsHolding, long? ParentCompanyId, Guid? ParentPublicId, string Country,
         string? Industry, string Status, DateTime? EstablishedOn, string? CrNumber, DateTime? CrDate, string? CrDateHijriText, string? ErpCompanyCode,
-        byte FiscalYearEndMonth, byte? FiscalYearEndDay, string? BaseCurrency, string OwnershipStatus, byte[] RowVersion);
+        byte FiscalYearEndMonth, byte? FiscalYearEndDay, string? BaseCurrency, string OwnershipStatus, string? RefCode, byte[] RowVersion);
 
     private const string Select =
         """
         SELECT c.CompanyId, c.PublicId, c.CompanyCode, c.NameAr, c.NameEn, c.PartyId, p.PartyCode, p.PublicId AS PartyPublicId, l.Code AS LegalFormCode, l.NameAr AS LegalFormNameAr,
                l.NameEn AS LegalFormNameEn, c.IsHolding, c.ParentCompanyId, pc.PublicId AS ParentPublicId, co.Iso2 AS Country, i.Code AS Industry, c.Status,
                c.EstablishedOn, c.CrNumber, c.CrDate, c.CrDateHijriText, c.ErpCompanyCode, c.FiscalYearEndMonth, c.FiscalYearEndDay, cu.Code AS BaseCurrency,
-               c.OwnershipStatus, c.RowVersion
+               c.OwnershipStatus, c.RefCode, c.RowVersion
           FROM org.Company AS c
           JOIN pty.Party AS p ON p.PartyId = c.PartyId
           JOIN cat.LegalEntityType AS l ON l.LegalEntityTypeId = c.LegalEntityTypeId
@@ -85,7 +87,7 @@ public static partial class CompanyEndpoints
         legalForm = new { code = c.LegalFormCode, nameAr = c.LegalFormNameAr, nameEn = c.LegalFormNameEn }, isHolding = c.IsHolding, parent = c.ParentPublicId,
         country = c.Country, industry = c.Industry, status = c.Status, establishedOn = D(c.EstablishedOn), crNumber = c.CrNumber, crDate = D(c.CrDate),
         crDateHijri = c.CrDateHijriText, erpCompanyCode = c.ErpCompanyCode, fiscalYearEndMonth = c.FiscalYearEndMonth, fiscalYearEndDay = c.FiscalYearEndDay,
-        baseCurrency = c.BaseCurrency, ownershipStatus = c.OwnershipStatus, etag = ETags.Of(c.RowVersion),
+        baseCurrency = c.BaseCurrency, ownershipStatus = c.OwnershipStatus, refCode = c.RefCode, etag = ETags.Of(c.RowVersion),
     };
 
     internal static async Task<CompanyRow> FindAsync(BoundUser u, SqlTransaction? tx, Guid id, CompanyScope scope, CancellationToken ct)
@@ -204,8 +206,21 @@ public static partial class CompanyEndpoints
         ? ex.Message.Contains("UQ_Company_CompanyCode", StringComparison.Ordinal) ? new ApiProblemException(409, "V-ORG-CODE-TAKEN", "A company with this code already exists.")
         : ex.Message.Contains("UQ_Company_CountryId_CrNumber", StringComparison.Ordinal) ? new ApiProblemException(409, "V-ORG-CR-TAKEN", "A company of this country has this commercial registration.")
         : ex.Message.Contains("UQ_Company_ErpCodeNormalized", StringComparison.Ordinal) ? new ApiProblemException(409, "V-ORG-ERP-TAKEN", "Another company has this ERP code.")
+        : ex.Message.Contains("UQ_Company_RefCode", StringComparison.Ordinal) ? new ApiProblemException(409, "V-ORG-REF-TAKEN", "Another company has this reference code.")
         : null
         : null;
+
+    /// <summary>
+    /// BR-FAC-021: the company's code in its facilities' platform references, two or three characters with a letter
+    /// first. Given empty it is cleared; not given at creation it is the company code when that has the shape.
+    /// </summary>
+    private static string? Ref(string? text)
+    {
+        var v = text?.Trim().ToUpperInvariant();
+        if (string.IsNullOrEmpty(v)) return null;
+        return FacilityReference.IsCompanyCode(v) ? v
+            : throw ApiProblemException.Invalid("V-ORG-REF", "The reference code is two or three capital letters or digits, a letter first.");
+    }
 
     private static string? Erp(string? text) => text is null ? null : text.Trim().Length == 0 ? null : text.Trim().Length > 20
         ? throw ApiProblemException.Invalid("VALIDATION_FAILED", "The ERP code is up to 20 characters.") : text.Trim();
@@ -239,10 +254,10 @@ public static partial class CompanyEndpoints
                 """
                 DECLARE @o TABLE (Id BIGINT, PublicId UNIQUEIDENTIFIER);
                 INSERT org.Company (TenantId, CompanyCode, NameAr, NameEn, PartyId, LegalEntityTypeId, IsHolding, ParentCompanyId, CountryId, IndustryId,
-                                    EstablishedOn, CrNumber, CrDate, CrDateHijriText, ErpCompanyCode, FiscalYearEndMonth, FiscalYearEndDay, BaseCurrencyId, CreatedBy)
+                                    EstablishedOn, CrNumber, CrDate, CrDateHijriText, ErpCompanyCode, FiscalYearEndMonth, FiscalYearEndDay, BaseCurrencyId, RefCode, CreatedBy)
                 OUTPUT inserted.CompanyId, inserted.PublicId INTO @o
                 VALUES (CAST(SESSION_CONTEXT(N'TenantId') AS INT), @code, @ar, @en, @party, @form, @holding, @parent, @country, @industry, @est, @cr, @crDate,
-                        @crH, @erp, @month, @day, @currency, CAST(SESSION_CONTEXT(N'UserId') AS BIGINT));
+                        @crH, @erp, @month, @day, @currency, @refCode, CAST(SESSION_CONTEXT(N'UserId') AS BIGINT));
                 SELECT Id, PublicId FROM @o;
                 """,
                 new
@@ -250,6 +265,7 @@ public static partial class CompanyEndpoints
                     code, ar = b.NameAr.Trim(), en = b.NameEn.Trim(), party = partyId, form = r.LegalFormId, holding = b.IsHolding == true, parent = r.ParentId,
                     country = r.CountryId, industry = r.IndustryId, est = Date(b.EstablishedOn, "establishment date"), cr = b.CrNumber?.Trim() is { Length: > 0 } cr ? cr : null,
                     crDate = Date(b.CrDate, "registration date"), crH = b.CrDateHijri, erp = Erp(b.ErpCompanyCode), month, day, currency = r.CurrencyId,
+                    refCode = b.RefCode is null ? FacilityReference.CompanyDefault(code) : Ref(b.RefCode),
                 }, tx, cancellationToken: http.RequestAborted));
             // A user with a selected scope sees the company they create (FR-PLT-020).
             if (!scope.All)
@@ -310,7 +326,8 @@ public static partial class CompanyEndpoints
                        CountryId = @country, IndustryId = @industry, Status = ISNULL(@status, Status), EstablishedOn = ISNULL(@est, EstablishedOn),
                        CrNumber = CASE WHEN @crSet = 1 THEN @cr ELSE CrNumber END, CrDate = ISNULL(@crDate, CrDate), CrDateHijriText = ISNULL(@crH, CrDateHijriText),
                        ErpCompanyCode = CASE WHEN @erpSet = 1 THEN @erp ELSE ErpCompanyCode END, FiscalYearEndMonth = @month, FiscalYearEndDay = @day,
-                       BaseCurrencyId = @currency, UpdatedAt = SYSUTCDATETIME(), UpdatedBy = CAST(SESSION_CONTEXT(N'UserId') AS BIGINT)
+                       BaseCurrencyId = @currency, RefCode = CASE WHEN @refSet = 1 THEN @refCode ELSE RefCode END,
+                       UpdatedAt = SYSUTCDATETIME(), UpdatedBy = CAST(SESSION_CONTEXT(N'UserId') AS BIGINT)
                 OUTPUT inserted.RowVersion INTO @o WHERE CompanyId = @id AND RowVersion = @rv;
                 SELECT RowVersion FROM @o;
                 """,
@@ -320,6 +337,7 @@ public static partial class CompanyEndpoints
                     status = b.Status?.ToUpperInvariant(), est = Date(b.EstablishedOn, "establishment date"), crSet = b.CrNumber is not null,
                     cr = b.CrNumber?.Trim() is { Length: > 0 } cr ? cr : null, crDate = Date(b.CrDate, "registration date"), crH = b.CrDateHijri,
                     erpSet = b.ErpCompanyCode is not null, erp = Erp(b.ErpCompanyCode), month, day, currency = r.CurrencyId, id = c.CompanyId, rv = expected,
+                    refSet = b.RefCode is not null, refCode = Ref(b.RefCode),
                 }, tx, cancellationToken: http.RequestAborted)) ?? throw ETags.Conflict();
             // The mirror party follows the names (OQ-6: names only; the registration stays on the company).
             if (ar != c.NameAr || en != c.NameEn)

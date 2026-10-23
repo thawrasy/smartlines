@@ -292,6 +292,7 @@ module INS
 
 table ins.Institution public  # Financial institution (FR-INS-001..004, BR-INS-001..003, BR-INS-012); Locality (local or foreign) is derived (BR-INS-002) and therefore not stored
   Code               ascii(40)  req   # رمز مطبَّع أحرف كبيرة بلا مسافات فريد في المشترك (BR-INS-001)
+  RefCode            ascii(3)          # رمز البنك الثلاثي في مرجع التسهيل، فريد في المشترك (BR-FAC-021، طلب المالك 2026-10-23)
   NameAr             str(200)   req
   NameEn             str(200)
   InstitutionTypeId  ->cat.InstitutionType req
@@ -303,12 +304,14 @@ table ins.Institution public  # Financial institution (FR-INS-001..004, BR-INS-0
   DirectoryRef       ascii(80)         # محجوز لدليل منشآت مشترك لاحقًا (FR-INS-020)
   Notes              str(2000)
   unique Code   # BR-INS-001
+  unique RefCode where RefCode IS NOT NULL   # BR-FAC-021
   unique PartyId where PartyId IS NOT NULL   # BR-INS-003: Party واحد لمنشأة واحدة
   index  SwiftBic where SwiftBic IS NOT NULL   # تنبيه BIC المكرر V-INS-02 وبحث FR-INS-019
   index  InstitutionTypeId,Status   # تصفية SCR-INS-01
   index  CountryId,Status
   index  NameAr   # بحث الاسم وتنبيه التشابه
   check  Code NOT LIKE '% %'   # BR-INS-001: بلا مسافات
+  check  RefCode IS NULL OR RefCode COLLATE Arabic_100_BIN2 LIKE '[A-Z][A-Z][A-Z]'   # BR-FAC-021: ثلاثة أحرف لاتينية كبيرة
   check  SwiftBic IS NULL OR SwiftBic COLLATE Arabic_100_BIN2 LIKE '[A-Z][A-Z][A-Z][A-Z][A-Z][A-Z][A-Z0-9][A-Z0-9]' OR SwiftBic COLLATE Arabic_100_BIN2 LIKE '[A-Z][A-Z][A-Z][A-Z][A-Z][A-Z][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9]'   # BR-INS-001: ^[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?$ (8 أو 11 خانة)
 
 table ins.InstitutionUnit  # Unit in an institution's structure: division, department or branch; self-referencing tree of up to four levels (FR-INS-005/006, BR-INS-004)

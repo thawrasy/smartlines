@@ -12,7 +12,7 @@ import { GovernancePanel, GrantsPanel, OwnershipPanel, seesStructure } from './S
 interface Company {
   id: string; companyCode: string; nameAr: string; nameEn: string; partyCode: string; legalForm: { code: string; nameAr?: string; nameEn?: string };
   isHolding: boolean; parent?: string; country: string; industry?: string; status: string; establishedOn?: string; crNumber?: string; crDate?: string;
-  crDateHijri?: string; erpCompanyCode?: string; fiscalYearEndMonth: number; fiscalYearEndDay?: number; baseCurrency?: string; ownershipStatus: string; etag: string;
+  crDateHijri?: string; erpCompanyCode?: string; refCode?: string | null; fiscalYearEndMonth: number; fiscalYearEndDay?: number; baseCurrency?: string; ownershipStatus: string; etag: string;
 }
 interface Doc {
   id: string; type: { code: string; nameAr: string; nameEn?: string }; title: string; documentNumber?: string; expiryDate?: string; validity: string;
@@ -37,7 +37,7 @@ export function Companies() {
   const [q, setQ] = useState('');
   const [archived, setArchived] = useState(false);
   const forms = useOptions('/catalogs/legal-entity-types');
-  const [draft, setDraft] = useState({ companyCode: '', nameAr: '', nameEn: '', legalForm: 'LLC', country: 'SA', parent: '', crNumber: '', fiscalYearEndMonth: '12' });
+  const [draft, setDraft] = useState({ companyCode: '', refCode: '', nameAr: '', nameEn: '', legalForm: 'LLC', country: 'SA', parent: '', crNumber: '', fiscalYearEndMonth: '12' });
   const load = useCallback(async () => {
     const params = new URLSearchParams();
     if (q) params.set('q', q);
@@ -70,11 +70,13 @@ export function Companies() {
       </section>
       <Form title="New company" submit="Create" onSubmit={async () => {
         const r = await api<{ id: string }>('POST', '/companies', {
-          ...draft, parent: draft.parent || undefined, crNumber: draft.crNumber || undefined, fiscalYearEndMonth: Number(draft.fiscalYearEndMonth),
+          ...draft, parent: draft.parent || undefined, crNumber: draft.crNumber || undefined, refCode: draft.refCode || undefined, fiscalYearEndMonth: Number(draft.fiscalYearEndMonth),
         });
         nav(`/companies/${r.id}`);
       }}>
         <Field label="Company code" value={draft.companyCode} onChange={v => setDraft({ ...draft, companyCode: v.toUpperCase() })} hint="Capital letters, digits, - and _; it cannot change later." />
+        <Field label="Reference code" value={draft.refCode} onChange={v => setDraft({ ...draft, refCode: v.toUpperCase() })} required={false}
+          hint="Two or three characters in the facility references (IMP-SNB-CAP-26); left empty, the company code when it has that shape." />
         <Field label="Name (Arabic)" value={draft.nameAr} onChange={v => setDraft({ ...draft, nameAr: v })} />
         <Field label="Name (English)" value={draft.nameEn} onChange={v => setDraft({ ...draft, nameEn: v })} />
         <Select label="Legal form" value={draft.legalForm} onChange={v => setDraft({ ...draft, legalForm: v })} options={forms.map(f => ({ value: f.code, label: name(lang, f) }))} />
@@ -130,7 +132,7 @@ export function CompanyDetail() {
 
 function General({ c, etag, onSaved }: { c: Company; etag: string; onSaved: () => Promise<void> }) {
   const { t } = useI18n();
-  const [d, setD] = useState({ nameAr: c.nameAr, nameEn: c.nameEn, crNumber: c.crNumber ?? '', crDate: c.crDate ?? '', crDateHijri: c.crDateHijri ?? '', erpCompanyCode: c.erpCompanyCode ?? '', establishedOn: c.establishedOn ?? '', status: c.status });
+  const [d, setD] = useState({ nameAr: c.nameAr, nameEn: c.nameEn, crNumber: c.crNumber ?? '', crDate: c.crDate ?? '', crDateHijri: c.crDateHijri ?? '', erpCompanyCode: c.erpCompanyCode ?? '', refCode: c.refCode ?? '', establishedOn: c.establishedOn ?? '', status: c.status });
   const [notice, setNotice] = useState<{ ok?: string; error?: string }>({});
   return (
     <>
@@ -146,6 +148,8 @@ function General({ c, etag, onSaved }: { c: Company; etag: string; onSaved: () =
         <Field label="Registration date" type="date" value={d.crDate} onChange={v => setD({ ...d, crDate: v })} required={false} />
         <Field label="Registration date (Hijri, as written)" value={d.crDateHijri} onChange={v => setD({ ...d, crDateHijri: v })} required={false} />
         <Field label="ERP company code" value={d.erpCompanyCode} onChange={v => setD({ ...d, erpCompanyCode: v })} required={false} />
+        <Field label="Reference code" value={d.refCode} onChange={v => setD({ ...d, refCode: v.toUpperCase() })} required={false}
+          hint="Two or three characters in the facility references; a reference already written does not change." />
         <Field label="Established on" type="date" value={d.establishedOn} onChange={v => setD({ ...d, establishedOn: v })} required={false} />
         <Select label="Status" value={d.status} onChange={v => setD({ ...d, status: v })}
           options={['ACTIVE', 'DORMANT', 'LIQUIDATED'].map(s => ({ value: s, label: s })).concat(c.status === 'ARCHIVED' ? [{ value: 'ARCHIVED', label: 'ARCHIVED' }] : [])} />

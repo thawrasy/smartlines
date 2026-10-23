@@ -87,7 +87,7 @@ public sealed class FacilityFoundationTests(PlatformFixture f)
     {
         var t = await f.CreateTenantAsync();
         var tenantId = await TestEnvironment.TenantIdAsync(t.Code);
-        var bank = PlatformFixture.Id(await t.Portal.PostOkAsync("/api/v1/institutions", new { code = "BNK1", nameAr = "البنك الأول", type = "BANK", country = "SA" }));
+        var bank = PlatformFixture.Id(await t.Portal.PostOkAsync("/api/v1/institutions", new { code = "BNK1", refCode = "BNA", nameAr = "البنك الأول", type = "BANK", country = "SA" }));
         var errors = await InTenantAsync(f, tenantId, async c =>
         {
             async Task<int> Try(string sql, object? p = null)

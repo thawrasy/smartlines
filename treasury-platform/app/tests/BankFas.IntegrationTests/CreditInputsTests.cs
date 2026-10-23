@@ -32,13 +32,13 @@ public sealed class CreditInputsTests(PlatformFixture f)
         var (fa, _, _) = await f.UserWithRoleAsync(t, "FA");
         var (fo, _, _) = await f.UserWithRoleAsync(t, "FO");
         var ind = PlatformFixture.Id(await tm.PostOkAsync("/api/v1/companies", new { companyCode = "IND", nameAr = "صناعية", nameEn = "Industrial", legalForm = "LLC", country = "SA", fiscalYearEndMonth = 12 }));
-        var bank = PlatformFixture.Id(await tm.PostOkAsync("/api/v1/institutions", new { code = "BNK1", nameAr = "البنك الأول", nameEn = "Bank One", type = "BANK", country = "SA" }));
+        var bank = PlatformFixture.Id(await tm.PostOkAsync("/api/v1/institutions", new { code = "BNK1", refCode = "BNA", nameAr = "البنك الأول", nameEn = "Bank One", type = "BANK", country = "SA" }));
         await tm.PostOkAsync("/api/v1/accounts", new { company = ind, institution = bank, type = "CURRENT", currency = "SAR", accountNumber = "900-1", openedOn = "2024-01-01", createRelationship = true });
 
         // A facility of the company and the lender's decision on it: the limit reduced to 30 million from 2026-03-01.
         var fac = PlatformFixture.Id(await fo.PostOkAsync("/api/v1/facilities", new
         {
-            borrower = ind, facilityType = "CREDIT_FACILITIES", currency = "SAR", totalAmount = 50_000_000, effectiveFrom = "2025-01-01", expiryDate = "2028-12-31",
+            facilityClass = "CAP", borrower = ind, facilityType = "CREDIT_FACILITIES", currency = "SAR", totalAmount = 50_000_000, effectiveFrom = "2025-01-01", expiryDate = "2028-12-31",
         }));
         await fo.PostOkAsync($"/api/v1/facilities/{fac}/lenders", new { institution = bank, sharePct = 100, roles = new[] { "SOLE" } });
         await fo.PostOkAsync($"/api/v1/facilities/{fac}/limits", new { code = "L0", limitType = "TOTAL_FACILITY", nameAr = "الحد الكلي", amount = 50_000_000, noSourceReason = "Clause 1" });

@@ -79,7 +79,7 @@ public static class TermEndpoints
     }
 
     private const string Select = """
-        SELECT v.TermValueId, v.RootId, f.FacilityId, f.PublicId AS FacilityPublicId, f.FacilityNo, f.BorrowerCompanyId, t.Code, t.NameAr, t.NameEn, t.Direction, v.OtherLabel,
+        SELECT v.TermValueId, v.RootId, f.FacilityId, f.PublicId AS FacilityPublicId, ISNULL(f.PlatformRef, f.FacilityNo) AS FacilityNo, f.BorrowerCompanyId, t.Code, t.NameAr, t.NameEn, t.Direction, v.OtherLabel,
                l.Code AS LimitCode, v.ValueState, v.ValueNumber, v.ValueText, v.ValueBool, v.ValueEnum, v.Unit, v.Bound, v.NormalizedValue, v.Origin, v.ProjectedFrom, v.EffectiveFrom,
                v.EffectiveTo, v.Confidence, v.FromRevision
           FROM cmp.TermValue AS v JOIN cmp.TermType AS t ON t.TermTypeId = v.TermTypeId JOIN fac.Facility AS f ON f.FacilityId = v.FacilityId

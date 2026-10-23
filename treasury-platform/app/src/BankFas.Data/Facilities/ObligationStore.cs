@@ -208,7 +208,7 @@ internal sealed class ObligationExpiry : IExpiryItemProvider
     public async Task<IReadOnlyList<ExpiryItem>> ItemsAsync(SqlConnection c, DateTime today, DateTime horizon, CancellationToken ct) =>
         [.. (await c.QueryAsync<Row>(new CommandDefinition(
             """
-            SELECT i.ReportingInstanceId AS Id, i.DueDate AS ExpiryDate, f.BorrowerCompanyId AS CompanyId, f.FacilityNo, o.TitleAr, o.TitleEn, r.AlertLeadDays,
+            SELECT i.ReportingInstanceId AS Id, i.DueDate AS ExpiryDate, f.BorrowerCompanyId AS CompanyId, ISNULL(f.PlatformRef, f.FacilityNo) AS FacilityNo, o.TitleAr, o.TitleEn, r.AlertLeadDays,
                    co.NameAr AS CompanyNameAr, co.NameEn AS CompanyNameEn, b.NameAr AS BankNameAr, b.NameEn AS BankNameEn
               FROM obl.ReportingInstance AS i
               JOIN obl.ReportingObligation AS r ON r.ReportingObligationId = i.ReportingObligationId

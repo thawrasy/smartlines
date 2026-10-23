@@ -11,6 +11,7 @@ module ORG
 
 table org.Company public  # Company: root of the corporate structure (FR-ORG-001..010, BR-ORG-001..004)
   CompanyCode        ascii(20)  req   # رمز داخلي فريد في المشترك (BR-ORG-001)
+  RefCode            ascii(3)         # رمز الشركة في مرجع التسهيل: حرفان أو ثلاثة، فريد في المشترك (BR-FAC-021، طلب المالك 2026-10-23)
   NameAr             str(200)   req
   NameEn             str(200)   req
   PartyKind          enum{ORGANIZATION} req =ORGANIZATION   # ثابت: المرآة جهة اعتبارية (DR-24)
@@ -32,6 +33,7 @@ table org.Company public  # Company: root of the corporate structure (FR-ORG-001
   BaseCurrencyId     ->ref.Currency     # العملة الأساسية (FR-ORG-008)؛ المواصفة تسميه BaseCurrencyCode
   OwnershipStatus    enum{COMPLETE,UNDOCUMENTED} req =UNDOCUMENTED  # اكتمال توثيق الملكية (FR-ORG-016)
   unique CompanyCode                      # BR-ORG-001
+  unique RefCode where RefCode IS NOT NULL   # BR-FAC-021
   unique PartyId                          # مرآة واحدة لكل شركة
   unique CountryId,CrNumber where CrNumber IS NOT NULL AND Status <> 'ARCHIVED'   # السجل التجاري فريد ضمن الدولة لغير المؤرشفة
   unique ErpCodeNormalized where ErpCompanyCode IS NOT NULL AND Status <> 'ARCHIVED'  # BR-ORG-001: فريد دائمًا (قرار المالك 2026-10-13، DR-47)؛ الشرط على العمود الأصلي لأن SQL Server لا يقبل عمودًا محسوبًا في شرط الفهرس
@@ -39,6 +41,7 @@ table org.Company public  # Company: root of the corporate structure (FR-ORG-001
   index  ParentCompanyId
   index  LegalEntityTypeId
   check  FiscalYearEndMonth BETWEEN 1 AND 12
+  check  RefCode IS NULL OR RefCode COLLATE Arabic_100_BIN2 LIKE '[A-Z][A-Z0-9]' OR RefCode COLLATE Arabic_100_BIN2 LIKE '[A-Z][A-Z0-9][A-Z0-9]'   # BR-FAC-021: حرفان أو ثلاثة، أولها حرف
   check  FiscalYearEndDay IS NULL OR FiscalYearEndDay BETWEEN 1 AND 31
   check  ParentCompanyId IS NULL OR ParentCompanyId <> CompanyId   # لا أم ذاتية (الحلقات غير المباشرة في التطبيق)
   check  ErpCompanyCode IS NULL OR LEN(ErpCompanyCode) > 0   # رمز من فراغات فقط مرفوض

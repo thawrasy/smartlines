@@ -83,6 +83,7 @@ app.UseRouting();
 app.UseRateLimiter();
 app.UseWhen(ctx => ctx.Request.Path.StartsWithSegments("/api"), a => a.UseMiddleware<CsrfMiddleware>());
 app.UseMiddleware<IdempotencyMiddleware>();
+app.UseMiddleware<DeadlockRetryMiddleware>();
 
 app.MapGet("/health/live", () => Results.Ok(new { status = "live" }));
 app.MapGet("/api/v1/csrf", (HttpContext http) => Results.Ok(new { token = CsrfMiddleware.Issue(http) }));

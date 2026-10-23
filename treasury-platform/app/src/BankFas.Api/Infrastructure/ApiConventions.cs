@@ -183,3 +183,45 @@ public sealed class IdempotencyMiddleware(RequestDelegate next, IMemoryCache cac
         await original.WriteAsync(body, context.RequestAborted);
     }
 }
+
+/// <summary>
+/// A write chosen as the victim of a deadlock is run again (SQL Server 1205, DOC-S05): the database rolled its whole
+/// transaction back, so nothing of it remains, and the handler runs from the start with the same body. At most three
+/// runs, after a short random pause, and only while nothing of the answer has been sent. Found by AC-FAC-12 over HTTP,
+/// where concurrent drafts of one tenant deadlocked on their inserts.
+/// </summary>
+public sealed class DeadlockRetryMiddleware(RequestDelegate next)
+{
+    private const int Runs = 3;
+
+    private static bool IsDeadlock(Exception? ex)
+    {
+        for (; ex is not null; ex = ex.InnerException)
+            if (ex is Microsoft.Data.SqlClient.SqlException { Number: BankFas.Data.DbErrors.Deadlock }) return true;
+        return false;
+    }
+
+    public async Task InvokeAsync(HttpContext context)
+    {
+        if (HttpMethods.IsGet(context.Request.Method) || HttpMethods.IsHead(context.Request.Method) || HttpMethods.IsOptions(context.Request.Method))
+        {
+            await next(context);
+            return;
+        }
+        context.Request.EnableBuffering();
+        for (var run = 1; ; run++)
+        {
+            try
+            {
+                await next(context);
+                return;
+            }
+            catch (Exception ex) when (run < Runs && IsDeadlock(ex) && !context.Response.HasStarted)
+            {
+                context.Response.Clear();
+                context.Request.Body.Position = 0;
+                await Task.Delay(Random.Shared.Next(20, 120 * run), context.RequestAborted);
+            }
+        }
+    }
+}

@@ -63,10 +63,10 @@ public sealed class CollateralTests(PlatformFixture f)
         var (fo, _, _) = await f.UserWithRoleAsync(t, "FO");
         var (te, _, _) = await f.UserWithRoleAsync(t, "TE");
         var company = PlatformFixture.Id(await tm.PostOkAsync("/api/v1/companies", new { companyCode = "C1", nameAr = "شركة الأولى", nameEn = "First", legalForm = "LLC", country = "SA", fiscalYearEndMonth = 12 }));
-        var bank = PlatformFixture.Id(await tm.PostOkAsync("/api/v1/institutions", new { code = "BNK1", nameAr = "البنك الأول", nameEn = "Bank One", type = "BANK", country = "SA" }));
+        var bank = PlatformFixture.Id(await tm.PostOkAsync("/api/v1/institutions", new { code = "BNK1", refCode = "BNA", nameAr = "البنك الأول", nameEn = "Bank One", type = "BANK", country = "SA" }));
         var fac = PlatformFixture.Id(await fo.PostOkAsync("/api/v1/facilities", new
         {
-            borrower = company, facilityType = "CREDIT_FACILITIES", currency = "SAR", totalAmount = 40_000_000, effectiveFrom = "2026-01-01", expiryDate = "2027-12-31",
+            facilityClass = "CAP", borrower = company, facilityType = "CREDIT_FACILITIES", currency = "SAR", totalAmount = 40_000_000, effectiveFrom = "2026-01-01", expiryDate = "2027-12-31",
         }));
         await fo.PostOkAsync($"/api/v1/facilities/{fac}/lenders", new { institution = bank, sharePct = 100, roles = new[] { "SOLE" } });
         var l0 = (await fo.PostOkAsync($"/api/v1/facilities/{fac}/limits", new { code = "L0", limitType = "TOTAL_FACILITY", nameAr = "الحد الكلي", amount = 40_000_000, noSourceReason = Src }))
@@ -142,7 +142,7 @@ public sealed class CollateralTests(PlatformFixture f)
         // A second facility: its note is 100% of its limit and its statement objection days are not in the agreement.
         var fac2 = PlatformFixture.Id(await fo.PostOkAsync("/api/v1/facilities", new
         {
-            borrower = company, facilityType = "CREDIT_FACILITIES", currency = "SAR", totalAmount = 20_000_000, effectiveFrom = "2026-01-01", expiryDate = "2026-12-31",
+            facilityClass = "CAP", borrower = company, facilityType = "CREDIT_FACILITIES", currency = "SAR", totalAmount = 20_000_000, effectiveFrom = "2026-01-01", expiryDate = "2026-12-31",
         }));
         await fo.PostOkAsync($"/api/v1/facilities/{fac2}/lenders", new { institution = bank, sharePct = 100, roles = new[] { "SOLE" } });
         var pn2 = await CollateralAsync(fo, new
@@ -245,7 +245,7 @@ public sealed class CollateralTests(PlatformFixture f)
         var (fo, _, _) = await f.UserWithRoleAsync(t, "FO");
         var (te, _, _) = await f.UserWithRoleAsync(t, "TE");
         var today = f.Env.Clock.GetUtcNow().UtcDateTime.Date;
-        var bank = PlatformFixture.Id(await tm.PostOkAsync("/api/v1/institutions", new { code = "BNK1", nameAr = "البنك الأول", nameEn = "Bank One", type = "BANK", country = "SA" }));
+        var bank = PlatformFixture.Id(await tm.PostOkAsync("/api/v1/institutions", new { code = "BNK1", refCode = "BNA", nameAr = "البنك الأول", nameEn = "Bank One", type = "BANK", country = "SA" }));
         // A resident guarantor whose residence permit expires in 26 days, below the 90 days the profile asks.
         var g = PlatformFixture.Id(await tm.PostOkAsync("/api/v1/parties", new
         {

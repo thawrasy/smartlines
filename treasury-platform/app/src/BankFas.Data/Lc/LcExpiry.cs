@@ -31,7 +31,7 @@ internal sealed class ReservationExpiry : IExpiryItemProvider
     public async Task<IReadOnlyList<ExpiryItem>> ItemsAsync(SqlConnection c, DateTime today, DateTime horizon, CancellationToken ct) =>
         [.. (await c.QueryAsync<Row>(new CommandDefinition(
             """
-            SELECT lr.LimitReservationId AS Id, lr.ExpiresOn AS ExpiryDate, lr.CompanyId, co.NameAr AS CompanyNameAr, co.NameEn AS CompanyNameEn, f.FacilityNo,
+            SELECT lr.LimitReservationId AS Id, lr.ExpiresOn AS ExpiryDate, lr.CompanyId, co.NameAr AS CompanyNameAr, co.NameEn AS CompanyNameEn, ISNULL(f.PlatformRef, f.FacilityNo) AS FacilityNo,
                    r.RequestNo, r.DraftRef
               FROM fac.LimitReservation AS lr JOIN org.Company AS co ON co.CompanyId = lr.CompanyId JOIN fac.Facility AS f ON f.FacilityId = lr.FacilityId
               JOIN wfl.Request AS r ON r.RequestId = lr.RequestId

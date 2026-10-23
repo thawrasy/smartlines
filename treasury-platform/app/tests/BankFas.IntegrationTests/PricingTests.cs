@@ -38,7 +38,7 @@ public sealed class PricingTests(PlatformFixture f)
         var a = PlatformFixture.Id(await tm.PostOkAsync("/api/v1/companies", new { companyCode = "CA", nameAr = "الشركة أ", nameEn = "Company A", legalForm = "LLC", country = "SA", fiscalYearEndMonth = 12 }));
         var b = PlatformFixture.Id(await tm.PostOkAsync("/api/v1/companies", new { companyCode = "CB", nameAr = "الشركة ب", nameEn = "Company B", legalForm = "LLC", country = "SA", fiscalYearEndMonth = 12 }));
         await t.Portal.OkAsync(HttpMethod.Post, $"/api/v1/companies/{a}/tax-rates", new { taxCode = "VAT", ratePercent = 15m, effectiveFrom = "2026-01-01" });
-        var bank = PlatformFixture.Id(await tm.PostOkAsync("/api/v1/institutions", new { code = "BNK1", nameAr = "البنك الأول", nameEn = "Bank One", type = "BANK", country = "SA" }));
+        var bank = PlatformFixture.Id(await tm.PostOkAsync("/api/v1/institutions", new { code = "BNK1", refCode = "BNA", nameAr = "البنك الأول", nameEn = "Bank One", type = "BANK", country = "SA" }));
 
         // The tariff: issuance 0.25% for each 90 days or part, at least 500; the preparer does not approve; approved is fixed.
         var schedule = PlatformFixture.Id(await fo.PostOkAsync("/api/v1/tariff-schedules", new { institution = bank, nameAr = "تعرفة البنك", effectiveFrom = "2026-01-01" }));
@@ -66,7 +66,7 @@ public sealed class PricingTests(PlatformFixture f)
         await tm.PostOkAsync("/api/v1/base-rates/SAIBOR_3M/values", new { effectiveDate = "2026-04-01", valuePct = 5.55m });
         var fac = PlatformFixture.Id(await fo.PostOkAsync("/api/v1/facilities", new
         {
-            borrower = a, facilityType = "CREDIT_FACILITIES", currency = "SAR", totalAmount = 45_000_000, effectiveFrom = "2026-01-01", expiryDate = "2026-12-31",
+            facilityClass = "CAP", borrower = a, facilityType = "CREDIT_FACILITIES", currency = "SAR", totalAmount = 45_000_000, effectiveFrom = "2026-01-01", expiryDate = "2026-12-31",
         }));
         await fo.PostOkAsync($"/api/v1/facilities/{fac}/lenders", new { institution = bank, sharePct = 100, roles = new[] { "SOLE" } });
         async Task<string> LimitAsync(string code, string type, string? parent, string pricing) =>

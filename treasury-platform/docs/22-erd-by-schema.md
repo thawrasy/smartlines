@@ -345,6 +345,7 @@ erDiagram
 |---|---|---|
 | Facility | BorrowerCompanyId | org.Company |
 | Facility | CurrencyId | ref.Currency |
+| Facility | FacilityClassId | cat.LookupItem |
 | Facility | FacilityTypeId | cat.FacilityType |
 | FacilityDocument | DocumentId | doc.Document |
 | FacilityLender | ContactId | ins.Contact |
