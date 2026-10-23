@@ -17,7 +17,8 @@ public static class TemplateStore
     public sealed record Written(int TemplateId, int VersionNo);
 
     /// <summary>Inserts the graph as a new DRAFT version of its key; returns its id and version number.</summary>
-    public static async Task<Written> WriteDraftAsync(SqlConnection c, SqlTransaction tx, TemplateGraph g, string? seedKey, int? sourceSeedVersion, CancellationToken ct)
+    public static async Task<Written> WriteDraftAsync(SqlConnection c, SqlTransaction tx, TemplateGraph g, string? seedKey, int? sourceSeedVersion, CancellationToken ct,
+        bool tenantModified = false)
     {
         ArgumentNullException.ThrowIfNull(g);
         var typeId = await c.ExecuteScalarAsync<int?>(new CommandDefinition(
@@ -30,16 +31,16 @@ public static class TemplateStore
             """
             DECLARE @o TABLE (Id INT);
             INSERT wfl.WorkflowTemplate (TenantId, RequestTypeId, TemplateKey, VersionNo, Status, NameAr, NameEn, NumberOnStageKey, ResetApprovalsOnResubmit,
-                                         SodAllowSamePerson, SourceSeedVersion, SeedKey, CreatedBy)
+                                         SodAllowSamePerson, SourceSeedVersion, SeedKey, IsTenantModified, ChangeNote, CreatedBy)
             OUTPUT inserted.WorkflowTemplateId INTO @o
-            VALUES (CAST(SESSION_CONTEXT(N'TenantId') AS INT), @type, @key, @version, 'DRAFT', @ar, @en, @num, @reset, @sod, @src, @seed,
+            VALUES (CAST(SESSION_CONTEXT(N'TenantId') AS INT), @type, @key, @version, 'DRAFT', @ar, @en, @num, @reset, @sod, @src, @seed, @modified, @note,
                     CAST(SESSION_CONTEXT(N'UserId') AS BIGINT));
             SELECT Id FROM @o;
             """,
             new
             {
                 type = typeId, key = g.TemplateKey, version, ar = g.NameAr, en = g.NameEn, num = g.NumberOnStageKey, reset = g.ResetApprovalsOnResubmit,
-                sod = g.SodAllowSamePerson, src = sourceSeedVersion, seed = seedKey,
+                sod = g.SodAllowSamePerson, src = sourceSeedVersion, seed = seedKey, modified = tenantModified, note = g.ChangeNote,
             }, tx, cancellationToken: ct)).ConfigureAwait(false);
 
         var phases = (await c.QueryAsync<(string Code, int Id)>(new CommandDefinition(

@@ -20,6 +20,7 @@ public sealed record TemplateGraph
     public string? NumberOnStageKey { get; init; }
     public bool ResetApprovalsOnResubmit { get; init; } = true;
     public bool SodAllowSamePerson { get; init; }
+    public string? ChangeNote { get; init; }
     public IReadOnlyList<StageDef> Stages { get; init; } = [];
     public IReadOnlyList<TransitionDef> Transitions { get; init; } = [];
     public IReadOnlyList<FieldDef> Fields { get; init; } = [];

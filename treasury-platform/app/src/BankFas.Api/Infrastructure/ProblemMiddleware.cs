@@ -18,6 +18,11 @@ public sealed partial class ProblemMiddleware(RequestDelegate next, ILogger<Prob
             LogProblem(logger, ex.Status, ex.Code, ex.Code == "VALIDATION_FAILED" ? ex.Message : "-");
             await WriteAsync(context, ex.Status, ex.Code, ex.Message);
         }
+        catch (BankFas.Data.Workflow.WorkflowRefusalException ex)
+        {
+            LogProblem(logger, ex.Status, ex.Code, ex.Message);
+            await WriteAsync(context, ex.Status, ex.Code, ex.Message);
+        }
         catch (SqlException ex) when (DbProblemMap.Map(ex.Number) is { } p)
         {
             // A refused permission, or a key the application should have checked first, is logged with its detail.

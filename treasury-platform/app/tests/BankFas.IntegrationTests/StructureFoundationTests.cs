@@ -47,7 +47,7 @@ public sealed class StructureFoundationTests(PlatformFixture f)
         Assert.Equal(("[90,30]", 2), rules["BODY_TERM"]);
         Assert.Equal(("[60,30,7]", 2), rules["AUTHORITY_GRANT"]);
         Assert.Equal(("[30,15,7]", 2), rules["SIGNATORY"]);
-        Assert.Equal(12, rules.Count);   // five up to S1-b and seven from S2 (CORE.EXPIRY v3)
+        Assert.Equal(16, rules.Count);   // five up to S1-b, seven from S2 (CORE.EXPIRY v3) and four from S3 (v4)
     }
 
     [Fact]

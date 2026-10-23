@@ -480,15 +480,15 @@ if grep -qaE "$FAIL_RE" "$TMP/review.out"; then
     exit 1
 fi
 rf_pass=$(grep -oaE "$PASS_RE" "$TMP/review.out" | sort -u | wc -l)
-# 43 cases: RF1 list columns, RF2-RF9 the S0 tables (DR-11 to DR-18), RF10 codes in capitals (DR-48), RF11-RF16
+# 44 cases: RF1 list columns, RF2-RF9 the S0 tables (DR-11 to DR-18), RF10 codes in capitals (DR-48), RF11-RF16
 # the S1 tables (DR-19, DR-21, DR-23, DR-24, DR-29, DR-47), RF17-RF18 collateral kinds, agreement text and proformas
 # (DR-40, DR-31, DR-41), RF19-RF21 the S1 entry conditions (DR-30, DR-16, DR-25), RF22 the S1-b entry condition
 # (DR-22), RF23-RF27 the S2 entry conditions (DR-27, DR-28, DR-31, DR-36, DR-38), RF28-RF29 the S2-b entry condition
-# (DR-39), RF30-RF33 the S3 entry conditions (DR-41, DR-49, DR-44, DR-46), RF34 the S4 one (DR-41), and SR1-SR9 the
-# guards of the self-review of 2026-10-18 (docs/34). The declarative fixes are checked on the DDL in step 3
+# (DR-39), RF30-RF33 the S3 entry conditions (DR-41, DR-49, DR-44, DR-46), RF34 the S4 one (DR-41), SR1-SR9 the
+# guards of the self-review of 2026-10-18 (docs/34), and SR10 the final reservations of S3 (064). The declarative fixes are checked on the DDL in step 3
 # (check_review_fixes.py).
-if [ "$rf_pass" -ne 43 ]; then
-    echo "expected 43 PASS, found $rf_pass"
+if [ "$rf_pass" -ne 44 ]; then
+    echo "expected 44 PASS, found $rf_pass"
     exit 1
 fi
 echo "review fixes tests: $rf_pass passed"

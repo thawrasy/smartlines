@@ -60,6 +60,7 @@
    SR6  a proforma line total is rounded once, from the exact product (A9; 044)
    SR7  the reporting role reads its tenant's rows and the reporting views, never an internal function (A5; 090)
    SR8  the transitions, attachment rules and hooks of a published template version do not change (C2; 044)
+   SR10 a converted or released reservation is final (064, S3 brief S3-GAP-14; review 9.0, docs/47 §5 item 2)
    The other declarative fixes of S2 to S4 (keys and checks) are verified on the generated DDL by
    tools/dbgen/check_review_fixes.py, CI step 3.
 
@@ -2123,6 +2124,33 @@ EXEC #Cases '#Cov', '#ModelCase', 1, 16, @got OUTPUT;
 IF @got = '1:2627 2:547 3:0 4:547 5:50053 6:0 7:547 8:547 9:0 10:2601 11:547 12:547 13:547 14:0 15:547 16:547'
     PRINT 'PASS SR9: tests, breaches and agenda items follow their root, a test is cancelled with its reason, a waiver is approved, and a renewal moves utilisations to the successor';
 ELSE PRINT CONCAT('FAIL SR9: case:error ', @got, ' (expected 1:2627 2:547 3:0 4:547 5:50053 6:0 7-8:547 9:0 10:2601 11-13:547 14:0 15-16:547)');
+GO
+/* SR10 cases (064): the fixture's draft request 'r' and its reservation. Failed expectations raise 50990. */
+CREATE PROCEDURE #FinalReservationCase @Case INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @t1 INT, @co BIGINT, @cur INT, @f BIGINT, @l BIGINT, @r BIGINT, @lr BIGINT;
+    SELECT @t1 = v FROM #F WHERE k = 't1'; SELECT @co = v FROM #F WHERE k = 'co'; SELECT @cur = v FROM #F WHERE k = 'cur';
+    SELECT @f = v FROM #F WHERE k = 'f'; SELECT @l = v FROM #F WHERE k = 'l'; SELECT @r = v FROM #F WHERE k = 'r';
+    INSERT fac.LimitReservation (TenantId, FacilityId, LimitId, CompanyId, RequestId, Amount, CurrencyId, IdempotencyKey)
+    VALUES (@t1, @f, @l, @co, @r, 50000, @cur, CONCAT('req-', @r));
+    SET @lr = SCOPE_IDENTITY();
+    IF @Case = 1 UPDATE fac.LimitReservation SET Amount = 60000 WHERE LimitReservationId = @lr;               -- an active one adjusts
+    IF @Case > 1 UPDATE fac.LimitReservation SET Status = 'RELEASED', ReleasedOn = '2026-10-13', ReleaseReason = 'CANCELLED' WHERE LimitReservationId = @lr;
+    IF @Case = 3 UPDATE fac.LimitReservation SET Amount = 60000 WHERE LimitReservationId = @lr;
+    IF @Case = 4 UPDATE fac.LimitReservation SET Status = 'ACTIVE', ReleasedOn = NULL, ReleaseReason = NULL WHERE LimitReservationId = @lr;
+    IF @Case = 5 UPDATE fac.LimitReservation SET ReleaseReason = 'EXPIRED' WHERE LimitReservationId = @lr;
+    IF @Case = 6 UPDATE fac.LimitReservation SET UpdatedAt = SYSUTCDATETIME() WHERE LimitReservationId = @lr;   -- the audit columns only
+END;
+GO
+/* SR10 (064): an active reservation adjusts and is released; a released one changes neither its amount, its status
+   nor its reason (50177), and only its audit columns may be touched. */
+DECLARE @got NVARCHAR(800);
+EXEC #Cases '#S3', '#FinalReservationCase', 1, 6, @got OUTPUT;
+IF @got = '1:0 2:0 3:50177 4:50177 5:50177 6:0'
+    PRINT 'PASS SR10: a converted or released reservation is final, and only its audit columns are touched';
+ELSE PRINT CONCAT('FAIL SR10: case:error ', @got, ' (expected 1:0 2:0 3-5:50177 6:0)');
 GO
 -- the test users go with the test (CI step 23 counts any left behind; internal review v6, B9)
 ALTER ROLE [tp_app] DROP MEMBER [tp_test_rfapp];
