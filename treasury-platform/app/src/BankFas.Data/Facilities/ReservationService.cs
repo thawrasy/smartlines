@@ -7,7 +7,7 @@ namespace BankFas.Data.Facilities;
 
 /// <summary>A reservation asked for a request (fac.reserve_limit, BR-FAC-015): the line (or the limit) by its root, the company and the exposure amount.</summary>
 public sealed record ReserveCommand(long RequestId, long LimitRoot, long? LineRoot, long CompanyId, decimal ExposureAmount, int CurrencyId, decimal? RateToFacilityCcy,
-    DateTime? ExpiresOn, long ActorUserId, bool OverrideRequested = false, string? OverrideReason = null);
+    DateTime? ExpiresOn, long ActorUserId, bool OverrideRequested = false, string? OverrideReason = null, bool OverrideAuthorised = false);
 
 /// <summary>The outcome: RESERVED (with the reservation) or one of the codes of BR-FAC-015, with the availability that decided it.</summary>
 public sealed record ReserveResult(string Outcome, long? ReservationId, Availability? Availability, string? ValidityIndicator)
@@ -23,7 +23,7 @@ public sealed record ReserveResult(string Outcome, long? ReservationId, Availabi
 /// computed by the one formula (<see cref="LimitTree"/>) on the approved revision (OQ-13), without the request's own
 /// reservation. A request has one ACTIVE reservation (upsert by RequestId); the same amount again changes nothing, a
 /// new amount adjusts it, a request whose reservation was released gets a new one with a derived key (M13:295).
-/// Every write has its LimitMovement in the same transaction. No override in S2 (OVERRIDE_NOT_ALLOWED until S3).
+/// Every write has its LimitMovement in the same transaction. An override reserves above the available amount when the caller authorised it (S3).
 /// </summary>
 public static class ReservationService
 {
@@ -49,7 +49,10 @@ public static class ReservationService
     public static async Task<ReserveResult> ReserveAsync(SqlConnection c, SqlTransaction tx, ReserveCommand cmd, DateTime today, CancellationToken ct)
     {
         if (cmd.ExposureAmount <= 0) throw new ArgumentOutOfRangeException(nameof(cmd), "The exposure amount is above zero.");
-        if (cmd.OverrideRequested) return new ReserveResult("OVERRIDE_NOT_ALLOWED", null, null, null);
+        // FR-FAC-020 (S3): an override is the caller's to authorise (the tenant's setting, fac.override_limit and a reason);
+        // an authorised one reserves above the available amount and is marked OverLimit.
+        if (cmd.OverrideRequested && !cmd.OverrideAuthorised) return new ReserveResult("OVERRIDE_NOT_ALLOWED", null, null, null);
+        if (cmd.OverrideRequested && string.IsNullOrWhiteSpace(cmd.OverrideReason)) return new ReserveResult("OVERRIDE_REASON_REQUIRED", null, null, null);
         try
         {
             await c.ExecuteAsync(new CommandDefinition("SET LOCK_TIMEOUT 5000;", transaction: tx, cancellationToken: ct)).ConfigureAwait(false);
@@ -84,15 +87,24 @@ public static class ReservationService
                 new { q = cmd.RequestId }, tx, cancellationToken: ct)).ConfigureAwait(false);
             if (existing is not null && existing.Amount == cmd.ExposureAmount && existing.CurrencyId == cmd.CurrencyId)
                 return new ReserveResult("RESERVED", existing.LimitReservationId, avail, validity);
-            if (amount > avail.Avail) return new ReserveResult("INSUFFICIENT_AVAILABLE", existing?.LimitReservationId, avail, validity);
+            var overLimit = amount > avail.Avail;
+            if (overLimit && !cmd.OverrideRequested) return new ReserveResult("INSUFFICIENT_AVAILABLE", existing?.LimitReservationId, avail, validity);
 
             var limitRow = limit.LimitId;
             var lineRow = line?.LimitProductLineId;
             if (existing is not null)
             {
                 await c.ExecuteAsync(new CommandDefinition(
-                    "UPDATE fac.LimitReservation SET Amount = @a, CurrencyId = @cur, RateToFacilityCcy = @rate, ExpiresOn = @exp WHERE LimitReservationId = @id;",
-                    new { a = cmd.ExposureAmount, cur = cmd.CurrencyId, rate = cmd.RateToFacilityCcy, exp = cmd.ExpiresOn, id = existing.LimitReservationId }, tx,
+                    """
+                    UPDATE fac.LimitReservation SET Amount = @a, CurrencyId = @cur, RateToFacilityCcy = @rate, ExpiresOn = @exp, OverLimit = @over,
+                           OverrideReason = CASE WHEN @over = 1 THEN @reason ELSE NULL END
+                     WHERE LimitReservationId = @id;
+                    """,
+                    new
+                    {
+                        a = cmd.ExposureAmount, cur = cmd.CurrencyId, rate = cmd.RateToFacilityCcy, exp = cmd.ExpiresOn, id = existing.LimitReservationId, over = overLimit,
+                        reason = cmd.OverrideReason,
+                    }, tx,
                     cancellationToken: ct)).ConfigureAwait(false);
                 await MovementAsync(c, tx, f.FacilityId, existing.LimitReservationId, "ADJUST", cmd.CurrencyId, cmd.ExposureAmount - existing.Amount, existing.Amount,
                     cmd.ExposureAmount, null, $"res:{existing.LimitReservationId}:adjust:{Guid.NewGuid():N}", cmd.ActorUserId, ct).ConfigureAwait(false);
@@ -107,14 +119,14 @@ public static class ReservationService
                 """
                 DECLARE @o TABLE (Id BIGINT);
                 INSERT fac.LimitReservation (TenantId, FacilityId, LimitId, LimitProductLineId, CompanyId, RequestId, Amount, CurrencyId, RateToFacilityCcy, ExpiresOn,
-                                             IdempotencyKey, CreatedBy)
+                                             IdempotencyKey, OverLimit, OverrideReason, CreatedBy)
                 OUTPUT inserted.LimitReservationId INTO @o
-                VALUES (CAST(SESSION_CONTEXT(N'TenantId') AS INT), @f, @l, @ln, @co, @q, @a, @cur, @rate, @exp, @key, @actor);
+                VALUES (CAST(SESSION_CONTEXT(N'TenantId') AS INT), @f, @l, @ln, @co, @q, @a, @cur, @rate, @exp, @key, @over, CASE WHEN @over = 1 THEN @reason END, @actor);
                 SELECT Id FROM @o;
                 """, new
                 {
                     f = f.FacilityId, l = limitRow, ln = lineRow, co = cmd.CompanyId, q = cmd.RequestId, a = cmd.ExposureAmount, cur = cmd.CurrencyId,
-                    rate = cmd.RateToFacilityCcy, exp = cmd.ExpiresOn, key, actor = cmd.ActorUserId,
+                    rate = cmd.RateToFacilityCcy, exp = cmd.ExpiresOn, key, actor = cmd.ActorUserId, over = overLimit, reason = cmd.OverrideReason,
                 }, tx, cancellationToken: ct)).ConfigureAwait(false);
             await MovementAsync(c, tx, f.FacilityId, id, "CREATE", cmd.CurrencyId, cmd.ExposureAmount, 0, cmd.ExposureAmount, null, key + ":create", cmd.ActorUserId, ct)
                 .ConfigureAwait(false);

@@ -14,6 +14,7 @@ public sealed record RequestActionBody(string? Comment, string? InternalComment,
 public sealed record RequestCommentBody(string? Body, string? Visibility);
 public sealed record RequestAttachmentBody(Guid? Document, string? Slot);
 public sealed record RequestExternalRefBody(string? SystemCode, string? RefType, string? Value);
+public sealed record RequestAllocationBody(Guid? Facility, string? Limit, string? Line);
 
 /// <summary>
 /// The requests (spec 13; S3 batch B): the types a user may raise, drafts and their form, the actions of the engine,
@@ -35,6 +36,8 @@ public static class RequestEndpoints
         api.MapPost("/requests/{id:guid}/comments", CommentAsync);
         api.MapPost("/requests/{id:guid}/attachments", AttachAsync);
         api.MapPost("/requests/{id:guid}/external-refs", ExternalRefAsync);
+        api.MapGet("/requests/{id:guid}/availability", AvailabilityAsync);
+        api.MapPut("/requests/{id:guid}/allocation", AllocateAsync);
     }
 
     private static async Task<BoundUser> OpenAsync(HttpContext http, SqlConnectionFactory db)
@@ -485,6 +488,102 @@ public static class RequestEndpoints
             """, new { system, type, norm = normalised, r = r.RequestId }, tx, cancellationToken: ct));
         await tx.CommitAsync(ct);
         return Results.Created($"/api/v1/requests/{id}", new { warning = duplicate > 0 ? "V-REQ-04" : null, normalised, id = newId });
+    }
+
+    // ---------- the availability panel and the allocation (FR-REQ-013, FR-FAC-021, FR-FAC-031) ----------
+
+    /// <summary>
+    /// The staff panel of a request: the lines and limits of the company's active facilities with what is available to it
+    /// now, without the request's own reservation (BR-FAC-014), the allocated one marked. The requester gets 404 (AC-WFL-9).
+    /// </summary>
+    private static async Task<IResult> AvailabilityAsync(Guid id, HttpContext http, SqlConnectionFactory db, OpaqueRefs refs, TimeProvider clock)
+    {
+        await using var u = await OpenAsync(http, db);
+        var ct = http.RequestAborted;
+        var actor = await ActorAsync(u, null, ct);
+        var requestId = await IdOfAsync(u, null, id, ct);
+        var r = await RequestEngine.FindAsync(u.Connection, null, requestId, false, ct) ?? throw ApiProblemException.NotFound();
+        var (visible, staff) = await AccessAsync(u, null, r, actor, ct);
+        if (!visible || !staff || !actor.Permissions.Contains("fac.view")) throw ApiProblemException.NotFound();
+        var today = clock.GetUtcNow().UtcDateTime.Date;
+        var allocated = await u.Connection.QuerySingleOrDefaultAsync<(long? FacilityId, long? LimitRoot, long? LineRoot)>(new CommandDefinition(
+            """
+            SELECT r.FacilityId, l.RootId, pl.RootId FROM wfl.Request AS r LEFT JOIN fac.Limit AS l ON l.LimitId = r.LimitId
+              LEFT JOIN fac.LimitProductLine AS pl ON pl.LimitProductLineId = r.LimitProductLineId WHERE r.RequestId = @r;
+            """, new { r = requestId }, cancellationToken: ct));
+        var facilities = await u.Connection.QueryAsync<(long FacilityId, Guid PublicId, string? FacilityNo, int Rev, decimal Total, string Currency)>(new CommandDefinition(
+            """
+            SELECT f.FacilityId, f.PublicId, f.FacilityNo, f.ApprovedRevisionNo, f.TotalAmount, c.Code FROM fac.Facility AS f JOIN ref.Currency AS c ON c.CurrencyId = f.CurrencyId
+             WHERE f.LifecycleStatus = 'ACTIVE' AND f.ApprovedRevisionNo > 0 AND (f.BorrowerCompanyId = @co OR f.FacilityId = @fac);
+            """, new { co = r.CompanyId, fac = allocated.FacilityId ?? -1 }, cancellationToken: ct));
+        var items = new List<object>();
+        foreach (var f in facilities)
+        {
+            var rows = await BankFas.Data.Facilities.FacilityTreeStore.LoadAsync(u.Connection, null, f.FacilityId, f.Rev, ct);
+            var tree = rows.Tree(f.Total, today);
+            var exposures = await BankFas.Data.Facilities.FacilityTreeStore.ExposuresAsync(u.Connection, null, f.FacilityId, ct);
+            foreach (var l in rows.Limits.Where(l => tree.Eligible(l.RootId, r.CompanyId)))
+            {
+                var lines = rows.Lines.Where(x => x.LimitRootId == l.RootId && x.IsActive).ToList();
+                foreach (var line in lines.Count == 0 ? [null] : lines.Cast<BankFas.Data.Facilities.LineRow?>())
+                {
+                    var a = tree.Available(l.RootId, line?.RootId, r.CompanyId, exposures, requestId);
+                    items.Add(new
+                    {
+                        facility = f.PublicId, facilityNo = f.FacilityNo, limit = refs.ItemRef(u.TenantId, "limit", l.RootId), limitCode = l.Code, limitNameAr = l.NameAr,
+                        limitNameEn = l.NameEn, line = line is null ? null : refs.ItemRef(u.TenantId, "line", line.RootId), product = line?.ProductCode, currency = f.Currency,
+                        cap = a.Cap, used = a.Used, reservedForOthers = a.ReservedForOthers, available = Math.Max(0, a.Avail), reason = a.Reason,
+                        allocated = allocated.FacilityId == f.FacilityId && allocated.LimitRoot == l.RootId && allocated.LineRoot == line?.RootId,
+                    });
+                }
+            }
+        }
+        decimal? exposure = null;
+        if (r.TypeCode == "PURCHASE_LC" && await BankFas.Data.Lc.TermsStore.CurrentAsync(u.Connection, null, requestId, ct) is { } t)
+            exposure = await LcTermsEndpoints.ExposureAsync(u.Connection, null, t, ct);
+        return Results.Ok(new { exposureAmount = exposure ?? r.Amount, currency = r.CurrencyCode, items });
+    }
+
+    /// <summary>The facility selection (FR-REQ-013): the claimer of the stage that edits the LIMIT_SELECTION field chooses a limit or line of the company's facility.</summary>
+    private static async Task<IResult> AllocateAsync(Guid id, RequestAllocationBody b, HttpContext http, SqlConnectionFactory db, OpaqueRefs refs, TimeProvider clock)
+    {
+        if (b.Facility is null || (b.Limit is null && b.Line is null)) throw ApiProblemException.Invalid("VALIDATION_FAILED", "Choose the facility and its limit or line.");
+        await using var u = await OpenAsync(http, db);
+        var ct = http.RequestAborted;
+        await using var tx = (SqlTransaction)await u.Connection.BeginTransactionAsync(ct);
+        var (r, actor, staff) = await VisibleForWriteAsync(u, tx, id, ct);
+        if (!staff || !actor.Permissions.Contains("req.facility.select")) throw ApiProblemException.Forbidden();
+        var inst = await RequestEngine.CurrentInstanceAsync(u.Connection, tx, r.RequestId, ct) ?? throw ApiProblemException.NotFound();
+        var fields = await RequestEngine.FieldsAsync(u.Connection, tx, r.TemplateId, ct);
+        if (!fields.Any(f => f.DataType == "LIMIT_SELECTION" && f.EditableStagesJson?.Contains("\"" + inst.StageKey + "\"", StringComparison.Ordinal) == true))
+            throw new ApiProblemException(409, "INVALID_STATE", "The facility is chosen at the facility selection stage.");
+        if (inst.Status != "CLAIMED" || inst.AssigneeUserId != u.UserId) throw new ApiProblemException(409, "INVALID_STATE", "Claim the request first (BR-WFL-007).");
+        var f = await u.Connection.QuerySingleOrDefaultAsync<(long FacilityId, int Rev, decimal Total)?>(new CommandDefinition(
+            "SELECT FacilityId, ApprovedRevisionNo, TotalAmount FROM fac.Facility WHERE PublicId = @f AND LifecycleStatus = 'ACTIVE';", new { f = b.Facility }, tx, cancellationToken: ct))
+            ?? throw ApiProblemException.Invalid("V-REQ-ALLOCATION", "The facility is not an active facility.");
+        var rows = await BankFas.Data.Facilities.FacilityTreeStore.LoadAsync(u.Connection, tx, f.FacilityId, f.Rev, ct);
+        var lineRoot = refs.ItemId(u.TenantId, "line", b.Line);
+        var line = lineRoot is null ? null : rows.Lines.FirstOrDefault(x => x.RootId == lineRoot && x.IsActive)
+            ?? throw ApiProblemException.Invalid("V-REQ-ALLOCATION", "The line is not a line of the approved facility.");
+        var limitRoot = line?.LimitRootId ?? refs.ItemId(u.TenantId, "limit", b.Limit);
+        var limit = rows.Limits.FirstOrDefault(x => x.RootId == limitRoot) ?? throw ApiProblemException.Invalid("V-REQ-ALLOCATION", "The limit is not a limit of the approved facility.");
+        if (!rows.Tree(f.Total, clock.GetUtcNow().UtcDateTime.Date).Eligible(limit.RootId, r.CompanyId))
+            throw ApiProblemException.Invalid("COMPANY_EXCLUDED", "The company may not use this limit (BR-FAC-012).");
+        await u.Connection.ExecuteAsync(new CommandDefinition(
+            """
+            UPDATE wfl.Request SET FacilityId = @f, LimitId = @l, LimitProductLineId = @ln, UpdatedAt = SYSUTCDATETIME(), UpdatedBy = @u WHERE RequestId = @r;
+            INSERT wfl.RequestAction (TenantId, RequestId, StageInstanceId, CycleNo, ActionType, ActorType, ActorUserId, OccurredAt, Visibility, MetaJson, CreatedBy)
+            VALUES (CAST(SESSION_CONTEXT(N'TenantId') AS INT), @r, @i, @cycle, 'FIELD_EDITED', 'USER', @u, SYSUTCDATETIME(), 'INTERNAL', @meta, @u);
+            """,
+            new
+            {
+                f = f.FacilityId, l = limit.LimitId, ln = line?.LimitProductLineId, u = u.UserId, r = r.RequestId, i = r.CurrentStageInstanceId, cycle = r.CycleNo,
+                meta = JsonSerializer.Serialize(new { allocation = new { facility = f.FacilityId, limit = limit.Code, product = line?.ProductCode } }),
+            }, tx, cancellationToken: ct));
+        await tx.CommitAsync(ct);
+        var rv = await u.Connection.ExecuteScalarAsync<byte[]>(new CommandDefinition("SELECT RowVersion FROM wfl.Request WHERE PublicId = @id;", new { id }, cancellationToken: ct));
+        ETags.Set(http.Response, rv ?? []);
+        return Results.Ok(new { limitCode = limit.Code, product = line?.ProductCode });
     }
 
     /// <summary>BR-REQ-006: trimmed, Arabic-Indic digits as 0-9, Latin letters in capitals, without spaces and dashes.</summary>

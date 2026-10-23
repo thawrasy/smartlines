@@ -455,7 +455,7 @@
    "labelAr": "المبلغ",
    "labelEn": "Amount",
    "type": "AMOUNT",
-   "required": true,
+   "required": false,
    "indexRole": "AMOUNT",
    "seq": 2
   },

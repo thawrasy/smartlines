@@ -1040,6 +1040,11 @@ public static class RequestEngine
     private static readonly Dictionary<string, HookBody> Bodies = new(StringComparer.Ordinal)
     {
         [HookKeys.ReleaseReservation] = ReleaseReservationAsync,
+        [HookKeys.ValidateTerms] = Lc.TermsStore.ValidateHookAsync,
+        [HookKeys.CheckAvailability] = FacilityHooks.CheckAvailabilityAsync,
+        [HookKeys.ReserveLimit] = FacilityHooks.ReserveLimitAsync,
+        [HookKeys.ConvertReservation] = Lc.IssuanceHooks.ConvertAsync,
+        [HookKeys.RecordIssuance] = Lc.IssuanceHooks.RecordAsync,
     };
 
     /// <summary>Registers the code of a hook key (the facility and letter-of-credit modules do, S3 batches D to G).</summary>
