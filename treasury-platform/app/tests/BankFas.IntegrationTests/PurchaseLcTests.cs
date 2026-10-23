@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Net;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace BankFas.IntegrationTests
 {
@@ -51,7 +52,7 @@ namespace BankFas.IntegrationTests
             Func<Task<(decimal Used, decimal Reserved, decimal Avail)>> LineAsync);
 
         /// <summary>A tenant with the four roles, a requester with a line manager, and an approved facility of the given amount with one purchase LC line.</summary>
-        private async Task<Bed> BedAsync(decimal total)
+        private async Task<Bed> BedAsync(decimal total, string? pack = null)
         {
             var t = await f.CreateTenantAsync();
             var (tm, _, _) = await f.UserWithRoleAsync(t, "TM");
@@ -66,6 +67,7 @@ namespace BankFas.IntegrationTests
 
             // The facility in SAR, a documentary credit limit with one purchase LC line.
             var company = PlatformFixture.Id(await tm.PostOkAsync("/api/v1/companies", new { companyCode = "IMP", nameAr = "شركة الاستيراد", nameEn = "Importer", legalForm = "LLC", country = "SA", fiscalYearEndMonth = 12 }));
+            if (pack is not null) return await PackBedAsync(t, tm, fo, te, rq, mgr, company, pack);
             var bank = PlatformFixture.Id(await tm.PostOkAsync("/api/v1/institutions", new { code = "BNKC", nameAr = "بنك الاعتمادات", nameEn = "Credits Bank", type = "BANK", country = "SA" }));
             var fac = PlatformFixture.Id(await fo.PostOkAsync("/api/v1/facilities", new
             {
@@ -86,6 +88,25 @@ namespace BankFas.IntegrationTests
                 return (a.GetProperty("used").GetDecimal(), a.GetProperty("reservedForOthers").GetDecimal(), a.GetProperty("avail").GetDecimal());
             }
             return new Bed(t, tm, fo, te, rq, mgr, company, bank, fac, line, LineAsync);
+        }
+
+        /// <summary>The bed on a DS-AGR pack moved to be in force a month before the run date; the line is the pack's documentary credit line.</summary>
+        private async Task<Bed> PackBedAsync(TestTenant t, HttpClient tm, HttpClient fo, HttpClient te, HttpClient rq, HttpClient mgr, string company, string pack)
+        {
+            var agreement = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "DS-AGR", pack, "v1", "agreement.json"), TestContext.Current.CancellationToken)).RootElement;
+            var from = DateTime.Parse(agreement.GetProperty("facility").GetProperty("effectiveFrom").GetString()!, CultureInfo.InvariantCulture);
+            var target = Today.AddMonths(-1);
+            var loaded = await AgreementPackTests.LoadAsync(f, fo, tm, company, pack, (target.Year - from.Year) * 12 + target.Month - from.Month);
+            var bankCode = agreement.GetProperty("bank").GetProperty("code").GetString();
+            var bank = (await tm.GetJsonAsync("/api/v1/institutions")).GetProperty("items").EnumerateArray().Single(i => i.GetProperty("code").GetString() == bankCode).GetProperty("id").GetString()!;
+            var line = (await fo.GetJsonAsync($"/api/v1/facilities/{loaded.Facility}/limits")).GetProperty("limits").EnumerateArray()
+                .SelectMany(l => l.GetProperty("lines").EnumerateArray()).Single(l => l.GetProperty("product").GetString() == "LC_PURCHASE_CONV").GetProperty("id").GetString()!;
+            async Task<(decimal Used, decimal Reserved, decimal Avail)> LineAsync()
+            {
+                var a = await tm.GetJsonAsync($"/api/v1/facilities/{loaded.Facility}/availability?line={Uri.EscapeDataString(line)}&company={company}");
+                return (a.GetProperty("used").GetDecimal(), a.GetProperty("reservedForOthers").GetDecimal(), a.GetProperty("avail").GetDecimal());
+            }
+            return new Bed(t, tm, fo, te, rq, mgr, company, bank, loaded.Facility, line, LineAsync);
         }
 
         private Dictionary<string, object?> Terms(string supplier, decimal amount) => new()
@@ -461,5 +482,164 @@ namespace BankFas.IntegrationTests
                   FROM fac.LimitReservation AS lr JOIN wfl.Request AS r ON r.RequestId = lr.RequestId WHERE r.PublicId = @id;
                 """, new { id = Guid.Parse(a) }));
         }
-    }
+
+        /// <summary>
+        /// The rest of the terms (FR-REQ-024, FR-LCT-005, 017, 025; OQ-14; SCR-REQ-10 to 12): the beneficiary's IBAN is
+        /// checked, sealed and shown masked, locked with the terms at the submission, and revealed in clear only to a
+        /// holder of lc.view.internal with a reason; the printed terms carry the UCP footnote, which cannot be switched off
+        /// while an article in use is unverified; the bank form waits for an active template and then fills its targets;
+        /// the three dashboards follow the permissions.
+        /// </summary>
+        [Fact]
+        public async Task The_IBAN_the_printed_terms_the_bank_form_and_the_dashboards()
+        {
+            var b = await BedAsync(10_000_000);
+            var supplier = PlatformFixture.Id(await b.Rq.PostOkAsync("/api/v1/counterparties", new { kind = "SUPPLIER", nameEn = "Steel Pipes Ltd", country = "CN", erpCode = "V-1001" }));
+            var id = (await b.Rq.PostOkAsync("/api/v1/requests", new { type = "PURCHASE_LC", company = b.Company, data = new { title = "IBAN", supplierName = "Steel Pipes Ltd" } }))
+                .GetProperty("id").GetString()!;
+            await b.Rq.OkAsync(HttpMethod.Put, $"/api/v1/requests/{id}/terms", new { fields = Terms(supplier, 1_000_000) });
+            await b.Rq.OkAsync(HttpMethod.Put, $"/api/v1/requests/{id}/terms/documents", new object[] { new { clause = "COMMERCIAL_INVOICE", originals = 3, copies = 2 } });
+            Assert.Equal((422, "V-LCT-IBAN"), await b.Rq.ProblemAsync(HttpMethod.Put, $"/api/v1/requests/{id}/terms/beneficiary-iban", new { iban = "SA0380000000608010167518" }));
+            var mask = (await b.Rq.OkAsync(HttpMethod.Put, $"/api/v1/requests/{id}/terms/beneficiary-iban", new { iban = "sa03 8000 0000 6080 1016 7519" })).GetProperty("iban").GetString()!;
+            Assert.DoesNotContain("60801016", mask, StringComparison.Ordinal);
+            Assert.Equal(mask, (await b.Rq.GetJsonAsync($"/api/v1/requests/{id}/terms")).GetProperty("beneficiaryIban").GetString());
+
+            // The requester's dashboard shows the draft.
+            var mine = await b.Rq.GetJsonAsync("/api/v1/dashboards/requester");
+            Assert.Equal(1, mine.GetProperty("counters").GetProperty("open").GetInt32());
+            Assert.Equal((403, "FORBIDDEN"), await b.Rq.ProblemAsync(HttpMethod.Get, "/api/v1/dashboards/manager"));
+
+            await ActAsync(b.Rq, id, "submit");
+            Assert.Equal((409, "TERMS_LOCKED"), await b.Rq.ProblemAsync(HttpMethod.Put, $"/api/v1/requests/{id}/terms/beneficiary-iban", new { iban = "" }));
+            Assert.Equal((403, "FORBIDDEN"), await b.Rq.PostProblemAsync($"/api/v1/requests/{id}/terms/beneficiary-iban/reveal", new { reason = "Check" }));
+            Assert.Equal((422, "VALIDATION_FAILED"), await b.Tm.PostProblemAsync($"/api/v1/requests/{id}/terms/beneficiary-iban/reveal", new { reason = "" }));
+            Assert.Equal("SA0380000000608010167519",
+                (await b.Tm.PostOkAsync($"/api/v1/requests/{id}/terms/beneficiary-iban/reveal", new { reason = "Bank form" })).GetProperty("iban").GetString());
+
+            // The printed terms: HTML with its own CSP, the mask, the footnote and the hash.
+            var print = await b.Rq.SendAsync(HttpMethod.Get, $"/api/v1/requests/{id}/terms/print?lang=en");
+            var html = await print.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+            Assert.True(print.IsSuccessStatusCode, html);
+            Assert.Contains("style-src 'sha256-", print.Headers.GetValues("Content-Security-Policy").Single(), StringComparison.Ordinal);
+            Assert.Contains("Letter of credit terms", html, StringComparison.Ordinal);
+            Assert.Contains(mask, html, StringComparison.Ordinal);
+            Assert.Contains("SHA-256 ", html, StringComparison.Ordinal);
+            Assert.DoesNotContain("60801016", html, StringComparison.Ordinal);
+            Assert.Contains("ICC", html, StringComparison.Ordinal);
+            Assert.Equal((422, "V-LCT-UCP-FOOTNOTE"),
+                await b.T.Portal.ProblemAsync(HttpMethod.Patch, "/api/v1/settings", new { values = new Dictionary<string, object> { ["lc.print.ucp_disclaimer"] = false } }));
+
+            // The bank form: none active, then a template of the bank with two maps.
+            Assert.Equal((409, "NO_FORM_TEMPLATE"), await b.Tm.ProblemAsync(HttpMethod.Get, $"/api/v1/requests/{id}/bank-form"));
+            Assert.Equal((403, "FORBIDDEN"), await b.Rq.PostProblemAsync("/api/v1/lc-form-templates", new { code = "BNKC-LC", formKind = "LC_APPLICATION", effectiveFrom = D(Today) }));
+            var tpl = (await b.Fo.PostOkAsync("/api/v1/lc-form-templates", new { code = "BNKC-LC", formKind = "LC_APPLICATION", institution = b.Bank, effectiveFrom = D(Today.AddDays(-1)) }))
+                .GetProperty("id").GetString()!;
+            Assert.Equal((422, "V-LCT-MAP"), await b.Fo.ProblemAsync(HttpMethod.Put, $"/api/v1/lc-form-templates/{tpl}/field-maps", new object[] { new { targetName = "x", sourceExpr = "sec.password" } }));
+            await b.Fo.OkAsync(HttpMethod.Put, $"/api/v1/lc-form-templates/{tpl}/field-maps", new object[]
+            {
+                new { targetName = "Applicant", sourceExpr = "company.nameEn", transform = "UPPER", isRequired = true, seqNo = 1 },
+                new { targetName = "Amount in words", sourceExpr = "terms.amount", transform = "AMOUNT_WORDS_EN", seqNo = 2 },
+                new { targetName = "Sight", sourceExpr = "terms.lcType", transform = "CHECKBOX_EQ", transformArg = "SIGHT", seqNo = 3 },
+                new { targetName = "Facility", sourceExpr = "facility.facilityNo", isRequired = true, seqNo = 4 },
+            });
+            await b.Fo.OkAsync(HttpMethod.Post, $"/api/v1/lc-form-templates/{tpl}/activate", new { });
+            Assert.Equal((409, "TEMPLATE_PUBLISHED"), await b.Fo.ProblemAsync(HttpMethod.Put, $"/api/v1/lc-form-templates/{tpl}/field-maps", Array.Empty<object>()));
+
+            await ActAsync(b.Mgr, id, "approve");
+            var original = await DocumentAsync(b.Tm, b.Company, "SIGNED_REQUEST_ORIGINAL", "Signed original IBAN");
+            await b.Tm.PostOkAsync($"/api/v1/requests/{id}/attachments", new { document = original, slot = "SIGNED_ORIGINAL" });
+            await ActAsync(b.Rq, id, "complete");
+            var sheet = await b.Tm.GetJsonAsync($"/api/v1/requests/{id}/bank-form");
+            Assert.False(sheet.GetProperty("official").GetBoolean());
+            Assert.Equal(["Facility"], sheet.GetProperty("missingRequired").EnumerateArray().Select(x => x.GetString()!).ToArray());
+            var items = sheet.GetProperty("items").EnumerateArray().ToDictionary(x => x.GetProperty("target").GetString()!, x => x.GetProperty("value").GetString()!);
+            Assert.Equal("IMPORTER", items["Applicant"]);
+            Assert.Equal("X", items["Sight"]);
+            Assert.Contains("million", items["Amount in words"], StringComparison.OrdinalIgnoreCase);
+
+            await ActAsync(b.Fo, id, "claim");
+            await b.Fo.OkAsync(HttpMethod.Put, $"/api/v1/requests/{id}/allocation", new { facility = b.Fac, line = b.Line });
+            await ActAsync(b.Fo, id, "complete");
+            Assert.True((await b.Tm.GetJsonAsync($"/api/v1/requests/{id}/bank-form")).GetProperty("official").GetBoolean());
+
+            // The manager's dashboard: the approval with the line's available amount; the officer's.
+            var manager = await b.Tm.GetJsonAsync("/api/v1/dashboards/manager");
+            var approval = manager.GetProperty("approvals").EnumerateArray().Single();
+            Assert.Equal(10_000_000m, approval.GetProperty("available").GetDecimal());
+            Assert.Equal(1, manager.GetProperty("counters").GetProperty("approvals").GetInt32());
+            Assert.Equal(0, (await b.Te.GetJsonAsync("/api/v1/dashboards/officer")).GetProperty("counters").GetProperty("tasks").GetInt32());
+        }
+
+        /// <summary>
+        /// The S3 exit on synthetic data (OQ-13): DS-AGR C's documentary credit line of 50,000,000 with the four credits of
+        /// DS-LC-C. Two are issued (exposures 13,200,000 and 21,000,000), the first drawn by 5,000,000 and paid; the third
+        /// is approved and holds its reservation of 19,800,000; the fourth needs 2,000,000 where 1,000,000 is left and the
+        /// treasury manager's approval is refused. The line shows the pack's expected figures after each step.
+        /// </summary>
+        [Fact]
+        public async Task S3_exit_the_synthetic_credits_of_DS_LC_C_on_agreement_C()
+        {
+            var ct = TestContext.Current.CancellationToken;
+            var dir = Path.Combine(AppContext.BaseDirectory, "DS-LC-C", "v1");
+            foreach (var (file, print) in JsonNode.Parse(await File.ReadAllTextAsync(Path.Combine(dir, "manifest.json"), ct))!["fingerprints"]!.AsObject())
+                Assert.Equal(print!.GetValue<string>(), "sha256:" + Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(await File.ReadAllBytesAsync(Path.Combine(dir, file), ct))));
+            var pack = JsonNode.Parse(await File.ReadAllTextAsync(Path.Combine(dir, "credits.json"), ct))!.AsObject();
+            var b = await BedAsync(0, "C");
+            var suppliers = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var s in pack["suppliers"]!.AsArray())
+                suppliers[(string)s!["key"]!] = PlatformFixture.Id(await b.Rq.PostOkAsync("/api/v1/counterparties", new
+                {
+                    kind = (string)s["kind"]!, nameEn = (string)s["nameEn"]!, country = (string)s["country"]!, erpCode = (string)s["erpCode"]!,
+                }));
+            var expected = pack["expected"]!.AsArray().ToDictionary(e => (string)e!["after"]!, e => ((decimal)e!["used"]!, (decimal)e["reserved"]!, (decimal)e["avail"]!));
+            foreach (var n in pack["credits"]!.AsArray())
+            {
+                var credit = n!.AsObject();
+                var key = (string)credit["key"]!;
+                var terms = Terms(suppliers[(string)credit["supplier"]!], (decimal)credit["amount"]!);
+                var plus = (decimal)credit["tolerancePlusPct"]!;
+                if (plus == 0) { terms["toleranceMode"] = "NONE"; terms.Remove("tolerancePlusPct"); terms.Remove("toleranceMinusPct"); }
+                else (terms["tolerancePlusPct"], terms["toleranceMinusPct"]) = (plus, plus);
+                foreach (var (field, from) in new[] { ("goodsDescription", "goodsDescription"), ("incotermId", "incoterm"), ("transportMode", "transportMode"), ("portOfLoading", "portOfLoading"), ("portOfDischarge", "portOfDischarge") })
+                    terms[field] = (string)credit[from]!;
+                var id = (await b.Rq.PostOkAsync("/api/v1/requests", new { type = "PURCHASE_LC", company = b.Company, data = new { title = (string)credit["title"]!, supplierName = "Synthetic" } }))
+                    .GetProperty("id").GetString()!;
+                await b.Rq.OkAsync(HttpMethod.Put, $"/api/v1/requests/{id}/terms", new { fields = terms });
+                await b.Rq.OkAsync(HttpMethod.Put, $"/api/v1/requests/{id}/terms/documents", credit["documents"]!.AsArray().Select(d => (object)new
+                {
+                    clause = (string)d!["clause"]!, originals = (int)d["originals"]!, copies = (int)d["copies"]!,
+                }).ToArray());
+                await ActAsync(b.Rq, id, "submit");
+                await ActAsync(b.Mgr, id, "approve");
+                var original = await DocumentAsync(b.Tm, b.Company, "SIGNED_REQUEST_ORIGINAL", "Signed original " + key);
+                await b.Tm.PostOkAsync($"/api/v1/requests/{id}/attachments", new { document = original, slot = "SIGNED_ORIGINAL" });
+                await ActAsync(b.Rq, id, "complete");
+                await ActAsync(b.Fo, id, "claim");
+                await b.Fo.OkAsync(HttpMethod.Put, $"/api/v1/requests/{id}/allocation", new { facility = b.Fac, line = b.Line });
+                await ActAsync(b.Fo, id, "complete");
+                switch ((string)credit["outcome"]!)
+                {
+                    case "REFUSED_AT_TM":
+                        Assert.Equal((409, (string)credit["refusal"]!), await RefusedAsync(b.Tm, id, "approve"));
+                        break;
+                    case "APPROVED":
+                        await ActAsync(b.Tm, id, "approve");
+                        break;
+                    default:
+                        var lc = await IssuedAsync(b, id, (string)credit["lcNumber"]!);
+                        Assert.Equal(expected[key], await b.LineAsync());
+                        var no = 0;
+                        foreach (var d in credit["drawings"]!.AsArray())
+                        {
+                            no = (await b.Te.PostOkAsync($"/api/v1/lcs/{lc}/drawings", new { amount = (decimal)d!["amount"]!, presentationDate = D(Today) })).GetProperty("drawingNo").GetInt32();
+                            await b.Te.PostOkAsync($"/api/v1/lcs/{lc}/drawings/{no}/decision", new { status = (string)d["decision"]! });
+                            if ((bool)d["settle"]!) await b.Te.PostOkAsync($"/api/v1/lcs/{lc}/drawings/{no}/settlements", new { amount = (decimal)d["amount"]!, settledOn = D(Today) });
+                        }
+                        if (no > 0) key += ".drawings";
+                        break;
+                }
+                Assert.Equal(expected[key], await b.LineAsync());
+            }
+        }
+}
 }

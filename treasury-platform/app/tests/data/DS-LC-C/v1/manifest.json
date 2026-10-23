@@ -1,0 +1,13 @@
+{
+ "pack": "DS-LC-C",
+ "version": 1,
+ "source": "Synthetic (S3 brief OQ-13); credits invented for the S3 exit test on DS-AGR C",
+ "preparedBy": "AI agent (disclosed)",
+ "preparedOn": "2026-10-23",
+ "reviewedBy": null,
+ "approvedBy": null,
+ "status": "PROPOSED",
+ "fingerprints": {
+  "credits.json": "sha256:29920cd2318094402a2462a8830b855ff6e84a68a996da1ea0aac5ca882770be"
+ }
+}

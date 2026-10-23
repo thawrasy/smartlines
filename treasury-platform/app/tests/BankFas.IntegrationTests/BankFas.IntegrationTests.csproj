@@ -15,6 +15,8 @@
     <None Include="..\data\DS-AGR\**\*" LinkBase="DS-AGR" CopyToOutputDirectory="PreserveNewest" />
     <!-- DS-FIN-C: the figures of agreement C for the S2-b exit (AC-FAC-13). -->
     <None Include="..\data\DS-FIN-C\**\*" LinkBase="DS-FIN-C" CopyToOutputDirectory="PreserveNewest" />
+    <!-- DS-LC-C: the synthetic purchase credits on agreement C for the S3 exit (OQ-13). -->
+    <None Include="..\data\DS-LC-C\**\*" LinkBase="DS-LC-C" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\BankFas.Api\BankFas.Api.csproj" />

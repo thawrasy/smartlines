@@ -1,0 +1,42 @@
+{
+ "pack": "DS-LC-C",
+ "about": "Synthetic purchase letters of credit drawn on the documentary credit line of DS-AGR C (50,000,000 SAR, shared cap). Dates are days from the run date; the facility of C is moved by whole months so that it is in force on the run date.",
+ "suppliers": [
+  { "key": "S1", "kind": "SUPPLIER", "nameEn": "Synthetic Steel Mill", "country": "CN", "erpCode": "SYN-V-01" },
+  { "key": "S2", "kind": "SUPPLIER", "nameEn": "Synthetic Cable Works", "country": "DE", "erpCode": "SYN-V-02" }
+ ],
+ "credits": [
+  {
+   "key": "LC1", "supplier": "S1", "title": "Steel billets", "amount": 12000000, "tolerancePlusPct": 10, "note": "exposure 13,200,000",
+   "goodsDescription": "Steel billets grade 5SP as per proforma", "incoterm": "CFR", "transportMode": "SEA", "portOfLoading": "Tianjin", "portOfDischarge": "Dammam",
+   "documents": [ { "clause": "COMMERCIAL_INVOICE", "originals": 3, "copies": 2 }, { "clause": "BL_SEA", "originals": 3, "copies": 3 } ],
+   "outcome": "ISSUED", "lcNumber": "SYN-C/LC/0001",
+   "drawings": [ { "amount": 5000000, "decision": "ACCEPTED", "settle": true } ]
+  },
+  {
+   "key": "LC2", "supplier": "S2", "title": "Power cables", "amount": 20000000, "tolerancePlusPct": 5, "note": "exposure 21,000,000",
+   "goodsDescription": "Medium voltage power cables as per proforma", "incoterm": "CFR", "transportMode": "SEA", "portOfLoading": "Hamburg", "portOfDischarge": "Jeddah",
+   "documents": [ { "clause": "COMMERCIAL_INVOICE", "originals": 3, "copies": 2 }, { "clause": "BL_SEA", "originals": 3, "copies": 3 } ],
+   "outcome": "ISSUED", "lcNumber": "SYN-C/LC/0002", "drawings": []
+  },
+  {
+   "key": "LC3", "supplier": "S1", "title": "Steel coils", "amount": 18000000, "tolerancePlusPct": 10, "note": "exposure 19,800,000",
+   "goodsDescription": "Hot rolled steel coils as per proforma", "incoterm": "CFR", "transportMode": "SEA", "portOfLoading": "Tianjin", "portOfDischarge": "Dammam",
+   "documents": [ { "clause": "COMMERCIAL_INVOICE", "originals": 3, "copies": 2 }, { "clause": "BL_SEA", "originals": 3, "copies": 3 } ],
+   "outcome": "APPROVED"
+  },
+  {
+   "key": "LC4", "supplier": "S2", "title": "Cable drums", "amount": 2000000, "tolerancePlusPct": 0, "note": "exposure 2,000,000, above the 1,000,000 left",
+   "goodsDescription": "Steel cable drums as per proforma", "incoterm": "CFR", "transportMode": "SEA", "portOfLoading": "Hamburg", "portOfDischarge": "Jeddah",
+   "documents": [ { "clause": "COMMERCIAL_INVOICE", "originals": 3, "copies": 2 } ],
+   "outcome": "REFUSED_AT_TM", "refusal": "INSUFFICIENT_AVAILABLE"
+  }
+ ],
+ "expected": [
+  { "after": "LC1", "used": 13200000, "reserved": 0, "avail": 36800000 },
+  { "after": "LC1.drawings", "used": 8200000, "reserved": 0, "avail": 41800000 },
+  { "after": "LC2", "used": 29200000, "reserved": 0, "avail": 20800000 },
+  { "after": "LC3", "used": 29200000, "reserved": 19800000, "avail": 1000000 },
+  { "after": "LC4", "used": 29200000, "reserved": 19800000, "avail": 1000000 }
+ ]
+}

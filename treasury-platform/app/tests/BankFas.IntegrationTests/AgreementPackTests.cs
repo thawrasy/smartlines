@@ -28,7 +28,24 @@ public sealed class AgreementPackTests(PlatformFixture f)
     internal sealed record Loaded(string Facility, string? Predecessor, Dictionary<string, string> Limits);
 
     /// <summary>Loads a pack: the bank, the facility (or the predecessor and its renewal), lenders, the agreement document, limits, lines, pricing, obligations and terms; then submit and approve.</summary>
-    internal static async Task<Loaded> LoadAsync(PlatformFixture f, HttpClient fo, HttpClient tm, string company, string pack)
+    private static void Shift(JsonNode node, int months)
+    {
+        switch (node)
+        {
+            case JsonObject o:
+                foreach (var key in o.Select(p => p.Key).ToList())
+                    if (o[key] is JsonValue v && v.TryGetValue<string>(out var text) && text.Length == 10
+                        && DateTime.TryParseExact(text, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var d))
+                        o[key] = d.AddMonths(months).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+                    else if (o[key] is { } child) Shift(child, months);
+                break;
+            case JsonArray arr:
+                foreach (var child in arr) if (child is not null) Shift(child, months);
+                break;
+        }
+    }
+
+    internal static async Task<Loaded> LoadAsync(PlatformFixture f, HttpClient fo, HttpClient tm, string company, string pack, int shiftMonths = 0)
     {
         // The manifest fingerprints bind the pack to what its reviewer signs (DOC-B06 section 6.2).
         var manifest = JsonNode.Parse(await File.ReadAllTextAsync(Path.Combine(PackDir(pack), "manifest.json")))!["fingerprints"]!.AsObject();
@@ -38,6 +55,8 @@ public sealed class AgreementPackTests(PlatformFixture f)
             Assert.Equal(print!.GetValue<string>(), "sha256:" + hash);
         }
         var a = JsonNode.Parse(await File.ReadAllTextAsync(Path.Combine(PackDir(pack), "agreement.json")))!.AsObject();
+        // A later stage's exit test needs the facility in force on the run date: every date of the pack moves by whole months.
+        if (shiftMonths != 0) Shift(a, shiftMonths);
         var today = f.Env.Clock.GetUtcNow().UtcDateTime.Date;
         var bank = a["bank"]!.AsObject();
         var bankId = PlatformFixture.Id(await tm.PostOkAsync("/api/v1/institutions", new { code = (string)bank["code"]!, nameAr = (string)bank["nameAr"]!, nameEn = (string)bank["nameEn"]!, type = "BANK", country = "SA" }));
