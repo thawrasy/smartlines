@@ -128,6 +128,7 @@ CreditEndpoints.Map(portal);
 ReadinessEndpoints.Map(portal);
 CreditInputsEndpoints.Map(portal);
 RequestEndpoints.Map(portal);
+InboxEndpoints.Map(portal);
 TemplateEndpoints.Map(portal);
 LcTermsEndpoints.Map(portal);
 var panel = app.MapGroup("/api/v1/operator").AddEndpointFilter(SurfaceFilter(Surface.OperatorPanel));

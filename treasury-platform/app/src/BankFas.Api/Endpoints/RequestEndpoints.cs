@@ -10,7 +10,8 @@ namespace BankFas.Api.Endpoints;
 
 public sealed record NewRequestBody(string? Type, Guid? Company, Guid? Requester, JsonElement? Data, string? Priority, string? UrgentReason);
 public sealed record RequestFormBody(JsonElement? Data);
-public sealed record RequestActionBody(string? Comment, string? InternalComment, string? ToStage, bool? OverrideRequested, string? OverrideReason, string[]? AcknowledgeWarnings);
+public sealed record RequestActionBody(string? Comment, string? InternalComment, string? ToStage, bool? OverrideRequested, string? OverrideReason, string[]? AcknowledgeWarnings,
+    Guid? AssignTo = null, string? SubStatus = null, string? Priority = null);
 public sealed record RequestCommentBody(string? Body, string? Visibility);
 public sealed record RequestAttachmentBody(Guid? Document, string? Slot);
 public sealed record RequestExternalRefBody(string? SystemCode, string? RefType, string? Value);
@@ -40,7 +41,7 @@ public static class RequestEndpoints
         api.MapPut("/requests/{id:guid}/allocation", AllocateAsync);
     }
 
-    private static async Task<BoundUser> OpenAsync(HttpContext http, SqlConnectionFactory db)
+    internal static async Task<BoundUser> OpenAsync(HttpContext http, SqlConnectionFactory db)
     {
         var u = await BoundUser.OpenAsync(http, db);
         try
@@ -56,7 +57,7 @@ public static class RequestEndpoints
         }
     }
 
-    private static async Task<Actor> ActorAsync(BoundUser u, SqlTransaction? tx, CancellationToken ct)
+    internal static async Task<Actor> ActorAsync(BoundUser u, SqlTransaction? tx, CancellationToken ct)
     {
         var roles = await u.Connection.QueryAsync<long>(new CommandDefinition(
             "SELECT ur.RoleId FROM sec.UserRole AS ur JOIN sec.Role AS r ON r.RoleId = ur.RoleId AND r.IsActive = 1 WHERE ur.UserId = @u;", new { u = u.UserId }, tx,
@@ -85,7 +86,8 @@ public static class RequestEndpoints
                           OR EXISTS (SELECT 1 FROM wfl.RequestStageInstance WHERE RequestId = @r AND AssigneeUserId = @u)
                         THEN 1 ELSE 0 END;
             """, new { r = r.RequestId, u = actor.UserId, roles = actor.RoleIds.DefaultIfEmpty(-1).ToArray() }, tx, cancellationToken: ct));
-        if (involved == 1) return (true, actor.Permissions.Contains("req.view.internal") && scope.Allows(r.CompanyId));
+        if (involved == 1 || await Delegations.SeesAsync(u.Connection, tx, r.RequestId, r.RequestTypeId, actor.UserId, DateTimeOffset.UtcNow, ct))
+            return (true, actor.Permissions.Contains("req.view.internal") && scope.Allows(r.CompanyId));
         var inst = await RequestEngine.CurrentInstanceAsync(u.Connection, tx, r.RequestId, ct);
         if (inst is { Status: "QUEUED" } && scope.Allows(r.CompanyId)
             && (inst.PoolPermission is { } p ? actor.Permissions.Contains(p) : inst.AssigneeRoleId is { } role && actor.RoleIds.Contains(role)))
@@ -160,7 +162,7 @@ public static class RequestEndpoints
 
     // ---------- actions ----------
 
-    private static readonly string[] Actions = ["submit", "approve", "return", "reject", "complete", "resubmit", "cancel", "close", "claim", "release"];
+    private static readonly string[] Actions = ["submit", "approve", "return", "reject", "complete", "resubmit", "cancel", "close", "claim", "release", "reassign", "substatus", "priority"];
 
     private static async Task<IResult> ActAsync(Guid id, string action, RequestActionBody b, HttpContext http, SqlConnectionFactory db, TimeProvider clock)
     {
@@ -178,9 +180,13 @@ public static class RequestEndpoints
             var r = await RequestEngine.FindAsync(u.Connection, tx, requestId, false, ct) ?? throw ApiProblemException.NotFound();
             var (visible, _) = await AccessAsync(u, tx, r, actor, ct);
             if (!visible) throw ApiProblemException.NotFound();
+            long? assignTo = b.AssignTo is { } who
+                ? await u.Connection.ExecuteScalarAsync<long?>(new CommandDefinition("SELECT AppUserId FROM sec.AppUser WHERE PublicId = @who;", new { who }, tx, cancellationToken: ct))
+                  ?? throw ApiProblemException.Invalid("V-WFL-ASSIGNEE", "The user to assign is not known.")
+                : null;
             result = await RequestEngine.ActAsync(u.Connection, tx, actor, requestId, new ActCommand(action, expected, b.Comment?.Trim(), b.InternalComment?.Trim(), b.ToStage,
                 key.Length is > 0 and <= 100 ? key : null, rc.ClientIp, b.OverrideRequested == true, b.OverrideReason?.Trim(),
-                b.AcknowledgeWarnings is { Length: > 0 } ack ? JsonSerializer.Serialize(ack) : null), clock.GetUtcNow(), ct);
+                b.AcknowledgeWarnings is { Length: > 0 } ack ? JsonSerializer.Serialize(ack) : null, assignTo, b.SubStatus?.Trim(), b.Priority?.Trim()), clock.GetUtcNow(), ct);
             if (!result.Replayed)
                 await AuditWriter.WriteAsync(u.Connection, tx, new AuditEntry("REQUEST_" + action.ToUpperInvariant(), "TREASURY", "wfl.Request", requestId,
                     AfterJson: JsonSerializer.Serialize(new { status = result.Status, stage = result.StageKey, requestNo = result.RequestNo }),
@@ -308,7 +314,9 @@ public static class RequestEndpoints
         {
             if (mine && inst.Kind == "DRAFT") actions.Add("submit");
             if (mine && inst.StageKey == "RETURNED") actions.Add("resubmit");
-            if (inst.Kind == "APPROVAL" && approvals.Any(a => (int)a.mine == 1 && (string)a.decision == "PENDING")) actions.AddRange(["approve", "return", "reject"]);
+            if (inst.Kind == "APPROVAL" && (approvals.Any(a => (int)a.mine == 1 && (string)a.decision == "PENDING")
+                    || (!mine && await Delegations.SeesAsync(u.Connection, null, r.RequestId, r.RequestTypeId, actor.UserId, DateTimeOffset.UtcNow, ct))))
+                actions.AddRange(["approve", "return", "reject"]);
             var eligible = inst.PoolPermission is { } pool ? actor.Permissions.Contains(pool)
                 : inst.AssigneeRoleId is { } ar ? actor.RoleIds.Contains(ar) : actor.Permissions.Contains("req.claim");
             if (inst.Status == "QUEUED" && inst.Kind != "TERMINAL" && eligible) actions.Add("claim");

@@ -138,7 +138,8 @@ public sealed class OutboxJob(SqlConnectionFactory db, IMailSender mail) : Tenan
         // fac.reservation.expired gets its consumer with JOB-FAC-RESERVATION (S3 batch D), request.task.resolved with the inbox (batch C).
         "request.created", "request.submitted", "request.stage.entered", "request.approved", "request.returned", "request.rejected",
         "request.cancelled", "request.claimed", "request.released", "request.reassigned", "request.numbered", "request.ready_to_close",
-        "request.closed", "request.task.resolved", "template.published",
+        "request.closed", "request.task.resolved", "template.published", "request.substatus.changed", "request.priority.changed", "request.sla.changed",
+        "delegation.created", "delegation.revoked",
         "reservation.adjusted", "reservation.converted", "reservation.expired", "reservation.released_externally",
         "lc.terms.locked", "lc.issued", "lc.amended", "lc.drawing.recorded", "lc.drawing.settled", "lc.expired", "lc.closed", "lc.cancelled",
         "lc.reconcile.mismatch",

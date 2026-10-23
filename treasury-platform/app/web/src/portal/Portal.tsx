@@ -21,6 +21,7 @@ import { AssessmentDetail, Assessments, PresentationVersions } from './Credit';
 import { ProductLines } from './CreditInputs';
 import { LenderRatings, Provision, ReadinessFile } from './Readiness';
 import { NewRequest, RequestDetail, RequestList } from './Requests';
+import { Delegations, Inbox } from './Inbox';
 import { Companies, CompanyDetail, Departments, DocumentRegister } from './Companies';
 import { OwnershipMismatch, StructureIntegrity } from './Structure';
 import { AuthorityConflicts } from './Signatories';
@@ -62,7 +63,9 @@ const menu: { to: string; label: string; permission?: string; anyOf?: string[] }
   { to: '/institutions', label: 'Banks and lenders', permission: 'ins.view' },
   { to: '/accounts', label: 'Bank accounts', permission: 'acc.view' },
   { to: '/base-rates', label: 'Base rates', permission: 'cat.view' },
+  { to: '/inbox', label: 'Inbox', anyOf: ['req.view.own', 'req.view.all', 'req.approve', 'req.claim'] },
   { to: '/requests', label: 'Requests', anyOf: ['req.view.own', 'req.view.all'] },
+  { to: '/delegations', label: 'Delegations', anyOf: ['req.delegate.own', 'req.delegate.manage'] },
   { to: '/facilities', label: 'Facilities', permission: 'fac.view' },
   { to: '/tariff-schedules', label: 'Tariff schedules', permission: 'prc.view' },
   { to: '/collaterals', label: 'Collateral', permission: 'col.view' },
@@ -161,6 +164,8 @@ function Shell() {
               <Route path="/presentation-versions" element={<PresentationVersions />} />
               <Route path="/assessments/:id/readiness" element={<ReadinessFile />} />
               <Route path="/lender-ratings" element={<LenderRatings />} />
+              <Route path="/inbox" element={<Inbox />} />
+              <Route path="/delegations" element={<Delegations />} />
               <Route path="/requests" element={<RequestList />} />
               <Route path="/requests/new" element={<NewRequest />} />
               <Route path="/requests/:id" element={<RequestDetail />} />

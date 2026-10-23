@@ -56,6 +56,28 @@ public sealed class WorkingDays(IReadOnlySet<DayOfWeek> weekend, IReadOnlySet<Da
         }
     }
 
+    /// <summary>
+    /// The business hours between two times (BR-WFL-010, 012): the inverse of <see cref="AddBusinessHours"/>, used to carry
+    /// a pause of the SLA. Zero when the end is not after the start. Example: Thursday 15:00 to Sunday 14:00 with
+    /// 08:00-17:00 and a Friday-Saturday weekend gives 8 hours.
+    /// </summary>
+    public double BusinessHoursBetween(DateTime from, DateTime to, TimeOnly start, TimeOnly end)
+    {
+        if (end <= start) throw new ArgumentException("The working day ends after it starts.", nameof(end));
+        if (to <= from) return 0;
+        var total = TimeSpan.Zero;
+        for (var day = DateOnly.FromDateTime(from); day <= DateOnly.FromDateTime(to); day = day.AddDays(1))
+        {
+            if (!IsWorkingDay(day)) continue;
+            var open = day.ToDateTime(start);
+            var close = day.ToDateTime(end);
+            var a = from > open ? from : open;
+            var b = to < close ? to : close;
+            if (b > a) total += b - a;
+        }
+        return total.TotalHours;
+    }
+
     private DateOnly NextWorking(DateOnly d)
     {
         do d = d.AddDays(1); while (!IsWorkingDay(d));

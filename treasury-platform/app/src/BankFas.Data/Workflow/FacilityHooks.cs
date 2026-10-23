@@ -35,7 +35,7 @@ public static class FacilityHooks
         return new { a.FacilityId, a.LimitRoot, a.LineRoot };
     }
 
-    private static async Task<Dictionary<string, string?>> SettingsAsync(SqlConnection c, SqlTransaction tx, CancellationToken ct, params string[] keys) =>
+    internal static async Task<Dictionary<string, string?>> SettingsAsync(SqlConnection c, SqlTransaction? tx, CancellationToken ct, params string[] keys) =>
         (await c.QueryAsync<(string Key, string? Value)>(new CommandDefinition(
             """
             SELECT d.[Key], ISNULL(s.ValueJson, d.DefaultValueJson) FROM cfg.SettingDefinition AS d LEFT JOIN cfg.TenantSetting AS s ON s.[Key] = d.[Key]

@@ -47,8 +47,11 @@ namespace BankFas.IntegrationTests
 
         private static string Phase(JsonElement detail) => detail.GetProperty("request").GetProperty("head").GetProperty("phase").GetString()!;
 
-        [Fact]
-        public async Task AC_REQ_1_a_purchase_letter_of_credit_from_draft_to_close_in_the_facility_limits()
+        private sealed record Bed(TestTenant T, HttpClient Tm, HttpClient Fo, HttpClient Te, HttpClient Rq, HttpClient Mgr, string Company, string Bank, string Fac, string Line,
+            Func<Task<(decimal Used, decimal Reserved, decimal Avail)>> LineAsync);
+
+        /// <summary>A tenant with the four roles, a requester with a line manager, and an approved facility of the given amount with one purchase LC line.</summary>
+        private async Task<Bed> BedAsync(decimal total)
         {
             var t = await f.CreateTenantAsync();
             var (tm, _, _) = await f.UserWithRoleAsync(t, "TM");
@@ -61,17 +64,17 @@ namespace BankFas.IntegrationTests
             var (_, tag) = await t.Portal.GetWithETagAsync($"/api/v1/users/{IdOf(rqEmail)}");
             await t.Portal.OkAsync(HttpMethod.Patch, $"/api/v1/users/{IdOf(rqEmail)}", new { lineManager = IdOf(mgrEmail) }, tag);
 
-            // The facility: 10,000,000 SAR, a documentary credit limit with one purchase LC line.
+            // The facility in SAR, a documentary credit limit with one purchase LC line.
             var company = PlatformFixture.Id(await tm.PostOkAsync("/api/v1/companies", new { companyCode = "IMP", nameAr = "شركة الاستيراد", nameEn = "Importer", legalForm = "LLC", country = "SA", fiscalYearEndMonth = 12 }));
             var bank = PlatformFixture.Id(await tm.PostOkAsync("/api/v1/institutions", new { code = "BNKC", nameAr = "بنك الاعتمادات", nameEn = "Credits Bank", type = "BANK", country = "SA" }));
             var fac = PlatformFixture.Id(await fo.PostOkAsync("/api/v1/facilities", new
             {
-                borrower = company, facilityType = "CREDIT_FACILITIES", currency = "SAR", totalAmount = 10_000_000, effectiveFrom = D(Today.AddMonths(-1)), expiryDate = D(Today.AddYears(2)),
+                borrower = company, facilityType = "CREDIT_FACILITIES", currency = "SAR", totalAmount = total, effectiveFrom = D(Today.AddMonths(-1)), expiryDate = D(Today.AddYears(2)),
             }));
             await fo.PostOkAsync($"/api/v1/facilities/{fac}/lenders", new { institution = bank, sharePct = 100, roles = new[] { "SOLE" } });
-            var l0 = (await fo.PostOkAsync($"/api/v1/facilities/{fac}/limits", new { code = "L0", limitType = "TOTAL_FACILITY", nameAr = "الكلي", amount = 10_000_000, noSourceReason = "Clause 1" })).GetProperty("id").GetString()!;
+            var l0 = (await fo.PostOkAsync($"/api/v1/facilities/{fac}/limits", new { code = "L0", limitType = "TOTAL_FACILITY", nameAr = "الكلي", amount = total, noSourceReason = "Clause 1" })).GetProperty("id").GetString()!;
             var l1 = (await fo.PostOkAsync($"/api/v1/facilities/{fac}/limits", new { code = "DC", limitType = "DOCUMENTARY_CREDITS", nameAr = "الاعتمادات", parent = l0, pctOfParent = 100, noSourceReason = "Clause 2" })).GetProperty("id").GetString()!;
-            var line = (await fo.PostOkAsync($"/api/v1/facilities/{fac}/limits/{l1}/lines", new { product = "LC_PURCHASE_CONV", bankProductCode = "LC1", amount = 10_000_000, noSourceReason = "Clause 3" })).GetProperty("id").GetString()!;
+            var line = (await fo.PostOkAsync($"/api/v1/facilities/{fac}/limits/{l1}/lines", new { product = "LC_PURCHASE_CONV", bankProductCode = "LC1", amount = total, noSourceReason = "Clause 3" })).GetProperty("id").GetString()!;
             var rev = (await fo.GetJsonAsync($"/api/v1/facilities/{fac}")).GetProperty("draft").GetProperty("revision").GetString()!;
             var check = await fo.GetJsonAsync($"/api/v1/facilities/{fac}/revisions/{rev}/check");
             await fo.OkAsync(HttpMethod.Post, $"/api/v1/facilities/{fac}/revisions/{rev}/actions/submit", new { });
@@ -82,6 +85,48 @@ namespace BankFas.IntegrationTests
                 var a = await tm.GetJsonAsync($"/api/v1/facilities/{fac}/availability?line={Uri.EscapeDataString(line)}&company={company}");
                 return (a.GetProperty("used").GetDecimal(), a.GetProperty("reservedForOthers").GetDecimal(), a.GetProperty("avail").GetDecimal());
             }
+            return new Bed(t, tm, fo, te, rq, mgr, company, bank, fac, line, LineAsync);
+        }
+
+        private Dictionary<string, object?> Terms(string supplier, decimal amount) => new()
+        {
+            ["lcType"] = "SIGHT", ["availableWith"] = "ADVISING_BANK", ["confirmation"] = "WITHOUT", ["beneficiary"] = supplier,
+            ["advisingBankName"] = "Advising Bank", ["advisingBankAddress"] = "Shanghai", ["advisingBankBic"] = "ADVBCNSH",
+            ["currencyId"] = "SAR", ["amount"] = amount, ["toleranceMode"] = "PLUS_MINUS", ["tolerancePlusPct"] = 5, ["toleranceMinusPct"] = 5,
+            ["expiryRule"] = "ABSOLUTE", ["expiryDate"] = D(Today.AddDays(150)), ["expiryPlace"] = "Riyadh", ["latestShipmentRule"] = "ABSOLUTE",
+            ["latestShipmentDate"] = D(Today.AddDays(120)), ["presentationDays"] = 21, ["presentationBasis"] = "SHIPMENT_DATE", ["partialShipments"] = "ALLOWED",
+            ["transhipment"] = "ALLOWED", ["transportMode"] = "SEA", ["portOfLoading"] = "Shanghai", ["portOfDischarge"] = "Dammam", ["incotermId"] = "CFR",
+            ["incotermPlace"] = "Dammam", ["goodsCategory"] = "STEEL_PIPES", ["goodsDescription"] = "Seamless steel pipes as per proforma", ["insuranceResponsibility"] = "APPLICANT",
+            ["lcTextLanguage"] = "EN",
+        };
+
+        /// <summary>A purchase LC request driven to the treasury manager's approval: terms, submission, manager, signed original, facility selection.</summary>
+        private async Task<string> AtTreasuryApprovalAsync(Bed b, string supplier, decimal amount, string title)
+        {
+            var id = (await b.Rq.PostOkAsync("/api/v1/requests", new { type = "PURCHASE_LC", company = b.Company, data = new { title, supplierName = "Steel Pipes Ltd", supplierCode = "V-1001" } }))
+                .GetProperty("id").GetString()!;
+            await b.Rq.OkAsync(HttpMethod.Put, $"/api/v1/requests/{id}/terms", new { fields = Terms(supplier, amount) });
+            await b.Rq.OkAsync(HttpMethod.Put, $"/api/v1/requests/{id}/terms/documents", new object[]
+            {
+                new { clause = "COMMERCIAL_INVOICE", originals = 3, copies = 2 }, new { clause = "BL_SEA", originals = 3, copies = 3 },
+            });
+            await ActAsync(b.Rq, id, "submit");
+            await ActAsync(b.Mgr, id, "approve");
+            var original = await DocumentAsync(b.Tm, b.Company, "SIGNED_REQUEST_ORIGINAL", "Signed original " + title);
+            await b.Tm.PostOkAsync($"/api/v1/requests/{id}/attachments", new { document = original, slot = "SIGNED_ORIGINAL" });
+            await ActAsync(b.Rq, id, "complete");
+            await ActAsync(b.Fo, id, "claim");
+            await b.Fo.OkAsync(HttpMethod.Put, $"/api/v1/requests/{id}/allocation", new { facility = b.Fac, line = b.Line });
+            await ActAsync(b.Fo, id, "complete");
+            return id;
+        }
+
+        [Fact]
+        public async Task AC_REQ_1_a_purchase_letter_of_credit_from_draft_to_close_in_the_facility_limits()
+        {
+            var b = await BedAsync(10_000_000);
+            var (t, tm, fo, te, rq, mgr) = (b.T, b.Tm, b.Fo, b.Te, b.Rq, b.Mgr);
+            var (company, bank, fac, line, LineAsync) = (b.Company, b.Bank, b.Fac, b.Line, b.LineAsync);
             Assert.Equal((0m, 0m, 10_000_000m), await LineAsync());
 
             // The supplier and the draft; the submission checks the terms first.
@@ -185,6 +230,88 @@ namespace BankFas.IntegrationTests
                   FROM lc.LetterOfCredit AS l JOIN wfl.Request AS r ON r.LcId = l.LetterOfCreditId JOIN lc.LcTerms AS t ON t.LcTermsId = l.CurrentTermsId;
                 """);
             Assert.Equal(("ILC/26/0042", 3_000_000m, 3_150_000m, "ACTIVE", "CONVERTED", "ISSUED"), lc);
+        }
+
+        /// <summary>
+        /// AC-WFL-3 and the S3 part of AC-FAC-2: two requests on a line of 5,000,000 that holds one of them. A's approval
+        /// reserves 3,150,000; B's is refused INSUFFICIENT_AVAILABLE and nothing of it is kept (B stays at the treasury
+        /// manager's stage with its slot pending); an override is refused while the account's setting is off; cancelling A
+        /// releases its reservation and B's approval then reserves. With the setting on, a third request reserves above
+        /// the available amount only with a reason, marked OverLimit and alerted (FR-FAC-020).
+        /// </summary>
+        [Fact]
+        public async Task AC_WFL_3_two_requests_on_one_limit_the_second_is_refused_until_the_first_is_cancelled()
+        {
+            var b = await BedAsync(5_000_000);
+            var supplier = PlatformFixture.Id(await b.Rq.PostOkAsync("/api/v1/counterparties", new { kind = "SUPPLIER", nameEn = "Steel Pipes Ltd", country = "CN", erpCode = "V-1001" }));
+            var a = await AtTreasuryApprovalAsync(b, supplier, 3_000_000, "A");
+            var r = await AtTreasuryApprovalAsync(b, supplier, 3_000_000, "B");
+            await ActAsync(b.Tm, a, "approve");
+            Assert.Equal((0m, 3_150_000m, 1_850_000m), await b.LineAsync());
+
+            var (status, code) = await RefusedAsync(b.Tm, r, "approve");
+            Assert.Equal((409, "INSUFFICIENT_AVAILABLE"), (status, code));
+            var kept = await b.Tm.GetJsonAsync($"/api/v1/requests/{r}");
+            Assert.Equal("NONE", kept.GetProperty("staff").GetProperty("reservationState").GetString());
+            Assert.Contains(kept.GetProperty("request").GetProperty("actions").EnumerateArray(), x => x.GetString() == "approve");
+            Assert.Equal((409, "OVERRIDE_NOT_ALLOWED"), await RefusedAsync(b.Tm, r, "approve", new { overrideRequested = true, overrideReason = "Bank agreed by phone" }));
+            Assert.Equal((0m, 3_150_000m, 1_850_000m), await b.LineAsync());
+
+            await ActAsync(b.Tm, a, "cancel", new { comment = "Supplier withdrew" });
+            Assert.Equal((0m, 0m, 5_000_000m), await b.LineAsync());
+            Assert.Equal("RELEASED", (await b.Tm.GetJsonAsync($"/api/v1/requests/{a}")).GetProperty("staff").GetProperty("reservationState").GetString());
+            await ActAsync(b.Tm, r, "approve");
+            Assert.Equal((0m, 3_150_000m, 1_850_000m), await b.LineAsync());
+
+            // AC-FAC-2 (S3): with the setting on, the override reserves above the available amount with a reason.
+            Assert.Equal(HttpStatusCode.NoContent, (await b.T.Portal.SendAsync(HttpMethod.Patch, "/api/v1/settings",
+                new { values = new Dictionary<string, object> { ["fac.override_limit.enabled"] = true } })).StatusCode);
+            var c3 = await AtTreasuryApprovalAsync(b, supplier, 3_000_000, "C");
+            Assert.Equal((409, "INSUFFICIENT_AVAILABLE"), await RefusedAsync(b.Tm, c3, "approve"));
+            Assert.Equal((409, "OVERRIDE_REASON_REQUIRED"), await RefusedAsync(b.Tm, c3, "approve", new { overrideRequested = true }));
+            await ActAsync(b.Tm, c3, "approve", new { overrideRequested = true, overrideReason = "Temporary excess agreed with the bank" });
+            Assert.Equal((0m, 6_300_000m, -1_300_000m), await b.LineAsync());
+            var ct = TestContext.Current.CancellationToken;
+            var tenantId = await TestEnvironment.TenantIdAsync(b.T.Code);
+            await using var c = await f.Env.Db.OpenAsync(BankFas.Data.DbLogin.Jobs, ct);
+            await BankFas.Data.JobProcedures.BindAsync(c, tenantId, "JOB-FAC-VALIDITY", Guid.NewGuid(), ct);
+            var over = await Dapper.SqlMapper.QueryAsync<(bool OverLimit, string? OverrideReason)>(c,
+                "SELECT OverLimit, OverrideReason FROM fac.LimitReservation WHERE Status = 'ACTIVE' ORDER BY LimitReservationId;");
+            Assert.Equal([(false, null), (true, "Temporary excess agreed with the bank")], over.ToList());
+            Assert.Equal(1, await Dapper.SqlMapper.ExecuteScalarAsync<int>(c, "SELECT COUNT(*) FROM cfg.OutboxEvent WHERE AggregateType = 'ntf.fac.LimitReservation' AND JSON_VALUE(PayloadJson, '$.eventCode') = 'FAC.RESERVATION_ALERT';"));
+        }
+
+        /// <summary>
+        /// JOB-FAC-RESERVATION (FR-FAC-018, BR-WFL-017): a reservation past its expiry date is released as EXPIRED, the line
+        /// is free again, the request's reservation reads LOST with RESERVATION_LOST on its record, and a second pass does nothing.
+        /// </summary>
+        [Fact]
+        public async Task An_expired_reservation_is_released_and_the_request_loses_it()
+        {
+            var b = await BedAsync(5_000_000);
+            var supplier = PlatformFixture.Id(await b.Rq.PostOkAsync("/api/v1/counterparties", new { kind = "SUPPLIER", nameEn = "Steel Pipes Ltd", country = "CN", erpCode = "V-1001" }));
+            var a = await AtTreasuryApprovalAsync(b, supplier, 1_000_000, "A");
+            await ActAsync(b.Tm, a, "approve");
+            Assert.Equal((0m, 1_050_000m, 3_950_000m), await b.LineAsync());
+            var ct = TestContext.Current.CancellationToken;
+            var tenantId = await TestEnvironment.TenantIdAsync(b.T.Code);
+
+            await using var c = await f.Env.Db.OpenAsync(BankFas.Data.DbLogin.Jobs, ct);
+            await BankFas.Data.JobProcedures.BindAsync(c, tenantId, "JOB-FAC-RESERVATION", Guid.NewGuid(), ct);
+            await Dapper.SqlMapper.ExecuteAsync(c, 
+                "UPDATE lr SET ExpiresOn = DATEADD(DAY, -1, CAST(SYSUTCDATETIME() AS DATE)) FROM fac.LimitReservation AS lr JOIN wfl.Request AS r ON r.RequestId = lr.RequestId WHERE r.PublicId = @id;",
+                new { id = Guid.Parse(a) });
+            var zone = await Dapper.SqlMapper.ExecuteScalarAsync<string>(c, "SELECT TimeZone FROM plat.v_CurrentTenant;");
+            var job = new BankFas.Data.Workflow.FacilityReservationJob(f.Env.Db, TimeProvider.System);
+            Assert.True(await job.RunTenantAsync(new BankFas.Data.JobTenant(tenantId, "ACTIVE", zone!), ct));
+            Assert.False(await job.RunTenantAsync(new BankFas.Data.JobTenant(tenantId, "ACTIVE", zone!), ct));
+            Assert.Equal((0m, 0m, 5_000_000m), await b.LineAsync());
+            Assert.Equal("LOST", (await b.Tm.GetJsonAsync($"/api/v1/requests/{a}")).GetProperty("staff").GetProperty("reservationState").GetString());
+            Assert.Equal(("EXPIRED", 1), await Dapper.SqlMapper.QuerySingleAsync<(string, int)>(c,
+                """
+                SELECT lr.ReleaseReason, (SELECT COUNT(*) FROM wfl.RequestAction AS x WHERE x.RequestId = r.RequestId AND x.ActionType = 'RESERVATION_LOST')
+                  FROM fac.LimitReservation AS lr JOIN wfl.Request AS r ON r.RequestId = lr.RequestId WHERE r.PublicId = @id;
+                """, new { id = Guid.Parse(a) }));
         }
     }
 }

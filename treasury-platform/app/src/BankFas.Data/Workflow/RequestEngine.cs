@@ -10,6 +10,8 @@ using BankFas.Data.Notifications;
 using Dapper;
 using Microsoft.Data.SqlClient;
 
+using SlotState = (long Id, string SlotKey, long? UserId, int? RoleId, string Decision, long? ActedBy, string? Subject);
+
 namespace BankFas.Data.Workflow;
 
 /// <summary>Who acts: the bound user and the codes of their permissions and roles.</summary>
@@ -21,7 +23,8 @@ public sealed record NewRequest(string TypeCode, long CompanyId, long? Requester
 
 /// <summary>An action on a request (FR-WFL-006 to 014, 033, 035; BR-WFL-023).</summary>
 public sealed record ActCommand(string Action, byte[]? RowVersion, string? Comment = null, string? InternalComment = null, string? ToStageKey = null,
-    string? IdempotencyKey = null, string? ClientIp = null, bool OverrideRequested = false, string? OverrideReason = null, string? AckWarningsJson = null);
+    string? IdempotencyKey = null, string? ClientIp = null, bool OverrideRequested = false, string? OverrideReason = null, string? AckWarningsJson = null,
+    long? AssignToUserId = null, string? SubStatus = null, string? Priority = null);
 
 /// <summary>What an action did: the request's status and stage afterwards, its number, and whether it was a replay.</summary>
 public sealed record ActResult(long RequestId, string Status, string StageKey, string? RequestNo, bool Replayed, bool NotComparable = false);
@@ -165,9 +168,9 @@ public static class RequestEngine
         c.ExecuteAsync(new CommandDefinition("EXEC sys.sp_set_session_context @key = N'EngineNow', @value = @now;",
             new { now = DateTime.SpecifyKind(now.UtcDateTime, DateTimeKind.Unspecified) }, tx, cancellationToken: ct));
 
-    private sealed record TenantTime(TimeZoneInfo Zone, int CountryId, TimeOnly Start, TimeOnly End);
+    internal sealed record TenantTime(TimeZoneInfo Zone, int CountryId, TimeOnly Start, TimeOnly End);
 
-    private static async Task<TenantTime> TimeAsync(SqlConnection c, SqlTransaction tx, CancellationToken ct)
+    internal static async Task<TenantTime> TimeAsync(SqlConnection c, SqlTransaction? tx, CancellationToken ct)
     {
         var t = await c.QuerySingleAsync<(string TimeZone, int HomeCountryId)>(new CommandDefinition(
             "SELECT TimeZone, HomeCountryId FROM plat.v_CurrentTenant;", transaction: tx, cancellationToken: ct)).ConfigureAwait(false);
@@ -509,6 +512,9 @@ public static class RequestEngine
             case "CANCEL": return await CancelAsync(ctx).ConfigureAwait(false);
             case "CLAIM": return await ClaimAsync(ctx).ConfigureAwait(false);
             case "RELEASE": return await ReleaseAsync(ctx).ConfigureAwait(false);
+            case "REASSIGN": return await ReassignAsync(ctx).ConfigureAwait(false);
+            case "SUBSTATUS": return await SubStatusAsync(ctx).ConfigureAwait(false);
+            case "PRIORITY": return await PriorityAsync(ctx).ConfigureAwait(false);
         }
         if (r.Status == "AWAITING_CLOSE") throw WorkflowRefusalException.State("The request waits for the treasury's close; a correction is a child request (BR-WFL-027).");
         return inst.Kind switch
@@ -607,20 +613,26 @@ public static class RequestEngine
     private static async Task<ActResult> DecideAsync(Ctx x, string action)
     {
         var needs = x.Inst.IsReservationPoint ? "req.treasury.approve" : "req.approve";
-        if (!x.Actor.Permissions.Contains(needs)) throw WorkflowRefusalException.Forbidden("You may not decide on this stage.");
-        var slots = (await x.C.QueryAsync<(long Id, string SlotKey, long? UserId, int? RoleId, string Decision, long? ActedBy, string? Subject)>(new CommandDefinition(
+        var slots = (await x.C.QueryAsync<SlotState>(new CommandDefinition(
             """
             SELECT a.RequestApprovalId, a.SlotKey, a.AssignedUserId, a.AssignedRoleId, a.Decision, a.ActedByUserId, sa.SubjectRule
               FROM wfl.RequestApproval AS a WITH (UPDLOCK, HOLDLOCK)
               LEFT JOIN wfl.StageApprover AS sa ON sa.StageId = @stage AND sa.SlotKey = a.SlotKey
              WHERE a.StageInstanceId = @i;
             """, new { i = x.Inst.RequestStageInstanceId, stage = x.Inst.StageId }, x.Tx, cancellationToken: x.Ct)).ConfigureAwait(false)).ToList();
-        var mine = slots.Where(s => s.Decision == "PENDING" && (s.UserId == x.Actor.UserId || (s.UserId is null && s.RoleId is { } role && x.Actor.RoleIds.Contains(role))))
-            .OrderBy(s => s.UserId is null ? 1 : 0).ToList();
-        if (mine.Count == 0) throw WorkflowRefusalException.Forbidden("No approval of this stage waits for you.");
-        var slot = mine[0];
+        var mine = x.Actor.Permissions.Contains(needs)
+            ? slots.Where(s => s.Decision == "PENDING" && (s.UserId == x.Actor.UserId || (s.UserId is null && s.RoleId is { } role && x.Actor.RoleIds.Contains(role))))
+                .OrderBy(s => s.UserId is null ? 1 : 0).ToList()
+            : [];
+        // FR-WFL-020, BR-WFL-021: without a slot of one's own, a pending slot of a user who delegated to the actor.
+        var via = mine.Count == 0 ? await DelegatedSlotAsync(x, slots, needs).ConfigureAwait(false) : null;
+        if (mine.Count == 0 && via is null)
+            throw WorkflowRefusalException.Forbidden(x.Actor.Permissions.Contains(needs) ? "No approval of this stage waits for you." : "You may not decide on this stage.");
+        var slot = via?.Slot ?? mine[0];
         var sodAllowed = x.Inst.StageSod ?? x.R.TemplateSod;
         var sod = false;
+        if (via is not null && (via.FromUserId == x.R.CreatedByUserId || via.FromUserId == x.R.RequesterUserId) && slot.Subject != "REQUESTER" && !sodAllowed)
+            throw WorkflowRefusalException.Forbidden("The delegator may not approve this request (BR-WFL-006).");
         if (slot.Subject != "REQUESTER" && (x.Actor.UserId == x.R.CreatedByUserId || x.Actor.UserId == x.R.RequesterUserId))
         {
             if (!sodAllowed) throw WorkflowRefusalException.Forbidden("You may not approve a request you created or asked for (BR-WFL-006).");
@@ -637,7 +649,7 @@ public static class RequestEngine
         var hash = action == "APPROVE" ? Snapshot.Hash(x.Inst.StageKey, x.R.CycleNo, x.R.FormDataJson, x.R.Amount, x.R.CurrencyCode) : null;
         var n = await x.C.ExecuteAsync(new CommandDefinition(
             """
-            UPDATE wfl.RequestApproval SET Decision = @d, Source = 'USER', ActedByUserId = @u, ActedAt = CAST(SESSION_CONTEXT(N'EngineNow') AS DATETIME2(3)), Comment = @comment, SnapshotHash = @hash,
+            UPDATE wfl.RequestApproval SET Decision = @d, Source = CASE WHEN @dlg IS NULL THEN 'USER' ELSE 'DELEGATE' END, ActedByUserId = @u, OnBehalfOfUserId = @obo, DelegationId = @dlg, ActedAt = CAST(SESSION_CONTEXT(N'EngineNow') AS DATETIME2(3)), Comment = @comment, SnapshotHash = @hash,
                    ClientIp = @ip, AckWarningsJson = @ack, OverrideRequested = @ovr, OverrideReason = @ovrReason, IsSodException = @sod, UpdatedAt = CAST(SESSION_CONTEXT(N'EngineNow') AS DATETIME2(3)),
                    UpdatedBy = @u
              WHERE RequestApprovalId = @id AND Decision = 'PENDING';
@@ -645,11 +657,12 @@ public static class RequestEngine
             new
             {
                 d = decision, u = x.Actor.UserId, comment = x.Cmd.Comment, hash, ip = x.Cmd.ClientIp, ack = x.Cmd.AckWarningsJson, ovr = x.Cmd.OverrideRequested,
-                ovrReason = x.Cmd.OverrideReason, sod, id = slot.Id,
+                ovrReason = x.Cmd.OverrideReason, sod, id = slot.Id, obo = via?.FromUserId, dlg = via?.DelegationId,
             }, x.Tx, cancellationToken: x.Ct)).ConfigureAwait(false);
         if (n == 0) throw WorkflowRefusalException.Conflict();
         await ActionAsync(x.C, x.Tx, x.R.RequestId, x.Inst.RequestStageInstanceId, x.R.CycleNo, decision, x.Inst.StageKey, null, x.Actor.UserId,
-            action == "APPROVE" ? "INTERNAL" : "REQUESTER_VISIBLE", x.Cmd.Comment, new { slot = slot.SlotKey }, x.Cmd.IdempotencyKey, x.Ct, sod: sod).ConfigureAwait(false);
+            action == "APPROVE" ? "INTERNAL" : "REQUESTER_VISIBLE", x.Cmd.Comment, new { slot = slot.SlotKey }, x.Cmd.IdempotencyKey, x.Ct, onBehalfOf: via?.FromUserId, sod: sod)
+            .ConfigureAwait(false);
         if (sod) await SodTagAsync(x).ConfigureAwait(false);
         if (action == "RETURN") return await ReturnAsync(x).ConfigureAwait(false);
         if (action == "REJECT") return await RejectAsync(x).ConfigureAwait(false);
@@ -660,6 +673,42 @@ public static class RequestEngine
             "UPDATE wfl.RequestApproval SET Decision = 'SUPERSEDED', ActedAt = CAST(SESSION_CONTEXT(N'EngineNow') AS DATETIME2(3)), Source = 'SYSTEM' WHERE StageInstanceId = @i AND Decision = 'PENDING';",
             new { i = x.Inst.RequestStageInstanceId }, x.Tx, cancellationToken: x.Ct)).ConfigureAwait(false);
         return await ForwardAsync(x, "APPROVE", "DONE", null).ConfigureAwait(false);
+    }
+
+    private sealed record Delegated(SlotState Slot, long FromUserId, long DelegationId);
+
+    /// <summary>
+    /// The slot the actor fills by a delegation (FR-WFL-020, BR-WFL-021): a delegation to the actor in force on the
+    /// tenant's date (scheduled or active, not revoked or ended), in scope for the request's type, from a user who holds
+    /// the decision's permission and whose pending slot this is (their own or by a role of theirs). Never for the
+    /// actor's own request; the delegate's own permissions decide an override (fac.override_limit is not delegated).
+    /// </summary>
+    private static async Task<Delegated?> DelegatedSlotAsync(Ctx x, List<SlotState> slots, string needs)
+    {
+        if (IsRequesterSide(x) || !slots.Any(s => s.Decision == "PENDING")) return null;
+        var today = TimeZoneInfo.ConvertTime(x.Now, x.Time.Zone).Date;
+        var from = (await x.C.QueryAsync<(long DelegationId, long FromUserId)>(new CommandDefinition(
+            """
+            SELECT d.UserDelegationId, d.FromUserId FROM wfl.UserDelegation AS d JOIN sec.AppUser AS u ON u.AppUserId = d.FromUserId
+             WHERE d.ToUserId = @me AND d.Status IN ('SCHEDULED', 'ACTIVE') AND @today BETWEEN d.StartsOn AND d.EndsOn
+               AND (d.Scope <> 'REQUEST_TYPE' OR d.RequestTypeId = @type)
+             ORDER BY d.UserDelegationId;
+            """, new { me = x.Actor.UserId, today, type = x.R.RequestTypeId }, x.Tx, cancellationToken: x.Ct)).ConfigureAwait(false)).ToList();
+        foreach (var (delegationId, fromUser) in from)
+        {
+            var grants = (await x.C.QueryAsync<(int RoleId, string? Permission)>(new CommandDefinition(
+                """
+                SELECT ur.RoleId, p.Code FROM sec.UserRole AS ur JOIN sec.Role AS ro ON ro.RoleId = ur.RoleId AND ro.IsActive = 1
+                  LEFT JOIN sec.RolePermission AS rp ON rp.RoleId = ur.RoleId LEFT JOIN sec.Permission AS p ON p.PermissionId = rp.PermissionId AND p.Code = @needs
+                 WHERE ur.UserId = @u;
+                """, new { u = fromUser, needs }, x.Tx, cancellationToken: x.Ct)).ConfigureAwait(false)).ToList();
+            if (!grants.Any(g => g.Permission == needs)) continue;
+            var roles = grants.Select(g => (int?)g.RoleId).ToHashSet();
+            var slot = slots.Where(s => s.Decision == "PENDING" && (s.UserId == fromUser || (s.UserId is null && roles.Contains(s.RoleId))))
+                .OrderBy(s => s.UserId is null ? 1 : 0).Select(s => (SlotState?)s).FirstOrDefault();
+            if (slot is { } found) return new Delegated(found, fromUser, delegationId);
+        }
+        return null;
     }
 
     /// <summary>BR-WFL-026: the first use of the exception on a request marks it and alerts the manager once.</summary>
@@ -815,6 +864,7 @@ public static class RequestEngine
             """, new { u = x.Actor.UserId, i = x.Inst.RequestStageInstanceId }, x.Tx, cancellationToken: x.Ct)).ConfigureAwait(false);
         if (n == 0) throw new WorkflowRefusalException(409, "ALREADY_CLAIMED", "Someone else took the request first.");
         await TouchAsync(x).ConfigureAwait(false);
+        await ResolveNoticesAsync(x).ConfigureAwait(false);
         await ActionAsync(x.C, x.Tx, x.R.RequestId, x.Inst.RequestStageInstanceId, x.R.CycleNo, "CLAIMED", x.Inst.StageKey, null, x.Actor.UserId, "INTERNAL", null, null,
             x.Cmd.IdempotencyKey, x.Ct).ConfigureAwait(false);
         await Outbox.EmitAsync(x.C, x.Tx, "request.claimed", "wfl.Request", x.R.RequestId, new { requestId = x.R.RequestId }, x.Ct).ConfigureAwait(false);
@@ -844,6 +894,151 @@ public static class RequestEngine
         await ActionAsync(x.C, x.Tx, x.R.RequestId, x.Inst.RequestStageInstanceId, x.R.CycleNo, "RELEASED", x.Inst.StageKey, null, x.Actor.UserId, "INTERNAL",
             x.Cmd.Comment, null, x.Cmd.IdempotencyKey, x.Ct).ConfigureAwait(false);
         await Outbox.EmitAsync(x.C, x.Tx, "request.released", "wfl.Request", x.R.RequestId, new { requestId = x.R.RequestId }, x.Ct).ConfigureAwait(false);
+        return new ActResult(x.R.RequestId, x.R.Status, x.Inst.StageKey, x.R.RequestNo, false);
+    }
+
+    /// <summary>
+    /// FR-NTF-007, BR-NTF-007: when the request moves on or its queue is taken, the open action-required notices about it
+    /// are resolved for everyone, so one approval of an ANY stage clears the others' notices and their reminders stop.
+    /// </summary>
+    private static Task<int> ResolveNoticesAsync(Ctx x) => x.C.ExecuteAsync(new CommandDefinition(
+        """
+        UPDATE ntf.Notification SET ActionState = 'RESOLVED', ResolvedAt = CAST(SESSION_CONTEXT(N'EngineNow') AS DATETIME2(3)), NextReminderAt = NULL,
+               UpdatedAt = CAST(SESSION_CONTEXT(N'EngineNow') AS DATETIME2(3))
+         WHERE TargetEntityType = 'wfl.Request' AND TargetEntityId = @r AND ActionState = 'OPEN';
+        """, new { r = x.R.RequestId }, x.Tx, cancellationToken: x.Ct));
+
+    /// <summary>The roles and permissions of a user other than the actor, as an actor (for an assignee's eligibility).</summary>
+    private static async Task<Actor> GrantsAsync(SqlConnection c, SqlTransaction tx, long userId, CancellationToken ct)
+    {
+        var rows = (await c.QueryAsync<(int RoleId, string? Code)>(new CommandDefinition(
+            """
+            SELECT ur.RoleId, p.Code FROM sec.UserRole AS ur JOIN sec.Role AS ro ON ro.RoleId = ur.RoleId AND ro.IsActive = 1
+              LEFT JOIN sec.RolePermission AS rp ON rp.RoleId = ur.RoleId LEFT JOIN sec.Permission AS p ON p.PermissionId = rp.PermissionId
+             WHERE ur.UserId = @u;
+            """, new { u = userId }, tx, cancellationToken: ct)).ConfigureAwait(false)).ToList();
+        return new Actor(userId, rows.Where(r => r.Code is not null).Select(r => r.Code!).ToHashSet(StringComparer.Ordinal), rows.Select(r => (long)r.RoleId).ToHashSet());
+    }
+
+    /// <summary>
+    /// REASSIGN (FR-WFL-014, BR-WFL-007): a holder of req.reassign gives an open task or queue to another user, with a
+    /// reason. The user is active, takes the stage (its pool permission, role or req.claim), sees the request's company
+    /// and is not its requester or creator. The stage becomes CLAIMED by them; its queue age is kept, ReassignCount counts
+    /// it, and the new assignee hears REQ.REASSIGNED (internal: nothing reaches the requester).
+    /// </summary>
+    private static async Task<ActResult> ReassignAsync(Ctx x)
+    {
+        if (!x.Actor.Permissions.Contains("req.reassign")) throw WorkflowRefusalException.Forbidden("You may not reassign requests.");
+        if (x.R.Status != "ACTIVE" || x.Inst.Kind is not ("TASK" or "TREASURY_QUEUE") || x.Inst.Status is not ("QUEUED" or "CLAIMED"))
+            throw WorkflowRefusalException.State("Only an open task or queue is reassigned.");
+        if (string.IsNullOrWhiteSpace(x.Cmd.Comment)) throw WorkflowRefusalException.Missing("V-WFL-REASON", "A reassignment gives its reason (FR-WFL-014).");
+        var to = x.Cmd.AssignToUserId ?? throw WorkflowRefusalException.Missing("V-WFL-ASSIGNEE", "The user to assign is required.");
+        if (to == x.Inst.AssigneeUserId) throw WorkflowRefusalException.State("The request is already with this user.");
+        if (to == x.R.RequesterUserId || to == x.R.CreatedByUserId) throw WorkflowRefusalException.Missing("V-WFL-ASSIGNEE", "A request is not assigned to its requester (BR-WFL-006).");
+        var user = await x.C.QuerySingleOrDefaultAsync<(string Status, string CompanyScopeMode, bool InScope)?>(new CommandDefinition(
+            """
+            SELECT u.Status, u.CompanyScopeMode,
+                   CAST(CASE WHEN EXISTS (SELECT 1 FROM sec.UserCompanyScope AS s WHERE s.UserId = u.AppUserId AND s.CompanyId = @c) THEN 1 ELSE 0 END AS BIT)
+              FROM sec.AppUser AS u WHERE u.AppUserId = @u AND u.ArchivedAt IS NULL AND u.IsSystemUser = 0;
+            """, new { u = to, c = x.R.CompanyId }, x.Tx, cancellationToken: x.Ct)).ConfigureAwait(false);
+        if (user is not { Status: "ACTIVE" } found || (found.CompanyScopeMode != "ALL" && !found.InScope))
+            throw WorkflowRefusalException.Missing("V-WFL-ASSIGNEE", "The user is not active or does not see the request's company.");
+        if (!await EligibleAsync(x with { Actor = await GrantsAsync(x.C, x.Tx, to, x.Ct).ConfigureAwait(false) }, x.Inst).ConfigureAwait(false))
+            throw WorkflowRefusalException.Missing("V-WFL-ASSIGNEE", "The user is not in the group that takes this stage.");
+        var n = await x.C.ExecuteAsync(new CommandDefinition(
+            """
+            UPDATE wfl.RequestStageInstance SET Status = 'CLAIMED', AssigneeUserId = @to, QueuedAt = ISNULL(QueuedAt, EnteredAt),
+                   ClaimedAt = CAST(SESSION_CONTEXT(N'EngineNow') AS DATETIME2(3)), ReassignCount = ReassignCount + 1,
+                   UpdatedAt = CAST(SESSION_CONTEXT(N'EngineNow') AS DATETIME2(3)), UpdatedBy = @u
+             WHERE RequestStageInstanceId = @i AND Status IN ('QUEUED', 'CLAIMED') AND ExitedAt IS NULL;
+            """, new { to, u = x.Actor.UserId, i = x.Inst.RequestStageInstanceId }, x.Tx, cancellationToken: x.Ct)).ConfigureAwait(false);
+        if (n == 0) throw WorkflowRefusalException.Conflict();
+        await TouchAsync(x).ConfigureAwait(false);
+        await ActionAsync(x.C, x.Tx, x.R.RequestId, x.Inst.RequestStageInstanceId, x.R.CycleNo, "REASSIGNED", x.Inst.StageKey, null, x.Actor.UserId, "INTERNAL",
+            x.Cmd.Comment, new { from = x.Inst.AssigneeUserId, to }, x.Cmd.IdempotencyKey, x.Ct).ConfigureAwait(false);
+        await Outbox.EmitAsync(x.C, x.Tx, "request.reassigned", "wfl.Request", x.R.RequestId, new { requestId = x.R.RequestId }, x.Ct).ConfigureAwait(false);
+        await NotifyAsync(x, "REQ.REASSIGNED", [to], $"reassigned:{x.Inst.RequestStageInstanceId}:{to}:{x.Now.UtcTicks}").ConfigureAwait(false);
+        return new ActResult(x.R.RequestId, x.R.Status, x.Inst.StageKey, x.R.RequestNo, false);
+    }
+
+    /// <summary>
+    /// SUBSTATUS (FR-WFL-015, BR-WFL-010): the assignee of a claimed stage moves among the stage's sub-statuses in any
+    /// order; each change records how long the previous one lasted. A sub-status that pauses the SLA (AT_BANK by default)
+    /// stops its clock: the stage is PAUSED, and on leaving it the due time moves on by the business hours of the pause
+    /// (calendar hours for a CALENDAR stage) and SlaPausedSeconds counts the pause.
+    /// </summary>
+    private static async Task<ActResult> SubStatusAsync(Ctx x)
+    {
+        if (x.R.Status != "ACTIVE" || x.Inst.Status != "CLAIMED" || x.Inst.AssigneeUserId != x.Actor.UserId)
+            throw WorkflowRefusalException.Forbidden("Only the assignee of the stage changes its sub-status.");
+        var stage = await x.C.QuerySingleAsync<(string? Set, string SlaMode)>(new CommandDefinition(
+            "SELECT SubStatusSetJson, SlaMode FROM wfl.WorkflowStage WHERE WorkflowStageId = @s;", new { s = x.Inst.StageId }, x.Tx, cancellationToken: x.Ct)).ConfigureAwait(false);
+        var set = new Dictionary<string, bool>(StringComparer.Ordinal);
+        if (!string.IsNullOrEmpty(stage.Set))
+        {
+            using var doc = JsonDocument.Parse(stage.Set);
+            foreach (var e in doc.RootElement.EnumerateArray())
+                set[e.GetProperty("key").GetString()!] = e.TryGetProperty("pausesSla", out var p) && p.ValueKind == JsonValueKind.True;
+        }
+        var to = x.Cmd.SubStatus ?? "";
+        if (!set.TryGetValue(to, out var pauses)) throw WorkflowRefusalException.Missing("V-WFL-SUBSTATUS", "The sub-status is not one of the stage's.");
+        var from = await x.C.ExecuteScalarAsync<string?>(new CommandDefinition("SELECT SubStatusKey FROM wfl.Request WHERE RequestId = @r;", new { r = x.R.RequestId }, x.Tx,
+            cancellationToken: x.Ct)).ConfigureAwait(false);
+        if (from == to) throw WorkflowRefusalException.State("The request is already in this sub-status.");
+        var since = await x.C.ExecuteScalarAsync<DateTime?>(new CommandDefinition(
+            "SELECT MAX(OccurredAt) FROM wfl.RequestAction WHERE StageInstanceId = @i AND ActionType = 'SUBSTATUS_CHANGED';", new { i = x.Inst.RequestStageInstanceId }, x.Tx,
+            cancellationToken: x.Ct)).ConfigureAwait(false) ?? x.Inst.EnteredAt;
+        var now = x.Now.UtcDateTime;
+        var paused = from is not null && set.GetValueOrDefault(from);
+        if (!paused && pauses)
+            await x.C.ExecuteAsync(new CommandDefinition(
+                "UPDATE wfl.RequestStageInstance SET SlaState = 'PAUSED', UpdatedAt = CAST(SESSION_CONTEXT(N'EngineNow') AS DATETIME2(3)), UpdatedBy = @u WHERE RequestStageInstanceId = @i AND DueAt IS NOT NULL;",
+                new { u = x.Actor.UserId, i = x.Inst.RequestStageInstanceId }, x.Tx, cancellationToken: x.Ct)).ConfigureAwait(false);
+        else if (paused && !pauses && x.Inst.DueAt is { } due)
+        {
+            DateTime moved;
+            if (stage.SlaMode == "CALENDAR") moved = due + (now - since);
+            else
+            {
+                var start = TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(since, DateTimeKind.Utc), x.Time.Zone);
+                var end = TimeZoneInfo.ConvertTimeFromUtc(now, x.Time.Zone);
+                var localDue = TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(due, DateTimeKind.Utc), x.Time.Zone);
+                var cal = await WorkingCalendar.LoadAsync(x.C, x.Tx, x.Time.CountryId, DateOnly.FromDateTime(start).AddDays(-1), DateOnly.FromDateTime(localDue > end ? localDue : end).AddDays(60), x.Ct)
+                    .ConfigureAwait(false);
+                var lost = cal.BusinessHoursBetween(start, end, x.Time.Start, x.Time.End);
+                moved = TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(cal.AddBusinessHours(localDue, lost, x.Time.Start, x.Time.End), DateTimeKind.Unspecified), x.Time.Zone);
+            }
+            await x.C.ExecuteAsync(new CommandDefinition(
+                """
+                UPDATE wfl.RequestStageInstance SET DueAt = @due, SlaPausedSeconds = SlaPausedSeconds + @secs, SlaState = CASE WHEN @due > @now THEN 'ON_TRACK' ELSE 'OVERDUE' END,
+                       UpdatedAt = CAST(SESSION_CONTEXT(N'EngineNow') AS DATETIME2(3)), UpdatedBy = @u
+                 WHERE RequestStageInstanceId = @i;
+                """, new { due = moved, secs = (int)Math.Max(0, (now - since).TotalSeconds), now, u = x.Actor.UserId, i = x.Inst.RequestStageInstanceId }, x.Tx, cancellationToken: x.Ct))
+                .ConfigureAwait(false);
+        }
+        await x.C.ExecuteAsync(new CommandDefinition(
+            "UPDATE wfl.Request SET SubStatusKey = @k, UpdatedAt = CAST(SESSION_CONTEXT(N'EngineNow') AS DATETIME2(3)), UpdatedBy = @u WHERE RequestId = @r;",
+            new { k = to, u = x.Actor.UserId, r = x.R.RequestId }, x.Tx, cancellationToken: x.Ct)).ConfigureAwait(false);
+        await ActionAsync(x.C, x.Tx, x.R.RequestId, x.Inst.RequestStageInstanceId, x.R.CycleNo, "SUBSTATUS_CHANGED", x.Inst.StageKey, null, x.Actor.UserId, "INTERNAL",
+            x.Cmd.Comment, new { from, to, previousSeconds = (int)Math.Max(0, (now - since).TotalSeconds), pausesSla = pauses }, x.Cmd.IdempotencyKey, x.Ct).ConfigureAwait(false);
+        await Outbox.EmitAsync(x.C, x.Tx, "request.substatus.changed", "wfl.Request", x.R.RequestId, new { requestId = x.R.RequestId }, x.Ct).ConfigureAwait(false);
+        return new ActResult(x.R.RequestId, x.R.Status, x.Inst.StageKey, x.R.RequestNo, false);
+    }
+
+    /// <summary>PRIORITY (BR-REQ-011, V-REQ-06): the requester on a draft, or a holder of req.reassign, sets NORMAL or URGENT; URGENT gives its reason.</summary>
+    private static async Task<ActResult> PriorityAsync(Ctx x)
+    {
+        if (!(IsRequesterSide(x) && x.R.Status == "DRAFT") && !x.Actor.Permissions.Contains("req.reassign"))
+            throw WorkflowRefusalException.Forbidden("You may not change the request's priority.");
+        if (x.Cmd.Priority is not ("NORMAL" or "URGENT")) throw WorkflowRefusalException.Missing("V-REQ-06", "The priority is NORMAL or URGENT.");
+        if (x.Cmd.Priority == "URGENT" && string.IsNullOrWhiteSpace(x.Cmd.Comment)) throw WorkflowRefusalException.Missing("V-REQ-06", "An urgent request gives its reason (BR-REQ-011).");
+        var reason = x.Cmd.Priority == "URGENT" ? (x.Cmd.Comment!.Length > 500 ? x.Cmd.Comment[..500] : x.Cmd.Comment) : null;
+        await x.C.ExecuteAsync(new CommandDefinition(
+            "UPDATE wfl.Request SET Priority = @p, UrgentReason = @reason, UpdatedAt = CAST(SESSION_CONTEXT(N'EngineNow') AS DATETIME2(3)), UpdatedBy = @u WHERE RequestId = @r;",
+            new { p = x.Cmd.Priority, reason, u = x.Actor.UserId, r = x.R.RequestId }, x.Tx, cancellationToken: x.Ct)).ConfigureAwait(false);
+        await ActionAsync(x.C, x.Tx, x.R.RequestId, x.Inst.RequestStageInstanceId, x.R.CycleNo, "PRIORITY_CHANGED", x.Inst.StageKey, null, x.Actor.UserId, "INTERNAL",
+            x.Cmd.Comment, new { priority = x.Cmd.Priority }, x.Cmd.IdempotencyKey, x.Ct).ConfigureAwait(false);
+        await Outbox.EmitAsync(x.C, x.Tx, "request.priority.changed", "wfl.Request", x.R.RequestId, new { requestId = x.R.RequestId }, x.Ct).ConfigureAwait(false);
         return new ActResult(x.R.RequestId, x.R.Status, x.Inst.StageKey, x.R.RequestNo, false);
     }
 
@@ -932,6 +1127,7 @@ public static class RequestEngine
             """, new { i = instance, phase = outcome == "COMPLETED" ? await InProgressPhaseAsync(x, s.ExternalPhaseId).ConfigureAwait(false) : s.ExternalPhaseId, sub = subStatus, status = newStatus, cycle, reason, u = x.Actor.UserId, r = x.R.RequestId }, x.Tx,
             cancellationToken: x.Ct)).ConfigureAwait(false);
         if (n == 0) throw WorkflowRefusalException.Conflict();
+        await ResolveNoticesAsync(x).ConfigureAwait(false);
         var r = await FindAsync(x.C, x.Tx, x.R.RequestId, true, x.Ct).ConfigureAwait(false) ?? throw WorkflowRefusalException.NotFound();
         var entered = await CurrentInstanceAsync(x.C, x.Tx, x.R.RequestId, x.Ct).ConfigureAwait(false) ?? throw WorkflowRefusalException.Conflict();
         var y = x with { R = r, Inst = entered };
@@ -1150,7 +1346,18 @@ public static class RequestEngine
                     $"/requests/{x.R.PublicId}", x.Actor.UserId), x.Ct).ConfigureAwait(false);
                 return;
         }
-        if (approvers.Count > 0) await NotifyAsync(x, "REQ.APPROVAL_NEEDED", approvers, s.StageKey).ConfigureAwait(false);
+        if (approvers.Count > 0)
+        {
+            // FR-WFL-020: the slot shows to the delegate of an approver for the delegation's period, and so does its notice.
+            var delegates = await x.C.QueryAsync<long>(new CommandDefinition(
+                """
+                SELECT d.ToUserId FROM wfl.UserDelegation AS d
+                 WHERE d.FromUserId IN @users AND d.Status IN ('SCHEDULED', 'ACTIVE') AND @today BETWEEN d.StartsOn AND d.EndsOn
+                   AND (d.Scope <> 'REQUEST_TYPE' OR d.RequestTypeId = @type) AND d.ToUserId NOT IN (@rq, @cr);
+                """, new { users = approvers, today = TimeZoneInfo.ConvertTime(x.Now, x.Time.Zone).Date, type = x.R.RequestTypeId, rq = x.R.RequesterUserId, cr = x.R.CreatedByUserId },
+                x.Tx, cancellationToken: x.Ct)).ConfigureAwait(false);
+            await NotifyAsync(x, "REQ.APPROVAL_NEEDED", approvers.Concat(delegates), s.StageKey).ConfigureAwait(false);
+        }
         if (s.StageKey == "RETURNED") await NotifyAsync(x, "REQ.RETURNED", requester, "returned").ConfigureAwait(false);
         else if (s.AssigneeRule == "REQUESTER" && s.Kind == "TASK") await NotifyAsync(x, "REQ.ACTION_REQUIRED_REQUESTER", requester, s.StageKey).ConfigureAwait(false);
         if (s.Kind == "TREASURY_QUEUE")

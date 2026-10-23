@@ -37,6 +37,22 @@ public sealed class CalendarTests
     }
 
     [Fact]
+    public void The_SLA_and_reminder_times_of_spec_13_follow_from_the_business_hours()   // BR-WFL-012, BR-NTF-006, AC-WFL-5, AC-WFL-10
+    {
+        TimeOnly s = new(8, 0), e = new(17, 0);
+        var entered = new DateTime(2026, 10, 8, 15, 0, 0);
+        Assert.Equal(new DateTime(2026, 10, 11, 14, 0, 0), Saudi.AddBusinessHours(entered, 8, s, e));
+        Assert.Equal(new DateTime(2026, 10, 11, 12, 24, 0), Saudi.AddBusinessHours(entered, 8 * 0.8, s, e));
+        var created = new DateTime(2026, 10, 12, 9, 0, 0);
+        Assert.Equal(new DateTime(2026, 10, 19, 12, 0, 0), Saudi.AddBusinessHours(created, 48, s, e));
+        Assert.Equal(new DateTime(2026, 10, 22, 9, 0, 0), Saudi.AddBusinessHours(created, 72, s, e));
+        // The inverse, which carries a pause of the SLA.
+        Assert.Equal(8, Saudi.BusinessHoursBetween(entered, new DateTime(2026, 10, 11, 14, 0, 0), s, e), 6);
+        Assert.Equal(24, Saudi.BusinessHoursBetween(created, new DateTime(2026, 10, 14, 15, 0, 0), s, e), 6);
+        Assert.Equal(0, Saudi.BusinessHoursBetween(new DateTime(2026, 10, 9, 9, 0, 0), new DateTime(2026, 10, 10, 18, 0, 0), s, e));
+    }
+
+    [Fact]
     public void Hijri_dates_convert_both_ways_and_a_date_that_does_not_exist_is_refused()   // FR-PLT-033
     {
         var g = new DateOnly(2026, 10, 22);
