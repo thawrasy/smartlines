@@ -66,6 +66,7 @@ public static class ObligationEndpoints
         api.MapPost("/breaches", OpenBreachAsync);
         api.MapPost("/breaches/{id:guid}/actions/{action}", BreachActionAsync);
         api.MapGet("/facilities/{id:guid}/compliance", ComplianceAsync);
+        api.MapGet("/reports/compliance", GroupComplianceAsync);
     }
 
     // ---------- the obligations of a revision ----------
@@ -960,22 +961,79 @@ public static class ObligationEndpoints
         return Results.NoContent();
     }
 
-    /// <summary>SVC-FAC-06 and R-OBL-04 (BR-OBL-010): RED with an open breach or an overdue item, AMBER with an item due within 30 days, else GREEN.</summary>
-    private static async Task<IResult> ComplianceAsync(Guid id, HttpContext http, SqlConnectionFactory db, TimeProvider clock)
+    internal sealed class MeasureRow
     {
-        var (u, scope) = await FacilityEndpoints.OpenAsync(http, db, View);
-        await using var _ = u;
-        var ct = http.RequestAborted;
-        var f = await FacilityEndpoints.FindAsync(u, null, id, scope, ct);
-        var today = clock.GetUtcNow().UtcDateTime.Date;
+        public long CovenantRootId { get; init; }
+        public long ObligationRootId { get; init; }
+        public string Family { get; init; } = "";
+        public string TitleAr { get; init; } = "";
+        public string? TitleEn { get; init; }
+        public string MeasureKind { get; init; } = "";
+        public string? FormulaCode { get; init; }
+        public string ThresholdState { get; init; } = "";
+        public long? CovenantTestId { get; init; }
+        public Guid? TestId { get; init; }
+        public DateTime? PeriodEnd { get; init; }
+        public DateTime? DueDate { get; init; }
+        public int? EvaluationNo { get; init; }
+        public string? State { get; init; }
+        public string? Result { get; init; }
+        public decimal? ActualValue { get; init; }
+        public decimal? ThresholdApplied { get; init; }
+        public string? OperatorApplied { get; init; }
+        public decimal? Headroom { get; init; }
+        public decimal? HeadroomPct { get; init; }
+        public string? ThresholdUnit { get; init; }
+        public Guid? BreachId { get; init; }
+        public string? BreachStatus { get; init; }
+        public bool? NeedsReview { get; init; }
+    }
+
+    /// <summary>
+    /// BR-OBL-010 on a date: RED with an open or in-cure breach, an overdue item, a descriptive covenant reviewed as not
+    /// compliant, or a measured covenant whose latest result is a BREACH not waived; else AMBER with a WARNING or
+    /// MISSING_DATA as the latest result, an item due within 30 days, a facility whose validity is NOT_CONFIRMED or a
+    /// review overdue; GREY with no obligation in force; GREEN otherwise. NOT_ASSESSED (no threshold) and NOT_COMPARABLE
+    /// are counters and never move the colour. The reasons name each rule that set it, with its count.
+    /// </summary>
+    internal static async Task<object> ComplianceOfAsync(BoundUser u, FacilityEndpoints.FacilityRow f, DateTime asOf, int expiringDays, CancellationToken ct)
+    {
         var items = (await u.Connection.QueryAsync<ItemRow>(new CommandDefinition(ItemSelect + " WHERE f.FacilityId = @f AND i.Status <> 'CANCELLED';", new { f = f.FacilityId },
             cancellationToken: ct))).ToList();
         var breaches = (await u.Connection.QueryAsync<BreachRow>(new CommandDefinition(BreachSelect + " WHERE f.FacilityId = @f;", new { f = f.FacilityId }, cancellationToken: ct))).ToList();
-        var overdue = items.Count(i => Derived(i, today) == "OVERDUE");
-        var dueSoon = items.Count(i => Derived(i, today) == "DUE_SOON");
-        var openBreaches = breaches.Count(b => b.Status is "OPEN" or "IN_CURE");
-        var lateLastYear = items.Count(i => i.SubmittedOn is { } s && s > i.DueDate && s >= today.AddYears(-1));
-        // The latest review of each descriptive covenant in force: NON_COMPLIANT counts as red, a missed review as amber (FR-OBL-007).
+        var families = (await u.Connection.QueryAsync<(string Family, int Count)>(new CommandDefinition(
+            """
+            SELECT o.Family, COUNT(*) FROM obl.Obligation AS o
+             WHERE o.FacilityId = @f AND o.FromRevision <= @a AND (o.ToRevision IS NULL OR o.ToRevision > @a) GROUP BY o.Family;
+            """, new { f = f.FacilityId, a = f.ApprovedRevisionNo }, cancellationToken: ct))).ToList();
+        // The latest result on the date of each measured covenant in force: the latest evaluation of its latest period that has one.
+        var measures = (await u.Connection.QueryAsync<MeasureRow>(new CommandDefinition(
+            """
+            SELECT cv.RootId AS CovenantRootId, o.RootId AS ObligationRootId, o.Family, o.TitleAr, o.TitleEn, cv.MeasureKind, mf.Code AS FormulaCode, cv.ThresholdState,
+                   t.CovenantTestId, t.PublicId AS TestId, t.PeriodEnd, t.DueDate, t.EvaluationNo, t.State, t.Result, t.ActualValue, t.ThresholdApplied, t.OperatorApplied,
+                   t.Headroom, t.HeadroomPct, cv.ThresholdUnit, b.PublicId AS BreachId, b.Status AS BreachStatus, b.NeedsReview
+              FROM obl.Obligation AS o
+              JOIN obl.Covenant AS cv ON cv.ObligationId = o.ObligationId AND cv.MeasureKind <> 'NONE' AND cv.FromRevision <= @a AND (cv.ToRevision IS NULL OR cv.ToRevision > @a)
+              LEFT JOIN fin.MeasureFormula AS mf ON mf.MeasureFormulaId = cv.FormulaId
+             OUTER APPLY (SELECT TOP (1) x.* FROM obl.CovenantTest AS x
+                           WHERE x.CovenantRootId = cv.RootId AND x.PeriodEnd <= @asOf AND x.State NOT IN ('SCHEDULED', 'CANCELLED')
+                           ORDER BY x.PeriodEnd DESC, x.EvaluationNo DESC) AS t
+             OUTER APPLY (SELECT TOP (1) y.PublicId, y.Status, y.NeedsReview FROM obl.ObligationBreach AS y
+                           WHERE y.CovenantRootId = cv.RootId AND y.TestPeriodEnd = t.PeriodEnd ORDER BY y.DetectedOn DESC, y.ObligationBreachId DESC) AS b
+             WHERE o.FacilityId = @f AND o.FromRevision <= @a AND (o.ToRevision IS NULL OR o.ToRevision > @a)
+             ORDER BY o.TitleAr;
+            """, new { f = f.FacilityId, a = f.ApprovedRevisionNo, asOf }, cancellationToken: ct))).ToList();
+        // The evaluations of each measure's latest period, oldest first: the trend after a restatement.
+        var tests = measures.Where(m => m.PeriodEnd is not null).Select(m => m.CovenantRootId).ToArray();
+        var trend = tests.Length == 0 ? [] : (await u.Connection.QueryAsync<(long Root, DateTime PeriodEnd, int EvaluationNo, string? Result, decimal? ActualValue)>(new CommandDefinition(
+            "SELECT CovenantRootId, PeriodEnd, EvaluationNo, Result, ActualValue FROM obl.CovenantTest WHERE CovenantRootId IN @tests AND State NOT IN ('SCHEDULED', 'CANCELLED') ORDER BY EvaluationNo;",
+            new { tests }, cancellationToken: ct))).ToList();
+        var statements = measures.Where(m => m.CovenantTestId is not null).Select(m => m.CovenantTestId!.Value).ToArray();
+        var read = statements.Length == 0 ? [] : (await u.Connection.QueryAsync<(long Test, Guid Statement, int VersionNo)>(new CommandDefinition(
+            """
+            SELECT s.CovenantTestId, fs.PublicId, fs.VersionNo FROM obl.CovenantTestStatement AS s
+              JOIN fin.FinancialStatement AS fs ON fs.FinancialStatementId = s.StatementId WHERE s.CovenantTestId IN @statements;
+            """, new { statements }, cancellationToken: ct))).ToList();
         var reviews = (await u.Connection.QueryAsync<(string Result, DateTime? Next)>(new CommandDefinition(
             """
             SELECT t.Result, t.NextReviewOn FROM obl.Obligation AS o
@@ -984,15 +1042,99 @@ public static class ObligationEndpoints
                            ORDER BY x.PeriodEnd DESC, x.EvaluationNo DESC) AS t
              WHERE o.FacilityId = @f AND o.FromRevision <= @a AND (o.ToRevision IS NULL OR o.ToRevision > @a);
             """, new { f = f.FacilityId, a = f.ApprovedRevisionNo }, cancellationToken: ct))).ToList();
+
+        var overdue = items.Count(i => Derived(i, asOf) == "OVERDUE");
+        var dueSoon = items.Count(i => Derived(i, asOf) == "DUE_SOON");
+        var openBreaches = breaches.Count(b => b.Status is "OPEN" or "IN_CURE");
         var nonCompliant = reviews.Count(r => r.Result == "MANUAL_NON_COMPLIANT");
-        var reviewsOverdue = reviews.Count(r => r.Next is { } n && n < today);
-        return Results.Ok(new
+        var reviewsOverdue = reviews.Count(r => r.Next is { } n && n < asOf);
+        var unwaived = measures.Count(m => m.Result == "BREACH" && m.BreachStatus != "WAIVED");
+        var warnings = measures.Count(m => m.Result == "WARNING");
+        var missing = measures.Count(m => m.Result == "MISSING_DATA");
+        var validity = FacilityValidity.Indicator(f.LifecycleStatus, f.EffectiveFrom, f.ExpiryDate, asOf, expiringDays);
+        var reasons = new List<object>();
+        void Reason(string code, int n) { if (n > 0) reasons.Add(new { code, count = n }); }
+        Reason("OPEN_BREACH", openBreaches); Reason("OVERDUE", overdue); Reason("NON_COMPLIANT_REVIEW", nonCompliant); Reason("BREACH_NOT_WAIVED", unwaived);
+        var red = reasons.Count > 0;
+        Reason("WARNING", warnings); Reason("MISSING_DATA", missing); Reason("DUE_SOON", dueSoon); Reason("NOT_CONFIRMED", validity == "NOT_CONFIRMED" ? 1 : 0);
+        Reason("REVIEW_OVERDUE", reviewsOverdue);
+        var colour = families.Count == 0 ? "GREY" : red ? "RED" : reasons.Count > 0 ? "AMBER" : "GREEN";
+        string? Day(DateTime? d) => d is { } x ? FacilityEndpoints.D(x) : null;
+        return new
         {
-            facility = f.PublicId, status = openBreaches > 0 || overdue > 0 || nonCompliant > 0 ? "RED" : dueSoon > 0 || reviewsOverdue > 0 ? "AMBER" : "GREEN",
+            facility = f.PublicId, facilityNo = f.FacilityNo, asOf = FacilityEndpoints.D(asOf), status = colour, colour, reasons, validity,
             overdue, dueSoon, openBreaches, nonCompliant, reviewsOverdue,
-            inCure = breaches.Count(b => b.Status == "IN_CURE"), submittedLateLastYear = lateLastYear,
-            next = items.Where(i => i.Status == "SCHEDULED" && i.DueDate >= today).OrderBy(i => i.DueDate).Take(5).Select(i => ItemShape(i, today)),
+            inCure = breaches.Count(b => b.Status == "IN_CURE"), submittedLateLastYear = items.Count(i => i.SubmittedOn is { } s && s > i.DueDate && s >= asOf.AddYears(-1)),
+            notAssessed = measures.Count(m => m.Result == "NOT_ASSESSED_NO_THRESHOLD"), notComparable = measures.Count(m => m.Result == "NOT_COMPARABLE"),
+            needsReview = measures.Count(m => m.NeedsReview == true),
+            families = families.Select(x => new
+            {
+                family = x.Family, obligations = x.Count,
+                measured = measures.Count(m => m.Family == x.Family),
+                breaches = measures.Count(m => m.Family == x.Family && m.Result == "BREACH"),
+                warnings = measures.Count(m => m.Family == x.Family && m.Result == "WARNING"),
+            }),
+            measures = measures.Select(m => new
+            {
+                obligationTitleAr = m.TitleAr, obligationTitleEn = m.TitleEn, family = m.Family, measureKind = m.MeasureKind, formula = m.FormulaCode, thresholdState = m.ThresholdState,
+                test = m.TestId, periodEnd = Day(m.PeriodEnd), dueDate = Day(m.DueDate), evaluationNo = m.EvaluationNo, state = m.State, result = m.Result,
+                actualValue = m.ActualValue, threshold = m.ThresholdApplied, @operator = m.OperatorApplied, unit = m.ThresholdUnit, headroom = m.Headroom, headroomPct = m.HeadroomPct,
+                trend = trend.Where(x => x.Root == m.CovenantRootId && x.PeriodEnd == m.PeriodEnd).Select(x => new { evaluationNo = x.EvaluationNo, result = x.Result, actualValue = x.ActualValue }),
+                statements = read.Where(x => x.Test == m.CovenantTestId).Select(x => new { id = x.Statement, versionNo = x.VersionNo }),
+                breach = m.BreachId is null ? null : new { id = m.BreachId, status = m.BreachStatus, needsReview = m.NeedsReview },
+            }),
+            next = items.Where(i => i.Status == "SCHEDULED" && i.DueDate >= asOf).OrderBy(i => i.DueDate).Take(5).Select(i => ItemShape(i, asOf)),
             breaches = breaches.Where(b => b.Status is "OPEN" or "IN_CURE").Select(BreachShape),
-        });
+        };
+    }
+
+    private static DateTime AsOf(HttpRequest r, TimeProvider clock) =>
+        LimitEndpoints.Date(r.Query["asOf"].Count > 0 ? r.Query["asOf"].ToString() : null, "asOf") ?? clock.GetUtcNow().UtcDateTime.Date;
+
+    /// <summary>SVC-FAC-06 and R-OBL-04: the compliance of a facility on a date (today by default).</summary>
+    private static async Task<IResult> ComplianceAsync(Guid id, HttpContext http, SqlConnectionFactory db, TimeProvider clock)
+    {
+        Query.Allow(http.Request, "asOf");
+        var (u, scope) = await FacilityEndpoints.OpenAsync(http, db, View);
+        await using var _ = u;
+        var ct = http.RequestAborted;
+        var f = await FacilityEndpoints.FindAsync(u, null, id, scope, ct);
+        return Results.Ok(await ComplianceOfAsync(u, f, AsOf(http.Request, clock), await FacilityValidity.ExpiringDaysAsync(u.Connection, null, ct), ct));
+    }
+
+    /// <summary>R-OBL-05: the compliance of the group's active facilities on a date, by company, bank and colour.</summary>
+    private static async Task<IResult> GroupComplianceAsync(HttpContext http, SqlConnectionFactory db, TimeProvider clock)
+    {
+        Query.Allow(http.Request, "asOf", "company", "bank", "colour");
+        var (u, scope) = await FacilityEndpoints.OpenAsync(http, db, View);
+        await using var _ = u;
+        var ct = http.RequestAborted;
+        var q = http.Request.Query;
+        var asOf = AsOf(http.Request, clock);
+        Guid? company = q["company"].Count > 0 ? (Guid.TryParse(q["company"], out var c) ? c : throw new ApiProblemException(400, "MALFORMED_REQUEST", "company is an id.")) : null;
+        var bank = q["bank"].Count > 0 ? q["bank"].ToString() : null;
+        var colour = q["colour"].Count > 0 ? q["colour"].ToString().ToUpperInvariant() : null;
+        var ids = await u.Connection.QueryAsync<Guid>(new CommandDefinition(
+            """
+            SELECT f.PublicId FROM fac.Facility AS f JOIN org.Company AS co ON co.CompanyId = f.BorrowerCompanyId
+             WHERE f.LifecycleStatus = 'ACTIVE' AND f.ApprovedRevisionNo > 0 AND (@company IS NULL OR co.PublicId = @company) AND (@all = 1 OR f.BorrowerCompanyId IN @ids)
+             ORDER BY co.NameAr, f.FacilityNo;
+            """, new { company, all = scope.All ? 1 : 0, ids = scope.SqlIds }, cancellationToken: ct));
+        var days = await FacilityValidity.ExpiringDaysAsync(u.Connection, null, ct);
+        var rows = new List<object>();
+        foreach (var fid in ids)
+        {
+            var f = await FacilityEndpoints.FindAsync(u, null, fid, scope, ct);
+            var lenders = (await FacilityEndpoints.LendersAtAsync(u, null, [(f.FacilityId, f.ApprovedRevisionNo)], ct)).GetValueOrDefault(f.FacilityId, []);
+            if (bank is not null && !lenders.Any(l => string.Equals(l.Code, bank, StringComparison.OrdinalIgnoreCase) || l.InstitutionPublicId.ToString() == bank)) continue;
+            var one = await ComplianceOfAsync(u, f, asOf, days, ct);
+            var json = JsonSerializer.SerializeToElement(one);
+            if (colour is not null && json.GetProperty("colour").GetString() != colour) continue;
+            rows.Add(new
+            {
+                company = f.BorrowerId, companyNameAr = f.BorrowerNameAr, banks = lenders.Select(l => l.Code), compliance = json,
+            });
+        }
+        return Results.Ok(new { asOf = FacilityEndpoints.D(asOf), items = rows });
     }
 }

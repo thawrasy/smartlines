@@ -15,6 +15,7 @@ import { TermCompare } from './Terms';
 import { StatementDetail, Statements } from './Statements';
 import { MonthlyFigures } from './MonthlyFigures';
 import { Formulas } from './Formulas';
+import { GroupCompliance } from './Compliance';
 import { StatementBreaches } from './CovenantTests';
 import { AssessmentDetail, Assessments, PresentationVersions } from './Credit';
 import { LenderRatings, Provision, ReadinessFile } from './Readiness';
@@ -71,6 +72,7 @@ const menu: { to: string; label: string; permission?: string; anyOf?: string[] }
   { to: '/lender-ratings', label: 'Lender ratings', anyOf: ['fin.credit.assess', 'fin.credit.approve', 'fin.credit.endorse'] },
   { to: '/provision', label: 'Provision matrix', anyOf: ['fin.formula.manage', 'fin.formula.approve', 'fin.credit.assess'] },
   { to: '/presentation-versions', label: 'Presentation versions', anyOf: ['fin.stmt.enter', 'fin.stmt.approve'] },
+  { to: '/reports/compliance', label: 'Group compliance', permission: 'obl.view' },
   { to: '/reports/statement-breaches', label: 'Breaches found on the statements', anyOf: ['fin.stmt.enter', 'fin.stmt.approve', 'fin.verify.run', 'fin.credit.assess'] },
   { to: '/catalogs', label: 'Catalogues', anyOf: ['cat.manage.general', 'cat.manage.financial'] },
   { to: '/notifications', label: 'Notifications', permission: 'ntf.prefs' },
@@ -149,6 +151,7 @@ function Shell() {
               <Route path="/monthly-figures" element={<MonthlyFigures />} />
               <Route path="/formulas" element={<Formulas />} />
               <Route path="/reports/statement-breaches" element={<StatementBreaches />} />
+              <Route path="/reports/compliance" element={<GroupCompliance />} />
               <Route path="/assessments" element={<Assessments />} />
               <Route path="/assessments/:id" element={<AssessmentDetail />} />
               <Route path="/presentation-versions" element={<PresentationVersions />} />
