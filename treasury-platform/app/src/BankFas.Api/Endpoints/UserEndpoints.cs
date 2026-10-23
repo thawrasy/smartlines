@@ -8,7 +8,9 @@ using Microsoft.Data.SqlClient;
 namespace BankFas.Api.Endpoints;
 
 public sealed record InviteUserRequest(string? Email, string? DisplayNameEn, string? DisplayNameAr, Guid[]? RoleIds, string? StepUpCode);
-public sealed record PatchUserRequest(string? DisplayNameEn, string? DisplayNameAr, string? PreferredLanguage, string? DigitsPreference);
+/// <summary>Department: a department reference, or "" to clear. LineManager: a user's id; ClearLineManager removes it (S3 brief S3-GAP-9).</summary>
+public sealed record PatchUserRequest(string? DisplayNameEn, string? DisplayNameAr, string? PreferredLanguage, string? DigitsPreference, string? Department = null,
+    Guid? LineManager = null, bool? ClearLineManager = null);
 public sealed record UserRolesRequest(Guid[]? RoleIds, string? StepUpCode);
 public sealed record UserActionRequest(string? Reason, string? StepUpCode);
 public sealed record CompanyScopeEntry(Guid Id, bool IncludeDescendants);
@@ -42,10 +44,10 @@ public static class UserEndpoints
 
     private sealed record UserRow(long AppUserId, Guid PublicId, string Email, string? DisplayNameEn, string? DisplayNameAr, string Status,
         bool MfaEnabled, DateTime? LastLoginAt, string CompanyScopeMode, string? PreferredLanguage, string? DigitsPreference, byte[] RowVersion,
-        DateTime CreatedAt);
+        DateTime CreatedAt, long? DepartmentId, long? LineManagerUserId);
 
     private const string UserColumns =
-        "AppUserId, PublicId, Email, DisplayNameEn, DisplayNameAr, Status, MfaEnabled, LastLoginAt, CompanyScopeMode, PreferredLanguage, DigitsPreference, RowVersion, CreatedAt";
+        "AppUserId, PublicId, Email, DisplayNameEn, DisplayNameAr, Status, MfaEnabled, LastLoginAt, CompanyScopeMode, PreferredLanguage, DigitsPreference, RowVersion, CreatedAt, DepartmentId, LineManagerUserId";
 
     private static object View(UserRow u, IEnumerable<string>? roles = null) => new
     {
@@ -78,7 +80,7 @@ public static class UserEndpoints
         });
     }
 
-    private static async Task<IResult> GetAsync(Guid id, HttpContext http, SqlConnectionFactory db)
+    private static async Task<IResult> GetAsync(Guid id, HttpContext http, SqlConnectionFactory db, OpaqueRefs refs)
     {
         await using var u = await BoundUser.OpenAsync(http, db, Manage);
         var row = await FindAsync(u.Connection, null, id, http.RequestAborted);
@@ -89,8 +91,18 @@ public static class UserEndpoints
             FROM sec.UserCompanyScope AS s JOIN org.Company AS c ON c.CompanyId = s.CompanyId
             WHERE s.UserId = @u;
             """, new { u = row.AppUserId }, cancellationToken: http.RequestAborted));
+        var department = row.DepartmentId is null ? null : await u.Connection.QuerySingleOrDefaultAsync<(string Code, string NameAr, string NameEn)?>(new CommandDefinition(
+            "SELECT Code, NameAr, NameEn FROM org.Department WHERE DepartmentId = @d;", new { d = row.DepartmentId }, cancellationToken: http.RequestAborted));
+        var manager = row.LineManagerUserId is null ? null : await u.Connection.QuerySingleOrDefaultAsync<(Guid Id, string? NameEn, string? NameAr)?>(new CommandDefinition(
+            "SELECT PublicId, DisplayNameEn, DisplayNameAr FROM sec.AppUser WHERE AppUserId = @m;", new { m = row.LineManagerUserId }, cancellationToken: http.RequestAborted));
         ETags.Set(http.Response, row.RowVersion);
-        return Results.Ok(new { user = View(row, roles[row.AppUserId]), companies = scope });
+        return Results.Ok(new
+        {
+            user = View(row, roles[row.AppUserId]), companies = scope,
+            department = row.DepartmentId is { } d && department is { } dp
+                ? new { id = refs.ItemRef(u.TenantId, "department", d), code = dp.Code, nameAr = dp.NameAr, nameEn = dp.NameEn } : null,
+            lineManager = manager is { } m ? new { id = m.Id, displayNameEn = m.NameEn, displayNameAr = m.NameAr } : null,
+        });
     }
 
     private static async Task<IResult> InviteAsync(InviteUserRequest body, HttpContext http, SqlConnectionFactory db, AccountMail mail,
@@ -139,27 +151,65 @@ public static class UserEndpoints
         }
     }
 
-    private static async Task<IResult> PatchAsync(Guid id, PatchUserRequest body, HttpContext http, SqlConnectionFactory db)
+    private static async Task<IResult> PatchAsync(Guid id, PatchUserRequest body, HttpContext http, SqlConnectionFactory db, OpaqueRefs refs)
     {
         var expected = ETags.Required(http.Request);
         if (body.PreferredLanguage is not (null or "ar" or "en") || body.DigitsPreference is not (null or "WESTERN" or "ARABIC_INDIC"))
             throw ApiProblemException.Invalid("VALIDATION_FAILED", "Choose a language and a digit style from the list.");
+        if (body.LineManager is not null && body.ClearLineManager == true)
+            throw ApiProblemException.Invalid("VALIDATION_FAILED", "Set a line manager or clear it, not both.");
         await using var u = await BoundUser.OpenAsync(http, db, Manage);
-        var row = await FindAsync(u.Connection, null, id, http.RequestAborted);
+        await using var tx = (SqlTransaction)await u.Connection.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, http.RequestAborted);
+        var row = await FindAsync(u.Connection, tx, id, http.RequestAborted);
+
+        // The department: an active one of the account (FR-ORG-014); "" clears it.
+        var departmentSet = body.Department is not null;
+        long? department = null;
+        if (body.Department is { Length: > 0 } dref)
+        {
+            department = refs.ItemId(u.TenantId, "department", dref) is { } d && await u.Connection.ExecuteScalarAsync<int>(new CommandDefinition(
+                "SELECT COUNT(*) FROM org.Department WHERE DepartmentId = @d AND IsActive = 1;", new { d }, tx, cancellationToken: http.RequestAborted)) == 1
+                ? d : throw ApiProblemException.Invalid("DEPARTMENT_NOT_FOUND", "Choose an active department.");
+        }
+        // The line manager: an active user of the account, not the user, and not someone the user manages (BR-WFL-005).
+        long? manager = null;
+        if (body.LineManager is { } mid)
+        {
+            var m = await u.Connection.QuerySingleOrDefaultAsync<(long Id, string Status)?>(new CommandDefinition(
+                "SELECT AppUserId, Status FROM sec.AppUser WHERE PublicId = @mid AND IsSystemUser = 0 AND ArchivedAt IS NULL;", new { mid }, tx,
+                cancellationToken: http.RequestAborted));
+            if (m is not { } mm || mm.Status is "DISABLED") throw ApiProblemException.Invalid("MANAGER_NOT_FOUND", "Choose an active user as the line manager.");
+            if (mm.Id == row.AppUserId) throw ApiProblemException.Invalid("V-USR-MANAGER-SELF", "A user is not their own line manager.");
+            var cycle = await u.Connection.ExecuteScalarAsync<int>(new CommandDefinition(
+                """
+                WITH up AS (SELECT AppUserId, LineManagerUserId, 1 AS Depth FROM sec.AppUser WHERE AppUserId = @m
+                            UNION ALL
+                            SELECT a.AppUserId, a.LineManagerUserId, up.Depth + 1 FROM sec.AppUser AS a JOIN up ON a.AppUserId = up.LineManagerUserId WHERE up.Depth < 50)
+                SELECT COUNT(*) FROM up WHERE AppUserId = @u OPTION (MAXRECURSION 50);
+                """, new { m = mm.Id, u = row.AppUserId }, tx, cancellationToken: http.RequestAborted));
+            if (cycle > 0) throw ApiProblemException.Invalid("V-USR-MANAGER-CYCLE", "This line manager reports to the user, directly or through others.");
+            manager = mm.Id;
+        }
+        var managerSet = body.LineManager is not null || body.ClearLineManager == true;
         var changed = await u.Connection.QuerySingleOrDefaultAsync<byte[]>(new CommandDefinition(
             """
             DECLARE @o TABLE (RowVersion BINARY(8));
             UPDATE sec.AppUser
                SET DisplayNameEn = COALESCE(@en, DisplayNameEn), DisplayNameAr = COALESCE(@ar, DisplayNameAr),
-                   PreferredLanguage = COALESCE(@lang, PreferredLanguage), DigitsPreference = COALESCE(@digits, DigitsPreference)
+                   PreferredLanguage = COALESCE(@lang, PreferredLanguage), DigitsPreference = COALESCE(@digits, DigitsPreference),
+                   DepartmentId = CASE WHEN @departmentSet = 1 THEN @department ELSE DepartmentId END,
+                   LineManagerUserId = CASE WHEN @managerSet = 1 THEN @manager ELSE LineManagerUserId END
             OUTPUT inserted.RowVersion INTO @o
              WHERE AppUserId = @id AND RowVersion = @rv;
             SELECT RowVersion FROM @o;
             """, new { en = body.DisplayNameEn?.Trim(), ar = body.DisplayNameAr?.Trim(), lang = body.PreferredLanguage, digits = body.DigitsPreference,
-                id = row.AppUserId, rv = expected }, cancellationToken: http.RequestAborted)) ?? throw ETags.Conflict();
-        await TenantAdminProcedures.WriteAuditAsync(u.Connection, null, new AuditEntry("USER_UPDATED", "IDENTITY_ACCESS", "sec.AppUser", row.AppUserId,
-            BeforeJson: JsonSerializer.Serialize(new { displayNameEn = row.DisplayNameEn, displayNameAr = row.DisplayNameAr }),
-            AfterJson: JsonSerializer.Serialize(body)), http.RequestAborted);
+                departmentSet, department, managerSet, manager, id = row.AppUserId, rv = expected }, tx, cancellationToken: http.RequestAborted)) ?? throw ETags.Conflict();
+        await TenantAdminProcedures.WriteAuditAsync(u.Connection, tx, new AuditEntry("USER_UPDATED", "IDENTITY_ACCESS", "sec.AppUser", row.AppUserId,
+            BeforeJson: JsonSerializer.Serialize(new { displayNameEn = row.DisplayNameEn, displayNameAr = row.DisplayNameAr, departmentId = row.DepartmentId,
+                lineManagerUserId = row.LineManagerUserId }),
+            AfterJson: JsonSerializer.Serialize(new { body.DisplayNameEn, body.DisplayNameAr, body.PreferredLanguage, body.DigitsPreference,
+                departmentId = departmentSet ? department : row.DepartmentId, lineManagerUserId = managerSet ? manager : row.LineManagerUserId })), http.RequestAborted);
+        await tx.CommitAsync(http.RequestAborted);
         ETags.Set(http.Response, changed);
         return Results.NoContent();
     }

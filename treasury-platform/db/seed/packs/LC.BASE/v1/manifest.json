@@ -1,0 +1,67 @@
+{
+  "PackKey": "LC.BASE",
+  "SeedVersion": 1,
+  "Slice": "S3",
+  "Status": "Proposed default written by an AI agent from spec 14 section 6.2 and spec 02 section 2.2, for the treasury and a legal specialist of the tenant to review (Q-LCT-12, S3 brief S3-GAP-3). The field definitions are the LcTerms dictionary of section 6.2 with its applicability matrix (BR-LCT-002); the 13 document clauses of FR-LCT-017 are UNREVIEWED, so every print that uses one carries the banner \"not legally reviewed\" until the tenant records a review (FR-LCT-019); the fallback LC_APPLICATION form template is a DRAFT that the tenant activates after that review. Every UCP 600 reference names an article of db/seed/103, all UNVERIFIED until a specialist checks them against ICC Publication 600 (Q-LCT-01). The tenant may edit or deactivate fields that are not locked.",
+  "Tables": [
+    "lc.LcFieldDefinition.csv",
+    "lc.LcFieldUcpRef.csv",
+    "lc.LcDocumentClause.csv",
+    "lc.LcDocumentClauseUcpRef.csv",
+    "lc.LcFormTemplate.csv"
+  ],
+  "DependsOn": [
+    "CAT.LOOKUPS"
+  ],
+  "References": {
+    "lc.LcFieldUcpRef.csv": {
+      "FieldSeedKey": {
+        "Column": "LcFieldDefinitionId",
+        "Table": "lc.LcFieldDefinition",
+        "Key": "SeedKey"
+      },
+      "UcpArticleSeedKey": {
+        "Column": "UcpArticleId",
+        "Table": "ref.UcpArticle",
+        "Key": "SeedKey"
+      }
+    },
+    "lc.LcDocumentClauseUcpRef.csv": {
+      "ClauseSeedKey": {
+        "Column": "LcDocumentClauseId",
+        "Table": "lc.LcDocumentClause",
+        "Key": "SeedKey"
+      },
+      "UcpArticleSeedKey": {
+        "Column": "UcpArticleId",
+        "Table": "ref.UcpArticle",
+        "Key": "SeedKey"
+      }
+    }
+  },
+  "Sources": [
+    "docs/10-detailed-analysis/14-m7-m8-letters-of-credit.md section 6.2 (the LcTerms dictionary, its requirement codes and UCP column), section 6.3 (LcFieldDefinition, LcDocumentClause, LcFormTemplate), FR-LCT-004, FR-LCT-017 to FR-LCT-019, FR-LCT-021, FR-LCT-026, BR-LCT-002, BR-LCT-008, BR-LCT-012, BR-LCT-013, BR-LCT-017, section 9.1 (V-LCT codes) and Q-LCT-01, Q-LCT-09, Q-LCT-12",
+    "docs/02-forms-analysis-ucp600.md section 2.2 (B1 to B45: the bank form's fields and UCP articles; B29 to B39: the document clauses), section 3 (article map) and section 7.1 (the delivery note of form C)",
+    "db/model/16-letters-of-credit.model (lc.LcFieldDefinition, lc.LcFieldUcpRef, lc.LcDocumentClause, lc.LcDocumentClauseUcpRef, lc.LcFormTemplate; the enums of lc.LcTerms)",
+    "db/seed/103_lc_reference.sql (ref.UcpArticle platform rows, SeedKey UCP600-01 to UCP600-39)",
+    "db/seed/packs/CAT.LOOKUPS/v3 (TRANSPORT_MODE, GOODS_CATEGORY)",
+    "docs/30-readiness/DOC-B05-seed-and-initial-migration-plan.md section 5.1 (LC.BASE)"
+  ],
+  "Notes": {
+    "lc.LcFieldDefinition": "77 fields. FieldKey is the lc.LcTerms column in camelCase (CurrencyId -> currencyId, IncotermId -> incotermId, PrevLcCurrencyId -> prevLcCurrencyId). Five keys have no single column: applicant and beneficiary (ApplicantCompanyId or ApplicantCounterpartyId, BeneficiaryCounterpartyId or BeneficiaryCompanyId by LcClass, named in ValidationJson.columns), beneficiaryAccountIban (the Enc, Mask and Hash columns, RESTRICTED), documents (lc.LcTermsDocument rows) and charges (lc.LcChargesMatrix rows). The companion columns ScopeOverrideReason, ExpiryDateHijri and LatestShipmentDateHijri are not fields of the dictionary: they are named in the ValidationJson of scope (BR-LCT-001), expiryDate and latestShipmentDate (hijriInput, FR-LCT-032). bankSpecificClauses is the treasury column of FR-LCI-007, not in section 6.2.",
+    "ApplicabilityJson": "{LcClass:{Scope:{Purpose: REQUIRED|OPTIONAL|HIDDEN}}} with every cell written out (no wildcard: BR-LCT-002 defines none; an absent cell reads OPTIONAL). Only the 12 cells lc.LcTerms allows appear: PURCHASE with APPLICATION, ISSUED, AMENDMENT and SALES with PROFORMA, RECEIVED, AMENDMENT (CHECK of lc.LcTerms on Purpose and LcClass). Section 6.2 codes: م = REQUIRED everywhere; د = REQUIRED for INTERNATIONAL, OPTIONAL for DOMESTIC; (عدا PF) = OPTIONAL on PROFORMA; ش (a condition) = OPTIONAL in the matrix, the condition is ValidationJson.requiredWhen and the V-LCT rule; خ = OPTIONAL; خز (treasury, FR-LCT-021) = VisibleToRequester 0, OPTIONAL on purchases and HIDDEN on sales (a received credit consumes no limit, FR-LCE-027); J1 (previous credit, manual on AP) = OPTIONAL on PURCHASE APPLICATION only, HIDDEN elsewhere; goodsCategory = REQUIRED on PURCHASE APPLICATION (FR-LCT-015).",
+    "IsLocked": "Locked (never HIDDEN, not changed by the tenant administrator, FR-LCT-004): the fields of BR-LCT-002 (lcType, currencyId, amount, the expiry block expiryRule, expiryDate, expiryDaysAfterIssue, documents, charges), the two generated amount-in-words fields the lock check of lc.LcTerms requires, and the structural lcClass, scope and ucpVersion (decision of this pack: they decide the matrix and the governing rules).",
+    "ValidationJson": "A proposed vocabulary for the application's validation engine (the spec gives no shape): enum (the lc.LcTerms enum values, for ENUM fields without a cat.LookupList), min, max, minExclusive, maxLength, format (IBAN, BIC), requiredWhen and emptyWhen {fieldKey: [values]}, requiredWithAny, defaultByScope, warnAbove (a number or a lc.* setting), ref (the table of a REF field), readOnly, minItems, rows, and rules (the V-LCT codes of section 9.1 that apply). The lists LC_TYPE, LC_CONFIRMATION, PRESENTATION_PERIOD_BASIS and CHARGE_CATEGORY are enums of db/model/16, not lookup lists, so their fields have no ListCode; transportMode (ENUM, closed list TRANSPORT_MODE) and goodsCategory (LIST, GOODS_CATEGORY) name their lists of CAT.LOOKUPS v3.",
+    "SwiftTagHint": "MT700 field tags as hints only (FR-LCT-035, Could, S5); to be checked against the SWIFT standards release in force before any mapping is built.",
+    "lc.LcFieldUcpRef": "The UCP column of section 6.2, one row per article and paragraph (Arabic paragraph letters as in the model: ب, أ-3, و-2); ranges are written out (19-24 for transhipment, 19-25 for transport mode). incotermId has no reference: section 6.2 gives none (Incoterms are ICC rules outside UCP). availableWith 6-أ and additionalConditions 14-ح are analyst references (🟡 in section 6.2).",
+    "lc.LcDocumentClause": "The 13 clauses of FR-LCT-017: B29 to B39 of spec 02 plus DELIVERY_NOTE (spec 02 section 7.1) and MULTIMODAL_TD (🟡, article 19; the tag is in its names as FR-LCT-017 asks). Every placeholder of a text is defined in its ParamSchemaJson (BR-LCT-012); types are those of BR-LCT-012 (TEXT, INT, LIST, PCT); originals and copies map to lc.LcTermsDocument.Originals and Copies, and the free text to FreeText. Certification and legalisation by a chamber or embassy (B29, B34) are not placeholders: a plain substitution cannot leave out an optional phrase, so a bank that asks for them gets a version 2 of the clause or an OTHER_FREE_TEXT. ApplicableModes follows BR-LCT-013 (the invoice for every mode; the insurance document is suggested by CIF or CIP, not by mode). All are LegalReviewStatus UNREVIEWED, Status ACTIVE, InstitutionId empty (a library common to the tenant, Q-LCT-09).",
+    "lc.LcFormTemplate": "LC_APPLICATION_DEFAULT v1: the tenant's unified fallback (no institution, product or company; scope and channel ANY; SYSTEM_PRINT; both languages), the last step of BR-LCT-017. EffectiveFrom 2026-01-01 (a date before any credit of the platform). It is written as DRAFT (the column default) and UNREVIEWED: the tenant activates it once its legal review is done (Q-LCT-12). Status is left out of the CSV on purpose: the table has no SeedKey, so the seeder matches it on every value the CSV gives, and a status changed by the tenant would make a later version of this pack insert it again and fail on its unique Code and VersionNo."
+  },
+  "NotSeeded": {
+    "lc.LcFormFieldMap": "Not seeded: the SYSTEM_PRINT layout of the fallback is the application's own and needs no map; a map is for a bank's PDF fields or portal sheet (FR-LCT-025/027), which come with that bank's form. The path grammar of SourceExpr is not defined beyond the one example terms.expiry.date (BR-LCT-020), which does not follow the column-named field keys, so any path written here would be a guess. The table also has no SeedKey, and a row the tenant edits would be inserted again by a later pack version and fail on (TemplateId, TargetName).",
+    "Form template documents": "SourceDocumentId, AnnexDocumentId, AnnexVersion and LetterheadDocumentId are documents of the tenant (doc.Document) that a pack cannot hold; a bank's template (PDF_ACROFORM_FILL needs SourceDocumentId) and the murabaha annex (02 F-14) are entered with the bank's form.",
+    "Other form kinds": "LC_AMENDMENT, PROFORMA (a header per company, Q-LCE-07, S4) and COLLECTION_COVER (Could, Q-LCE-09) have no fallback template here.",
+    "Clauses for RAIL and COURIER": "Spec 14 seeds 13 clauses and none for a rail or courier document (articles 24 and 25, 'later addition' in spec 02 section 3); the tenant adds them or uses OTHER_FREE_TEXT.",
+    "Lookup lists and settings": "TRANSPORT_MODE, GOODS_CATEGORY and the other lists are in CAT.LOOKUPS v3; the lc.* settings of section 5.6 are setting definitions of the platform, not this pack."
+  }
+}

@@ -134,6 +134,14 @@ public sealed class OutboxJob(SqlConnectionFactory db, IMailSender mail) : Tenan
         // S2-b: the financial data and the covenant tests (spec 12 section 10); statement.approved gets its consumer with the engine (S2-b batch E)
         "statement.submitted", "covenant.test.evaluated", "monthly.figure.confirmed", "bank.flow.confirmed", "formula.approved",
         "credit.assessment.approved", "revenue.estimate.approved",
+        // S3: the requests, the reservations around them and the letters of credit (spec 13 section 10, spec 14 section 10);
+        // fac.reservation.expired gets its consumer with JOB-FAC-RESERVATION (S3 batch D), request.task.resolved with the inbox (batch C).
+        "request.created", "request.submitted", "request.stage.entered", "request.approved", "request.returned", "request.rejected",
+        "request.cancelled", "request.claimed", "request.released", "request.reassigned", "request.numbered", "request.ready_to_close",
+        "request.closed", "request.task.resolved", "template.published",
+        "reservation.adjusted", "reservation.converted", "reservation.expired", "reservation.released_externally",
+        "lc.terms.locked", "lc.issued", "lc.amended", "lc.drawing.recorded", "lc.drawing.settled", "lc.expired", "lc.closed", "lc.cancelled",
+        "lc.reconcile.mismatch",
     };
 
     protected override async Task<string?> RunForTenantAsync(SqlConnection c, JobTenant tenant, Guid correlation, CancellationToken ct)

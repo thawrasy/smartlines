@@ -54,6 +54,14 @@ public static class DbErrors
     public const int ActorPermission = 50171;
     public const int SamePerson = 50172;
     public const int RateFinal = 50173;
+    // S3 (039, 044, 064): numbering, locked terms, published templates, final reservations. 50029, 50031 and 50058 are
+    // the application's own errors (a gap-free number outside a transaction, a bad pattern, a restricted value in a
+    // comparison) and stay unmapped: a 500 with the correlation id.
+    public const int NumberingNotConfigured = 50030;
+    public const int NumberVoidRefused = 50032;
+    public const int TermsLocked = 50056;
+    public const int TemplatePublished = 50057;
+    public const int ReservationFinal = 50177;
     public const int RowFilterWriteRefused = 33504;
     public const int PermissionDenied = 229;
     public const int ColumnPermissionDenied = 230;

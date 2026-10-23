@@ -15,7 +15,9 @@ public sealed record CompanyRequest(string? CompanyCode, string? NameAr, string?
     int? FiscalYearEndMonth, int? FiscalYearEndDay, bool? FiscalYearEndOfMonth, string? BaseCurrency);
 public sealed record ArchiveRequest(string? Reason);
 public sealed record TaxRateRequest(string? TaxCode, decimal? RatePercent, string? EffectiveFrom);
-public sealed record DepartmentRequest(string? Code, string? NameAr, string? NameEn, string? Function, bool? IsTreasury, Guid? Company, bool? IsActive);
+/// <summary>Head: the user who heads the department (BR-WFL-005 resolves a requester's manager to it); ClearHead removes it.</summary>
+public sealed record DepartmentRequest(string? Code, string? NameAr, string? NameEn, string? Function, bool? IsTreasury, Guid? Company, bool? IsActive,
+    Guid? Head = null, bool? ClearHead = null);
 
 /// <summary>
 /// Companies (FR-ORG-001 to 014; screens 13 and 14 of spec 10): a company and its mirror party are created in one
@@ -513,12 +515,13 @@ public static partial class CompanyEndpoints
     private static async Task<IResult> DepartmentsAsync(HttpContext http, SqlConnectionFactory db, OpaqueRefs refs)
     {
         await using var u = await BoundUser.OpenAsync(http, db, View);
-        var rows = await u.Connection.QueryAsync<(long Id, string Code, string NameAr, string NameEn, string Function, bool IsTreasury, Guid? Company, bool IsActive, int Users, byte[] RowVersion)>(
+        var rows = await u.Connection.QueryAsync<(long Id, string Code, string NameAr, string NameEn, string Function, bool IsTreasury, Guid? Company, bool IsActive, int Users, byte[] RowVersion, Guid? Head)>(
             new CommandDefinition(
                 """
                 SELECT d.DepartmentId, d.Code, d.NameAr, d.NameEn, d.[Function], d.IsTreasury, c.PublicId, d.IsActive,
-                       (SELECT COUNT(*) FROM sec.AppUser AS a WHERE a.DepartmentId = d.DepartmentId AND a.Status <> 'DISABLED'), d.RowVersion
-                  FROM org.Department AS d LEFT JOIN org.Company AS c ON c.CompanyId = d.CompanyId ORDER BY d.Code;
+                       (SELECT COUNT(*) FROM sec.AppUser AS a WHERE a.DepartmentId = d.DepartmentId AND a.Status <> 'DISABLED'), d.RowVersion, h.PublicId
+                  FROM org.Department AS d LEFT JOIN org.Company AS c ON c.CompanyId = d.CompanyId
+                  LEFT JOIN sec.AppUser AS h ON h.AppUserId = d.HeadUserId ORDER BY d.Code;
                 """, cancellationToken: http.RequestAborted));
         var list = rows.ToList();
         return Results.Ok(new
@@ -526,7 +529,7 @@ public static partial class CompanyEndpoints
             items = list.Select(d => new
             {
                 id = refs.ItemRef(u.TenantId, "department", d.Id), code = d.Code, nameAr = d.NameAr, nameEn = d.NameEn, function = d.Function, isTreasury = d.IsTreasury,
-                company = d.Company, isActive = d.IsActive, users = d.Users, etag = ETags.Of(d.RowVersion),
+                company = d.Company, isActive = d.IsActive, users = d.Users, head = d.Head, etag = ETags.Of(d.RowVersion),
             }),
             warning = list.Any(d => d.IsActive && d.IsTreasury) ? null : "NO_TREASURY_DEPARTMENT",
         });
@@ -586,19 +589,26 @@ public static partial class CompanyEndpoints
                 "SELECT COUNT(*) FROM sec.AppUser WHERE DepartmentId = @id AND Status <> 'DISABLED';", new { id }, tx, cancellationToken: http.RequestAborted)) > 0)
             throw new ApiProblemException(409, "V-ORG-DEPARTMENT-IN-USE", "The department has users: move them first.");
         var company = b.Company is null ? (long?)null : await DepartmentCompanyAsync(u, tx, b.Company, http.RequestAborted);
+        long? head = null;
+        if (b.Head is { } hid)
+            head = await u.Connection.ExecuteScalarAsync<long?>(new CommandDefinition(
+                "SELECT AppUserId FROM sec.AppUser WHERE PublicId = @hid AND IsSystemUser = 0 AND ArchivedAt IS NULL AND Status <> 'DISABLED';", new { hid }, tx,
+                cancellationToken: http.RequestAborted)) ?? throw ApiProblemException.Invalid("HEAD_NOT_FOUND", "Choose an active user as the head of the department.");
+        var headSet = b.Head is not null || b.ClearHead == true;
         var rv = await u.Connection.QuerySingleOrDefaultAsync<byte[]>(new CommandDefinition(
             """
             DECLARE @o TABLE (RowVersion BINARY(8));
             UPDATE org.Department SET NameAr = ISNULL(@ar, NameAr), NameEn = ISNULL(@en, NameEn), [Function] = ISNULL(@function, [Function]),
                    IsTreasury = ISNULL(@treasury, IsTreasury), CompanyId = CASE WHEN @companySet = 1 THEN @company ELSE CompanyId END,
-                   IsActive = ISNULL(@active, IsActive), UpdatedAt = SYSUTCDATETIME(), UpdatedBy = CAST(SESSION_CONTEXT(N'UserId') AS BIGINT)
+                   IsActive = ISNULL(@active, IsActive), HeadUserId = CASE WHEN @headSet = 1 THEN @head ELSE HeadUserId END,
+                   UpdatedAt = SYSUTCDATETIME(), UpdatedBy = CAST(SESSION_CONTEXT(N'UserId') AS BIGINT)
             OUTPUT inserted.RowVersion INTO @o WHERE DepartmentId = @id AND RowVersion = @rv;
             SELECT RowVersion FROM @o;
             """,
             new
             {
                 ar = b.NameAr?.Trim(), en = b.NameEn?.Trim(), function, treasury = b.IsTreasury, companySet = b.Company is not null, company, active = b.IsActive, id,
-                rv = expected,
+                rv = expected, headSet, head,
             }, tx, cancellationToken: http.RequestAborted)) ?? throw ETags.Conflict();
         await AuditWriter.WriteAsync(u.Connection, tx, new AuditEntry("DEPARTMENT_UPDATED", "CONFIG", "org.Department", id, AfterJson: JsonSerializer.Serialize(b)),
             company, http.RequestAborted);

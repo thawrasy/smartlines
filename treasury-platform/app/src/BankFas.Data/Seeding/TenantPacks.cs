@@ -81,7 +81,7 @@ public static class TenantSeeder
     /// <summary>The packs of S1 to S3, in dependency order; each is applied at the latest version of its folder.</summary>
     public static readonly string[] S1Packs = ["CAT.ORG", "CAT.BANKING", "CAT.DOCTYPES", "CAT.LOOKUPS", "CAT.CURRENCY", "CORE.NUMBERING", "CORE.EXPIRY", "CORE.DEPARTMENTS",
         "CMP.TERMS", "FIN.LINES", "FIN.FORMULAS", "FIN.PROVISION", "PTY.KYC",
-        "NTF.BASE", "WFL.BASE"];
+        "NTF.BASE", "LC.BASE", "WFL.BASE"];
 
     /// <summary>The packs folder: configuration Seed:PacksDirectory, else "packs" next to the application.</summary>
     public static string PacksDirectory(string? configured) =>
