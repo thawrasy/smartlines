@@ -212,6 +212,11 @@ namespace BankFas.IntegrationTests
             Assert.Equal((422, "V-LCI-02"), await RefusedAsync(te, id, "complete"));
             Assert.Equal((0m, 3_150_000m, 6_850_000m), await LineAsync());
             await te.OkAsync(HttpMethod.Put, $"/api/v1/requests/{id}/issuance", new { lcNumber = "ILC/26/0042", issueDate = D(Today), institution = bank });
+            // FR-LCI-010: the bank's receipt of the execution before the issuance.
+            Assert.Equal((422, "V-LCI-RECEIPT"), await RefusedAsync(te, id, "complete"));
+            var receipt = await DocumentAsync(tm, company, "BANK_ACKNOWLEDGEMENT", "Bank receipt");
+            Assert.Equal((403, "FORBIDDEN"), await rq.ProblemAsync(HttpMethod.Put, $"/api/v1/requests/{id}/execution", new { channel = "BANK_PORTAL", receipt }));
+            await te.OkAsync(HttpMethod.Put, $"/api/v1/requests/{id}/execution", new { channel = "BANK_PORTAL", bankReference = "BR-77", receipt });
             await ActAsync(te, id, "complete");
             Assert.Equal((3_150_000m, 0m, 6_850_000m), await LineAsync());
             var waiting = await rq.GetJsonAsync($"/api/v1/requests/{id}");
@@ -241,6 +246,8 @@ namespace BankFas.IntegrationTests
             await ActAsync(b.Rq, id, "complete");
             await ActAsync(b.Mgr, id, "approve");
             await ActAsync(b.Te, id, "claim");
+            var receipt = await DocumentAsync(b.Tm, b.Company, "BANK_ACKNOWLEDGEMENT", "Bank receipt " + lcNumber);
+            await b.Te.OkAsync(HttpMethod.Put, $"/api/v1/requests/{id}/execution", new { channel = "MANUAL_FORM", receipt });
             await ActAsync(b.Te, id, "complete");
             var copy = await DocumentAsync(b.Tm, b.Company, "LC_COPY", "LC copy " + lcNumber);
             await b.Tm.PostOkAsync($"/api/v1/requests/{id}/attachments", new { document = copy, slot = "LC_COPY" });

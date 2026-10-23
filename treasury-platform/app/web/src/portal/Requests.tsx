@@ -73,7 +73,7 @@ export function NewRequest() {
   );
 }
 
-interface FieldDef { key: string; labelAr: string; labelEn: string; type: string; required: boolean; editable: boolean; config?: { options?: string[] } }
+interface FieldDef { key: string; labelAr: string; labelEn: string; type: string; required: boolean; editable: boolean; config?: { options?: string[]; component?: string } }
 interface Detail {
   view: 'REQUESTER' | 'STAFF';
   request: {
@@ -140,6 +140,9 @@ export function RequestDetail() {
     <>
       <section className="card">
         <h1><span dir="ltr">{rq.requestNo ?? rq.draftRef}</span> {pick(lang, rq.head, 'typeName')}</h1>
+        {rq.fields.some(f => f.type === 'MODULE_FORM' && f.config?.component === 'lc.terms') && (
+          <p><Link to={`/requests/${id}/terms`}>{t('Letter of credit terms')}</Link></p>
+        )}
         <p>
           <strong>{pick(lang, rq.head, 'phaseName')}</strong>
           {rq.head.awaitingYou ? <> · <span className="warn">{t('Awaiting your action')}</span></> : null}

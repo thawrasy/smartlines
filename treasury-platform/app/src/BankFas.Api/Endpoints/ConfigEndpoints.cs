@@ -90,6 +90,15 @@ public static partial class ConfigEndpoints
         if (TimeOfDay(effective["work.start"]) is { } start && TimeOfDay(effective["work.end"]) is { } end
             && (end - start).TotalMinutes is < 240 or > 720)
             throw ApiProblemException.Invalid("V-PLT-09", "The working day is 4 to 12 hours long.");
+        // AC-LCT-4, FR-LCT-005: the footnote on UCP texts stays while any article in use is unverified.
+        if (effective.TryGetValue("lc.print.ucp_disclaimer", out var footnote) && footnote == "false" && await u.Connection.ExecuteScalarAsync<int>(new CommandDefinition(
+                """
+                SELECT COUNT(*) FROM ref.UcpArticle AS a
+                 WHERE a.VerificationStatus = 'UNVERIFIED'
+                   AND (EXISTS (SELECT 1 FROM lc.LcFieldUcpRef AS r WHERE r.UcpArticleId = a.UcpArticleId)
+                        OR EXISTS (SELECT 1 FROM lc.LcDocumentClauseUcpRef AS r WHERE r.UcpArticleId = a.UcpArticleId));
+                """, transaction: tx, cancellationToken: http.RequestAborted)) > 0)
+            throw ApiProblemException.Invalid("V-LCT-UCP-FOOTNOTE", "The UCP footnote stays printed while an article in use is not verified (FR-LCT-005).");
         foreach (var (d, newJson) in changes.Where(x => x.Def.ValueJson != x.NewJson))
         {
             // null is the platform default; tp_app may not delete a setting row (007), so the default is stored.

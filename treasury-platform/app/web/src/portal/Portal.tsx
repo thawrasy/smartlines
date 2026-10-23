@@ -23,6 +23,8 @@ import { LenderRatings, Provision, ReadinessFile } from './Readiness';
 import { NewRequest, RequestDetail, RequestList } from './Requests';
 import { Delegations, Inbox } from './Inbox';
 import { LcCard, LcRegister } from './Lcs';
+import { Dashboards } from './Dashboards';
+import { TermsEditor } from './TermsEditor';
 import { Companies, CompanyDetail, Departments, DocumentRegister } from './Companies';
 import { OwnershipMismatch, StructureIntegrity } from './Structure';
 import { AuthorityConflicts } from './Signatories';
@@ -64,6 +66,7 @@ const menu: { to: string; label: string; permission?: string; anyOf?: string[] }
   { to: '/institutions', label: 'Banks and lenders', permission: 'ins.view' },
   { to: '/accounts', label: 'Bank accounts', permission: 'acc.view' },
   { to: '/base-rates', label: 'Base rates', permission: 'cat.view' },
+  { to: '/dashboards', label: 'Dashboards', anyOf: ['req.view.own', 'req.claim', 'req.execute', 'req.dashboard.manager'] },
   { to: '/inbox', label: 'Inbox', anyOf: ['req.view.own', 'req.view.all', 'req.approve', 'req.claim'] },
   { to: '/requests', label: 'Requests', anyOf: ['req.view.own', 'req.view.all'] },
   { to: '/lcs', label: 'Letters of credit', anyOf: ['lc.view.all', 'lc.view.own'] },
@@ -167,12 +170,14 @@ function Shell() {
               <Route path="/assessments/:id/readiness" element={<ReadinessFile />} />
               <Route path="/lender-ratings" element={<LenderRatings />} />
               <Route path="/inbox" element={<Inbox />} />
+              <Route path="/dashboards" element={<Dashboards />} />
               <Route path="/delegations" element={<Delegations />} />
               <Route path="/lcs" element={<LcRegister />} />
               <Route path="/lcs/:id" element={<LcCard />} />
               <Route path="/requests" element={<RequestList />} />
               <Route path="/requests/new" element={<NewRequest />} />
               <Route path="/requests/:id" element={<RequestDetail />} />
+              <Route path="/requests/:id/terms" element={<TermsEditor />} />
               <Route path="/product-lines" element={<ProductLines />} />
               <Route path="/provision" element={<Provision />} />
               <Route path="/notifications" element={<Notifications />} />

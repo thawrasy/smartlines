@@ -72,6 +72,13 @@ public static class IssuanceHooks
         if (amount > rv.Amount)
             throw new WorkflowRefusalException(422, "V-LCI-02", "The issued exposure is above the reserved one; return the request to the treasury manager's approval (BR-LCI-007).");
         if (amount <= 0) throw WorkflowRefusalException.Missing("V-LCI-02", "The issued exposure is above zero.");
+        // FR-LCI-010: the bank's receipt of the execution comes before the issuance while the tenant requires it.
+        if ((await Workflow.FacilityHooks.SettingsAsync(h.C, h.Tx, h.Ct, "lc.execution.require_receipt").ConfigureAwait(false)).GetValueOrDefault("lc.execution.require_receipt") != "false")
+        {
+            using var form = JsonDocument.Parse(h.Request.FormDataJson ?? "{}");
+            if (!form.RootElement.TryGetProperty("execution", out var ex) || !ex.TryGetProperty("receiptDocument", out var rd) || rd.ValueKind != JsonValueKind.String)
+                throw WorkflowRefusalException.Missing("V-LCI-RECEIPT", "Record the bank's receipt of the execution first (FR-LCI-010).");
+        }
         var maturity = await h.C.ExecuteScalarAsync<DateTime?>(new CommandDefinition(
             "SELECT ExpiryDate FROM lc.LcTerms WHERE OwnerType = 'REQUEST' AND OwnerId = @r AND Purpose = 'APPLICATION' AND Status = 'LOCKED';", new { r = h.Request.RequestId }, h.Tx,
             cancellationToken: h.Ct)).ConfigureAwait(false);
