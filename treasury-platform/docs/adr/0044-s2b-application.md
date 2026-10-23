@@ -47,6 +47,12 @@ The exit is AC-FAC-7 and AC-FAC-13:
 - **044 accepts a share-of-revenue test whose rule is MANUAL_ESTIMATE with no statement.** Its snapshot must name an
   approved or superseded revenue estimate of the tested company.
 - **db_ci counts 16 settings.**
+- **tp_app may delete five more kinds of row** (db/generated/tsql/005_delete_grants.sql, from the model's `deletable`):
+  - `fin.StatementLine` and `fin.ConsolidationMember`: only while the statement is a draft (045:71-97);
+  - `fin.CreditAssessmentGuarantor` and `fin.CreditAssessmentBureau`: only while the assessment is a draft (046:277-300,
+    50063);
+  - `fin.CompanyProductLine`: refused once an approved assessment read the year's lines (058, APPROVED_FINAL).
+  Each widens what tp_app may do and was missing from this record (review 9.0, docs/47 §5 item 4).
 
 ### 3. The engine's snapshot contract
 
