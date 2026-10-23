@@ -35,6 +35,7 @@ GRANT DELETE ON [fin].[StatementLine] TO [tp_app];
 GRANT DELETE ON [fin].[ConsolidationMember] TO [tp_app];
 GRANT DELETE ON [fin].[CreditAssessmentInput] TO [tp_app];
 GRANT DELETE ON [fin].[CreditAssessmentGuarantor] TO [tp_app];
+GRANT DELETE ON [fin].[CompanyProductLine] TO [tp_app];
 GRANT DELETE ON [fin].[CreditAssessmentBureau] TO [tp_app];
 GRANT DELETE ON [wfl].[RequestTypeAudience] TO [tp_app];
 GRANT DELETE ON [wfl].[WorkflowStage] TO [tp_app];

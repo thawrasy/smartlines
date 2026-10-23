@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { api, message } from '../api';
 import { useI18n } from '../i18n';
 import { Field, Form, Notice, Select, Table } from '../ui';
+import { AssessmentBureau, AssessmentGuarantors } from './CreditInputs';
 import { can, useMe } from './Portal';
 
 // SCR-FIN-06 (the credit self-assessment of a statement: the analyst's qualitative grades and their justification, the
@@ -120,6 +121,8 @@ export function AssessmentDetail() {
           <Field label="Justification" value={input.justification} onChange={v => setInput({ ...input, justification: v })} />
         </Form>}
       </section>
+      <AssessmentGuarantors id={id} draft={draft} />
+      <AssessmentBureau id={id} draft={draft} />
       <section className="card">
         <h2>{t('Factors')}</h2>
         <Table rows={factors} columns={[

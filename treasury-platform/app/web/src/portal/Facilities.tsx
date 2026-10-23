@@ -6,6 +6,7 @@ import { Field, Form, Notice, Select, Table } from '../ui';
 import { FacilityCollateral } from './Collateral';
 import { FacilityObligations } from './Obligations';
 import { FacilityCompliance } from './Compliance';
+import { FacilityLenderDecisions } from './CreditInputs';
 import { FacilityCovenantTests } from './CovenantTests';
 import { FacilityTerms } from './Terms';
 import { FacilityPricing } from './Pricing';
@@ -290,6 +291,7 @@ export function FacilityDetail() {
       <FacilityObligations id={id!} draft={!!draft && open?.status === 'DRAFT'} edit={card.permissions.edit} />
       <FacilityCompliance id={id!} />
       <FacilityCovenantTests id={id!} />
+      <FacilityLenderDecisions id={id!} />
       <FacilityTerms id={id!} draft={!!draft && open?.status === 'DRAFT'} edit={card.permissions.edit} />
       <FacilityAccounts id={id!} company={card.borrower.id} edit={card.permissions.edit} />
     </>

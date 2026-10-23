@@ -18,6 +18,7 @@ import { Formulas } from './Formulas';
 import { GroupCompliance } from './Compliance';
 import { StatementBreaches } from './CovenantTests';
 import { AssessmentDetail, Assessments, PresentationVersions } from './Credit';
+import { ProductLines } from './CreditInputs';
 import { LenderRatings, Provision, ReadinessFile } from './Readiness';
 import { Companies, CompanyDetail, Departments, DocumentRegister } from './Companies';
 import { OwnershipMismatch, StructureIntegrity } from './Structure';
@@ -69,6 +70,7 @@ const menu: { to: string; label: string; permission?: string; anyOf?: string[] }
   { to: '/monthly-figures', label: 'Monthly balances', permission: 'fin.view' },
   { to: '/formulas', label: 'Formula library', permission: 'fin.view' },
   { to: '/assessments', label: 'Credit self-assessments', anyOf: ['fin.credit.assess', 'fin.credit.approve', 'fin.credit.endorse'] },
+  { to: '/product-lines', label: 'Product lines', anyOf: ['fin.credit.assess', 'fin.credit.approve', 'fin.credit.endorse'] },
   { to: '/lender-ratings', label: 'Lender ratings', anyOf: ['fin.credit.assess', 'fin.credit.approve', 'fin.credit.endorse'] },
   { to: '/provision', label: 'Provision matrix', anyOf: ['fin.formula.manage', 'fin.formula.approve', 'fin.credit.assess'] },
   { to: '/presentation-versions', label: 'Presentation versions', anyOf: ['fin.stmt.enter', 'fin.stmt.approve'] },
@@ -157,6 +159,7 @@ function Shell() {
               <Route path="/presentation-versions" element={<PresentationVersions />} />
               <Route path="/assessments/:id/readiness" element={<ReadinessFile />} />
               <Route path="/lender-ratings" element={<LenderRatings />} />
+              <Route path="/product-lines" element={<ProductLines />} />
               <Route path="/provision" element={<Provision />} />
               <Route path="/notifications" element={<Notifications />} />
               <Route path="/notification-settings" element={<NotificationSettings />} />

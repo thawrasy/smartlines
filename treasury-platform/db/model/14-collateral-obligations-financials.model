@@ -1323,7 +1323,7 @@ table fin.CreditAssessmentRemedy norv  # A remedy the report proposes, with the 
   check  SeqNo >= 1
   check  (ProFormaGradeId IS NULL AND NotchesGained IS NULL) OR (ProFormaGradeId IS NOT NULL AND NotchesGained IS NOT NULL)
 
-table fin.CompanyProductLine public  # A product or service line of a company for a fiscal year: its category, share of revenue and of inventory, and its sales channels; read by the credit assessment for the quality of cash flows and the liquidity of the inventory (docs/35 section 5)
+table fin.CompanyProductLine public deletable  # A product or service line of a company for a fiscal year: its category, share of revenue and of inventory, and its sales channels; read by the credit assessment for the quality of cash flows and the liquidity of the inventory (docs/35 section 5)
   CompanyId         ->org.Company req
   FiscalYear        int       req
   NameAr            str(200)  req
