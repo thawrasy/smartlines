@@ -3291,6 +3291,21 @@ VALUES (:ca, :route, :tsn, '05:30', 1, 'SYP', '[2030-01-01,2030-06-01)');
 SELECT pg_temp.expect_error(format($$INSERT INTO ops.trip_template (company_id, route_id, service_number_id, departure_time, base_price, currency, active)
     VALUES (%s, %s, %s, '17:30', 1, 'SYP', '[2030-03-01,2030-09-01)')$$, :ca, :route, :tsn),
   'SERVICE_NUMBER_TAKEN', 'Trip numbers (1114): a service number serves one template at a time on the same days');
+-- the reference names the number (1143, N43): code3, service number, route, local time and day; a change of time keeps it
+INSERT INTO ops.trip (company_id, route_id, service_number_id, departure_at, arrival_at, status, seats_total, segments_count, currency, base_price)
+VALUES (:ca, :route, :tsn, '2030-01-03 05:30+03', '2030-01-03 08:30+03', 'DRAFT', 40, 1, 'SYP', 1)
+RETURNING id AS tref_id, trip_no AS tref \gset
+SELECT pg_temp.ok(:'tref' = (SELECT coalesce((SELECT cc.code3::text FROM net.carrier_code cc WHERE cc.company_id = :ca AND cc.status = 'ACTIVE'), 'XXX')
+                                    || '-1701-' || r.code || '-' ||
+                                    to_char(timestamptz '2030-01-03 05:30+03' AT TIME ZONE coalesce(ref.station_tz(r.origin_station_id), 'UTC'), 'HH24MI')
+                                    || '-03JAN30'
+                               FROM net.route r WHERE r.id = :route),
+  'Trip reference (1143): a trip made without one gets carrier code, service number, route, local time and day');
+UPDATE ops.trip SET departure_at = departure_at + interval '1 hour', arrival_at = arrival_at + interval '1 hour' WHERE id = :tref_id;
+SELECT pg_temp.ok((SELECT trip_no FROM ops.trip WHERE id = :tref_id) = :'tref',
+  'Trip reference (1143): a later change of time keeps the reference printed on tickets');
+SELECT pg_temp.ok((SELECT trip_no FROM ops.trip WHERE service_no = :tn1 AND service_date = '2030-01-01') = 'TN-A/01JAN30',
+  'Trip reference (1143): a reference given by hand is kept as given');
 ROLLBACK;
 SET ROLE masslak_app;
 
@@ -3697,8 +3712,13 @@ SET ROLE masslak_app;
 -- Seats booked at once (1122): four by default, the platform's to change with the decision behind it, more for a family
 BEGIN;
 RESET ROLE;
-SELECT pg_temp.ok(sales.seat_limit(NULL) = 4 AND sales.seat_limit(:pax) = 4,
-  'Seat limits (1122): a traveller books four seats at once by default');
+SELECT pg_temp.ok(sales.seat_limit(NULL) = 9 AND sales.seat_limit(:pax) = 9,
+  'Seat limits (1122, 1144): a traveller books nine seats at once by default (N34)');
+SELECT pg_temp.ok(sales.passenger_mix_problem(4, 5, 4, 0) IS NULL AND sales.passenger_mix_problem(5, 0, 0, 0) = 'TOO_MANY_ADULTS'
+                  AND sales.passenger_mix_problem(1, 7, 0, 0) = 'TOO_MANY_CHILDREN' AND sales.passenger_mix_problem(2, 0, 3, 0) = 'TOO_MANY_LAP_INFANTS'
+                  AND sales.passenger_mix_problem(4, 5, 0, 1) = 'TOO_MANY_SEATS',
+  'Passenger mix (1144): four adults, six children, a lap infant per adult and nine seats at most');
+UPDATE sys.setting SET value = '4' WHERE key = 'booking.max_seats';      -- the family rules below, against a limit of four
 INSERT INTO iam.party (party_type, legal_name) VALUES ('PERSON', 'Seat Limit Head') RETURNING id AS slh \gset
 INSERT INTO iam.family (head_party_id, name) VALUES (:slh, 'Seat limit family') RETURNING id AS slf \gset
 WITH m AS (INSERT INTO iam.party (party_type, legal_name) SELECT 'PERSON', 'Seat Limit Member ' || n FROM generate_series(2, 6) n RETURNING id)
@@ -3722,6 +3742,28 @@ SELECT pg_temp.ok((SELECT (v ->> 'max_seats')::int = 3 AND (v ->> 'agency_group'
   'Seat limits (1122): the platform lowers the limit as a regulator decides, naming the decision');
 SELECT pg_temp.ok(sales.seat_limit(NULL) = 3 AND sales.seat_limit(:slh) = 6,
   'Seat limits (1122): every channel reads the new limit; a family still books its size');
+ROLLBACK;
+SET ROLE masslak_app;
+
+-- Phase one, no money with the platform (1145, N13): the options holding money close and stay closed, and reopen after
+BEGIN;
+RESET ROLE;
+SET LOCAL ROLE masslak_app;
+SELECT sys.set_context(:ua, :ca, 'COMPANY');
+SELECT pg_temp.expect_error($$SELECT fin.set_money_mode('NO_FUNDS', 'a carrier tries')$$, 'FORBIDDEN',
+  'Money phase (1145): only the platform switches it');
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+SELECT fin.set_money_mode('NO_FUNDS', 'Phase one of the pilot');
+SELECT pg_temp.ok(fin.money_mode() = 'NO_FUNDS'
+                  AND NOT EXISTS (SELECT 1 FROM fin.payment_method WHERE enabled AND code = ANY (fin.money_options()))
+                  AND (SELECT bool_and(enabled) FROM fin.payment_method WHERE code IN ('PAY_LATER','CASH_COUNTER')),
+  'Money phase (1145): phase one closes the wallet, agency balance, cards, instalments and financing; cash stays open');
+SELECT pg_temp.expect_error($$UPDATE fin.payment_method SET enabled = true WHERE code = 'WALLET'$$, 'NO_FUNDS_PHASE',
+  'Money phase (1145): an option holding money does not open in phase one');
+SELECT fin.set_money_mode('FULL', 'Licensed to hold funds');
+SELECT pg_temp.ok(fin.money_mode() = 'FULL' AND (SELECT enabled FROM fin.payment_method WHERE code = 'WALLET')
+                  AND (SELECT enabled FROM fin.payment_method WHERE code = 'AGENCY_BALANCE'),
+  'Money phase (1145): back to FULL, the options open before phase one open again');
 ROLLBACK;
 SET ROLE masslak_app;
 

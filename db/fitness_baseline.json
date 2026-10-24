@@ -380,6 +380,14 @@
    "masslak_app",
    "masslak_readonly"
   ],
+  "fin.money_mode()": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "fin.money_mode_state()": [
+   "masslak_api",
+   "masslak_app"
+  ],
   "fin.payment_fee(bigint,character,bigint,bigint,timestamp with time zone)": [
    "masslak_api",
    "masslak_app",
@@ -400,6 +408,10 @@
   ],
   "fin.reconcile_wallets()": [],
   "fin.roll_up_balances(integer)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "fin.set_money_mode(text,text)": [
    "masslak_api",
    "masslak_app"
   ],
@@ -1105,6 +1117,10 @@
    "masslak_app"
   ],
   "sales.set_connection_settings(boolean,integer,integer,integer,boolean)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "sales.set_passenger_mix(integer,integer,text)": [
    "masslak_api",
    "masslak_app"
   ],

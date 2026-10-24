@@ -629,6 +629,45 @@ async def set_seat_limits(body: SeatLimitsIn, request: Request, pr: Principal = 
     return json.loads(out)
 
 
+class MoneyModeIn(BaseModel):
+    """Phase one (N13): NO_FUNDS while the platform holds no money (cash at the counter only, no fee or commission), FULL
+    afterwards; basis names the decision."""
+    mode: Literal["FULL", "NO_FUNDS"]
+    basis: str = Field(min_length=3, max_length=160)
+
+
+@router.get("/money-mode")
+async def get_money_mode(request: Request, pr: Principal = Depends(require_permission("policy.matrix"))):
+    async with db.transaction(context_for(request, pr)) as conn:
+        return json.loads(await conn.fetchval("SELECT fin.money_mode_state()::text"))
+
+
+@router.put("/money-mode")
+async def set_money_mode(body: MoneyModeIn, request: Request, pr: Principal = Depends(require_permission("policy.matrix"))):
+    require_step_up(pr)                 # a sensitive operation: it opens or closes every way money moves
+    async with db.transaction(context_for(request, pr)) as conn:
+        out = await conn.fetchval("SELECT fin.set_money_mode($1, $2)::text", body.mode, body.basis)
+    request.state.audit = {"action": "platform.money_mode", "object_type": "setting", "reason": f"{body.mode}: {body.basis}"[:120]}
+    return json.loads(out)
+
+
+class PassengerMixIn(BaseModel):
+    """Adults and children of one booking (N34): four adults and six children unless the platform or a regulator decides
+    otherwise; infants on a lap stay within the adults, and every seat within max_seats. basis names the decision."""
+    max_adults: int = Field(ge=1, le=20)
+    max_children: int = Field(ge=0, le=20)
+    basis: str = Field(min_length=3, max_length=160)
+
+
+@router.put("/booking/passenger-mix")
+async def set_passenger_mix(body: PassengerMixIn, request: Request, pr: Principal = Depends(require_permission("policy.matrix"))):
+    async with db.transaction(context_for(request, pr)) as conn:
+        out = await conn.fetchval("SELECT sales.set_passenger_mix($1, $2, $3)::text", body.max_adults, body.max_children, body.basis)
+    request.state.audit = {"action": "booking.passenger_mix", "object_type": "setting",
+                           "reason": f"{body.max_adults}/{body.max_children}: {body.basis}"[:120]}
+    return json.loads(out)
+
+
 # ------------------------------------------------------------------ first interface language by country (1141)
 class VisitorLocaleIn(BaseModel):
     """Visitors in Syria see Arabic first and visitors from elsewhere English, unless the platform decides otherwise per

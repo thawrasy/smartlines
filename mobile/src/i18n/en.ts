@@ -56,6 +56,8 @@ const en = {
     swap: "Swap the cities", choose: "Choose", chooseCity: "Choose a city", dates: "Travel dates", departure: "Departure",
     paxClass: "Travellers and class", summary: "{n} traveller(s), {cls}", travellersTitle: "Travellers",
     adults: "Adults", adultsAge: "12 years and over", children: "Children", childrenAge: "2 to 11 years",
+    limits: "Up to {adults} adults, {children} children and {seats} seats; one infant on each adult's lap.",
+    cabin: { label: "Class of seat", ANY: "Any class", ECONOMY: "Economy", BUSINESS: "Business", VIP: "VIP", ACCESSIBLE: "Accessible seat" },
     infantLap: "Infants on a lap", infantLapSub: "Under 2, no seat", infantSeat: "Infants with a seat", infantSeatSub: "Under 2, own seat",
     class: "Class", refundable: "Refundable", notRefundable: "Not refundable", bags: "{n} bag(s)",
     withPoints: "Book with points", search: "Search trips", done: "Done", continue: "Continue",

@@ -30,23 +30,20 @@ async def insert_trip(conn: asyncpg.Connection, company_id: int, route, vehicle,
                       trip_type: str = "SCHEDULED", service_number_id: Optional[int] = None) -> tuple[int, str]:
     """Writes one trip with its stops, seat segments and driver: the same trip whether made by hand or by a regular trip."""
     stops = await conn.fetch("SELECT * FROM net.route_stop WHERE route_id = $1 ORDER BY seq", route["id"])
-    code3 = await conn.fetchval("SELECT code3 FROM net.carrier_code WHERE company_id = $1 AND status = 'ACTIVE'",
-                                company_id) or "XXX"
-    local = dep.astimezone(ZoneInfo(await markets.station_zone(conn, stops[0]["station_id"])))
-    trip_no = f"{code3}-{route['code']}-{local:%H%M}/{local:%d%b%y}".upper()
     n = len(stops)
     arrival = dep + timedelta(minutes=stops[-1]["arr_offset_min"])
     status = "PUBLISHED" if publish else "DRAFT"
     # The trip keeps the vehicle's seat map as it is today, so seats sold never move if the layout changes
     seat_map = await fleet.trip_seat_map(conn, vehicle["id"])
-    trip_id = await conn.fetchval(
+    # the database writes the reference once the service number is chosen: "DCA-1171-DAM-DRA-1330-24OCT26" (1143, N43)
+    trip_id, trip_no = await conn.fetchrow(
         """INSERT INTO ops.trip (trip_no, company_id, route_id, service_type, vehicle_id, departure_at, arrival_at,
              status, seats_total, segments_count, currency, base_price, published_at, seat_map, template_id, trip_type,
              service_number_id)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NULL, $11, CASE WHEN $8 = 'PUBLISHED' THEN now() END,
                    $12::jsonb, $13, $14, $15)
-           RETURNING id""",
-        trip_no, company_id, route["id"], "INDIRECT" if n > 2 else "DIRECT", vehicle["id"], dep, arrival, status,
+           RETURNING id, trip_no""",
+        None, company_id, route["id"], "INDIRECT" if n > 2 else "DIRECT", vehicle["id"], dep, arrival, status,
         vehicle["passenger_seats"], n - 1, stops[-1]["fare_from_origin"], json.dumps(seat_map) if seat_map else None,
         template_id, trip_type, service_number_id)
     await conn.executemany(

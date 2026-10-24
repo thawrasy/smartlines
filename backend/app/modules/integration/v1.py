@@ -77,7 +77,8 @@ async def trip_search(request: Request, origin: str = Query(..., min_length=3, m
                       passengers: int = Query(1, ge=1, le=4), caller: Caller = Depends(api_caller)):
     """Published trips between two cities on a day, with fares and free seats (city codes as in /api/ref)."""
     caller.need("trips:read")
-    return await public.search(request, origin=origin.upper(), destination=destination.upper(), on=on, passengers=passengers)
+    return await public.search(request, origin=origin.upper(), destination=destination.upper(), on=on, passengers=passengers,
+                               stops=None, adults=None, children=0, infants_lap=0, infants_seat=0, cabin=None)
 
 
 @router.get("/trips")

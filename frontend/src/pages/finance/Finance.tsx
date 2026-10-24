@@ -6,7 +6,7 @@ import { ClaimsToPay } from "../support/StaffDesk";
 import { PageHead } from "../../components/layout";
 import { CarrierName, Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, useToast } from "../../components/ui";
 
-interface Balance { currency: string; balance: number; held: number; available: number }
+interface Balance { currency: string; balance: number; held: number; available: number; money_mode?: string }
 interface BankAccount { uid: string; bank_name: string; holder_name: string; iban_last4: string; verified: boolean; status: string; company_name?: string; company_uid?: string; company_logo?: string | null; created_at: string }
 interface Withdrawal {
   uid: string; amount: number; currency: string; status: string; needs_second: boolean; created_at: string; paid_at: string | null;
@@ -63,13 +63,15 @@ export function CompanyFinance() {
     try { await fn(); setMode(null); toast(done); reload(); } catch (e) { setError(e); } finally { setBusy(false); }
   };
   const verified = (accounts.data?.accounts ?? []).filter((a) => a.verified && a.status === "ACTIVE");
+  const noFunds = bal.data?.money_mode === "NO_FUNDS";         // phase one (N13): figures only, no money with the platform
   return (
     <div className="stack">
       <PageHead title={t("finance.title")} sub={t("finance.sub")}>
         {manage && <button className="btn outlined" onClick={() => { setError(null); setMode("account"); }}><Icon name="add" />{t("finance.addAccount")}</button>}
-        {manage && <button className="btn" disabled={!verified.length} onClick={() => { setError(null); setWd({ account: verified[0]?.uid ?? "", amount: "", key: newKey() }); setMode("withdraw"); }}>
+        {manage && !noFunds && <button className="btn" disabled={!verified.length} onClick={() => { setError(null); setWd({ account: verified[0]?.uid ?? "", amount: "", key: newKey() }); setMode("withdraw"); }}>
           <Icon name="payments" />{t("finance.withdraw")}</button>}
       </PageHead>
+      {noFunds && <div className="card notice" role="note"><Icon name="info" /> {t("finance.noFunds")}</div>}
       <Loaded state={bal}>{(b) => (
         <div className="grid cols-3">
           <Stat icon="account_balance_wallet" label={t("finance.available")} value={money(b.available)} />

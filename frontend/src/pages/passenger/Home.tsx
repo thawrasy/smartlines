@@ -26,14 +26,82 @@ export function useSeatLimits() {
   const ch = useChannel();
   const { me } = useAuth();
   const passenger = !ch.staff && me?.portal === "PASSENGER";
-  const base = useLoad(() => api.get<{ booking?: { max_seats: number } }>("/api/ref").then((r) => r.booking?.max_seats ?? 4));
+  const base = useLoad(() => api.get<{ booking?: { max_seats: number; max_adults?: number; max_children?: number } }>("/api/ref")
+    .then((r) => r.booking ?? { max_seats: 9 }));
   const own = useLoad(() => (ch.agency ? api.get<{ max_passengers: number }>("/api/agency/journeys/options").then((r) => r.max_passengers)
     : passenger ? api.get<{ max_seats: number }>("/api/bookings/limits").then((r) => r.max_seats) : Promise.resolve(null)), [ch.agency, passenger]);
-  const perBooking = base.data ?? 4;
-  return { perBooking, maxPax: Math.max(own.data ?? perBooking, 1) };
+  const perBooking = base.data?.max_seats ?? 9;
+  return { perBooking, maxPax: Math.max(own.data ?? perBooking, 1),
+           maxAdults: base.data?.max_adults ?? 4, maxChildren: base.data?.max_children ?? 6 };
 }
 
-export interface SearchInitial { from: string; to: string; on: string; pax: number; kind?: JourneyKind; legs?: JourneyLeg[] }
+// Travellers by type and the class (N34): adults, children, infants on a lap (no seat, at most one per adult) and infants
+// with a seat; the seats are everyone but the lap infants. The server applies the same platform limits.
+export type Cabin = "ANY" | "ECONOMY" | "BUSINESS" | "VIP" | "ACCESSIBLE";
+export interface Mix { adults: number; children: number; lap: number; seat: number; cabin: Cabin }
+export const mixSeats = (m: Mix) => m.adults + m.children + m.seat;
+export function mixParams(m: Mix): string {
+  return `&ad=${m.adults}&chd=${m.children}&lap=${m.lap}&inf=${m.seat}${m.cabin !== "ANY" ? `&cab=${m.cabin}` : ""}`;
+}
+export function mixFrom(params: URLSearchParams, pax: number): Mix {
+  const n = (k: string, d: number) => Math.max(0, Number(params.get(k) ?? d) || 0);
+  const cabin = (params.get("cab") ?? "ANY") as Cabin;
+  return params.has("ad") ? { adults: Math.max(1, n("ad", 1)), children: n("chd", 0), lap: n("lap", 0), seat: n("inf", 0), cabin }
+                          : { adults: Math.max(1, pax), children: 0, lap: 0, seat: 0, cabin };
+}
+
+function TravellersPicker({ mix, setMix, limits }: { mix: Mix; setMix: (m: Mix) => void;
+                                                     limits: { maxSeats: number; maxAdults: number; maxChildren: number } }) {
+  const { t } = useI18n();
+  const [open, setOpen] = useState(false);
+  const seats = mixSeats(mix);
+  const max: Record<"adults" | "children" | "lap" | "seat", number> = {
+    adults: Math.min(limits.maxAdults, mix.adults + limits.maxSeats - seats),
+    children: Math.min(limits.maxChildren, mix.children + limits.maxSeats - seats),
+    lap: mix.adults, seat: mix.seat + limits.maxSeats - seats,
+  };
+  const min = { adults: Math.max(1, mix.lap), children: 0, lap: 0, seat: 0 };
+  const kinds: [keyof typeof max, string][] = [["adults", "ADULT"], ["children", "CHILD"], ["lap", "LAP"], ["seat", "SEAT"]];
+  const total = mix.adults + mix.children + mix.lap + mix.seat;
+  return (
+    <Field label={t("home.travellers")}>
+      <div className="pax-picker">
+        <button type="button" className="input pax-summary" aria-expanded={open} onClick={() => setOpen(!open)}>
+          <Icon name="group" size={18} />
+          <span>{t("home.travellersOf", { n: total })} · {t(`home.cabin.${mix.cabin}`)}</span>
+        </button>
+        {open && (
+          <div className="pax-panel card" role="group" aria-label={t("home.travellers")}>
+            {kinds.map(([key, kind]) => (
+              <div key={key} className="pax-row">
+                <div><strong>{t(`home.pax.${kind}`)}</strong><div className="small muted">{t(`home.pax.${kind}_AGE`)}</div></div>
+                <div className="pax-count">
+                  <button type="button" className="btn outlined small" disabled={mix[key] <= min[key]}
+                          aria-label={t("home.pax.less", { kind: t(`home.pax.${kind}`) })}
+                          onClick={() => setMix({ ...mix, [key]: mix[key] - 1 })}><Icon name="remove" size={18} /></button>
+                  <output aria-live="polite">{mix[key]}</output>
+                  <button type="button" className="btn outlined small" disabled={mix[key] >= max[key]}
+                          aria-label={t("home.pax.more", { kind: t(`home.pax.${kind}`) })}
+                          onClick={() => setMix({ ...mix, [key]: mix[key] + 1 })}><Icon name="add" size={18} /></button>
+                </div>
+              </div>
+            ))}
+            <label className="stack" style={{ gap: 4 }}>
+              <span className="small">{t("home.cabin.label")}</span>
+              <select className="input" value={mix.cabin} onChange={(e) => setMix({ ...mix, cabin: e.target.value as Cabin })}>
+                {(["ANY", "ECONOMY", "BUSINESS", "VIP", "ACCESSIBLE"] as Cabin[]).map((c) => <option key={c} value={c}>{t(`home.cabin.${c}`)}</option>)}
+              </select>
+            </label>
+            <p className="small muted">{t("home.pax.limits", { adults: limits.maxAdults, children: limits.maxChildren, seats: limits.maxSeats })}</p>
+            <button type="button" className="btn small" onClick={() => setOpen(false)}>{t("home.done")}</button>
+          </div>
+        )}
+      </div>
+    </Field>
+  );
+}
+
+export interface SearchInitial { from: string; to: string; on: string; pax: number; kind?: JourneyKind; legs?: JourneyLeg[]; mix?: Mix }
 
 // One way, a round trip, or several places one after the other (owner's request, October 2026; 1121). Passengers book
 // up to the platform's seat limit (useSeatLimits); an agency books a group (its setting, 50 by default) and every trip
@@ -45,7 +113,7 @@ export function SearchForm({ initial }: { initial?: SearchInitial }) {
   const ch = useChannel();
   const cities = useCities();
   const journeys = !ch.counter;
-  const { maxPax } = useSeatLimits();
+  const { maxPax, perBooking, maxAdults, maxChildren } = useSeatLimits();
   const [kind, setKind] = useState<JourneyKind>(journeys ? initial?.kind ?? "ONE_WAY" : "ONE_WAY");
   const [from, setFrom] = useState(initial?.from ?? "DAM");
   const [to, setTo] = useState(initial?.to ?? "ALP");
@@ -54,15 +122,20 @@ export function SearchForm({ initial }: { initial?: SearchInitial }) {
   const [legs, setLegs] = useState<JourneyLeg[]>(initial?.kind === "MULTI_CITY" && initial.legs?.length ? initial.legs
     : [{ from: initial?.from ?? "DAM", to: initial?.to ?? "ALP", on: initial?.on ?? localDate(1) }, { from: initial?.to ?? "ALP", to: "", on: localDate(3) }]);
   const [pax, setPax] = useState(initial?.pax ?? 1);
+  const [mix, setMix] = useState<Mix>(initial?.mix ?? { adults: Math.max(1, Math.min(initial?.pax ?? 1, maxAdults)), children: 0, lap: 0, seat: 0, cabin: "ANY" });
+  // a group (an agency's, or a family head's larger limit) gives a number; a traveller counts by type (N34)
+  const byType = !ch.agency && maxPax <= perBooking;
+  const seatsWanted = byType ? mixSeats(mix) : pax;
+  const extra = byType ? mixParams(mix) : "";
   const multiOk = legs.every((l, i) => l.from && l.to && l.from !== l.to && (i === 0 || l.on >= legs[i - 1].on));
   const ok = kind === "MULTI_CITY" ? multiOk : !!from && !!to && from !== to && (kind !== "ROUND_TRIP" || back >= on);
   const submit = (e: FormEvent) => {
     e.preventDefault();
     if (!ok) return;
-    if (kind === "ONE_WAY") nav(ch.link(`/search?from=${from}&to=${to}&on=${on}&pax=${pax}`));
+    if (kind === "ONE_WAY") nav(ch.link(`/search?from=${from}&to=${to}&on=${on}&pax=${seatsWanted}${extra}`));
     else {
       const chosen = kind === "ROUND_TRIP" ? [{ from, to, on }, { from: to, to: from, on: back }] : legs;
-      nav(ch.link(`/search?kind=${kind}&legs=${legsParam(chosen)}&pax=${pax}`));
+      nav(ch.link(`/search?kind=${kind}&legs=${legsParam(chosen)}&pax=${seatsWanted}${extra}`));
     }
   };
   const select = (value: string, set: (v: string) => void, label?: string) => (
@@ -76,7 +149,7 @@ export function SearchForm({ initial }: { initial?: SearchInitial }) {
     if (j === i + 1 && patch.to !== undefined && (!l.from || l.from === all[i].to)) return { ...l, from: patch.to };   // the next trip leaves from here
     return l;
   }));
-  const passengers = (
+  const passengers = byType ? <TravellersPicker mix={mix} setMix={setMix} limits={{ maxSeats: perBooking, maxAdults, maxChildren }} /> : (
     <Field label={t("home.passengers")}>
       {maxPax > 8 ? (
         <input className="input" type="number" min={1} max={maxPax} value={pax} onChange={(e) => setPax(Math.min(maxPax, Math.max(1, Number(e.target.value) || 1)))} />

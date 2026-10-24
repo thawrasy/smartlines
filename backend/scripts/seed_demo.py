@@ -317,7 +317,7 @@ async def seed_carrier_b(conn) -> bool:
                 """INSERT INTO ops.trip (trip_no, company_id, route_id, service_type, vehicle_id, departure_at, arrival_at, status,
                      seats_total, segments_count, currency, base_price, published_at, service_number_id)
                    VALUES ($1, $2, $3, 'DIRECT', $4, $5, $6, 'PUBLISHED', 44, 1, 'SYP', 1500000, now(), $7) RETURNING id""",
-                f"DCB-DRA-DAM-{dep_at:%H%M}/{dep_at:%d%b%y}".upper(), company, route, vehicle, dep_at, arr_at, sn)
+                None, company, route, vehicle, dep_at, arr_at, sn)           # the reference is written by the database (1143)
             await conn.execute(
                 """INSERT INTO ops.trip_stop (trip_id, seq, station_id, sched_arr, sched_dep, fare_from_origin)
                    VALUES ($1, 0, $2, $3, $3, 0), ($1, 1, $4, $5, $5, 1500000)""", tid, dra, dep_at, dam, arr_at)
@@ -460,7 +460,7 @@ async def main():
                         window = (f_dep, f_dep + timedelta(minutes=stops_of[fcode][-1][1]))
                         busy[vid].append(window)
                         reserved[(fcode, fhhmm, day)] = (vid, window)
-                    trip_no = f"DCA-{code}-{dep_at:%H%M}/{dep_at:%d%b%y}".upper()
+                    trip_no = None                                                 # written by the database (1143)
                     tid = await conn.fetchval(
                         """INSERT INTO ops.trip (trip_no, company_id, route_id, service_type, vehicle_id, departure_at, arrival_at, status,
                              seats_total, segments_count, currency, base_price, published_at, service_number_id)

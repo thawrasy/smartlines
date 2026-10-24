@@ -4,7 +4,7 @@ import { api, type TripResult } from "../../api";
 import { useI18n } from "../../i18n";
 import { localDate, minutesBetween } from "../../dates";
 import { CarrierName, Empty, ErrorBox, Icon, Spinner, useLoad } from "../../components/ui";
-import { SearchForm, useSeatLimits } from "./Home";
+import { SearchForm, mixFrom, useSeatLimits } from "./Home";
 import { useChannel } from "../../channel";
 import { useAuth } from "../../auth";
 import { ConnectionOptions } from "./Connections";
@@ -31,8 +31,12 @@ export default function Results() {
   const from = leg?.from ?? params.get("from") ?? "DAM", to = leg?.to ?? params.get("to") ?? "ALP";
   const on = leg?.on ?? params.get("on") ?? localDate(1), pax = Math.max(1, Number(params.get("pax") ?? 1));
   const stops = (params.get("stops") ?? "all") as Stops;
+  // travellers by type and the class (N34), when the form counted them: the server applies the platform's limits
+  const mix = params.has("ad") ? mixFrom(params, pax) : null;
   const res = useLoad(() => api.get<{ trips: TripResult[] }>("/api/trips/search",
-    { origin: from, destination: to, on, passengers: pax, stops: stops === "all" ? undefined : stops }), [from, to, on, pax, stops]);
+    { origin: from, destination: to, on, passengers: pax, stops: stops === "all" ? undefined : stops,
+      ...(mix ? { adults: mix.adults, children: mix.children, infants_lap: mix.lap, infants_seat: mix.seat,
+                  cabin: mix.cabin === "ANY" ? undefined : mix.cabin } : {}) }), [from, to, on, pax, stops, params.toString()]);
   const set = (patch: Record<string, string | null>) => {
     const p = new URLSearchParams(params);
     Object.entries(patch).forEach(([k, v]) => (v === null ? p.delete(k) : p.set(k, v)));
@@ -61,7 +65,7 @@ export default function Results() {
     }
   };
   const form = <SearchForm key={`${from}${to}${on}${pax}${params.get("legs")}`}
-                           initial={{ from: legs[0]?.from ?? from, to: legs[0]?.to ?? to, on: legs[0]?.on ?? on, pax, kind, legs }} />;
+                           initial={{ from: legs[0]?.from ?? from, to: legs[0]?.to ?? to, on: legs[0]?.on ?? on, pax, kind, legs, mix: mix ?? undefined }} />;
 
   return (
     <>

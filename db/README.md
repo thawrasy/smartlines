@@ -15,8 +15,8 @@ supporting index, except references to lookup lists and to the staff member who 
 | Engine | PostgreSQL 16 with PostGIS 3 (extensions: pgcrypto, citext, btree_gist, pg_trgm, postgis in schema `gis`; Docker and CI image `postgis/postgis:16-3.4`, Ubuntu package `postgresql-16-postgis-3`) |
 | Schemas | 26 separate schemas, each with its own privileges |
 | Tables | 565 tables (8 partitioned), 5,974 columns, 1,671 foreign keys |
-| Security | row-level security on 565 of 565 tables, 1,028 policies; 489 triggers, 510 functions |
-| Tests | 963 automated checks against a freshly built database (`db/tests/run.sh`) |
+| Security | row-level security on 565 of 565 tables, 1,028 policies; 490 triggers, 518 functions |
+| Tests | 971 automated checks against a freshly built database (`db/tests/run.sh`) |
 | Design | [Database design and ERD document](../docs/database/) with diagrams in the study's colors |
 | Docs | [Data dictionary](DATA_DICTIONARY.md) · [ERD diagrams](ERD.md) (both generated from the database) |
 <!-- stats:end -->

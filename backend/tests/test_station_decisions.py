@@ -53,7 +53,8 @@ def test_a_trip_made_by_hand_keeps_its_number_on_the_same_route_and_time_and_a_d
     vehicle = str(owner_sql("SELECT v.uid FROM fleet.vehicle v JOIN ops.trip t ON t.vehicle_id = v.id WHERE t.id = $1", trip["id"]))
     # a trip's reference names its route, minute and day, and stays taken when the trip is cancelled: pick minutes no
     # trip of the route has on these days, whichever test or earlier run made it
-    taken = owner_sql("""SELECT coalesce(string_agg(DISTINCT substr(split_part(trip_no, '/', 1), length(split_part(trip_no, '/', 1)) - 3), ','), '')
+    # (the minute is the reference's last four digits before the day: "-1330-24OCT26", or "-1330/24OCT26" before 1143)
+    taken = owner_sql("""SELECT coalesce(string_agg(DISTINCT substring(trip_no from '-([0-9]{4})[-/][0-9]{2}[A-Z]{3}[0-9]{2}$'), ','), '')
                            FROM ops.trip WHERE trip_no LIKE '%-DAM-ALP-%' AND service_date BETWEEN $1::date AND $2::date""",
                       datetime.fromisoformat(day(40)).date(), datetime.fromisoformat(day(42)).date()).split(",")
     free = [f"{h:02d}:{m:02d}" for h in range(4, 6) for m in range(60) if f"{h:02d}{m:02d}" not in taken]

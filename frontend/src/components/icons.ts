@@ -63,6 +63,7 @@ import i_route from "@material-symbols/svg-400/rounded/route.svg?raw";
 import i_badge from "@material-symbols/svg-400/rounded/badge.svg?raw";
 import i_local_shipping from "@material-symbols/svg-400/rounded/local_shipping.svg?raw";
 import i_add from "@material-symbols/svg-400/rounded/add.svg?raw";
+import i_remove from "@material-symbols/svg-400/rounded/remove.svg?raw";
 import i_verified from "@material-symbols/svg-400/rounded/verified.svg?raw";
 import i_shield from "@material-symbols/svg-400/rounded/shield.svg?raw";
 import i_gavel from "@material-symbols/svg-400/rounded/gavel.svg?raw";
@@ -208,6 +209,7 @@ export const ICONS = {
   badge: i_badge,
   local_shipping: i_local_shipping,
   add: i_add,
+  remove: i_remove,
   verified: i_verified,
   shield: i_shield,
   gavel: i_gavel,

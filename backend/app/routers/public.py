@@ -87,8 +87,10 @@ async def reference(request: Request):
             "SELECT code, name, factor, rules FROM pricing.fare_brand WHERE active AND company_id IS NULL ORDER BY sort")
         default_market = (await markets.default(conn)).public()       # visitors see the default market's time and money (1061)
         open_markets = [m.public() for m in await markets.active(conn)]
-        seats = await conn.fetchval("SELECT sales.setting_int('booking.max_seats', 4)")
-    return {"booking": {"max_seats": seats}, "cities": rows(cities), "locales": rows(locales), "platform_fee": get_settings().platform_fee,
+        limits = json.loads(await conn.fetchval("SELECT sales.seat_limits()::text"))
+    # the search field's limits by type of traveller (N34): adults, children, lap infants up to the adults, seats
+    booking = {k: limits[k] for k in ("max_seats", "max_adults", "max_children")}
+    return {"booking": booking, "cities": rows(cities), "locales": rows(locales), "platform_fee": get_settings().platform_fee,
             "market": default_market, "markets": open_markets,
             "countries": [c["code"] for c in countries],
             "fare_brands": [{**row_dict(b), "factor": float(b["factor"]),
@@ -125,17 +127,32 @@ async def stations(request: Request, city: Optional[str] = None):
 async def search(request: Request, origin: str = Query(..., min_length=3, max_length=3),
                  destination: str = Query(..., min_length=3, max_length=3), on: date = Query(...),
                  passengers: int = Query(1, ge=1, le=60),
-                 stops: Optional[Literal["direct", "stops"]] = Query(default=None)):
+                 stops: Optional[Literal["direct", "stops"]] = Query(default=None),
+                 adults: Optional[int] = Query(default=None, ge=0, le=60), children: int = Query(0, ge=0, le=60),
+                 infants_lap: int = Query(0, ge=0, le=60), infants_seat: int = Query(0, ge=0, le=60),
+                 cabin: Optional[Literal["ECONOMY", "BUSINESS", "VIP", "ACCESSIBLE"]] = Query(default=None)):
     """Trips between two cities on a day; direct trips only, or trips with stops only, when asked (1121). A group of up
-    to 60 travellers (an agency's, booked as a journey) sees which trips have the seats for all of them."""
+    to 60 travellers (an agency's, booked as a journey) sees which trips have the seats for all of them.
+
+    The search field counts travellers by type (N34): adults, children, infants on a lap and infants on a seat, within
+    the platform's limits; given, they replace passengers, and a seat is needed for each but the lap infants. cabin
+    keeps the trips with that many free seats of the class (any class when left out)."""
     if origin == destination:
         raise ApiError(422, "SAME_CITY", "origin and destination must differ")
     async with db.transaction(_ctx(request)) as conn:
+        if adults is not None:
+            code = await sales.mix_problem(conn, adults, children, infants_lap, infants_seat)
+            if code or adults < 1:
+                limits = json.loads(await conn.fetchval("SELECT sales.seat_limits()::text"))
+                raise ApiError(422, code or "ADULT_REQUIRED", sales.MIX_MESSAGES.get(code or "", "at least one adult travels"),
+                               max_adults=limits["max_adults"], max_children=limits["max_children"],
+                               max_seats=limits["max_seats"])
+            passengers = adults + children + infants_seat
         recs = await conn.fetch(
             f"""
             WITH pairs AS (
               SELECT DISTINCT ON (t.id)
-                     t.id, t.uid, t.trip_no, t.trip_code, t.company_id, t.service_type, t.has_rest, t.seats_total, t.currency,
+                     t.id, t.uid, t.trip_no, t.trip_code, t.company_id, t.service_type, t.has_rest, t.seats_total, t.currency, t.seat_map,
                      a.seq AS from_seq, b.seq AS to_seq, a.sched_dep AS departs_at, b.sched_arr AS arrives_at,
                      sa.name AS from_station, sb.name AS to_station, sa.code AS from_code, sb.code AS to_code,
                      coalesce(pf.price, b.fare_from_origin - a.fare_from_origin) AS price
@@ -159,20 +176,37 @@ async def search(request: Request, origin: str = Query(..., min_length=3, max_le
                        AND x.seq < p.to_seq AND x.kind = 'STATION') AS stops_between,
                    p.seats_total - (SELECT count(DISTINCT s.seat_no) FROM ops.seat_segment s
                        WHERE s.trip_id = p.id AND s.seg >= p.from_seq AND s.seg < p.to_seq AND NOT {FREE_SEG}) AS seats_left,
+                   -- the free seats of the class asked for: a seat's cabin is kept on the trip's seat map (N34, 1144)
+                   CASE WHEN $4::text IS NULL THEN NULL ELSE
+                     (SELECT count(*) FROM (SELECT (x ->> 'n')::int AS n
+                                              FROM jsonb_array_elements(coalesce(p.seat_map -> 'seats', '[]'::jsonb)) x
+                                             WHERE coalesce(x ->> 'cabin', 'ECONOMY') = $4
+                                            UNION ALL
+                                            SELECT n FROM generate_series(1, p.seats_total) n
+                                             WHERE p.seat_map IS NULL AND $4 = 'ECONOMY') c
+                       WHERE NOT EXISTS (SELECT 1 FROM ops.seat_segment s WHERE s.trip_id = p.id AND s.seat_no = c.n
+                                            AND s.seg >= p.from_seq AND s.seg < p.to_seq AND NOT {FREE_SEG})) END AS cabin_seats_left,
                    (SELECT jsonb_build_object('trip_code', rt.trip_code, 'departs_at', rt.departure_at, 'same_vehicle', x.same_vehicle)
                       FROM ops.trip_return(p.id) x JOIN ops.trip rt ON rt.id = x.trip_id) AS returns_as
               FROM pairs p
               JOIN iam.party cp ON cp.id = p.company_id
               LEFT JOIN net.carrier_code cc ON cc.company_id = p.company_id AND cc.status = 'ACTIVE'
              ORDER BY p.departs_at
-            """, origin.upper(), destination.upper(), on)
+            """, origin.upper(), destination.upper(), on, cabin)
     trips = [row_dict(r) for r in recs]
     for t in trips:
+        t.pop("seat_map", None)
         if isinstance(t.get("returns_as"), str):              # the return on the same vehicle (1119)
             t["returns_as"] = json.loads(t["returns_as"])
         t.pop("id")
         t.pop("company_id")
         t["bookable"] = t["seats_left"] >= passengers
+        if cabin:
+            t["bookable"] = t["bookable"] and t["cabin_seats_left"] >= passengers
+        else:
+            t.pop("cabin_seats_left")
+    if cabin:
+        trips = [t for t in trips if t["cabin_seats_left"] > 0]
     if stops:
         trips = [t for t in trips if (t["stops_between"] == 0) == (stops == "direct")]
     return {"trips": trips}

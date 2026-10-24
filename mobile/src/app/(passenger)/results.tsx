@@ -23,6 +23,7 @@ type Stops = "all" | "direct" | "stops";
 export default function Results() {
   const { t, money, time, date, city } = useI18n();
   const p = useLocalSearchParams<{ origin?: string; destination?: string; on?: string; passengers: string; kind?: string; legs?: string; picked?: string;
+                                   adults?: string; children?: string; infantSeat?: string; cabin?: string;
                                    laps?: string; brand?: string; points?: string }>();
   // the booking card's choices travel on to the checkout: lap infants, the class (fare brand) and paying with points
   const carry = { ...(p.laps ? { laps: p.laps } : {}), ...(p.brand ? { brand: p.brand } : {}), ...(p.points ? { points: p.points } : {}) };
@@ -34,7 +35,9 @@ export default function Results() {
   const origin = leg?.from ?? p.origin ?? "DAM", destination = leg?.to ?? p.destination ?? "ALP", on = leg?.on ?? p.on ?? "";
   const [stops, setStops] = useState<Stops>("all");
   const [showConn, setShowConn] = useState(false);
-  const q = `origin=${origin}&destination=${destination}&on=${on}&passengers=${p.passengers}${stops === "all" ? "" : `&stops=${stops}`}`;
+  // travellers by type and the class (N34), when the booking card counted them
+  const mix = p.adults ? `&adults=${p.adults}&children=${p.children ?? 0}&infants_lap=${p.laps ?? 0}&infants_seat=${p.infantSeat ?? 0}${p.cabin ? `&cabin=${p.cabin}` : ""}` : "";
+  const q = `origin=${origin}&destination=${destination}&on=${on}&passengers=${p.passengers}${mix}${stops === "all" ? "" : `&stops=${stops}`}`;
   const res = useLoad(() => api.get<{ trips: Result[] }>(`/api/trips/search?${q}`), [q]);
   const previous = picked.length ? rememberedTrip(picked[picked.length - 1].uid) : undefined;
   const choose = (x: Result) => {

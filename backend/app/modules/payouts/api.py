@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 from ... import db
 from ...deps import Principal, context_for, require_portal, require_step_up
+from ...money_mode import refuse_in_phase_one
 from . import service
 
 company = APIRouter(prefix="/api/finance", tags=["payouts"])
@@ -46,7 +47,8 @@ class SettlementRunIn(BaseModel):
 @company.get("/balance")
 async def balance(request: Request, pr: Principal = Depends(owner)):
     async with db.transaction(context_for(request, pr)) as conn:
-        return await service.balance(conn, pr)
+        # phase one (N13): the platform holds no money, the page shows figures computed from the sales only
+        return {**await service.balance(conn, pr), "money_mode": await conn.fetchval("SELECT fin.money_mode()")}
 
 
 @company.get("/bank-accounts")
@@ -76,6 +78,7 @@ async def request_withdrawal(body: WithdrawalIn, request: Request, pr: Principal
     require_step_up(pr)                 # a sensitive operation: a recent second factor (1136)
     ctx = context_for(request, pr)
     async with db.transaction(ctx) as conn:
+        await refuse_in_phase_one(conn)
         out = await service.request_withdrawal(conn, pr, body.bank_account_uid, body.amount, body.idempotency_key, ctx)
     if "id" in out:
         request.state.audit = {"action": "withdrawal.request", "object_type": "withdrawal", "object_id": out.pop("id")}

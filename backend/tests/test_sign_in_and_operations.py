@@ -203,11 +203,12 @@ def test_holds_sent_together_cannot_pass_the_limit():
     if t is None:
         e2e.publish_fresh_trip()
         t = e2e.bookable_trip(c)
-    seats = e2e.free_seats(c, t, MAX_LOCKED_SEATS + 4)
+    held_max = max(MAX_LOCKED_SEATS, 2 * c.get("/api/bookings/limits").json()["max_seats"])   # two bookings' worth
+    seats = e2e.free_seats(c, t, held_max + 4)
     clients = _clients_of(c, len(seats))
     with ThreadPoolExecutor(len(seats)) as pool:
         codes = list(pool.map(lambda cs: e2e.hold(cs[0], t, [cs[1]]).status_code, zip(clients, seats)))
-    assert codes.count(201) == MAX_LOCKED_SEATS and set(codes) == {201, 429}       # the count and the lock are one step
+    assert codes.count(201) == held_max and set(codes) == {201, 429}       # the count and the lock are one step
 
 
 def test_the_same_booking_key_sent_together_answers_with_one_booking(pax_wallet):

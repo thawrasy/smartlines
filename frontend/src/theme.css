@@ -641,3 +641,12 @@ tr.clickable:hover td { background: var(--surface-container-low, rgba(10, 91, 21
 .kyc-sections { display: flex; gap: 6px; flex-wrap: wrap; }
 .kyc-actions { position: sticky; bottom: 0; z-index: 5; background: var(--surface); border-top: 1px solid var(--divider); padding: 12px 16px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 @media (max-width: 720px) { .kyc-grid { grid-template-columns: minmax(0, 1fr); } }
+
+/* Travellers and class picker (N34): four counters and the class, in a panel under the field */
+.pax-picker { position: relative; }
+.pax-summary { display: flex; align-items: center; gap: 8px; text-align: start; cursor: pointer; width: 100%; }
+.pax-panel { position: absolute; inset-inline-start: 0; top: calc(100% + 6px); z-index: 20; width: min(340px, calc(100vw - 32px));
+             display: flex; flex-direction: column; gap: 12px; padding: 16px; }
+.pax-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.pax-count { display: flex; align-items: center; gap: 8px; }
+.pax-count output { min-width: 1.5em; text-align: center; font-weight: 700; }

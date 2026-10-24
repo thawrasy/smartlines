@@ -12,7 +12,7 @@ from typing import Optional
 
 import asyncpg
 
-from ... import crypto, db
+from ... import crypto, db, money_mode
 from ...config import get_settings
 from ...errors import ApiError, not_found
 from ...ledger import cash_wallet, company_wallet, platform_wallet, post_txn, user_wallet
@@ -82,6 +82,30 @@ async def seat_limit(conn: asyncpg.Connection, party_id: Optional[int] = None) -
 def check_seats(seats: int, limit: int) -> None:
     if seats > limit:
         raise ApiError(422, "TOO_MANY_SEATS", f"at most {limit} seats per booking", max_seats=limit)
+
+
+MIX_MESSAGES = {"INVALID_PASSENGERS": "travellers are counted from zero", "TOO_MANY_ADULTS": "too many adults for one booking",
+                "TOO_MANY_CHILDREN": "too many children for one booking",
+                "TOO_MANY_LAP_INFANTS": "an infant on a lap needs an adult of their own",
+                "TOO_MANY_SEATS": "too many seats for one booking"}
+
+
+async def mix_problem(conn: asyncpg.Connection, adults: int, children: int, lap_infants: int, seat_infants: int) -> Optional[str]:
+    """Why a party of travellers cannot book together, by the platform's limits (N34, 1144), or None."""
+    return await conn.fetchval("SELECT sales.passenger_mix_problem($1, $2, $3, $4)", adults, children, lap_infants, seat_infants)
+
+
+async def check_mix(conn: asyncpg.Connection, buyer: "Buyer", people: list) -> None:
+    """The platform's limits on adults, children and lap infants of a booking (N34). The seats are checked by check_seats,
+    which knows a family head's larger limit; an agency's group (1121) and a family head booking the family keep theirs."""
+    if buyer.agency_id or (people and all(t.member is not None for t in people)):
+        return
+    lap = sum(t.seat_no is None for t in people)
+    code = await mix_problem(conn, sum(t.category == "ADULT" for t in people), sum(t.category == "CHILD" for t in people),
+                             lap, 0)
+    if code and code != "TOO_MANY_SEATS":
+        limits = json.loads(await conn.fetchval("SELECT sales.seat_limits()::text"))
+        raise ApiError(422, code, MIX_MESSAGES[code], max_adults=limits["max_adults"], max_children=limits["max_children"])
 
 
 async def create_hold(conn: asyncpg.Connection, user_id: int, body: HoldIn, limit: Optional[int] = None) -> dict:
@@ -199,6 +223,7 @@ async def price(conn: asyncpg.Connection, trip: asyncpg.Record, body: BookingIn,
     if not adults and any(b[t.category].needs_adult for t in people if t.category in b):
         raise ApiError(422, "ADULT_REQUIRED", "children and infants travel with an adult on the same booking")
     laps = [t for t in people if t.seat_no is None]
+    await check_mix(conn, buyer, people)
     if laps:
         per = b["INFANT"].max_per_adult or 1
         load = {a.index: 0 for a in adults}
@@ -233,8 +258,9 @@ async def price(conn: asyncpg.Connection, trip: asyncpg.Record, body: BookingIn,
             t.fare -= cut
             left -= cut
     fares_total = sum(t.fare for t in people)
-    fee = get_settings().platform_fee
-    commission = commission_for(fares_total, buyer.commission_bp)
+    phase_one = await money_mode.no_funds(conn)       # no fee or commission while the platform holds no money (N13)
+    fee = 0 if phase_one else get_settings().platform_fee
+    commission = 0 if phase_one else commission_for(fares_total, buyer.commission_bp)
     breakdown = {"pair_price": pair, "fare_brand": brand["code"], "factor": float(brand["factor"]), "fare_per_passenger": adult_fare,
                  "passengers": len(people),
                  "lines": [{"passenger": t.index, "category": t.category, "seat": t.seat_no is not None, "fare": t.fare,

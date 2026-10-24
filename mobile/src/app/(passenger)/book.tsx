@@ -14,7 +14,11 @@ import { MAX_LEGS, journeyLegs, legsParam, type JourneyKind, type JourneyLeg } f
 const dayIso = (n: number) => new Date(Date.now() + n * 86400000).toLocaleDateString("en-CA", { timeZone: zone() });
 const DAYS = 30;
 
-interface Ref { cities: { code: string }[]; fare_brands?: { code: string; rules: { refundable?: boolean; changeable?: boolean; bags_included?: number } }[] }
+interface Ref { cities: { code: string }[]; fare_brands?: { code: string; rules: { refundable?: boolean; changeable?: boolean; bags_included?: number } }[];
+              booking?: { max_seats: number; max_adults?: number; max_children?: number } }
+// the class of the seats (N34): a seat's cabin in the vehicle's layout; any class unless the traveller picks one
+const CABINS = ["ANY", "ECONOMY", "BUSINESS", "VIP", "ACCESSIBLE"] as const;
+type Cabin = (typeof CABINS)[number];
 interface Points { program: { redeem: unknown } | null; account: { balance: number } | null }
 type Sheet = null | { pick: "origin" | "destination" | number } | "dates" | "pax";
 
@@ -34,9 +38,11 @@ export default function Book() {
   const [more, setMore] = useState<JourneyLeg[]>([{ from: "ALP", to: "", on: dayIso(2) }]);
   const [pax, setPax] = useState({ adults: 1, children: 0, infantSeat: 0, infantLap: 0 });
   const [brand, setBrand] = useState("STANDARD");
+  const [cabin, setCabin] = useState<Cabin>("ANY");
   const [withPoints, setWithPoints] = useState(false);
   const [sheet, setSheet] = useState<Sheet>(null);
-  const max = limits.data ?? 4;
+  const max = limits.data ?? ref.data?.booking?.max_seats ?? 9;
+  const maxAdults = ref.data?.booking?.max_adults ?? 4, maxChildren = ref.data?.booking?.max_children ?? 6;
   const seats = pax.adults + pax.children + pax.infantSeat;
   const cities = (ref.data?.cities ?? []).map((c) => c.code);
   const brands = ref.data?.fare_brands?.length ? ref.data.fare_brands : [{ code: "STANDARD", rules: {} }];
@@ -45,14 +51,17 @@ export default function Book() {
   const legs = journeyLegs(kind, { from: origin, to: destination, on }, back, chain);
   const go = () => {
     if (!legs) return;
-    const extra = { passengers: String(seats), laps: String(pax.infantLap), brand, ...(withPoints ? { points: "1" } : {}) };
+    // the travellers by type go to the search too, which applies the platform's limits (N34)
+    const extra = { passengers: String(seats), laps: String(pax.infantLap), brand, adults: String(pax.adults),
+                    children: String(pax.children), infantSeat: String(pax.infantSeat), ...(cabin !== "ANY" ? { cabin } : {}),
+                    ...(withPoints ? { points: "1" } : {}) };
     if (kind === "ONE_WAY") router.push({ pathname: "/results", params: { origin, destination, on, ...extra } });
     else router.push({ pathname: "/results", params: { kind, legs: legsParam(legs), ...extra } });
   };
   const setLeg = (i: number, patch: Partial<JourneyLeg>) => setMore((all) => all.map((l, j) => (j === i ? { ...l, ...patch } : l)));
   const day = (d: string) => date(`${d}T12:00:00Z`);
   const datesText = kind === "ROUND_TRIP" ? range(on, back, locale) : day(on);
-  const paxText = t("book.summary", { n: seats + pax.infantLap, cls: t(`conn.brand.${brand}`) });
+  const paxText = t("book.summary", { n: seats + pax.infantLap, cls: `${t(`book.cabin.${cabin}`)} · ${t(`conn.brand.${brand}`)}` });
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: color.background }} edges={["top", "left", "right"]}>
@@ -146,15 +155,24 @@ export default function Book() {
 
       <BottomSheet open={sheet === "pax"} title={t("book.paxClass")} onClose={() => setSheet(null)} action={t("book.continue")}>
         <Text style={st.section}>{t("book.travellersTitle")}</Text>
-        <Counter title={t("book.adults")} sub={t("book.adultsAge")} value={pax.adults} min={1} max={pax.adults + (max - seats)}
+        <Counter title={t("book.adults")} sub={t("book.adultsAge")} value={pax.adults} min={Math.max(1, pax.infantLap)} max={Math.min(maxAdults, pax.adults + (max - seats))}
                  onChange={(v) => setPax({ ...pax, adults: v, infantLap: Math.min(pax.infantLap, v) })} />
-        <Counter title={t("book.children")} sub={t("book.childrenAge")} value={pax.children} min={0} max={pax.children + (max - seats)}
+        <Counter title={t("book.children")} sub={t("book.childrenAge")} value={pax.children} min={0} max={Math.min(maxChildren, pax.children + (max - seats))}
                  onChange={(v) => setPax({ ...pax, children: v })} />
         <Counter title={t("book.infantLap")} sub={t("book.infantLapSub")} value={pax.infantLap} min={0} max={pax.adults}
                  onChange={(v) => setPax({ ...pax, infantLap: v })} />
         <Counter title={t("book.infantSeat")} sub={t("book.infantSeatSub")} value={pax.infantSeat} min={0} max={pax.infantSeat + (max - seats)}
                  onChange={(v) => setPax({ ...pax, infantSeat: v })} />
         {seats >= max ? <Text style={s.small}>{t("jrn.seatLimit", { n: max })}</Text> : null}
+        <Text style={s.small}>{t("book.limits", { adults: maxAdults, children: maxChildren, seats: max })}</Text>
+        <View style={st.rule} />
+        <Text style={st.section}>{t("book.cabin.label")}</Text>
+        {CABINS.map((c) => (
+          <Pressable key={c} onPress={() => setCabin(c)} accessibilityRole="radio" accessibilityState={{ checked: cabin === c }} style={st.radioRow}>
+            <Text style={[st.counterTitle, { flex: 1 }]}>{t(`book.cabin.${c}`)}</Text>
+            <View style={[st.radio, cabin === c && st.radioOn]}>{cabin === c ? <View style={st.radioDot} /> : null}</View>
+          </Pressable>
+        ))}
         <View style={st.rule} />
         <Text style={st.section}>{t("book.class")}</Text>
         {brands.map((b) => (

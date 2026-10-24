@@ -58,6 +58,8 @@ const ar: Messages = {
     swap: "بدّل المدينتين", choose: "اختر", chooseCity: "اختر مدينة", dates: "تواريخ السفر", departure: "الذهاب",
     paxClass: "المسافرون والدرجة", summary: "{n} مسافر، {cls}", travellersTitle: "المسافرون",
     adults: "البالغون", adultsAge: "12 عاماً وما فوق", children: "الأطفال", childrenAge: "من 2 إلى 11 عاماً",
+    limits: "حتى {adults} بالغين و{children} أطفال و{seats} مقاعد؛ رضيع واحد في حضن كل بالغ.",
+    cabin: { label: "درجة المقعد", ANY: "أي درجة", ECONOMY: "عادية", BUSINESS: "أعمال", VIP: "VIP", ACCESSIBLE: "مقعد لذوي الإعاقة" },
     infantLap: "الرضّع في الحضن", infantLapSub: "أقل من سنتين، بلا مقعد", infantSeat: "الرضّع بمقعد", infantSeatSub: "أقل من سنتين، بمقعد خاص",
     class: "الدرجة", refundable: "قابلة للاسترداد", notRefundable: "غير قابلة للاسترداد", bags: "{n} حقيبة",
     withPoints: "احجز بالنقاط", search: "ابحث عن الرحلات", done: "تم", continue: "المتابعة",

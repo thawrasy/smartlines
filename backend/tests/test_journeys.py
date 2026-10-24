@@ -76,13 +76,13 @@ def test_a_journey_follows_the_order_of_travel_and_books_all_or_nothing():
                                          "idempotency_key": key})
     assert r.status_code in (402, 409, 422), r.text
     assert owner_sql("SELECT count(*) FROM sales.booking WHERE idempotency_key LIKE $1", f"{key}:%") == 0
-    # a passenger books at most four seats at once; a larger group goes through an agency
-    r = pax.post("/api/journeys", json={"kind": "ONE_WAY", "legs": [_leg(out)], "passengers": [_traveller(i) for i in range(5)],
+    # a passenger books at most nine seats at once (N34); a larger group goes through an agency
+    r = pax.post("/api/journeys", json={"kind": "ONE_WAY", "legs": [_leg(out)], "passengers": [_traveller(i) for i in range(10)],
                                         "idempotency_key": uuid.uuid4().hex})
     assert r.status_code == 422 and r.json()["error"]["code"] == "GROUP_THROUGH_AGENCY", r.text
 
 
-def test_an_agency_books_a_tourism_group_on_a_journey_in_bookings_of_four():
+def test_an_agency_books_a_tourism_group_on_a_journey_in_bookings_of_the_seat_limit():
     admin = login("admin@masslak.test", "PLATFORM")
     a = next(a for a in admin.get("/api/admin/agencies").json()["agencies"] if a["legal_name"] == "Demo Travel Agency")
     assert admin.post(f"/api/admin/agencies/{a['uid']}/agreement", json={
@@ -90,8 +90,8 @@ def test_an_agency_books_a_tourism_group_on_a_journey_in_bookings_of_four():
     assert admin.post(f"/api/admin/agencies/{a['uid']}/deposit", json={
         "amount": 60_000_000, "bank_reference": "TEST-JOURNEY", "idempotency_key": uuid.uuid4().hex}).status_code == 200
     agency = login("agency@agency.test", "AGENCY")
-    first = _first("DAM", "HMA", seats=6)
-    group = [_traveller(i) for i in range(6)]
+    first = _first("DAM", "HMA", seats=12)
+    group = [_traveller(i) for i in range(12)]          # two bookings of up to nine seats (N34)
     r = agency.post("/api/agency/journeys", json={"kind": "ONE_WAY", "legs": [_leg(first)], "passengers": group,
                                                   "idempotency_key": uuid.uuid4().hex, "contact_mobile": "+963944000111"})
     assert r.status_code == 201, r.text
@@ -99,7 +99,7 @@ def test_an_agency_books_a_tourism_group_on_a_journey_in_bookings_of_four():
     assert len(j["bookings"]) == 2 and all(b["leg"] == 1 for b in j["bookings"])
     tickets = owner_sql("""SELECT count(*) FROM sales.ticket k JOIN sales.booking b ON b.id = k.booking_id
                             WHERE b.journey_uid = $1::uuid""", j["journey_uid"])
-    assert tickets == 6
+    assert tickets == 12
     assert agency.get(f"/api/agency/journeys/{j['journey_uid']}").json()["kind"] == "ONE_WAY"
     assert agency.get("/api/agency/journeys/options").json()["max_passengers"] == 50
     r = agency.post("/api/agency/journeys", json={"kind": "ONE_WAY", "legs": [_leg(first)], "passengers": [_traveller(i) for i in range(51)],

@@ -22,7 +22,7 @@ SENSITIVE = {
     "modules/loyalty/admin.py": ['@router.post("/settlements/{settlement}/pay"'],
     "modules/agency/api.py": ['@router.post("/staff"'],
     "routers/carrier.py": ['@router.post("/crew"'],
-    "routers/admin.py": ['@router.post("/external-access"'],
+    "routers/admin.py": ['@router.post("/external-access"', '@router.put("/money-mode"'],
     "modules/schedules/api.py": ['@platform.post("/authorities/{code}/members"'],
     "routers/security.py": ['@router.put("/mfa-policy"'],
     "modules/reports/api.py": ['@router.post("/export"'],
