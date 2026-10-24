@@ -1,0 +1,23 @@
+# /etc/fail2ban/jail.local (ADR 0047). The application blocks for minutes; fail2ban bans heavy offenders at the
+# firewall for longer. Never list the admin addresses or a proxy here as banned: they go in ignoreip.
+[DEFAULT]
+banaction = ufw
+ignoreip = 127.0.0.1/8 ::1 172.30.0.0/24 <ADMIN_CIDRS>
+bantime = 1h
+bantime.increment = true
+bantime.maxtime = 1w
+findtime = 10m
+backend = auto
+
+[sshd]
+enabled = true
+backend = systemd
+maxretry = 4
+
+[bankfas-caddy]
+enabled = true
+filter = bankfas-caddy
+logpath = /var/log/caddy/access.log
+maxretry = 120
+findtime = 10m
+bantime = 6h

@@ -246,6 +246,8 @@ sequenceDiagram
 | AL-20 | شذوذ الكشف | أكثر من 20 كشفًا لمستخدم في ساعة | إشعار المشترك، وA3 للمنصة | مدير الحساب، وSEC | BR-PTY-009؛ `SEC.REVEAL_ANOMALY` |
 | AL-21 | الإصدارات | إصدار GA بلا مراجعة بعد 30 يومًا | A2 | OPS | المهمة الأسبوعية (FR-PLT-045، AC-PLT-4) |
 | AL-22 | خط السجلات نفسه | لا سجلات من مضيف لمدة 10 دقائق | A2 | OPS | المخزن المركزي |
+| AL-23 | الحظر الآلي ✅ (ADR 0047) | كل حظر آلي (A2)، وأكثر من 10 في الساعة (A1) | A1 أو A2 | SEC | الحدث `IP_BLOCKED` (SECURITY، HIGH) والتحذير 4801 وبريد `Security:AlertEmails`؛ صفحة الأمن في لوحة المشغّل |
+| AL-24 | مضيف التطبيق | منفذ استماع أو حاوية جديدة، أو تغير `authorized_keys`، أو توقف Caddy أو Docker أو fail2ban أو auditd أو UFW، أو أكثر من 20 عنوانًا محظورًا من سجل Caddy | A1 | SEC وOPS | `tools/host/check_host.sh` بالوسم `bankfas-alert` (DOC-S16 §8) |
 
 - عدّادات الدخول والقفل في AL-04 إلى AL-07 يرسلها التطبيق عند كل نتيجة، بمعرّف المشترك العام ونوع النتيجة فقط، لأن المنصة لا تقرأ `sec.LoginAttempt` تحت RLS. المرجع للتحقيق هو الجدول نفسه.
 - AL-11 لا يعتمد على `cfg.JobRun` وحده، لأن `tp_app` يحذف منه ويعدّله (db/generated/tsql/005_delete_grants.sql:18؛ db/generated/tsql/007_table_grants.sql:87).

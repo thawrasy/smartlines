@@ -44,6 +44,7 @@
 | DOC-S13 | خطة اختبار الأمن والعزل (IDOR على كل نقطة API وASVS المستوى 2 واختبار الاختراق) | P1 | مهندس ضمان الجودة مع مهندس الأمن | مسودة 0.1 مكتوبة (`30-readiness/DOC-S13-security-isolation-test-plan.md`) |
 | DOC-S14 | سجل المتطلبات غير الوظيفية والأمنية بمعرّفات ومعايير قبول | P1 | محلل أعمال (BA) مع مالك المنتج | مدمج في DOC-B03 (مسودة 0.1 مكتوبة) |
 | DOC-S15 | إجراء الاستجابة للحوادث وإخطار الخرق | P2 (قبل الإطلاق) | مسؤول الأمن مع مسؤول حماية البيانات | مسودة 0.1 مكتوبة (`30-readiness/DOC-S15-incident-response-breach-notification.md`) |
+| DOC-S16 | دليل تشغيل مضيف التطبيق وحمايته من الاختراق والإغراق (Linux وDocker وCaddy، دون حافة) | P0 قبل التجربة | مسؤول الأنظمة مع مسؤول الأمن | مسودة 0.1 مكتوبة (`30-readiness/DOC-S16-application-host-network-protection.md`)، وقوالبه في `tools/host/` |
 | DOC-B01 | خطة الاختبار واستراتيجية الاختبار (Test strategy and plan) | P0 قبل S0 | مدير ضمان الجودة (QA lead) مع قائد قاعدة البيانات | مسودة 0.1 مكتوبة (`30-readiness/DOC-B01-test-strategy-and-plan.md`) |
 | DOC-B02 | سجل معايير القبول لكل شريحة S0-S5 (Acceptance criteria register) | P0 قبل S0 لسجل S0 وS1، والباقي قبل S2 | محلل الأعمال (BA lead) مع قائد ضمان الجودة | مسودة 0.1 مكتوبة (`30-readiness/DOC-B02-acceptance-criteria-register-s0-s1.md`) |
 | DOC-B03 | مواصفة المتطلبات غير الوظيفية (NFR specification) | P0 قبل S0 | مهندس الحلول (solution architect) مع مدير التشغيل | مسودة 0.1 مكتوبة (`30-readiness/DOC-B03-nfr-specification.md`) |

@@ -1,0 +1,19 @@
+# /etc/audit/rules.d/60-bankfas.rules (ADR 0047, DOC-S16 section 7). Load with `augenrules --load`.
+-w /etc/passwd -p wa -k identity
+-w /etc/shadow -p wa -k identity
+-w /etc/group -p wa -k identity
+-w /etc/sudoers -p wa -k sudo
+-w /etc/sudoers.d/ -p wa -k sudo
+-w /etc/ssh/sshd_config -p wa -k ssh
+-w /etc/ssh/sshd_config.d/ -p wa -k ssh
+-w /root/.ssh/ -p wa -k ssh_keys
+-w /home/ -p wa -k home_keys
+-w /etc/docker/ -p wa -k docker
+-w /usr/bin/docker -p x -k docker_cli
+-w /opt/bankfas/ -p wa -k bankfas_config
+-w /etc/caddy/ -p wa -k caddy
+-w /etc/ufw/ -p wa -k firewall
+-w /etc/fail2ban/ -p wa -k firewall
+-w /var/log/caddy/ -p d -k log_delete
+-a always,exit -F arch=b64 -S execve -F euid=0 -F auid>=1000 -F auid!=unset -k root_cmd
+-a always,exit -F arch=b64 -S init_module,finit_module,delete_module -k modules

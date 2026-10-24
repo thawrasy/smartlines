@@ -1,0 +1,47 @@
+# /etc/caddy/Caddyfile (ADR 0047, DOC-S16 section 5). Check with `caddy validate --config /etc/caddy/Caddyfile`.
+# Caddy runs on the host, not in a container, so UFW and fail2ban see its traffic (Docker's published ports bypass UFW).
+# Caddy is the edge: it ends TLS, writes the access log as JSON and passes the client address to the API in
+# X-Forwarded-For. It ignores an X-Forwarded-For sent by a client, because no trusted_proxies are set here.
+{
+	email <OPS_MAILBOX>
+	servers {
+		timeouts {
+			read_header 10s
+			read_body 30s
+			write 60s
+			idle 2m
+		}
+		max_header_size 32KB
+	}
+}
+
+(bankfas) {
+	encode zstd gzip
+	request_body {
+		max_size 25MB
+	}
+	log {
+		output file /var/log/caddy/access.log {
+			roll_size 50MiB
+			roll_keep 30
+			roll_keep_for 2160h
+		}
+		format json
+	}
+	reverse_proxy 127.0.0.1:8080 {
+		header_up -X-Forwarded-Host
+		transport http {
+			dial_timeout 5s
+			response_header_timeout 60s
+		}
+	}
+}
+
+# The tenant portals (<code>.<domain>) and the operator panel (admin.<domain>). A wildcard certificate needs the DNS
+# challenge, so Caddy is built with the module of the DNS provider (xcaddy, caddy-dns/<provider>).
+*.<DOMAIN>, <DOMAIN> {
+	tls {
+		dns <DNS_PROVIDER> <DNS_TOKEN_ENV>
+	}
+	import bankfas
+}

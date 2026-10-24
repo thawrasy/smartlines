@@ -1,0 +1,7 @@
+{
+  "log-driver": "json-file",
+  "log-opts": { "max-size": "50m", "max-file": "5", "compress": "true" },
+  "no-new-privileges": true,
+  "live-restore": true,
+  "icc": false
+}

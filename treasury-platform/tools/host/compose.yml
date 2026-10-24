@@ -1,0 +1,26 @@
+# /opt/bankfas/compose.yml (ADR 0047): the API (and later the worker) on one fixed network. Caddy runs on the host;
+# the API publishes its port on loopback only, so nothing but Caddy reaches it. Docker's iptables rules bypass UFW,
+# so no container publishes a port on a public address.
+# Caddy's requests reach the API from the gateway of this network (172.30.0.1): that is the only trusted proxy.
+services:
+  api:
+    image: <REGISTRY>/bankfas-api:<VERSION>
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    ports: ["127.0.0.1:8080:8080"]
+    environment:
+      ASPNETCORE_URLS: http://0.0.0.0:8080
+      Security__TrustedProxies__0: 172.30.0.1
+      Security__AlertEmails__0: <SECURITY_MAILBOX>
+    env_file: /opt/bankfas/api.env          # the database and key settings; root-only, never in the repository
+    volumes:
+      - /opt/bankfas/secrets:/run/secrets:ro
+      - /srv/bankfas/files:/srv/bankfas/files
+    networks: [app]
+networks:
+  app:
+    ipam:
+      config: [{ subnet: 172.30.0.0/24, gateway: 172.30.0.1 }]
