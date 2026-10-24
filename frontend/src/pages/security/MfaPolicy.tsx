@@ -105,6 +105,43 @@ export default function MfaPolicy() {
           </section>
         </>
       )}</Loaded>
+      <IdlePolicy />
     </div>
+  );
+}
+
+/** Idle sign-out (owner's note, 1146): minutes without activity after which each portal signs its users out. */
+function IdlePolicy() {
+  const { t } = useI18n();
+  const toast = useToast();
+  const state = useLoad(() => api.get<{ minutes: Record<Portal, number>; min: number; max: number }>("/api/security/idle-policy"));
+  const [m, setM] = useState<Record<Portal, number> | null>(null);
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState<unknown>(null);
+  useEffect(() => { if (state.data) setM(state.data.minutes); }, [state.data]);
+  const save = async () => {
+    if (!m) return;
+    setError(null);
+    try { await api.put("/api/security/idle-policy", { minutes: m, reason: reason.trim() }); toast(t("idle.saved")); setReason(""); state.reload(); }
+    catch (e) { setError(e); }
+  };
+  return (
+    <section className="card stack" aria-labelledby="idle-policy">
+      <div><h3 id="idle-policy">{t("idle.policyTitle")}</h3><p className="small muted">{t("idle.policySub")}</p></div>
+      <Loaded state={state}>{(v) => m && (
+        <>
+          <div className="grid cols-3">
+            {PORTALS.map((portal) => (
+              <Field key={portal} label={`${t(`security.mfa.portal.${portal}`)} · ${t("idle.minutes")}`}>
+                <input className="input ltr" type="number" min={v.min} max={v.max} value={m[portal]} onChange={(e) => setM({ ...m, [portal]: Number(e.target.value) })} />
+              </Field>
+            ))}
+          </div>
+          <Field label={t("idle.reason")}><input className="input" maxLength={300} value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
+          <ErrorBox error={error} />
+          <div className="row"><button className="btn" disabled={reason.trim().length < 5} onClick={() => void save()}><Icon name="save" />{t("common.save")}</button></div>
+        </>
+      )}</Loaded>
+    </section>
   );
 }

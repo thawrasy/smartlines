@@ -1316,5 +1316,21 @@
     "web": "a web browser",
     "android": "the Android app",
     "ios": "the iPhone app"
+  },
+  "agency_cash.received": {
+    "subject": "{carrier_name} recorded receiving {currency} {amount}",
+    "body": "{carrier_name} recorded receiving {currency} {amount} from your agency for its cash sales (reference {reference}). Still owed to this carrier: {currency} {owed_after}."
+  },
+  "payment_activation.contracted": {
+    "subject": "Payment gateway contract signed: {option}",
+    "body": "The platform has signed the payment gateway contract that lets your travellers pay by {option}. It goes live on your trips once the platform activates it; you will be told then. Basis: {basis}."
+  },
+  "payment_activation.active": {
+    "subject": "Travellers can now pay you by {option}",
+    "body": "Payment by {option} is now active on your trips. The gateway settles into the platform's bank account and your share is paid to you after each trip, as with every electronic payment. Basis: {basis}."
+  },
+  "payment_activation.suspended": {
+    "subject": "Payment by {option} paused on your trips",
+    "body": "The platform has paused payment by {option} on your trips; travellers pay in the other open ways meanwhile. Basis: {basis}."
   }
 }

@@ -11,6 +11,8 @@ export interface RequestOptions {
   signal?: AbortSignal;
   /** Milliseconds before an unanswered request fails with TIMEOUT: 30 s for reads, 60 s for changes by default. */
   timeoutMs?: number;
+  /** A request the screen sends by itself (a refresh on a timer): it does not count as the user's activity (1146). */
+  background?: boolean;
 }
 
 // A request never waits without end (review of 1.47.0, R-35): past its deadline it fails with TIMEOUT, which the
@@ -26,7 +28,8 @@ async function request<T>(method: string, path: string, body?: unknown, opts: Re
     res = await fetch(path, {
       method,
       credentials: "same-origin",
-      headers: { "X-Masslak-Client": "web", ...(body !== undefined && !form ? { "Content-Type": "application/json" } : {}) },
+      headers: { "X-Masslak-Client": "web", ...(opts.background ? { "X-Masslak-Background": "1" } : {}),
+                 ...(body !== undefined && !form ? { "Content-Type": "application/json" } : {}) },
       body: body === undefined ? undefined : form ? body : JSON.stringify(body),
       signal: deadline.signal,
     });
@@ -74,6 +77,8 @@ export interface Me {
   market?: Market;
   roles: string[]; permissions: string[];
   mfa?: { enrolled: boolean; required: boolean };
+  /** Minutes without activity after which the session ends (1146). */
+  idle_minutes?: number;
 }
 
 export type MfaStep = "VERIFY" | "ENROLL";

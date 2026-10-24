@@ -6,6 +6,7 @@ paying are offered is decided by platform administration (fin.payment_method, 10
 """
 import json
 import uuid
+from typing import Optional
 
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
@@ -76,10 +77,14 @@ async def create_booking(body: BookingIn, request: Request, pr: Principal = Depe
 
 
 @router.get("/payments/booking-options")
-async def booking_options(request: Request, pr: Principal = Depends(passenger)):
-    """The ways of paying a booking that platform administration has opened, with the providers behind them."""
+async def booking_options(request: Request, trip_uid: Optional[uuid.UUID] = None, pr: Principal = Depends(passenger)):
+    """The ways of paying a booking that platform administration has opened, with the providers behind them; with a
+    trip, only the gateway options its carrier takes (1145)."""
     async with db.transaction(context_for(request, pr)) as conn:
-        return {"options": await options.booking_options(conn, options.channel_of(sales_channel(request)))}
+        carrier = await conn.fetchval("SELECT company_id FROM ops.trip WHERE uid = $1", trip_uid) if trip_uid else None
+        if trip_uid and carrier is None:
+            raise not_found("trip")
+        return {"options": await options.booking_options(conn, options.channel_of(sales_channel(request)), carrier)}
 
 
 class BookingPaymentIn(BaseModel):

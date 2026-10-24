@@ -1,7 +1,8 @@
 """Phase one, no money with the platform (owner's decision N13, 1145).
 
 While platform.money_mode is NO_FUNDS the platform holds nobody's money: bookings are paid in cash at the carrier's
-counter, wallet top-ups and withdrawals stop, and there is no platform fee or commission. The database closes the
+counter or at an agency (AGENCY_CASH, the agency settles with the carrier itself), wallet top-ups and withdrawals stop,
+and there is no platform fee; an agency keeps the commission agreed with the carrier. The database closes the
 payment options that hold money (fin.set_money_mode); the API refuses the money movements here."""
 import asyncpg
 

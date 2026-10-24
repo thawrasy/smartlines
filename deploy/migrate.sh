@@ -41,6 +41,13 @@ SQL
   *) echo "MASSLAK_ENVIRONMENT must be development, staging or production" >&2; exit 1 ;;
 esac
 
+# the money phase of deploy/.env (N13): applied while nobody has set it in administration, never over their choice
+case "${MASSLAK_MONEY_MODE:-}" in
+  NO_FUNDS|FULL) psql -d "$DB" -v ON_ERROR_STOP=1 -qAt -v mode="$MASSLAK_MONEY_MODE" -c "SELECT fin.apply_money_mode_default(:'mode')" ;;
+  "") ;;
+  *) echo "MASSLAK_MONEY_MODE must be NO_FUNDS or FULL" >&2; exit 1 ;;
+esac
+
 # Passwords and keys reach psql through its environment (\getenv), never its command line, which every process on the
 # host can read (reviews of release 1.49.0).
 : "${MASSLAK_API_PASSWORD:?}" "${MASSLAK_AUDIT_PASSWORD:?}" "${MASSLAK_REPLICATION_PASSWORD:?}"

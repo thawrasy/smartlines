@@ -343,7 +343,7 @@ const ar: Messages = {
     ACCOUNT_DEACTIVATED: "هذا الحساب مغلق. سجّل الدخول بالبيانات نفسها لفتحه من جديد.", ACCOUNT_LOCKED: "محاولات كثيرة، الحساب مقفل لمدة 15 دقيقة.", MFA_CODE_INVALID: "الرمز غير صحيح.", MFA_METHOD_OFF: "طريقة استلام الرموز هذه غير مفعّلة.", MFA_MOBILE_REQUIRED: "أدخل رقم الجوال لاستلام الرموز.", MFA_RESEND_TOO_SOON: "انتظر قليلاً قبل طلب رمز آخر.", MFA_TOO_MANY_CODES: "رموز كثيرة خلال الساعة الأخيرة. استخدم طريقة أخرى أو حاول لاحقاً.", MFA_SEND_FAILED: "تعذّر إرسال الرمز. حاول مجدداً أو استخدم طريقة أخرى.", MFA_METHOD_NOT_ENROLLED: "هذه الطريقة غير مُعدّة لحسابك.", UNKNOWN_STOP: "هذه المحطة ليست من محطات الرحلة.",
     SEAT_TAKEN: "حُجز أحد المقاعد للتو، اختر من جديد.", HOLD_EXPIRED: "انتهت مدة الحجز المؤقت، اختر مقاعدك من جديد.",
     INSUFFICIENT_BALANCE: "رصيد المحفظة غير كافٍ.", NAME_PARTS_REQUIRED: "يحتاج المواطن السوري إلى الأسماء الأربعة.",
-    DEVICE_REVOKED: "سُجّل خروج هذا الجهاز من حسابك.", SESSION_EXPIRED: "سجّل الدخول من جديد.",
+    DEVICE_REVOKED: "سُجّل خروج هذا الجهاز من حسابك.", SESSION_EXPIRED: "سجّل الدخول من جديد.", SESSION_IDLE: "سُجّل خروجك بعد فترة دون نشاط. سجّل الدخول من جديد.",
     RATE_LIMITED: "محاولات كثيرة، انتظر قليلاً.", TICKET_NOT_YET: "تُفتح التذكرة قبل المغادرة بثلاث ساعات.", CONNECTION_REQUIRED: "اتصل بالإنترنت لعرض هذه التذكرة.", generic: "حدث خطأ، أعد المحاولة.",
   },
   // generated from the website's locale files (scratch generator; keep in step with frontend/src/i18n)

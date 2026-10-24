@@ -103,7 +103,7 @@ def test_switches_are_listed_and_guarded(admin, pax, counter):
     codes = [o["code"] for o in pax.get("/api/payments/booking-options").json()["options"]]
     assert codes == ["WALLET", "PAY_LATER"]                  # card, instalments and financing wait for a contract
     listed = admin.get("/api/admin/payment-methods").json()
-    assert {m["code"] for m in listed["methods"]} == {"WALLET", "AGENCY_BALANCE", "CASH_COUNTER", "PAY_LATER", "CARD", "INSTALLMENT", "FINANCING"}
+    assert {m["code"] for m in listed["methods"]} == {"WALLET", "AGENCY_BALANCE", "AGENCY_CASH", "CASH_COUNTER", "PAY_LATER", "CARD", "INSTALLMENT", "FINANCING"}
     assert listed["can_change"] is True
     # an electronic option cannot open without an active provider behind it
     r = switch(admin, "CARD", True)

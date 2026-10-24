@@ -1827,9 +1827,9 @@ SET ROLE masslak_app;
 -- Payment options switched by the platform (1056)
 -- =====================================================================
 RESET ROLE;
-SELECT pg_temp.ok((SELECT count(*) FROM fin.payment_method) = 7
+SELECT pg_temp.ok((SELECT count(*) FROM fin.payment_method) = 8
   AND (SELECT array_agg(code ORDER BY sort_order) FROM fin.payment_method WHERE enabled) = '{WALLET,AGENCY_BALANCE,CASH_COUNTER,PAY_LATER}',
-  'Payment options: a new install opens the wallet, agency balance, counter cash and pay later; cards, instalments and financing wait for a contract');
+  'Payment options: a new install opens the wallet, agency balance, counter cash and pay later; agency cash waits for phase one; cards, instalments and financing for a contract');
 SELECT pg_temp.expect_error($$UPDATE fin.payment_method SET enabled = true WHERE code = 'CARD'$$, 'NO_ACTIVE_PROVIDER',
   'Payment options: card payment does not open without an active card provider for bookings');
 BEGIN;
@@ -3764,8 +3764,42 @@ SELECT fin.set_money_mode('FULL', 'Licensed to hold funds');
 SELECT pg_temp.ok(fin.money_mode() = 'FULL' AND (SELECT enabled FROM fin.payment_method WHERE code = 'WALLET')
                   AND (SELECT enabled FROM fin.payment_method WHERE code = 'AGENCY_BALANCE'),
   'Money phase (1145): back to FULL, the options open before phase one open again');
+SELECT pg_temp.ok(NOT (SELECT enabled FROM fin.payment_method WHERE code = 'AGENCY_CASH'),
+  'Money phase (1145): an agency cash sale closes with phase one, as it was before');
+-- a server's default applies only while no person has decided; the installer applies it as the database owner
+RESET ROLE;
+SELECT fin.apply_money_mode_default('NO_FUNDS');
+SELECT pg_temp.ok(fin.money_mode() = 'FULL', 'Money phase (1145): the server default does not override a decision a person took');
+UPDATE sys.setting SET value = '{"mode": "FULL"}'::jsonb WHERE key = 'platform.money_mode';     -- as a fresh database has it
+SELECT fin.apply_money_mode_default('NO_FUNDS');
+SET LOCAL ROLE masslak_app;
+SELECT pg_temp.expect_error($$SELECT fin.apply_money_mode_default('FULL')$$, 'permission denied',
+  'Money phase (1145): the application cannot apply the server default itself');
+SELECT pg_temp.ok(fin.money_mode() = 'NO_FUNDS' AND (SELECT enabled FROM fin.payment_method WHERE code = 'AGENCY_CASH')
+                  AND NOT (SELECT enabled FROM fin.payment_method WHERE code = 'AGENCY_BALANCE'),
+  'Money phase (1145): the server default starts phase one: agencies sell for cash, their balance closes');
+-- an agency's cash: the carrier records what it receives; nothing is owed before a sale
+SELECT pg_temp.ok(fin.agency_cash_owed(:ag1, :ca, 'SYP') = 0, 'Agency cash (1145): nothing owed without cash sales');
+SELECT sys.set_context(:ua, :ca, 'COMPANY');
+SELECT pg_temp.expect_error(format($$INSERT INTO fin.agency_cash_settlement (agency_id, carrier_id, currency, amount, reference, confirmed_by)
+                                    VALUES (%s, %s, 'SYP', 1000, 'R-OTHER', %s)$$, :ag1, :cb, :ua), 'row-level security',
+  'Agency cash (1145): a carrier records receipts for itself only');
+SELECT pg_temp.ok(NOT fin.carrier_takes(:ca, 'CARD'), 'Gateway (1145): a carrier takes no gateway option until the platform activates it');
+SELECT pg_temp.expect_error(format($$INSERT INTO fin.carrier_payment_activation (carrier_id, option_code, status, basis, changed_by)
+                                    VALUES (%s, 'CARD', 'ACTIVE', 'self service', %s)$$, :ca, :ua), 'row-level security',
+  'Gateway (1145): only the platform activates an option for a carrier');
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+INSERT INTO fin.carrier_payment_activation (carrier_id, option_code, status, basis, activated_at, changed_by)
+VALUES (:ca, 'CARD', 'ACTIVE', 'Contract 7/2026', now(), :uadmin);
+SELECT pg_temp.ok(fin.carrier_takes(:ca, 'CARD') AND NOT fin.carrier_takes(:cb, 'CARD'),
+  'Gateway (1145): activated for one carrier, not for another');
 ROLLBACK;
 SET ROLE masslak_app;
+
+-- Idle sign-out (1146): the period of each portal is a platform setting, 30 minutes for a portal it does not name
+SELECT pg_temp.ok(iam.idle_minutes('PLATFORM') = 15 AND iam.idle_minutes('PASSENGER') = 60 AND iam.idle_minutes('DRIVER') = 240
+                  AND iam.idle_minutes('NOWHERE') = 30,
+  'Idle sign-out (1146): each portal has its period; an unknown portal gets 30 minutes');
 
 -- Charter (1123): carriers hire out vehicles and whole trips on their terms; requests are priced, paid and their seats held
 BEGIN;

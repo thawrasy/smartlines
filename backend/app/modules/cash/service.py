@@ -335,7 +335,7 @@ async def decide_remittance(conn: asyncpg.Connection, user_id: int, rid: int, ap
 
 
 # ------------------------------------------------------------------ the switches
-ALLOWED_CHANNELS = {"WALLET": {"WEB", "APP"}, "AGENCY_BALANCE": {"AGENCY"}, "CASH_COUNTER": {"COUNTER"},
+ALLOWED_CHANNELS = {"WALLET": {"WEB", "APP"}, "AGENCY_BALANCE": {"AGENCY"}, "AGENCY_CASH": {"AGENCY"}, "CASH_COUNTER": {"COUNTER"},
                     "PAY_LATER": {"WEB", "APP"}, "CARD": {"WEB", "APP"}, "INSTALLMENT": {"WEB", "APP"}, "FINANCING": {"WEB", "APP"}}
 CONFIG_KEYS = {
     "CASH_COUNTER": {"default_credit_limit": (0, 100_000_000_000)},

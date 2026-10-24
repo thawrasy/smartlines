@@ -36,10 +36,13 @@ class Buyer:
     contact_mobile: Optional[str] = None
     cash_company_id: Optional[int] = None   # set for a carrier's counter: the cash taken is owed on its cash wallet (6.5)
     station_id: Optional[int] = None        # set for a station counter: sells the carriers that gave it the BOOKING right (1110)
+    agency_cash: bool = False               # an agency's cash sale (N13, 1145): owed on its cash wallet, settled with the carrier
 
     async def wallet(self, conn: asyncpg.Connection, currency: str) -> asyncpg.Record:
         if self.cash_company_id:
             return await cash_wallet(conn, self.cash_company_id, currency)
+        if self.agency_id and self.agency_cash:
+            return await cash_wallet(conn, self.agency_id, currency)
         if self.agency_id:
             return await company_wallet(conn, self.agency_id, currency, label="Agency wallet")
         return await user_wallet(conn, self.party_id, currency)
@@ -47,7 +50,9 @@ class Buyer:
     def default_option(self) -> str:
         if self.cash_company_id:
             return "CASH_COUNTER"
-        return "AGENCY_BALANCE" if self.agency_id else "WALLET"
+        if self.agency_id:
+            return "AGENCY_CASH" if self.agency_cash else "AGENCY_BALANCE"
+        return "WALLET"
 
 
 def round_unit(amount: float) -> int:
@@ -258,9 +263,9 @@ async def price(conn: asyncpg.Connection, trip: asyncpg.Record, body: BookingIn,
             t.fare -= cut
             left -= cut
     fares_total = sum(t.fare for t in people)
-    phase_one = await money_mode.no_funds(conn)       # no fee or commission while the platform holds no money (N13)
-    fee = 0 if phase_one else get_settings().platform_fee
-    commission = 0 if phase_one else commission_for(fares_total, buyer.commission_bp)
+    # no platform fee while the platform holds no money (N13); an agency keeps the commission agreed with the carrier
+    fee = 0 if await money_mode.no_funds(conn) else get_settings().platform_fee
+    commission = commission_for(fares_total, buyer.commission_bp)
     breakdown = {"pair_price": pair, "fare_brand": brand["code"], "factor": float(brand["factor"]), "fare_per_passenger": adult_fare,
                  "passengers": len(people),
                  "lines": [{"passenger": t.index, "category": t.category, "seat": t.seat_no is not None, "fare": t.fare,
@@ -360,6 +365,7 @@ async def create_booking(conn: asyncpg.Connection, ctx: db.Context, buyer: Buyer
 
     # The payment option must be open on this channel for this amount (1056); a reserved one gets its pay-by time
     m = await options.require(conn, option, options.channel_of(buyer.channel), total)
+    await options.require_carrier_takes(conn, trip["company_id"], option)      # the gateway goes carrier by carrier (1145)
     reserve = option in options.RESERVED
     pay_by = None
     if reserve:
@@ -396,7 +402,7 @@ async def create_booking(conn: asyncpg.Connection, ctx: db.Context, buyer: Buyer
     else:
         async with db.system_scope(conn, ctx):
             wallet = await fam.funding_wallet(conn, membership.family, funding, trip["currency"])
-    if wallet is not None and not buyer.cash_company_id:
+    if wallet is not None and not (buyer.cash_company_id or buyer.agency_cash):     # cash taken goes negative on a cash wallet
         available = wallet["balance"] - wallet["hold_balance"]      # money held for a pending withdrawal is not spendable
         if available < total:
             raise ApiError(402, "INSUFFICIENT_BALANCE", "wallet balance is not enough", required=total, balance=available)

@@ -195,6 +195,51 @@ async def set_mfa_policy(body: MfaPolicyIn, request: Request, pr: Principal = De
     return out
 
 
+# ---------------------------------------------------------------- idle sign-out (owner's note, 1146)
+IDLE_PORTALS = ("PLATFORM", "INSPECTOR", "OPERATOR", "DRIVER", "AGENCY", "STATION", "PASSENGER")
+
+
+class IdlePolicyIn(BaseModel):
+    minutes: dict[Literal["PLATFORM", "INSPECTOR", "OPERATOR", "DRIVER", "AGENCY", "STATION", "PASSENGER"], int]
+    reason: str = Field(min_length=5, max_length=300)
+
+
+async def _idle_view(conn) -> dict:
+    v = await conn.fetchval("SELECT value FROM sys.setting WHERE key = 'auth.idle'")
+    v = json.loads(v) if isinstance(v, str) else (v or {})
+    return {"minutes": {p: int((v.get("minutes") or {}).get(p, 30)) for p in IDLE_PORTALS}, "min": 5, "max": 1440}
+
+
+@router.get("/idle-policy")
+async def get_idle_policy(request: Request, pr: Principal = Depends(can_policy)):
+    async with db.transaction(context_for(request, pr)) as conn:
+        return await _idle_view(conn)
+
+
+@router.put("/idle-policy")
+async def set_idle_policy(body: IdlePolicyIn, request: Request, pr: Principal = Depends(can_policy)):
+    """Minutes without activity after which a session of each portal ends (5 to 1440). A shorter period applies to the
+    sessions already open at their next request."""
+    require_step_up(pr)
+    if set(body.minutes) != set(IDLE_PORTALS) or any(not 5 <= m <= 1440 for m in body.minutes.values()):
+        raise ApiError(422, "INVALID_SETTING", "give every portal a period of 5 to 1440 minutes", min=5, max=1440)
+    async with db.transaction(context_for(request, pr)) as conn:
+        before = await conn.fetchval("SELECT value::text FROM sys.setting WHERE key = 'auth.idle'")
+        await conn.execute(
+            """INSERT INTO sys.setting (key, value, description, updated_by)
+               VALUES ('auth.idle', $1::jsonb, 'Idle sign-out: minutes per portal', $2)
+               ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now(), updated_by = EXCLUDED.updated_by""",
+            json.dumps({"minutes": body.minutes}), pr.user_id)
+        from ..modules.notify.outbox import emit
+        await emit(conn, "security.idle_policy_changed", "setting", pr.user_id,
+                   {"before": json.loads(before) if before else None, "after": {"minutes": body.minutes},
+                    "reason": body.reason, "changed_by": pr.user_id})
+        out = await _idle_view(conn)
+    request.state.audit = {"action": "security.idle_policy", "object_type": "setting", "object_id": None,
+                           "reason": body.reason[:300]}
+    return out
+
+
 @router.get("/statements")
 async def top_statements(request: Request, order: Literal["TOTAL", "MEAN", "CALLS", "READS"] = "TOTAL",
                          limit: int = Query(20, ge=1, le=100), min_calls: int = Query(1, ge=1),

@@ -342,6 +342,11 @@
   "crm.tg_case_event_effects()": [],
   "crm.tg_case_lifecycle()": [],
   "crm.tg_trip_rating_rules()": [],
+  "fin.agency_cash_owed(bigint,bigint,character)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "fin.apply_money_mode_default(text)": [],
   "fin.approval_levels(text,bigint)": [
    "masslak_api",
    "masslak_app"
@@ -357,6 +362,10 @@
    "masslak_audit",
    "masslak_auditor",
    "masslak_readonly"
+  ],
+  "fin.carrier_takes(bigint,text)": [
+   "masslak_api",
+   "masslak_app"
   ],
   "fin.cash_owed(bigint,character)": [
    "masslak_api",
@@ -415,6 +424,7 @@
    "masslak_api",
    "masslak_app"
   ],
+  "fin.switch_money_mode(text,text,bigint)": [],
   "fin.tg_approval_decision()": [],
   "fin.tg_ledger_entry_apply()": [],
   "fin.tg_ledger_txn_balanced()": [],

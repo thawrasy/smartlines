@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**565 tables, 5974 columns, in 26 schemas.**
+**567 tables, 5994 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -16,7 +16,7 @@ Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant i
 - [`pricing` — Pricing, taxes, commissions, campaigns and loyalty](#pricing) (38 tables)
 - [`ops` — Trips, inventory, operations, shuttle rides, tracking and incidents](#ops) (39 tables)
 - [`sales` — Channels, bookings, passengers, tickets, subscriptions and travel documents](#sales) (34 tables)
-- [`fin` — Wallets, ledger, payments, allocation, settlement and float](#fin) (35 tables)
+- [`fin` — Wallets, ledger, payments, allocation, settlement and float](#fin) (37 tables)
 - [`acct` — Simplified accounting, e-invoicing and tax profiles](#acct) (37 tables)
 - [`bill` — Carrier subscriptions, metering and platform invoices](#bill) (7 tables)
 - [`crm` — Complaints, ratings, notifications, the AI assistant and the contact center](#crm) (19 tables)
@@ -4509,6 +4509,23 @@ Travel documents of one international ticket; numbers are encrypted (11.9, D.1.4
 <a id="fin"></a>
 ## `fin` — Wallets, ledger, payments, allocation, settlement and float
 
+### `fin.agency_cash_settlement` 🛡️
+
+Cash an agency paid a carrier for its cash sales, as the carrier recorded receiving it (N13, 1145)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `agency_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `carrier_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ |  |
+| `amount` | `bigint` | ✱ |  |
+| `reference` | `text` | ✱ |  |
+| `ledger_txn_id` | `bigint` | 🔗 `fin.ledger_txn`  |  |
+| `confirmed_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `confirmed_at` | `timestamp with time zone` | ✱ | `now()` |
+
 ### `fin.approval_decision` 🛡️ 🔒
 
 One person's decision at one level of a request; one person decides one level at most, never their own request (1074)
@@ -4652,6 +4669,23 @@ Wallet top-up by bank transfer with a unique reference and automatic matching
 | `expires_at` | `timestamp with time zone` |  |  |
 | `matched_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `statement_line_id` | `bigint` | 🔗 `fin.bank_statement_line`  |  |
+
+### `fin.carrier_payment_activation` 🛡️
+
+Gateway payment options the platform opened for each carrier, step by step (N13 phase two, 1145)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `carrier_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `option_code` | `text` | 🔗 `fin.payment_method` ✱ |  |
+| `status` | `text` | ✱ |  |
+| `basis` | `text` | ✱ |  |
+| `contracted_at` | `timestamp with time zone` | ✱ | `now()` |
+| `activated_at` | `timestamp with time zone` |  |  |
+| `changed_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `changed_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `fin.cash_credit_limit` 🛡️
 

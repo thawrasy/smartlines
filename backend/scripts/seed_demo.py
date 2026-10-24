@@ -327,6 +327,20 @@ async def seed_carrier_b(conn) -> bool:
     return True
 
 
+async def seed_gateway(conn) -> bool:
+    """The demo carriers take the gateway options (1145): their contracts are signed and the options active, so a
+    traveller can pay them by card, instalments or financing once the platform opens those options."""
+    admin = await conn.fetchval("SELECT id FROM iam.app_user WHERE email = 'admin@masslak.test'")
+    n = await conn.fetchval(
+        """WITH ins AS (INSERT INTO fin.carrier_payment_activation (carrier_id, option_code, status, basis, activated_at, changed_by)
+                        SELECT c.id, o, 'ACTIVE', 'Demo: gateway contract signed and option active', now(), $1
+                          FROM iam.company c, unnest(ARRAY['CARD','INSTALLMENT','FINANCING']) o
+                         WHERE c.company_type IN ('CARRIER','INDIVIDUAL_OPERATOR','FOREIGN_CARRIER')
+                        ON CONFLICT (carrier_id, option_code) DO NOTHING RETURNING 1)
+           SELECT count(*) FROM ins""", admin)
+    return n > 0
+
+
 async def main():
     url = os.environ.get("MASSLAK_OWNER_URL", "postgresql://postgres@localhost:5432/masslak")
     conn = await asyncpg.connect(url)
@@ -351,7 +365,8 @@ async def main():
                                                     ("station operator", await seed_station(conn)),
                                                     ("family and manifest route", await seed_families(conn)),
                                                     ("charter offers", await seed_charter(conn)),
-                                                    ("second carrier", await seed_carrier_b(conn))) if done]
+                                                    ("second carrier", await seed_carrier_b(conn)),
+                                                    ("gateway activations", await seed_gateway(conn))) if done]
             print(f"demo {' and '.join(added)} added" if added else "demo data already present")
             return
         # Platform staff
@@ -503,6 +518,7 @@ async def main():
         await seed_station(conn)
         await seed_charter(conn)
         await seed_carrier_b(conn)
+        await seed_gateway(conn)
     await conn.close()
     print(f"demo data created: {n_trips} trips")
     print(f"accounts (password: {PASSWORD}):")

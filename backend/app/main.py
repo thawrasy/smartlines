@@ -15,6 +15,8 @@ from .errors import (ApiError, api_error_handler, db_error_handler, pool_busy_ha
                      unreachable_handler)
 from .middleware import HeadAsGet, RequestContextMiddleware
 from .modules.agency import api as agency_api
+from .modules.agency import cash_accounts
+from .modules.cash import activation as payment_activation
 from .modules.cash import api as cash_api
 from .modules.fleet import api as fleet_api
 from .modules.freight import api as freight_api
@@ -140,13 +142,13 @@ async def security_headers(request: Request, call_next):
 
 
 for r in (metrics.router, auth.router, public.router, bookings.router, wallet.router, carrier.router, driver.router,
-          admin.router, security.router, regulator.router, verify.router, agency_api.router,
+          admin.router, security.router, regulator.router, verify.router, agency_api.router, cash_accounts.router,
           fleet_api.router, payouts_api.company, payouts_api.platform,
           documents_api.company, documents_api.platform, notify_api.router,
           account_api.router, account_api.platform, modular_api.router, modular_workflows.router, reports_api.router, payments_api.router,
           integration_console.router, integration_v1.router, family_api.router, photo_api.platform, boarding_api.platform, boarding_api.carrier, boarding_api.station_operators, boarding_api.station,
           manifests_api.carrier, manifests_api.platform,
-          support_api.router, support_api.admin, cash_api.router, seo_pages.router, parcels_api.customer, parcels_api.carrier,
+          support_api.router, support_api.admin, cash_api.router, payment_activation.router, seo_pages.router, parcels_api.customer, parcels_api.carrier,
           loyalty_api.router, loyalty_admin.router, station_sales.router, boarding_screens.platform, boarding_screens.carrier,
           boarding_screens.public, boarding_bays.station, boarding_bays.platform,
           boarding_displays.station, boarding_displays.platform, boarding_displays.public, schedules_api.carrier, schedules_api.platform,

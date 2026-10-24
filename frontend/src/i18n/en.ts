@@ -347,6 +347,7 @@ const en = {
     INVALID_MONTH: "Choose a valid month.",
     ID_TYPE_REQUIRED: "Choose the document type for the document number.",
     SHIELD_LOCKDOWN: "The platform is in protective lockdown while the security team checks an unusual load. Please try again shortly.",
+    SESSION_IDLE: "You were signed out after a time without activity. Sign in again to continue.",
     SESSION_REPLACED: "You were signed in on another device, so this session was ended. Sign in again to continue.",
     STEP_UP_REQUIRED: "This change needs a fresh code from your second factor. Confirm it and try again.",
     REQUEST_REJECTED: "The request was refused by the firewall. Remove any unusual characters and try again.",
@@ -1513,6 +1514,7 @@ const en = {
     desk: "Payments",
     deskSub: "Payment methods, bank statements and refunds",
     tab: {
+      gateway: "Gateway by carrier",
       providers: "Payment methods",
       bank: "Bank transfers",
       payments: "Payments and refunds",
@@ -1748,9 +1750,40 @@ const en = {
     includePiiHint: "Only for your own systems, under your data protection obligations."
   },
   // end of module framework
+  acash: {
+    agencyNav: "Cash with carriers", carrierNav: "Agencies' cash",
+    title: "Cash sales with carriers",
+    agencySub: "While the platform holds no money, you sell for cash and pay each carrier its share yourself; the carrier records what it receives.",
+    cashNow: "Your sales are cash now: the traveller pays you, and you owe the carrier the fares less your commission.",
+    carrierTitle: "Agencies' cash",
+    carrierSub: "Agencies selling your tickets for cash owe you the fares less their commission. Record each sum you receive.",
+    sold: "Your share of their sales", received: "Received", owed: "Owed", owedToYou: "Owed to you",
+    byCarrier: "By carrier", byAgency: "By agency", carrier: "Carrier", agency: "Agency",
+    lastReceived: "Last received", receipts: "Receipts recorded", noReceipts: "No receipts recorded yet.",
+    none: "No cash sales yet.", record: "Record receipt", recordTitle: "Cash received from {agency}",
+    recordHint: "The agency owes {owed}. Record only what you have received.",
+    reference: "Receipt reference", referenceHint: "Your receipt or voucher number; each is recorded once.",
+    recorded: "Receipt recorded. The agency is told.",
+  },
+  gw: {
+    hint: "After the gateway contract, the platform opens card, instalment or financing payment carrier by carrier. The carrier is told when its contract is signed and again when the option goes live; the gateway settles into the platform's bank account and the carrier is paid its share after each trip.",
+    none: "No carrier has a gateway contract yet.", option: "Option", contracted: "Contract signed", activated: "Live since",
+    basis: "Basis (contract or decision)", carrierUid: "Carrier ID", contract: "Record a contract",
+    tellsCarrier: "The carrier is notified of each change.",
+    status: { CONTRACTED: "Contract signed", ACTIVE: "Active", SUSPENDED: "Paused" },
+  },
+  idle: {
+    title: "Still there?",
+    body: "You will be signed out in {s} seconds because there has been no activity.",
+    stay: "Stay signed in", signOut: "Sign out now",
+    signedOut: "You were signed out after a time without activity, to keep your account safe. Sign in again to continue.",
+    policyTitle: "Idle sign-out",
+    policySub: "Minutes without activity after which each portal signs its users out (5 to 1440). The screen warns a minute before.",
+    minutes: "Minutes", reason: "Reason for the change", saved: "Idle sign-out saved.",
+  },
   opt: {
     title: "How do you want to pay?",
-    name: { WALLET: "Wallet", AGENCY_BALANCE: "Agency balance", CASH_COUNTER: "Cash at the counter", PAY_LATER: "Pay later at the counter",
+    name: { WALLET: "Wallet", AGENCY_BALANCE: "Agency balance", AGENCY_CASH: "Cash at the agency", CASH_COUNTER: "Cash at the counter", PAY_LATER: "Pay later at the counter",
             CARD: "Bank card", INSTALLMENT: "Instalments", FINANCING: "Travel financing" },
     hint: {
       WALLET: "Paid at once from your wallet; your tickets are issued now.",

@@ -72,6 +72,7 @@ export default function Login() {
               ))}
             </div>
           </div>
+          {params.get("idle") === "1" && !error && <div className="alert info" role="status">{t("idle.signedOut")}</div>}
           <ErrorBox error={error} />
           <Field label={t("auth.identifier")}>
             <input className="input ltr" autoComplete="username" value={identifier} onChange={(e) => setIdentifier(e.target.value)} required />

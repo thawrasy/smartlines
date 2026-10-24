@@ -62,7 +62,7 @@ flowchart LR
   ctr -->|9| iam
   ctr -->|3| net
   ctr -->|1| ops
-  fin -->|26| iam
+  fin -->|30| iam
   fin -->|1| ops
   fin -->|6| pricing
   fin -->|5| sales
@@ -2647,6 +2647,15 @@ erDiagram
 
 ```mermaid
 erDiagram
+  fin_agency_cash_settlement {
+    bigint id PK
+    uuid uid
+    bigint agency_id FK
+    bigint carrier_id FK
+    character currency FK
+    bigint ledger_txn_id FK
+    bigint confirmed_by FK
+  }
   fin_approval_decision {
     bigint id PK
     bigint request_id FK
@@ -2703,6 +2712,14 @@ erDiagram
     bigint payment_id FK
     bigint matched_by FK
     bigint statement_line_id FK
+  }
+  fin_carrier_payment_activation {
+    bigint id PK
+    uuid uid
+    bigint carrier_id FK
+    text option_code FK
+    text status
+    bigint changed_by FK
   }
   fin_cash_credit_limit {
     bigint company_id PK
@@ -2958,6 +2975,7 @@ erDiagram
   fin_cash_remittance }o..o| fin_ledger_txn : "ledger_txn_id"
   fin_bank_transfer_topup }o..o| fin_ledger_txn : "ledger_txn_id"
   fin_payment_refund }o..o| fin_ledger_txn : "ledger_txn_id"
+  fin_agency_cash_settlement }o..o| fin_ledger_txn : "ledger_txn_id"
   fin_ledger_txn }o..o| fin_ledger_txn : "reverses_txn_id"
   fin_withdrawal_request }o..o| fin_ledger_txn : "ledger_txn_id"
   fin_payout }o..o| fin_ledger_txn : "ledger_txn_id"
@@ -2965,6 +2983,7 @@ erDiagram
   fin_payment_refund }o--|| fin_payment : "payment_id"
   fin_payment_notification }o..o| fin_payment : "payment_id"
   fin_bank_transfer_topup }o..o| fin_payment : "payment_id"
+  fin_carrier_payment_activation }o--|| fin_payment_method : "option_code"
   fin_payment_notification }o--|| fin_payment_provider : "provider_id"
   fin_payment }o--|| fin_payment_provider : "provider_id"
   fin_fee_rule }o..o| fin_payment_provider : "provider_id"
@@ -2987,6 +3006,7 @@ erDiagram
   fin_cash_credit_limit }o--|| iam_app_user : "set_by"
   fin_approval_decision }o--|| iam_app_user : "user_id"
   fin_bank_statement_import }o--|| iam_app_user : "imported_by"
+  fin_agency_cash_settlement }o--|| iam_app_user : "confirmed_by"
   fin_cash_remittance }o..o| iam_app_user : "confirmed_by"
   fin_bank_transfer_topup }o..o| iam_app_user : "matched_by"
   fin_bank_statement_line }o..o| iam_app_user : "proposed_by"
@@ -2998,8 +3018,11 @@ erDiagram
   fin_cash_remittance }o--|| iam_company : "company_id"
   fin_settlement_batch }o--|| iam_company : "company_id"
   fin_payout }o--|| iam_company : "company_id"
+  fin_agency_cash_settlement }o--|| iam_company : "agency_id"
+  fin_carrier_payment_activation }o--|| iam_company : "carrier_id"
   fin_wallet }o..o| iam_company : "company_id"
   fin_tax_ledger }o..o| iam_company : "company_id"
+  fin_agency_cash_settlement }o--|| iam_company : "carrier_id"
   fin_withdrawal_request }o..o| iam_company : "company_id"
   fin_payment }o..o| iam_company : "agency_company_id"
   fin_float_account }o--|| iam_party : "bank_party_id"

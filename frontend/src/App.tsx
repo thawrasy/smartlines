@@ -4,6 +4,7 @@ import type { Portal } from "./api";
 import { useAuth } from "./auth";
 import { useI18n } from "./i18n";
 import { PortalShell, PublicLayout } from "./components/layout";
+import { IdleGuard } from "./components/IdleGuard";
 import { Empty, Spinner } from "./components/ui";
 import Home from "./pages/passenger/Home";
 import Results from "./pages/passenger/Results";
@@ -63,6 +64,8 @@ const AgencyDashboard = lazyNamed(() => import("./pages/agency/Agency"), "Agency
 const AgencySell = lazyNamed(() => import("./pages/agency/Agency"), "AgencySell");
 const AgencyStaff = lazyNamed(() => import("./pages/agency/Agency"), "AgencyStaff");
 const AgencyStatement = lazyNamed(() => import("./pages/agency/Agency"), "AgencyStatement");
+const AgencyCashAccounts = lazyNamed(() => import("./pages/finance/CashAccounts"), "AgencyCashAccounts");
+const CarrierAgencyCash = lazyNamed(() => import("./pages/finance/CashAccounts"), "CarrierAgencyCash");
 const SecurityActivity = lazyNamed(() => import("./pages/security/Security"), "SecurityActivity");
 const SecurityAuthLog = lazyNamed(() => import("./pages/security/Security"), "SecurityAuthLog");
 const SecurityOverview = lazyNamed(() => import("./pages/security/Security"), "SecurityOverview");
@@ -181,6 +184,7 @@ function CarrierShell() {
       { to: "/carrier/kyc", icon: "policy", label: t("kyc.nav"), show: can("company.kyc") },
       { to: "/carrier/documents", icon: "fact_check", label: t("documents.title"), show: can("company.staff", "vehicle.manage", "company.billing") },
       { to: "/carrier/finance", icon: "account_balance_wallet", label: t("finance.title") },
+      { to: "/carrier/agency-cash", icon: "handshake", label: t("acash.carrierNav"), show: can("company.billing", "report.company", "sale.cash") },
       { to: "/carrier/reports", icon: "summarize", label: t("rpt.nav"), show: can("report.company") },
       { to: "/carrier/integrations", icon: "api", label: t("api.nav"), show: can("company.api_keys") },
       ...mods,
@@ -199,6 +203,7 @@ function AgencyShell() {
       { to: "/agency/charter", icon: "airport_shuttle", label: t("chr.nav"), show: can("booking.on_behalf") },
       { to: "/agency/bookings", icon: "confirmation_number", label: t("agency.bookings") },
       { to: "/agency/statement", icon: "receipt_long", label: t("agency.statement"), show: can("report.company", "company.billing", "booking.on_behalf") },
+      { to: "/agency/cash-accounts", icon: "handshake", label: t("acash.agencyNav"), show: can("report.company", "company.billing", "booking.on_behalf") },
       { to: "/agency/staff", icon: "badge", label: t("agency.staff"), show: can("company.staff") },
       { to: "/agency/documents", icon: "fact_check", label: t("documents.title"), show: can("company.staff", "vehicle.manage", "company.billing") },
       { to: "/agency/finance", icon: "account_balance_wallet", label: t("finance.title"), show: can("company.payout_schedule", "company.billing") },
@@ -241,6 +246,7 @@ function NotFound() {
 export default function App() {
   return (
     <BrowserRouter>
+      <IdleGuard />
       <Suspense fallback={<Spinner />}>
       <Routes>
         <Route element={<PublicLayout />}>
@@ -289,6 +295,7 @@ export default function App() {
           <Route path="carrier/counter/trip/:uid" element={<Book />} />
           <Route path="carrier/counter/booking/:ref" element={<Booking />} />
           <Route path="carrier/counter/report" element={<CounterReport />} />
+          <Route path="carrier/agency-cash" element={<CarrierAgencyCash />} />
         </Route>
         <Route element={<RequirePortal portal="AGENCY"><AgencyShell /></RequirePortal>}>
           <Route path="agency" element={<AgencyDashboard />} />
@@ -299,6 +306,7 @@ export default function App() {
           <Route path="agency/booking/:ref" element={<Booking />} />
           <Route path="agency/bookings" element={<AgencyBookings />} />
           <Route path="agency/statement" element={<AgencyStatement />} />
+          <Route path="agency/cash-accounts" element={<AgencyCashAccounts />} />
           <Route path="agency/staff" element={<AgencyStaff />} />
           <Route path="agency/finance" element={<CompanyFinance />} />
           <Route path="agency/m/:module" element={<ModulePage />} />

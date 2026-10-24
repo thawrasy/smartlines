@@ -94,6 +94,10 @@ if ! grep -q '^MASSLAK_ENVIRONMENT=.' deploy/.env; then
   echo "MASSLAK_ENVIRONMENT=$env_name" >> deploy/.env
   echo "added MASSLAK_ENVIRONMENT=$env_name to deploy/.env (set it to staging on the staging servers)"
 fi
+if ! grep -q '^MASSLAK_MONEY_MODE=' deploy/.env; then
+  echo "MASSLAK_MONEY_MODE=NO_FUNDS" >> deploy/.env              # phase one until the wallet and the gateway are contracted (N13)
+  echo "added MASSLAK_MONEY_MODE=NO_FUNDS (phase one, no money with the platform) to deploy/.env"
+fi
 production=false
 grep -q '^MASSLAK_ENVIRONMENT=production$' deploy/.env && production=true
 if [ "$production" = true ]; then

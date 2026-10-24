@@ -21,6 +21,7 @@ SYSTEM_SCOPE = {
     ("app/modular/workflows.py", "taxi_request"): (1, "ride request offered to drivers of other companies"),
     ("app/modular/workflows.py", "track"): (1, "public parcel tracking by number: carrier rows, nothing personal returned"),
     ("app/modules/account/service.py", "export"): (1, "data export of the person's own bookings, including those an agency made for them"),
+    ("app/modules/agency/cash_accounts.py", "record_receipt"): (1, "the carrier records an agency's cash: posts between the two companies' cash wallets"),
     ("app/modules/cash/api.py", "decide"): (1, "finance confirms a carrier's remittance: posts to the carrier's cash wallet"),
     ("app/modules/cash/service.py", "booking_detail"): (1, "counter staff open a booking on their own carrier's trip made by any buyer"),
     ("app/modules/cash/service.py", "bookings"): (1, "counter list of the carrier's cash and pay-later bookings, with the seller's name"),

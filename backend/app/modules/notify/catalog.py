@@ -63,6 +63,10 @@ async def deliveries(conn: asyncpg.Connection, event: asyncpg.Record, payload: d
         return [d] if d else []
     if kind in ("withdrawal.paid", "withdrawal.rejected"):
         return await _owners(conn, event["company_id"], kind, payload)
+    if kind.startswith("payment_activation."):   # the gateway's roll-out, step by step (1145): the carrier's owners hear of it
+        return await _owners(conn, event["company_id"], kind, payload)
+    if kind == "agency_cash.received":    # the carrier recorded the agency's cash (N13, 1145): the agency's owners hear of it
+        return await _owners(conn, event["company_id"], kind, payload)
     if kind == "trip.cancel_penalty":   # the regulators' penalty for a cancelled trip (1106)
         return await _owners(conn, event["company_id"], kind, payload)
     if kind in ("tracking.signal_lost", "tracking.alert_escalated"):       # the platform found a silent trip (1100)

@@ -165,7 +165,7 @@ class MethodIn(BaseModel):
 
 
 @router.put("/api/admin/payment-methods/{code}")
-async def update_method(code: Literal["WALLET", "AGENCY_BALANCE", "CASH_COUNTER", "PAY_LATER", "CARD", "INSTALLMENT", "FINANCING"],
+async def update_method(code: Literal["WALLET", "AGENCY_BALANCE", "AGENCY_CASH", "CASH_COUNTER", "PAY_LATER", "CARD", "INSTALLMENT", "FINANCING"],
                         body: MethodIn, request: Request, pr: Principal = Depends(platform)):
     service.need(pr, "payment.methods")
     async with db.transaction(context_for(request, pr)) as conn:

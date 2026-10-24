@@ -13,6 +13,7 @@ from .security import token_hash
 
 SESSION_COOKIE = "msk_session"
 REPLACED = "replaced by a new sign-in"   # revoke_reason of a session a later sign-in ended (1142)
+IDLE = "idle"                             # revoke_reason of a session left without activity past its portal's period (1146)
 
 # Portal -> RLS scope
 PORTAL_SCOPE = {
@@ -64,6 +65,7 @@ async def load_principal(conn: asyncpg.Connection, token: str) -> Optional[Princ
           JOIN iam.party p ON p.id = u.party_id
          WHERE s.token_hash = $1 AND s.revoked_at IS NULL AND s.expires_at > now() AND u.status = 'ACTIVE'
            AND (s.access_expires_at IS NULL OR s.access_expires_at > now())
+           AND s.last_seen_at > now() - make_interval(mins => iam.idle_minutes(s.portal))
         """,
         token_hash(token),
     )
@@ -142,11 +144,19 @@ async def optional_principal(request: Request) -> Optional[Principal]:
     async with db.transaction(db.Context(request_id=ctx.request_id, ip=ctx.ip, scope="SYSTEM")) as conn:
         pr = await load_principal(conn, token)
         if pr:
-            await conn.execute("UPDATE iam.user_session SET last_seen_at = now() WHERE id = $1", pr.session_id)
+            # a request a screen sends by itself (the notification bell) is not the user's activity (1146)
+            if request.headers.get("x-masslak-background") != "1":
+                await conn.execute("UPDATE iam.user_session SET last_seen_at = now() WHERE id = $1", pr.session_id)
         else:
+            # a session idle past its portal's period ends here (1146), and says so
+            await conn.execute(
+                """UPDATE iam.user_session SET revoked_at = now(), revoke_reason = $2
+                    WHERE token_hash = $1 AND revoked_at IS NULL
+                      AND last_seen_at <= now() - make_interval(mins => iam.idle_minutes(portal))""", token_hash(token), IDLE)
             # ended by a sign-in on another device (one session per portal, 1142): said so, not just "sign in"
-            request.state.session_replaced = bool(await conn.fetchval(
-                "SELECT revoke_reason = $2 FROM iam.user_session WHERE token_hash = $1", token_hash(token), REPLACED))
+            reason = await conn.fetchval("SELECT revoke_reason FROM iam.user_session WHERE token_hash = $1", token_hash(token))
+            request.state.session_replaced = reason == REPLACED
+            request.state.session_idle = reason == IDLE
     if pr:
         request.state.principal = pr
     return pr
@@ -171,6 +181,8 @@ async def require_session(request: Request, principal: Optional[Principal] = Dep
     if principal is None:
         if getattr(request.state, "session_replaced", False):
             raise ApiError(401, "SESSION_REPLACED", "this account signed in on another device; sign in again to continue here")
+        if getattr(request.state, "session_idle", False):
+            raise ApiError(401, "SESSION_IDLE", "you were signed out after a time without activity; sign in again")
         raise ApiError(401, "AUTH_REQUIRED", "login required")
     return principal
 

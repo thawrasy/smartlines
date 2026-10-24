@@ -342,7 +342,7 @@ const en = {
     ACCOUNT_LOCKED: "Too many attempts. The account is locked for 15 minutes.", MFA_CODE_INVALID: "That code is not valid.", MFA_METHOD_OFF: "This way of receiving codes is not open.", MFA_MOBILE_REQUIRED: "Enter the mobile number for the codes.", MFA_RESEND_TOO_SOON: "Wait a moment before asking for another code.", MFA_TOO_MANY_CODES: "Too many codes in the last hour. Use another method or try later.", MFA_SEND_FAILED: "The code could not be sent. Try again or use another method.", MFA_METHOD_NOT_ENROLLED: "This method is not set up for your account.", UNKNOWN_STOP: "This stop is not on the trip.",
     SEAT_TAKEN: "A seat was just taken. Choose again.", HOLD_EXPIRED: "The hold expired. Choose your seats again.",
     INSUFFICIENT_BALANCE: "Your wallet balance is not enough.", NAME_PARTS_REQUIRED: "Syrian citizens need all four names.",
-    DEVICE_REVOKED: "This device was signed out from your account.", SESSION_EXPIRED: "Please sign in again.",
+    DEVICE_REVOKED: "This device was signed out from your account.", SESSION_EXPIRED: "Please sign in again.", SESSION_IDLE: "You were signed out after a time without activity. Please sign in again.",
     RATE_LIMITED: "Too many attempts. Wait a moment.", TICKET_NOT_YET: "The ticket opens three hours before departure.", CONNECTION_REQUIRED: "Connect to the internet to show this ticket.", generic: "Something went wrong. Try again.",
   },
   // generated from the website's locale files (scratch generator; keep in step with frontend/src/i18n)

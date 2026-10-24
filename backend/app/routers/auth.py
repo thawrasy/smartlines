@@ -304,6 +304,7 @@ async def refresh(body: RefreshIn, request: Request):
             """SELECT s.id, s.user_id, s.portal, s.company_id, d.fingerprint_hash FROM iam.user_session s
                  JOIN iam.device d ON d.id = s.device_id
                 WHERE s.refresh_hash = $1 AND s.revoked_at IS NULL AND s.expires_at > now() AND d.revoked_at IS NULL
+                  AND s.last_seen_at > now() - make_interval(mins => iam.idle_minutes(s.portal))   -- idle sign-out (1146)
                 FOR UPDATE OF s""", presented)
         if sess is None:
             reused = await conn.fetchrow(
@@ -366,11 +367,13 @@ async def me(request: Request, principal: Principal = Depends(require_user)):
             company = {"name": row["legal_name"], "uid": str(row["uid"]), "code": code, "logo": row["logo"]}
         # the market the screens show times and money in (1061): the company's, or the person's
         market = (await markets.of_party(conn, principal.company_id or principal.party_id)).public()
+        idle = await conn.fetchval("SELECT iam.idle_minutes($1)", principal.portal)
     return {
         "uid": principal.user_uid, "name": principal.display_name, "email": principal.email,
         "portal": principal.portal, "locale": principal.locale, "company": company, "market": market,
         "roles": sorted(principal.roles), "permissions": sorted(principal.permissions), "is_owner": principal.is_owner,
         "mfa": {"enrolled": principal.mfa_enrolled, "required": principal.mfa_required},
+        "idle_minutes": idle,           # the screen signs out by itself after this long without activity (1146)
     }
 
 
