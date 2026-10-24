@@ -1,0 +1,257 @@
+{
+ "templateKey": "SALES_ORDER_APPROVAL",
+ "requestType": "SALES_ORDER_APPROVAL",
+ "nameAr": "موافقة على أمر بيع",
+ "nameEn": "Sales order approval",
+ "numberOnStageKey": "SALES_APPROVAL",
+ "stages": [
+  {
+   "key": "DRAFT",
+   "kind": "DRAFT",
+   "nameAr": "مسودة",
+   "nameEn": "Draft",
+   "phase": "DRAFT",
+   "seq": 1,
+   "assignee": {
+    "rule": "REQUESTER"
+   },
+   "allowRequesterCancel": true
+  },
+  {
+   "key": "SALES_APPROVAL",
+   "kind": "APPROVAL",
+   "nameAr": "موافقة مدير الطالب",
+   "nameEn": "Requester's manager approval",
+   "phase": "IN_APPROVAL",
+   "seq": 2,
+   "approvalMode": "ANY",
+   "slaHours": 8,
+   "allowReturn": true,
+   "allowRequesterCancel": true,
+   "slots": [
+    {
+     "key": "MANAGER",
+     "labelAr": "مدير الطالب",
+     "labelEn": "Requester's manager",
+     "workflowRole": "APPROVER",
+     "subject": "REQUESTER_MANAGER",
+     "fallbackRole": "TM"
+    }
+   ]
+  },
+  {
+   "key": "TREASURY_QUEUE",
+   "kind": "TREASURY_QUEUE",
+   "nameAr": "طابور الخزينة",
+   "nameEn": "Treasury queue",
+   "phase": "IN_PROGRESS",
+   "seq": 3,
+   "assignee": {
+    "rule": "ROLE",
+    "poolPermission": "lc.export.record"
+   },
+   "claimSlaHours": 4
+  },
+  {
+   "key": "EARMARK",
+   "kind": "TASK",
+   "nameAr": "التخصيص على الاعتماد",
+   "nameEn": "Earmark on the credit",
+   "phase": "IN_PROGRESS",
+   "seq": 4,
+   "assignee": {
+    "rule": "CLAIMER"
+   },
+   "slaHours": 8,
+   "allowReturn": true,
+   "hooks": [
+    {
+     "trigger": "ON_ACTION",
+     "action": "COMPLETE",
+     "key": "lc.earmark_sales_order"
+    }
+   ]
+  },
+  {
+   "key": "RETURNED",
+   "kind": "TASK",
+   "nameAr": "معاد للطالب",
+   "nameEn": "Returned to the requester",
+   "phase": "RETURNED",
+   "seq": 5,
+   "assignee": {
+    "rule": "REQUESTER"
+   },
+   "allowRequesterCancel": true
+  },
+  {
+   "key": "COMPLETED",
+   "kind": "TERMINAL",
+   "nameAr": "مكتمل",
+   "nameEn": "Completed",
+   "phase": "COMPLETED",
+   "seq": 6,
+   "outcome": "COMPLETED"
+  },
+  {
+   "key": "REJECTED",
+   "kind": "TERMINAL",
+   "nameAr": "مرفوض",
+   "nameEn": "Rejected",
+   "phase": "REJECTED",
+   "seq": 7,
+   "outcome": "REJECTED"
+  },
+  {
+   "key": "CANCELLED",
+   "kind": "TERMINAL",
+   "nameAr": "ملغى",
+   "nameEn": "Cancelled",
+   "phase": "CANCELLED",
+   "seq": 8,
+   "outcome": "CANCELLED"
+  }
+ ],
+ "transitions": [
+  {
+   "from": "DRAFT",
+   "action": "SUBMIT",
+   "to": "SALES_APPROVAL",
+   "priority": 1
+  },
+  {
+   "from": "SALES_APPROVAL",
+   "action": "APPROVE",
+   "to": "TREASURY_QUEUE",
+   "priority": 1
+  },
+  {
+   "from": "SALES_APPROVAL",
+   "action": "RETURN",
+   "to": "RETURNED",
+   "priority": 1,
+   "resume": "SALES_APPROVAL",
+   "requiresComment": true
+  },
+  {
+   "from": "SALES_APPROVAL",
+   "action": "REJECT",
+   "to": "REJECTED",
+   "priority": 1,
+   "requiresComment": true
+  },
+  {
+   "from": "TREASURY_QUEUE",
+   "action": "COMPLETE",
+   "to": "EARMARK",
+   "priority": 1
+  },
+  {
+   "from": "EARMARK",
+   "action": "COMPLETE",
+   "to": "COMPLETED",
+   "priority": 1
+  },
+  {
+   "from": "EARMARK",
+   "action": "RETURN",
+   "to": "RETURNED",
+   "priority": 1,
+   "resume": "SALES_APPROVAL",
+   "requiresComment": true
+  },
+  {
+   "from": "EARMARK",
+   "action": "REJECT",
+   "to": "REJECTED",
+   "priority": 1,
+   "requiresComment": true
+  },
+  {
+   "from": "RETURNED",
+   "action": "RESUBMIT",
+   "to": "SALES_APPROVAL",
+   "priority": 1
+  }
+ ],
+ "fields": [
+  {
+   "key": "title",
+   "labelAr": "عنوان الطلب",
+   "labelEn": "Title",
+   "type": "TEXT",
+   "required": true,
+   "indexRole": "TITLE",
+   "seq": 1,
+   "validation": {
+    "maxLength": 200
+   }
+  },
+  {
+   "key": "orderRef",
+   "labelAr": "مرجع أمر البيع",
+   "labelEn": "Sales order reference",
+   "type": "TEXT",
+   "required": true,
+   "seq": 2,
+   "validation": {
+    "maxLength": 60
+   }
+  },
+  {
+   "key": "orderDate",
+   "labelAr": "تاريخ أمر البيع",
+   "labelEn": "Sales order date",
+   "type": "DATE",
+   "required": true,
+   "seq": 3
+  },
+  {
+   "key": "amount",
+   "labelAr": "المبلغ بعملة الاعتماد",
+   "labelEn": "Amount in the credit's currency",
+   "type": "AMOUNT",
+   "required": true,
+   "indexRole": "AMOUNT",
+   "seq": 4
+  },
+  {
+   "key": "deliveryDate",
+   "labelAr": "تاريخ التسليم",
+   "labelEn": "Delivery date",
+   "type": "DATE",
+   "indexRole": "REQUIRED_BY_DATE",
+   "seq": 5
+  },
+  {
+   "key": "customerName",
+   "labelAr": "العميل",
+   "labelEn": "Customer",
+   "type": "TEXT",
+   "indexRole": "COUNTERPARTY_NAME",
+   "seq": 6
+  },
+  {
+   "key": "notes",
+   "labelAr": "ملاحظات",
+   "labelEn": "Notes",
+   "type": "LONGTEXT",
+   "seq": 7,
+   "validation": {
+    "maxLength": 4000
+   }
+  }
+ ],
+ "attachments": [
+  {
+   "slot": "SALES_ORDER_COPY",
+   "labelAr": "نسخة أمر البيع",
+   "labelEn": "Sales order copy",
+   "documentType": "SALES_ORDER_COPY",
+   "min": 1,
+   "max": 3,
+   "requiredBeforeStage": "DRAFT",
+   "visibleToRequester": true
+  }
+ ]
+}

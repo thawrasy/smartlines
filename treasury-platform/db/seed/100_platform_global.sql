@@ -53,7 +53,9 @@ USING (VALUES
     ('lc.warn.tolerance_pct',                'DECIMAL', N'10', N'0', N'100', 0, N'Amount tolerance above which the terms warn (BR-LCT-004). Read by the application.'),
     ('lc.presentation.default_days',         'INT', N'21', N'1',  N'90', 0, N'Days after shipment for presentation when the terms give none (UCP 600 article 14 c; FR-LCT-011). Read by the application.'),
     ('lc.print.show_ucp',                    'BOOL', N'true', NULL, NULL, 0, N'Printed terms show the UCP 600 articles their fields and clauses refer to (FR-LCT-005). Read by the application.'),
-    ('lc.print.ucp_disclaimer',              'BOOL', N'true', NULL, NULL, 0, N'Printed terms carry the footnote on unverified UCP texts; may be set to false only while every UCP article in use is VERIFIED (FR-LCT-006, BR-LCT-018). Enforced by the application.')
+    ('lc.print.ucp_disclaimer',              'BOOL', N'true', NULL, NULL, 0, N'Printed terms carry the footnote on unverified UCP texts; may be set to false only while every UCP article in use is VERIFIED (FR-LCT-006, BR-LCT-018). Enforced by the application.'),
+    ('lc.earmark.cap_includes_tolerance',    'BOOL', N'false', NULL, NULL, 0, N'The sales orders of a received letter of credit may take its plus tolerance as well as its amount; off by default, so the earmarks stop at the amount (BR-LCE-010). Enforced by the application.'),
+    ('lc.proforma.no_lc_days',               'INT', N'30', N'1',  N'365', 0, N'Days after its issue that a proforma still without a received letter of credit reminds its requester once (FR-LCE-024, LC.PROFORMA_NO_LC). Read by JOB-LCE-NOLC.')
 ) AS s ([Key], ValueType, DefaultValueJson, MinValueJson, MaxValueJson, IsSecurity, Description)
    ON d.[Key] = s.[Key]
 WHEN MATCHED AND (d.ValueType <> s.ValueType OR d.DefaultValueJson <> s.DefaultValueJson

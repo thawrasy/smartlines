@@ -1,0 +1,16 @@
+{
+  "PackKey": "CORE.NUMBERING",
+  "SeedVersion": 4,
+  "Slice": "S4",
+  "Status": "Version 4 keeps every row of version 3 and adds the proforma number of S4, PROFORMA, {seq:000}-{erp}-{yy} per tenant, company and calendar year in the tenant's time zone, gap-free (FR-LCE-006, BR-LCE-002): it needs the company's ERP code, which must be unique among the companies that are not archived once this sequence is active (BR-ORG-001); and one gap-free sequence per S4 request type of WFL.BASE v2 (PFR proforma request, SOA sales order approval, CDR collection documents). A proposed default written by an AI agent.",
+  "Tables": [
+    "cfg.NumberSequenceDefinition.csv"
+  ],
+  "DependsOn": [],
+  "References": {},
+  "Sources": [
+    "docs/10-detailed-analysis/13-m6-workflow-engine-notifications.md BR-WFL-013 and FR-WFL-026",
+    "db/static/039_numbering.sql (pattern rules; req:<TypeCode> must be GAP_FREE, 50031)",
+    "docs/10-detailed-analysis/14-m7-m8-letters-of-credit.md FR-LCE-006 and BR-LCE-002"
+  ]
+}

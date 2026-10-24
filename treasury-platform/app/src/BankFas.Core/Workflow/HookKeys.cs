@@ -10,6 +10,9 @@ public static class HookKeys
     public const string ValidateTerms = "lc.validate_terms";
     public const string RecordIssuance = "lc.record_issuance";
     public const string ApplyAmendment = "lc.apply_amendment";
+    public const string IssueProforma = "lc.issue_proforma";
+    public const string EarmarkSalesOrder = "lc.earmark_sales_order";
+    public const string ConvertEarmark = "lc.convert_earmark";
     public const string CheckAvailability = "fac.check_availability";
     public const string ReserveLimit = "fac.reserve_limit";
     public const string ReleaseReservation = "fac.release_reservation";
@@ -21,6 +24,6 @@ public static class HookKeys
     public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.Ordinal)
     {
         ValidateTerms, RecordIssuance, ApplyAmendment, CheckAvailability, ReserveLimit, ReleaseReservation, AdjustReservation, ConvertReservation,
-        AdjustUtilization, Emit,
+        AdjustUtilization, Emit, IssueProforma, EarmarkSalesOrder, ConvertEarmark,
     };
 }

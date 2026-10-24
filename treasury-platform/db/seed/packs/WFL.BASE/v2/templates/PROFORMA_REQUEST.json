@@ -1,0 +1,326 @@
+{
+ "templateKey": "PROFORMA_REQUEST",
+ "requestType": "PROFORMA_REQUEST",
+ "nameAr": "طلب فاتورة مبدئية (بروفورما)",
+ "nameEn": "Proforma request",
+ "numberOnStageKey": "AUDIT",
+ "stages": [
+  {
+   "key": "DRAFT",
+   "kind": "DRAFT",
+   "nameAr": "إعداد",
+   "nameEn": "Preparation",
+   "phase": "DRAFT",
+   "seq": 1,
+   "assignee": {
+    "rule": "REQUESTER"
+   },
+   "allowRequesterCancel": true,
+   "hooks": [
+    {
+     "trigger": "ON_ACTION",
+     "action": "SUBMIT",
+     "key": "lc.validate_terms"
+    }
+   ]
+  },
+  {
+   "key": "AUDIT",
+   "kind": "APPROVAL",
+   "nameAr": "تدقيق المبيعات",
+   "nameEn": "Sales review",
+   "phase": "IN_APPROVAL",
+   "seq": 2,
+   "approvalMode": "ANY",
+   "slaHours": 8,
+   "allowReturn": true,
+   "allowRequesterCancel": true,
+   "slots": [
+    {
+     "key": "SALES_REVIEWER",
+     "labelAr": "مدقّق المبيعات",
+     "labelEn": "Sales reviewer",
+     "workflowRole": "APPROVER",
+     "subject": "ROLE",
+     "role": "SLR"
+    }
+   ]
+  },
+  {
+   "key": "APPROVAL",
+   "kind": "APPROVAL",
+   "nameAr": "موافقة المبيعات",
+   "nameEn": "Sales approval",
+   "phase": "IN_APPROVAL",
+   "seq": 3,
+   "approvalMode": "ANY",
+   "slaHours": 8,
+   "allowReturn": true,
+   "allowRequesterCancel": true,
+   "slots": [
+    {
+     "key": "SALES_APPROVER",
+     "labelAr": "موافق المبيعات",
+     "labelEn": "Sales approver",
+     "workflowRole": "APPROVER",
+     "subject": "ROLE",
+     "role": "SLA"
+    }
+   ]
+  },
+  {
+   "key": "TREASURY_QUEUE",
+   "kind": "TREASURY_QUEUE",
+   "nameAr": "طابور الخزينة",
+   "nameEn": "Treasury queue",
+   "phase": "IN_PROGRESS",
+   "seq": 4,
+   "assignee": {
+    "rule": "ROLE",
+    "poolPermission": "lc.proforma.issue"
+   },
+   "claimSlaHours": 4
+  },
+  {
+   "key": "ISSUE_PROFORMA",
+   "kind": "TASK",
+   "nameAr": "إصدار البروفورما",
+   "nameEn": "Proforma issue",
+   "phase": "IN_PROGRESS",
+   "seq": 5,
+   "assignee": {
+    "rule": "CLAIMER"
+   },
+   "slaHours": 8,
+   "allowReturn": true,
+   "hooks": [
+    {
+     "trigger": "ON_ACTION",
+     "action": "COMPLETE",
+     "key": "lc.issue_proforma"
+    }
+   ]
+  },
+  {
+   "key": "RETURNED",
+   "kind": "TASK",
+   "nameAr": "معاد للطالب",
+   "nameEn": "Returned to the requester",
+   "phase": "RETURNED",
+   "seq": 6,
+   "assignee": {
+    "rule": "REQUESTER"
+   },
+   "allowRequesterCancel": true,
+   "hooks": [
+    {
+     "trigger": "ON_ACTION",
+     "action": "RESUBMIT",
+     "key": "lc.validate_terms"
+    }
+   ]
+  },
+  {
+   "key": "COMPLETED",
+   "kind": "TERMINAL",
+   "nameAr": "مكتمل",
+   "nameEn": "Completed",
+   "phase": "COMPLETED",
+   "seq": 7,
+   "outcome": "COMPLETED"
+  },
+  {
+   "key": "REJECTED",
+   "kind": "TERMINAL",
+   "nameAr": "مرفوض",
+   "nameEn": "Rejected",
+   "phase": "REJECTED",
+   "seq": 8,
+   "outcome": "REJECTED"
+  },
+  {
+   "key": "CANCELLED",
+   "kind": "TERMINAL",
+   "nameAr": "ملغى",
+   "nameEn": "Cancelled",
+   "phase": "CANCELLED",
+   "seq": 9,
+   "outcome": "CANCELLED"
+  }
+ ],
+ "transitions": [
+  {
+   "from": "DRAFT",
+   "action": "SUBMIT",
+   "to": "AUDIT",
+   "priority": 1
+  },
+  {
+   "from": "AUDIT",
+   "action": "APPROVE",
+   "to": "APPROVAL",
+   "priority": 1
+  },
+  {
+   "from": "AUDIT",
+   "action": "RETURN",
+   "to": "RETURNED",
+   "priority": 1,
+   "resume": "AUDIT",
+   "requiresComment": true
+  },
+  {
+   "from": "AUDIT",
+   "action": "REJECT",
+   "to": "REJECTED",
+   "priority": 1,
+   "requiresComment": true
+  },
+  {
+   "from": "APPROVAL",
+   "action": "APPROVE",
+   "to": "TREASURY_QUEUE",
+   "priority": 1
+  },
+  {
+   "from": "APPROVAL",
+   "action": "RETURN",
+   "to": "RETURNED",
+   "priority": 1,
+   "resume": "AUDIT",
+   "requiresComment": true
+  },
+  {
+   "from": "APPROVAL",
+   "action": "REJECT",
+   "to": "REJECTED",
+   "priority": 1,
+   "requiresComment": true
+  },
+  {
+   "from": "TREASURY_QUEUE",
+   "action": "COMPLETE",
+   "to": "ISSUE_PROFORMA",
+   "priority": 1
+  },
+  {
+   "from": "ISSUE_PROFORMA",
+   "action": "COMPLETE",
+   "to": "COMPLETED",
+   "priority": 1
+  },
+  {
+   "from": "ISSUE_PROFORMA",
+   "action": "RETURN",
+   "to": "RETURNED",
+   "priority": 1,
+   "resume": "AUDIT",
+   "requiresComment": true
+  },
+  {
+   "from": "RETURNED",
+   "action": "RESUBMIT",
+   "to": "AUDIT",
+   "priority": 1
+  }
+ ],
+ "fields": [
+  {
+   "key": "title",
+   "labelAr": "عنوان الطلب",
+   "labelEn": "Title",
+   "type": "TEXT",
+   "required": true,
+   "indexRole": "TITLE",
+   "seq": 1,
+   "validation": {
+    "maxLength": 200
+   }
+  },
+  {
+   "key": "customerName",
+   "labelAr": "العميل",
+   "labelEn": "Customer",
+   "type": "TEXT",
+   "required": true,
+   "indexRole": "COUNTERPARTY_NAME",
+   "seq": 2
+  },
+  {
+   "key": "customerCode",
+   "labelAr": "رمز العميل",
+   "labelEn": "Customer code",
+   "type": "TEXT",
+   "indexRole": "COUNTERPARTY_CODE",
+   "seq": 3
+  },
+  {
+   "key": "proforma",
+   "labelAr": "البروفورما: العميل والفرع والمشروع والبنود",
+   "labelEn": "Proforma: customer, branch, project and lines",
+   "type": "MODULE_FORM",
+   "required": true,
+   "seq": 4,
+   "config": {
+    "component": "lc.proforma"
+   },
+   "editableStages": [
+    "DRAFT",
+    "RETURNED"
+   ]
+  },
+  {
+   "key": "lcTerms",
+   "labelAr": "شروط الاعتماد المطلوب من العميل",
+   "labelEn": "Terms of the letter of credit asked of the customer",
+   "type": "MODULE_FORM",
+   "required": true,
+   "seq": 5,
+   "config": {
+    "component": "lc.terms",
+    "purpose": "PROFORMA"
+   },
+   "editableStages": [
+    "DRAFT",
+    "RETURNED"
+   ]
+  },
+  {
+   "key": "notes",
+   "labelAr": "ملاحظات",
+   "labelEn": "Notes",
+   "type": "LONGTEXT",
+   "seq": 6,
+   "validation": {
+    "maxLength": 4000
+   }
+  },
+  {
+   "key": "proformaIssue",
+   "labelAr": "الإصدار: حساب المتحصلات ولغة الطباعة",
+   "labelEn": "Issue: proceeds account and print language",
+   "type": "MODULE_FORM",
+   "seq": 7,
+   "config": {
+    "component": "lc.proforma_issue"
+   },
+   "visibleStages": [
+    "ISSUE_PROFORMA"
+   ],
+   "editableStages": [
+    "ISSUE_PROFORMA"
+   ]
+  }
+ ],
+ "attachments": [
+  {
+   "slot": "CUSTOMER_REFERENCE",
+   "labelAr": "مستند من العميل",
+   "labelEn": "Customer document",
+   "documentType": "OTHER",
+   "min": 0,
+   "max": 5,
+   "visibleToRequester": true
+  }
+ ]
+}

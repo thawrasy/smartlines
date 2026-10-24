@@ -8,9 +8,10 @@ namespace BankFas.Data.Workflow;
 /// The installer of the pack WFL.BASE (FR-WFL-002, S3 brief S3-GAP-2 and OQ-2): after the CSV rows of the pack (the
 /// visible phases, the request types, their audiences), each file of templates/ is a template graph. It is checked
 /// (V-WFL-01 to 03), written as a draft with its parts, published as the tenant's service user (DR-50: packs are
-/// published by the job account) and its request type is activated. A template already seeded at this pack version is
-/// skipped, and so is a type whose current template the tenant modified (FR-WFL-030), so a re-seed adds nothing and
-/// replaces nothing of the tenant's.
+/// published by the job account) and its request type is activated. A template already seeded under its SeedKey, at
+/// this pack version or an earlier one, is skipped (a later version of the pack adds templates; a changed graph comes
+/// with a new SeedKey), and so is a type whose current template the tenant modified (FR-WFL-030), so a re-seed adds
+/// nothing and replaces nothing of the tenant's.
 /// </summary>
 public static class WorkflowSeed
 {
@@ -36,7 +37,7 @@ public static class WorkflowSeed
             var state = await c.QuerySingleAsync<(int Seeded, int Modified)>(new CommandDefinition(
                 """
                 SELECT (SELECT COUNT(*) FROM wfl.WorkflowTemplate AS t JOIN wfl.RequestType AS rt ON rt.TenantId = t.TenantId AND rt.RequestTypeId = t.RequestTypeId
-                         WHERE rt.Code = @type AND t.SeedKey = @seed AND t.SourceSeedVersion = @v),
+                         WHERE rt.Code = @type AND t.SeedKey = @seed AND t.SourceSeedVersion <= @v),
                        (SELECT COUNT(*) FROM wfl.WorkflowTemplate AS t JOIN wfl.RequestType AS rt ON rt.TenantId = t.TenantId AND rt.RequestTypeId = t.RequestTypeId
                          WHERE rt.Code = @type AND t.IsCurrent = 1 AND t.IsTenantModified = 1);
                 """, new { type = g.RequestType, seed = seedKey, v = seedVersion }, tx, cancellationToken: ct)).ConfigureAwait(false);

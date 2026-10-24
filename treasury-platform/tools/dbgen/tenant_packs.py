@@ -51,7 +51,14 @@ def load_iso():
                             'Iso3': set(re.findall(r"\(\s*'[A-Z]{2}',\s*'([A-Z]{3})'", country))},
             'ref.Currency': {'Code': set(re.findall(r"\(\s*'([A-Z]{3})',\s*'[0-9]{3}'", currency))},
             # The platform rows of UCP 600 in db/seed/103: SeedKey UCP600-nn from the article number (LC.BASE refers to them).
-            'ref.UcpArticle': {'SeedKey': load_ucp()}}
+            'ref.UcpArticle': {'SeedKey': load_ucp()},
+            # The platform's permission catalogue of db/seed/102 (the sales roles of WFL.BASE v2 refer to it by Code).
+            'sec.Permission': {'Code': load_permissions()}}
+
+
+def load_permissions():
+    text = open(os.path.join(os.path.dirname(ISO), '102_permissions.sql'), encoding='utf-8').read()
+    return set(re.findall(r"^\s*\('([a-z][a-z0-9_.]+)',\s*'[A-Z_]+',", text, re.M))
 
 
 def load_ucp():

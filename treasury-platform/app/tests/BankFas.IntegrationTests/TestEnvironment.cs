@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace BankFas.IntegrationTests;
@@ -76,6 +77,36 @@ public sealed class TestEnvironment : WebApplicationFactory<Program>
             s.AddSingleton<IMailSender>(new FileDropMailSender(MailDir));
             s.AddTransient<Microsoft.AspNetCore.Hosting.IStartupFilter, LoopbackClient>();
         });
+        // BANKFAS_IT_LOG names a file that takes the warnings and errors of the application under test, to read a 500 after the run.
+        if (Environment.GetEnvironmentVariable("BANKFAS_IT_LOG") is { Length: > 0 } log)
+            builder.ConfigureLogging(l => l.AddProvider(new FileLog(log)));
+    }
+
+    private sealed class FileLog(string path) : Microsoft.Extensions.Logging.ILoggerProvider
+    {
+        private readonly object _gate = new();
+
+        public Microsoft.Extensions.Logging.ILogger CreateLogger(string categoryName) => new Writer(this, categoryName);
+
+        public void Dispose() { }
+
+        private void Append(string line)
+        {
+            lock (_gate) File.AppendAllText(path, line);
+        }
+
+        private sealed class Writer(FileLog owner, string category) : Microsoft.Extensions.Logging.ILogger
+        {
+            public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+            public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => logLevel >= Microsoft.Extensions.Logging.LogLevel.Warning;
+
+            public void Log<TState>(Microsoft.Extensions.Logging.LogLevel logLevel, Microsoft.Extensions.Logging.EventId eventId, TState state, Exception? exception,
+                Func<TState, Exception?, string> formatter)
+            {
+                if (IsEnabled(logLevel)) owner.Append($"{DateTime.UtcNow:O} {logLevel} {category}: {formatter(state, exception)}\n{exception}\n");
+            }
+        }
     }
 
     public Dictionary<string, string?> Settings()

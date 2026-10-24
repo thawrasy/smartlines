@@ -1255,6 +1255,9 @@ public static class RequestEngine
         [HookKeys.RecordIssuance] = Lc.IssuanceHooks.RecordAsync,
         [HookKeys.AdjustUtilization] = Lc.AmendmentStore.AdjustUtilizationHookAsync,
         [HookKeys.ApplyAmendment] = Lc.AmendmentStore.ApplyHookAsync,
+        [HookKeys.IssueProforma] = Lc.ProformaStore.IssueHookAsync,
+        [HookKeys.EarmarkSalesOrder] = Lc.SalesLcStore.EarmarkHookAsync,
+        [HookKeys.ConvertEarmark] = Lc.SalesLcStore.ConvertHookAsync,
     };
 
     /// <summary>Registers the code of a hook key (the facility and letter-of-credit modules do, S3 batches D to G).</summary>

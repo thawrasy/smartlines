@@ -60,6 +60,13 @@ public static class TermsStore
         ["postDeferralFinancingDays"] = new("PostDeferralFinancingDays", Kind.Int, true), ["bankSpecificClauses"] = new("BankSpecificClauses", Kind.Text, true, 4000),
     };
 
+    /// <summary>The fields of a purchase that a proforma's terms do not take (the applicant is the proforma's customer, BR-LCE-006).</summary>
+    private static readonly HashSet<string> PurchaseOnly = new(StringComparer.Ordinal)
+    {
+        "beneficiary", "marginPct", "debitAuthorization", "marginHeldCurrency", "facilityAccountId", "marginSettlementAccountId", "chargesAccountId",
+        "postDeferralFinancingDays", "prevLcNumber", "prevLcAmount", "prevLcCurrencyId", "prevLcUtilizedAmount", "prevLcOpenedBy", "supplierProformaNo", "supplierProformaDate",
+    };
+
     public sealed class TermsRow
     {
         public long LcTermsId { get; init; }
@@ -76,27 +83,36 @@ public static class TermsStore
         public byte[]? TreasuryHash { get; init; }
     }
 
-    /// <summary>The current (not superseded) application terms of a request, if any.</summary>
+    /// <summary>The current (not superseded) terms of a request, if any: the application of a purchase, or the proforma of a sale (S4).</summary>
     public static async Task<TermsRow?> CurrentAsync(SqlConnection c, SqlTransaction? tx, long requestId, CancellationToken ct) =>
         await c.QuerySingleOrDefaultAsync<TermsRow>(new CommandDefinition(
             """
             SELECT LcTermsId, PublicId, VersionNo, Status, LcClass, Scope, Purpose, Amount, CurrencyId, TolerancePlusPct, SnapshotHash, TreasuryHash
-              FROM lc.LcTerms WHERE OwnerType = 'REQUEST' AND OwnerId = @r AND Purpose = 'APPLICATION' AND Status <> 'SUPERSEDED';
+              FROM lc.LcTerms WHERE OwnerType = 'REQUEST' AND OwnerId = @r AND Purpose IN ('APPLICATION', 'PROFORMA') AND Status <> 'SUPERSEDED';
             """, new { r = requestId }, tx, cancellationToken: ct)).ConfigureAwait(false);
 
-    /// <summary>The draft terms of a purchase request, written once with the company as applicant and the charges of the OWN_BANK preset (14m section 5.5).</summary>
+    /// <summary>
+    /// The draft terms of a request, written once with the charges of the OWN_BANK preset (14m section 5.5): for a purchase
+    /// the company is the applicant (APPLICATION); for a proforma request the company is the beneficiary and the customer,
+    /// set from the proforma at the submission, the applicant (PROFORMA, BR-LCE-006: a sight credit, 21 days to present).
+    /// </summary>
     public static async Task<TermsRow> EnsureAsync(SqlConnection c, SqlTransaction tx, long requestId, long companyId, CancellationToken ct)
     {
         if (await CurrentAsync(c, tx, requestId, ct).ConfigureAwait(false) is { } t) return t;
+        var sales = await c.ExecuteScalarAsync<string?>(new CommandDefinition(
+            "SELECT rt.Code FROM wfl.Request AS r JOIN wfl.RequestType AS rt ON rt.RequestTypeId = r.RequestTypeId WHERE r.RequestId = @r;", new { r = requestId }, tx,
+            cancellationToken: ct)).ConfigureAwait(false) == "PROFORMA_REQUEST";
         var id = await c.ExecuteScalarAsync<long>(new CommandDefinition(
             """
             DECLARE @o TABLE (Id BIGINT);
-            INSERT lc.LcTerms (TenantId, OwnerType, OwnerId, Purpose, VersionNo, Status, LcClass, Scope, ApplicantCompanyId, PresentationDays, CreatedBy)
+            INSERT lc.LcTerms (TenantId, OwnerType, OwnerId, Purpose, VersionNo, Status, LcClass, Scope, ApplicantCompanyId, BeneficiaryCompanyId, LcType, ExpiryRule,
+                               PresentationDays, CreatedBy)
             OUTPUT inserted.LcTermsId INTO @o
-            VALUES (CAST(SESSION_CONTEXT(N'TenantId') AS INT), 'REQUEST', @r, 'APPLICATION', 1, 'DRAFT', 'PURCHASE', 'INTERNATIONAL', @co, 21,
+            VALUES (CAST(SESSION_CONTEXT(N'TenantId') AS INT), 'REQUEST', @r, IIF(@sales = 1, 'PROFORMA', 'APPLICATION'), 1, 'DRAFT', IIF(@sales = 1, 'SALES', 'PURCHASE'),
+                    'INTERNATIONAL', IIF(@sales = 1, NULL, @co), IIF(@sales = 1, @co, NULL), IIF(@sales = 1, 'SIGHT', NULL), IIF(@sales = 1, 'DAYS_AFTER_ISSUE', NULL), 21,
                     CAST(SESSION_CONTEXT(N'UserId') AS BIGINT));
             SELECT Id FROM @o;
-            """, new { r = requestId, co = companyId }, tx, cancellationToken: ct)).ConfigureAwait(false);
+            """, new { r = requestId, co = companyId, sales }, tx, cancellationToken: ct)).ConfigureAwait(false);
         await ChargesPresetAsync(c, tx, id, "OWN_BANK", ct).ConfigureAwait(false);
         return (await CurrentAsync(c, tx, requestId, ct).ConfigureAwait(false))!;
     }
@@ -136,12 +152,15 @@ public static class TermsStore
     {
         var t = await EnsureAsync(c, tx, requestId, companyId, ct).ConfigureAwait(false);
         var sets = new List<string>();
+        var sales = t.LcClass == "SALES";
         var p = new DynamicParameters();
         var requesterChange = false;
         foreach (var prop in values.EnumerateObject())
         {
             if (!Map.TryGetValue(prop.Name, out var col)) throw WorkflowRefusalException.Missing("V-LCT-FIELD", $"The terms have no field {prop.Name} that may be set.");
             if (col.Treasury && !treasury) throw WorkflowRefusalException.Forbidden("Only the treasury sets its own fields of the terms.");
+            if (sales && PurchaseOnly.Contains(prop.Name))
+                throw WorkflowRefusalException.Missing("V-LCT-FIELD", $"The terms asked of a customer have no field {prop.Name}: the customer is the proforma's, and the margin and accounts are a purchase's.");
             if (!col.Treasury)
             {
                 if (!mayEditRequester) throw WorkflowRefusalException.State("The requester's terms change only while the request is a draft or returned.");
@@ -159,6 +178,77 @@ public static class TermsStore
             $"UPDATE lc.LcTerms SET {string.Join(", ", sets)}, UpdatedAt = SYSUTCDATETIME(), UpdatedBy = CAST(SESSION_CONTEXT(N'UserId') AS BIGINT) WHERE LcTermsId = @t;",
             p, tx, cancellationToken: ct)).ConfigureAwait(false);
         return (await CurrentAsync(c, tx, requestId, ct).ConfigureAwait(false))!;
+    }
+
+    /// <summary>
+    /// The fields of a draft version that no request owns (a received credit's terms, an amendment's): the keys of the
+    /// dictionary a sale may take, the treasury's included; the applicant and beneficiary are set by their owner.
+    /// </summary>
+    public static async Task WriteDraftAsync(SqlConnection c, SqlTransaction tx, long termsId, JsonElement values, CancellationToken ct)
+    {
+        var sets = new List<string>();
+        var p = new DynamicParameters();
+        foreach (var prop in values.EnumerateObject())
+        {
+            if (!Map.TryGetValue(prop.Name, out var col) || PurchaseOnly.Contains(prop.Name))
+                throw WorkflowRefusalException.Missing("V-LCT-FIELD", $"The terms of a received credit have no field {prop.Name} that may be set.");
+            var name = "@v" + sets.Count.ToString(CultureInfo.InvariantCulture);
+            p.Add(name, await ValueAsync(c, tx, col, prop.Name, prop.Value, ct).ConfigureAwait(false));
+            sets.Add($"[{col.Column}] = {name}");
+        }
+        if (sets.Count == 0) return;
+        p.Add("@t", termsId);
+        var n = await c.ExecuteAsync(new CommandDefinition(
+            $"UPDATE lc.LcTerms SET {string.Join(", ", sets)}, UpdatedAt = SYSUTCDATETIME(), UpdatedBy = CAST(SESSION_CONTEXT(N'UserId') AS BIGINT) WHERE LcTermsId = @t AND Status = 'DRAFT';",
+            p, tx, cancellationToken: ct)).ConfigureAwait(false);
+        if (n == 0) throw WorkflowRefusalException.State("Only draft terms change.");
+    }
+
+    /// <summary>A terms row by its id, for the owners other than a request.</summary>
+    public static Task<TermsRow> RowAsync(SqlConnection c, SqlTransaction? tx, long termsId, CancellationToken ct) =>
+        c.QuerySingleAsync<TermsRow>(new CommandDefinition(
+            "SELECT LcTermsId, PublicId, VersionNo, Status, LcClass, Scope, Purpose, Amount, CurrencyId, TolerancePlusPct, SnapshotHash, TreasuryHash FROM lc.LcTerms WHERE LcTermsId = @t;",
+            new { t = termsId }, tx, cancellationToken: ct));
+
+    /// <summary>
+    /// Locks a draft version (BR-LCT-019): its checks (an error refuses with its findings), its amount rounded and in words,
+    /// and the hash of its fields, documents and charges. Returns the warnings.
+    /// </summary>
+    public static async Task<IReadOnlyList<TermsFinding>> LockAsync(SqlConnection c, SqlTransaction tx, TermsRow t, long actorId, DateOnly today, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(t);
+        var findings = await CheckAsync(c, tx, t, today, ct).ConfigureAwait(false);
+        var errors = findings.Where(f => f.IsError).ToList();
+        if (errors.Count > 0) throw new WorkflowRefusalException(422, errors[0].Code, string.Join(" ", errors.Select(e => e.Message)));
+        var cur = await c.QuerySingleAsync<(string NameAr, string NameEn, int Decimals)>(new CommandDefinition(
+            "SELECT NameAr, NameEn, Decimals FROM ref.Currency WHERE CurrencyId = @c;", new { c = t.CurrencyId }, tx, cancellationToken: ct)).ConfigureAwait(false);
+        var amount = Math.Round(t.Amount!.Value, cur.Decimals, MidpointRounding.AwayFromZero);
+        var hash = await HashAsync(c, tx, t.LcTermsId, ct).ConfigureAwait(false);
+        var n = await c.ExecuteAsync(new CommandDefinition(
+            """
+            UPDATE lc.LcTerms SET Amount = @amount, AmountInWordsAr = @ar, AmountInWordsEn = @en, SnapshotHash = @hash, LockedAt = SYSUTCDATETIME(), LockedBy = @u, Status = 'LOCKED'
+             WHERE LcTermsId = @t AND Status = 'DRAFT';
+            """,
+            new
+            {
+                amount, ar = AmountInWords.Arabic(amount, cur.NameAr, cur.Decimals), en = AmountInWords.English(amount, cur.NameEn, cur.Decimals), hash, u = actorId, t = t.LcTermsId,
+            }, tx, cancellationToken: ct)).ConfigureAwait(false);
+        if (n == 0) throw WorkflowRefusalException.Conflict();
+        return [.. findings.Where(f => !f.IsError)];
+    }
+
+    private static async Task<byte[]> HashAsync(SqlConnection c, SqlTransaction tx, long termsId, CancellationToken ct)
+    {
+        var fields = await ReadAsync(c, tx, termsId, false, ct).ConfigureAwait(false);
+        var docs = await c.QueryAsync<string>(new CommandDefinition(
+            "SELECT CONCAT(SeqNo, ':', ClauseId, ':', ClauseVersion, ':', Originals, ':', Copies, ':', ParamsJson, ':', [FreeText]) FROM lc.LcTermsDocument WHERE LcTermsId = @t ORDER BY SeqNo;",
+            new { t = termsId }, tx, cancellationToken: ct)).ConfigureAwait(false);
+        var charges = await c.QueryAsync<string>(new CommandDefinition(
+            "SELECT CONCAT(ChargeCategory, ':', Payer, ':', ApplicantSharePct) FROM lc.LcChargesMatrix WHERE LcTermsId = @t ORDER BY ChargeCategory;",
+            new { t = termsId }, tx, cancellationToken: ct)).ConfigureAwait(false);
+        var b = new StringBuilder();
+        using (var json = JsonDocument.Parse(JsonSerializer.Serialize(new { fields, docs, charges }))) Snapshot.Canonical(json.RootElement, b);
+        return SHA256.HashData(Encoding.UTF8.GetBytes(b.ToString()));
     }
 
     private static async Task<object?> ValueAsync(SqlConnection c, SqlTransaction tx, Col col, string key, JsonElement v, CancellationToken ct)
@@ -226,7 +316,7 @@ public static class TermsStore
     /// A copy of a terms version under another owner and purpose (the amendment's terms from the credit's ISSUED ones, and
     /// the credit's next ISSUED version from an applied amendment, BR-LCT-019), with its documents and charges.
     /// </summary>
-    internal static async Task<long> CopyAsync(SqlConnection c, SqlTransaction tx, long fromTermsId, string ownerType, long ownerId, string purpose, int versionNo, string status,
+    internal static async Task<long> CopyAsync(SqlConnection c, SqlTransaction tx, long fromTermsId, string ownerType, long? ownerId, string purpose, int versionNo, string status,
         CancellationToken ct, long? supersedes = null)
     {
         var cols = (await c.QueryAsync<string>(new CommandDefinition(
@@ -295,10 +385,12 @@ public static class TermsStore
         var row = (IDictionary<string, object?>)await c.QuerySingleAsync(new CommandDefinition(
             """
             SELECT t.*, cur.Code AS CurrencyCode, inc.Code AS IncotermCode, pc.Code AS PrevLcCurrencyCode, cp.PublicId AS BeneficiaryRef, cp.NameEn AS BeneficiaryNameEn,
+                   ap.PublicId AS ApplicantRef, ap.NameEn AS ApplicantNameEn,
                    fa.PublicId AS FacilityAccountRef, ma.PublicId AS MarginSettlementAccountRef, ca.PublicId AS ChargesAccountRef
               FROM lc.LcTerms AS t
               LEFT JOIN ref.Currency AS cur ON cur.CurrencyId = t.CurrencyId LEFT JOIN ref.Incoterm AS inc ON inc.IncotermId = t.IncotermId
               LEFT JOIN ref.Currency AS pc ON pc.CurrencyId = t.PrevLcCurrencyId LEFT JOIN lc.Counterparty AS cp ON cp.CounterpartyId = t.BeneficiaryCounterpartyId
+              LEFT JOIN lc.Counterparty AS ap ON ap.CounterpartyId = t.ApplicantCounterpartyId
               LEFT JOIN acc.BankAccount AS fa ON fa.BankAccountId = t.FacilityAccountId LEFT JOIN acc.BankAccount AS ma ON ma.BankAccountId = t.MarginSettlementAccountId
               LEFT JOIN acc.BankAccount AS ca ON ca.BankAccountId = t.ChargesAccountId
              WHERE t.LcTermsId = @t;
@@ -322,6 +414,11 @@ public static class TermsStore
         r["amountInWordsAr"] = row["AmountInWordsAr"];
         r["amountInWordsEn"] = row["AmountInWordsEn"];
         r["beneficiaryName"] = row["BeneficiaryNameEn"];
+        if (row["LcClass"] as string == "SALES")
+        {
+            r["applicant"] = row["ApplicantRef"];
+            r["applicantName"] = row["ApplicantNameEn"];
+        }
         return r;
     }
 
@@ -336,6 +433,8 @@ public static class TermsStore
         foreach (var d in defs)
         {
             if (d.DataType == "COMPUTED" || d.FieldKey is "documents" or "charges" or "applicant" or "lcClass" or "ucpVersion") continue;
+            // In a sale the beneficiary is the company itself, written with the terms (BR-LCE-007).
+            if (t.LcClass == "SALES" && d.FieldKey == "beneficiary") continue;
             using var doc = JsonDocument.Parse(d.ApplicabilityJson);
             if (doc.RootElement.TryGetProperty(t.LcClass, out var k) && k.TryGetProperty(t.Scope, out var s) && s.TryGetProperty(t.Purpose, out var p) && p.GetString() == "REQUIRED")
                 list.Add((d.FieldKey, d.LabelEn));
@@ -389,6 +488,12 @@ public static class TermsStore
         var t = await CurrentAsync(h.C, h.Tx, h.Request.RequestId, h.Ct).ConfigureAwait(false)
             ?? throw WorkflowRefusalException.Missing("V-LCT-REQUIRED", "The terms of the letter of credit are required.");
         if (t.Status == "LOCKED") return new { termsId = t.LcTermsId, version = t.VersionNo, locked = true };
+        // A proforma's terms take their customer and amount from the proforma: its lines, the tax rate and the part paid by credit (FR-LCE-001, 003).
+        if (h.Request.TypeCode == "PROFORMA_REQUEST")
+        {
+            await ProformaStore.PrepareTermsAsync(h.C, h.Tx, h.Request.RequestId, h.Request.CompanyId, t.LcTermsId, h.Now, h.Ct).ConfigureAwait(false);
+            t = (await CurrentAsync(h.C, h.Tx, h.Request.RequestId, h.Ct).ConfigureAwait(false))!;
+        }
         var findings = await CheckAsync(h.C, h.Tx, t, DateOnly.FromDateTime(h.Now.UtcDateTime), h.Ct).ConfigureAwait(false);
         var errors = findings.Where(f => f.IsError).ToList();
         if (errors.Count > 0)

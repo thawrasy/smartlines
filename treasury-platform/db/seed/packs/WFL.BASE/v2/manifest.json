@@ -1,0 +1,59 @@
+{
+  "PackKey": "WFL.BASE",
+  "SeedVersion": 2,
+  "Slice": "S4",
+  "Status": "Version 2 keeps every row and template of version 1 and adds the sales of S4 (spec 14 section 4.3, spec 13 section 5.5): the three sales roles SLP (preparer), SLR (reviewer) and SLA (approver), custom roles that the tenant may rename or change; the request types PROFORMA_REQUEST, SALES_ORDER_APPROVAL and COLLECTION_DOCS_REQUEST with their audiences (SLP, TM, FO, TE); and their three templates: the proforma's chain preparation, review, approval, treasury queue and issue (lc.validate_terms on SUBMIT and RESUBMIT, lc.issue_proforma on COMPLETE of ISSUE_PROFORMA); the sales order's manager approval, treasury queue and earmark (lc.earmark_sales_order); and the collection documents' manager approval, treasury queue, preparation and hand-over (lc.convert_earmark, the COLLECTION_DOCS_PACKAGE attachment required before DOCS_ISSUED). A template already seeded under its SeedKey at an earlier version is kept, so the five templates of version 1 are not published again. A proposed default written by an AI agent.",
+  "Tables": [
+    "sec.Role.csv",
+    "sec.RolePermission.csv",
+    "wfl.ExternalPhase.csv",
+    "wfl.RequestType.csv",
+    "wfl.RequestTypeAudience.csv"
+  ],
+  "Installer": "WFL.TEMPLATES",
+  "DependsOn": [
+    "CORE.ROLES",
+    "CORE.NUMBERING",
+    "CAT.DOCTYPES",
+    "CAT.LOOKUPS",
+    "NTF.BASE"
+  ],
+  "References": {
+    "wfl.RequestTypeAudience.csv": {
+      "RequestTypeSeedKey": {
+        "Column": "RequestTypeId",
+        "Table": "wfl.RequestType",
+        "Key": "SeedKey"
+      },
+      "RoleSeedKey": {
+        "Column": "RoleId",
+        "Table": "sec.Role",
+        "Key": "SeedKey"
+      }
+    },
+    "sec.RolePermission.csv": {
+      "RoleSeedKey": {
+        "Column": "RoleId",
+        "Table": "sec.Role",
+        "Key": "SeedKey"
+      },
+      "PermissionCode": {
+        "Column": "PermissionId",
+        "Table": "sec.Permission",
+        "Key": "Code"
+      }
+    }
+  },
+  "Sources": [
+    "docs/10-detailed-analysis/13-m6-workflow-engine-notifications.md section 5.5 (seeded templates), FR-WFL-002, BR-WFL-011, BR-WFL-013",
+    "docs/10-detailed-analysis/14-m7-m8-letters-of-credit.md section 5 (lc.validate_terms, lc.record_issuance, lc.apply_amendment)",
+    "db/model/15-workflow-notifications.model (wfl.*)",
+    "docs/30-readiness/DOC-F10 and DOC-F11 (template proposals DQ-F10-1 to 13, hooks DQ-F11-1 to 9)",
+    "docs/10-detailed-analysis/14-m7-m8-letters-of-credit.md sections 2 (column SL), 4.3 and 5.3 (lc.issue_proforma, lc.earmark_sales_order, lc.convert_earmark)"
+  ],
+  "Templates": "templates/*.json: one graph per file (BankFas.Core.Workflow.TemplateGraph), stages and roles named by key and code.",
+  "NotSeeded": {
+    "req.assign_number": "The request number is allocated by the engine on entering the template's NumberOnStageKey (BR-WFL-013), so no hook row carries it."
+  },
+  "SeedKeyPrefix": "WFL."
+}

@@ -43,6 +43,7 @@ builder.Services.AddSingleton<BankFas.Core.Files.IMalwareScanner>(_ => builder.C
 builder.Services.AddSingleton<IKeyWrapper>(sp => KeyWrapperFactory.Create(builder.Configuration, builder.Environment));
 builder.Services.Configure<SecurityOptions>(builder.Configuration.GetSection("Security"));
 builder.Services.AddSingleton<SecurityGuard>();
+builder.Services.AddSingleton<ProformaServices>();
 builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase);
 
 // Rate limits per client address (DOC-S04 section 6): 10 password attempts a minute, 10 MFA attempts in 15 minutes,
@@ -92,6 +93,8 @@ builder.Services.Configure<Microsoft.AspNetCore.Builder.ForwardedHeadersOptions>
 });
 
 var app = builder.Build();
+// The issue of a proforma prints the proceeds account's IBAN and stores the printed proforma (S4, FR-LCE-005).
+BankFas.Data.Lc.ProformaStore.Services = app.Services.GetRequiredService<ProformaServices>();
 _ = app.Services.GetRequiredService<BankFas.Core.Security.BreachedPasswords>();
 app.UseForwardedHeaders();
 app.UseMiddleware<SecurityHeadersMiddleware>();
@@ -163,6 +166,7 @@ DashboardEndpoints.Map(portal);
 TemplateEndpoints.Map(portal);
 LcTermsEndpoints.Map(portal);
 LcEndpoints.Map(portal);
+SalesEndpoints.Map(portal);
 FormTemplateEndpoints.Map(portal);
 var panel = app.MapGroup("/api/v1/operator").AddEndpointFilter(SurfaceFilter(Surface.OperatorPanel));
 OperatorEndpoints.Map(panel);

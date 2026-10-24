@@ -199,7 +199,9 @@ public static class LcTermsEndpoints
         var u = permission is null ? await BoundUser.OpenAsync(http, db) : await BoundUser.OpenAsync(http, db, permission);
         try
         {
-            await u.RequireModuleAsync("LC_PURCHASE", http.RequestAborted);
+            // The terms serve the purchase requests and, from S4, the proforma requests of the sales: either module opens them,
+            // and each request is then checked against its own module.
+            if (!await u.ModuleEnabledAsync("LC_PURCHASE", http.RequestAborted)) await u.RequireModuleAsync("LC_SALES", http.RequestAborted);
             await u.PermissionsAsync(http.RequestAborted);
             return u;
         }
@@ -224,8 +226,12 @@ public static class LcTermsEndpoints
             SELECT TOP (50) cp.PublicId AS id, cp.Code AS code, cp.Kind AS kind, cp.NameEn AS nameEn, cp.NameAr AS nameAr, co.Iso2 AS country, cp.ErpCode AS erpCode
               FROM lc.Counterparty AS cp JOIN ref.Country AS co ON co.CountryId = cp.CountryId
              WHERE cp.IsActive = 1 AND (@q = '' OR cp.NameNormalized LIKE '%' + @nq + '%' OR cp.ErpCodeNormalized = @eq)
+               AND (@kind = '' OR cp.Kind = @kind OR cp.Kind = 'BOTH')
              ORDER BY cp.NameEn;
-            """, new { q, nq = Normalizer.Name(q), eq = RequestEndpoints.NormaliseRef(q) }, cancellationToken: http.RequestAborted));
+            """, new { q, nq = Normalizer.Name(q), eq = RequestEndpoints.NormaliseRef(q), kind = http.Request.Query["kind"].ToString().ToUpperInvariant() switch
+            {
+                "CUSTOMER" => "CUSTOMER", "SUPPLIER" => "SUPPLIER", _ => "",
+            } }, cancellationToken: http.RequestAborted));
         return Results.Ok(new { items = rows });
     }
 
@@ -284,7 +290,8 @@ public static class LcTermsEndpoints
     {
         var r = await u.Connection.ExecuteScalarAsync<long?>(new CommandDefinition("SELECT RequestId FROM wfl.Request WHERE PublicId = @id;", new { id }, tx, cancellationToken: ct))
             is { } rid ? await RequestEngine.FindAsync(u.Connection, tx, rid, tx is not null, ct) : null;
-        if (r is null || r.TypeCode is not ("PURCHASE_LC" or "LC_AMENDMENT")) throw ApiProblemException.NotFound();
+        if (r is null || r.TypeCode is not ("PURCHASE_LC" or "LC_AMENDMENT" or "PROFORMA_REQUEST")) throw ApiProblemException.NotFound();
+        if (!await u.ModuleEnabledAsync(r.TypeCode == "PROFORMA_REQUEST" ? "LC_SALES" : "LC_PURCHASE", ct, tx)) throw ApiProblemException.NotFound();
         var perms = await u.PermissionsAsync(ct);
         var scope = await CompanyScope.OfAsync(u, ct, tx);
         var requester = u.UserId == r.RequesterUserId || u.UserId == r.CreatedByUserId;

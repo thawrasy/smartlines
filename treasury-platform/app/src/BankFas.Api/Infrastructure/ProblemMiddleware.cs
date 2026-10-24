@@ -26,7 +26,9 @@ public sealed partial class ProblemMiddleware(RequestDelegate next, ILogger<Prob
         catch (SqlException ex) when (DbProblemMap.Map(ex.Number) is { } p)
         {
             // A refused permission, or a key the application should have checked first, is logged with its detail.
-            if (p.Status >= 500 || ex.Number is 229 or 230 or BankFas.Data.DbErrors.UniqueViolation or BankFas.Data.DbErrors.UniqueIndexViolation) LogRefused(logger, ex, ex.Number);
+            if (p.Status >= 500 || ex.Number is 229 or 230 or BankFas.Data.DbErrors.UniqueViolation or BankFas.Data.DbErrors.UniqueIndexViolation or BankFas.Data.DbErrors.CheckViolation
+                    or BankFas.Data.DbErrors.NullNotAllowed)
+                LogRefused(logger, ex, ex.Number);
             await WriteAsync(context, p.Status, p.Code, p.Title);
         }
         catch (BadHttpRequestException)

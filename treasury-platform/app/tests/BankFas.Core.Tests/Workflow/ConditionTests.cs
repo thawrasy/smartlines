@@ -60,10 +60,10 @@ public sealed class ConditionTests
     [Fact]
     public void The_seeded_templates_pass_the_publication_checks()
     {
-        var dir = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "..", "db", "seed", "packs", "WFL.BASE", "v1", "templates");
+        var dir = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "..", "db", "seed", "packs", "WFL.BASE", "v2", "templates");
         var phases = new HashSet<string> { "DRAFT", "IN_APPROVAL", "RETURNED", "AWAITING_REQUESTER", "IN_PROGRESS", "COMPLETED", "REJECTED", "CANCELLED" };
         var files = Directory.GetFiles(dir, "*.json");
-        Assert.Equal(6, files.Length);
+        Assert.Equal(9, files.Length);
         foreach (var f in files) Assert.Empty(TemplateValidator.Validate(TemplateGraph.Parse(File.ReadAllText(f)), HookKeys.All, phases));
         // A broken graph: an unregistered hook, a stage without a way out, a condition on an unknown field.
         var bad = TemplateGraph.Parse(File.ReadAllText(Path.Combine(dir, "GENERIC_SIMPLE.json"))) with
