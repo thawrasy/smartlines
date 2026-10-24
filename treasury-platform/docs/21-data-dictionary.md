@@ -2,11 +2,11 @@
 
 > مُولَّد آليًا من نموذج البيانات بـ `tools/dbgen` — لا يُعدَّل يدويًا. الأعمدة المشتركة التي تضيفها اصطلاحات التوليد (TenantId، المعرّف، التدقيق) تظهر في كل جدول.
 
-**عدد الجداول: 255**
+**عدد الجداول: 257**
 
 | الوحدة | عدد الجداول |
 |---|---|
-| PLT-PLAT | 9 |
+| PLT-PLAT | 11 |
 | PLT-SEC | 16 |
 | PLT-AUD | 4 |
 | PLT-DOC | 3 |
@@ -243,6 +243,60 @@
 **المفاتيح:** PK(OperatorSessionId) · UQ(TokenHash)
 
 **قيود:** `(EndedAt IS NULL AND EndReason IS NULL) OR (EndedAt IS NOT NULL AND EndReason IS NOT NULL)`
+
+### `plat.IpBlock` — Blocked client address: automatic after repeated refusals, or set by an operator (docs/31 row 48)
+
+*عالمي*
+
+| العمود | النوع | NULL | الافتراضي | المرجع | ملاحظة |
+|---|---|---|---|---|---|
+| **IpBlockId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
+| ClientIp | VARCHAR(45) | لا |  |  | IPv4 أو IPv6 كما يراه الخادم بعد الوكيل الموثوق |
+| Source | VARCHAR(10) | لا |  |  | enum: AUTO, MANUAL |
+| Reason | NVARCHAR(300) | لا |  |  |  |
+| BlockedAt | DATETIME2(3) | لا |  |  |  |
+| BlockedUntil | DATETIME2(3) | نعم |  |  | فارغ = حتى الرفع (يدوي فقط) |
+| BlockedBy | INT | نعم |  | plat.PlatformOperator | المشغّل للحظر اليدوي |
+| LiftedAt | DATETIME2(3) | نعم |  |  |  |
+| LiftedBy | INT | نعم |  | plat.PlatformOperator |  |
+| PublicId | UNIQUEIDENTIFIER | لا | NEWSEQUENTIALID() |  |  |
+| CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
+| CreatedBy | BIGINT | نعم |  |  |  |
+| UpdatedAt | DATETIME2(3) | نعم |  |  |  |
+| UpdatedBy | BIGINT | نعم |  |  |  |
+
+**المفاتيح:** PK(IpBlockId) · UQ(PublicId)
+
+**قيود:** `Source = 'MANUAL' OR (BlockedUntil IS NOT NULL AND BlockedBy IS NULL)` · `Source = 'AUTO' OR BlockedBy IS NOT NULL` · `BlockedUntil IS NULL OR BlockedUntil > BlockedAt` · `LiftedAt IS NULL OR LiftedAt >= BlockedAt`
+
+### `plat.SecurityIncident` — Security incident: detection, containment, root cause and corrective actions (DOC-S15)
+
+*عالمي*
+
+| العمود | النوع | NULL | الافتراضي | المرجع | ملاحظة |
+|---|---|---|---|---|---|
+| **SecurityIncidentId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
+| IncidentNo | VARCHAR(20) | لا |  |  | INC-YYYY-NNN |
+| Title | NVARCHAR(200) | لا |  |  |  |
+| Severity | VARCHAR(10) | لا |  |  | enum: LOW, MEDIUM, HIGH, CRITICAL |
+| Status | VARCHAR(10) | لا | OPEN |  | enum: OPEN, CONTAINED, RESOLVED, CLOSED |
+| DetectedAt | DATETIME2(3) | لا |  |  |  |
+| Description | NVARCHAR(4000) | لا |  |  |  |
+| RootCause | NVARCHAR(4000) | نعم |  |  |  |
+| Actions | NVARCHAR(4000) | نعم |  |  | الإجراءات التصحيحية والوقائية |
+| ClientIps | NVARCHAR(1000) | نعم |  |  | العناوين المعنية مفصولة بفواصل |
+| OpenedBy | INT | لا |  | plat.PlatformOperator |  |
+| ClosedAt | DATETIME2(3) | نعم |  |  |  |
+| ClosedBy | INT | نعم |  | plat.PlatformOperator |  |
+| PublicId | UNIQUEIDENTIFIER | لا | NEWSEQUENTIALID() |  |  |
+| CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
+| CreatedBy | BIGINT | نعم |  |  |  |
+| UpdatedAt | DATETIME2(3) | نعم |  |  |  |
+| UpdatedBy | BIGINT | نعم |  |  |  |
+
+**المفاتيح:** PK(SecurityIncidentId) · UQ(PublicId) · UQ(IncidentNo)
+
+**قيود:** `(Status = 'CLOSED' AND ClosedAt IS NOT NULL AND ClosedBy IS NOT NULL AND RootCause IS NOT NULL) OR (Status <> 'CLOSED' AND ClosedAt IS NULL AND ClosedBy IS NULL)`
 
 ## PLT-SEC
 

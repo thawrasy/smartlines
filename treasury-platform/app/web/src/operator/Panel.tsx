@@ -3,6 +3,7 @@ import { Link, Navigate, NavLink, Route, Routes, useNavigate, useParams } from '
 import { api, message } from '../api';
 import { LangSwitch, useFormat, useI18n } from '../i18n';
 import { Field, Form, Notice, SecretBox, Select, StepUpProvider, Table, useStepUp } from '../ui';
+import { Incidents, Security } from './Security';
 
 interface TenantRow { id: string; code: string; nameEn: string; nameAr: string; status: string; trialEndsOn?: string; planCode: string }
 interface Me { email: string; displayName?: string; role: string }
@@ -303,6 +304,8 @@ function Shell() {
           {me.role === 'OPERATOR_ADMIN' && <NavLink to="/operators">{t('Operators')}</NavLink>}
           <NavLink to="/support">{t('Support access')}</NavLink>
           <NavLink to="/holidays">{t('Platform holidays')}</NavLink>
+          <NavLink to="/security">{t('Security')}</NavLink>
+          <NavLink to="/incidents">{t('Security incidents')}</NavLink>
         </nav>
         <main className="content">
           <Routes>
@@ -311,6 +314,8 @@ function Shell() {
             <Route path="/operators" element={<Operators />} />
             <Route path="/support" element={<Support />} />
             <Route path="/holidays" element={<Holidays me={me} />} />
+            <Route path="/security" element={<Security admin={me.role === 'OPERATOR_ADMIN'} />} />
+            <Route path="/incidents" element={<Incidents admin={me.role === 'OPERATOR_ADMIN'} />} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </main>

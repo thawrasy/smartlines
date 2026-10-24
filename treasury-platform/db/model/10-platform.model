@@ -143,6 +143,44 @@ table plat.OperatorSession global noapp noplat norv deletable   # Platform opera
   index OperatorId,AbsoluteExpiresAt where EndedAt IS NULL
   check (EndedAt IS NULL AND EndReason IS NULL) OR (EndedAt IS NOT NULL AND EndReason IS NOT NULL)
 
+# Blocked client addresses (docs/31 row 48, ADR 0047): the API refuses an address while its row is active. AUTO rows
+# come from the guard after repeated refusals and end by themselves; MANUAL rows are an operator's and may last until
+# lifted. Written by the API through tp_platform; each block and lift is also a platform event of aud.AuditLog.
+table plat.IpBlock global public noapp   # Blocked client address: automatic after repeated refusals, or set by an operator (docs/31 row 48)
+  ClientIp      ascii(45) req   # IPv4 أو IPv6 كما يراه الخادم بعد الوكيل الموثوق
+  Source        enum{AUTO,MANUAL} req
+  Reason        str(300)  req
+  BlockedAt     ts        req
+  BlockedUntil  ts               # فارغ = حتى الرفع (يدوي فقط)
+  BlockedBy     ->plat.PlatformOperator   # المشغّل للحظر اليدوي
+  LiftedAt      ts
+  LiftedBy      ->plat.PlatformOperator
+  index ClientIp where LiftedAt IS NULL
+  index BlockedAt
+  check Source = 'MANUAL' OR (BlockedUntil IS NOT NULL AND BlockedBy IS NULL)   # الآلي محدود المدة وبلا مشغّل
+  check Source = 'AUTO' OR BlockedBy IS NOT NULL
+  check BlockedUntil IS NULL OR BlockedUntil > BlockedAt
+  check LiftedAt IS NULL OR LiftedAt >= BlockedAt
+
+# The incident register (docs/31 row 48, DOC-S15): one row per security incident, from its detection to its close,
+# with its cause and what was done. Kept by the operators.
+table plat.SecurityIncident global public noapp   # Security incident: detection, containment, root cause and corrective actions (DOC-S15)
+  IncidentNo    ascii(20)  req   # INC-YYYY-NNN
+  Title         str(200)   req
+  Severity      enum{LOW,MEDIUM,HIGH,CRITICAL} req
+  Status        enum{OPEN,CONTAINED,RESOLVED,CLOSED} req =OPEN
+  DetectedAt    ts         req
+  Description   str(4000)  req
+  RootCause     str(4000)
+  Actions       str(4000)        # الإجراءات التصحيحية والوقائية
+  ClientIps     str(1000)        # العناوين المعنية مفصولة بفواصل
+  OpenedBy      ->plat.PlatformOperator req
+  ClosedAt      ts
+  ClosedBy      ->plat.PlatformOperator
+  unique IncidentNo
+  index Status,DetectedAt
+  check (Status = 'CLOSED' AND ClosedAt IS NOT NULL AND ClosedBy IS NOT NULL AND RootCause IS NOT NULL) OR (Status <> 'CLOSED' AND ClosedAt IS NULL AND ClosedBy IS NULL)   # الإغلاق بسببه الجذري
+
 # ============================== المخطط sec: المستخدمون والأدوار والجلسات والمفاتيح ==============================
 module PLT-SEC
 

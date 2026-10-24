@@ -15,6 +15,13 @@ CREATE NONCLUSTERED INDEX [IX_SupportAccessGrant_RevokedBy] ON [plat].[SupportAc
 CREATE NONCLUSTERED INDEX [IX_OperatorToken_OperatorId_Purpose] ON [plat].[OperatorToken] ([OperatorId], [Purpose]) WHERE UsedAt IS NULL AND RevokedAt IS NULL;
 CREATE NONCLUSTERED INDEX [IX_OperatorToken_RequestedBy] ON [plat].[OperatorToken] ([RequestedBy]);
 CREATE NONCLUSTERED INDEX [IX_OperatorSession_OperatorId_AbsoluteExpiresAt] ON [plat].[OperatorSession] ([OperatorId], [AbsoluteExpiresAt]) WHERE EndedAt IS NULL;
+CREATE NONCLUSTERED INDEX [IX_IpBlock_ClientIp] ON [plat].[IpBlock] ([ClientIp]) WHERE LiftedAt IS NULL;
+CREATE NONCLUSTERED INDEX [IX_IpBlock_BlockedAt] ON [plat].[IpBlock] ([BlockedAt]);
+CREATE NONCLUSTERED INDEX [IX_IpBlock_BlockedBy] ON [plat].[IpBlock] ([BlockedBy]);
+CREATE NONCLUSTERED INDEX [IX_IpBlock_LiftedBy] ON [plat].[IpBlock] ([LiftedBy]);
+CREATE NONCLUSTERED INDEX [IX_SecurityIncident_Status_DetectedAt] ON [plat].[SecurityIncident] ([Status], [DetectedAt]);
+CREATE NONCLUSTERED INDEX [IX_SecurityIncident_OpenedBy] ON [plat].[SecurityIncident] ([OpenedBy]);
+CREATE NONCLUSTERED INDEX [IX_SecurityIncident_ClosedBy] ON [plat].[SecurityIncident] ([ClosedBy]);
 CREATE NONCLUSTERED INDEX [IX_AppUser_Status] ON [sec].[AppUser] ([TenantId], [Status]);
 CREATE NONCLUSTERED INDEX [IX_AppUser_LockedUntil] ON [sec].[AppUser] ([TenantId], [LockedUntil]) WHERE Status = 'LOCKED';
 CREATE NONCLUSTERED INDEX [IX_AppUser_DepartmentId] ON [sec].[AppUser] ([TenantId], [DepartmentId]);

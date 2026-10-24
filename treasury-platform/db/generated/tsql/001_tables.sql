@@ -211,6 +211,59 @@ CREATE TABLE [plat].[OperatorSession] (
     CONSTRAINT [CK_OperatorSession_EndReason] CHECK ([EndReason] IS NULL OR [EndReason] IN ('LOGOUT', 'TERMINATED_BY_ADMIN', 'MFA_FAILED', 'OPERATOR_DISABLED', 'OPERATOR_RESET'))
 );
 GO
+-- Blocked client address: automatic after repeated refusals, or set by an operator (docs/31 row 48)
+CREATE TABLE [plat].[IpBlock] (
+    [IpBlockId] BIGINT IDENTITY(1,1) NOT NULL,
+    [ClientIp] VARCHAR(45) NOT NULL,
+    [Source] VARCHAR(10) NOT NULL,
+    [Reason] NVARCHAR(300) NOT NULL,
+    [BlockedAt] DATETIME2(3) NOT NULL,
+    [BlockedUntil] DATETIME2(3) NULL,
+    [BlockedBy] INT NULL,
+    [LiftedAt] DATETIME2(3) NULL,
+    [LiftedBy] INT NULL,
+    [PublicId] UNIQUEIDENTIFIER NOT NULL CONSTRAINT [DF_IpBlock_PublicId] DEFAULT NEWSEQUENTIALID(),
+    [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_IpBlock_CreatedAt] DEFAULT SYSUTCDATETIME(),
+    [CreatedBy] BIGINT NULL,
+    [UpdatedAt] DATETIME2(3) NULL,
+    [UpdatedBy] BIGINT NULL,
+    CONSTRAINT [PK_IpBlock] PRIMARY KEY CLUSTERED ([IpBlockId]),
+    CONSTRAINT [UQ_IpBlock_PublicId] UNIQUE ([PublicId]),
+    CONSTRAINT [CK_IpBlock_1] CHECK (Source = 'MANUAL' OR (BlockedUntil IS NOT NULL AND BlockedBy IS NULL)),
+    CONSTRAINT [CK_IpBlock_2] CHECK (Source = 'AUTO' OR BlockedBy IS NOT NULL),
+    CONSTRAINT [CK_IpBlock_3] CHECK (BlockedUntil IS NULL OR BlockedUntil > BlockedAt),
+    CONSTRAINT [CK_IpBlock_4] CHECK (LiftedAt IS NULL OR LiftedAt >= BlockedAt),
+    CONSTRAINT [CK_IpBlock_Source] CHECK ([Source] IS NULL OR [Source] IN ('AUTO', 'MANUAL'))
+);
+GO
+-- Security incident: detection, containment, root cause and corrective actions (DOC-S15)
+CREATE TABLE [plat].[SecurityIncident] (
+    [SecurityIncidentId] BIGINT IDENTITY(1,1) NOT NULL,
+    [IncidentNo] VARCHAR(20) NOT NULL,
+    [Title] NVARCHAR(200) NOT NULL,
+    [Severity] VARCHAR(10) NOT NULL,
+    [Status] VARCHAR(10) NOT NULL CONSTRAINT [DF_SecurityIncident_Status] DEFAULT 'OPEN',
+    [DetectedAt] DATETIME2(3) NOT NULL,
+    [Description] NVARCHAR(4000) NOT NULL,
+    [RootCause] NVARCHAR(4000) NULL,
+    [Actions] NVARCHAR(4000) NULL,
+    [ClientIps] NVARCHAR(1000) NULL,
+    [OpenedBy] INT NOT NULL,
+    [ClosedAt] DATETIME2(3) NULL,
+    [ClosedBy] INT NULL,
+    [PublicId] UNIQUEIDENTIFIER NOT NULL CONSTRAINT [DF_SecurityIncident_PublicId] DEFAULT NEWSEQUENTIALID(),
+    [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_SecurityIncident_CreatedAt] DEFAULT SYSUTCDATETIME(),
+    [CreatedBy] BIGINT NULL,
+    [UpdatedAt] DATETIME2(3) NULL,
+    [UpdatedBy] BIGINT NULL,
+    CONSTRAINT [PK_SecurityIncident] PRIMARY KEY CLUSTERED ([SecurityIncidentId]),
+    CONSTRAINT [UQ_SecurityIncident_PublicId] UNIQUE ([PublicId]),
+    CONSTRAINT [UQ_SecurityIncident_IncidentNo] UNIQUE ([IncidentNo]),
+    CONSTRAINT [CK_SecurityIncident_1] CHECK ((Status = 'CLOSED' AND ClosedAt IS NOT NULL AND ClosedBy IS NOT NULL AND RootCause IS NOT NULL) OR (Status <> 'CLOSED' AND ClosedAt IS NULL AND ClosedBy IS NULL)),
+    CONSTRAINT [CK_SecurityIncident_Severity] CHECK ([Severity] IS NULL OR [Severity] IN ('LOW', 'MEDIUM', 'HIGH', 'CRITICAL')),
+    CONSTRAINT [CK_SecurityIncident_Status] CHECK ([Status] IS NULL OR [Status] IN ('OPEN', 'CONTAINED', 'RESOLVED', 'CLOSED'))
+);
+GO
 -- Journal of the schema scripts applied to this database (DOC-B11 section 6)
 CREATE TABLE [plat].[SchemaMigration] (
     [SchemaMigrationId] BIGINT IDENTITY(1,1) NOT NULL,

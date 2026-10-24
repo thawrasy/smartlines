@@ -15,6 +15,10 @@ ALTER TABLE [plat].[SupportAccessGrant] ADD CONSTRAINT [FK_SupportAccessGrant_Re
 ALTER TABLE [plat].[OperatorToken] ADD CONSTRAINT [FK_OperatorToken_OperatorId] FOREIGN KEY ([OperatorId]) REFERENCES [plat].[PlatformOperator] ([PlatformOperatorId]);
 ALTER TABLE [plat].[OperatorToken] ADD CONSTRAINT [FK_OperatorToken_RequestedBy] FOREIGN KEY ([RequestedBy]) REFERENCES [plat].[PlatformOperator] ([PlatformOperatorId]);
 ALTER TABLE [plat].[OperatorSession] ADD CONSTRAINT [FK_OperatorSession_OperatorId] FOREIGN KEY ([OperatorId]) REFERENCES [plat].[PlatformOperator] ([PlatformOperatorId]);
+ALTER TABLE [plat].[IpBlock] ADD CONSTRAINT [FK_IpBlock_BlockedBy] FOREIGN KEY ([BlockedBy]) REFERENCES [plat].[PlatformOperator] ([PlatformOperatorId]);
+ALTER TABLE [plat].[IpBlock] ADD CONSTRAINT [FK_IpBlock_LiftedBy] FOREIGN KEY ([LiftedBy]) REFERENCES [plat].[PlatformOperator] ([PlatformOperatorId]);
+ALTER TABLE [plat].[SecurityIncident] ADD CONSTRAINT [FK_SecurityIncident_OpenedBy] FOREIGN KEY ([OpenedBy]) REFERENCES [plat].[PlatformOperator] ([PlatformOperatorId]);
+ALTER TABLE [plat].[SecurityIncident] ADD CONSTRAINT [FK_SecurityIncident_ClosedBy] FOREIGN KEY ([ClosedBy]) REFERENCES [plat].[PlatformOperator] ([PlatformOperatorId]);
 ALTER TABLE [sec].[AppUser] ADD CONSTRAINT [FK_AppUser_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
 ALTER TABLE [sec].[AppUser] ADD CONSTRAINT [FK_AppUser_DepartmentId] FOREIGN KEY ([TenantId], [DepartmentId]) REFERENCES [org].[Department] ([TenantId], [DepartmentId]);
 ALTER TABLE [sec].[AppUser] ADD CONSTRAINT [FK_AppUser_LineManagerUserId] FOREIGN KEY ([TenantId], [LineManagerUserId]) REFERENCES [sec].[AppUser] ([TenantId], [AppUserId]);

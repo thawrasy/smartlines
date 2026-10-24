@@ -41,6 +41,8 @@ builder.Services.AddSingleton<BankFas.Core.Files.IMalwareScanner>(_ => builder.C
     _ => throw new InvalidOperationException("No malware scanner is configured (Scanning:Provider clamav; FR-PLT-029)."),
 });
 builder.Services.AddSingleton<IKeyWrapper>(sp => KeyWrapperFactory.Create(builder.Configuration, builder.Environment));
+builder.Services.Configure<SecurityOptions>(builder.Configuration.GetSection("Security"));
+builder.Services.AddSingleton<SecurityGuard>();
 builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase);
 
 // Rate limits per client address (DOC-S04 section 6): 10 password attempts a minute, 10 MFA attempts in 15 minutes,
@@ -55,6 +57,19 @@ builder.Services.AddRateLimiter(o =>
             PermitLimit = permits * Math.Max(1, ctx.RequestServices.GetRequiredService<IConfiguration>().GetValue("RateLimits:Scale", 1)),
             Window = window,
         }));
+    // Every API request counts against its client address (docs/31 row 48); an address unknown, of a trusted proxy or
+    // loopback is not limited, so a misread proxy cannot shut every user out at once.
+    o.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(ctx =>
+    {
+        var guard = ctx.RequestServices.GetRequiredService<SecurityGuard>();
+        var key = ctx.Request.Path.StartsWithSegments("/api") ? guard.Key(ctx.Connection.RemoteIpAddress) : null;
+        if (key is null) return RateLimitPartition.GetNoLimiter("-");
+        return RateLimitPartition.GetFixedWindowLimiter(key, _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = Math.Max(1, guard.Options.ApiPerMinute),
+            Window = TimeSpan.FromMinutes(1),
+        });
+    });
     Policy("login", 10, TimeSpan.FromMinutes(1));
     Policy("mfa", 10, TimeSpan.FromMinutes(15));
     Policy("reset", 10, TimeSpan.FromHours(1));
@@ -64,9 +79,23 @@ if (!builder.Environment.IsDevelopment() && !builder.Environment.IsEnvironment("
     && (builder.Configuration.GetValue<bool>("Database:TrustServerCertificate") || scale != 1))
     throw new InvalidOperationException("Database:TrustServerCertificate and RateLimits:Scale are for development and tests only (ADR 0013).");
 
+// Only the trusted proxies (Security:TrustedProxies; Caddy on the host by default) may name the client, and only the
+// nearest hop is taken (ADR 0047): a client cannot choose its own address by sending X-Forwarded-For itself.
+builder.Services.Configure<Microsoft.AspNetCore.Builder.ForwardedHeadersOptions>(o =>
+{
+    o.ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto;
+    o.ForwardLimit = 1;
+    o.KnownIPNetworks.Clear();
+    o.KnownProxies.Clear();
+    foreach (var p in builder.Configuration.GetSection("Security:TrustedProxies").Get<string[]>() ?? ["127.0.0.1", "::1"])
+        if (System.Net.IPAddress.TryParse(p.Trim(), out var a)) o.KnownProxies.Add(a);
+});
+
 var app = builder.Build();
 _ = app.Services.GetRequiredService<BankFas.Core.Security.BreachedPasswords>();
+app.UseForwardedHeaders();
 app.UseMiddleware<SecurityHeadersMiddleware>();
+app.UseMiddleware<SecurityGuardMiddleware>();
 app.UseMiddleware<ProblemMiddleware>();
 app.UseMiddleware<HostRoutingMiddleware>();
 
@@ -138,6 +167,7 @@ FormTemplateEndpoints.Map(portal);
 var panel = app.MapGroup("/api/v1/operator").AddEndpointFilter(SurfaceFilter(Surface.OperatorPanel));
 OperatorEndpoints.Map(panel);
 OperatorAdminEndpoints.Map(panel);
+SecurityEndpoints.Map(panel);
 CalendarEndpoints.MapOperator(panel);
 
 if (webFiles is not null) app.MapFallbackToFile("{*path:regex(^(?!api/|health/).*$)}", "index.html", webFiles);

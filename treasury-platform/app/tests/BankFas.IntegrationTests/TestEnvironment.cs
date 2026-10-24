@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -5,6 +6,7 @@ using BankFas.Core.Mail;
 using BankFas.Core.Security;
 using BankFas.Data;
 using BankFas.Data.Jobs;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.SqlClient;
@@ -32,6 +34,7 @@ public sealed class TestEnvironment : WebApplicationFactory<Program>
 {
     public const string Domain = "bankfas.test";
     public const string OperatorHost = "admin." + Domain;
+    public const string SecurityAlertEmail = "security-alerts@test.invalid";
     public TestClock Clock { get; } = new();
     public string MailDir { get; } = Path.Combine(Path.GetTempPath(), "bankfas-it-mail-" + Guid.NewGuid().ToString("N"));
 
@@ -71,6 +74,7 @@ public sealed class TestEnvironment : WebApplicationFactory<Program>
         {
             s.AddSingleton<TimeProvider>(Clock);
             s.AddSingleton<IMailSender>(new FileDropMailSender(MailDir));
+            s.AddTransient<Microsoft.AspNetCore.Hosting.IStartupFilter, LoopbackClient>();
         });
     }
 
@@ -89,6 +93,8 @@ public sealed class TestEnvironment : WebApplicationFactory<Program>
             ["Passwords:BreachedList:AllowMissingRanges"] = "true",
             ["Files:Root"] = FilesDir,
             ["Scanning:Provider"] = "test",
+            ["Security:ApiPerMinute"] = "60",
+            ["Security:AlertEmails:0"] = SecurityAlertEmail,
             ["Keys:Local:Current"] = "local:it/1",
             ["Keys:Local:Keys:0:Ref"] = "local:it/1",
             ["Keys:Local:Keys:0:Key"] = _masterKey,
@@ -190,6 +196,23 @@ public sealed class TestEnvironment : WebApplicationFactory<Program>
         if (disposing && Directory.Exists(BreachedDir)) Directory.Delete(BreachedDir, recursive: true);
         if (disposing && Directory.Exists(FilesDir)) Directory.Delete(FilesDir, recursive: true);
     }
+}
+
+/// <summary>
+/// The test server has no client address; the tests come from loopback, as from the reverse proxy on the host, so a
+/// test names its client with X-Forwarded-For like Caddy does (Security:TrustedProxies).
+/// </summary>
+internal sealed class LoopbackClient : Microsoft.AspNetCore.Hosting.IStartupFilter
+{
+    public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) => app =>
+    {
+        app.Use((ctx, inner) =>
+        {
+            ctx.Connection.RemoteIpAddress ??= IPAddress.Loopback;
+            return inner(ctx);
+        });
+        next(app);
+    };
 }
 
 public static class Http
