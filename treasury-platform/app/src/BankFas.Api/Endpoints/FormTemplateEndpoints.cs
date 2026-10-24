@@ -54,9 +54,9 @@ public static class FormTemplateEndpoints
     }
 
     private const string Columns = """
-        t.PublicId AS id, t.Code AS code, t.VersionNo AS version, t.FormKind AS formKind, i.NameEn AS bankNameEn, i.NameAr AS bankNameAr, p.Code AS product,
+        t.PublicId AS id, t.Code AS code, t.VersionNo AS version, t.FormKind AS formKind, i.PublicId AS institution, i.NameEn AS bankNameEn, i.NameAr AS bankNameAr, p.Code AS product,
         t.Scope AS scope, t.Channel AS channel, t.LayoutKind AS layoutKind, t.Language AS language, t.EffectiveFrom AS effectiveFrom, t.EffectiveTo AS effectiveTo,
-        t.AnnexVersion AS annexVersion, t.LegalReviewStatus AS legalReview, t.Status AS status
+        t.AnnexVersion AS annexVersion, t.LegalReviewStatus AS legalReview, t.Status AS status, t.FooterTextAr AS footerTextAr, t.FooterTextEn AS footerTextEn
         """;
 
     private const string From = """
