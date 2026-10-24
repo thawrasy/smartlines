@@ -43,6 +43,8 @@ GRANT SELECT, INSERT, UPDATE ON [sec].[UserCompanyScope] TO [tp_app];
 GRANT SELECT, INSERT ON [sec].[LoginAttempt] TO [tp_app];
 -- plat.SchemaMigration  (noapp: بلا منح لتطبيق المشترك)
 -- sec.SessionBinding  (noapp: بلا منح لتطبيق المشترك)
+-- sec.UserProductScope
+GRANT SELECT, INSERT, UPDATE ON [sec].[UserProductScope] TO [tp_app];
 -- sec.UserSession
 GRANT SELECT, INSERT, UPDATE ON [sec].[UserSession] TO [tp_app];
 -- sec.MfaRecoveryCode

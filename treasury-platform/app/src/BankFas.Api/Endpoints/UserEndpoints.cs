@@ -7,10 +7,14 @@ using Microsoft.Data.SqlClient;
 
 namespace BankFas.Api.Endpoints;
 
-public sealed record InviteUserRequest(string? Email, string? DisplayNameEn, string? DisplayNameAr, Guid[]? RoleIds, string? StepUpCode);
+/// <summary>Method: INVITATION (a link by e-mail, the default) or TEMP_PASSWORD (handed over, changed at the first sign-in), as the tenant allows (ADR 0048).</summary>
+public sealed record InviteUserRequest(string? Email, string? DisplayNameEn, string? DisplayNameAr, Guid[]? RoleIds, string? StepUpCode,
+    string? EmployeeCode = null, string? Mobile = null, string? Method = null);
 /// <summary>Department: a department reference, or "" to clear. LineManager: a user's id; ClearLineManager removes it (S3 brief S3-GAP-9).</summary>
+/// <summary>EmployeeCode and Mobile: the sign-in names besides the e-mail; "" clears one (ADR 0048).</summary>
 public sealed record PatchUserRequest(string? DisplayNameEn, string? DisplayNameAr, string? PreferredLanguage, string? DigitsPreference, string? Department = null,
-    Guid? LineManager = null, bool? ClearLineManager = null);
+    Guid? LineManager = null, bool? ClearLineManager = null, string? EmployeeCode = null, string? Mobile = null);
+public sealed record ProductScopeRequest(string? Mode, string[]? Modules);
 public sealed record UserRolesRequest(Guid[]? RoleIds, string? StepUpCode);
 public sealed record UserActionRequest(string? Reason, string? StepUpCode);
 public sealed record CompanyScopeEntry(Guid Id, bool IncludeDescendants);
@@ -36,6 +40,7 @@ public static class UserEndpoints
         api.MapPatch("/users/{id:guid}", PatchAsync);
         api.MapPut("/users/{id:guid}/roles", SetRolesAsync);
         api.MapPut("/users/{id:guid}/company-scope", SetScopeAsync);
+        api.MapPut("/users/{id:guid}/product-scope", SetProductScopeAsync);
         api.MapPost("/users/{id:guid}/actions/{action}", ActAsync);
         api.MapGet("/users/{id:guid}/sessions", SessionsAsync);
         api.MapDelete("/users/{id:guid}/sessions", EndAllSessionsAsync);
@@ -44,16 +49,17 @@ public static class UserEndpoints
 
     private sealed record UserRow(long AppUserId, Guid PublicId, string Email, string? DisplayNameEn, string? DisplayNameAr, string Status,
         bool MfaEnabled, DateTime? LastLoginAt, string CompanyScopeMode, string? PreferredLanguage, string? DigitsPreference, byte[] RowVersion,
-        DateTime CreatedAt, long? DepartmentId, long? LineManagerUserId);
+        DateTime CreatedAt, long? DepartmentId, long? LineManagerUserId, string? EmployeeCode, string? Mobile, string ProductScopeMode, bool MustChangePassword);
 
     private const string UserColumns =
-        "AppUserId, PublicId, Email, DisplayNameEn, DisplayNameAr, Status, MfaEnabled, LastLoginAt, CompanyScopeMode, PreferredLanguage, DigitsPreference, RowVersion, CreatedAt, DepartmentId, LineManagerUserId";
+        "AppUserId, PublicId, Email, DisplayNameEn, DisplayNameAr, Status, MfaEnabled, LastLoginAt, CompanyScopeMode, PreferredLanguage, DigitsPreference, RowVersion, CreatedAt, DepartmentId, LineManagerUserId, EmployeeCode, Mobile, ProductScopeMode, MustChangePassword";
 
     private static object View(UserRow u, IEnumerable<string>? roles = null) => new
     {
         id = u.PublicId, email = u.Email, displayNameEn = u.DisplayNameEn, displayNameAr = u.DisplayNameAr, status = u.Status,
         mfaEnabled = u.MfaEnabled, lastLoginAt = u.LastLoginAt, companyScopeMode = u.CompanyScopeMode,
         preferredLanguage = u.PreferredLanguage, digitsPreference = u.DigitsPreference, createdAt = u.CreatedAt, roles,
+        employeeCode = u.EmployeeCode, mobile = u.Mobile, productScopeMode = u.ProductScopeMode, mustChangePassword = u.MustChangePassword,
     };
 
     private static async Task<IResult> ListAsync(HttpContext http, SqlConnectionFactory db, OpaqueRefs refs)
@@ -68,7 +74,7 @@ public static class UserEndpoints
             $"""
             SELECT TOP (@take) {UserColumns} FROM sec.AppUser
             WHERE IsSystemUser = 0 AND (@after IS NULL OR AppUserId > @after) AND (@status IS NULL OR Status = @status)
-              AND (@q IS NULL OR Email LIKE @q OR DisplayNameEn LIKE @q OR DisplayNameAr LIKE @q)
+              AND (@q IS NULL OR Email LIKE @q OR DisplayNameEn LIKE @q OR DisplayNameAr LIKE @q OR EmployeeCode LIKE @q OR Mobile LIKE @q)
             ORDER BY AppUserId;
             """, new { take = limit + 1, after, status, q }, cancellationToken: http.RequestAborted))).ToList();
         var page = rows.Take(limit).ToList();
@@ -95,10 +101,12 @@ public static class UserEndpoints
             "SELECT Code, NameAr, NameEn FROM org.Department WHERE DepartmentId = @d;", new { d = row.DepartmentId }, cancellationToken: http.RequestAborted));
         var manager = row.LineManagerUserId is null ? null : await u.Connection.QuerySingleOrDefaultAsync<(Guid Id, string? NameEn, string? NameAr)?>(new CommandDefinition(
             "SELECT PublicId, DisplayNameEn, DisplayNameAr FROM sec.AppUser WHERE AppUserId = @m;", new { m = row.LineManagerUserId }, cancellationToken: http.RequestAborted));
+        var products = await u.Connection.QueryAsync<string>(new CommandDefinition(
+            "SELECT ModuleCode FROM sec.UserProductScope WHERE UserId = @u ORDER BY ModuleCode;", new { u = row.AppUserId }, cancellationToken: http.RequestAborted));
         ETags.Set(http.Response, row.RowVersion);
         return Results.Ok(new
         {
-            user = View(row, roles[row.AppUserId]), companies = scope,
+            user = View(row, roles[row.AppUserId]), companies = scope, products,
             department = row.DepartmentId is { } d && department is { } dp
                 ? new { id = refs.ItemRef(u.TenantId, "department", d), code = dp.Code, nameAr = dp.NameAr, nameEn = dp.NameEn } : null,
             lineManager = manager is { } m ? new { id = m.Id, displayNameEn = m.NameEn, displayNameAr = m.NameAr } : null,
@@ -111,6 +119,10 @@ public static class UserEndpoints
         var email = body.Email?.Trim();
         if (string.IsNullOrEmpty(email) || email.Length > 254 || !email.Contains('@', StringComparison.Ordinal) || string.IsNullOrWhiteSpace(body.DisplayNameEn))
             throw ApiProblemException.Invalid("VALIDATION_FAILED", "Enter an e-mail address and a name.");
+        var method = body.Method ?? "INVITATION";
+        if (!SignInIdentity.CreationMethods.Contains(method)) throw ApiProblemException.Invalid("VALIDATION_FAILED", "Choose an invitation or a temporary password.");
+        var employeeCode = SignInIdentity.EmployeeCode(body.EmployeeCode);
+        var mobile = SignInIdentity.Mobile(body.Mobile);
         var rc = RequestContext.Of(http);
         long userId;
         Guid publicId;
@@ -118,8 +130,11 @@ public static class UserEndpoints
         var token = SecureTokens.NewToken();
         await using (var check = await BoundUser.OpenAsync(http, db, Manage))
         {
+            if (!(await SignInIdentity.ListSettingAsync(check.Connection, null, "security.user.creation", SignInIdentity.CreationMethods, http.RequestAborted)).Contains(method))
+                throw new ApiProblemException(409, "V-USR-CREATION", "The account does not create users this way (security.user.creation).");
             var roleRows = await ResolveRolesAsync(check.Connection, body.RoleIds ?? [], http.RequestAborted);
-            if (roleRows.Any(r => StepUpRoles.Contains(r.Code))) await StepUp.RequireAsync(http, db, keys, clock, body.StepUpCode);
+            // A temporary password hands over a working account, so it takes a fresh proof like a sensitive role.
+            if (roleRows.Any(r => StepUpRoles.Contains(r.Code)) || method == "TEMP_PASSWORD") await StepUp.RequireAsync(http, db, keys, clock, body.StepUpCode);
         }
         await using (var u = await BoundUser.OpenAsync(http, db, Manage))
         {
@@ -130,20 +145,29 @@ public static class UserEndpoints
                 (userId, publicId) = await u.Connection.QuerySingleAsync<(long, Guid)>(new CommandDefinition(
                     """
                     DECLARE @o TABLE (AppUserId BIGINT, PublicId UNIQUEIDENTIFIER);
-                    INSERT sec.AppUser (TenantId, Email, DisplayNameEn, DisplayNameAr, Status)
+                    INSERT sec.AppUser (TenantId, Email, DisplayNameEn, DisplayNameAr, Status, EmployeeCode, Mobile)
                     OUTPUT inserted.AppUserId, inserted.PublicId INTO @o
-                    VALUES (CAST(SESSION_CONTEXT(N'TenantId') AS INT), @email, @en, @ar, 'INVITED');
+                    VALUES (CAST(SESSION_CONTEXT(N'TenantId') AS INT), @email, @en, @ar, 'INVITED', @code, @mobile);
                     SELECT AppUserId, PublicId FROM @o;
-                    """, new { email, en = body.DisplayNameEn.Trim(), ar = body.DisplayNameAr?.Trim() }, tx, cancellationToken: http.RequestAborted));
+                    """, new { email, en = body.DisplayNameEn.Trim(), ar = body.DisplayNameAr?.Trim(), code = employeeCode, mobile }, tx, cancellationToken: http.RequestAborted));
             }
             catch (SqlException ex) when (ex.Number is DbErrors.UniqueViolation or DbErrors.UniqueIndexViolation)
             {
-                throw ApiProblemException.Invalid("V-PLT-07", "A user with this e-mail already exists.");
+                throw ApiProblemException.Invalid("V-PLT-07", UniqueMessage(ex));
             }
             await AddRolesAsync(u, tx, userId, roleRows.Select(r => r.RoleId), http.RequestAborted);
             await TenantAdminProcedures.WriteAuditAsync(u.Connection, tx, new AuditEntry("USER_INVITED", "IDENTITY_ACCESS", "sec.AppUser", userId,
-                AfterJson: JsonSerializer.Serialize(new { email, roles = roleRows.Select(r => r.Code) }),
-                Severity: roleRows.Any(r => StepUpRoles.Contains(r.Code)) ? "HIGH" : "INFO"), http.RequestAborted);
+                AfterJson: JsonSerializer.Serialize(new { email, employeeCode, mobile, method, roles = roleRows.Select(r => r.Code) }),
+                Severity: roleRows.Any(r => StepUpRoles.Contains(r.Code)) || method == "TEMP_PASSWORD" ? "HIGH" : "INFO"), http.RequestAborted);
+            if (method == "TEMP_PASSWORD")
+            {
+                // Shown once to the administrator, never stored or sent by the platform (ADR 0048).
+                var policy = await TenantAuthProcedures.GetPasswordPolicyAsync(u.Connection, u.TenantId, http.RequestAborted);
+                var temporary = SignInIdentity.TemporaryPassword(policy.MinLength);
+                await TenantAdminProcedures.SetTemporaryPasswordAsync(u.Connection, tx, u.TenantId, userId, PasswordHasher.HashNew(temporary), http.RequestAborted);
+                await tx.CommitAsync(http.RequestAborted);
+                return Results.Created($"/api/v1/users/{publicId}", new { id = publicId, status = "ACTIVE", temporaryPassword = temporary, invitationSent = false });
+            }
             sentTo = await TenantAdminProcedures.IssueUserTokenAsync(u.Connection, tx, u.TenantId, userId, "INVITATION", token, http.RequestAborted);
             await tx.CommitAsync(http.RequestAborted);
             var sent = await mail.SendAndRecordAsync(u.Connection, rc.TenantCode, userId, sentTo, "INVITATION", token, http.RequestAborted);
@@ -158,6 +182,10 @@ public static class UserEndpoints
             throw ApiProblemException.Invalid("VALIDATION_FAILED", "Choose a language and a digit style from the list.");
         if (body.LineManager is not null && body.ClearLineManager == true)
             throw ApiProblemException.Invalid("VALIDATION_FAILED", "Set a line manager or clear it, not both.");
+        var codeSet = body.EmployeeCode is not null;
+        var employeeCode = SignInIdentity.EmployeeCode(body.EmployeeCode);
+        var mobileSet = body.Mobile is not null;
+        var mobile = SignInIdentity.Mobile(body.Mobile);
         await using var u = await BoundUser.OpenAsync(http, db, Manage);
         await using var tx = (SqlTransaction)await u.Connection.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, http.RequestAborted);
         var row = await FindAsync(u.Connection, tx, id, http.RequestAborted);
@@ -191,24 +219,36 @@ public static class UserEndpoints
             manager = mm.Id;
         }
         var managerSet = body.LineManager is not null || body.ClearLineManager == true;
-        var changed = await u.Connection.QuerySingleOrDefaultAsync<byte[]>(new CommandDefinition(
+        byte[]? changed;
+        try
+        {
+        changed = await u.Connection.QuerySingleOrDefaultAsync<byte[]>(new CommandDefinition(
             """
             DECLARE @o TABLE (RowVersion BINARY(8));
             UPDATE sec.AppUser
                SET DisplayNameEn = COALESCE(@en, DisplayNameEn), DisplayNameAr = COALESCE(@ar, DisplayNameAr),
                    PreferredLanguage = COALESCE(@lang, PreferredLanguage), DigitsPreference = COALESCE(@digits, DigitsPreference),
                    DepartmentId = CASE WHEN @departmentSet = 1 THEN @department ELSE DepartmentId END,
-                   LineManagerUserId = CASE WHEN @managerSet = 1 THEN @manager ELSE LineManagerUserId END
+                   LineManagerUserId = CASE WHEN @managerSet = 1 THEN @manager ELSE LineManagerUserId END,
+                   EmployeeCode = CASE WHEN @codeSet = 1 THEN @code ELSE EmployeeCode END,
+                   Mobile = CASE WHEN @mobileSet = 1 THEN @mobile ELSE Mobile END
             OUTPUT inserted.RowVersion INTO @o
              WHERE AppUserId = @id AND RowVersion = @rv;
             SELECT RowVersion FROM @o;
             """, new { en = body.DisplayNameEn?.Trim(), ar = body.DisplayNameAr?.Trim(), lang = body.PreferredLanguage, digits = body.DigitsPreference,
-                departmentSet, department, managerSet, manager, id = row.AppUserId, rv = expected }, tx, cancellationToken: http.RequestAborted)) ?? throw ETags.Conflict();
+                departmentSet, department, managerSet, manager, codeSet, code = employeeCode, mobileSet, mobile, id = row.AppUserId, rv = expected },
+                tx, cancellationToken: http.RequestAborted)) ?? throw ETags.Conflict();
+        }
+        catch (SqlException ex) when (ex.Number is DbErrors.UniqueViolation or DbErrors.UniqueIndexViolation)
+        {
+            throw ApiProblemException.Invalid("V-PLT-07", UniqueMessage(ex));
+        }
         await TenantAdminProcedures.WriteAuditAsync(u.Connection, tx, new AuditEntry("USER_UPDATED", "IDENTITY_ACCESS", "sec.AppUser", row.AppUserId,
             BeforeJson: JsonSerializer.Serialize(new { displayNameEn = row.DisplayNameEn, displayNameAr = row.DisplayNameAr, departmentId = row.DepartmentId,
-                lineManagerUserId = row.LineManagerUserId }),
+                lineManagerUserId = row.LineManagerUserId, employeeCode = row.EmployeeCode, mobile = row.Mobile }),
             AfterJson: JsonSerializer.Serialize(new { body.DisplayNameEn, body.DisplayNameAr, body.PreferredLanguage, body.DigitsPreference,
-                departmentId = departmentSet ? department : row.DepartmentId, lineManagerUserId = managerSet ? manager : row.LineManagerUserId })), http.RequestAborted);
+                departmentId = departmentSet ? department : row.DepartmentId, lineManagerUserId = managerSet ? manager : row.LineManagerUserId,
+                employeeCode = codeSet ? employeeCode : row.EmployeeCode, mobile = mobileSet ? mobile : row.Mobile })), http.RequestAborted);
         await tx.CommitAsync(http.RequestAborted);
         ETags.Set(http.Response, changed);
         return Results.NoContent();
@@ -280,15 +320,56 @@ public static class UserEndpoints
         return Results.NoContent();
     }
 
+    private static readonly string[] Products = ["CORE", "INSTITUTIONS", "FACILITIES", "COVENANTS", "WORKFLOW", "LC_PURCHASE", "LC_SALES", "REQUESTS", "REPORTS"];
+
+    /// <summary>
+    /// The products (modules) a user may use (docs/31 row 46, ADR 0048): ALL, or the SELECTED ones; CORE is always in.
+    /// It narrows what the tenant has enabled and what the roles allow, never widens it.
+    /// </summary>
+    private static async Task<IResult> SetProductScopeAsync(Guid id, ProductScopeRequest body, HttpContext http, SqlConnectionFactory db)
+    {
+        var expected = ETags.Required(http.Request);
+        if (body.Mode is not ("ALL" or "SELECTED")) throw ApiProblemException.Invalid("VALIDATION_FAILED", "The scope is ALL or SELECTED.");
+        var modules = body.Mode == "ALL" ? [] : (body.Modules ?? []).Append("CORE").Distinct(StringComparer.Ordinal).ToArray();
+        if (modules.Any(m => !Products.Contains(m))) throw ApiProblemException.Invalid("VALIDATION_FAILED", "A product code is not known.");
+        await using var u = await BoundUser.OpenAsync(http, db, Manage);
+        await using var tx = (SqlTransaction)await u.Connection.BeginTransactionAsync(http.RequestAborted);
+        var target = await FindAsync(u.Connection, tx, id, http.RequestAborted);
+        var before = (await u.Connection.QueryAsync<string>(new CommandDefinition(
+            "SELECT ModuleCode FROM sec.UserProductScope WHERE UserId = @u;", new { u = target.AppUserId }, tx, cancellationToken: http.RequestAborted))).ToList();
+        var rv = await u.Connection.QuerySingleOrDefaultAsync<byte[]>(new CommandDefinition(
+            "DECLARE @o TABLE (RowVersion BINARY(8)); UPDATE sec.AppUser SET ProductScopeMode = @m OUTPUT inserted.RowVersion INTO @o WHERE AppUserId = @u AND RowVersion = @rv; SELECT RowVersion FROM @o;",
+            new { m = body.Mode, u = target.AppUserId, rv = expected }, tx, cancellationToken: http.RequestAborted)) ?? throw ETags.Conflict();
+        await u.Connection.ExecuteAsync(new CommandDefinition("DELETE FROM sec.UserProductScope WHERE UserId = @u;",
+            new { u = target.AppUserId }, tx, cancellationToken: http.RequestAborted));
+        foreach (var m in modules)
+            await u.Connection.ExecuteAsync(new CommandDefinition(
+                "INSERT sec.UserProductScope (TenantId, UserId, ModuleCode) VALUES (CAST(SESSION_CONTEXT(N'TenantId') AS INT), @u, @m);",
+                new { u = target.AppUserId, m }, tx, cancellationToken: http.RequestAborted));
+        await TenantAdminProcedures.WriteAuditAsync(u.Connection, tx, new AuditEntry("USER_PRODUCT_SCOPE_CHANGED", "IDENTITY_ACCESS", "sec.AppUser", target.AppUserId,
+            BeforeJson: JsonSerializer.Serialize(new { mode = target.ProductScopeMode, modules = before }),
+            AfterJson: JsonSerializer.Serialize(new { mode = body.Mode, modules })), http.RequestAborted);
+        await tx.CommitAsync(http.RequestAborted);
+        ETags.Set(http.Response, rv);
+        return Results.NoContent();
+    }
+
+    private static string UniqueMessage(SqlException ex) =>
+        ex.Message.Contains("EmployeeCode", StringComparison.Ordinal) ? "Another user has this employee code."
+        : ex.Message.Contains("Mobile", StringComparison.Ordinal) ? "Another user has this mobile number."
+        : "A user with this e-mail already exists.";
+
     private static async Task<IResult> ActAsync(Guid id, string action, UserActionRequest? body, HttpContext http, SqlConnectionFactory db,
         AccountMail mail, TenantKeyRing keys, TimeProvider clock)
     {
         var rc = RequestContext.Of(http);
-        if (action is not ("disable" or "enable" or "archive" or "unlock" or "reset-mfa" or "resend-invitation" or "send-password-reset" or "send-mfa-reenrolment"))
+        if (action is not ("disable" or "enable" or "archive" or "unlock" or "reset-mfa" or "resend-invitation" or "send-password-reset" or "send-mfa-reenrolment"
+                or "temporary-password"))
             throw ApiProblemException.NotFound();
-        if (action is "disable" or "reset-mfa" && string.IsNullOrWhiteSpace(body?.Reason))
+        if (action is "disable" or "reset-mfa" or "temporary-password" && string.IsNullOrWhiteSpace(body?.Reason))
             throw ApiProblemException.Invalid("VALIDATION_FAILED", "Give a reason.");
-        if (action == "reset-mfa") await StepUp.RequireAsync(http, db, keys, clock, body?.StepUpCode);
+        if (action is "reset-mfa" or "temporary-password") await StepUp.RequireAsync(http, db, keys, clock, body?.StepUpCode);
+        string? temporary = null;
 
         await using var u = await BoundUser.OpenAsync(http, db, Manage);
         var target = await FindAsync(u.Connection, null, id, http.RequestAborted);
@@ -326,14 +407,22 @@ public static class UserEndpoints
             case "send-mfa-reenrolment":
                 await SendLinkAsync(u, mail, rc.TenantCode, target.AppUserId, "MFA_REENROLMENT", http.RequestAborted);
                 break;
+            case "temporary-password":
+                if (self) throw new ApiProblemException(409, "STATUS_CHANGE_NOT_ALLOWED", "Change your own password from your account page.");
+                if (!(await SignInIdentity.ListSettingAsync(u.Connection, null, "security.user.creation", SignInIdentity.CreationMethods, http.RequestAborted)).Contains("TEMP_PASSWORD"))
+                    throw new ApiProblemException(409, "V-USR-CREATION", "The account does not hand over temporary passwords (security.user.creation).");
+                var policy = await TenantAuthProcedures.GetPasswordPolicyAsync(u.Connection, u.TenantId, http.RequestAborted);
+                temporary = SignInIdentity.TemporaryPassword(policy.MinLength);
+                await TenantAdminProcedures.SetTemporaryPasswordAsync(u.Connection, null, u.TenantId, target.AppUserId, PasswordHasher.HashNew(temporary), http.RequestAborted);
+                break;
         }
         if (body?.Reason is { Length: > 0 } reason)
             await TenantAdminProcedures.WriteAuditAsync(u.Connection, null, new AuditEntry("USER_ACTION_REASON", "IDENTITY_ACCESS", "sec.AppUser", target.AppUserId,
                 AfterJson: JsonSerializer.Serialize(new { action, reason = reason.Length > 500 ? reason[..500] : reason }),
-                Severity: action == "reset-mfa" ? "HIGH" : "INFO"), http.RequestAborted);
+                Severity: action is "reset-mfa" or "temporary-password" ? "HIGH" : "INFO"), http.RequestAborted);
         var status = await u.Connection.ExecuteScalarAsync<string>(new CommandDefinition(
             "SELECT Status FROM sec.AppUser WHERE AppUserId = @id;", new { id = target.AppUserId }, cancellationToken: http.RequestAborted));
-        return Results.Ok(new { id, status });
+        return temporary is null ? Results.Ok(new { id, status }) : Results.Ok(new { id, status, temporaryPassword = temporary });
     }
 
     /// <summary>SEC.MFA_RESET (spec 13 section 9.2) to the other account administrators and to the user concerned.</summary>

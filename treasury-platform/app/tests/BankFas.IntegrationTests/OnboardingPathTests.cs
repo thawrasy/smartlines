@@ -40,6 +40,8 @@ public sealed class OnboardingPathTests(PlatformFixture f)
         Assert.Equal("TRIAL", created.GetProperty("status").GetString());
         var list = await panel.GetJsonAsync("/api/v1/operator/tenants");
         Assert.Contains(list.GetProperty("items").EnumerateArray(), t => t.GetProperty("code").GetString() == code);
+        // This path is the one with two-step verification, which the platform administration requires of this tenant.
+        await f.SetMfaPolicyAsync(code, "REQUIRED");
 
         // The worker onboards it: keys, roles, the first administrator's invitation by e-mail. Running again adds nothing.
         var job = env.OnboardingJob();

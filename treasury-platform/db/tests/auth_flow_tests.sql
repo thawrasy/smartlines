@@ -150,7 +150,8 @@ FROM (VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9)) AS v(n);
 
 -- Seed: one active tenant with an administrator (TA), a user without MFA, a user with MFA and ten recovery codes,
 -- an invited user and a user locked by the third lockout.
-INSERT plat.Tenant (Code, NameAr, NameEn, PlanId, HomeCountryId, Status, TimeZone) VALUES ('TST-FLOW', N'F', N'F', 1, 1, 'ACTIVE', 'UTC');
+-- MFA required of this tenant: A4 to A16 are the two-step path (ADR 0048 makes it a platform choice; A18 on is the other).
+INSERT plat.Tenant (Code, NameAr, NameEn, PlanId, HomeCountryId, Status, TimeZone, MfaPolicy) VALUES ('TST-FLOW', N'F', N'F', 1, 1, 'ACTIVE', 'UTC', 'REQUIRED');
 SET @tf = SCOPE_IDENTITY();
 EXEC #Bind @tf, 0;
 INSERT sec.AppUser (TenantId, Email, DisplayNameEn, Status, PasswordHash, MfaEnabled, MfaSecretEnc, MfaKeyId, MfaEnrolledAt)
@@ -217,7 +218,7 @@ ROLLBACK TRANSACTION a3;
 SAVE TRANSACTION a4;
 SELECT @e1 = NULL, @e2 = NULL, @mreq = NULL, @menr = NULL, @enr = NULL, @reenr = NULL;
 EXECUTE AS USER = N'tp_test_app';
-EXEC sec.usp_StartSession @TenantId = @tf, @Email = N'usr@test.invalid', @PasswordHash = @phcU, @SessionToken = @s1,
+EXEC sec.usp_StartSession @TenantId = @tf, @Login = N'usr@test.invalid', @PasswordHash = @phcU, @SessionToken = @s1,
      @MfaRequired = @mreq OUTPUT, @MfaEnrolmentRequired = @menr OUTPUT;
 EXEC sec.usp_GetMfaChallenge @TenantId = @tf, @SessionToken = @s1, @EnrolmentRequired = @enr OUTPUT, @ReenrolmentRequired = @reenr OUTPUT;
 BEGIN TRY EXEC sec.usp_CompleteMfaEnrolment @TenantId = @tf, @SessionToken = @s1, @MfaSecretEnc = @secret, @MfaKeyId = 1, @Step = 500, @RecoveryCodeHashes = @codes9; END TRY
@@ -236,7 +237,7 @@ ROLLBACK TRANSACTION a4;
    verifies the session. */
 SAVE TRANSACTION a5;
 EXECUTE AS USER = N'tp_test_app';
-EXEC sec.usp_StartSession @TenantId = @tf, @Email = N'mfa@test.invalid', @PasswordHash = @phcM, @SessionToken = @s2;
+EXEC sec.usp_StartSession @TenantId = @tf, @Login = N'mfa@test.invalid', @PasswordHash = @phcM, @SessionToken = @s2;
 EXEC sec.usp_ConfirmMfa @TenantId = @tf, @SessionToken = @s2, @Passed = 1, @Step = 100;
 REVERT;
 SELECT @n = COUNT(*) FROM sec.UserSession WHERE TokenHash = HASHBYTES('SHA2_256', @s2) AND MfaVerifiedAt IS NULL;
@@ -254,7 +255,7 @@ ROLLBACK TRANSACTION a5;
 SAVE TRANSACTION a6;
 SET @i = 0;
 EXECUTE AS USER = N'tp_test_app';
-EXEC sec.usp_StartSession @TenantId = @tf, @Email = N'mfa@test.invalid', @PasswordHash = @phcM, @SessionToken = @s3;
+EXEC sec.usp_StartSession @TenantId = @tf, @Login = N'mfa@test.invalid', @PasswordHash = @phcM, @SessionToken = @s3;
 WHILE @i < 5 BEGIN EXEC sec.usp_ConfirmMfa @TenantId = @tf, @SessionToken = @s3, @Passed = 0; SET @i = @i + 1; END;
 REVERT;
 SELECT @n = COUNT(*) FROM sec.AppUser WHERE AppUserId = @mfa AND Status = 'LOCKED';
@@ -268,9 +269,9 @@ SAVE TRANSACTION a7;
 SELECT @e1 = NULL, @rem = NULL;
 DECLARE @rc1 VARBINARY(32) = HASHBYTES('SHA2_256', 'rc-1');
 EXECUTE AS USER = N'tp_test_app';
-EXEC sec.usp_StartSession @TenantId = @tf, @Email = N'mfa@test.invalid', @PasswordHash = @phcM, @SessionToken = @s3;
+EXEC sec.usp_StartSession @TenantId = @tf, @Login = N'mfa@test.invalid', @PasswordHash = @phcM, @SessionToken = @s3;
 EXEC sec.usp_UseRecoveryCode @TenantId = @tf, @SessionToken = @s3, @CodeHash = @rc1, @Remaining = @rem OUTPUT;
-EXEC sec.usp_StartSession @TenantId = @tf, @Email = N'mfa@test.invalid', @PasswordHash = @phcM, @SessionToken = @s4;
+EXEC sec.usp_StartSession @TenantId = @tf, @Login = N'mfa@test.invalid', @PasswordHash = @phcM, @SessionToken = @s4;
 BEGIN TRY EXEC sec.usp_UseRecoveryCode @TenantId = @tf, @SessionToken = @s4, @CodeHash = @rc1; END TRY
 BEGIN CATCH SET @e1 = ERROR_NUMBER(); END CATCH;
 REVERT;
@@ -309,12 +310,12 @@ SAVE TRANSACTION a9;
 SELECT @e1 = NULL, @sent = N'x';
 DECLARE @sentL NVARCHAR(254), @sentM NVARCHAR(254);
 EXECUTE AS USER = N'tp_test_app';
-EXEC sec.usp_RequestPasswordReset @TenantId = @tf, @Email = N'nobody@test.invalid', @Token = @lnk2, @SentTo = @sent OUTPUT;
-EXEC sec.usp_RequestPasswordReset @TenantId = @tf, @Email = N'mfa@test.invalid', @Token = @lnk, @SentTo = @sentM OUTPUT;
+EXEC sec.usp_RequestPasswordReset @TenantId = @tf, @Login = N'nobody@test.invalid', @Token = @lnk2, @SentTo = @sent OUTPUT;
+EXEC sec.usp_RequestPasswordReset @TenantId = @tf, @Login = N'mfa@test.invalid', @Token = @lnk, @SentTo = @sentM OUTPUT;
 EXEC sec.usp_ResetPassword @TenantId = @tf, @Token = @lnk, @NewPasswordHash = @phcNew, @Candidates = N'["$argon2id$v=19$m=65536,t=3,p=4$bWZhc2FsdA$b3RoZXJoYXNo"]';
 BEGIN TRY EXEC sec.usp_ResetPassword @TenantId = @tf, @Token = @lnk, @NewPasswordHash = @phcNew, @Candidates = N'[]'; END TRY
 BEGIN CATCH SET @e1 = ERROR_NUMBER(); END CATCH;
-EXEC sec.usp_RequestPasswordReset @TenantId = @tf, @Email = N'lck@test.invalid', @Token = @lnk2, @SentTo = @sentL OUTPUT;
+EXEC sec.usp_RequestPasswordReset @TenantId = @tf, @Login = N'lck@test.invalid', @Token = @lnk2, @SentTo = @sentL OUTPUT;
 EXEC sec.usp_ResetPassword @TenantId = @tf, @Token = @lnk2, @NewPasswordHash = @phcNew, @Candidates = N'["$argon2id$v=19$m=65536,t=3,p=4$bGNrc2FsdA$b3RoZXI"]';
 REVERT;
 SELECT @n = COUNT(*) FROM sec.AppUser WHERE AppUserId = @mfa AND PasswordHash = @phcNew;
@@ -334,7 +335,7 @@ EXEC sec.usp_UnlockUser @TenantId = @tf, @UserId = @lck;
 BEGIN TRY EXEC sec.usp_UnlockUser @TenantId = @tf, @UserId = @usr; END TRY
 BEGIN CATCH SET @e1 = ERROR_NUMBER(); END CATCH;
 EXEC sec.usp_ResetMfa @TenantId = @tf, @UserId = @mfa;
-EXEC sec.usp_StartSession @TenantId = @tf, @Email = N'mfa@test.invalid', @PasswordHash = @phcM, @SessionToken = @s1;
+EXEC sec.usp_StartSession @TenantId = @tf, @Login = N'mfa@test.invalid', @PasswordHash = @phcM, @SessionToken = @s1;
 EXEC sec.usp_GetMfaChallenge @TenantId = @tf, @SessionToken = @s1, @ReenrolmentRequired = @reenr OUTPUT;
 BEGIN TRY EXEC sec.usp_CompleteMfaEnrolment @TenantId = @tf, @SessionToken = @s1, @MfaSecretEnc = @secret, @MfaKeyId = 1, @Step = 700, @RecoveryCodeHashes = @codes10; END TRY
 BEGIN CATCH SET @e2 = ERROR_NUMBER(); END CATCH;
@@ -410,7 +411,7 @@ SELECT @n = NULL, @n2 = NULL, @n3 = NULL;
 INSERT cfg.TenantSetting (TenantId, [Key], ValueJson)
 VALUES (@tf, 'security.session.idle_minutes', N'10'), (@tf, 'security.session.absolute_hours', N'2');
 EXECUTE AS USER = N'tp_test_app';
-EXEC sec.usp_StartSession @TenantId = @tf, @Email = N'mfa@test.invalid', @PasswordHash = @phcM, @SessionToken = @s1;
+EXEC sec.usp_StartSession @TenantId = @tf, @Login = N'mfa@test.invalid', @PasswordHash = @phcM, @SessionToken = @s1;
 REVERT;
 SELECT @n = DATEDIFF(SECOND, LastSeenAt, IdleExpiresAt), @n2 = DATEDIFF(SECOND, LastSeenAt, AbsoluteExpiresAt)
 FROM sec.UserSession WHERE TokenHash = HASHBYTES('SHA2_256', @s1);
@@ -430,7 +431,7 @@ INSERT cfg.TenantSetting (TenantId, [Key], ValueJson) VALUES (@tf, 'security.loc
 EXECUTE AS USER = N'tp_test_app';
 WHILE @i < 3
 BEGIN
-    BEGIN TRY EXEC sec.usp_StartSession @TenantId = @tf, @Email = N'usr@test.invalid', @PasswordHash = @phcNew, @SessionToken = @s2; END TRY
+    BEGIN TRY EXEC sec.usp_StartSession @TenantId = @tf, @Login = N'usr@test.invalid', @PasswordHash = @phcNew, @SessionToken = @s2; END TRY
     BEGIN CATCH SET @e1 = ERROR_NUMBER(); END CATCH;
     SET @i = @i + 1;
 END;
@@ -491,7 +492,7 @@ SET @k = SCOPE_IDENTITY();
 UPDATE sec.TenantKey SET Status = 'ACTIVE', ActivatedAt = SYSUTCDATETIME() WHERE TenantKeyId = @k;
 UPDATE sec.AppUser SET MfaKeyId = @k WHERE AppUserId = @mfa;
 EXECUTE AS USER = N'tp_test_app';
-EXEC sec.usp_StartSession @TenantId = @tf, @Email = N'mfa@test.invalid', @PasswordHash = @phcM, @SessionToken = @s2;
+EXEC sec.usp_StartSession @TenantId = @tf, @Login = N'mfa@test.invalid', @PasswordHash = @phcM, @SessionToken = @s2;
 BEGIN TRY EXEC sec.usp_GetMfaChallenge @TenantId = @tf, @SessionToken = @s2, @StepUp = 1; END TRY
 BEGIN CATCH SET @e1 = ERROR_NUMBER(); END CATCH;
 EXEC sec.usp_GetMfaChallenge @TenantId = @tf, @SessionToken = @s2, @MfaSecretEnc = @sec OUTPUT, @MfaKeyId = @key OUTPUT,
@@ -501,7 +502,7 @@ EXEC sec.usp_ConfirmMfa @TenantId = @tf, @SessionToken = @s2, @Passed = 1, @Step
 BEGIN TRY EXEC sec.usp_GetMfaChallenge @TenantId = @tf, @SessionToken = @s2; END TRY
 BEGIN CATCH SET @e2 = ERROR_NUMBER(); END CATCH;
 EXEC sec.usp_GetMfaChallenge @TenantId = @tf, @SessionToken = @s2, @StepUp = 1, @MfaSecretEnc = @sec2 OUTPUT, @MfaVerifiedAt = @verAt OUTPUT;
-EXEC sec.usp_StartSession @TenantId = @tf, @Email = N'usr@test.invalid', @PasswordHash = @phcU, @SessionToken = @s1;
+EXEC sec.usp_StartSession @TenantId = @tf, @Login = N'usr@test.invalid', @PasswordHash = @phcU, @SessionToken = @s1;
 EXEC sec.usp_GetMfaChallenge @TenantId = @tf, @SessionToken = @s1, @MfaSecretEnc = @sec2 OUTPUT, @MfaKeyId = @key2 OUTPUT,
      @EnrolmentRequired = @enr2 OUTPUT, @WrappedKey = @wk2 OUTPUT;
 REVERT;
@@ -517,7 +518,7 @@ ROLLBACK TRANSACTION a15;
 SAVE TRANSACTION a16;
 DECLARE @acc1 BIT, @acc2 BIT, @acc3 BIT;
 EXECUTE AS USER = N'tp_test_app';
-EXEC sec.usp_StartSession @TenantId = @tf, @Email = N'mfa@test.invalid', @PasswordHash = @phcM, @SessionToken = @s2;
+EXEC sec.usp_StartSession @TenantId = @tf, @Login = N'mfa@test.invalid', @PasswordHash = @phcM, @SessionToken = @s2;
 EXEC sec.usp_ConfirmMfa @TenantId = @tf, @SessionToken = @s2, @Passed = 1, @Step = 100, @Accepted = @acc1 OUTPUT;
 EXEC sec.usp_ConfirmMfa @TenantId = @tf, @SessionToken = @s2, @Passed = 1, @Accepted = @acc2 OUTPUT;
 EXEC sec.usp_ConfirmMfa @TenantId = @tf, @SessionToken = @s2, @Passed = 1, @Step = 102, @Accepted = @acc3 OUTPUT;
@@ -548,6 +549,90 @@ IF @min1 = 12 AND @hist = 5 AND @min2 = 16 AND @e1 = 50002
 ELSE PRINT 'FAIL A17: password policy (' + CONCAT(@min1, '/', @hist, '/', @min2, '/', @e1) + ')';
 ROLLBACK TRANSACTION a17;
 
+/* A18 (ADR 0048): with MFA off for the tenant, a user without MFA starts a session that needs nothing more, and a
+   user who enrolled is still asked. The session records whether MFA was required. */
+SAVE TRANSACTION a18;
+DECLARE @s5 VARBINARY(64) = CRYPT_GEN_RANDOM(32), @s6 VARBINARY(64) = CRYPT_GEN_RANDOM(32), @step VARCHAR(30), @step2 VARCHAR(30),
+        @mreq2 BIT, @menr2 BIT;
+UPDATE plat.Tenant SET MfaPolicy = 'OFF' WHERE TenantId = @tf;
+EXECUTE AS USER = N'tp_test_app';
+EXEC sec.usp_StartSession @TenantId = @tf, @Login = N'usr@test.invalid', @PasswordHash = @phcU, @SessionToken = @s5,
+     @MfaRequired = @mreq OUTPUT, @MfaEnrolmentRequired = @menr OUTPUT;
+EXEC sec.usp_GetSessionStep @TenantId = @tf, @SessionToken = @s5, @NextStep = @step OUTPUT;
+EXEC sec.usp_StartSession @TenantId = @tf, @Login = N'mfa@test.invalid', @PasswordHash = @phcM, @SessionToken = @s6,
+     @MfaRequired = @mreq2 OUTPUT, @MfaEnrolmentRequired = @menr2 OUTPUT;
+EXEC sec.usp_GetSessionStep @TenantId = @tf, @SessionToken = @s6, @NextStep = @step2 OUTPUT;
+REVERT;
+SELECT @n = COUNT(*) FROM sec.UserSession WHERE TokenHash = HASHBYTES('SHA2_256', @s5) AND MfaRequired = 0;
+IF @mreq = 0 AND @menr = 0 AND @step = 'DONE' AND @mreq2 = 1 AND @menr2 = 0 AND @step2 = 'MFA_REQUIRED' AND @n = 1
+    PRINT 'PASS A18: with MFA off a user without MFA needs nothing more, and an enrolled user is still asked';
+ELSE PRINT 'FAIL A18: MFA policy at sign-in (' + CONCAT(@mreq, '/', @menr, '/', @step, '/', @mreq2, '/', @menr2, '/', @step2, '/', @n) + ')';
+ROLLBACK TRANSACTION a18;
+
+/* A19 (ADR 0048): the sign-in name is the e-mail, the employee code or the mobile number (00 read as +, spaces dropped),
+   as far as the tenant's security.login.identifiers allows; a name two users share names none. */
+SAVE TRANSACTION a19;
+DECLARE @p1 VARCHAR(255), @p2 VARCHAR(255), @p3 VARCHAR(255), @p4 VARCHAR(255), @p5 VARCHAR(255);
+UPDATE sec.AppUser SET EmployeeCode = 'E-100', Mobile = '+966501112233' WHERE AppUserId = @usr;
+UPDATE sec.AppUser SET EmployeeCode = 'adm@test.invalid' WHERE AppUserId = @mfa;   -- the same text as another user's e-mail
+EXECUTE AS USER = N'tp_test_app';
+EXEC sec.usp_GetPasswordParams @TenantId = @tf, @Login = N'e-100', @Params = @p1 OUTPUT;
+EXEC sec.usp_GetPasswordParams @TenantId = @tf, @Login = N'00966 50 111 2233', @Params = @p2 OUTPUT;
+EXEC sec.usp_GetPasswordParams @TenantId = @tf, @Login = N'adm@test.invalid', @Params = @p3 OUTPUT;
+REVERT;
+INSERT cfg.TenantSetting (TenantId, [Key], ValueJson) VALUES (@tf, 'security.login.identifiers', N'"EMAIL"');
+EXECUTE AS USER = N'tp_test_app';
+EXEC sec.usp_GetPasswordParams @TenantId = @tf, @Login = N'E-100', @Params = @p4 OUTPUT;
+EXEC sec.usp_GetPasswordParams @TenantId = @tf, @Login = N'adm@test.invalid', @Params = @p5 OUTPUT;
+REVERT;
+IF @p1 IS NOT NULL AND @p2 = @p1 AND @p3 IS NULL AND @p4 IS NULL AND @p5 IS NOT NULL
+    PRINT 'PASS A19: the employee code and the mobile number sign in as the tenant allows, and a shared name names nobody';
+ELSE PRINT 'FAIL A19: sign-in names (' + CONCAT(IIF(@p1 IS NULL, 0, 1), IIF(@p2 = @p1, 1, 0), IIF(@p3 IS NULL, 0, 1), IIF(@p4 IS NULL, 0, 1), IIF(@p5 IS NULL, 0, 1)) + ')';
+ROLLBACK TRANSACTION a19;
+
+/* A20 (ADR 0048): an administrator sets a temporary password; the user signs in, must change it before the session
+   binds, and the change clears the flag. Not for the administrator's own account (50016). */
+SAVE TRANSACTION a20;
+DECLARE @s7 VARBINARY(64) = CRYPT_GEN_RANDOM(32), @must BIT, @step3 VARCHAR(30), @step4 VARCHAR(30), @phcT VARCHAR(255) = '$argon2id$v=19$m=65536,t=3,p=4$dG1wc2FsdA$dG1waGFzaA';
+SELECT @e1 = NULL;
+UPDATE plat.Tenant SET MfaPolicy = 'OFF' WHERE TenantId = @tf;
+EXECUTE AS USER = N'tp_test_app';
+EXEC sec.usp_SetTemporaryPassword @TenantId = @tf, @UserId = @inv, @PasswordHash = @phcT;
+BEGIN TRY EXEC sec.usp_SetTemporaryPassword @TenantId = @tf, @UserId = @adm, @PasswordHash = @phcT; END TRY
+BEGIN CATCH SET @e1 = ERROR_NUMBER(); END CATCH;
+EXEC sec.usp_StartSession @TenantId = @tf, @Login = N'inv@test.invalid', @PasswordHash = @phcT, @SessionToken = @s7, @MustChangePassword = @must OUTPUT;
+EXEC sec.usp_GetSessionStep @TenantId = @tf, @SessionToken = @s7, @NextStep = @step3 OUTPUT;
+EXEC sec.usp_ChangePassword @TenantId = @tf, @SessionToken = @s7, @CurrentPasswordHash = @phcT, @NewPasswordHash = @phcNew,
+     @Candidates = N'["$argon2id$v=19$m=65536,t=3,p=4$dG1wc2FsdA$b3RoZXJoYXNo"]';
+EXEC sec.usp_GetSessionStep @TenantId = @tf, @SessionToken = @s7, @NextStep = @step4 OUTPUT;
+REVERT;
+SELECT @n = COUNT(*) FROM sec.AppUser WHERE AppUserId = @inv AND Status = 'ACTIVE' AND MustChangePassword = 0 AND PasswordHash = @phcNew;
+SELECT @n2 = COUNT(*) FROM aud.AuditLog WHERE TenantId = @tf AND Action = 'TEMPORARY_PASSWORD_SET' AND EntityId = @inv;
+IF @e1 = 50016 AND @must = 1 AND @step3 = 'PASSWORD_CHANGE_REQUIRED' AND @step4 = 'DONE' AND @n = 1 AND @n2 = 1
+    PRINT 'PASS A20: a temporary password signs in once and is changed before the session binds';
+ELSE PRINT 'FAIL A20: temporary password (' + CONCAT(@e1, '/', @must, '/', @step3, '/', @step4, '/', @n, '/', @n2) + ')';
+ROLLBACK TRANSACTION a20;
+
+/* A21 (ADR 0048): a user without MFA steps up with the password; a wrong one is refused and counted; an enrolled user
+   steps up with TOTP (50008). */
+SAVE TRANSACTION a21;
+DECLARE @s8 VARBINARY(64) = CRYPT_GEN_RANDOM(32), @acc1 BIT, @acc2 BIT, @params VARCHAR(255), @menabled BIT;
+SELECT @e1 = NULL;
+UPDATE plat.Tenant SET MfaPolicy = 'OFF' WHERE TenantId = @tf;
+EXECUTE AS USER = N'tp_test_app';
+EXEC sec.usp_StartSession @TenantId = @tf, @Login = N'usr@test.invalid', @PasswordHash = @phcU, @SessionToken = @s8;
+EXEC sec.usp_GetSessionPasswordParams @TenantId = @tf, @SessionToken = @s8, @Params = @params OUTPUT, @MfaEnabled = @menabled OUTPUT;
+EXEC sec.usp_ConfirmPasswordStepUp @TenantId = @tf, @SessionToken = @s8, @PasswordHash = @phcU, @Accepted = @acc1 OUTPUT;
+EXEC sec.usp_ConfirmPasswordStepUp @TenantId = @tf, @SessionToken = @s8, @PasswordHash = @phcM, @Accepted = @acc2 OUTPUT;
+BEGIN TRY EXEC sec.usp_ConfirmPasswordStepUp @TenantId = @tf, @SessionToken = @sv, @PasswordHash = @phcM; END TRY
+BEGIN CATCH SET @e1 = ERROR_NUMBER(); END CATCH;
+REVERT;
+SELECT @n = COUNT(*) FROM sec.AppUser WHERE AppUserId = @usr AND FailedAttempts = 1;
+IF @params = '$argon2id$v=19$m=65536,t=3,p=4$dXNyc2FsdA' AND @menabled = 0 AND @acc1 = 1 AND @acc2 = 0 AND @e1 = 50008 AND @n = 1
+    PRINT 'PASS A21: a user without MFA steps up with the password, and a wrong one counts toward the lockout';
+ELSE PRINT 'FAIL A21: password step-up (' + CONCAT(@params, '/', @menabled, '/', @acc1, '/', @acc2, '/', @e1, '/', @n) + ')';
+ROLLBACK TRANSACTION a21;
+
 /* A14: the whole path ends in a bound connection: login, enrolment, binding. Runs last, because the binding makes the
    connection's context read-only. */
 SAVE TRANSACTION a14;
@@ -557,7 +642,7 @@ EXEC sys.sp_set_session_context @key = N'UserId', @value = NULL;
 DELETE FROM sec.SessionBinding WHERE SessionId = @@SPID;
 EXECUTE AS USER = N'tp_test_app';
 BEGIN TRY
-    EXEC sec.usp_StartSession @TenantId = @tf, @Email = N'usr@test.invalid', @PasswordHash = @phcU, @SessionToken = @s4;
+    EXEC sec.usp_StartSession @TenantId = @tf, @Login = N'usr@test.invalid', @PasswordHash = @phcU, @SessionToken = @s4;
     EXEC sec.usp_CompleteMfaEnrolment @TenantId = @tf, @SessionToken = @s4, @MfaSecretEnc = @secret, @MfaKeyId = 1, @Step = 900, @RecoveryCodeHashes = @codes10;
     EXEC sec.usp_SetSessionContext @TenantId = @tf, @SessionToken = @s4;
     SET @uid = CAST(SESSION_CONTEXT(N'UserId') AS BIGINT);

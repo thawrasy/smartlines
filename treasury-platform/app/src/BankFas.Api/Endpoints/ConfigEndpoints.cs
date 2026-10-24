@@ -141,6 +141,11 @@ public static partial class ConfigEndpoints
             case "DECIMAL":
                 if (!decimal.TryParse(v.ValueKind == JsonValueKind.String ? v.GetString() : v.GetRawText(), NumberStyles.Number, CultureInfo.InvariantCulture, out _)) throw bad;
                 break;
+            case "STRING":
+                if (v.ValueKind != JsonValueKind.String) throw bad;
+                // The sign-in lists (ADR 0048): known words only, at least one.
+                SignInIdentity.CheckList(d.Key, v.GetString()!);
+                break;
             default:
                 if (v.ValueKind is JsonValueKind.Object or JsonValueKind.Array) throw bad;
                 break;

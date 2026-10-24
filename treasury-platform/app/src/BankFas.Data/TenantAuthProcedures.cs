@@ -6,7 +6,7 @@ namespace BankFas.Data;
 
 public sealed record ResolvedTenant(int TenantId, string Status, string NameEn, string NameAr, string DefaultLanguage);
 
-public sealed record StartedSession(long UserId, bool MfaEnrolmentRequired);
+public sealed record StartedSession(long UserId, bool MfaRequired, bool MfaEnrolmentRequired, bool MustChangePassword);
 
 /// <summary>What sec.usp_GetMfaChallenge returns (GAP-2, GAP-3): the secret and the wrapped tenant key that encrypts it.</summary>
 public sealed record MfaChallenge(
@@ -40,25 +40,58 @@ public static class TenantAuthProcedures
         return new PasswordPolicy(p.Get<int>("@MinLength"), p.Get<int>("@HistoryCount"));
     }
 
-    /// <summary>The stored hash up to its last '$' (parameters and salt), or null for an unknown e-mail.</summary>
-    public static async Task<string?> GetPasswordParamsAsync(SqlConnection c, int tenantId, string email, CancellationToken ct)
+    /// <summary>
+    /// The stored hash up to its last '$' (parameters and salt), or null for an unknown login. The login is the e-mail,
+    /// employee code or mobile number the tenant allows (sec.fn_LoginUser, ADR 0048).
+    /// </summary>
+    public static async Task<string?> GetPasswordParamsAsync(SqlConnection c, int tenantId, string login, CancellationToken ct)
     {
         var p = Proc.Named("sec.usp_GetPasswordParams").In("@TenantId", tenantId, DbType.Int32)
-            .In("@Email", email, DbType.String, 254).Out("@Params", DbType.AnsiString, 255);
+            .In("@Login", login, DbType.String, 254).Out("@Params", DbType.AnsiString, 255);
         await p.ExecAsync(c, ct).ConfigureAwait(false);
         return p.Get<string?>("@Params");
     }
 
     /// <summary>Raises 50005 for every failure before the password is proven, 50006 for a tenant closed to the user.</summary>
-    public static async Task<StartedSession> StartSessionAsync(SqlConnection c, int tenantId, string email, string passwordHash,
+    public static async Task<StartedSession> StartSessionAsync(SqlConnection c, int tenantId, string login, string passwordHash,
         byte[] sessionToken, string? clientIp, string? userAgent, CancellationToken ct)
     {
-        var p = Proc.Named("sec.usp_StartSession").In("@TenantId", tenantId, DbType.Int32).In("@Email", email, DbType.String, 254)
+        var p = Proc.Named("sec.usp_StartSession").In("@TenantId", tenantId, DbType.Int32).In("@Login", login, DbType.String, 254)
             .In("@PasswordHash", passwordHash, DbType.AnsiString, 255).In("@SessionToken", sessionToken, DbType.Binary, 64)
             .In("@ClientIp", clientIp, DbType.AnsiString, 45).In("@UserAgent", Truncate(userAgent, 400), DbType.String, 400)
-            .Out("@UserId", DbType.Int64).Out("@MfaRequired", DbType.Boolean).Out("@MfaEnrolmentRequired", DbType.Boolean);
+            .Out("@UserId", DbType.Int64).Out("@MfaRequired", DbType.Boolean).Out("@MfaEnrolmentRequired", DbType.Boolean)
+            .Out("@MustChangePassword", DbType.Boolean);
         await p.ExecAsync(c, ct).ConfigureAwait(false);
-        return new StartedSession(p.Get<long>("@UserId"), p.Get<bool>("@MfaEnrolmentRequired"));
+        return new StartedSession(p.Get<long>("@UserId"), p.Get<bool>("@MfaRequired"), p.Get<bool>("@MfaEnrolmentRequired"),
+            p.Get<bool>("@MustChangePassword"));
+    }
+
+    /// <summary>What the session needs before it binds: MFA_ENROLMENT_REQUIRED, MFA_REQUIRED, PASSWORD_CHANGE_REQUIRED or DONE.</summary>
+    public static async Task<string> GetSessionStepAsync(SqlConnection c, int tenantId, byte[] sessionToken, CancellationToken ct)
+    {
+        var p = Proc.Named("sec.usp_GetSessionStep").In("@TenantId", tenantId, DbType.Int32)
+            .In("@SessionToken", sessionToken, DbType.Binary, 64).Out("@NextStep", DbType.AnsiString, 30);
+        await p.ExecAsync(c, ct).ConfigureAwait(false);
+        return p.Get<string>("@NextStep");
+    }
+
+    /// <summary>The parameters of the session user's stored password, and whether the user enrolled MFA (ADR 0048).</summary>
+    public static async Task<(string? Params, bool MfaEnabled)> GetSessionPasswordParamsAsync(SqlConnection c, int tenantId, byte[] sessionToken, CancellationToken ct)
+    {
+        var p = Proc.Named("sec.usp_GetSessionPasswordParams").In("@TenantId", tenantId, DbType.Int32)
+            .In("@SessionToken", sessionToken, DbType.Binary, 64).Out("@Params", DbType.AnsiString, 255).Out("@MfaEnabled", DbType.Boolean);
+        await p.ExecAsync(c, ct).ConfigureAwait(false);
+        return (p.Get<string?>("@Params"), p.Get<bool?>("@MfaEnabled") ?? false);
+    }
+
+    /// <summary>A step-up by password; a wrong one counts toward the lockout.</summary>
+    public static async Task<bool> ConfirmPasswordStepUpAsync(SqlConnection c, int tenantId, byte[] sessionToken, string passwordHash, string? clientIp, CancellationToken ct)
+    {
+        var p = Proc.Named("sec.usp_ConfirmPasswordStepUp").In("@TenantId", tenantId, DbType.Int32)
+            .In("@SessionToken", sessionToken, DbType.Binary, 64).In("@PasswordHash", passwordHash, DbType.AnsiString, 255)
+            .In("@ClientIp", clientIp, DbType.AnsiString, 45).Out("@Accepted", DbType.Boolean);
+        await p.ExecAsync(c, ct).ConfigureAwait(false);
+        return p.Get<bool>("@Accepted");
     }
 
     public static async Task<MfaChallenge> GetMfaChallengeAsync(SqlConnection c, int tenantId, byte[] sessionToken, bool stepUp, CancellationToken ct)

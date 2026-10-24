@@ -10,6 +10,7 @@ GRANT DELETE ON [sec].[RolePermission] TO [tp_app];
 GRANT DELETE ON [sec].[UserRole] TO [tp_app];
 GRANT DELETE ON [sec].[UserCompanyScope] TO [tp_app];
 GRANT DELETE ON [sec].[LoginAttempt] TO [tp_app];
+GRANT DELETE ON [sec].[UserProductScope] TO [tp_app];
 GRANT DELETE ON [sec].[UserSession] TO [tp_app];
 GRANT DELETE ON [sec].[MfaRecoveryCode] TO [tp_app];
 GRANT DELETE ON [sec].[UserToken] TO [tp_app];

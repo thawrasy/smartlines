@@ -3,9 +3,13 @@ import { api, message } from '../api';
 import { useFormat, useI18n } from '../i18n';
 import { Field, Form, Notice, Select, Table, useStepUp } from '../ui';
 
+/** The two-step verification policy of a tenant, as shown (ADR 0048). */
+export const MFA_LABELS: Record<string, string> = { PLATFORM: 'As the platform setting', REQUIRED: 'Required', OFF: 'Off' };
+
 interface Overview {
   settings: { guardEnabled: boolean; apiPerMinute: number; refusalLimit: number; refusalWindowSeconds: number; blockMinutes: number; trustedProxies: string[]; alertRecipients: number };
   counts: { autoBlocks24h: number; openIncidents: number };
+  mfa: { platformRequired: boolean; tenants: { policy: string; tenants: number }[] };
   blocks: { id: string; clientIp: string; source: string; reason: string; blockedAt: string; blockedUntil?: string; blockedBy?: string }[];
   events: { occurredAt: string; actorType: string; action: string; severity: string; ipAddress?: string; result: string }[];
 }
@@ -17,8 +21,13 @@ export function Security({ admin }: { admin: boolean }) {
   const ask = useStepUp();
   const [d, setD] = useState<Overview | null>(null);
   const [f, setF] = useState({ clientIp: '', reason: '', hours: '24' });
+  const [mfaRequired, setMfaRequired] = useState('false');
   const [notice, setNotice] = useState<{ ok?: string; error?: string }>({});
-  const load = useCallback(async () => setD(await api<Overview>('GET', '/operator/security/overview')), []);
+  const load = useCallback(async () => {
+    const r = await api<Overview>('GET', '/operator/security/overview');
+    setD(r);
+    setMfaRequired(String(r.mfa.platformRequired));
+  }, []);
   useEffect(() => { void load(); }, [load]);
   if (!d) return null;
   const lift = async (id: string) => {
@@ -42,6 +51,22 @@ export function Security({ admin }: { admin: boolean }) {
           ['Alert recipients', String(s.alertRecipients)],
         ] as [string, string][])} columns={[{ header: 'Setting', cell: ([k]) => t(k) }, { header: 'Value', cell: ([, v]) => <span dir="ltr">{v}</span> }]} />
         <p className="muted">{t('The values are platform settings (Security section); the trusted proxy is never blocked.')}</p>
+      </section>
+      <section className="card">
+        <h2>{t('Two-step verification')}</h2>
+        <p>{t('For the users of every tenant whose own setting is the platform\'s')}: <strong>{t(d.mfa.platformRequired ? 'Required' : 'Not required')}</strong></p>
+        <Table rows={d.mfa.tenants} columns={[{ header: 'Tenant setting', cell: r => t(MFA_LABELS[r.policy] ?? r.policy) }, { header: 'Tenants', cell: r => String(r.tenants) }]} />
+        {admin && (
+          <Form title="Two-step verification for the platform" submit="Save" onSubmit={async () => {
+            const mfaCode = await ask('Changing two-step verification needs a fresh code.');
+            if (!mfaCode) return;
+            await api('PUT', '/operator/security/mfa', { required: mfaRequired === 'true', mfaCode });
+            await load();
+          }}>
+            <Select label="Two-step verification" value={mfaRequired} onChange={setMfaRequired}
+              options={[{ value: 'false', label: t('Not required (trial)') }, { value: 'true', label: t('Required') }]} />
+          </Form>
+        )}
       </section>
       <section className="card">
         <h2>{t('Blocked addresses')}</h2>

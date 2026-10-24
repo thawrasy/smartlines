@@ -13,6 +13,7 @@ INSERT #rls_tables VALUES (N'sec', N'RolePermission', 0);
 INSERT #rls_tables VALUES (N'sec', N'UserRole', 0);
 INSERT #rls_tables VALUES (N'sec', N'UserCompanyScope', 0);
 INSERT #rls_tables VALUES (N'sec', N'LoginAttempt', 0);
+INSERT #rls_tables VALUES (N'sec', N'UserProductScope', 0);
 INSERT #rls_tables VALUES (N'sec', N'UserSession', 0);
 INSERT #rls_tables VALUES (N'sec', N'MfaRecoveryCode', 0);
 INSERT #rls_tables VALUES (N'sec', N'UserToken', 0);

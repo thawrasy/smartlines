@@ -54,6 +54,15 @@ test('an operator onboards a tenant and its first administrator signs in', async
   await dialog.getByRole('button', { name: 'Confirm' }).click();
   await expect(page.getByRole('link', { name: code })).toBeVisible();
 
+  // Two-step verification is a platform choice, off for the trial (ADR 0048); this tenant's users are required to use it.
+  await page.getByRole('link', { name: code }).click();
+  await page.getByLabel(/^Two-step verification for this tenant/).selectOption('REQUIRED');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await dialog.getByLabel('6-digit code').fill(await op.next());
+  await dialog.getByRole('button', { name: 'Confirm' }).click();
+  await expect(page.getByText('Two-step verification: Required')).toBeVisible();
+  await page.getByRole('link', { name: 'Tenants' }).click();
+
   // Hands an operator administrator to the integration tests, which run next on the same database.
   const handoff = process.env.E2E_HANDOFF_FILE;
   if (handoff) {

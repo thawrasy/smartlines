@@ -158,9 +158,19 @@ public sealed class BoundUser(Microsoft.Data.SqlClient.SqlConnection connection,
         if (!await ModuleEnabledAsync(module, ct)) throw ApiProblemException.Forbidden("MODULE_DISABLED", "This module is not enabled for the account.");
     }
 
+    /// <summary>
+    /// Enabled for the tenant, and in the user's product scope (docs/31 row 46, ADR 0048): a user limited to some
+    /// products does not use the others, whatever the roles allow.
+    /// </summary>
     public async Task<bool> ModuleEnabledAsync(string module, CancellationToken ct, Microsoft.Data.SqlClient.SqlTransaction? tx = null) =>
         await Dapper.SqlMapper.ExecuteScalarAsync<int>(Connection, new Dapper.CommandDefinition(
-            "SELECT COUNT(*) FROM plat.v_TenantModule WHERE ModuleCode = @m AND IsEnabled = 1;", new { m = module }, tx, cancellationToken: ct)) > 0;
+            """
+            SELECT COUNT(*) FROM plat.v_TenantModule AS m
+            WHERE m.ModuleCode = @m AND m.IsEnabled = 1
+              AND EXISTS (SELECT 1 FROM sec.AppUser AS u WHERE u.AppUserId = @u
+                          AND (u.ProductScopeMode = 'ALL' OR m.ModuleCode = 'CORE'
+                               OR EXISTS (SELECT 1 FROM sec.UserProductScope AS s WHERE s.UserId = u.AppUserId AND s.ModuleCode = m.ModuleCode)));
+            """, new { m = module, u = UserId }, tx, cancellationToken: ct)) > 0;
 
     /// <summary>Opens, binds and checks one permission.</summary>
     public static async Task<BoundUser> OpenAsync(HttpContext http, SqlConnectionFactory db, string permission)

@@ -23,6 +23,8 @@ USING (VALUES
     ('security.session.absolute_hours',      'INT', N'12', N'1',  N'12', 1, N'Absolute lifetime of a session. Enforced by sec.usp_StartSession (FR-PLT-014).'),
     ('security.stepup.freshness_minutes',    'INT', N'5',  N'1',  N'5',  1, N'How recent a step-up check must be for a sensitive action. Enforced by the application (DOC-S04).'),
     ('security.reveal.remask_seconds',       'INT', N'60', N'15', N'300', 1, N'Seconds a revealed identity number stays visible before it is masked again. Enforced by the application (BR-PTY-009, AC-PLT-19).'),
+    ('security.login.identifiers',           'STRING', N'"EMAIL,EMPLOYEE_CODE,MOBILE"', NULL, NULL, 1, N'What a user may sign in with besides the password, in the company''s own sign-in page: EMAIL, EMPLOYEE_CODE and MOBILE, separated by commas; an unknown word is ignored and an empty list means EMAIL. Enforced by sec.fn_LoginUser (docs/31 row 46, ADR 0048).'),
+    ('security.user.creation',               'STRING', N'"INVITATION,TEMP_PASSWORD"', NULL, NULL, 1, N'How an administrator creates a user: INVITATION (a link by e-mail) and TEMP_PASSWORD (a temporary password the administrator hands over, changed at the first sign-in), separated by commas. Enforced by the application (docs/31 row 46, ADR 0048).'),
     ('work.start',                           'TIME', N'"08:00"', NULL, NULL, 0, N'Start of the working day in the tenant time zone, for AddBusinessHours (BR-PLT-014, BR-PLT-018).'),
     ('work.end',                             'TIME', N'"17:00"', NULL, NULL, 0, N'End of the working day in the tenant time zone; 4 to 12 hours after work.start (BR-PLT-018).'),
     ('fin.calibration.max_age_months',       'INT', N'12', N'3',  N'36', 0, N'Months after which the latest rating a lender communicated no longer calibrates the company''s own assessment: the readiness turns AMBER (CALIBRATION_STALE) and the lenders are asked for a rating. Read by db/static/049 (BR-FIN-046, ADR 0030).'),
@@ -63,6 +65,21 @@ WHEN MATCHED AND (d.ValueType <> s.ValueType OR d.DefaultValueJson <> s.DefaultV
 WHEN NOT MATCHED THEN
     INSERT ([Key], ModuleCode, ValueType, DefaultValueJson, MinValueJson, MaxValueJson, IsSecurity, IsTenantEditable, Description)
     VALUES (s.[Key], 'CORE', s.ValueType, s.DefaultValueJson, s.MinValueJson, s.MaxValueJson, s.IsSecurity, 1, s.Description);
+GO
+-- Platform-only settings: the tenant cannot write them (cfg.TR_TenantSetting_Bounds refuses IsTenantEditable = 0).
+-- Inserted once and never reset by a later deployment, because the platform administration changes the default in
+-- the operator panel. security.mfa.required is off for the trial (docs/31 row 46); plat.Tenant.MfaPolicy overrides it
+-- for one tenant.
+MERGE cfg.SettingDefinition AS d
+USING (VALUES
+    ('security.mfa.required', 'BOOL', N'false', 1, N'Every user of a tenant completes two-step verification at sign-in, unless the tenant''s MfaPolicy says otherwise; a user who enrolled is always asked. Set by the platform administration. Enforced by sec.fn_MfaRequired (docs/31 row 46, ADR 0048).')
+) AS s ([Key], ValueType, DefaultValueJson, IsSecurity, Description)
+   ON d.[Key] = s.[Key]
+WHEN MATCHED AND (d.ValueType <> s.ValueType OR d.IsTenantEditable <> 0 OR ISNULL(d.Description, N'') <> s.Description) THEN
+    UPDATE SET ValueType = s.ValueType, IsTenantEditable = 0, IsSecurity = s.IsSecurity, Description = s.Description, UpdatedAt = SYSUTCDATETIME()
+WHEN NOT MATCHED THEN
+    INSERT ([Key], ModuleCode, ValueType, DefaultValueJson, IsSecurity, IsTenantEditable, Description)
+    VALUES (s.[Key], 'CORE', s.ValueType, s.DefaultValueJson, s.IsSecurity, 0, s.Description);
 GO
 -- The closed list of background jobs (DOC-F17 section 5.2, DQ-F17-2). A TENANT job binds to one tenant through
 -- sec.usp_SetJobContext, only in the statuses listed (DOC-F04 section 7.4; CLOSED means within 30 days of closing).

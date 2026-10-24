@@ -81,6 +81,8 @@ public sealed class PlatformFixture : IAsyncLifetime
             code, nameEn = name ?? "Integration Trading", nameAr = "شركة الاختبار", planCode = "STANDARD", homeCountryIso2 = "AE",
             timeZone = "Asia/Dubai", defaultLanguage = "en", adminEmail, adminDisplayName = "First Admin", mfaCode = NextCode(OperatorSecret),
         });
+        // The tests of the earlier slices sign in with two-step verification; the trial default is off (ADR 0048).
+        await SetMfaPolicyAsync(code, "REQUIRED");
         var ct = TestContext.Current.CancellationToken;
         Assert.True(await Env.OnboardingJob().RunOnceAsync(ct) >= 1);
         var portal = await Env.BrowserAsync($"{code}.{TestEnvironment.Domain}");
@@ -88,6 +90,15 @@ public sealed class PlatformFixture : IAsyncLifetime
         await portal.PostOkAsync("/api/v1/auth/invitation", new { token = Env.LinkTokenSentTo(adminEmail), password });
         var secretAndCodes = await SignInFirstTimeAsync(portal, adminEmail, password);
         return new TestTenant(code, portal, adminEmail, password, secretAndCodes.Secret, secretAndCodes.Codes);
+    }
+
+    /// <summary>Two-step verification for a tenant, set by the platform administration: PLATFORM, REQUIRED or OFF (ADR 0048).</summary>
+    public async Task SetMfaPolicyAsync(string code, string policy)
+    {
+        var list = await Panel.GetJsonAsync("/api/v1/operator/tenants");
+        var id = list.GetProperty("items").EnumerateArray().First(x => x.GetProperty("code").GetString() == code).GetProperty("id").GetString()!;
+        var r = await Panel.SendAsync(HttpMethod.Put, $"/api/v1/operator/tenants/{id}/mfa-policy", new { policy, mfaCode = NextCode(OperatorSecret) });
+        Assert.Equal(System.Net.HttpStatusCode.NoContent, r.StatusCode);
     }
 
     /// <summary>A user of the tenant with one role, invited by its administrator, signed in with MFA; every company in scope unless told otherwise.</summary>

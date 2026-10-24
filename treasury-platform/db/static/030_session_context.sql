@@ -109,9 +109,56 @@ BEGIN
          WHERE TenantId = @TenantId AND AppUserId = @UserId;
 END;
 GO
+/* The user a sign-in names (docs/31 row 46, ADR 0048): the e-mail, the employee code or the mobile number, as far as
+   the tenant's security.login.identifiers allows (else the platform default; an empty or unknown list means EMAIL).
+   A mobile number is compared without spaces, dashes or brackets, with 00 read as +. A login that names more than one
+   user names none, so the answer is the same as for an unknown user. */
+CREATE OR ALTER FUNCTION sec.fn_LoginUser (@TenantId INT, @Login NVARCHAR(254))
+RETURNS TABLE
+AS RETURN
+    WITH listed AS (
+        SELECT UPPER(LTRIM(RTRIM(x.value))) AS Kind
+        FROM STRING_SPLIT(COALESCE(
+                 (SELECT JSON_VALUE(N'[' + ts.ValueJson + N']', '$[0]') FROM cfg.TenantSetting AS ts
+                  WHERE ts.TenantId = @TenantId AND ts.[Key] = 'security.login.identifiers'),
+                 (SELECT JSON_VALUE(N'[' + sd.DefaultValueJson + N']', '$[0]') FROM cfg.SettingDefinition AS sd
+                  WHERE sd.[Key] = 'security.login.identifiers'),
+                 N'EMAIL'), ',') AS x),
+    kinds AS (
+        SELECT Kind FROM listed WHERE Kind IN ('EMAIL', 'EMPLOYEE_CODE', 'MOBILE')
+        UNION
+        SELECT 'EMAIL' WHERE NOT EXISTS (SELECT 1 FROM listed WHERE Kind IN ('EMAIL', 'EMPLOYEE_CODE', 'MOBILE'))),
+    typed AS (
+        SELECT LTRIM(RTRIM(@Login)) AS Login,
+               REPLACE(REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(@Login)), N' ', N''), N'-', N''), N'(', N''), N')', N'') AS Digits),
+    matched AS (
+        SELECT DISTINCT u.AppUserId
+        FROM sec.AppUser AS u CROSS JOIN typed AS t
+        WHERE u.TenantId = @TenantId
+          AND (   (u.Email = t.Login AND EXISTS (SELECT 1 FROM kinds WHERE Kind = 'EMAIL'))
+               OR (u.EmployeeCode = t.Login AND EXISTS (SELECT 1 FROM kinds WHERE Kind = 'EMPLOYEE_CODE'))
+               OR (u.Mobile = CASE WHEN t.Digits LIKE N'00%' THEN N'+' + SUBSTRING(t.Digits, 3, 20) ELSE t.Digits END
+                   AND EXISTS (SELECT 1 FROM kinds WHERE Kind = 'MOBILE'))))
+    SELECT AppUserId FROM matched WHERE (SELECT COUNT(*) FROM matched) = 1;
+GO
+/* Whether a tenant's users complete two-step verification at sign-in (docs/31 row 46, ADR 0048): the tenant's
+   MfaPolicy set by the platform administration, else the platform setting security.mfa.required, else 1. A user who
+   enrolled is asked in any case (sec.usp_StartSession). */
+CREATE OR ALTER FUNCTION sec.fn_MfaRequired (@TenantId INT)
+RETURNS TABLE
+AS RETURN
+    SELECT CAST(CASE t.MfaPolicy
+                    WHEN 'REQUIRED' THEN 1
+                    WHEN 'OFF' THEN 0
+                    ELSE CASE WHEN (SELECT JSON_VALUE(N'[' + sd.DefaultValueJson + N']', '$[0]') FROM cfg.SettingDefinition AS sd
+                                    WHERE sd.[Key] = 'security.mfa.required') = N'false' THEN 0 ELSE 1 END
+                END AS BIT) AS Required
+    FROM plat.Tenant AS t
+    WHERE t.TenantId = @TenantId;
+GO
 CREATE OR ALTER PROCEDURE sec.usp_GetPasswordParams
     @TenantId INT,
-    @Email    NVARCHAR(254),
+    @Login    NVARCHAR(254),       -- the e-mail, employee code or mobile number (sec.fn_LoginUser)
     @Params   VARCHAR(255) OUTPUT
 WITH EXECUTE AS N'tp_auth_exec'
 AS
@@ -122,31 +169,33 @@ BEGIN
     -- NULL for an unknown user. The application must then answer exactly as for a wrong password (FR-PLT-012).
     SELECT @Params = LEFT(PasswordHash, LEN(PasswordHash) - CHARINDEX('$', REVERSE(PasswordHash)))
     FROM sec.AppUser
-    WHERE TenantId = @TenantId AND Email = @Email AND PasswordHash IS NOT NULL;
+    WHERE TenantId = @TenantId AND PasswordHash IS NOT NULL
+      AND AppUserId = (SELECT AppUserId FROM sec.fn_LoginUser(@TenantId, @Login));
 END;
 GO
 CREATE OR ALTER PROCEDURE sec.usp_StartSession
     @TenantId     INT,
-    @Email        NVARCHAR(254),
+    @Login        NVARCHAR(254),       -- the e-mail, employee code or mobile number (sec.fn_LoginUser)
     @PasswordHash VARCHAR(255),        -- PHC string the application computed from the typed password
     @SessionToken VARBINARY(64),       -- random token held by the application, at least 32 bytes
     @ClientIp     VARCHAR(45) = NULL,
     @UserAgent    NVARCHAR(400) = NULL,
     @UserId       BIGINT = NULL OUTPUT,
-    @MfaRequired  BIT = NULL OUTPUT,   -- always 1: every user completes MFA before the session binds (ADR 0003)
-    @MfaEnrolmentRequired BIT = NULL OUTPUT   -- 1 when the user has no MFA yet: enrol first (035)
+    @MfaRequired  BIT = NULL OUTPUT,   -- 1 when the user completes MFA before the session binds: enrolled, or required (sec.fn_MfaRequired)
+    @MfaEnrolmentRequired BIT = NULL OUTPUT,  -- 1 when MFA is required and the user has none yet: enrol first (035)
+    @MustChangePassword BIT = NULL OUTPUT     -- 1 for a temporary password: change it before the session binds (ADR 0048)
 WITH EXECUTE AS N'tp_auth_exec'
 AS
 BEGIN
     SET NOCOUNT ON;
-    SET @UserId = NULL; SET @MfaRequired = NULL; SET @MfaEnrolmentRequired = NULL;
-    IF @TenantId IS NULL OR @Email IS NULL OR @SessionToken IS NULL OR DATALENGTH(@SessionToken) < 32
-        THROW 50001, 'TenantId, Email and a session token of at least 32 bytes are required', 1;
+    SET @UserId = NULL; SET @MfaRequired = NULL; SET @MfaEnrolmentRequired = NULL; SET @MustChangePassword = NULL;
+    IF @TenantId IS NULL OR @Login IS NULL OR @SessionToken IS NULL OR DATALENGTH(@SessionToken) < 32
+        THROW 50001, 'TenantId, Login and a session token of at least 32 bytes are required', 1;
 
     DECLARE @now DATETIME2(3) = SYSUTCDATETIME();
     DECLARE @own BIT = 0, @outcome VARCHAR(15) = NULL, @locked BIT;
     DECLARE @uid BIGINT, @status VARCHAR(10), @stored VARCHAR(255), @mfa BIT, @system BIT,
-            @lockedUntil DATETIME2(3), @adminUnlock BIT;
+            @lockedUntil DATETIME2(3), @adminUnlock BIT, @mustChange BIT, @mfaPolicy BIT;
 
     IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END ELSE SAVE TRANSACTION sp_StartSession;
     BEGIN TRY
@@ -157,12 +206,12 @@ BEGIN
         ELSE
         BEGIN
             SELECT @uid = AppUserId, @status = Status, @stored = PasswordHash, @mfa = MfaEnabled, @system = IsSystemUser,
-                   @lockedUntil = LockedUntil, @adminUnlock = RequiresAdminUnlock
+                   @lockedUntil = LockedUntil, @adminUnlock = RequiresAdminUnlock, @mustChange = MustChangePassword
             FROM sec.AppUser WITH (UPDLOCK, HOLDLOCK)
-            WHERE TenantId = @TenantId AND Email = @Email;
+            WHERE TenantId = @TenantId AND AppUserId = (SELECT AppUserId FROM sec.fn_LoginUser(@TenantId, @Login));
 
             IF @uid IS NULL OR @system = 1
-                SET @outcome = 'FAILED_PASSWORD';                       -- unknown e-mail or service account: not counted
+                SET @outcome = 'FAILED_PASSWORD';                       -- unknown login or service account: not counted
             ELSE IF @adminUnlock = 1 OR (@status = 'LOCKED' AND (@lockedUntil IS NULL OR @lockedUntil > @now))
                 SET @outcome = 'DENIED_LOCKED';                         -- refused even with the right password
             ELSE IF @status NOT IN ('ACTIVE', 'LOCKED')
@@ -182,19 +231,23 @@ BEGIN
             BEGIN
                 DECLARE @idle INT = (SELECT Value FROM cfg.fn_SettingInt(@TenantId, 'security.session.idle_minutes', 30)),
                         @absolute INT = (SELECT Value FROM cfg.fn_SettingInt(@TenantId, 'security.session.absolute_hours', 12));
+                SET @mfaPolicy = ISNULL((SELECT Required FROM sec.fn_MfaRequired(@TenantId)), 1);
                 UPDATE sec.AppUser
                    SET Status = 'ACTIVE', LockedUntil = NULL, FailedAttempts = 0, FirstFailedAt = NULL, LastLoginAt = @now
                  WHERE TenantId = @TenantId AND AppUserId = @uid;
-                INSERT sec.UserSession (TenantId, UserId, TokenHash, LastSeenAt, IdleExpiresAt, AbsoluteExpiresAt, IpAddress, UserAgent)
+                INSERT sec.UserSession (TenantId, UserId, TokenHash, LastSeenAt, IdleExpiresAt, AbsoluteExpiresAt, IpAddress, UserAgent, MfaRequired)
                 VALUES (@TenantId, @uid, HASHBYTES('SHA2_256', @SessionToken), @now,
-                        DATEADD(MINUTE, @idle, @now), DATEADD(HOUR, @absolute, @now), @ClientIp, @UserAgent);
+                        DATEADD(MINUTE, @idle, @now), DATEADD(HOUR, @absolute, @now), @ClientIp, @UserAgent,
+                        CASE WHEN @mfa = 1 OR @mfaPolicy = 1 THEN 1 ELSE 0 END);
                 SET @outcome = 'LOGIN_SUCCESS';
-                SELECT @UserId = @uid, @MfaRequired = 1, @MfaEnrolmentRequired = CASE WHEN @mfa = 1 THEN 0 ELSE 1 END;
+                SELECT @UserId = @uid, @MfaRequired = CASE WHEN @mfa = 1 OR @mfaPolicy = 1 THEN 1 ELSE 0 END,
+                       @MfaEnrolmentRequired = CASE WHEN @mfa = 0 AND @mfaPolicy = 1 THEN 1 ELSE 0 END,
+                       @MustChangePassword = @mustChange;
             END;
 
             -- Every attempt is logged (BR-PLT-005); a lockout adds its own row (usp_RecordAuthFailure).
             INSERT sec.LoginAttempt (TenantId, UserId, LoginName, Outcome, IpAddress, UserAgent)
-            VALUES (@TenantId, @uid, CASE WHEN @uid IS NULL THEN @Email END, @outcome, @ClientIp, @UserAgent);
+            VALUES (@TenantId, @uid, CASE WHEN @uid IS NULL THEN LEFT(@Login, 200) END, @outcome, @ClientIp, @UserAgent);
         END;
         IF @own = 1 COMMIT TRANSACTION;
     END TRY
@@ -209,7 +262,7 @@ BEGIN
     IF @outcome = 'DENIED_TENANT'
         THROW 50006, 'This tenant is not available to this user', 1;
     IF @outcome <> 'LOGIN_SUCCESS'
-        THROW 50005, 'Invalid e-mail or password', 1;
+        THROW 50005, 'Invalid sign-in name or password', 1;
 END;
 GO
 CREATE OR ALTER PROCEDURE sec.usp_ConfirmMfa
@@ -285,16 +338,18 @@ BEGIN
            OR NOT EXISTS (SELECT 1 FROM sec.fn_TenantOpen(@TenantId))
             THROW 50002, 'Unknown or closed tenant', 1;
 
-        -- The user comes from the session, never from the caller (O-17). Every non-system user needs a recorded
-        -- MFA check (ADR 0003), and the tenant status must admit the user's role (O-18).
+        -- The user comes from the session, never from the caller (O-17). A non-system user needs a recorded MFA check,
+        -- unless the session started without one and MFA is still not required of this user now (ADR 0048); a
+        -- temporary password must be changed first; and the tenant status must admit the user's role (O-18).
         SELECT @UserId = s.UserId
         FROM sec.UserSession AS s WITH (UPDLOCK, HOLDLOCK)
         JOIN sec.AppUser AS u WITH (UPDLOCK, HOLDLOCK) ON u.TenantId = s.TenantId AND u.AppUserId = s.UserId
         WHERE s.TenantId = @TenantId
           AND s.TokenHash = HASHBYTES('SHA2_256', @SessionToken)
           AND s.EndedAt IS NULL AND s.IdleExpiresAt > @now AND s.AbsoluteExpiresAt > @now
-          AND u.Status = 'ACTIVE' AND u.IsSystemUser = 0
-          AND s.MfaVerifiedAt IS NOT NULL
+          AND u.Status = 'ACTIVE' AND u.IsSystemUser = 0 AND u.MustChangePassword = 0
+          AND (s.MfaVerifiedAt IS NOT NULL
+               OR (s.MfaRequired = 0 AND u.MfaEnabled = 0 AND EXISTS (SELECT 1 FROM sec.fn_MfaRequired(@TenantId) WHERE Required = 0)))
           AND EXISTS (SELECT 1 FROM sec.fn_TenantLoginAllowed(@TenantId, s.UserId));
         IF @UserId IS NULL THROW 50003, 'No valid session for this tenant', 1;
 

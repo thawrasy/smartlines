@@ -3,7 +3,7 @@ import { Link, Navigate, NavLink, Route, Routes, useNavigate, useParams } from '
 import { api, message } from '../api';
 import { LangSwitch, useFormat, useI18n } from '../i18n';
 import { Field, Form, Notice, SecretBox, Select, StepUpProvider, Table, useStepUp } from '../ui';
-import { Incidents, Security } from './Security';
+import { Incidents, MFA_LABELS, Security } from './Security';
 
 interface TenantRow { id: string; code: string; nameEn: string; nameAr: string; status: string; trialEndsOn?: string; planCode: string }
 interface Me { email: string; displayName?: string; role: string }
@@ -114,11 +114,13 @@ function TenantDetail({ me }: { me: Me }) {
   const [d, setD] = useState<{ tenant: Record<string, string>; counters: Record<string, string | number | null>; modules: { module: string; enabled: boolean }[] } | null>(null);
   const [mods, setMods] = useState<string[]>([]);
   const [action, setAction] = useState({ status: 'ACTIVE', reason: '', trialEndsOn: '' });
+  const [mfaPolicy, setMfaPolicy] = useState('PLATFORM');
   const [notice, setNotice] = useState<{ ok?: string; error?: string }>({});
   const load = useCallback(async () => {
     const r = await api<NonNullable<typeof d>>('GET', `/operator/tenants/${id}`);
     setD(r);
     setMods(r.modules.filter(m => m.enabled).map(m => m.module));
+    setMfaPolicy(r.tenant.mfaPolicy ?? 'PLATFORM');
   }, [id]);
   useEffect(() => { void load(); }, [load]);
   if (!d) return null;
@@ -127,7 +129,7 @@ function TenantDetail({ me }: { me: Me }) {
     <>
       <section className="card">
         <h1>{lang === 'ar' ? d.tenant.nameAr : d.tenant.nameEn} <small dir="ltr">({d.tenant.code})</small></h1>
-        <p>{t('Status')}: <strong>{t(d.tenant.status ?? '')}</strong></p>
+        <p>{t('Status')}: <strong>{t(d.tenant.status ?? '')}</strong> · {t('Two-step verification')}: <strong>{t(MFA_LABELS[d.tenant.mfaPolicy ?? 'PLATFORM'] ?? '')}</strong></p>
         <Table rows={Object.entries(d.counters)} columns={[{ header: 'Counter', cell: ([k]) => t(k) }, { header: 'Value', cell: ([, v]) => String(v ?? '') }]} />
         {admin && <button className="secondary" onClick={async () => {
           setNotice({});
@@ -145,6 +147,16 @@ function TenantDetail({ me }: { me: Me }) {
                 {m}
               </label>
             ))}
+          </Form>
+          <Form title="Two-step verification" submit="Save" onSubmit={async () => {
+            const mfaCode = await ask('Changing two-step verification needs a fresh code.');
+            if (!mfaCode) return;
+            await api('PUT', `/operator/tenants/${id}/mfa-policy`, { policy: mfaPolicy, mfaCode });
+            await load();
+          }}>
+            <Select label="Two-step verification for this tenant" value={mfaPolicy} onChange={setMfaPolicy}
+              options={['PLATFORM', 'REQUIRED', 'OFF'].map(p => ({ value: p, label: t(MFA_LABELS[p] ?? p) }))} />
+            <p className="muted">{t('A user who set up an authenticator is always asked for it.')}</p>
           </Form>
           <Form title="Change the status" submit="Apply" onSubmit={async () => {
             const mfaCode = await ask('A status change needs a fresh code.');

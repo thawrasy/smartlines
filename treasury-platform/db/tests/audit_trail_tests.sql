@@ -57,7 +57,7 @@ DECLARE @i INT, @e INT, @n INT, @n2 INT, @n3 INT, @n4 INT, @n5 INT, @n6 INT, @n7
 DECLARE @start BIGINT = ISNULL(IDENT_CURRENT(N'aud.AuditLog'), 0);
 
 -- Seed: one active tenant with an administrator and a user, both with a password and MFA.
-INSERT plat.Tenant (Code, NameAr, NameEn, PlanId, HomeCountryId, Status, TimeZone) VALUES ('tst-audit', N'ت', N'Audit', @plan, @country, 'ACTIVE', 'UTC');
+INSERT plat.Tenant (Code, NameAr, NameEn, PlanId, HomeCountryId, Status, TimeZone, MfaPolicy) VALUES ('tst-audit', N'ت', N'Audit', @plan, @country, 'ACTIVE', 'UTC', 'REQUIRED');
 SET @t = SCOPE_IDENTITY();
 EXEC #Bind @t, 0;
 INSERT sec.AppUser (TenantId, Email, DisplayNameEn, Status, PasswordHash, MfaEnabled, MfaSecretEnc, MfaKeyId, MfaEnrolledAt)
@@ -74,12 +74,12 @@ EXECUTE AS USER = N'tp_test_aapp';
 SET @i = 1;
 WHILE @i <= 6
 BEGIN
-    BEGIN TRY EXEC sec.usp_StartSession @TenantId = @t, @Email = N'usr@audit.invalid', @PasswordHash = @phcBad, @SessionToken = @sX,
+    BEGIN TRY EXEC sec.usp_StartSession @TenantId = @t, @Login = N'usr@audit.invalid', @PasswordHash = @phcBad, @SessionToken = @sX,
                    @ClientIp = '198.51.100.9'; END TRY BEGIN CATCH END CATCH;
     SET @i = @i + 1;
 END;
-BEGIN TRY EXEC sec.usp_StartSession @TenantId = @t, @Email = N'nobody@audit.invalid', @PasswordHash = @phcBad, @SessionToken = @sX; END TRY BEGIN CATCH END CATCH;
-EXEC sec.usp_StartSession @TenantId = @t, @Email = N'adm@audit.invalid', @PasswordHash = @phcA, @SessionToken = @sA,
+BEGIN TRY EXEC sec.usp_StartSession @TenantId = @t, @Login = N'nobody@audit.invalid', @PasswordHash = @phcBad, @SessionToken = @sX; END TRY BEGIN CATCH END CATCH;
+EXEC sec.usp_StartSession @TenantId = @t, @Login = N'adm@audit.invalid', @PasswordHash = @phcA, @SessionToken = @sA,
      @ClientIp = '198.51.100.7', @UserAgent = N'TestBrowser/1.0';
 EXEC sec.usp_ConfirmMfa @TenantId = @t, @SessionToken = @sA, @Passed = 0, @ClientIp = '198.51.100.7';
 EXEC sec.usp_ConfirmMfa @TenantId = @t, @SessionToken = @sA, @Passed = 1, @ClientIp = '198.51.100.7', @Step = 500;
@@ -123,7 +123,7 @@ ELSE PRINT CONCAT('FAIL AU2: attempts deleted ', @n, ', audit rows ', @before, '
    a re-enrolment link; disable the user. */
 EXECUTE AS USER = N'tp_test_aapp';
 EXEC sec.usp_UnlockUser @TenantId = @t, @UserId = @usr;
-EXEC sec.usp_StartSession @TenantId = @t, @Email = N'usr@audit.invalid', @PasswordHash = @phcU, @SessionToken = @sU;
+EXEC sec.usp_StartSession @TenantId = @t, @Login = N'usr@audit.invalid', @PasswordHash = @phcU, @SessionToken = @sU;
 REVERT;
 SELECT @usid = UserSessionId FROM sec.UserSession WHERE TenantId = @t AND UserId = @usr AND EndedAt IS NULL;
 EXECUTE AS USER = N'tp_test_aapp';
@@ -149,8 +149,8 @@ ELSE PRINT CONCAT('FAIL AU3: administrator audit rows ', @n, '/', @n2, '/', @n3,
 /* Flow 4, the administrator's own account: logout, then a reset link requested anonymously and used. */
 EXECUTE AS USER = N'tp_test_aapp';
 EXEC sec.usp_EndSession @TenantId = @t, @SessionToken = @sA;
-EXEC sec.usp_RequestPasswordReset @TenantId = @t, @Email = N'adm@audit.invalid', @Token = @lnk, @ClientIp = '203.0.113.4';
-EXEC sec.usp_RequestPasswordReset @TenantId = @t, @Email = N'nobody@audit.invalid', @Token = @lk3;
+EXEC sec.usp_RequestPasswordReset @TenantId = @t, @Login = N'adm@audit.invalid', @Token = @lnk, @ClientIp = '203.0.113.4';
+EXEC sec.usp_RequestPasswordReset @TenantId = @t, @Login = N'nobody@audit.invalid', @Token = @lk3;
 EXEC sec.usp_ResetPassword @TenantId = @t, @Token = @lnk, @NewPasswordHash = @phcNew,
      @Candidates = N'["$argon2id$v=19$m=65536,t=3,p=4$YWRtaW5zYWx0$b3RoZXJoYXNo"]';
 REVERT;

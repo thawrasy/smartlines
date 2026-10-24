@@ -4,7 +4,7 @@ using Dapper;
 
 namespace BankFas.Api.Endpoints;
 
-/// <summary>The signed-in user of the tenant portal: profile, tenant, modules and permissions (DOC-B07 section 2).</summary>
+/// <summary>The signed-in user of the tenant portal: profile, tenant, modules (enabled and in the user's product scope, ADR 0048) and permissions (DOC-B07 section 2).</summary>
 public static class PortalEndpoints
 {
     public static void Map(RouteGroupBuilder api)
@@ -16,7 +16,9 @@ public static class PortalEndpoints
                 """
                 SELECT u.PublicId AS id, u.Email AS email, u.DisplayNameEn AS displayNameEn, u.DisplayNameAr AS displayNameAr,
                        u.PreferredLanguage AS preferredLanguage, u.CompanyScopeMode AS companyScopeMode,
-                       t.Code AS tenantCode, t.NameEn AS tenantNameEn, t.NameAr AS tenantNameAr, t.Status AS tenantStatus
+                       u.ProductScopeMode AS productScopeMode, u.EmployeeCode AS employeeCode, u.Mobile AS mobile, u.MfaEnabled AS mfaEnabled,
+                       t.Code AS tenantCode, t.NameEn AS tenantNameEn, t.NameAr AS tenantNameAr, t.Status AS tenantStatus,
+                       t.MfaRequired AS mfaRequired
                 FROM sec.AppUser AS u CROSS JOIN plat.v_CurrentTenant AS t
                 WHERE u.AppUserId = @id;
                 """, new { id = u.UserId }, cancellationToken: http.RequestAborted));
@@ -31,7 +33,13 @@ public static class PortalEndpoints
                 ORDER BY p.Code;
                 """, new { id = u.UserId }, cancellationToken: http.RequestAborted));
             var modules = await u.Connection.QueryAsync<string>(new CommandDefinition(
-                "SELECT ModuleCode FROM plat.v_TenantModule WHERE IsEnabled = 1 ORDER BY ModuleCode;", cancellationToken: http.RequestAborted));
+                """
+                SELECT m.ModuleCode FROM plat.v_TenantModule AS m JOIN sec.AppUser AS u ON u.AppUserId = @id
+                WHERE m.IsEnabled = 1
+                  AND (u.ProductScopeMode = 'ALL' OR m.ModuleCode = 'CORE'
+                       OR EXISTS (SELECT 1 FROM sec.UserProductScope AS s WHERE s.UserId = u.AppUserId AND s.ModuleCode = m.ModuleCode))
+                ORDER BY m.ModuleCode;
+                """, new { id = u.UserId }, cancellationToken: http.RequestAborted));
             return Results.Ok(new { user = me, permissions, modules });
         });
     }

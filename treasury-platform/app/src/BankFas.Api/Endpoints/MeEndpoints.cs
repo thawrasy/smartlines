@@ -7,7 +7,8 @@ namespace BankFas.Api.Endpoints;
 
 public sealed record PreferencesRequest(string? PreferredLanguage, string? DigitsPreference);
 public sealed record ChangePasswordRequest(string? CurrentPassword, string? NewPassword, string? StepUpCode);
-public sealed record ResetRequest(string? Email);
+/// <summary>Login is the e-mail, employee code or mobile number; the link goes to the account's e-mail (ADR 0048).</summary>
+public sealed record ResetRequest(string? Login, string? Email);
 public sealed record ResetCompleteRequest(string? Token, string? NewPassword);
 
 /// <summary>
@@ -52,15 +53,29 @@ public static class MeEndpoints
         await StepUp.RequireAsync(http, db, keys, clock, body.StepUpCode);
         // The change revokes the user's bindings, so it runs on an unbound connection (035).
         await using var c = await db.OpenAsync(DbLogin.App, http.RequestAborted);
-        var policy = await TenantAuthProcedures.GetPasswordPolicyAsync(c, tenant.TenantId, http.RequestAborted);
-        PasswordRules.Check(breached, body.NewPassword, policy.MinLength, rc.TenantCode, email.Split('@')[0], tenant.NameEn);
-        var stored = await TenantAuthProcedures.GetPasswordParamsAsync(c, tenant.TenantId, email, http.RequestAborted);
-        var currentHash = (stored is null ? null : PasswordHasher.HashWithStoredParameters(body.CurrentPassword, stored))
-                          ?? PasswordHasher.HashForUnknownUser(body.CurrentPassword);
-        var history = await TenantAdminProcedures.GetPasswordHistoryParamsAsync(c, tenant.TenantId, token, null, http.RequestAborted);
-        await TenantAdminProcedures.ChangePasswordAsync(c, tenant.TenantId, token, currentHash, PasswordHasher.HashNew(body.NewPassword!),
-            Candidates(body.NewPassword!, history), rc.ClientIp, http.RequestAborted);
+        await ApplyPasswordChangeAsync(c, http, breached, body.CurrentPassword, body.NewPassword, email);
         return Results.NoContent();
+    }
+
+    /// <summary>
+    /// The current password proven and the new one set, through the session token (035): the tenant's rules, the
+    /// breached list and the last passwords (BR-PLT-004). Used by the account page and the first sign-in (ADR 0048).
+    /// </summary>
+    internal static async Task ApplyPasswordChangeAsync(Microsoft.Data.SqlClient.SqlConnection c, HttpContext http, BreachedPasswords breached,
+        string currentPassword, string? newPassword, string? email)
+    {
+        var rc = RequestContext.Of(http);
+        var tenant = rc.RequireTenant();
+        var token = Cookies.RequireSessionToken(http.Request);
+        var policy = await TenantAuthProcedures.GetPasswordPolicyAsync(c, tenant.TenantId, http.RequestAborted);
+        if (email is null) PasswordRules.Check(breached, newPassword, policy.MinLength, rc.TenantCode, tenant.NameEn);
+        else PasswordRules.Check(breached, newPassword, policy.MinLength, rc.TenantCode, email.Split('@')[0], tenant.NameEn);
+        var (stored, _) = await TenantAuthProcedures.GetSessionPasswordParamsAsync(c, tenant.TenantId, token, http.RequestAborted);
+        var currentHash = (stored is null ? null : PasswordHasher.HashWithStoredParameters(currentPassword, stored))
+                          ?? PasswordHasher.HashForUnknownUser(currentPassword);
+        var history = await TenantAdminProcedures.GetPasswordHistoryParamsAsync(c, tenant.TenantId, token, null, http.RequestAborted);
+        await TenantAdminProcedures.ChangePasswordAsync(c, tenant.TenantId, token, currentHash, PasswordHasher.HashNew(newPassword!),
+            Candidates(newPassword!, history), rc.ClientIp, http.RequestAborted);
     }
 
     private static async Task<IResult> SessionsAsync(HttpContext http, SqlConnectionFactory db, OpaqueRefs refs)
@@ -88,16 +103,16 @@ public static class MeEndpoints
     {
         var rc = RequestContext.Of(http);
         var tenant = rc.RequireTenant();
-        var email = body.Email?.Trim();
-        if (!string.IsNullOrEmpty(email) && email.Length <= 254)
+        var login = (body.Login ?? body.Email)?.Trim();
+        if (!string.IsNullOrEmpty(login) && login.Length <= 254)
         {
             var token = SecureTokens.NewToken();
             await using var c = await db.OpenAsync(DbLogin.App, http.RequestAborted);
-            var to = await TenantAdminProcedures.RequestPasswordResetAsync(c, tenant.TenantId, email, token, rc.ClientIp, http.RequestAborted);
+            var to = await TenantAdminProcedures.RequestPasswordResetAsync(c, tenant.TenantId, login, token, rc.ClientIp, http.RequestAborted);
             // A send failure cannot be recorded before binding (GAP-16); the application log has it.
             if (to is not null) await mail.SendAsync(rc.TenantCode, to, "PASSWORD_RESET", token, http.RequestAborted);
         }
-        return Results.Accepted(value: new { message = "If the address belongs to an account, a link is on its way." });
+        return Results.Accepted(value: new { message = "If this belongs to an account, a link is on its way to its e-mail." });
     }
 
     private static async Task<IResult> ResetAsync(ResetCompleteRequest body, HttpContext http, SqlConnectionFactory db, BreachedPasswords breached)

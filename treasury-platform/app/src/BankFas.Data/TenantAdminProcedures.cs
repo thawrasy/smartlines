@@ -27,14 +27,19 @@ public static class TenantAdminProcedures
     public static Task ResetMfaAsync(SqlConnection c, SqlTransaction? tx, int tenantId, long userId, CancellationToken ct) =>
         Proc.Named("sec.usp_ResetMfa").In("@TenantId", tenantId, DbType.Int32).In("@UserId", userId, DbType.Int64).ExecAsync(c, ct, tx);
 
+    /// <summary>A temporary password the administrator hands over; changed at the first sign-in (ADR 0048).</summary>
+    public static Task SetTemporaryPasswordAsync(SqlConnection c, SqlTransaction? tx, int tenantId, long userId, string passwordHash, CancellationToken ct) =>
+        Proc.Named("sec.usp_SetTemporaryPassword").In("@TenantId", tenantId, DbType.Int32).In("@UserId", userId, DbType.Int64)
+            .In("@PasswordHash", passwordHash, DbType.AnsiString, 255).ExecAsync(c, ct, tx);
+
     public static Task SetUserStatusAsync(SqlConnection c, int tenantId, long userId, string status, CancellationToken ct) =>
         Proc.Named("sec.usp_SetUserStatus").In("@TenantId", tenantId, DbType.Int32).In("@UserId", userId, DbType.Int64)
             .In("@Status", status, DbType.AnsiString, 10).ExecAsync(c, ct);
 
     /// <summary>The address to send the link to, or null when nothing is sent (the caller answers the same either way).</summary>
-    public static async Task<string?> RequestPasswordResetAsync(SqlConnection c, int tenantId, string email, byte[] token, string? clientIp, CancellationToken ct)
+    public static async Task<string?> RequestPasswordResetAsync(SqlConnection c, int tenantId, string login, byte[] token, string? clientIp, CancellationToken ct)
     {
-        var p = Proc.Named("sec.usp_RequestPasswordReset").In("@TenantId", tenantId, DbType.Int32).In("@Email", email, DbType.String, 254)
+        var p = Proc.Named("sec.usp_RequestPasswordReset").In("@TenantId", tenantId, DbType.Int32).In("@Login", login, DbType.String, 254)
             .In("@Token", token, DbType.Binary, 64).In("@ClientIp", clientIp, DbType.AnsiString, 45).Out("@SentTo", DbType.String, 254);
         await p.ExecAsync(c, ct).ConfigureAwait(false);
         return p.Get<string?>("@SentTo");

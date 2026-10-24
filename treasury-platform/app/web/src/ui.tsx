@@ -96,7 +96,8 @@ type AskCode = (reason: string) => Promise<string | null>;
 const StepUpCtx = createContext<AskCode>(async () => null);
 
 /** Provides useStepUp(): opens a dialog asking for a fresh authenticator code. */
-export function StepUpProvider({ children }: { children: ReactNode }) {
+/** password: the user has no authenticator and the account does not require one, so the step-up takes the password (ADR 0048). */
+export function StepUpProvider({ children, password = false }: { children: ReactNode; password?: boolean }) {
   const { t } = useI18n();
   const [ask, setAsk] = useState<{ reason: string; resolve: (c: string | null) => void } | null>(null);
   const [code, setCode] = useState('');
@@ -109,9 +110,11 @@ export function StepUpProvider({ children }: { children: ReactNode }) {
       {children}
       <dialog ref={ref} onCancel={() => done(null)}>
         <form method="dialog" onSubmit={e => { e.preventDefault(); done(code); }}>
-          <h2>{t('Confirm with your authenticator')}</h2>
+          <h2>{t(password ? 'Confirm with your password' : 'Confirm with your authenticator')}</h2>
           <p>{ask ? t(ask.reason) : ''}</p>
-          <Field label="6-digit code" value={code} onChange={setCode} autoComplete="one-time-code" />
+          {password
+            ? <Field label="Password" value={code} onChange={setCode} type="password" autoComplete="current-password" />
+            : <Field label="6-digit code" value={code} onChange={setCode} autoComplete="one-time-code" />}
           <div className="actions">
             <button type="submit">{t('Confirm')}</button>
             <button type="button" className="secondary" onClick={() => done(null)}>{t('Cancel')}</button>

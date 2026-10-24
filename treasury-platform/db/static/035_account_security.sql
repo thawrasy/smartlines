@@ -312,7 +312,7 @@ END;
 GO
 /* ---------- Passwords ---------- */
 
--- Internal: whom a session token (live, MFA done) or a password-reset link token belongs to.
+-- Internal: whom a session token (live, MFA done or not needed, ADR 0048) or a password-reset link token belongs to.
 CREATE OR ALTER PROCEDURE sec.usp_ResolvePasswordActor
     @TenantId     INT,
     @SessionToken VARBINARY(64) = NULL,
@@ -331,7 +331,8 @@ BEGIN
         FROM sec.UserSession AS s WITH (UPDLOCK, HOLDLOCK)
         JOIN sec.AppUser AS u WITH (UPDLOCK, HOLDLOCK) ON u.TenantId = s.TenantId AND u.AppUserId = s.UserId
         WHERE s.TenantId = @TenantId AND s.TokenHash = HASHBYTES('SHA2_256', @SessionToken)
-          AND s.EndedAt IS NULL AND s.IdleExpiresAt > @now AND s.AbsoluteExpiresAt > @now AND s.MfaVerifiedAt IS NOT NULL
+          AND s.EndedAt IS NULL AND s.IdleExpiresAt > @now AND s.AbsoluteExpiresAt > @now
+          AND (s.MfaVerifiedAt IS NOT NULL OR (s.MfaRequired = 0 AND u.MfaEnabled = 0))
           AND u.Status = 'ACTIVE' AND u.IsSystemUser = 0;
     ELSE IF @LinkToken IS NOT NULL
         SELECT @UserId = u.AppUserId, @TokenId = t.UserTokenId
@@ -425,7 +426,7 @@ BEGIN
       AND h.UserPasswordHistoryId NOT IN (SELECT TOP (@keep) UserPasswordHistoryId FROM sec.UserPasswordHistory
                                           WHERE TenantId = @TenantId AND UserId = @UserId
                                           ORDER BY CreatedAt DESC, UserPasswordHistoryId DESC);
-    UPDATE sec.AppUser SET PasswordHash = @NewPasswordHash, PasswordChangedAt = @now
+    UPDATE sec.AppUser SET PasswordHash = @NewPasswordHash, PasswordChangedAt = @now, MustChangePassword = 0
      WHERE TenantId = @TenantId AND AppUserId = @UserId;
     UPDATE sec.UserSession SET EndedAt = @now, EndReason = 'PASSWORD_CHANGED'
      WHERE TenantId = @TenantId AND UserId = @UserId AND EndedAt IS NULL
@@ -477,7 +478,7 @@ GO
 -- address to send it to. An unknown address returns NULL and no error, so the answer reveals nothing.
 CREATE OR ALTER PROCEDURE sec.usp_RequestPasswordReset
     @TenantId INT,
-    @Email    NVARCHAR(254),
+    @Login    NVARCHAR(254),           -- the e-mail, employee code or mobile number (sec.fn_LoginUser); the link goes to the e-mail
     @Token    VARBINARY(64),           -- random link token, at least 32 bytes; only its SHA-256 is stored
     @ClientIp VARCHAR(45) = NULL,
     @SentTo   NVARCHAR(254) = NULL OUTPUT
@@ -491,7 +492,8 @@ BEGIN
     IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END ELSE SAVE TRANSACTION sp_RequestPasswordReset;
     BEGIN TRY
         SELECT @uid = AppUserId, @addr = Email FROM sec.AppUser WITH (UPDLOCK, HOLDLOCK)
-        WHERE TenantId = @TenantId AND Email = @Email AND Status IN ('ACTIVE', 'LOCKED') AND IsSystemUser = 0
+        WHERE TenantId = @TenantId AND AppUserId = (SELECT AppUserId FROM sec.fn_LoginUser(@TenantId, @Login))
+          AND Status IN ('ACTIVE', 'LOCKED') AND IsSystemUser = 0
           AND EXISTS (SELECT 1 FROM sec.fn_TenantLoginAllowed(@TenantId, AppUserId));
         IF @uid IS NOT NULL
         BEGIN
@@ -732,6 +734,127 @@ BEGIN
     END CATCH;
 END;
 GO
+/* ---------- Sign-in by temporary password, step-up by password, the next step of a session (ADR 0048) ---------- */
+
+-- An administrator sets a temporary password for a new (INVITED) or existing user, to hand over outside the platform.
+-- The user is ACTIVE, must change it before the session binds, and every link and session of theirs ends. Not
+-- one's own account. The application checks the permission sec.user.manage and the tenant's security.user.creation.
+CREATE OR ALTER PROCEDURE sec.usp_SetTemporaryPassword
+    @TenantId     INT,
+    @UserId       BIGINT,
+    @PasswordHash VARCHAR(255)
+WITH EXECUTE AS N'tp_auth_exec'
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF NOT EXISTS (SELECT 1 FROM sec.fn_BoundAsUser(@TenantId, 1)) THROW 50003, 'The connection is not bound to this tenant as a user for writing', 1;
+    DECLARE @now DATETIME2(3) = SYSUTCDATETIME(), @own BIT = 0, @admin BIGINT = CAST(SESSION_CONTEXT(N'UserId') AS BIGINT);
+    IF @UserId = @admin THROW 50016, 'An administrator does not set a temporary password for their own account', 1;
+    IF @PasswordHash IS NULL OR @PasswordHash NOT LIKE '$argon2id$v=19$m=%,t=%,p=%$%$%' THROW 50001, 'An Argon2id hash is required', 1;
+    IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END ELSE SAVE TRANSACTION sp_SetTemporaryPassword;
+    BEGIN TRY
+        UPDATE sec.AppUser
+           SET PasswordHash = @PasswordHash, PasswordChangedAt = @now, MustChangePassword = 1, Status = 'ACTIVE',
+               LockedUntil = NULL, FailedAttempts = 0, FirstFailedAt = NULL, RequiresAdminUnlock = 0
+         WHERE TenantId = @TenantId AND AppUserId = @UserId AND IsSystemUser = 0 AND Status IN ('INVITED', 'ACTIVE', 'LOCKED');
+        IF @@ROWCOUNT = 0 THROW 50016, 'A temporary password cannot be set for this user', 1;
+        UPDATE sec.UserToken SET RevokedAt = @now
+         WHERE TenantId = @TenantId AND UserId = @UserId AND Purpose IN ('INVITATION', 'PASSWORD_RESET') AND UsedAt IS NULL AND RevokedAt IS NULL;
+        UPDATE sec.UserSession SET EndedAt = @now, EndReason = 'PASSWORD_CHANGED', EndedBy = @admin
+         WHERE TenantId = @TenantId AND UserId = @UserId AND EndedAt IS NULL;
+        EXEC aud.usp_WriteEvent @TenantId = @TenantId, @Action = 'TEMPORARY_PASSWORD_SET', @Category = 'SECURITY', @ActorType = 'USER',
+             @ActorUserId = @admin, @Severity = 'HIGH', @EntityType = 'sec.AppUser', @EntityId = @UserId;
+        IF @own = 1 COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF @own = 1 AND XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+        ELSE IF @own = 0 AND XACT_STATE() = 1 ROLLBACK TRANSACTION sp_SetTemporaryPassword;   -- undo this procedure only
+        THROW;
+    END CATCH;
+END;
+GO
+-- What a live session needs before it binds: MFA_ENROLMENT_REQUIRED, MFA_REQUIRED, PASSWORD_CHANGE_REQUIRED or DONE.
+CREATE OR ALTER PROCEDURE sec.usp_GetSessionStep
+    @TenantId     INT,
+    @SessionToken VARBINARY(64),
+    @NextStep     VARCHAR(30) = NULL OUTPUT
+WITH EXECUTE AS N'tp_auth_exec'
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @now DATETIME2(3) = SYSUTCDATETIME();
+    SET @NextStep = NULL;
+    SELECT @NextStep = CASE WHEN s.MfaVerifiedAt IS NULL AND (s.MfaRequired = 1 OR u.MfaEnabled = 1 OR m.Required = 1)
+                                 THEN CASE WHEN u.MfaEnabled = 1 THEN 'MFA_REQUIRED' ELSE 'MFA_ENROLMENT_REQUIRED' END
+                            WHEN u.MustChangePassword = 1 THEN 'PASSWORD_CHANGE_REQUIRED'
+                            ELSE 'DONE' END
+    FROM sec.UserSession AS s
+    JOIN sec.AppUser AS u ON u.TenantId = s.TenantId AND u.AppUserId = s.UserId
+    OUTER APPLY sec.fn_MfaRequired(@TenantId) AS m
+    WHERE s.TenantId = @TenantId AND s.TokenHash = HASHBYTES('SHA2_256', @SessionToken)
+      AND s.EndedAt IS NULL AND s.IdleExpiresAt > @now AND s.AbsoluteExpiresAt > @now
+      AND u.Status = 'ACTIVE' AND u.IsSystemUser = 0;
+    IF @NextStep IS NULL THROW 50003, 'No valid session for this tenant', 1;
+END;
+GO
+-- The parameters of the session user's stored password, and whether the user enrolled MFA (ADR 0048): a password
+-- change proves the current password with them, and a step-up of a user without MFA proves the password itself
+-- (sec.usp_ConfirmPasswordStepUp). An enrolled user steps up with TOTP.
+CREATE OR ALTER PROCEDURE sec.usp_GetSessionPasswordParams
+    @TenantId     INT,
+    @SessionToken VARBINARY(64),
+    @Params       VARCHAR(255) = NULL OUTPUT,
+    @MfaEnabled   BIT = NULL OUTPUT
+WITH EXECUTE AS N'tp_auth_exec'
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @uid BIGINT, @sid BIGINT, @tid BIGINT;
+    SELECT @Params = NULL, @MfaEnabled = NULL;
+    EXEC sec.usp_ResolvePasswordActor @TenantId, @SessionToken, NULL, @uid OUTPUT, @sid OUTPUT, @tid OUTPUT;
+    IF @uid IS NULL THROW 50003, 'No valid session for this tenant', 1;
+    SELECT @Params = LEFT(PasswordHash, LEN(PasswordHash) - CHARINDEX('$', REVERSE(PasswordHash))), @MfaEnabled = MfaEnabled
+    FROM sec.AppUser WHERE TenantId = @TenantId AND AppUserId = @uid AND PasswordHash IS NOT NULL;
+END;
+GO
+CREATE OR ALTER PROCEDURE sec.usp_ConfirmPasswordStepUp
+    @TenantId     INT,
+    @SessionToken VARBINARY(64),
+    @PasswordHash VARCHAR(255),
+    @ClientIp     VARCHAR(45) = NULL,
+    @Accepted     BIT = NULL OUTPUT
+WITH EXECUTE AS N'tp_auth_exec'
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @own BIT = 0, @uid BIGINT, @sid BIGINT, @tid BIGINT, @stored VARCHAR(255), @mfa BIT, @locked BIT;
+    SET @Accepted = 0;
+    IF @@TRANCOUNT = 0 BEGIN BEGIN TRANSACTION; SET @own = 1; END ELSE SAVE TRANSACTION sp_ConfirmPasswordStepUp;
+    BEGIN TRY
+        EXEC sec.usp_ResolvePasswordActor @TenantId, @SessionToken, NULL, @uid OUTPUT, @sid OUTPUT, @tid OUTPUT;
+        IF @uid IS NULL THROW 50003, 'No valid session for this tenant', 1;
+        SELECT @stored = PasswordHash, @mfa = MfaEnabled FROM sec.AppUser WHERE TenantId = @TenantId AND AppUserId = @uid;
+        IF @mfa = 1 THROW 50008, 'This user confirms with the authenticator', 1;
+        IF @stored IS NOT NULL AND @PasswordHash IS NOT NULL
+           AND @PasswordHash COLLATE Latin1_General_BIN2 = @stored COLLATE Latin1_General_BIN2
+            SET @Accepted = 1;
+        ELSE
+        BEGIN
+            INSERT sec.LoginAttempt (TenantId, UserId, Outcome, IpAddress) VALUES (@TenantId, @uid, 'FAILED_PASSWORD', @ClientIp);
+            EXEC sec.usp_RecordAuthFailure @TenantId, @uid, @ClientIp, NULL, @locked OUTPUT;
+            IF @locked = 1
+                UPDATE sec.UserSession SET EndedAt = SYSUTCDATETIME(), EndReason = 'MFA_FAILED' WHERE UserSessionId = @sid;
+        END;
+        IF @own = 1 COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF @own = 1 AND XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+        ELSE IF @own = 0 AND XACT_STATE() = 1 ROLLBACK TRANSACTION sp_ConfirmPasswordStepUp;   -- undo this procedure only
+        SET @Accepted = 0;
+        THROW;
+    END CATCH;
+END;
+GO
 /* A user created directly by the application starts as an invitation: no password, no MFA, no lockout state.
    Everything else comes through the procedures above (an error in a trigger ends the caller's transaction). */
 CREATE OR ALTER TRIGGER sec.TR_AppUser_InsertGuard ON sec.AppUser
@@ -741,7 +864,7 @@ BEGIN
     SET NOCOUNT ON;
     IF IS_MEMBER(N'tp_app') = 1 AND IS_MEMBER(N'tp_auth') = 0
        AND EXISTS (SELECT 1 FROM inserted
-                   WHERE PasswordHash IS NOT NULL OR MfaEnabled = 1 OR MfaSecretEnc IS NOT NULL
+                   WHERE PasswordHash IS NOT NULL OR MfaEnabled = 1 OR MfaSecretEnc IS NOT NULL OR MustChangePassword = 1
                       OR (Status <> 'INVITED' AND IsSystemUser = 0)
                       OR FailedAttempts <> 0 OR LockoutCount <> 0 OR RequiresAdminUnlock = 1 OR LockedUntil IS NOT NULL)
         THROW 50012, 'A new user starts as INVITED without a password or MFA; use the invitation procedures', 1;
@@ -763,12 +886,16 @@ GRANT EXECUTE ON sec.usp_IssueUserToken TO [tp_app];
 GRANT EXECUTE ON sec.usp_UnlockUser TO [tp_app];
 GRANT EXECUTE ON sec.usp_ResetMfa TO [tp_app];
 GRANT EXECUTE ON sec.usp_SetUserStatus TO [tp_app];
+GRANT EXECUTE ON sec.usp_SetTemporaryPassword TO [tp_app];
+GRANT EXECUTE ON sec.usp_GetSessionStep TO [tp_app];
+GRANT EXECUTE ON sec.usp_GetSessionPasswordParams TO [tp_app];
+GRANT EXECUTE ON sec.usp_ConfirmPasswordStepUp TO [tp_app];
 GO
 -- The direct rights these procedures replace (O-24 R1, R3, R4, R5). They run after the generated grants (007),
 -- which would otherwise remove them.
 DENY UPDATE ON [sec].[AppUser]([Status], [IsSystemUser], [PasswordHash], [PasswordChangedAt], [MfaEnabled], [MfaSecretEnc],
     [MfaKeyPurpose], [MfaKeyId], [MfaEnrolledAt], [MfaLastUsedStep], [FailedAttempts], [FirstFailedAt], [LockedUntil],
-    [LockoutCount], [LastLockoutAt], [RequiresAdminUnlock], [LastLoginAt], [ArchivedAt]) TO [tp_app];
+    [LockoutCount], [LastLockoutAt], [RequiresAdminUnlock], [LastLoginAt], [ArchivedAt], [MustChangePassword]) TO [tp_app];
 DENY SELECT ON [sec].[AppUser]([MfaSecretEnc]) TO [tp_app];
 DENY SELECT ON [sec].[UserPasswordHistory]([PasswordHash]) TO [tp_app];
 DENY INSERT ON [sec].[UserPasswordHistory] TO [tp_app];

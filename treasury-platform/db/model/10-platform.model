@@ -45,6 +45,7 @@ table plat.Tenant int global public noapp   # No direct access for the tenant ap
   ActivatedAt      ts               # أول تفعيل؛ بعده لا يتغير Code (يُفرض في التطبيق/محفّز)
   ClosedAt         ts               # بدء مهلة التصدير 30 يومًا (BR-PLT-002)
   ArchivedAt       ts               # = ClosedAt + 30 يومًا؛ القراءة فقط بلا كتابة ولا حذف
+  MfaPolicy        enum{PLATFORM,REQUIRED,OFF} req =PLATFORM   # التحقق بخطوتين لهذا المشترك: إعداد المنصة security.mfa.required، أو فرضه، أو إيقافه؛ تضبطه إدارة المنصة وحدها (docs/31 الصف 46، ADR 0048)
   unique Code
   unique PublicId
   index Status,TrialEndsOn
@@ -191,6 +192,10 @@ table sec.AppUser public   # Tenant portal user (FR-PLT-010..016, BR-PLT-004..00
   DepartmentId         ->org.Department
   LineManagerUserId    ->sec.AppUser   # المدير المباشر: يُستعمل لتحديد «المدير» في الموافقات (13)
   CompanyScopeMode     enum{ALL,SELECTED} req =SELECTED   # SELECTED = الرفض هو الأصل (FR-PLT-021)
+  ProductScopeMode     enum{ALL,SELECTED} req =ALL   # SELECTED = المنتجات (الوحدات) في sec.UserProductScope وحدها (docs/31 الصف 46، ADR 0048)
+  EmployeeCode         ascii(30)        # الكود الوظيفي: معرّف دخول إن سمحت به الشركة (security.login.identifiers)
+  Mobile               ascii(16)        # الجوال بصيغة دولية +966…: معرّف دخول إن سمحت به الشركة
+  MustChangePassword   bool      req =0   # كلمة مرور مؤقتة من المسؤول: لا ربط بالجلسة قبل تغييرها (ADR 0048)
   PreferredLanguage    enum{ar,en}      # فارغ = DefaultLanguage للمشترك؛ تقرؤه 13 (FR-NTF-024)
   DigitsPreference     enum{WESTERN,ARABIC_INDIC}   # فارغ = تفضيل المشترك (Q-PLT-07)
   Status               enum{INVITED,ACTIVE,LOCKED,DISABLED,ARCHIVED} req =INVITED   # §8
@@ -213,8 +218,12 @@ table sec.AppUser public   # Tenant portal user (FR-PLT-010..016, BR-PLT-004..00
   ArchivedAt           ts
   unique Email
   unique PublicId
+  unique EmployeeCode where EmployeeCode IS NOT NULL
+  unique Mobile where Mobile IS NOT NULL
   index Status
   index LockedUntil where Status = 'LOCKED'
+  check EmployeeCode IS NULL OR (LEN(EmployeeCode) >= 2 AND EmployeeCode COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Za-z0-9._-]%')
+  check Mobile IS NULL OR (Mobile LIKE '+[1-9]%' AND LEN(Mobile) BETWEEN 9 AND 16 AND Mobile NOT LIKE '_%[^0-9]%')
   check LineManagerUserId IS NULL OR LineManagerUserId <> AppUserId
   check DisplayNameAr IS NOT NULL OR DisplayNameEn IS NOT NULL
   check IsSystemUser = 1 OR Status NOT IN ('ACTIVE','LOCKED') OR PasswordHash IS NOT NULL   # حساب الخدمة معفى
@@ -311,8 +320,13 @@ table sec.SessionBinding global noapp noplat noaudit norv pk=SessionId   # Conne
   BoundOperatorId ->plat.PlatformOperator noidx   # the operator of a SUPPORT binding; revoked with the grant or the operator session
   check (BindingKind = 'SUPPORT' AND BoundOperatorId IS NOT NULL) OR (BindingKind <> 'SUPPORT' AND BoundOperatorId IS NULL)
 
+table sec.UserProductScope pk=UserId,ModuleCode deletable   # Products (modules) a user may use; ignored when ProductScopeMode = ALL (docs/31 row 46, ADR 0048)
+  UserId      ->sec.AppUser req
+  ModuleCode  enum{CORE,INSTITUTIONS,FACILITIES,COVENANTS,WORKFLOW,LC_PURCHASE,LC_SALES,REQUESTS,REPORTS} req
+
 table sec.UserSession norv deletable   # User sessions: 30-minute idle timeout and 12-hour absolute timeout (FR-PLT-014)
   UserId             ->sec.AppUser req
+  MfaRequired        bool     req =1   # يُقرأ عند بدء الجلسة: 0 = تُربط بلا تحقق بخطوتين (الإعداد معطّل والمستخدم غير مسجّل)
   TokenHash          bin(32)  req sens=restricted   # SHA-256 لمعرّف الجلسة؛ لا يُخزَّن الأصل
   LastSeenAt         ts       req =SYSUTCDATETIME()
   IdleExpiresAt      ts       req

@@ -9,7 +9,11 @@ GO
 CREATE OR ALTER VIEW plat.v_CurrentTenant
 AS
     SELECT t.TenantId, t.PublicId, t.Code, t.NameAr, t.NameEn, t.PlanId, t.Status,
-           t.HomeCountryId, t.DefaultLanguage, t.TimeZone, t.TrialEndsOn   -- the trial end: the banner and the reminders (ADR 0040)
+           t.HomeCountryId, t.DefaultLanguage, t.TimeZone, t.TrialEndsOn,  -- the trial end: the banner and the reminders (ADR 0040)
+           -- Whether two-step verification is required of this tenant's users (the same rule as sec.fn_MfaRequired, ADR 0048)
+           CAST(CASE t.MfaPolicy WHEN 'REQUIRED' THEN 1 WHEN 'OFF' THEN 0
+                ELSE CASE WHEN (SELECT JSON_VALUE(N'[' + sd.DefaultValueJson + N']', '$[0]') FROM cfg.SettingDefinition AS sd
+                                WHERE sd.[Key] = 'security.mfa.required') = N'false' THEN 0 ELSE 1 END END AS BIT) AS MfaRequired
     FROM plat.Tenant AS t
     CROSS APPLY rls.fn_Bound(t.TenantId) AS bd          -- the connection must be bound to this tenant (O-16)
     WHERE t.TenantId = CAST(SESSION_CONTEXT(N'TenantId') AS INT);

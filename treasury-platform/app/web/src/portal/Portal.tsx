@@ -3,7 +3,7 @@ import { Navigate, NavLink, Route, Routes, useNavigate } from 'react-router-dom'
 import { api } from '../api';
 import { LangSwitch, useI18n } from '../i18n';
 import { StepUpProvider } from '../ui';
-import { Enrol, ForgotPassword, Invitation, Login, Mfa, ResetPassword, type Tenant } from './Auth';
+import { Enrol, ForgotPassword, Invitation, Login, Mfa, ResetPassword, type Tenant, CompanyEntry, FirstPassword, entryHost } from './Auth';
 import { Audit, Calendar, Jobs, Numbering, Settings, Support } from './Admin';
 import { Accounts, BankSetup, BaseRates, InstitutionDetail, Institutions, RelationshipDetail } from './Banks';
 import { Catalogs } from './Catalogs';
@@ -36,7 +36,10 @@ import { RoleDetail, Roles } from './Roles';
 import { UserDetail, Users } from './Users';
 
 export interface Me {
-  user: { id: string; email: string; displayNameEn?: string; displayNameAr?: string; preferredLanguage?: string; tenantNameEn: string; tenantNameAr: string; tenantStatus: string; tenantCode: string };
+  user: {
+    id: string; email: string; displayNameEn?: string; displayNameAr?: string; preferredLanguage?: string; tenantNameEn: string; tenantNameAr: string;
+    tenantStatus: string; tenantCode: string; mfaEnabled?: boolean; mfaRequired?: boolean; employeeCode?: string; mobile?: string; productScopeMode?: string;
+  };
   permissions: string[]; modules: string[];
 }
 
@@ -108,7 +111,7 @@ function Shell() {
   const items = menu.filter(m => (!m.permission || can(me, m.permission)) && (!m.anyOf || m.anyOf.some(p => can(me, p))));
   return (
     <MeCtx.Provider value={me}>
-      <StepUpProvider>
+      <StepUpProvider password={!me.user.mfaEnabled}>
         <div className="shell">
           <header className="top">
             <strong>{lang === 'ar' ? me.user.tenantNameAr : me.user.tenantNameEn}</strong>
@@ -225,12 +228,13 @@ export function Portal() {
   const [tenant, setTenant] = useState<Tenant | null | undefined>(undefined);
   useEffect(() => { api<Tenant>('GET', '/tenant').then(setTenant).catch(() => setTenant(null)); }, []);
   if (tenant === undefined) return null;
-  if (tenant === null) return <section className="card neutral"><h1>BankFas</h1><p>{t('This address is not available.')}</p></section>;
+  if (tenant === null) return entryHost() ? <CompanyEntry /> : <section className="card neutral"><h1>BankFas</h1><p>{t('This address is not available.')}</p></section>;
   return (
     <Routes>
       <Route path="/login" element={<Login tenant={tenant} />} />
       <Route path="/mfa" element={<Mfa tenant={tenant} />} />
       <Route path="/mfa/enrol" element={<Enrol tenant={tenant} />} />
+      <Route path="/first-password" element={<FirstPassword tenant={tenant} />} />
       <Route path="/invitation" element={<Invitation tenant={tenant} />} />
       <Route path="/forgot-password" element={<ForgotPassword tenant={tenant} />} />
       <Route path="/reset-password" element={<ResetPassword tenant={tenant} />} />

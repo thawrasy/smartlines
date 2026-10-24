@@ -22,6 +22,8 @@ CREATE NONCLUSTERED INDEX [IX_IpBlock_LiftedBy] ON [plat].[IpBlock] ([LiftedBy])
 CREATE NONCLUSTERED INDEX [IX_SecurityIncident_Status_DetectedAt] ON [plat].[SecurityIncident] ([Status], [DetectedAt]);
 CREATE NONCLUSTERED INDEX [IX_SecurityIncident_OpenedBy] ON [plat].[SecurityIncident] ([OpenedBy]);
 CREATE NONCLUSTERED INDEX [IX_SecurityIncident_ClosedBy] ON [plat].[SecurityIncident] ([ClosedBy]);
+CREATE UNIQUE NONCLUSTERED INDEX [UQ_AppUser_EmployeeCode] ON [sec].[AppUser] ([TenantId], [EmployeeCode]) WHERE EmployeeCode IS NOT NULL;
+CREATE UNIQUE NONCLUSTERED INDEX [UQ_AppUser_Mobile] ON [sec].[AppUser] ([TenantId], [Mobile]) WHERE Mobile IS NOT NULL;
 CREATE NONCLUSTERED INDEX [IX_AppUser_Status] ON [sec].[AppUser] ([TenantId], [Status]);
 CREATE NONCLUSTERED INDEX [IX_AppUser_LockedUntil] ON [sec].[AppUser] ([TenantId], [LockedUntil]) WHERE Status = 'LOCKED';
 CREATE NONCLUSTERED INDEX [IX_AppUser_DepartmentId] ON [sec].[AppUser] ([TenantId], [DepartmentId]);

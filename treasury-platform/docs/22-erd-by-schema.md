@@ -26,7 +26,7 @@ erDiagram
 | SupportAccessGrant | RevokedBy | sec.AppUser |
 | Tenant | HomeCountryId | ref.Country |
 
-## مخطط `sec` (15 جدولًا)
+## مخطط `sec` (16 جدولًا)
 
 ```mermaid
 erDiagram
@@ -36,6 +36,7 @@ erDiagram
   AppUser ||--o{ RolePermission : "AssignedBy"
   AppUser ||--o{ UserCompanyScope : "UserId"
   AppUser ||--o{ UserPasswordHistory : "UserId"
+  AppUser ||--o{ UserProductScope : "UserId"
   AppUser ||--o{ UserRole : "AssignedBy"
   AppUser ||--o{ UserRole : "UserId"
   AppUser ||--o{ UserSession : "EndedBy"

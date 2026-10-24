@@ -56,6 +56,7 @@ CREATE TABLE [plat].[Tenant] (
     [ActivatedAt] DATETIME2(3) NULL,
     [ClosedAt] DATETIME2(3) NULL,
     [ArchivedAt] DATETIME2(3) NULL,
+    [MfaPolicy] VARCHAR(10) NOT NULL CONSTRAINT [DF_Tenant_MfaPolicy] DEFAULT 'PLATFORM',
     [PublicId] UNIQUEIDENTIFIER NOT NULL CONSTRAINT [DF_Tenant_PublicId] DEFAULT NEWSEQUENTIALID(),
     [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_Tenant_CreatedAt] DEFAULT SYSUTCDATETIME(),
     [CreatedBy] BIGINT NULL,
@@ -73,7 +74,8 @@ CREATE TABLE [plat].[Tenant] (
     CONSTRAINT [CK_Tenant_7] CHECK (ArchivedAt IS NULL OR (ClosedAt IS NOT NULL AND ArchivedAt >= ClosedAt)),
     CONSTRAINT [CK_Tenant_Status] CHECK ([Status] IS NULL OR [Status] IN ('TRIAL', 'ACTIVE', 'SUSPENDED', 'CLOSED', 'ARCHIVED_READ_ONLY')),
     CONSTRAINT [CK_Tenant_DefaultLanguage] CHECK ([DefaultLanguage] IS NULL OR [DefaultLanguage] IN ('ar', 'en')),
-    CONSTRAINT [CK_Tenant_CalendarDisplay] CHECK ([CalendarDisplay] IS NULL OR [CalendarDisplay] IN ('GREGORIAN', 'HIJRI', 'BOTH'))
+    CONSTRAINT [CK_Tenant_CalendarDisplay] CHECK ([CalendarDisplay] IS NULL OR [CalendarDisplay] IN ('GREGORIAN', 'HIJRI', 'BOTH')),
+    CONSTRAINT [CK_Tenant_MfaPolicy] CHECK ([MfaPolicy] IS NULL OR [MfaPolicy] IN ('PLATFORM', 'REQUIRED', 'OFF'))
 );
 GO
 -- Subdomains reserved for the system: www, admin, api, app and others (FR-PLT-046)
@@ -298,6 +300,10 @@ CREATE TABLE [sec].[AppUser] (
     [DepartmentId] BIGINT NULL,
     [LineManagerUserId] BIGINT NULL,
     [CompanyScopeMode] VARCHAR(10) NOT NULL CONSTRAINT [DF_AppUser_CompanyScopeMode] DEFAULT 'SELECTED',
+    [ProductScopeMode] VARCHAR(10) NOT NULL CONSTRAINT [DF_AppUser_ProductScopeMode] DEFAULT 'ALL',
+    [EmployeeCode] VARCHAR(30) NULL,
+    [Mobile] VARCHAR(16) NULL,
+    [MustChangePassword] BIT NOT NULL CONSTRAINT [DF_AppUser_MustChangePassword] DEFAULT 0,
     [PreferredLanguage] VARCHAR(10) NULL,
     [DigitsPreference] VARCHAR(12) NULL,
     [Status] VARCHAR(10) NOT NULL CONSTRAINT [DF_AppUser_Status] DEFAULT 'INVITED',
@@ -328,18 +334,21 @@ CREATE TABLE [sec].[AppUser] (
     CONSTRAINT [UQ_AppUser_Tenant] UNIQUE ([TenantId], [AppUserId]),
     CONSTRAINT [UQ_AppUser_PublicId] UNIQUE ([PublicId]),
     CONSTRAINT [UQ_AppUser_Email] UNIQUE ([TenantId], [Email]),
-    CONSTRAINT [CK_AppUser_1] CHECK (LineManagerUserId IS NULL OR LineManagerUserId <> AppUserId),
-    CONSTRAINT [CK_AppUser_2] CHECK (DisplayNameAr IS NOT NULL OR DisplayNameEn IS NOT NULL),
-    CONSTRAINT [CK_AppUser_3] CHECK (IsSystemUser = 1 OR Status NOT IN ('ACTIVE','LOCKED') OR PasswordHash IS NOT NULL),
-    CONSTRAINT [CK_AppUser_4] CHECK (MfaEnabled = 0 OR MfaSecretEnc IS NOT NULL),
-    CONSTRAINT [CK_AppUser_5] CHECK (MfaSecretEnc IS NULL OR MfaKeyId IS NOT NULL),
-    CONSTRAINT [CK_AppUser_6] CHECK (MfaSecretEnc IS NULL OR DATALENGTH(MfaSecretEnc) >= 29),
-    CONSTRAINT [CK_AppUser_7] CHECK (IsSystemUser = 0 OR (PasswordHash IS NULL AND MfaEnabled = 0)),
-    CONSTRAINT [CK_AppUser_8] CHECK (Status <> 'ARCHIVED' OR ArchivedAt IS NOT NULL),
-    CONSTRAINT [CK_AppUser_9] CHECK (Status <> 'LOCKED' OR LockedUntil IS NOT NULL OR RequiresAdminUnlock = 1),
-    CONSTRAINT [CK_AppUser_10] CHECK (FailedAttempts >= 0 AND LockoutCount >= 0),
-    CONSTRAINT [CK_AppUser_11] CHECK (PasswordHash IS NULL OR PasswordHash LIKE '$argon2id$v=19$m=%,t=%,p=%$%$%'),
+    CONSTRAINT [CK_AppUser_1] CHECK (EmployeeCode IS NULL OR (LEN(EmployeeCode) >= 2 AND EmployeeCode COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Za-z0-9._-]%')),
+    CONSTRAINT [CK_AppUser_2] CHECK (Mobile IS NULL OR (Mobile LIKE '+[1-9]%' AND LEN(Mobile) BETWEEN 9 AND 16 AND Mobile NOT LIKE '_%[^0-9]%')),
+    CONSTRAINT [CK_AppUser_3] CHECK (LineManagerUserId IS NULL OR LineManagerUserId <> AppUserId),
+    CONSTRAINT [CK_AppUser_4] CHECK (DisplayNameAr IS NOT NULL OR DisplayNameEn IS NOT NULL),
+    CONSTRAINT [CK_AppUser_5] CHECK (IsSystemUser = 1 OR Status NOT IN ('ACTIVE','LOCKED') OR PasswordHash IS NOT NULL),
+    CONSTRAINT [CK_AppUser_6] CHECK (MfaEnabled = 0 OR MfaSecretEnc IS NOT NULL),
+    CONSTRAINT [CK_AppUser_7] CHECK (MfaSecretEnc IS NULL OR MfaKeyId IS NOT NULL),
+    CONSTRAINT [CK_AppUser_8] CHECK (MfaSecretEnc IS NULL OR DATALENGTH(MfaSecretEnc) >= 29),
+    CONSTRAINT [CK_AppUser_9] CHECK (IsSystemUser = 0 OR (PasswordHash IS NULL AND MfaEnabled = 0)),
+    CONSTRAINT [CK_AppUser_10] CHECK (Status <> 'ARCHIVED' OR ArchivedAt IS NOT NULL),
+    CONSTRAINT [CK_AppUser_11] CHECK (Status <> 'LOCKED' OR LockedUntil IS NOT NULL OR RequiresAdminUnlock = 1),
+    CONSTRAINT [CK_AppUser_12] CHECK (FailedAttempts >= 0 AND LockoutCount >= 0),
+    CONSTRAINT [CK_AppUser_13] CHECK (PasswordHash IS NULL OR PasswordHash LIKE '$argon2id$v=19$m=%,t=%,p=%$%$%'),
     CONSTRAINT [CK_AppUser_CompanyScopeMode] CHECK ([CompanyScopeMode] IS NULL OR [CompanyScopeMode] IN ('ALL', 'SELECTED')),
+    CONSTRAINT [CK_AppUser_ProductScopeMode] CHECK ([ProductScopeMode] IS NULL OR [ProductScopeMode] IN ('ALL', 'SELECTED')),
     CONSTRAINT [CK_AppUser_PreferredLanguage] CHECK ([PreferredLanguage] IS NULL OR [PreferredLanguage] IN ('ar', 'en')),
     CONSTRAINT [CK_AppUser_DigitsPreference] CHECK ([DigitsPreference] IS NULL OR [DigitsPreference] IN ('WESTERN', 'ARABIC_INDIC')),
     CONSTRAINT [CK_AppUser_Status] CHECK ([Status] IS NULL OR [Status] IN ('INVITED', 'ACTIVE', 'LOCKED', 'DISABLED', 'ARCHIVED')),
@@ -465,11 +474,26 @@ CREATE TABLE [sec].[SessionBinding] (
     CONSTRAINT [CK_SessionBinding_BindingKind] CHECK ([BindingKind] IS NULL OR [BindingKind] IN ('USER', 'JOB', 'SUPPORT'))
 );
 GO
+-- Products (modules) a user may use; ignored when ProductScopeMode = ALL (docs/31 row 46, ADR 0048)
+CREATE TABLE [sec].[UserProductScope] (
+    [TenantId] INT NOT NULL,
+    [UserId] BIGINT NOT NULL,
+    [ModuleCode] VARCHAR(12) NOT NULL,
+    [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_UserProductScope_CreatedAt] DEFAULT SYSUTCDATETIME(),
+    [CreatedBy] BIGINT NULL,
+    [UpdatedAt] DATETIME2(3) NULL,
+    [UpdatedBy] BIGINT NULL,
+    [RowVersion] ROWVERSION NOT NULL,
+    CONSTRAINT [PK_UserProductScope] PRIMARY KEY CLUSTERED ([TenantId], [UserId], [ModuleCode]),
+    CONSTRAINT [CK_UserProductScope_ModuleCode] CHECK ([ModuleCode] IS NULL OR [ModuleCode] IN ('CORE', 'INSTITUTIONS', 'FACILITIES', 'COVENANTS', 'WORKFLOW', 'LC_PURCHASE', 'LC_SALES', 'REQUESTS', 'REPORTS'))
+);
+GO
 -- User sessions: 30-minute idle timeout and 12-hour absolute timeout (FR-PLT-014)
 CREATE TABLE [sec].[UserSession] (
     [TenantId] INT NOT NULL,
     [UserSessionId] BIGINT IDENTITY(1,1) NOT NULL,
     [UserId] BIGINT NOT NULL,
+    [MfaRequired] BIT NOT NULL CONSTRAINT [DF_UserSession_MfaRequired] DEFAULT 1,
     [TokenHash] VARBINARY(32) NOT NULL,
     [LastSeenAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_UserSession_LastSeenAt] DEFAULT SYSUTCDATETIME(),
     [IdleExpiresAt] DATETIME2(3) NOT NULL,

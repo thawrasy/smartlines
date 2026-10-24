@@ -5,7 +5,9 @@ using Microsoft.Data.SqlClient;
 
 namespace BankFas.Api.Endpoints;
 
-public sealed record LoginRequest(string? Email, string? Password);
+/// <summary>Login is the e-mail, employee code or mobile number the company allows; Email is its older name.</summary>
+public sealed record LoginRequest(string? Login, string? Email, string? Password);
+public sealed record FirstPasswordRequest(string? CurrentPassword, string? NewPassword);
 public sealed record MfaRequest(string? Code, string? RecoveryCode);
 public sealed record EnrolmentStartRequest(string? ReenrolmentToken);
 public sealed record EnrolmentCompleteRequest(string? Code, string? ReenrolmentToken);
@@ -31,6 +33,7 @@ public static class TenantAuthEndpoints
         auth.MapPost("/mfa/enrolment", StartEnrolmentAsync);
         auth.MapPost("/mfa/enrolment/complete", CompleteEnrolmentAsync).RequireRateLimiting("mfa");
         auth.MapPost("/invitation", AcceptInvitationAsync).RequireRateLimiting("login");
+        auth.MapPost("/password-change", FirstPasswordAsync).RequireRateLimiting("login");
         auth.MapPost("/logout", LogoutAsync);
     }
 
@@ -38,24 +41,27 @@ public static class TenantAuthEndpoints
     {
         var rc = RequestContext.Of(http);
         var tenant = rc.RequireTenant();
-        if (string.IsNullOrWhiteSpace(body.Email) || string.IsNullOrEmpty(body.Password) || body.Password.Length > 1024)
-            throw new ApiProblemException(401, "INVALID_CREDENTIALS", "Invalid email or password.");
-        var email = body.Email.Trim();
+        var login = (body.Login ?? body.Email)?.Trim();
+        if (string.IsNullOrEmpty(login) || login.Length > 254 || string.IsNullOrEmpty(body.Password) || body.Password.Length > 1024)
+            throw new ApiProblemException(401, "INVALID_CREDENTIALS", "Invalid sign-in name or password.");
         await using var c = await db.OpenAsync(DbLogin.App, http.RequestAborted);
-        var stored = await TenantAuthProcedures.GetPasswordParamsAsync(c, tenant.TenantId, email, http.RequestAborted);
+        var stored = await TenantAuthProcedures.GetPasswordParamsAsync(c, tenant.TenantId, login, http.RequestAborted);
         var hash = (stored is null ? null : PasswordHasher.HashWithStoredParameters(body.Password, stored))
                    ?? PasswordHasher.HashForUnknownUser(body.Password);
         var token = SecureTokens.NewToken();
-        var started = await TenantAuthProcedures.StartSessionAsync(c, tenant.TenantId, email, hash, token, rc.ClientIp,
+        var started = await TenantAuthProcedures.StartSessionAsync(c, tenant.TenantId, login, hash, token, rc.ClientIp,
             http.Request.Headers.UserAgent.ToString(), http.RequestAborted);
         Cookies.SetSession(http.Response, token);
+        // Two-step verification first when it is required or the user enrolled (ADR 0048), then a temporary password
+        // is changed, and only then does the session bind.
         string next;
-        if (!started.MfaEnrolmentRequired) next = "MFA_REQUIRED";
-        else
+        if (started.MfaEnrolmentRequired)
         {
             var challenge = await TenantAuthProcedures.GetMfaChallengeAsync(c, tenant.TenantId, token, false, http.RequestAborted);
             next = challenge.ReenrolmentRequired ? "MFA_REENROLMENT_REQUIRED" : "MFA_ENROLMENT_REQUIRED";
         }
+        else if (started.MfaRequired) next = "MFA_REQUIRED";
+        else next = started.MustChangePassword ? "PASSWORD_CHANGE_REQUIRED" : "DONE";
         return Results.Ok(new { nextStep = next });
     }
 
@@ -72,13 +78,13 @@ public static class TenantAuthEndpoints
         {
             var normalised = RecoveryCodes.Normalise(body.RecoveryCode) ?? throw new ApiProblemException(401, "MFA_INVALID", "The code is not valid.");
             var remaining = await TenantAuthProcedures.UseRecoveryCodeAsync(c, tenant.TenantId, token, RecoveryCodes.Hash(normalised), rc.ClientIp, http.RequestAborted);
-            return Results.Ok(new { nextStep = "DONE", recoveryCodesRemaining = remaining });
+            return Results.Ok(new { nextStep = await TenantAuthProcedures.GetSessionStepAsync(c, tenant.TenantId, token, http.RequestAborted), recoveryCodesRemaining = remaining });
         }
         var secret = OpenSecret(keys, tenant.TenantId, ch);
         var step = Totp.Verify(secret, body.Code, clock.GetUtcNow(), ch.LastUsedStep);
         var accepted = await TenantAuthProcedures.ConfirmMfaAsync(c, tenant.TenantId, token, step, rc.ClientIp, http.RequestAborted);
         if (!accepted) throw new ApiProblemException(401, "MFA_INVALID", "The code is not valid.");
-        return Results.Ok(new { nextStep = "DONE" });
+        return Results.Ok(new { nextStep = await TenantAuthProcedures.GetSessionStepAsync(c, tenant.TenantId, token, http.RequestAborted) });
     }
 
     private static async Task<IResult> StartEnrolmentAsync(EnrolmentStartRequest body, HttpContext http, SqlConnectionFactory db, PendingSecretProtector pending)
@@ -117,7 +123,7 @@ public static class TenantAuthEndpoints
         await TenantAuthProcedures.CompleteMfaEnrolmentAsync(c, tenant.TenantId, token, enc, ch.MfaKeyId.Value, step,
             RecoveryCodes.HashesJson(codes), SecureTokens.Parse(body.ReenrolmentToken), http.RequestAborted);
         PendingSecretProtector.Clear(http.Response);
-        return Results.Ok(new { nextStep = "DONE", recoveryCodes = codes });
+        return Results.Ok(new { nextStep = await TenantAuthProcedures.GetSessionStepAsync(c, tenant.TenantId, token, http.RequestAborted), recoveryCodes = codes });
     }
 
     private static async Task<IResult> AcceptInvitationAsync(InvitationRequest body, HttpContext http, SqlConnectionFactory db, BreachedPasswords breached)
@@ -129,6 +135,26 @@ public static class TenantAuthEndpoints
         PasswordRules.Check(breached, body.Password, policy.MinLength, RequestContext.Of(http).TenantCode, tenant.NameEn);
         await TenantAuthProcedures.CompleteInvitationAsync(c, tenant.TenantId, link, PasswordHasher.HashNew(body.Password!), http.RequestAborted);
         return Results.Ok(new { nextStep = "LOGIN" });
+    }
+
+    /// <summary>
+    /// The first sign-in with a temporary password (ADR 0048): the session is not bound yet, so the change goes through
+    /// the session token. The new password follows the tenant's rules and differs from the last ones.
+    /// </summary>
+    private static async Task<IResult> FirstPasswordAsync(FirstPasswordRequest body, HttpContext http, SqlConnectionFactory db, BreachedPasswords breached)
+    {
+        var rc = RequestContext.Of(http);
+        var tenant = rc.RequireTenant();
+        var token = Cookies.RequireSessionToken(http.Request);
+        if (string.IsNullOrEmpty(body.CurrentPassword) || body.CurrentPassword.Length > 1024)
+            throw ApiProblemException.Invalid("VALIDATION_FAILED", "Enter the temporary password.");
+        await using var c = await db.OpenAsync(DbLogin.App, http.RequestAborted);
+        string step;
+        try { step = await TenantAuthProcedures.GetSessionStepAsync(c, tenant.TenantId, token, http.RequestAborted); }
+        catch (SqlException ex) when (ex.Number == DbErrors.NoValidSession) { throw ApiProblemException.Unauthorized(); }
+        if (step != "PASSWORD_CHANGE_REQUIRED") throw new ApiProblemException(409, "STATE_CONFLICT", "There is no temporary password to change.");
+        await MeEndpoints.ApplyPasswordChangeAsync(c, http, breached, body.CurrentPassword, body.NewPassword, null);
+        return Results.Ok(new { nextStep = await TenantAuthProcedures.GetSessionStepAsync(c, tenant.TenantId, token, http.RequestAborted) });
     }
 
     private static async Task<IResult> LogoutAsync(HttpContext http, SqlConnectionFactory db)

@@ -12,6 +12,7 @@ namespace BankFas.Api.Endpoints;
 public sealed record IpBlockRequest(string? ClientIp, string? Reason, int? Hours, string? MfaCode);
 public sealed record IncidentRequest(string? Title, string? Severity, string? DetectedAt, string? Description, string? ClientIps, string? MfaCode);
 public sealed record IncidentChange(string? Status, string? RootCause, string? Actions, string? ClientIps, string? MfaCode);
+public sealed record PlatformMfaRequest(bool? Required, string? MfaCode);
 
 /// <summary>
 /// The security page of the operator panel (docs/31 row 48, ADR 0047): the guard's settings, the blocked addresses and
@@ -32,6 +33,7 @@ public static class SecurityEndpoints
         api.MapGet("/security/incidents", IncidentsAsync);
         api.MapPost("/security/incidents", OpenIncidentAsync);
         api.MapPatch("/security/incidents/{id:guid}", ChangeIncidentAsync);
+        api.MapPut("/security/mfa", PlatformMfaAsync);
     }
 
     private static Task<int> WriteSecurityAuditAsync(SqlConnection c, SqlTransaction tx, int operatorId, string action, string entityType, long id, object after, CancellationToken ct) =>
@@ -68,8 +70,13 @@ public static class SecurityEndpoints
                        (SELECT COUNT(*) FROM plat.SecurityIncident WHERE Status <> 'CLOSED') AS openIncidents;
                 """, new { now = clock.GetUtcNow().UtcDateTime }, cancellationToken: http.RequestAborted));
             var o = guard.Options;
+            var mfa = await c.ExecuteScalarAsync<string?>(new CommandDefinition(
+                "SELECT DefaultValueJson FROM cfg.SettingDefinition WHERE [Key] = 'security.mfa.required';", cancellationToken: http.RequestAborted));
+            var tenantsMfa = await c.QueryAsync(new CommandDefinition(
+                "SELECT MfaPolicy AS policy, COUNT(*) AS tenants FROM plat.Tenant GROUP BY MfaPolicy;", cancellationToken: http.RequestAborted));
             return Results.Ok(new
             {
+                mfa = new { platformRequired = mfa?.Trim() != "false", tenants = tenantsMfa },
                 settings = new
                 {
                     guardEnabled = o.GuardEnabled, apiPerMinute = o.ApiPerMinute, refusalLimit = o.RefusalLimit, refusalWindowSeconds = o.RefusalWindowSeconds,
@@ -127,6 +134,29 @@ public static class SecurityEndpoints
             await WriteSecurityAuditAsync(c, tx, s.OperatorId, "IP_BLOCK_LIFTED", "plat.IpBlock", row.Id, new { clientIp = row.Ip }, http.RequestAborted);
             await tx.CommitAsync(http.RequestAborted);
             await guard.ReloadAsync(http.RequestAborted);
+            return Results.NoContent();
+        }
+    }
+
+    /// <summary>
+    /// The platform default of two-step verification for tenant users (security.mfa.required, ADR 0048): off for the
+    /// trial, on for the public launch. A tenant's own policy overrides it (OperatorAdminEndpoints). Admin, fresh code.
+    /// </summary>
+    private static async Task<IResult> PlatformMfaAsync(PlatformMfaRequest b, HttpContext http, SqlConnectionFactory db, IKeyWrapper keys, TimeProvider clock)
+    {
+        if (b.Required is null) throw ApiProblemException.Invalid("VALIDATION_FAILED", "Say whether two-step verification is required.");
+        var (c, s) = await OperatorEndpoints.OpenSessionAsync(http, db);
+        await using (c)
+        {
+            if (!s.IsAdmin) throw ApiProblemException.Forbidden();
+            await OperatorEndpoints.StepUpAsync(c, b.MfaCode, keys, clock, http);
+            await using var tx = (SqlTransaction)await c.BeginTransactionAsync(http.RequestAborted);
+            var changed = await c.ExecuteAsync(new CommandDefinition(
+                "UPDATE cfg.SettingDefinition SET DefaultValueJson = @v, UpdatedAt = SYSUTCDATETIME() WHERE [Key] = 'security.mfa.required';",
+                new { v = b.Required.Value ? "true" : "false" }, tx, cancellationToken: http.RequestAborted));
+            if (changed == 0) throw new ApiProblemException(409, "NOT_READY", "The setting is not installed; run the platform seed.");
+            await WriteSecurityAuditAsync(c, tx, s.OperatorId, "PLATFORM_MFA_CHANGED", "cfg.SettingDefinition", 0, new { required = b.Required.Value }, http.RequestAborted);
+            await tx.CommitAsync(http.RequestAborted);
             return Results.NoContent();
         }
     }

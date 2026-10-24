@@ -69,10 +69,11 @@ DECLARE @phc VARCHAR(255) = '$argon2id$v=19$m=65536,t=3,p=4$c2FsdHNhbHRzYWx0c2Fs
 DECLARE @params VARCHAR(255), @params2 VARCHAR(255), @outUser BIGINT, @mfaReq BIT, @err3 INT, @err4 INT, @i INT, @uctx BIGINT;
 
 -- Seed: three tenants (two open, one closed)
-INSERT plat.Tenant (Code, NameAr, NameEn, PlanId, HomeCountryId, Status, TimeZone, ClosedAt)
-VALUES (N'TST-A', N'Test A', N'Test A', 1, 1, 'ACTIVE', 'Asia/Riyadh', NULL),
-       (N'TST-B', N'Test B', N'Test B', 1, 1, 'ACTIVE', 'Asia/Riyadh', NULL),
-       (N'TST-C', N'Test C', N'Test C', 1, 1, 'CLOSED', 'Asia/Riyadh', DATEADD(DAY, -40, SYSUTCDATETIME()));   -- past the 30-day export window
+-- MFA required of these tenants: the tests here bind only after the MFA check (ADR 0048 makes it a platform choice).
+INSERT plat.Tenant (Code, NameAr, NameEn, PlanId, HomeCountryId, Status, TimeZone, ClosedAt, MfaPolicy)
+VALUES (N'TST-A', N'Test A', N'Test A', 1, 1, 'ACTIVE', 'Asia/Riyadh', NULL, 'REQUIRED'),
+       (N'TST-B', N'Test B', N'Test B', 1, 1, 'ACTIVE', 'Asia/Riyadh', NULL, 'REQUIRED'),
+       (N'TST-C', N'Test C', N'Test C', 1, 1, 'CLOSED', 'Asia/Riyadh', DATEADD(DAY, -40, SYSUTCDATETIME()), 'REQUIRED');   -- past the 30-day export window
 SELECT @t1 = TenantId FROM plat.Tenant WHERE Code = N'TST-A';
 SELECT @t2 = TenantId FROM plat.Tenant WHERE Code = N'TST-B';
 SELECT @t3 = TenantId FROM plat.Tenant WHERE Code = N'TST-C';
@@ -497,16 +498,16 @@ SAVE TRANSACTION sp_t33;
 EXEC #Bind @t1;
 SET @err = NULL; SET @err2 = NULL; SET @params = NULL; SET @params2 = 'not null'; SET @outUser = NULL; SET @mfaReq = NULL;
 EXECUTE AS USER = N'tp_test_app';
-EXEC sec.usp_GetPasswordParams @TenantId = @t1, @Email = N'u1@test.invalid', @Params = @params OUTPUT;
-EXEC sec.usp_GetPasswordParams @TenantId = @t1, @Email = N'nobody@test.invalid', @Params = @params2 OUTPUT;
+EXEC sec.usp_GetPasswordParams @TenantId = @t1, @Login = N'u1@test.invalid', @Params = @params OUTPUT;
+EXEC sec.usp_GetPasswordParams @TenantId = @t1, @Login = N'nobody@test.invalid', @Params = @params2 OUTPUT;
 BEGIN TRY
-    EXEC sec.usp_StartSession @TenantId = @t1, @Email = N'u1@test.invalid',
+    EXEC sec.usp_StartSession @TenantId = @t1, @Login = N'u1@test.invalid',
          @PasswordHash = '$argon2id$v=19$m=65536,t=3,p=4$c2FsdHNhbHRzYWx0c2FsdA$d3Jvbmd3cm9uZ3dyb25nd3Jvbmd3cm9uZ3dyb25nd3I',
          @SessionToken = @tokNew;
 END TRY
 BEGIN CATCH SET @err = ERROR_NUMBER(); END CATCH;
 BEGIN TRY
-    EXEC sec.usp_StartSession @TenantId = @t1, @Email = N'u1@test.invalid', @PasswordHash = @phc, @SessionToken = @tokNew,
+    EXEC sec.usp_StartSession @TenantId = @t1, @Login = N'u1@test.invalid', @PasswordHash = @phc, @SessionToken = @tokNew,
          @UserId = @outUser OUTPUT, @MfaRequired = @mfaReq OUTPUT;
 END TRY
 BEGIN CATCH SET @err2 = ERROR_NUMBER(); END CATCH;
@@ -529,12 +530,12 @@ EXECUTE AS USER = N'tp_test_app';
 WHILE @i < 5
 BEGIN
     BEGIN TRY
-        EXEC sec.usp_StartSession @TenantId = @t1, @Email = N'u1@test.invalid', @PasswordHash = 'wrong', @SessionToken = @tokNew;
+        EXEC sec.usp_StartSession @TenantId = @t1, @Login = N'u1@test.invalid', @PasswordHash = 'wrong', @SessionToken = @tokNew;
     END TRY
     BEGIN CATCH SET @err3 = ERROR_NUMBER(); END CATCH;
     SET @i = @i + 1;
 END;
-BEGIN TRY EXEC sec.usp_StartSession @TenantId = @t1, @Email = N'u1@test.invalid', @PasswordHash = @phc, @SessionToken = @tokNew; END TRY
+BEGIN TRY EXEC sec.usp_StartSession @TenantId = @t1, @Login = N'u1@test.invalid', @PasswordHash = @phc, @SessionToken = @tokNew; END TRY
 BEGIN CATCH SET @err = ERROR_NUMBER(); END CATCH;
 REVERT;
 SELECT @n = COUNT(*) FROM sec.AppUser WHERE AppUserId = @u1 AND Status = 'LOCKED' AND LockedUntil > SYSUTCDATETIME();
@@ -696,7 +697,7 @@ DECLARE @t40other INT = (SELECT COUNT(*) FROM sec.fn_TenantLoginAllowed(@t1, @u1
 EXECUTE AS USER = N'tp_test_app';
 BEGIN TRY EXEC sec.usp_SetSessionContext @TenantId = @t1, @SessionToken = @tok1b; END TRY
 BEGIN CATCH SET @err = ERROR_NUMBER(); END CATCH;
-BEGIN TRY EXEC sec.usp_StartSession @TenantId = @t1, @Email = N'u1@test.invalid', @PasswordHash = @phc, @SessionToken = @tokNew, @UserId = @outUser OUTPUT; END TRY
+BEGIN TRY EXEC sec.usp_StartSession @TenantId = @t1, @Login = N'u1@test.invalid', @PasswordHash = @phc, @SessionToken = @tokNew, @UserId = @outUser OUTPUT; END TRY
 BEGIN CATCH SET @err2 = ERROR_NUMBER(); END CATCH;
 REVERT;
 IF @t40ta = 1 AND @t40other = 0 AND @err = 50003 AND @err2 IS NULL AND @outUser = @u1
@@ -736,9 +737,9 @@ SAVE TRANSACTION sp_t42;
 UPDATE plat.Tenant SET Status = 'SUSPENDED', SuspendedReason = N'test' WHERE TenantId = @t1;
 SET @err = NULL; SET @err2 = NULL;
 EXECUTE AS USER = N'tp_test_app';
-BEGIN TRY EXEC sec.usp_StartSession @TenantId = @t1, @Email = N'u1b@test.invalid', @PasswordHash = @phc, @SessionToken = @tokNew; END TRY
+BEGIN TRY EXEC sec.usp_StartSession @TenantId = @t1, @Login = N'u1b@test.invalid', @PasswordHash = @phc, @SessionToken = @tokNew; END TRY
 BEGIN CATCH SET @err = ERROR_NUMBER(); END CATCH;
-BEGIN TRY EXEC sec.usp_StartSession @TenantId = @t1, @Email = N'u1b@test.invalid', @PasswordHash = 'wrong', @SessionToken = @tokNew; END TRY
+BEGIN TRY EXEC sec.usp_StartSession @TenantId = @t1, @Login = N'u1b@test.invalid', @PasswordHash = 'wrong', @SessionToken = @tokNew; END TRY
 BEGIN CATCH SET @err2 = ERROR_NUMBER(); END CATCH;
 REVERT;
 EXEC #Bind @t1;
@@ -799,7 +800,7 @@ SET @i = 0;
 EXECUTE AS USER = N'tp_test_app';
 WHILE @i < 6
 BEGIN
-    BEGIN TRY EXEC sec.usp_StartSession @TenantId = @t1, @Email = N'svc@test.invalid', @PasswordHash = 'guess', @SessionToken = @tokNew; END TRY
+    BEGIN TRY EXEC sec.usp_StartSession @TenantId = @t1, @Login = N'svc@test.invalid', @PasswordHash = 'guess', @SessionToken = @tokNew; END TRY
     BEGIN CATCH SET @err3 = ERROR_NUMBER(); END CATCH;
     SET @i = @i + 1;
 END;

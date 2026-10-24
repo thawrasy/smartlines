@@ -11,6 +11,8 @@ namespace BankFas.Api.Endpoints;
 public sealed record ModulesRequest(string[]? Modules);
 public sealed record InviteOperatorRequest(string? Email, string? DisplayName, string? Role, string? MfaCode);
 public sealed record OperatorActionRequest(string? MfaCode);
+/// <summary>PLATFORM (the platform setting security.mfa.required), REQUIRED or OFF (docs/31 row 46, ADR 0048).</summary>
+public sealed record MfaPolicyRequest(string? Policy, string? MfaCode);
 
 /// <summary>
 /// The rest of the operator panel (SCR-PLT-52 to 56, DOC-B07 section 3): a tenant's details with counters but no
@@ -27,6 +29,7 @@ public static class OperatorAdminEndpoints
     {
         api.MapGet("/tenants/{id:guid}", TenantAsync);
         api.MapPut("/tenants/{id:guid}/modules", ModulesAsync);
+        api.MapPut("/tenants/{id:guid}/mfa-policy", MfaPolicyAsync);
         api.MapPost("/tenants/{id:guid}/actions/resend-invitation", ResendAsync);
         api.MapGet("/operators", OperatorsAsync);
         api.MapPost("/operators", InviteAsync);
@@ -38,8 +41,8 @@ public static class OperatorAdminEndpoints
         api.MapGet("/support/{grant}/users", SupportUsersAsync);
     }
 
-    private static async Task<int> TenantIdAsync(SqlConnection c, Guid id, CancellationToken ct) =>
-        await c.ExecuteScalarAsync<int?>(new CommandDefinition("SELECT TenantId FROM plat.Tenant WHERE PublicId = @id;", new { id }, cancellationToken: ct))
+    private static async Task<int> TenantIdAsync(SqlConnection c, Guid id, CancellationToken ct, SqlTransaction? tx = null) =>
+        await c.ExecuteScalarAsync<int?>(new CommandDefinition("SELECT TenantId FROM plat.Tenant WHERE PublicId = @id;", new { id }, tx, cancellationToken: ct))
         ?? throw ApiProblemException.NotFound();
 
     internal static Task<int> WritePlatformAuditAsync(SqlConnection c, SqlTransaction? tx, int operatorId, string action, string entityType, long? entityId,
@@ -61,7 +64,7 @@ public static class OperatorAdminEndpoints
                 """
                 SELECT t.PublicId AS id, t.Code AS code, t.NameEn AS nameEn, t.NameAr AS nameAr, t.Status AS status, t.TrialEndsOn AS trialEndsOn,
                        t.TimeZone AS timeZone, t.DefaultLanguage AS defaultLanguage, t.SuspendedReason AS suspendedReason, t.ActivatedAt AS activatedAt,
-                       t.ClosedAt AS closedAt, p.Code AS planCode, c.Iso2 AS homeCountryIso2
+                       t.ClosedAt AS closedAt, p.Code AS planCode, c.Iso2 AS homeCountryIso2, t.MfaPolicy AS mfaPolicy
                 FROM plat.Tenant AS t JOIN plat.[Plan] AS p ON p.PlanId = t.PlanId JOIN ref.Country AS c ON c.CountryId = t.HomeCountryId
                 WHERE t.TenantId = @t;
                 """, new { t = tenantId }, cancellationToken: http.RequestAborted));
@@ -71,6 +74,26 @@ public static class OperatorAdminEndpoints
                 "SELECT ModuleCode AS module, IsEnabled AS enabled, EnabledAt AS enabledAt FROM plat.TenantModule WHERE TenantId = @t ORDER BY ModuleCode;",
                 new { t = tenantId }, cancellationToken: http.RequestAborted));
             return Results.Ok(new { tenant = t, counters, modules });
+        }
+    }
+
+    /// <summary>Two-step verification for one tenant: the platform setting, required, or off (ADR 0048). Admin, fresh code.</summary>
+    private static async Task<IResult> MfaPolicyAsync(Guid id, MfaPolicyRequest body, HttpContext http, SqlConnectionFactory db, IKeyWrapper keys, TimeProvider clock)
+    {
+        if (body.Policy is not ("PLATFORM" or "REQUIRED" or "OFF")) throw ApiProblemException.Invalid("VALIDATION_FAILED", "Choose PLATFORM, REQUIRED or OFF.");
+        var (c, s) = await OperatorEndpoints.OpenSessionAsync(http, db);
+        await using (c)
+        {
+            if (!s.IsAdmin) throw ApiProblemException.Forbidden();
+            await OperatorEndpoints.StepUpAsync(c, body.MfaCode, keys, clock, http);
+            await using var tx = (SqlTransaction)await c.BeginTransactionAsync(http.RequestAborted);
+            var tenantId = await TenantIdAsync(c, id, http.RequestAborted, tx);
+            var before = await c.ExecuteScalarAsync<string>(new CommandDefinition(
+                "SELECT MfaPolicy FROM plat.Tenant WITH (UPDLOCK) WHERE TenantId = @t; UPDATE plat.Tenant SET MfaPolicy = @p, UpdatedAt = SYSUTCDATETIME() WHERE TenantId = @t;",
+                new { t = tenantId, p = body.Policy }, tx, cancellationToken: http.RequestAborted));
+            await WritePlatformAuditAsync(c, tx, s.OperatorId, "TENANT_MFA_POLICY_CHANGED", "plat.Tenant", tenantId, new { from = before, to = body.Policy }, http.RequestAborted);
+            await tx.CommitAsync(http.RequestAborted);
+            return Results.NoContent();
         }
     }
 

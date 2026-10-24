@@ -2,12 +2,12 @@
 
 > مُولَّد آليًا من نموذج البيانات بـ `tools/dbgen` — لا يُعدَّل يدويًا. الأعمدة المشتركة التي تضيفها اصطلاحات التوليد (TenantId، المعرّف، التدقيق) تظهر في كل جدول.
 
-**عدد الجداول: 257**
+**عدد الجداول: 258**
 
 | الوحدة | عدد الجداول |
 |---|---|
 | PLT-PLAT | 11 |
-| PLT-SEC | 16 |
+| PLT-SEC | 17 |
 | PLT-AUD | 4 |
 | PLT-DOC | 3 |
 | PLT-CFG | 14 |
@@ -91,6 +91,7 @@
 | ActivatedAt | DATETIME2(3) | نعم |  |  | أول تفعيل؛ بعده لا يتغير Code (يُفرض في التطبيق/محفّز) |
 | ClosedAt | DATETIME2(3) | نعم |  |  | بدء مهلة التصدير 30 يومًا (BR-PLT-002) |
 | ArchivedAt | DATETIME2(3) | نعم |  |  | = ClosedAt + 30 يومًا؛ القراءة فقط بلا كتابة ولا حذف |
+| MfaPolicy | VARCHAR(10) | لا | PLATFORM |  | التحقق بخطوتين لهذا المشترك: إعداد المنصة security.mfa.required، أو فرضه، أو إيقافه؛ تضبطه إدارة المنصة وحدها (docs/31 الصف 46، ADR 0048) enum: PLATFORM, REQUIRED, OFF |
 | PublicId | UNIQUEIDENTIFIER | لا | NEWSEQUENTIALID() |  |  |
 | CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
 | CreatedBy | BIGINT | نعم |  |  |  |
@@ -314,6 +315,10 @@
 | DepartmentId | BIGINT | نعم |  | org.Department |  |
 | LineManagerUserId | BIGINT | نعم |  | sec.AppUser | المدير المباشر: يُستعمل لتحديد «المدير» في الموافقات (13) |
 | CompanyScopeMode | VARCHAR(10) | لا | SELECTED |  | SELECTED = الرفض هو الأصل (FR-PLT-021) enum: ALL, SELECTED |
+| ProductScopeMode | VARCHAR(10) | لا | ALL |  | SELECTED = المنتجات (الوحدات) في sec.UserProductScope وحدها (docs/31 الصف 46، ADR 0048) enum: ALL, SELECTED |
+| EmployeeCode | VARCHAR(30) | نعم |  |  | الكود الوظيفي: معرّف دخول إن سمحت به الشركة (security.login.identifiers) |
+| Mobile | VARCHAR(16) | نعم |  |  | الجوال بصيغة دولية +966…: معرّف دخول إن سمحت به الشركة |
+| MustChangePassword | BIT | لا | 0 |  | كلمة مرور مؤقتة من المسؤول: لا ربط بالجلسة قبل تغييرها (ADR 0048) |
 | PreferredLanguage | VARCHAR(10) | نعم |  |  | فارغ = DefaultLanguage للمشترك؛ تقرؤه 13 (FR-NTF-024) enum: ar, en |
 | DigitsPreference | VARCHAR(12) | نعم |  |  | فارغ = تفضيل المشترك (Q-PLT-07) enum: WESTERN, ARABIC_INDIC |
 | Status | VARCHAR(10) | لا | INVITED |  | §8 enum: INVITED, ACTIVE, LOCKED, DISABLED, ARCHIVED |
@@ -340,9 +345,9 @@
 | UpdatedAt | DATETIME2(3) | نعم |  |  |  |
 | UpdatedBy | BIGINT | نعم |  |  |  |
 
-**المفاتيح:** PK(AppUserId) · UQ(PublicId) · UQ(TenantId, Email)
+**المفاتيح:** PK(AppUserId) · UQ(PublicId) · UQ(TenantId, Email) · UQ(TenantId, EmployeeCode) WHERE EmployeeCode IS NOT NULL · UQ(TenantId, Mobile) WHERE Mobile IS NOT NULL
 
-**قيود:** `LineManagerUserId IS NULL OR LineManagerUserId <> AppUserId` · `DisplayNameAr IS NOT NULL OR DisplayNameEn IS NOT NULL` · `IsSystemUser = 1 OR Status NOT IN ('ACTIVE','LOCKED') OR PasswordHash IS NOT NULL` · `MfaEnabled = 0 OR MfaSecretEnc IS NOT NULL` · `MfaSecretEnc IS NULL OR MfaKeyId IS NOT NULL` · `MfaSecretEnc IS NULL OR DATALENGTH(MfaSecretEnc) >= 29` · `IsSystemUser = 0 OR (PasswordHash IS NULL AND MfaEnabled = 0)` · `Status <> 'ARCHIVED' OR ArchivedAt IS NOT NULL` · `Status <> 'LOCKED' OR LockedUntil IS NOT NULL OR RequiresAdminUnlock = 1` · `FailedAttempts >= 0 AND LockoutCount >= 0` · `PasswordHash IS NULL OR PasswordHash LIKE '$argon2id$v=19$m=%,t=%,p=%$%$%'`
+**قيود:** `EmployeeCode IS NULL OR (LEN(EmployeeCode) >= 2 AND EmployeeCode COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Za-z0-9._-]%')` · `Mobile IS NULL OR (Mobile LIKE '+[1-9]%' AND LEN(Mobile) BETWEEN 9 AND 16 AND Mobile NOT LIKE '_%[^0-9]%')` · `LineManagerUserId IS NULL OR LineManagerUserId <> AppUserId` · `DisplayNameAr IS NOT NULL OR DisplayNameEn IS NOT NULL` · `IsSystemUser = 1 OR Status NOT IN ('ACTIVE','LOCKED') OR PasswordHash IS NOT NULL` · `MfaEnabled = 0 OR MfaSecretEnc IS NOT NULL` · `MfaSecretEnc IS NULL OR MfaKeyId IS NOT NULL` · `MfaSecretEnc IS NULL OR DATALENGTH(MfaSecretEnc) >= 29` · `IsSystemUser = 0 OR (PasswordHash IS NULL AND MfaEnabled = 0)` · `Status <> 'ARCHIVED' OR ArchivedAt IS NOT NULL` · `Status <> 'LOCKED' OR LockedUntil IS NOT NULL OR RequiresAdminUnlock = 1` · `FailedAttempts >= 0 AND LockoutCount >= 0` · `PasswordHash IS NULL OR PasswordHash LIKE '$argon2id$v=19$m=%,t=%,p=%$%$%'`
 
 ### `sec.Role` — Role defined by the tenant or seeded (FR-PLT-018)
 
@@ -509,6 +514,22 @@
 
 **قيود:** `(BindingKind = 'SUPPORT' AND BoundOperatorId IS NOT NULL) OR (BindingKind <> 'SUPPORT' AND BoundOperatorId IS NULL)`
 
+### `sec.UserProductScope` — Products (modules) a user may use; ignored when ProductScopeMode = ALL (docs/31 row 46, ADR 0048)
+
+*مملوك للمشترك*
+
+| العمود | النوع | NULL | الافتراضي | المرجع | ملاحظة |
+|---|---|---|---|---|---|
+| TenantId | INT | لا | | plat.Tenant | عزل المشترك |
+| UserId | BIGINT | لا |  | sec.AppUser |  |
+| ModuleCode | VARCHAR(12) | لا |  |  | enum: CORE, INSTITUTIONS, FACILITIES, COVENANTS, WORKFLOW, LC_PURCHASE, LC_SALES, REQUESTS, REPORTS |
+| CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
+| CreatedBy | BIGINT | نعم |  |  |  |
+| UpdatedAt | DATETIME2(3) | نعم |  |  |  |
+| UpdatedBy | BIGINT | نعم |  |  |  |
+
+**المفاتيح:** PK(TenantId, UserId, ModuleCode)
+
 ### `sec.UserSession` — User sessions: 30-minute idle timeout and 12-hour absolute timeout (FR-PLT-014)
 
 *مملوك للمشترك*
@@ -518,6 +539,7 @@
 | TenantId | INT | لا | | plat.Tenant | عزل المشترك |
 | **UserSessionId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
 | UserId | BIGINT | لا |  | sec.AppUser |  |
+| MfaRequired | BIT | لا | 1 |  | يُقرأ عند بدء الجلسة: 0 = تُربط بلا تحقق بخطوتين (الإعداد معطّل والمستخدم غير مسجّل) |
 | TokenHash | VARBINARY(32) | لا |  |  | SHA-256 لمعرّف الجلسة؛ لا يُخزَّن الأصل 🔒 restricted |
 | LastSeenAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
 | IdleExpiresAt | DATETIME2(3) | لا |  |  |  |
