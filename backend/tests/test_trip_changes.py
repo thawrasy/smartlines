@@ -3,7 +3,7 @@ moved to another trip, each with a reason from the platform's list; the trip kee
 and those no channel reaches are listed for the carrier to call."""
 import secrets
 import uuid
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 import pytest
 
