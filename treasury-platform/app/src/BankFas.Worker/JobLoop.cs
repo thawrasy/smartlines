@@ -9,14 +9,14 @@ namespace BankFas.Worker;
 /// notifications) and JOB-NTF-DISPATCH (their e-mails); once a day (UTC) the facility validity JOB-FAC-VALIDITY, the agenda JOB-OBL-CALENDAR, the covenant tests JOB-FIN-EVAL, the early warnings JOB-FIN-READINESS, the expiry alerts JOB-NTF-EXPIRY then the signatory states JOB-ACC-EXPIRY and the governance comparison JOB-ACC-GOV, the tenant
 /// transitions JOB-PLT-TRIAL-EXPIRE and JOB-PLT-ARCHIVE, the trial reminders, and the two purges, which themselves run
 /// at most weekly per tenant, and the UPGRADE run of the tenant packs (S1). Every 5 minutes the SLA states JOB-WFL-SLA and every hour the delegation states
-/// JOB-WFL-DELEGATION, the reminders JOB-NTF-REMIND and the reservation expiry JOB-FAC-RESERVATION; daily the idle drafts JOB-WFL-STALE, the credits JOB-LC-EXPIRY and JOB-LC-RECONCILE (S3). A failed pass is logged and taken up again on the next one; every job is safe to run twice.
+/// JOB-WFL-DELEGATION, the reminders JOB-NTF-REMIND and the reservation expiry JOB-FAC-RESERVATION; daily the idle drafts JOB-WFL-STALE, the credits JOB-LC-EXPIRY and JOB-LC-RECONCILE (S3, with the received credits of S4) and the proformas without a credit JOB-LCE-NOLC (S4). A failed pass is logged and taken up again on the next one; every job is safe to run twice.
 /// One worker process in S0 (DOC-F17 section 3).
 /// </summary>
 public sealed partial class JobLoop(OnboardingJob onboarding, OutboxJob outbox, NotificationDispatchJob dispatch, BankFas.Data.Facilities.FacilityValidityJob validity, BankFas.Data.Facilities.ObligationCalendarJob calendar, BankFas.Data.Finance.FinanceEvaluationJob evaluation, BankFas.Data.Finance.FinanceReadinessJob readiness, ExpiryAlertJob expiry, SignatoryExpiryJob signatories, GovernanceJob governance, TrialReminderJob reminders,
     OutboxPurgeJob outboxPurge, JobRunPurgeJob runPurge, SeedUpgradeJob seedUpgrade, BankFas.Data.Workflow.WorkflowSlaJob sla,
     BankFas.Data.Workflow.WorkflowDelegationJob delegations, BankFas.Data.Workflow.NotificationReminderJob remind,
     BankFas.Data.Workflow.FacilityReservationJob reservations, BankFas.Data.Workflow.WorkflowStaleJob stale,
-    BankFas.Data.Workflow.LcExpiryJob lcExpiry, BankFas.Data.Workflow.LcReconcileJob lcReconcile, SqlConnectionFactory db, TimeProvider clock, ILogger<JobLoop> logger) : BackgroundService
+    BankFas.Data.Workflow.LcExpiryJob lcExpiry, BankFas.Data.Workflow.LcReconcileJob lcReconcile, BankFas.Data.Workflow.ProformaNoLcJob proformaNoLc, SqlConnectionFactory db, TimeProvider clock, ILogger<JobLoop> logger) : BackgroundService
 {
     private DateOnly _dailyDoneOn;
     private DateTimeOffset _slaDoneAt = DateTimeOffset.MinValue;
@@ -72,6 +72,7 @@ public sealed partial class JobLoop(OnboardingJob onboarding, OutboxJob outbox, 
                 // The credits' expiry before their reconciliation, so the night's figures are the released ones.
                 await RunAsync(lcExpiry.JobKey, () => lcExpiry.RunOnceAsync(stoppingToken));
                 await RunAsync(lcReconcile.JobKey, () => lcReconcile.RunOnceAsync(stoppingToken));
+                await RunAsync(proformaNoLc.JobKey, () => proformaNoLc.RunOnceAsync(stoppingToken));
                 _dailyDoneOn = today;
             }
         }

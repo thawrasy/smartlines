@@ -561,7 +561,7 @@ table lc.LcDrawing  # Drawing or presentation of documents under a credit; for e
   check  MaturityDate IS NULL OR MaturityBasisDate IS NULL OR MaturityDate >= MaturityBasisDate
   check  ExaminationDeadline IS NULL OR ExaminationDeadline >= PresentationDate
 
-table lc.LcSalesOrder  # Allocation of a sales order against a received credit; no credit limit corresponds to it (FR-LCE-013..015, BR-LCE-009..013); statuses in section 8
+table lc.LcSalesOrder public  # Allocation of a sales order against a received credit; no credit limit corresponds to it (FR-LCE-013..015, BR-LCE-009..013); statuses in section 8
   CompanyId          ->org.Company req   # شركة الطلب الفرعي: تُقيَّد بها الصلة بالطلب (DR-10)
   LcId             ->lc.LetterOfCredit via=CurrencyId req noidx   # عملة الأمر = عملة الاعتماد (V-LCE-06)
   RequestId        ->wfl.Request via=CompanyId req   # طلب SALES_ORDER_APPROVAL؛ خطاف lc.earmark_sales_order متكرر الأمان

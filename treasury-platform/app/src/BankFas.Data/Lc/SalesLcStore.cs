@@ -617,17 +617,19 @@ public static class SalesLcStore
                 u = actor.UserId, reason = a.Reason?.Trim(),
             }, tx, cancellationToken: ct)).ConfigureAwait(false);
         if (!accepted) return (id, warnings);
-        // The credit's next RECEIVED version is the amendment's terms; the earlier one is superseded.
-        var next = await TermsStore.CopyAsync(c, tx, terms, "LETTER_OF_CREDIT", lcId, "RECEIVED", 1, "LOCKED", ct, supersedes: null).ConfigureAwait(false);
+        // The credit's next RECEIVED version is the amendment's terms; the earlier one is superseded first (one current version per owner).
+        var version = await c.ExecuteScalarAsync<int>(new CommandDefinition(
+            """
+            UPDATE lc.LcTerms SET Status = 'SUPERSEDED' WHERE LcTermsId = @old;
+            SELECT VersionNo FROM lc.LcTerms WHERE LcTermsId = @old;
+            """, new { old = lc.CurrentTermsId }, tx, cancellationToken: ct)).ConfigureAwait(false);
+        var next = await TermsStore.CopyAsync(c, tx, terms, "LETTER_OF_CREDIT", lcId, "RECEIVED", version + 1, "LOCKED", ct, supersedes: lc.CurrentTermsId).ConfigureAwait(false);
         await c.ExecuteAsync(new CommandDefinition(
             """
-            DECLARE @v INT = (SELECT MAX(VersionNo) FROM lc.LcTerms WHERE OwnerType = 'LETTER_OF_CREDIT' AND OwnerId = @lc AND Purpose = 'RECEIVED' AND LcTermsId <> @next);
-            UPDATE lc.LcTerms SET Status = 'SUPERSEDED' WHERE LcTermsId = @old;
-            UPDATE lc.LcTerms SET VersionNo = @v + 1, SupersedesTermsId = @old WHERE LcTermsId = @next;
             UPDATE l SET CurrentTermsId = @next, Amount = t.Amount, ExpiryDate = ISNULL(@exp, l.ExpiryDate), LatestShipmentDate = ISNULL(@ship, l.LatestShipmentDate),
                    AmendmentNo = @no, UpdatedAt = SYSUTCDATETIME(), UpdatedBy = @u
               FROM lc.LetterOfCredit AS l JOIN lc.LcTerms AS t ON t.LcTermsId = @next WHERE l.LetterOfCreditId = @lc;
-            """, new { lc = lcId, next, old = lc.CurrentTermsId, exp = a.NewExpiryDate?.Date, ship = a.NewLatestShipmentDate?.Date, no, u = actor.UserId }, tx, cancellationToken: ct))
+            """, new { lc = lcId, next, exp = a.NewExpiryDate?.Date, ship = a.NewLatestShipmentDate?.Date, no, u = actor.UserId }, tx, cancellationToken: ct))
             .ConfigureAwait(false);
         await Outbox.EmitAsync(c, tx, "lc.amended", "lc.LetterOfCredit", lcId, new { lc = lcId, amendment = id }, ct).ConfigureAwait(false);
         return (id, warnings);

@@ -38,5 +38,6 @@ builder.Services.AddSingleton<BankFas.Data.Workflow.FacilityReservationJob>();
 builder.Services.AddSingleton<BankFas.Data.Workflow.WorkflowStaleJob>();
 builder.Services.AddSingleton<BankFas.Data.Workflow.LcExpiryJob>();
 builder.Services.AddSingleton<BankFas.Data.Workflow.LcReconcileJob>();
+builder.Services.AddSingleton<BankFas.Data.Workflow.ProformaNoLcJob>();
 builder.Services.AddHostedService<JobLoop>();
 builder.Build().Run();

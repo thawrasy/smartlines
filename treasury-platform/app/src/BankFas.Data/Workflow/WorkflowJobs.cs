@@ -267,7 +267,10 @@ public sealed class WorkflowStaleJob(SqlConnectionFactory db, TimeProvider clock
     }
 }
 
-/// <summary>JOB-LC-EXPIRY (BR-LCI-009, 015), daily: expired purchase credits and the reminders of those not closed (<see cref="Lc.LcStore.ExpireAsync"/>).</summary>
+/// <summary>
+/// JOB-LC-EXPIRY (BR-LCI-009, 015; BR-LCE-016), daily: expired purchase and received credits and the reminders of those
+/// not closed (<see cref="Lc.LcStore.ExpireAsync"/>, <see cref="Lc.SalesLcStore.ExpireAsync"/>).
+/// </summary>
 public sealed class LcExpiryJob(SqlConnectionFactory db, TimeProvider clock) : TenantJob(db)
 {
     public override string JobKey => "JOB-LC-EXPIRY";
@@ -275,19 +278,36 @@ public sealed class LcExpiryJob(SqlConnectionFactory db, TimeProvider clock) : T
     protected override async Task<string?> RunForTenantAsync(SqlConnection c, JobTenant tenant, Guid correlation, CancellationToken ct)
     {
         var me = await c.ExecuteScalarAsync<long>(new CommandDefinition("SELECT CAST(SESSION_CONTEXT(N'UserId') AS BIGINT);", cancellationToken: ct)).ConfigureAwait(false);
-        var (expired, reminded) = await Lc.LcStore.ExpireAsync(c, tenant.LocalDate(clock.GetUtcNow()), me, ct).ConfigureAwait(false);
+        var today = tenant.LocalDate(clock.GetUtcNow());
+        var (expired, reminded) = await Lc.LcStore.ExpireAsync(c, today, me, ct).ConfigureAwait(false);
+        var (salesExpired, salesReminded) = await Lc.SalesLcStore.ExpireAsync(c, today, ct).ConfigureAwait(false);
+        expired += salesExpired;
+        reminded += salesReminded;
         return expired + reminded == 0 ? null : $"expired {expired}, reminded {reminded}";
     }
 }
 
-/// <summary>JOB-LC-RECONCILE (FR-LCI-031), daily: the reconciliation of the purchase credits (<see cref="Lc.LcStore.ReconcileAsync"/>).</summary>
+/// <summary>JOB-LC-RECONCILE (FR-LCI-031, FR-LCE-025), daily: the reconciliation of the purchase and the received credits (<see cref="Lc.LcStore.ReconcileAsync"/>, <see cref="Lc.SalesLcStore.ReconcileAsync"/>).</summary>
 public sealed class LcReconcileJob(SqlConnectionFactory db, TimeProvider clock) : TenantJob(db)
 {
     public override string JobKey => "JOB-LC-RECONCILE";
 
     protected override async Task<string?> RunForTenantAsync(SqlConnection c, JobTenant tenant, Guid correlation, CancellationToken ct)
     {
-        var n = await Lc.LcStore.ReconcileAsync(c, tenant.LocalDate(clock.GetUtcNow()), ct).ConfigureAwait(false);
+        var today = tenant.LocalDate(clock.GetUtcNow());
+        var n = await Lc.LcStore.ReconcileAsync(c, today, ct).ConfigureAwait(false) + await Lc.SalesLcStore.ReconcileAsync(c, today, ct).ConfigureAwait(false);
         return n == 0 ? null : $"mismatches {n}";
+    }
+}
+
+/// <summary>JOB-LCE-NOLC (FR-LCE-024), daily: proformas still without a received credit after lc.proforma.no_lc_days (<see cref="Lc.SalesLcStore.ProformaNoLcAsync"/>).</summary>
+public sealed class ProformaNoLcJob(SqlConnectionFactory db, TimeProvider clock) : TenantJob(db)
+{
+    public override string JobKey => "JOB-LCE-NOLC";
+
+    protected override async Task<string?> RunForTenantAsync(SqlConnection c, JobTenant tenant, Guid correlation, CancellationToken ct)
+    {
+        var n = await Lc.SalesLcStore.ProformaNoLcAsync(c, tenant.LocalDate(clock.GetUtcNow()), ct).ConfigureAwait(false);
+        return n == 0 ? null : $"reminded {n}";
     }
 }

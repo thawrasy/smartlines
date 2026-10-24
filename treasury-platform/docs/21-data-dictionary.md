@@ -7347,12 +7347,13 @@
 | DeliveryDate | DATE | نعم |  |  | بعد آخر شحن تحذير V-LCE-08 |
 | ClosedOn | DATE | نعم |  |  |  |
 | ClosedReason | NVARCHAR(500) | نعم |  |  |  |
+| PublicId | UNIQUEIDENTIFIER | لا | NEWSEQUENTIALID() |  |  |
 | CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
 | CreatedBy | BIGINT | نعم |  |  |  |
 | UpdatedAt | DATETIME2(3) | نعم |  |  |  |
 | UpdatedBy | BIGINT | نعم |  |  |  |
 
-**المفاتيح:** PK(LcSalesOrderId) · UQ(TenantId, RequestId)
+**المفاتيح:** PK(LcSalesOrderId) · UQ(PublicId) · UQ(TenantId, RequestId)
 
 **قيود:** `Amount > 0` · `ConvertedAmount >= 0 AND ReleasedAmount >= 0 AND Amount >= ConvertedAmount + ReleasedAmount` · `Status <> 'EARMARKED' OR (ConvertedAmount = 0 AND ReleasedAmount = 0)` · `Status <> 'PARTIALLY_CONVERTED' OR (ConvertedAmount > 0 AND ConvertedAmount < Amount)` · `Status <> 'CONVERTED' OR ConvertedAmount = Amount` · `Status <> 'RELEASED' OR ReleasedAmount > 0` · `Status <> 'CANCELLED' OR (ConvertedAmount = 0 AND ReleasedAmount = 0)` · `Status NOT IN ('RELEASED','CANCELLED') OR (ClosedOn IS NOT NULL AND ClosedReason IS NOT NULL)`
 

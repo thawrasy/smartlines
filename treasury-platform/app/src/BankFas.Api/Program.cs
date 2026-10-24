@@ -167,6 +167,7 @@ TemplateEndpoints.Map(portal);
 LcTermsEndpoints.Map(portal);
 LcEndpoints.Map(portal);
 SalesEndpoints.Map(portal);
+SalesLcEndpoints.Map(portal);
 FormTemplateEndpoints.Map(portal);
 var panel = app.MapGroup("/api/v1/operator").AddEndpointFilter(SurfaceFilter(Surface.OperatorPanel));
 OperatorEndpoints.Map(panel);
