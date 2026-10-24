@@ -28,7 +28,7 @@ public sealed class ReadinessTests(PlatformFixture f)
     public async Task Warnings_readiness_ratings_endorsement_and_the_evidence_pack()
     {
         var ct = TestContext.Current.CancellationToken;
-        var today = DateTime.UtcNow.Date;
+        var today = f.Env.Clock.GetUtcNow().UtcDateTime.Date;   // the clock of the platform, not the wall
         var t = await f.CreateTenantAsync();
         var (tm, _, _) = await f.UserWithRoleAsync(t, "TM");
         var (fa, _, _) = await f.UserWithRoleAsync(t, "FA");

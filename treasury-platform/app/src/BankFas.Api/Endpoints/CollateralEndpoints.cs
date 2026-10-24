@@ -433,9 +433,10 @@ public static class CollateralEndpoints
     }
 
     /// <summary>A version with its typed parts, the other versions of its root and the facilities that link the root.</summary>
-    private static async Task<IResult> GetAsync(Guid id, HttpContext http, SqlConnectionFactory db, OpaqueRefs refs)
+    private static async Task<IResult> GetAsync(Guid id, HttpContext http, SqlConnectionFactory db, OpaqueRefs refs, TimeProvider clock)
     {
         await using var u = await BoundUser.OpenAsync(http, db, View);
+        var today = await BankFas.Data.Workflow.Delegations.TodayAsync(u.Connection, null, clock.GetUtcNow(), http.RequestAborted);
         var ct = http.RequestAborted;
         var k = await FindAsync(u, null, id, ct);
         var g = await u.Connection.QuerySingleOrDefaultAsync(new CommandDefinition(
@@ -502,7 +503,7 @@ public static class CollateralEndpoints
                 phaseNo = p.PhaseNo, fromYear = p.FromYear, toYear = p.ToYear, requiredValuerCount = p.Valuers, frequencyMonths = p.Freq, referenceDate = FacilityEndpoints.D(p.Ref),
                 lastValuationOn = FacilityEndpoints.D(p.LastOn), lastValuationAmount = p.LastAmount,
             }),
-            nextValuations = CollateralMath.Valuations(phaseList, DateTime.UtcNow.Date, DateTime.UtcNow.Date.AddYears(3)).Take(3)
+            nextValuations = CollateralMath.Valuations(phaseList, today, today.AddYears(3)).Take(3)
                 .Select(d => new { date = FacilityEndpoints.D(d.Date), phaseNo = d.PhaseNo, valuers = d.Valuers }),
             versions = versions.Select(x => new { id = x.Id, status = x.Status, approvalState = x.Approval, createdAt = x.CreatedAt }),
             facilities = links.Select(l => new { id = l.Facility, facilityNo = l.FacilityNo, linkedOn = FacilityEndpoints.D(l.LinkedOn), unlinkedOn = FacilityEndpoints.D(l.UnlinkedOn) }),
@@ -855,7 +856,7 @@ public static class CollateralEndpoints
             """, new { f = f.FacilityId }, tx, cancellationToken: ct));
         foreach (var g in guarantors)
         {
-            var r = await KycEndpoints.EvaluateAsync(u.Connection, tx, g.Party, bank, "GUARANTOR", DateTime.UtcNow.Date, ct);
+            var r = await KycEndpoints.EvaluateAsync(u.Connection, tx, g.Party, bank, "GUARANTOR", await BankFas.Data.Workflow.Delegations.TodayAsync(u.Connection, tx, DateTimeOffset.UtcNow, ct), ct);
             if (r is { Result.Ready: false })
                 warnings.Add(("V-COL-KYC", $"The file of the guarantor {g.NameAr ?? g.NameEn} is {r.Value.Result.Pct.ToString("0.#", CultureInfo.InvariantCulture)}% complete (FR-COL-013)."));
         }
@@ -888,14 +889,14 @@ public static class CollateralEndpoints
     /// must cover, its percent and its shortfall; cash margins; property with its last valuation; set-off and negative
     /// pledge as flags.
     /// </summary>
-    private static async Task<IResult> CoverageAsync(Guid id, HttpContext http, SqlConnectionFactory db)
+    private static async Task<IResult> CoverageAsync(Guid id, HttpContext http, SqlConnectionFactory db, TimeProvider clock)
     {
         Query.Allow(http.Request, "asOf");
         var (u, scope) = await FacilityEndpoints.OpenAsync(http, db, View);
         await using var _ = u;
         var ct = http.RequestAborted;
         var f = await FacilityEndpoints.FindAsync(u, null, id, scope, ct);
-        var asOf = Date(http.Request.Query["asOf"], "date") ?? DateTime.UtcNow.Date;
+        var asOf = Date(http.Request.Query["asOf"], "date") ?? await BankFas.Data.Workflow.Delegations.TodayAsync(u.Connection, null, clock.GetUtcNow(), ct);
         var rev = f.ApprovedRevisionNo;
         var rows = await FacilityTreeStore.LoadAsync(u.Connection, null, f.FacilityId, rev, ct);
         var tree = rows.Tree(f.TotalAmount);

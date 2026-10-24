@@ -199,8 +199,8 @@ public sealed class SignInTests(PlatformFixture f)
             r.Headers.Add("X-Background-Request", "1");
             var response = await p.SendAsync(r, TestContext.Current.CancellationToken);
             var body = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)).RootElement;
-            var current = body.GetProperty("current").GetString();
-            return body.GetProperty("items").EnumerateArray().First(s => s.GetProperty("id").GetString() == current).GetProperty("lastSeenAt").ToString();
+            // The administrator of a new tenant has this one session; its reference is opaque and changes per answer.
+            return body.GetProperty("items").EnumerateArray().Single().GetProperty("lastSeenAt").ToString();
         }
         await p.GetJsonAsync("/api/v1/me");
         var before = await LastSeenAsync();

@@ -193,7 +193,7 @@ public static class TermEndpoints
     /// revisions. The specified values are ranked by the key's direction (LOWER_BETTER ascending) and the first is the
     /// best; the others keep their state and stand outside the ranking (BR-CMP-002).
     /// </summary>
-    private static async Task<IResult> CompareAsync(HttpContext http, SqlConnectionFactory db, OpaqueRefs refs)
+    private static async Task<IResult> CompareAsync(HttpContext http, SqlConnectionFactory db, OpaqueRefs refs, TimeProvider clock)
     {
         Query.Allow(http.Request, "key", "asOf", "label");
         var key = http.Request.Query["key"].ToString().ToUpperInvariant();
@@ -201,7 +201,7 @@ public static class TermEndpoints
         await using var u = await BoundUser.OpenAsync(http, db, View);
         var ct = http.RequestAborted;
         var scope = await CompanyScope.OfAsync(u, ct);
-        var asOf = LimitEndpoints.Date(http.Request.Query["asOf"], "date") ?? DateTime.UtcNow.Date;
+        var asOf = LimitEndpoints.Date(http.Request.Query["asOf"], "date") ?? await BankFas.Data.Workflow.Delegations.TodayAsync(u.Connection, null, clock.GetUtcNow(), ct);
         // The direction is the key's, whether or not any facility has a value for it yet.
         var direction = await u.Connection.ExecuteScalarAsync<string?>(new CommandDefinition(
             "SELECT Direction FROM cmp.TermType WHERE Code = @key;", new { key }, cancellationToken: ct)) ?? throw ApiProblemException.NotFound();

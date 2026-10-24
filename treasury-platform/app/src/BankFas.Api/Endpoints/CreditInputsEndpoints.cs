@@ -309,7 +309,7 @@ public static class CreditInputsEndpoints
     private sealed record DecisionRow(long FacilityLenderDecisionId, Guid? Lender, string? LenderNameAr, DateTime DecisionDate, DateTime EffectiveDate, string LimitAction,
         decimal? NewLimitAmount, int MarginChangeBp, int FeesChangeBp, string? Note, Guid? SourceDocument, string? SourcePage, string Confidence, long? CreatedBy);
 
-    private static async Task<IResult> DecisionsAsync(Guid id, HttpContext http, SqlConnectionFactory db, OpaqueRefs refs)
+    private static async Task<IResult> DecisionsAsync(Guid id, HttpContext http, SqlConnectionFactory db, OpaqueRefs refs, TimeProvider clock)
     {
         var (u, scope) = await FacilityEndpoints.OpenAsync(http, db, FacilityEndpoints.View);
         await using var _ = u;
@@ -324,7 +324,7 @@ public static class CreditInputsEndpoints
               LEFT JOIN doc.Document AS d ON d.DocumentId = x.SourceDocumentId
              WHERE x.FacilityId = @f ORDER BY x.EffectiveDate DESC, x.FacilityLenderDecisionId DESC;
             """, new { f = f.FacilityId }, cancellationToken: ct));
-        var today = DateTime.UtcNow.Date;
+        var today = await BankFas.Data.Workflow.Delegations.TodayAsync(u.Connection, null, clock.GetUtcNow(), ct);
         var inForce = rows.Where(r => r.EffectiveDate <= today).Select(r => r.FacilityLenderDecisionId).FirstOrDefault();
         return Results.Ok(new
         {

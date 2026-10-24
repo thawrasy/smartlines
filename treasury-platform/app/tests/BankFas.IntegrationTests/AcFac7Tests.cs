@@ -107,7 +107,8 @@ public sealed class AcFac7Tests(PlatformFixture f)
             ["documentType"] = "FACILITY_ADDENDUM", ["title"] = "Waiver", ["company"] = x.Company,
         });
         var letter = JsonDocument.Parse(await up.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)).RootElement.GetProperty("id").GetString()!;
-        var today = DateTime.UtcNow.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+        // The tenant's date on the platform's clock (the breach is detected on it; the fixture's tenants are in Asia/Dubai).
+        var today = TimeZoneInfo.ConvertTime(f.Env.Clock.Now, TimeZoneInfo.FindSystemTimeZoneById("Asia/Dubai")).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
         Assert.Equal(HttpStatusCode.NoContent, (await x.Fo.SendAsync(HttpMethod.Post, $"/api/v1/breaches/{breach}/actions/record-waiver",
             new { waiverRef = "W-1", waiverDate = today, bankContact = contact, document = letter })).StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, (await x.Tm.SendAsync(HttpMethod.Post, $"/api/v1/breaches/{breach}/actions/approve-waiver", new { })).StatusCode);

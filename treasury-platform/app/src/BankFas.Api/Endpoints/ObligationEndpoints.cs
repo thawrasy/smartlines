@@ -898,7 +898,7 @@ public static class ObligationEndpoints
     /// The life of a breach: notify-bank (its date), start-cure (BR-OBL-009), cure, record-waiver (the bank's reference,
     /// date, contact and document), approve-waiver (obl.waiver.approve, not the one who recorded it), close (no action).
     /// </summary>
-    private static async Task<IResult> BreachActionAsync(Guid id, string action, BreachActionRequest b, HttpContext http, SqlConnectionFactory db)
+    private static async Task<IResult> BreachActionAsync(Guid id, string action, BreachActionRequest b, HttpContext http, SqlConnectionFactory db, TimeProvider clock)
     {
         await using var u = await BoundUser.OpenAsync(http, db, action == "approve-waiver" ? WaiverApprove : BreachManage);
         var ct = http.RequestAborted;
@@ -909,7 +909,8 @@ public static class ObligationEndpoints
         if (!(await CompanyScope.OfAsync(u, ct, tx)).Allows(br.BorrowerCompanyId)) throw ApiProblemException.NotFound();
         var open = br.Status is "OPEN" or "IN_CURE";
         if (!open) throw new ApiProblemException(409, "V-OBL-STATE", "The breach is resolved.");
-        var on = Date(b.On, "date") ?? DateTime.UtcNow.Date;
+        // The tenant's date, as the breach's detection date is (not the UTC date, which differs near midnight).
+        var on = Date(b.On, "date") ?? await BankFas.Data.Workflow.Delegations.TodayAsync(u.Connection, tx, clock.GetUtcNow(), ct);
         if (on < br.DetectedOn) throw ApiProblemException.Invalid("VALIDATION_FAILED", "The date is on or after the breach was detected.");
         string sql;
         object args;

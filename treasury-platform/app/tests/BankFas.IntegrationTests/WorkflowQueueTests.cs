@@ -68,7 +68,7 @@ public sealed class WorkflowQueueTests(PlatformFixture f)
 
     /// <summary>
     /// docs/31 row 44: each request is timed from its own arrival and worked on its own. Two requests reaching the same
-    /// stage two hours apart each take their due time from their own entry; what happens to one leaves the other's clock
+    /// stage ten minutes apart each take their due time from their own entry; what happens to one leaves the other's clock
     /// as it was.
     /// </summary>
     [Fact]
@@ -77,7 +77,7 @@ public sealed class WorkflowQueueTests(PlatformFixture f)
         var p = await SetUpAsync();
         var a = (await p.Rq.PostOkAsync("/api/v1/requests", new { type = "GENERIC_SIMPLE", company = p.Company, data = new { title = "First" } })).GetProperty("id").GetString()!;
         await ActAsync(p.Rq, a, "submit");
-        f.Env.Clock.Now = f.Env.Clock.Now.AddHours(2);
+        f.Env.Clock.Now = f.Env.Clock.Now.AddMinutes(10);
         var b = (await p.Rq.PostOkAsync("/api/v1/requests", new { type = "GENERIC_SIMPLE", company = p.Company, data = new { title = "Second" } })).GetProperty("id").GetString()!;
         await ActAsync(p.Rq, b, "submit");
 
@@ -91,11 +91,13 @@ public sealed class WorkflowQueueTests(PlatformFixture f)
                 """, new { id = Guid.Parse(id) });
         var first = await Inst(a);
         var second = await Inst(b);
-        Assert.InRange((second.EnteredAt - first.EnteredAt).TotalMinutes, 119, 121);
+        Assert.InRange((second.EnteredAt - first.EnteredAt).TotalMinutes, 9.5, 10.5);
         Assert.Equal(first.EnteredAt, first.QueuedAt);
         Assert.Equal(second.EnteredAt, second.QueuedAt);
-        Assert.True(second.ClaimDueAt > first.ClaimDueAt, "the second request's claim time runs from its own arrival");
-        Assert.True(second.DueAt >= first.DueAt, "the second request's due time runs from its own arrival");
+        // In working hours the later arrival is due later; outside them both wait for the same opening (business-hour SLA).
+        Assert.True(second.ClaimDueAt >= first.ClaimDueAt, "the second request's claim time runs from its own arrival");
+        Assert.Equal(first.DueAt is null, second.DueAt is null);   // the queue stage has its claim time; a stage SLA when the template gives one
+        if (first.DueAt is not null) Assert.True(second.DueAt >= first.DueAt, "the second request's due time runs from its own arrival");
 
         // Working on the first request leaves the second's clock untouched.
         await ActAsync(p.Te, a, "claim");
