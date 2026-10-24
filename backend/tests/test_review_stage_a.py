@@ -77,7 +77,7 @@ def test_topup_replay_is_scoped_to_the_payer():
 def test_readiness_checks_the_database_and_the_schema():
     c = client()
     assert c.get("/api/health").json() == {"ok": True}
-    r = c.get("/api/ready")                               # from the server itself: the checks are named
+    r = c.get("/api/ready", headers={"X-Forwarded-For": "10.1.2.3"})   # from inside the network: the checks are named
     assert r.status_code == 200, r.text
     assert r.json() == {"ready": True, "checks": {"database": True, "schema": True, "audit_database": True,
                                                     "reports_replica": True, "context": True,
