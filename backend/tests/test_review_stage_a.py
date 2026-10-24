@@ -186,7 +186,7 @@ def test_update_stops_on_an_unapproved_or_unsettled_checkout(tmp_path):
     os.chmod(work / "deploy" / "backup.sh", 0o755)
     (work / "deploy" / "env-split.sh").write_text("#!/bin/sh\nexit 0\n")      # writes deploy/env/*.env on a server
     os.chmod(work / "deploy" / "env-split.sh", 0o755)
-    (work / "deploy" / ".env").write_text("MASSLAK_ENVIRONMENT=development\nMASSLAK_REPLICATION_PASSWORD=x\n")  # untracked
+    (work / "deploy" / ".env").write_text("MASSLAK_ENVIRONMENT=development\nMASSLAK_REPLICATION_PASSWORD=x\nMASSLAK_MONEY_MODE=NO_FUNDS\n")  # untracked
     git("add", "-A")
     git("commit", "-qm", "release")
     git("push", "-q", "-u", "origin", "main")
