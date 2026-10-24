@@ -97,3 +97,35 @@ public sealed class SalesRulesTests
         Assert.Equal(1_000_000m, SalesRules.EarmarkCap(1_000_000m, 10m, false, 2));
     }
 }
+
+public sealed class TermsComparisonTests
+{
+    // FR-LCT-031: a proforma's 120 days against 90 in the credit is less favourable; 1 original and 2 copies of the
+    // invoice against 1 and 3 is less favourable; a document added is ADDED; a confirmation is more favourable.
+    [Fact]
+    public void The_examples_of_the_spec_read_from_the_beneficiary_side()
+    {
+        var proforma = new CompareFacts
+        {
+            Amount = 1_000_000m, Currency = "USD", ExpiryDays = 120, LatestShipmentDays = 90, PresentationDays = 21, LcType = "SIGHT", PartialShipments = "ALLOWED",
+            Transhipment = "ALLOWED", Confirmation = "WITHOUT", Incoterm = "EXW", IncotermPlace = "Riyadh", GoodsDescription = "Steel",
+            Documents = new Dictionary<string, (int, int)> { ["COMMERCIAL_INVOICE"] = (1, 2) }, Charges = new Dictionary<string, string> { ["ADVISING"] = "APPLICANT" },
+        };
+        var received = proforma with
+        {
+            ExpiryDays = 90, Confirmation = "CONFIRMED", PartialShipments = "NOT_ALLOWED", GoodsDescription = "steel ",
+            Documents = new Dictionary<string, (int, int)> { ["COMMERCIAL_INVOICE"] = (1, 3), ["CERT_ORIGIN"] = (1, 0) },
+            Charges = new Dictionary<string, string> { ["ADVISING"] = "BENEFICIARY" },
+        };
+        var v = TermsComparison.Compare(proforma, received).ToDictionary(l => l.FieldKey, l => l.Verdict);
+        Assert.Equal(TermsComparison.Less, v["expiryDays"]);
+        Assert.Equal(TermsComparison.Less, v["doc:COMMERCIAL_INVOICE"]);
+        Assert.Equal(TermsComparison.Added, v["doc:CERT_ORIGIN"]);
+        Assert.Equal(TermsComparison.More, v["confirmation"]);
+        Assert.Equal(TermsComparison.Less, v["partialShipments"]);
+        Assert.Equal(TermsComparison.Less, v["charge:ADVISING"]);
+        Assert.Equal(TermsComparison.Match, v["amount"]);
+        Assert.Equal(TermsComparison.Match, v["goodsDescription"]);
+        Assert.Equal(TermsComparison.Missing, TermsComparison.Compare(received, proforma).Single(l => l.FieldKey == "doc:CERT_ORIGIN").Verdict);
+    }
+}

@@ -635,6 +635,92 @@ public static class SalesLcStore
         return (id, warnings);
     }
 
+    // ---------- the comparison with the proforma (Could) ----------
+
+    private static async Task<CompareFacts> FactsAsync(SqlConnection c, SqlTransaction tx, long termsId, DateTime? from, CancellationToken ct)
+    {
+        var t = await c.QuerySingleAsync<(decimal? Amount, string? Currency, string? ExpiryRule, DateTime? ExpiryDate, int? ExpiryDays, string? ShipRule, DateTime? ShipDate, int? ShipDays,
+            int? Presentation, string? LcType, string? Partial, string? Trans, string? Confirmation, string? Incoterm, string? Place, string? Goods)>(new CommandDefinition(
+            """
+            SELECT t.Amount, cur.Code, t.ExpiryRule, t.ExpiryDate, t.ExpiryDaysAfterIssue, t.LatestShipmentRule, t.LatestShipmentDate, t.LatestShipmentDaysAfterIssue,
+                   t.PresentationDays, t.LcType, t.PartialShipments, t.Transhipment, t.Confirmation, inc.Code, t.IncotermPlace, t.GoodsDescription
+              FROM lc.LcTerms AS t LEFT JOIN ref.Currency AS cur ON cur.CurrencyId = t.CurrencyId LEFT JOIN ref.Incoterm AS inc ON inc.IncotermId = t.IncotermId
+             WHERE t.LcTermsId = @t;
+            """, new { t = termsId }, tx, cancellationToken: ct)).ConfigureAwait(false);
+        int? Days(string? rule, DateTime? date, int? days) => rule == "DAYS_AFTER_ISSUE" ? days : date is { } d && from is { } f ? (d.Date - f.Date).Days : null;
+        var docs = (await c.QueryAsync<(string Code, int? Originals, int? Copies)>(new CommandDefinition(
+            """
+            SELECT k.Code, d.Originals, d.Copies FROM lc.LcTermsDocument AS d JOIN lc.LcDocumentClause AS k ON k.LcDocumentClauseId = d.ClauseId
+             WHERE d.LcTermsId = @t AND d.IsFreeText = 0;
+            """, new { t = termsId }, tx, cancellationToken: ct)).ConfigureAwait(false))
+            .GroupBy(x => x.Code).ToDictionary(g => g.Key, g => (g.Sum(x => x.Originals ?? 0), g.Sum(x => x.Copies ?? 0)));
+        var charges = (await c.QueryAsync<(string Category, string Payer)>(new CommandDefinition(
+            "SELECT ChargeCategory, Payer FROM lc.LcChargesMatrix WHERE LcTermsId = @t;", new { t = termsId }, tx, cancellationToken: ct)).ConfigureAwait(false))
+            .ToDictionary(x => x.Category, x => x.Payer);
+        return new CompareFacts
+        {
+            Amount = t.Amount, Currency = t.Currency, ExpiryDays = Days(t.ExpiryRule, t.ExpiryDate, t.ExpiryDays), LatestShipmentDays = Days(t.ShipRule, t.ShipDate, t.ShipDays),
+            PresentationDays = t.Presentation, LcType = t.LcType, PartialShipments = t.Partial, Transhipment = t.Trans, Confirmation = t.Confirmation, Incoterm = t.Incoterm,
+            IncotermPlace = t.Place, GoodsDescription = t.Goods, Documents = docs, Charges = charges,
+        };
+    }
+
+    /// <summary>
+    /// FR-LCT-031, FR-LCE-023 (lc.compare): the credit's current terms against its proforma's, field by field, each
+    /// difference with its verdict for the beneficiary (BR-LCT-021). The days of each side run from its own issue (the
+    /// proforma's date, the credit's receipt). A new run keeps the earlier ones; the terms do not change.
+    /// </summary>
+    public static async Task<IReadOnlyList<CompareLine>> CompareAsync(SqlConnection c, SqlTransaction tx, Actor actor, long lcId, DateTimeOffset now, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        if (!actor.Permissions.Contains("lc.compare")) throw WorkflowRefusalException.Forbidden("You may not compare letters of credit.");
+        var lc = await LockAsync(c, tx, lcId, ct).ConfigureAwait(false);
+        var link = await c.QuerySingleOrDefaultAsync<(long Terms, DateTime IssueDate, DateTime Received)?>(new CommandDefinition(
+            """
+            SELECT p.TermsId, p.IssueDate, l.ReceivedDate FROM lc.LetterOfCredit AS l JOIN lc.ProformaInvoice AS p ON p.ProformaInvoiceId = l.ProformaId
+             WHERE l.LetterOfCreditId = @lc;
+            """, new { lc = lcId }, tx, cancellationToken: ct)).ConfigureAwait(false)
+            ?? throw WorkflowRefusalException.State("The credit is linked to no proforma.");
+        var lines = TermsComparison.Compare(await FactsAsync(c, tx, link.Terms, link.IssueDate, ct).ConfigureAwait(false),
+            await FactsAsync(c, tx, lc.CurrentTermsId, link.Received, ct).ConfigureAwait(false));
+        var summary = JsonSerializer.Serialize(lines.GroupBy(l => l.Verdict).ToDictionary(g => g.Key, g => g.Count()));
+        await c.ExecuteAsync(new CommandDefinition(
+            """
+            DECLARE @o TABLE (Id BIGINT);
+            INSERT lc.LcTermsComparison (TenantId, BaselineTermsId, ReceivedTermsId, RunAt, RunBy, SummaryJson, Status, CreatedBy)
+            OUTPUT inserted.LcTermsComparisonId INTO @o
+            VALUES (CAST(SESSION_CONTEXT(N'TenantId') AS INT), @base, @recv, @at, @u, @summary, IIF(@open = 0, 'REVIEWED', 'OPEN'), @u);
+            INSERT lc.LcTermsComparisonLine (TenantId, ComparisonId, FieldKey, BaselineValue, ReceivedValue, Verdict, CreatedBy)
+            SELECT CAST(SESSION_CONTEXT(N'TenantId') AS INT), (SELECT Id FROM @o), j.FieldKey, j.Baseline, j.Received, j.Verdict, @u
+              FROM OPENJSON(@lines) WITH (FieldKey VARCHAR(60), Baseline NVARCHAR(MAX), Received NVARCHAR(MAX), Verdict VARCHAR(20)) AS j;
+            """,
+            new
+            {
+                @base = link.Terms, recv = lc.CurrentTermsId, at = now.UtcDateTime, u = actor.UserId, summary, open = lines.Count(l => l.Verdict != TermsComparison.Match),
+                lines = JsonSerializer.Serialize(lines),
+            }, tx, cancellationToken: ct)).ConfigureAwait(false);
+        return lines;
+    }
+
+    /// <summary>The treasury's decision on one difference of the latest comparison: ACCEPT, REQUEST_AMENDMENT or IGNORE; when every difference has one, it is REVIEWED.</summary>
+    public static async Task DecideComparisonAsync(SqlConnection c, SqlTransaction tx, Actor actor, long lcId, string fieldKey, string decision, string? note, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        if (!actor.Permissions.Contains("lc.compare")) throw WorkflowRefusalException.Forbidden("You may not compare letters of credit.");
+        if (decision is not ("ACCEPT" or "REQUEST_AMENDMENT" or "IGNORE")) throw WorkflowRefusalException.Missing("V-LCE-FIELD", "The decision is ACCEPT, REQUEST_AMENDMENT or IGNORE.");
+        var lc = await LockAsync(c, tx, lcId, ct).ConfigureAwait(false);
+        var n = await c.ExecuteAsync(new CommandDefinition(
+            """
+            DECLARE @cmp BIGINT = (SELECT TOP (1) LcTermsComparisonId FROM lc.LcTermsComparison WHERE ReceivedTermsId = @recv ORDER BY RunAt DESC, LcTermsComparisonId DESC);
+            UPDATE lc.LcTermsComparisonLine SET Decision = @d, DecisionNote = @note, UpdatedAt = SYSUTCDATETIME(), UpdatedBy = @u
+             WHERE ComparisonId = @cmp AND FieldKey = @k AND Verdict <> 'MATCH';
+            UPDATE lc.LcTermsComparison SET Status = 'REVIEWED', UpdatedAt = SYSUTCDATETIME(), UpdatedBy = @u
+             WHERE LcTermsComparisonId = @cmp AND NOT EXISTS (SELECT 1 FROM lc.LcTermsComparisonLine WHERE ComparisonId = @cmp AND Verdict <> 'MATCH' AND Decision IS NULL);
+            """, new { recv = lc.CurrentTermsId, d = decision, note = note?.Trim() is { Length: > 0 } x ? (x.Length > 1000 ? x[..1000] : x) : null, u = actor.UserId, k = fieldKey },
+            tx, cancellationToken: ct)).ConfigureAwait(false);
+        if (n == 0) throw WorkflowRefusalException.NotFound();
+    }
+
     // ---------- close and expiry ----------
 
     /// <summary>BR-LCE-012, 016: the manual close frees every remaining earmark (the orders become RELEASED); not while documents wait for the bank or a payment.</summary>

@@ -20,6 +20,7 @@ public sealed record DiscrepancyDecisionBody(string? Status, string? Note);
 public sealed record SalesAmendmentBody(string? Origin, decimal? NewAmount, DateOnly? NewExpiryDate, DateOnly? NewLatestShipmentDate, string? BankAmendmentRef, DateOnly? BankIssuedOn,
     string? Decision, string? Reason);
 public sealed record LcDocumentBody(Guid? Document);
+public sealed record ComparisonDecisionBody(string? Decision, string? Note);
 
 /// <summary>
 /// The received letters of credit (spec 14 section 4.3, screens 18 to 22): the treasury records a customer's credit;
@@ -45,6 +46,9 @@ public static class SalesLcEndpoints
         api.MapPost("/sales/lcs/{id:guid}/drawings/{no:int}/discrepancy-decision", DiscrepancyDecisionAsync);
         api.MapPost("/sales/lcs/{id:guid}/amendments", AmendAsync);
         api.MapPost("/sales/lcs/{id:guid}/close", CloseAsync);
+        api.MapPost("/sales/lcs/{id:guid}/compare", CompareAsync);
+        api.MapGet("/sales/lcs/{id:guid}/comparison", ComparisonAsync);
+        api.MapPut("/sales/lcs/{id:guid}/comparison/lines/{field}", DecideLineAsync);
     }
 
     private static readonly string[] JsonLists = ["allocations", "discrepancies"];
@@ -381,5 +385,44 @@ public static class SalesLcEndpoints
         {
             await SalesLcStore.CloseAsync(u.Connection, tx, actor, lcId, b.Reason ?? "", await Delegations.TodayAsync(u.Connection, tx, clock.GetUtcNow(), ct), ct);
             return new { status = "CLOSED" };
+        });
+
+    /// <summary>FR-LCE-023: the comparison of the credit with its proforma, run now; returns the lines with their verdicts.</summary>
+    private static Task<IResult> CompareAsync(Guid id, HttpContext http, SqlConnectionFactory db, TimeProvider clock) =>
+        InTxAsync(id, http, db, "LC_TERMS_COMPARED", async (u, tx, actor, lcId, ct) =>
+        {
+            var lines = await SalesLcStore.CompareAsync(u.Connection, tx, actor, lcId, clock.GetUtcNow(), ct);
+            return new { lines = lines.Select(l => new { field = l.FieldKey, baseline = l.Baseline, received = l.Received, verdict = l.Verdict }) };
+        });
+
+    /// <summary>The latest comparison of the credit's current terms, with the treasury's decisions.</summary>
+    private static async Task<IResult> ComparisonAsync(Guid id, HttpContext http, SqlConnectionFactory db)
+    {
+        Query.Allow(http.Request);
+        await using var u = await SalesEndpoints.OpenAsync(http, db, "lc.compare");
+        var ct = http.RequestAborted;
+        var lcId = await IdAsync(u, null, id, ct);
+        var head = await u.Connection.QuerySingleOrDefaultAsync(new CommandDefinition(
+            """
+            SELECT TOP (1) c.LcTermsComparisonId AS id, c.RunAt AS runAt, c.Status AS status, c.SummaryJson AS summary
+              FROM lc.LcTermsComparison AS c JOIN lc.LetterOfCredit AS l ON l.CurrentTermsId = c.ReceivedTermsId
+             WHERE l.LetterOfCreditId = @lcId ORDER BY c.RunAt DESC, c.LcTermsComparisonId DESC;
+            """, new { lcId }, cancellationToken: ct));
+        if (head is null) return Results.Ok(new { comparison = (object?)null, lines = Array.Empty<object>() });
+        var row = (IDictionary<string, object?>)head;
+        var lines = await u.Connection.QueryAsync(new CommandDefinition(
+            """
+            SELECT FieldKey AS field, BaselineValue AS baseline, ReceivedValue AS received, Verdict AS verdict, Decision AS decision, DecisionNote AS note
+              FROM lc.LcTermsComparisonLine WHERE ComparisonId = @c ORDER BY LcTermsComparisonLineId;
+            """, new { c = row["id"] }, cancellationToken: ct));
+        row.Remove("id");
+        return Results.Ok(new { comparison = row, lines });
+    }
+
+    private static Task<IResult> DecideLineAsync(Guid id, string field, ComparisonDecisionBody b, HttpContext http, SqlConnectionFactory db) =>
+        InTxAsync(id, http, db, "LC_COMPARISON_DECIDED", async (u, tx, actor, lcId, ct) =>
+        {
+            await SalesLcStore.DecideComparisonAsync(u.Connection, tx, actor, lcId, field, b.Decision?.Trim().ToUpperInvariant() ?? "", b.Note, ct);
+            return new { field, decision = b.Decision };
         });
 }
