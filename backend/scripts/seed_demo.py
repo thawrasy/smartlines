@@ -131,6 +131,30 @@ async def seed_counter(conn) -> bool:
     return True
 
 
+async def seed_station(conn) -> bool:
+    """A station operating company that administers Damascus Central Station, with its owner and a counter agent, so
+    the station portal can be tried (owner's trial notes, October 2026: no station account existed)."""
+    if await conn.fetchval("SELECT 1 FROM iam.app_user WHERE email = 'station@station.test'"):
+        return False
+    station = await conn.fetchval("SELECT s.id FROM net.station s JOIN ref.city c ON c.id = s.city_id "
+                                  "WHERE c.code = 'DAM' AND s.station_class = 'CENTRAL' ORDER BY s.id LIMIT 1")
+    if station is None:
+        return False
+    company = await conn.fetchval("INSERT INTO iam.party (party_type, legal_name) VALUES ('COMPANY', 'Demo Station Operations') RETURNING id")
+    await conn.execute("INSERT INTO iam.party_role (party_id, role_code) VALUES ($1, 'STATION_OPERATOR')", company)
+    await conn.execute("""INSERT INTO iam.company (id, company_type, transport_license_no, approval_status, approved_at)
+                          VALUES ($1, 'STATION_OPERATOR', 'ST-DEMO-001', 'APPROVED', now())""", company)
+    _, owner = await user(conn, "PERSON", "Samer (station manager)", "station@station.test", "COMPANY")
+    await conn.execute("INSERT INTO iam.company_member (user_id, company_id, is_owner) VALUES ($1, $2, true)", owner, company)
+    _, clerk = await user(conn, "PERSON", "Rana (station counter)", "counter@station.test", "COMPANY")
+    await conn.execute("INSERT INTO iam.company_member (user_id, company_id, role_id) SELECT $1, $2, id FROM iam.role "
+                       "WHERE code = 'STATION_COUNTER' AND company_id IS NULL", clerk, company)
+    # the company is the station's administration: it assigns the bays and the screens
+    await conn.execute("""INSERT INTO net.station_boarding (station_id, manager_company_id) VALUES ($1, $2)
+                          ON CONFLICT (station_id) DO UPDATE SET manager_company_id = EXCLUDED.manager_company_id""", station, company)
+    return True
+
+
 async def seed_security(conn) -> bool:
     """A security officer, so travel-document exceptions drafted by the administrator are approved by someone else."""
     if await conn.fetchval("SELECT 1 FROM iam.app_user WHERE email = 'security@masslak.test'"):
@@ -324,6 +348,7 @@ async def main():
                                                     ("security officer", await seed_security(conn)),
                                                     ("geography officer", await seed_geography(conn)),
                                                     ("counter clerk", await seed_counter(conn)),
+                                                    ("station operator", await seed_station(conn)),
                                                     ("family and manifest route", await seed_families(conn)),
                                                     ("charter offers", await seed_charter(conn)),
                                                     ("second carrier", await seed_carrier_b(conn))) if done]
@@ -475,13 +500,14 @@ async def main():
                            txn, clearing, wallet)
         await seed_families(conn)
         await seed_counter(conn)
+        await seed_station(conn)
         await seed_charter(conn)
         await seed_carrier_b(conn)
     await conn.close()
     print(f"demo data created: {n_trips} trips")
     print(f"accounts (password: {PASSWORD}):")
     for e, p in (("passenger@masslak.test", "PASSENGER"), ("owner@carrier.test", "OPERATOR"), ("owner@carrierb.test", "OPERATOR"), ("counter@carrier.test", "OPERATOR"),
-                 ("driver@carrier.test", "DRIVER"),
+                 ("driver@carrier.test", "DRIVER"), ("station@station.test", "STATION"), ("counter@station.test", "STATION"),
                  ("agency@agency.test", "AGENCY"), ("finance@masslak.test", "PLATFORM"), ("treasury@masslak.test", "PLATFORM"),
                  ("security@masslak.test", "PLATFORM"), ("privacy@masslak.test", "PLATFORM"), ("privacy2@masslak.test", "PLATFORM"), ("geo@masslak.test", "PLATFORM"), ("admin@masslak.test", "PLATFORM"), ("regulator@masslak.test", "PLATFORM")):
         print(f"  {e:28s} portal {p}")

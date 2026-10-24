@@ -47,6 +47,8 @@ class Settings(BaseSettings):
     static_dir: str = "../frontend/dist"
     # Public address of the site, used in canonical links, the sitemap and share cards (no trailing slash)
     public_url: str = "https://masslak.com"
+    # where researchers report a vulnerability (/.well-known/security.txt, RFC 9116)
+    security_contact: str = "mailto:security@masslak.com"
     # Search console ownership tokens (the content of the verification meta tag), optional
     google_site_verification: str = ""
     bing_site_verification: str = ""
@@ -93,8 +95,8 @@ class Settings(BaseSettings):
     rate_auth_ip_per_minute: int = 300
     rate_public_per_minute: int = 240
     rate_api_per_minute: int = 1200
-    # The API's own OpenAPI document and its page (/api/openapi.json, /api/docs): open in the sandbox, closed elsewhere
-    # unless set to true. The partners' document (/api/v1/openapi.json) is always published.
+    # The API's own OpenAPI document and its page (/api/openapi.json, /api/docs): closed on every server, sandbox included,
+    # unless set to true (MASSLAK_API_DOCS=true, for a developer or the test runner). The partners' document (/api/v1/openapi.json) is always published.
     api_docs: Optional[bool] = None
     # Seconds a request waits for a database connection of its process before it is answered 503 (busy, repeat it)
     db_acquire_timeout: float = 5.0

@@ -521,7 +521,7 @@ const en = {
     loginTitle: "Sign in", loginSub: "Use your Masslak account", registerTitle: "Create a passenger account",
     registerSub: "Book trips and keep your tickets in one place", identifier: "Email or mobile",
     portalLabel: "Sign in to", portals: { PASSENGER: "Passenger", OPERATOR: "Carrier", DRIVER: "Driver", AGENCY: "Agency", PLATFORM: "Platform", STATION: "Station" },
-    noAccount: "New to Masslak?", haveAccount: "Already have an account?", passwordHint: "At least 12 characters",
+    noAccount: "New to Masslak?", haveAccount: "Already have an account?", holdToShow: "Hold to show the password", passwordHint: "At least 12 characters",
     sideTitle: "One account for every trip", sideText: "Secure sign-in protected by account lockout, address rules and a full audit trail.",
     demoNote: "Shared password for demo accounts: {p}",
   },
@@ -609,7 +609,7 @@ const en = {
     cells: { S: "Seat", H: "Accessible seat", _: "Aisle", D: "Door", C: "WC", R: "Stairs", X: "Empty" },
   },
   finance: {
-    title: "Payouts", sub: "Your balance, bank accounts, withdrawals and settlement statements.",
+    title: "Finance", sub: "Wallet, operations and financial data: balance, bank accounts, withdrawals and settlement statements.",
     available: "Available to withdraw", held: "Held for pending withdrawals", balance: "Wallet balance",
     withdrawals: "Withdrawals", accounts: "Bank accounts", statements: "Settlement statements", statement: "Settlement statement",
     addAccount: "Add bank account", withdraw: "Request withdrawal", bankName: "Bank", holder: "Account holder",

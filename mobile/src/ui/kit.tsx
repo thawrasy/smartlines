@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type TextInputProps, type TextStyle, type ViewStyle } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { color, font, radius, space } from "./theme";
@@ -47,6 +47,31 @@ export function Field({ label, hint, ...input }: TextInputProps & { label: strin
     <View style={{ gap: 6 }}>
       <Text style={s.label}>{label}</Text>
       <TextInput placeholderTextColor={color.muted} style={s.input} {...input} />
+      {hint ? <Text style={s.small}>{hint}</Text> : null}
+    </View>
+  );
+}
+
+/** A password field with an eye inside it that shows the password only while it is held (owner's trial notes, October
+ * 2026), hidden again on release or after a few seconds. */
+export function PasswordField({ label, hint, ...input }: TextInputProps & { label: string; hint?: string }) {
+  const { t } = useI18n();
+  const [shown, setShown] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const show = () => { setShown(true); clearTimeout(timer.current); timer.current = setTimeout(() => setShown(false), 5000); };
+  const hide = () => { setShown(false); clearTimeout(timer.current); };
+  useEffect(() => () => clearTimeout(timer.current), []);
+  return (
+    <View style={{ gap: 6 }}>
+      <Text style={s.label}>{label}</Text>
+      <View style={{ justifyContent: "center" }}>
+        <TextInput placeholderTextColor={color.muted} style={[s.input, { paddingEnd: 52 }]} autoCapitalize="none" autoCorrect={false}
+                   {...input} secureTextEntry={!shown} />
+        <Pressable onPressIn={show} onPressOut={hide} hitSlop={8} accessibilityRole="button" accessibilityLabel={t("common.holdToShow")}
+                   accessibilityState={{ selected: shown }} style={{ position: "absolute", end: 8, padding: 8 }}>
+          <Icon name={shown ? "eyeOff" : "eye"} size={22} tint={shown ? color.primary : color.muted} />
+        </Pressable>
+      </View>
       {hint ? <Text style={s.small}>{hint}</Text> : null}
     </View>
   );

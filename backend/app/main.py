@@ -10,7 +10,7 @@ from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import db, logredact, logs, metrics
-from .config import get_settings
+from .config import get_settings, is_test_server
 from .errors import (ApiError, api_error_handler, db_error_handler, pool_busy_handler, store_unavailable_handler,
                      unreachable_handler)
 from .middleware import HeadAsGet, RequestContextMiddleware
@@ -89,8 +89,9 @@ async def lifespan(_: FastAPI):
     await db.close_pools()
 
 
-# The internal API's document lists every route; production does not publish it (code review of October 2026, 3.1)
-_docs = get_settings().api_docs if get_settings().api_docs is not None else get_settings().sandbox
+# The internal API's document lists every route; no server publishes it unless told to (code review of October 2026, 3.1;
+# the trial server's scan, October 2026, found it open on a sandbox)
+_docs = get_settings().api_docs is True
 app = FastAPI(title="Masslak API", version="unknown", lifespan=lifespan, redoc_url=None,
               docs_url="/api/docs" if _docs else None, openapi_url="/api/openapi.json" if _docs else None)
 app.add_middleware(RequestContextMiddleware)
@@ -133,6 +134,8 @@ async def security_headers(request: Request, call_next):
     if request.url.path.startswith("/api/"):
         response.headers.setdefault("Cache-Control", "no-store")
         response.headers.setdefault("X-Robots-Tag", "noindex, nofollow")
+    elif is_test_server():
+        response.headers["X-Robots-Tag"] = "noindex, nofollow"    # a trial or test server is never indexed
     return response
 
 

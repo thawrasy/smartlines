@@ -132,7 +132,8 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
             ACCESS.exception("request failed", extra={"method": request.method, "route": _route(request),
                                                       "status": 500, "duration_ms": int((time.monotonic() - started) * 1000)})
             raise
-        response.headers["traceparent"] = logs.traceparent(request.state.trace_id)
+        # the trace stays in the logs, events and outbound calls; it is not echoed to the client (the trial scan of
+        # October 2026 flagged the header as internal detail), X-Request-Id answers support questions
         ACCESS.info("request", extra={"method": request.method, "route": _route(request), "status": response.status_code,
                                       "duration_ms": int((time.monotonic() - started) * 1000),
                                       **({"error_code": request.state.error_code} if request.state.error_code else {}),

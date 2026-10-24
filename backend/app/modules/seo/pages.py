@@ -1,6 +1,6 @@
 """Landing pages for search engines, in Arabic (/ar/...) and English (/en/...).
 
-    /robots.txt  /sitemap.xml  /og-ar.png  /og-en.png  /logo.png
+    /robots.txt  /.well-known/security.txt  /sitemap.xml  /og-ar.png  /og-en.png  /logo.png
     /ar  /en                          home: search form, popular routes, international, services, cities, FAQ
     /{lang}/bus/{from}-to-{to}        a route: facts, next departures with prices, how to book, documents, FAQ
     /{lang}/city/{city}               routes from and to a city, its bus stations
@@ -13,13 +13,13 @@ JavaScript; the booking itself happens in the web app (/search). Unknown address
 """
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from html import escape
 
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse, PlainTextResponse, Response
 
-from ...config import get_settings
+from ...config import get_settings, is_test_server
 from . import data, images, render
 from .render import (base, breadcrumbs, city_name, day_label, distance, duration, faq, local, money, page, search_form,
                      search_url, station_name, words)
@@ -66,12 +66,31 @@ def _popular(cat: data.Catalog, limit: int = 16, international: bool | None = Fa
 
 
 # ------------------------------------------------------------------ robots, sitemap, images
+def robots_text(test_server: bool) -> str:
+    """A test or trial server is kept out of every index; a production server lets the public pages in and names only
+    the API, since the app screens answer with X-Robots-Tag noindex anyway and a list of them would only guide scanners
+    (owner's trial notes, October 2026)."""
+    if test_server:
+        return "User-agent: *\nDisallow: /\n"
+    return "\n".join(["User-agent: *", "Allow: /", "Disallow: /api/", "", f"Sitemap: {base()}/sitemap.xml", ""])
+
+
 @router.get("/robots.txt")
 async def robots():
-    private = ["/api/", "/admin", "/carrier", "/agency", "/driver", "/inspector", "/regulator", "/account", "/wallet", "/family", "/trips",
-               "/booking/", "/pay/", "/m/", "/mfa", "/search", "/trip/"]
-    lines = ["User-agent: *", "Allow: /", *[f"Disallow: {p}" for p in private], "", f"Sitemap: {base()}/sitemap.xml", ""]
-    return PlainTextResponse("\n".join(lines), headers=CACHE)
+    return PlainTextResponse(robots_text(is_test_server()), headers=CACHE)
+
+
+def security_txt(today: date | None = None) -> str:
+    """RFC 9116: where to report a vulnerability, valid for less than a year from the day it is served."""
+    today = today or date.today()
+    st = get_settings()
+    return "\n".join([f"Contact: {st.security_contact}", f"Expires: {today + timedelta(days=360)}T00:00:00Z",
+                      "Preferred-Languages: ar, en", f"Canonical: {base()}/.well-known/security.txt", ""])
+
+
+@router.get("/.well-known/security.txt")
+async def security_contact():
+    return PlainTextResponse(security_txt(), headers=CACHE)
 
 
 async def _paths() -> list[str]:

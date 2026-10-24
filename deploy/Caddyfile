@@ -71,6 +71,13 @@
 	}
 }
 
+# Plain HTTP (port 80) only redirects to HTTPS, without naming the server (the trial scan of October 2026 read
+# "Server: Caddy" on the automatic redirect). Certificate challenges on port 80 are still answered by Caddy.
+http://{$MASSLAK_DOMAIN}, http://www.{$MASSLAK_DOMAIN} {
+	header -Server
+	redir https://{$MASSLAK_DOMAIN}{uri} permanent
+}
+
 # Visitors typing www. land on the main domain
 www.{$MASSLAK_DOMAIN} {
 	redir https://{$MASSLAK_DOMAIN}{uri} permanent

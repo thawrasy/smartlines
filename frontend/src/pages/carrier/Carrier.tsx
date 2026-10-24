@@ -4,7 +4,7 @@ import { api } from "../../api";
 import { useI18n } from "../../i18n";
 import { useAuth } from "../../auth";
 import { PageHead } from "../../components/layout";
-import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, useToast } from "../../components/ui";
+import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, useToast, PasswordInput } from "../../components/ui";
 import { LayoutPreview, type LayoutRow } from "./Layouts";
 import { CarrierConnectionPolicy } from "../passenger/Connections";
 
@@ -44,6 +44,7 @@ export function CarrierDashboard() {
     <div className="stack">
       <PageHead title={me?.company?.name ?? t("nav.carrier")} logo={me?.company ?? undefined}
                 sub={me?.company?.code ? `${t("common.code")}: ${me.company.code}` : undefined}>
+        <Link className="btn outlined" to="/carrier/finance"><Icon name="account_balance_wallet" />{t("finance.title")}</Link>
         <Link className="btn" to="/carrier/trips?new=1"><Icon name="add" />{t("carrier.newTrip")}</Link>
       </PageHead>
       <Loaded state={state}>{(d) => (
@@ -551,7 +552,7 @@ export function CarrierCrew() {
             <div className="grid cols-2">
               <Field label={t("common.email")}><input className="input ltr" type="email" value={f.email} onChange={set("email")} /></Field>
               <Field label={`${t("common.mobile")} (${t("common.optional")})`}><input className="input ltr" value={f.mobile} onChange={set("mobile")} /></Field>
-              <Field label={t("common.password")} hint={t("auth.passwordHint")}><input className="input ltr" type="password" value={f.password} onChange={set("password")} /></Field>
+              <Field label={t("common.password")} hint={t("auth.passwordHint")}><PasswordInput value={f.password} onChange={set("password")} /></Field>
               <Field label={t("carrier.licenseClass")}><input className="input ltr" value={f.license_class} onChange={set("license_class")} /></Field>
             </div>
           </div>

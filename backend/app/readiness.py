@@ -9,7 +9,8 @@ connection answers, the reports replica answers and is in recovery when one is c
 may be the primary while no standby is up), the request context can be
 signed and not rewritten (1080), the server enforces the settings guard on a production server (1084), and no
 constraint is left NOT VALID (1082). It answers 200 when every check
-passes and 503 otherwise, naming only the checks, never an error text. deploy/update.sh waits for it after a
+passes and 503 otherwise; callers on the server's own network see the names of the checks, the public sees
+only whether it is ready, and nobody sees an error text. deploy/update.sh waits for it after a
 deployment, and a load balancer with several API instances routes only to instances that are ready.
 
 Each check has a short time limit, and the answer is kept for two seconds so that the endpoint cannot be used to load
@@ -18,6 +19,7 @@ the database.
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import json
 import time
 from pathlib import Path
@@ -30,6 +32,19 @@ SCHEMA_DIR = Path(__file__).resolve().parents[2] / "db" / "schema"
 CHECK_SECONDS = 2.0
 CACHE_SECONDS = 2.0
 _cache: tuple[float, dict] | None = None
+
+
+_INTERNAL = [ipaddress.ip_network(n) for n in ("127.0.0.0/8", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "::1/128", "fc00::/7")]
+
+
+def is_internal(ip: str) -> bool:
+    """A caller on the server itself or its private network (loopback, the private ranges docker uses); anything else
+    is the public. (ipaddress's is_private also counts the documentation ranges, so the networks are named here.)"""
+    try:
+        addr = ipaddress.ip_address(ip)
+    except ValueError:
+        return False
+    return any(addr in net for net in _INTERNAL if net.version == addr.version)
 
 
 def shipped_schema_files(directory: Path | None = None) -> set[str]:

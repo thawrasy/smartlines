@@ -629,6 +629,15 @@ tr.clickable:hover td { background: var(--surface-container-low, rgba(10, 91, 21
 .kyc-yesno { border: 0; margin: 0; padding: 0; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
 .kyc-yesno legend { padding: 0; font-size: 14px; font-weight: 500; margin-bottom: 4px; }
 .input.invalid { border-color: var(--error); }
+/* password field with a hold-to-show eye inside it (PasswordInput); the eye sits at the end of the line in either direction */
+.pw { position: relative; display: block; }
+.pw .input { padding-right: 48px; }
+[dir="rtl"] .pw .input { padding-right: 16px; padding-left: 48px; }
+.pw-eye { position: absolute; top: 50%; transform: translateY(-50%); inset-inline-end: 6px; width: 40px; height: 40px; border: 0; border-radius: 50%;
+  background: transparent; color: var(--on-surface-variant); display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+  touch-action: none; user-select: none; -webkit-user-select: none; }
+.pw-eye:hover, .pw-eye[aria-pressed="true"] { background: var(--surface-container); color: var(--primary); }
+.pw-eye:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
 .kyc-sections { display: flex; gap: 6px; flex-wrap: wrap; }
 .kyc-actions { position: sticky; bottom: 0; z-index: 5; background: var(--surface); border-top: 1px solid var(--divider); padding: 12px 16px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 @media (max-width: 720px) { .kyc-grid { grid-template-columns: minmax(0, 1fr); } }

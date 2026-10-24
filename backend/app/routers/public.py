@@ -36,11 +36,14 @@ async def health():
 
 
 @router.get("/ready")
-async def ready():
+async def ready(request: Request):
+    # the names of the checks only for callers inside the server's own network (monitoring, deploy/update.sh through the
+    # proxy); the public sees ready or not (owner's trial notes, October 2026: scans listed the checks)
     from fastapi.responses import JSONResponse
-    from ..readiness import readiness
+    from ..readiness import is_internal, readiness
     out = await readiness()
-    return JSONResponse(out, status_code=200 if out["ready"] else 503)
+    body = out if is_internal(getattr(request.state, "client_ip", "")) else {"ready": out["ready"]}
+    return JSONResponse(body, status_code=200 if out["ready"] else 503)
 
 
 @router.get("/public/keys/ticket")

@@ -14,7 +14,7 @@ const en = {
   txn: { SHIPMENT_PAY: "Parcel", SUBSCRIPTION_PAY: "Shuttle pass", BOOKING_PAY: "Trip booking", REFUND: "Refund", TOPUP: "Wallet top-up", RELEASE: "Settlement", PAYOUT: "Bank payout", LOYALTY_REDEEM: "Points redeemed" },
   common: {
     remove: "Remove",
-    signIn: "Sign in", signOut: "Sign out", email: "Email or mobile", password: "Password", continue: "Continue",
+    signIn: "Sign in", signOut: "Sign out", email: "Email or mobile", password: "Password", holdToShow: "Hold to show the password", continue: "Continue",
     cancel: "Cancel", retry: "Try again", loading: "Loading…", seat: "Seat", seats: "Seats", total: "Total",
     from: "From", to: "To", date: "Date", passengers: "Passengers", back: "Back", save: "Save", offline: "Offline",
     online: "Online", sync: "Sync now", language: "Language", currency: "SYP", yes: "Yes", no: "No",

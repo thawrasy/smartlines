@@ -4,7 +4,7 @@ import { useI18n } from "../../i18n";
 import { useAuth } from "../../auth";
 import { PageHead } from "../../components/layout";
 import { PlacePicker, type PickedPlace } from "../../components/PlacePicker";
-import { CarrierName, Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, useToast } from "../../components/ui";
+import { CarrierName, Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, useToast, PasswordInput } from "../../components/ui";
 
 interface Overview { carriers: number; carriers_pending: number; passengers: number; active_trips: number; bookings: number; gmv: number; stations: number }
 interface Company {
@@ -102,7 +102,7 @@ export function AdminCompanies() {
               <Field label={t("admin.ownerName")}><input className="input" value={f.owner_name} onChange={set("owner_name")} /></Field>
               <Field label={t("admin.ownerEmail")}><input className="input ltr" type="email" value={f.owner_email} onChange={set("owner_email")} /></Field>
             </div>
-            <Field label={t("admin.ownerPassword")} hint={t("auth.passwordHint")}><input className="input ltr" type="password" value={f.owner_password} onChange={set("owner_password")} /></Field>
+            <Field label={t("admin.ownerPassword")} hint={t("auth.passwordHint")}><PasswordInput value={f.owner_password} onChange={set("owner_password")} /></Field>
           </div>
         </Modal>
       )}
@@ -354,7 +354,7 @@ export function AdminAgencies() {
               <Field label={t("admin.ownerName")}><input className="input" value={f.owner_name} onChange={set("owner_name")} /></Field>
             </div>
             <Field label={t("admin.ownerEmail")}><input className="input ltr" type="email" value={f.owner_email} onChange={set("owner_email")} /></Field>
-            <Field label={t("admin.ownerPassword")} hint={t("auth.passwordHint")}><input className="input ltr" type="password" autoComplete="new-password" value={f.owner_password} onChange={set("owner_password")} /></Field>
+            <Field label={t("admin.ownerPassword")} hint={t("auth.passwordHint")}><PasswordInput autoComplete="new-password" value={f.owner_password} onChange={set("owner_password")} /></Field>
           </div>
         </Modal>
       )}

@@ -87,6 +87,7 @@ vehicles and drivers, four routes with a week of trips, and these accounts. They
 | owner@carrier.test | Carrier |
 | agency@agency.test | Agency |
 | driver@carrier.test, driver2@carrier.test, driver3@carrier.test | Driver |
+| station@station.test (administration of Damascus Central Station), counter@station.test (counter) | Station |
 | admin@masslak.test (administration, security, finance) | Platform |
 | finance@masslak.test | Platform (finance) |
 | security@masslak.test | Platform (security: approves travel-document exceptions drafted by the administrator) |
@@ -168,6 +169,7 @@ files (`db/upgrade.sh`, recorded in `sys.schema_file`) before the new API starts
 `GET /api/health` says only that the process answers (the container health check and Caddy use it). `GET /api/ready`
 answers 200 when the database, the applied schema, the audit connection and the reports replica are all in order,
 and 503 otherwise; use it for deployment checks, monitoring and any load balancer in front of several API instances.
+Only callers on the server's own network see which check failed; the public sees `{"ready": true|false}`.
 
 ## 4. Backups
 

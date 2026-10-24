@@ -5,7 +5,7 @@ import { useI18n } from "../i18n";
 import { useAuth } from "../platform/auth";
 import { ApiError, reactivate } from "../platform/api";
 import { VARIANT } from "../platform/config";
-import { Button, ErrorText, Field, Screen, Title, s } from "../ui/kit";
+import { Button, ErrorText, Field, Screen, Title, s, PasswordField } from "../ui/kit";
 import { Lockup, TripLine } from "../ui/brand";
 
 export default function Login() {
@@ -42,7 +42,7 @@ export default function Login() {
       {enrol ? <Text style={s.muted}>{t("auth.enrollOnWeb")}</Text> : <ErrorText error={error} />}
       <Field label={t("common.email")} value={identifier} onChangeText={setIdentifier} autoCapitalize="none" autoCorrect={false}
              keyboardType="email-address" textContentType="username" autoComplete="username" />
-      <Field label={t("common.password")} value={password} onChangeText={setPassword} secureTextEntry textContentType="password"
+      <PasswordField label={t("common.password")} value={password} onChangeText={setPassword} textContentType="password"
              autoComplete="current-password" onSubmitEditing={submit} />
       <Button label={t("common.signIn")} onPress={submit} busy={busy} disabled={!identifier || !password} />
       {closed ? <Button kind="tonal" label={t("auth.reactivate")} onPress={reopen} busy={busy} disabled={!identifier || !password} /> : null}

@@ -123,6 +123,7 @@ import i_map from "@material-symbols/svg-400/rounded/map.svg?raw";
 import i_storefront from "@material-symbols/svg-400/rounded/storefront.svg?raw";
 import i_apps from "@material-symbols/svg-400/rounded/apps.svg?raw";
 import i_visibility from "@material-symbols/svg-400/rounded/visibility.svg?raw";
+import i_visibility_off from "@material-symbols/svg-400/rounded/visibility_off.svg?raw";
 import i_summarize from "@material-symbols/svg-400/rounded/summarize.svg?raw";
 import i_bar_chart from "@material-symbols/svg-400/rounded/bar_chart.svg?raw";
 import i_table_chart from "@material-symbols/svg-400/rounded/table_chart.svg?raw";
@@ -272,6 +273,7 @@ export const ICONS = {
   storefront: i_storefront,
   apps: i_apps,
   visibility: i_visibility,
+  visibility_off: i_visibility_off,
   summarize: i_summarize,
   bar_chart: i_bar_chart,
   table_chart: i_table_chart,

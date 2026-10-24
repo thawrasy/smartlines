@@ -4,7 +4,7 @@ import { api } from "../../api";
 import { useI18n } from "../../i18n";
 import { useAuth } from "../../auth";
 import { PageHead } from "../../components/layout";
-import { CarrierName, Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, useToast } from "../../components/ui";
+import { CarrierName, Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, useToast, PasswordInput } from "../../components/ui";
 import { BaysPanel, platformBaysApi } from "../station/Bays";
 import { SCREEN_KINDS, ScreensPanel, platformScreensApi, type ScreenKind } from "../station/Screens";
 
@@ -245,7 +245,7 @@ function Companies() {
             <Field label={t("brdadm.licenseNo")}><input className="input mono ltr" value={f.license_no} onChange={(e) => setF({ ...f, license_no: e.target.value })} /></Field>
             <Field label={t("brdadm.ownerName")}><input className="input" value={f.owner_name} onChange={(e) => setF({ ...f, owner_name: e.target.value })} /></Field>
             <Field label={t("common.email")}><input className="input ltr" type="email" value={f.owner_email} onChange={(e) => setF({ ...f, owner_email: e.target.value })} /></Field>
-            <Field label={t("common.password")} hint={t("brdadm.ownerHint")}><input className="input ltr" type="password" autoComplete="new-password" value={f.owner_password} onChange={(e) => setF({ ...f, owner_password: e.target.value })} /></Field>
+            <Field label={t("common.password")} hint={t("brdadm.ownerHint")}><PasswordInput autoComplete="new-password" value={f.owner_password} onChange={(e) => setF({ ...f, owner_password: e.target.value })} /></Field>
           </div>
         </Modal>
       )}

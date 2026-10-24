@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useId, useRef, useState, type InputHTMLAttributes, type ReactNode } from "react";
 import { ICONS, type IconName } from "./icons";
 import { useI18n } from "../i18n";
 import { ApiError } from "../api";
@@ -96,6 +96,34 @@ export function Field({ label, hint, children }: { label: string; hint?: string;
       {children}
       {hint && <small className="hint">{hint}</small>}
     </label>
+  );
+}
+
+/** A password field with an eye inside it that shows the password only while it is held down (pointer, touch, or Space
+ *  and Enter on the button), and hides it again on release, when the field loses focus, or after a few seconds (owner's
+ *  trial notes, October 2026: preferred to a "show password" box under the field). */
+export function PasswordInput({ className, ...props }: Omit<InputHTMLAttributes<HTMLInputElement>, "type">) {
+  const { t } = useI18n();
+  const [shown, setShown] = useState(false);
+  const timer = useRef<number | undefined>(undefined);
+  const show = () => { setShown(true); window.clearTimeout(timer.current); timer.current = window.setTimeout(() => setShown(false), 5000); };
+  const hide = () => { setShown(false); window.clearTimeout(timer.current); };
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+  const key = (e: React.KeyboardEvent, down: boolean) => {
+    if (e.key !== " " && e.key !== "Enter") return;
+    e.preventDefault();
+    if (down) show(); else hide();
+  };
+  return (
+    <span className="pw">
+      <input {...props} className={`input ltr${className ? " " + className : ""}`} type={shown ? "text" : "password"}
+             onBlur={(e) => { hide(); props.onBlur?.(e); }} />
+      <button type="button" className="pw-eye" aria-label={t("auth.holdToShow")} aria-pressed={shown} title={t("auth.holdToShow")}
+              onPointerDown={(e) => { e.preventDefault(); show(); }} onPointerUp={hide} onPointerLeave={hide} onPointerCancel={hide}
+              onKeyDown={(e) => key(e, true)} onKeyUp={(e) => key(e, false)} onContextMenu={(e) => e.preventDefault()}>
+        <Icon name={shown ? "visibility_off" : "visibility"} size={20} />
+      </button>
+    </span>
   );
 }
 

@@ -149,6 +149,7 @@ jobs:
       MASSLAK_AUDIT_DATABASE_URL: postgresql://masslak_audit:ci-audit-password@localhost:5432/masslak
       MASSLAK_OWNER_URL: postgresql://postgres:postgres@localhost:5432/masslak
       MASSLAK_SANDBOX: "true"
+      MASSLAK_API_DOCS: "true"          # the test server publishes its API document for the contract tests
       MASSLAK_COOKIE_SECURE: "false"
       MASSLAK_SIGNING_SECRET: ci-signing-secret-not-for-production-use
       # the tests board tickets of trips departing days ahead; production keeps three hours (the window of 10 Oct 2026)

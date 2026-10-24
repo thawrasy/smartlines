@@ -6,7 +6,7 @@ import { useI18n, type Locale } from "../../i18n";
 import { api, authHeaders } from "../../platform/api";
 import { API_URL } from "../../platform/config";
 import { useAuth } from "../../platform/auth";
-import { Button, Card, Chip, ErrorText, Field, Loading, Screen, Tabs, s } from "../../ui/kit";
+import { Button, Card, Chip, ErrorText, Field, Loading, Screen, Tabs, s, PasswordField } from "../../ui/kit";
 import { color, font } from "../../ui/theme";
 
 const initials = (name?: string | null) => (name ?? "").trim().split(/\s+/).slice(0, 2).map((w) => w[0] ?? "").join("").toUpperCase() || "·";
@@ -145,7 +145,7 @@ export function AccountBody() {
           <Text style={s.h2}>{t("account.close")}</Text>
           <Text style={s.small}>{t("account.closeText")}</Text>
           <ErrorText error={closeError} />
-          <Field label={t("common.password")} value={closePassword} onChangeText={setClosePassword} secureTextEntry
+          <PasswordField label={t("common.password")} value={closePassword} onChangeText={setClosePassword}
                  textContentType="password" />
           <Button kind="danger" label={t("account.closeAction")} onPress={confirmClose} busy={closing}
                   disabled={!closePassword} />

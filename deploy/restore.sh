@@ -30,7 +30,8 @@ if [ -f "$src/FILES_IN_OBJECT_STORE" ]; then      # the files are in the object 
          "by hand (RUNBOOKS.md, section 2); the file check below names what differs" >&2
   fi
 else
-  open files.tar.gz | compose run --rm -T --no-deps --entrypoint "" -u 0 app sh -c 'rm -rf /data/files/* && tar -C /data -xz && chown -R masslak /data/files'
+  # the app container has no capabilities (docker-compose.yml); this one-off restore as root needs these three back
+  open files.tar.gz | compose run --rm -T --no-deps --entrypoint "" -u 0 --cap-add CHOWN --cap-add DAC_OVERRIDE --cap-add FOWNER app sh -c 'rm -rf /data/files/* && tar -C /data -xz && chown -R masslak /data/files'
 fi
 compose up -d migrate app worker           # migrate re-applies login role passwords and any newer schema files
 echo "restored from $src"

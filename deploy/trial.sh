@@ -43,6 +43,7 @@ Demo sign-in: https://$domain/login  (password for every demo account: Masslak-D
   owner@carrier.test       carrier
   agency@agency.test       agency
   driver@carrier.test      driver
+  station@station.test     station administration (counter@station.test: station counter)
   admin@masslak.test       platform administration
 If the browser warns about the certificate, wait a minute and reload: it is issued on the first visit after start.
 EOF

@@ -16,7 +16,7 @@ const ar: Messages = {
   txn: { SHIPMENT_PAY: "إرسال طرد", SUBSCRIPTION_PAY: "اشتراك نقل ترددي", BOOKING_PAY: "حجز رحلة", REFUND: "استرداد", TOPUP: "شحن المحفظة", RELEASE: "تسوية", PAYOUT: "صرف مصرفي", LOYALTY_REDEEM: "استبدال نقاط" },
   common: {
     remove: "إزالة",
-    signIn: "تسجيل الدخول", signOut: "تسجيل الخروج", email: "البريد أو الجوال", password: "كلمة المرور", continue: "متابعة",
+    signIn: "تسجيل الدخول", signOut: "تسجيل الخروج", email: "البريد أو الجوال", password: "كلمة المرور", holdToShow: "اضغط مطوّلاً لإظهار كلمة المرور", continue: "متابعة",
     cancel: "إلغاء", retry: "أعد المحاولة", loading: "جارٍ التحميل…", seat: "المقعد", seats: "المقاعد", total: "الإجمالي",
     from: "من", to: "إلى", date: "التاريخ", passengers: "الركاب", back: "رجوع", save: "حفظ", offline: "دون اتصال",
     online: "متصل", sync: "مزامنة الآن", language: "اللغة", currency: "ل.س", yes: "نعم", no: "لا",
