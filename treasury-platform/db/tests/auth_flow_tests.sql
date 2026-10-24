@@ -616,7 +616,8 @@ ROLLBACK TRANSACTION a20;
 /* A21 (ADR 0048): a user without MFA steps up with the password; a wrong one is refused and counted; an enrolled user
    steps up with TOTP (50008). */
 SAVE TRANSACTION a21;
-DECLARE @s8 VARBINARY(64) = CRYPT_GEN_RANDOM(32), @acc1 BIT, @acc2 BIT, @params VARCHAR(255), @menabled BIT;
+DECLARE @s8 VARBINARY(64) = CRYPT_GEN_RANDOM(32), @params VARCHAR(255), @menabled BIT;
+SELECT @acc1 = NULL, @acc2 = NULL;
 SELECT @e1 = NULL;
 UPDATE plat.Tenant SET MfaPolicy = 'OFF' WHERE TenantId = @tf;
 EXECUTE AS USER = N'tp_test_app';
