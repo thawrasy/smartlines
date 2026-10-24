@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import QRCode from 'qrcode';
-import { ApiError, message } from './api';
+import { ApiError, message, SESSION_ENDED } from './api';
 import { useI18n } from './i18n';
 
 // Shared pieces of both surfaces: a form that shows the API's problem title, fields, a table, the authenticator
@@ -140,4 +140,45 @@ export function useWithStepUp() {
       return await action(code);
     }
   }, [ask]);
+}
+
+/**
+ * Signs an idle user out (FR-PLT-014): after `minutes` without a key, a click, a scroll or a touch, a warning gives a
+ * minute to stay, then `onExpire` runs. Activity also keeps the server session alive (at most every 5 minutes), so
+ * reading a page without requests does not let the server end it first. A session ended by the server (401) leaves too.
+ */
+export function IdleGuard({ minutes, keepAlive, onExpire }: { minutes: number; keepAlive: () => Promise<unknown>; onExpire: () => void }) {
+  const { t } = useI18n();
+  const last = useRef(Date.now());
+  const touched = useRef(Date.now());
+  const [warn, setWarn] = useState(false);
+  useEffect(() => {
+    const active = () => {
+      last.current = Date.now();
+      if (Date.now() - touched.current > 5 * 60_000) { touched.current = Date.now(); void keepAlive().catch(() => undefined); }
+    };
+    const events = ['mousedown', 'keydown', 'scroll', 'touchstart', 'wheel'] as const;
+    events.forEach(e => window.addEventListener(e, active, { passive: true }));
+    const ended = () => onExpire();
+    window.addEventListener(SESSION_ENDED, ended);
+    const timer = window.setInterval(() => {
+      const idle = Date.now() - last.current;
+      if (idle >= minutes * 60_000) { window.clearInterval(timer); onExpire(); }
+      else setWarn(idle >= (minutes - 1) * 60_000);
+    }, 5_000);
+    return () => {
+      events.forEach(e => window.removeEventListener(e, active));
+      window.removeEventListener(SESSION_ENDED, ended);
+      window.clearInterval(timer);
+    };
+  }, [minutes, keepAlive, onExpire]);
+  if (!warn) return null;
+  return (
+    <div className="banner" role="alert">
+      {t('You will be signed out in a minute because there has been no activity.')}{' '}
+      <button className="link" onClick={() => { last.current = Date.now(); touched.current = Date.now(); setWarn(false); void keepAlive().catch(() => undefined); }}>
+        {t('Stay signed in')}
+      </button>
+    </div>
+  );
 }

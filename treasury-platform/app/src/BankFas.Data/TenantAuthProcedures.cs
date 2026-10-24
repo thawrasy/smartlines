@@ -151,11 +151,16 @@ public static class TenantAuthProcedures
     /// time (sec.usp_TouchSession). The first commands on the connection, outside any transaction (DOC-F04 section 5).
     /// Returns the bound user's id, read from the context the database set, never from the request.
     /// </summary>
-    public static async Task<long> BindUserAsync(SqlConnection c, int tenantId, byte[] sessionToken, string? clientIp, Guid correlationId, CancellationToken ct)
+    /// <summary>
+    /// Binds the connection to the session's user. touch: false for a request the screen makes on its own (the bell's
+    /// polling), which must not keep an idle user signed in (FR-PLT-014): the session is checked but not extended.
+    /// </summary>
+    public static async Task<long> BindUserAsync(SqlConnection c, int tenantId, byte[] sessionToken, string? clientIp, Guid correlationId, CancellationToken ct,
+        bool touch = true)
     {
         await Proc.Named("sec.usp_SetSessionContext").In("@TenantId", tenantId, DbType.Int32).In("@SessionToken", sessionToken, DbType.Binary, 64)
             .In("@ClientIp", clientIp, DbType.AnsiString, 45).In("@CorrelationId", correlationId, DbType.Guid).ExecAsync(c, ct).ConfigureAwait(false);
-        await TouchSessionAsync(c, tenantId, sessionToken, ct).ConfigureAwait(false);
+        if (touch) await TouchSessionAsync(c, tenantId, sessionToken, ct).ConfigureAwait(false);
         var bound = await c.QuerySingleAsync<(int? TenantId, long? UserId)>(new CommandDefinition(
             "SELECT CAST(SESSION_CONTEXT(N'TenantId') AS INT), CAST(SESSION_CONTEXT(N'UserId') AS BIGINT);", cancellationToken: ct)).ConfigureAwait(false);
         if (bound.TenantId != tenantId || bound.UserId is null)

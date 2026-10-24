@@ -40,7 +40,14 @@ public static class PortalEndpoints
                        OR EXISTS (SELECT 1 FROM sec.UserProductScope AS s WHERE s.UserId = u.AppUserId AND s.ModuleCode = m.ModuleCode))
                 ORDER BY m.ModuleCode;
                 """, new { id = u.UserId }, cancellationToken: http.RequestAborted));
-            return Results.Ok(new { user = me, permissions, modules });
+            // The idle timeout of the account, so the screen signs an idle user out at the same time as the server.
+            var idleMinutes = await u.Connection.ExecuteScalarAsync<int?>(new CommandDefinition(
+                """
+                SELECT TRY_CAST(ISNULL(JSON_VALUE(N'[' + t.ValueJson + N']', '$[0]'), JSON_VALUE(N'[' + d.DefaultValueJson + N']', '$[0]')) AS INT)
+                FROM cfg.SettingDefinition AS d LEFT JOIN cfg.TenantSetting AS t ON t.[Key] = d.[Key]
+                WHERE d.[Key] = 'security.session.idle_minutes';
+                """, cancellationToken: http.RequestAborted)) ?? 30;
+            return Results.Ok(new { user = me, permissions, modules, sessionIdleMinutes = Math.Clamp(idleMinutes, 5, 30) });
         });
     }
 }

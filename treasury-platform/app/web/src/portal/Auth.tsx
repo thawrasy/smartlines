@@ -40,8 +40,10 @@ export function Login({ tenant }: { tenant: Tenant }) {
   const { t } = useI18n();
   const [login, setLogin] = useState('');
   const [password, setPassword] = useState('');
+  const [ended] = useState(() => new URLSearchParams(window.location.search).get('ended'));
   return (
     <AuthCard tenant={tenant}>
+      {ended && <p className="banner" role="status">{t('You were signed out after a period without activity. Sign in again to continue.')}</p>}
       <Form title="Sign in" submit="Sign in" onSubmit={async () => nav(route((await api<Next>('POST', '/auth/login', { login, password })).nextStep))}>
         <p className="muted">{t('Company code')}: <strong dir="ltr">{tenant.code}</strong></p>
         <Field label="E-mail, employee code or mobile" value={login} onChange={setLogin} autoComplete="username"

@@ -2,7 +2,9 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import { Navigate, NavLink, Route, Routes, useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { LangSwitch, useI18n } from '../i18n';
-import { StepUpProvider } from '../ui';
+import { IdleGuard, StepUpProvider } from '../ui';
+
+const keepAlive = () => api('GET', '/me');
 import { Enrol, ForgotPassword, Invitation, Login, Mfa, ResetPassword, type Tenant, CompanyEntry, FirstPassword, entryHost } from './Auth';
 import { Audit, Calendar, Jobs, Numbering, Settings, Support } from './Admin';
 import { Accounts, BankSetup, BaseRates, InstitutionDetail, Institutions, RelationshipDetail } from './Banks';
@@ -40,7 +42,7 @@ export interface Me {
     id: string; email: string; displayNameEn?: string; displayNameAr?: string; preferredLanguage?: string; tenantNameEn: string; tenantNameAr: string;
     tenantStatus: string; tenantCode: string; mfaEnabled?: boolean; mfaRequired?: boolean; employeeCode?: string; mobile?: string; productScopeMode?: string;
   };
-  permissions: string[]; modules: string[];
+  permissions: string[]; modules: string[]; sessionIdleMinutes?: number;
 }
 
 const MeCtx = createContext<Me | null>(null);
@@ -108,11 +110,13 @@ function Shell() {
     }).catch(() => nav('/login'));
   }, [nav, setLang]);
   if (!me) return null;
+  const signOutIdle = () => { void api('POST', '/auth/logout', {}).catch(() => undefined).finally(() => nav('/login?ended=idle')); };
   const items = menu.filter(m => (!m.permission || can(me, m.permission)) && (!m.anyOf || m.anyOf.some(p => can(me, p))));
   return (
     <MeCtx.Provider value={me}>
       <StepUpProvider password={!me.user.mfaEnabled}>
         <div className="shell">
+          <IdleGuard minutes={me.sessionIdleMinutes ?? 30} keepAlive={keepAlive} onExpire={signOutIdle} />
           <header className="top">
             <strong>{lang === 'ar' ? me.user.tenantNameAr : me.user.tenantNameEn}</strong>
             <span className="grow" />

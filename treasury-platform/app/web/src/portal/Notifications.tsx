@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api, message } from '../api';
+import { api, message, apiBackground } from '../api';
 import { useFormat, useI18n } from '../i18n';
 import { Notice, Table } from '../ui';
 import { can, useMe } from './Portal';
@@ -17,7 +17,7 @@ export function Bell() {
   const [count, setCount] = useState(0);
   useEffect(() => {
     let live = true;
-    const load = () => api<Feed>('GET', '/notifications?unread=true&limit=1').then(f => { if (live) setCount(f.unreadCount); }).catch(() => undefined);
+    const load = () => apiBackground<Feed>('/notifications?unread=true&limit=1').then(f => { if (live) setCount(f.unreadCount); }).catch(() => undefined);
     void load();
     const timer = window.setInterval(load, 60000);
     return () => { live = false; window.clearInterval(timer); };

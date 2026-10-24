@@ -2,7 +2,11 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, Navigate, NavLink, Route, Routes, useNavigate, useParams } from 'react-router-dom';
 import { api, message } from '../api';
 import { LangSwitch, useFormat, useI18n } from '../i18n';
-import { Field, Form, Notice, SecretBox, Select, StepUpProvider, Table, useStepUp } from '../ui';
+import { Field, Form, IdleGuard, Notice, SecretBox, Select, StepUpProvider, Table, useStepUp } from '../ui';
+
+// The operator session ends after 15 idle minutes (FR-PLT-006); the screen leaves at the same time.
+const OPERATOR_IDLE_MINUTES = 15;
+const keepAlive = () => api('GET', '/operator/me');
 import { Incidents, MFA_LABELS, Security } from './Security';
 
 interface TenantRow { id: string; code: string; nameEn: string; nameAr: string; status: string; trialEndsOn?: string; planCode: string }
@@ -301,9 +305,11 @@ function Shell() {
   const [me, setMe] = useState<Me | null>(null);
   useEffect(() => { api<Me>('GET', '/operator/me').then(setMe).catch(() => nav('/login')); }, [nav]);
   if (!me) return null;
+  const signOutIdle = () => { void api('POST', '/operator/auth/logout', {}).catch(() => undefined).finally(() => nav('/login')); };
   return (
     <StepUpProvider>
       <div className="shell">
+        <IdleGuard minutes={OPERATOR_IDLE_MINUTES} keepAlive={keepAlive} onExpire={signOutIdle} />
         <header className="top">
           <strong>{t('BankFas operator panel')}</strong>
           <span className="grow" />

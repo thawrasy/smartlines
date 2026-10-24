@@ -197,7 +197,9 @@ public sealed class BoundUser(Microsoft.Data.SqlClient.SqlConnection connection,
         var c = await db.OpenAsync(DbLogin.App, http.RequestAborted);
         try
         {
-            var userId = await TenantAuthProcedures.BindUserAsync(c, tenant.TenantId, token, rc.ClientIp, rc.CorrelationId, http.RequestAborted);
+            // A request the screen makes by itself (X-Background-Request) does not extend an idle session (FR-PLT-014).
+            var userId = await TenantAuthProcedures.BindUserAsync(c, tenant.TenantId, token, rc.ClientIp, rc.CorrelationId, http.RequestAborted,
+                touch: !http.Request.Headers.ContainsKey("X-Background-Request"));
             return new BoundUser(c, tenant.TenantId, userId);
         }
         catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number is DbErrors.NoValidSession or DbErrors.TenantUnavailable)

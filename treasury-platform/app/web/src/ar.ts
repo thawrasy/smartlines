@@ -2752,4 +2752,7 @@ export const ar: Record<string, string> = {
   'LC_SALES': 'اعتمادات البيع',
   'REQUESTS': 'الطلبات',
   'REPORTS': 'التقارير',
+  'You will be signed out in a minute because there has been no activity.': 'سيُخرجك النظام خلال دقيقة لعدم وجود نشاط.',
+  'Stay signed in': 'البقاء متصلًا',
+  'You were signed out after a period without activity. Sign in again to continue.': 'أُخرجت من النظام بعد مدة دون نشاط. سجّل الدخول مرة أخرى للمتابعة.',
 };

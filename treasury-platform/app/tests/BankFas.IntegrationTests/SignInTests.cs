@@ -187,4 +187,33 @@ public sealed class SignInTests(PlatformFixture f)
                 new { required = false, mfaCode = f.NextCode(f.OperatorSecret) })).StatusCode);
         }
     }
+
+    [Fact]
+    public async Task A_request_the_screen_makes_by_itself_does_not_keep_an_idle_session_alive()
+    {
+        var t = await f.CreateTenantAsync();
+        var p = t.Portal;
+        async Task<string> LastSeenAsync()
+        {
+            using var r = new HttpRequestMessage(HttpMethod.Get, "/api/v1/me/sessions");
+            r.Headers.Add("X-Background-Request", "1");
+            var response = await p.SendAsync(r, TestContext.Current.CancellationToken);
+            var body = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)).RootElement;
+            var current = body.GetProperty("current").GetString();
+            return body.GetProperty("items").EnumerateArray().First(s => s.GetProperty("id").GetString() == current).GetProperty("lastSeenAt").ToString();
+        }
+        await p.GetJsonAsync("/api/v1/me");
+        var before = await LastSeenAsync();
+        await Task.Delay(1100, TestContext.Current.CancellationToken);
+        using (var bell = new HttpRequestMessage(HttpMethod.Get, "/api/v1/notifications?unread=true&limit=1"))
+        {
+            bell.Headers.Add("X-Background-Request", "1");
+            Assert.True((await p.SendAsync(bell, TestContext.Current.CancellationToken)).IsSuccessStatusCode);
+        }
+        Assert.Equal(before, await LastSeenAsync());
+        await p.GetJsonAsync("/api/v1/me");
+        Assert.NotEqual(before, await LastSeenAsync());
+        var me = await p.GetJsonAsync("/api/v1/me");
+        Assert.Equal(30, me.GetProperty("sessionIdleMinutes").GetInt32());
+    }
 }

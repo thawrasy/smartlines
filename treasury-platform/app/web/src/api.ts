@@ -16,8 +16,13 @@ function csrfToken(): Promise<string> {
   return csrf;
 }
 
-async function send(method: Method, path: string, body?: unknown, ifMatch?: string): Promise<Response> {
+/** Raised when the server ends the session (idle, absolute, logout elsewhere): the screen goes to the sign-in page. */
+export const SESSION_ENDED = 'bankfas:session-ended';
+
+async function send(method: Method, path: string, body?: unknown, ifMatch?: string, background = false): Promise<Response> {
   const headers: Record<string, string> = { Accept: 'application/json' };
+  // A request the screen makes by itself does not keep an idle session alive (FR-PLT-014).
+  if (background) headers['X-Background-Request'] = '1';
   if (method !== 'GET') {
     headers['Content-Type'] = 'application/json';
     headers['X-CSRF-Token'] = await csrfToken();
@@ -29,6 +34,7 @@ async function send(method: Method, path: string, body?: unknown, ifMatch?: stri
   });
   if (!response.ok) {
     const p = (await response.json().catch(() => ({}))) as Partial<Problem>;
+    if (response.status === 401 && p.code === 'SESSION_INVALID' && !path.includes('/auth/')) window.dispatchEvent(new Event(SESSION_ENDED));
     throw new ApiError({ status: response.status, code: p.code ?? 'ERROR', title: p.title ?? 'Something went wrong.', correlationId: p.correlationId });
   }
   return response;
@@ -36,6 +42,13 @@ async function send(method: Method, path: string, body?: unknown, ifMatch?: stri
 
 export async function api<T>(method: Method, path: string, body?: unknown, ifMatch?: string): Promise<T> {
   const response = await send(method, path, body, ifMatch);
+  if (response.status === 204 || response.headers.get('Content-Length') === '0') return undefined as T;
+  return (await response.json()) as T;
+}
+
+/** A GET the screen makes on its own (polling): it does not extend the session. */
+export async function apiBackground<T>(path: string): Promise<T> {
+  const response = await send('GET', path, undefined, undefined, true);
   if (response.status === 204 || response.headers.get('Content-Length') === '0') return undefined as T;
   return (await response.json()) as T;
 }

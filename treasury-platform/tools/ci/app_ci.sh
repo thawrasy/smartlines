@@ -43,7 +43,7 @@ echo "== A1. build and unit tests (.NET)"
 (cd app && dotnet build BankFas.slnx -c Release --nologo -v quiet && dotnet test --project tests/BankFas.Core.Tests -c Release --no-build)
 
 echo "== A2. web front end: type check and build"
-(cd app/web && npm ci --no-audit --no-fund --loglevel=error && npm run build --silent)
+(cd app/web && npm ci --no-audit --no-fund --loglevel=error && npm run build --silent && npm test --silent)
 
 echo "== A3. service logins"
 SQLCMDPASSWORD="$SA_PASSWORD" SQL_SERVER="$SQL_SERVER" SQLCMD="$SQLCMD" BANKFAS_SECRETS_DIR="$SEC" BANKFAS_LOGIN_SET=a \
