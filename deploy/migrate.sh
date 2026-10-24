@@ -43,7 +43,8 @@ esac
 
 # the money phase of deploy/.env (N13): applied while nobody has set it in administration, never over their choice
 case "${MASSLAK_MONEY_MODE:-}" in
-  NO_FUNDS|FULL) psql -d "$DB" -v ON_ERROR_STOP=1 -qAt -v mode="$MASSLAK_MONEY_MODE" -c "SELECT fin.apply_money_mode_default(:'mode')" ;;
+  NO_FUNDS|FULL)                    # psql substitutes :'mode' in a script on its input, not in -c
+    echo "SELECT fin.apply_money_mode_default(:'mode');" | psql -d "$DB" -v ON_ERROR_STOP=1 -qAt -v mode="$MASSLAK_MONEY_MODE" > /dev/null ;;
   "") ;;
   *) echo "MASSLAK_MONEY_MODE must be NO_FUNDS or FULL" >&2; exit 1 ;;
 esac
