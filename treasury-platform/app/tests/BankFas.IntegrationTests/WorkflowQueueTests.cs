@@ -66,6 +66,43 @@ public sealed class WorkflowQueueTests(PlatformFixture f)
 
     private static bool Has(JsonElement list, string id) => list.EnumerateArray().Any(x => x.GetProperty("id").GetString() == id);
 
+    /// <summary>
+    /// docs/31 row 44: each request is timed from its own arrival and worked on its own. Two requests reaching the same
+    /// stage two hours apart each take their due time from their own entry; what happens to one leaves the other's clock
+    /// as it was.
+    /// </summary>
+    [Fact]
+    public async Task Each_request_is_timed_from_its_own_arrival_and_on_its_own()
+    {
+        var p = await SetUpAsync();
+        var a = (await p.Rq.PostOkAsync("/api/v1/requests", new { type = "GENERIC_SIMPLE", company = p.Company, data = new { title = "First" } })).GetProperty("id").GetString()!;
+        await ActAsync(p.Rq, a, "submit");
+        f.Env.Clock.Now = f.Env.Clock.Now.AddHours(2);
+        var b = (await p.Rq.PostOkAsync("/api/v1/requests", new { type = "GENERIC_SIMPLE", company = p.Company, data = new { title = "Second" } })).GetProperty("id").GetString()!;
+        await ActAsync(p.Rq, b, "submit");
+
+        await using var c = await BoundAsync(p.T);
+        async Task<(DateTime EnteredAt, DateTime? QueuedAt, DateTime? DueAt, DateTime? ClaimDueAt, string SlaState)> Inst(string id) =>
+            await c.QuerySingleAsync<(DateTime, DateTime?, DateTime?, DateTime?, string)>(
+                """
+                SELECT i.EnteredAt, i.QueuedAt, i.DueAt, i.ClaimDueAt, i.SlaState
+                FROM wfl.RequestStageInstance AS i JOIN wfl.Request AS r ON r.RequestId = i.RequestId
+                WHERE r.PublicId = @id AND i.ExitedAt IS NULL;
+                """, new { id = Guid.Parse(id) });
+        var first = await Inst(a);
+        var second = await Inst(b);
+        Assert.InRange((second.EnteredAt - first.EnteredAt).TotalMinutes, 119, 121);
+        Assert.Equal(first.EnteredAt, first.QueuedAt);
+        Assert.Equal(second.EnteredAt, second.QueuedAt);
+        Assert.True(second.ClaimDueAt > first.ClaimDueAt, "the second request's claim time runs from its own arrival");
+        Assert.True(second.DueAt >= first.DueAt, "the second request's due time runs from its own arrival");
+
+        // Working on the first request leaves the second's clock untouched.
+        await ActAsync(p.Te, a, "claim");
+        await ActAsync(p.Te, a, "release", new { comment = "Back to the queue" });
+        Assert.Equal(second, await Inst(b));
+    }
+
     [Fact]
     public async Task AC_WFL_2_the_claim_race_release_and_reassignment_and_the_sub_status_that_pauses_the_SLA()
     {

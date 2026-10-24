@@ -29,14 +29,18 @@ function Validity({ v }: { v?: string | null }) {
   return <span className={`badge ${v === 'NOT_CONFIRMED' ? 'error' : v === 'EXPIRING' ? 'warn' : ''}`}>{t(v)}</span>;
 }
 
-// BR-FAC-021: the classes of the platform reference COMPANY-BANK-CLASS-YY (the FACILITY_CLASS list of CAT.LOOKUPS).
-const CLASSES: [string, string][] = [
-  ['CAP', 'Working capital facilities'], ['STL', 'Short-term loan'], ['MTL', 'Medium-term loan'], ['LTL', 'Long-term loan'], ['RCF', 'Revolving credit facility'],
-  ['TRF', 'Trade finance facilities'], ['GTE', 'Letters of guarantee facilities'], ['PRJ', 'Project finance'], ['FXL', 'Foreign exchange and treasury line'],
-];
+// BR-FAC-021: the classes of the platform reference COMPANY-BANK-CLASS-YY, read from the tenant's FACILITY_CLASS list,
+// which the tenant extends in the catalogue (docs/31 row 45).
+interface FacilityClass { code: string; nameAr: string; nameEn?: string }
+function useFacilityClasses(): FacilityClass[] {
+  const [items, setItems] = useState<FacilityClass[]>([]);
+  useEffect(() => { api<{ items: FacilityClass[] }>('GET', '/facility-classes').then(r => setItems(r.items)).catch(() => setItems([])); }, []);
+  return items;
+}
 
 export function Facilities() {
   const { t, lang } = useI18n();
+  const classes = useFacilityClasses();
   const nav = useNavigate();
   const [rows, setRows] = useState<Row[]>([]);
   const [filter, setFilter] = useState({ status: '', validity: '' });
@@ -75,7 +79,7 @@ export function Facilities() {
       }}>
         <Select label="Borrower" value={draft.borrower} onChange={v => setDraft({ ...draft, borrower: v })} options={companies.map(c => ({ value: c.id, label: name(lang, c) }))} />
         <Select label="Class in the reference" value={draft.facilityClass} onChange={v => setDraft({ ...draft, facilityClass: v })}
-          options={CLASSES.map(([code, label]) => ({ value: code, label: `${code} · ${t(label)}` }))} />
+          options={classes.map(c => ({ value: c.code, label: `${c.code} · ${lang === 'ar' ? c.nameAr : c.nameEn ?? c.nameAr}` }))} />
         <Select label="Facility type" value={draft.facilityType} onChange={v => setDraft({ ...draft, facilityType: v })}
           options={[{ value: 'CREDIT_FACILITIES', label: 'Credit facilities' }, { value: 'ISLAMIC_FINANCING', label: 'Islamic financing' }]} />
         <Field label="Currency" value={draft.currency} onChange={v => setDraft({ ...draft, currency: v })} />
@@ -126,6 +130,7 @@ function HeaderView({ h, currency }: { h: Header; currency: string }) {
 export function FacilityDetail() {
   const { id } = useParams();
   const { t, lang } = useI18n();
+  const classes = useFacilityClasses();
   const nav = useNavigate();
   const [card, setCard] = useState<Card | null>(null);
   const [etag, setEtag] = useState('');
@@ -256,7 +261,7 @@ export function FacilityDetail() {
             <Field label="Expiry date" value={header.expiryDate} onChange={v => setHeader({ ...header, expiryDate: v })} type="date" />
             <Field label="Bank reference" value={header.bankReferenceNo} onChange={v => setHeader({ ...header, bankReferenceNo: v })} required={false} />
             {!card.platformRef && <Select label="Class in the reference" value={header.facilityClass || card.facilityClass || ''} onChange={v => setHeader({ ...header, facilityClass: v })}
-              options={[{ value: '', label: '—' }, ...CLASSES.map(([code, label]) => ({ value: code, label: `${code} · ${t(label)}` }))]} />}
+              options={[{ value: '', label: '—' }, ...classes.map(c => ({ value: c.code, label: `${c.code} · ${lang === 'ar' ? c.nameAr : c.nameEn ?? c.nameAr}` }))]} />}
           </Form>
           <Form title="Add a lender" submit="Add" onSubmit={async () => {
             await api('POST', `/facilities/${id}/lenders`, { institution: lender.institution, sharePct: Number(lender.sharePct), roles: lender.roles.split(',') });

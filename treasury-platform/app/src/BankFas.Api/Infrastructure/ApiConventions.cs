@@ -187,14 +187,14 @@ public sealed class IdempotencyMiddleware(RequestDelegate next, IMemoryCache cac
 /// <summary>
 /// A request chosen as the victim of a deadlock is run again (SQL Server 1205, DOC-S05): the database rolled its whole
 /// transaction back, so nothing of it remains, and the handler runs from the start with the same body; a read is run
-/// again as it is. At most four
-/// runs, after a short random pause, and only while nothing of the answer has been sent. Found by AC-FAC-12 over HTTP,
+/// again as it is. At most Database:DeadlockRuns runs (4 unless configured, 1 to 10; docs/31 row 45), after a short
+/// random pause, and only while nothing of the answer has been sent. Found by AC-FAC-12 over HTTP,
 /// where concurrent drafts of one tenant deadlocked on their inserts and their reads. READ_COMMITTED_SNAPSHOT, which
 /// docs/20 recommends and the deployment does not set, would remove the deadlocks of reads; it is the administrator's.
 /// </summary>
-public sealed class DeadlockRetryMiddleware(RequestDelegate next)
+public sealed class DeadlockRetryMiddleware(RequestDelegate next, IConfiguration configuration)
 {
-    private const int Runs = 4;
+    private readonly int _runs = Math.Clamp(configuration.GetValue("Database:DeadlockRuns", 4), 1, 10);
 
     private static bool IsDeadlock(Exception? ex)
     {
@@ -213,7 +213,7 @@ public sealed class DeadlockRetryMiddleware(RequestDelegate next)
                 await next(context);
                 return;
             }
-            catch (Exception ex) when (run < Runs && IsDeadlock(ex) && !context.Response.HasStarted)
+            catch (Exception ex) when (run < _runs && IsDeadlock(ex) && !context.Response.HasStarted)
             {
                 context.Response.Clear();
                 context.Request.Body.Position = 0;

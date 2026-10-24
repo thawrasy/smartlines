@@ -44,6 +44,7 @@ public static class FacilityEndpoints
         api.MapGet("/facilities", ListAsync);
         api.MapPost("/facilities", CreateAsync);
         api.MapGet("/facilities/{id:guid}", GetAsync);
+        api.MapGet("/facility-classes", ClassesAsync);
         api.MapPatch("/facilities/{id:guid}", PatchAsync);
         api.MapPost("/facilities/{id:guid}/lenders", AddLenderAsync);
         api.MapPatch("/facilities/{id:guid}/lenders/{reference}", ChangeLenderAsync);
@@ -179,6 +180,26 @@ public static class FacilityEndpoints
             + " WHERE f.PublicId = @id;", new { id }, tx, cancellationToken: ct));
         if (f is null || !scope.Allows(f.BorrowerCompanyId)) throw ApiProblemException.NotFound();
         return f;
+    }
+
+    /// <summary>
+    /// The classes of the platform reference (BR-FAC-021): the active items of the tenant's FACILITY_CLASS list, which the
+    /// tenant extends in the catalogue (docs/31 row 45: a choice is a setting, not code).
+    /// </summary>
+    private static async Task<IResult> ClassesAsync(HttpContext http, SqlConnectionFactory db)
+    {
+        var (u, _) = await OpenAsync(http, db, View);
+        await using (u)
+        {
+            var items = await u.Connection.QueryAsync(new CommandDefinition(
+                """
+                SELECT li.Code AS code, li.NameAr AS nameAr, li.NameEn AS nameEn
+                FROM cat.LookupItem AS li JOIN cat.LookupList AS ll ON ll.LookupListId = li.LookupListId
+                WHERE ll.Code = 'FACILITY_CLASS' AND li.Status = 'ACTIVE' AND li.IsActive = 1
+                ORDER BY li.SortOrder, li.Code;
+                """, cancellationToken: http.RequestAborted));
+            return Results.Ok(new { items });
+        }
     }
 
     internal static async Task<(BoundUser U, CompanyScope Scope)> OpenAsync(HttpContext http, SqlConnectionFactory db, string permission)
