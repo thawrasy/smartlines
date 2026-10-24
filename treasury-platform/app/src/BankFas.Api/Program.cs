@@ -174,7 +174,12 @@ CalendarEndpoints.MapOperator(panel);
 // found, and a path that looks like a file (a dot in its last segment) gets 404 instead of the application page.
 app.MapGet("/robots.txt", () => Results.Text("User-agent: *\nDisallow: /\n", "text/plain"));
 app.MapGet("/{name:regex(^(?i)sitemap.*$)}", () => Results.NotFound());
-if (webFiles is not null) app.MapFallbackToFile("{*path:regex(^(?!api/|health/)(?!.*\\.[[^/]]*$).*$)}", "index.html", webFiles);
+if (webFiles is not null)
+{
+    // The root has no path value, which the regex of the fallback does not match; it gets the page on its own.
+    app.MapFallbackToFile("{*path:regex(^(?!api/|health/)(?!.*\\.[^/]*$).*$)}", "index.html", webFiles);
+    app.MapGet("/", () => Results.File(Path.Combine(Path.GetFullPath(webRoot!), "index.html"), "text/html; charset=utf-8"));
+}
 
 app.Run();
 
