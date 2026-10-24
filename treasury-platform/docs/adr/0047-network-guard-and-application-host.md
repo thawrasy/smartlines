@@ -15,6 +15,10 @@ real: the production build shipped source maps, and only the sign-in, MFA and re
 - **Source maps.** The web build has none (`app/web/vite.config.ts`). The browser's tools show only the minified
   bundle. Turning off the developer tools or the right mouse button is not done: it is easily bypassed and harms
   use. The server checks every action instead, and printed output carries its reference.
+- **No sitemap, nothing indexed.** There is no sitemap; any path starting with `sitemap` is 404, in the application
+  and in Caddy. `robots.txt` disallows every path without naming one. Every response carries
+  `X-Robots-Tag: noindex, nofollow, noarchive, nosnippet`, and the page has the same robots meta tag. A path that looks
+  like a file (a dot in its last segment) and is not one gets 404 instead of the application page.
 - **Client address.** Forwarded headers are read only from the addresses in `Security:TrustedProxies` (loopback by
   default; the gateway of the API's Docker network in `tools/host/compose.yml`), and only one hop. A client that
   sends `X-Forwarded-For` itself names nothing. Caddy replaces the header from clients, because it has no trusted

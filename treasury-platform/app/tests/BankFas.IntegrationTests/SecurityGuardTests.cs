@@ -145,4 +145,17 @@ public sealed class SecurityGuardTests(PlatformFixture f)
         Assert.Contains("INCIDENT_OPENED", events);
         Assert.Contains("INCIDENT_CHANGED", events);
     }
+
+    [Fact]
+    public async Task There_is_no_sitemap_and_nothing_to_index()
+    {
+        f.RequireDatabase();
+        var ct = TestContext.Current.CancellationToken;
+        using var c = Client(NewAddress());
+        foreach (var path in new[] { "/sitemap.xml", "/sitemap_index.xml", "/SITEMAP.xml", "/sitemap" })
+            Assert.Equal(HttpStatusCode.NotFound, (await c.GetAsync(path, ct)).StatusCode);
+        var robots = await c.GetAsync("/robots.txt", ct);
+        Assert.Equal("User-agent: *\nDisallow: /\n", await robots.Content.ReadAsStringAsync(ct));
+        Assert.Equal("noindex, nofollow, noarchive, nosnippet", robots.Headers.GetValues("X-Robots-Tag").Single());
+    }
 }

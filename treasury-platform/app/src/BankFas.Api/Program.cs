@@ -170,7 +170,11 @@ OperatorAdminEndpoints.Map(panel);
 SecurityEndpoints.Map(panel);
 CalendarEndpoints.MapOperator(panel);
 
-if (webFiles is not null) app.MapFallbackToFile("{*path:regex(^(?!api/|health/).*$)}", "index.html", webFiles);
+// No sitemap and nothing to index (docs/31 row 48): robots.txt refuses every path without naming one, a sitemap is not
+// found, and a path that looks like a file (a dot in its last segment) gets 404 instead of the application page.
+app.MapGet("/robots.txt", () => Results.Text("User-agent: *\nDisallow: /\n", "text/plain"));
+app.MapGet("/{name:regex(^(?i)sitemap.*$)}", () => Results.NotFound());
+if (webFiles is not null) app.MapFallbackToFile("{*path:regex(^(?!api/|health/)(?!.*\\.[[^/]]*$).*$)}", "index.html", webFiles);
 
 app.Run();
 

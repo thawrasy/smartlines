@@ -16,6 +16,10 @@
 }
 
 (bankfas) {
+	# No sitemap, and nothing to index (docs/31 row 48); the application answers the same, this is the second layer.
+	@sitemap path_regexp sitemap (?i)^/sitemap
+	respond @sitemap 404
+	header X-Robots-Tag "noindex, nofollow, noarchive, nosnippet"
 	encode zstd gzip
 	request_body {
 		max_size 25MB

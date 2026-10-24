@@ -77,6 +77,7 @@ public sealed class SecurityHeadersMiddleware(RequestDelegate next)
         h["Content-Security-Policy"] = Csp;
         h["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains";
         h["X-Content-Type-Options"] = "nosniff";
+        h["X-Robots-Tag"] = "noindex, nofollow, noarchive, nosnippet";
         h["Referrer-Policy"] = "no-referrer";
         h["X-Frame-Options"] = "DENY";
         h["Cross-Origin-Opener-Policy"] = "same-origin";
