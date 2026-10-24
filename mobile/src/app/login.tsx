@@ -8,17 +8,30 @@ import { VARIANT } from "../platform/config";
 import { Button, ErrorText, Field, Screen, Title, s, PasswordField } from "../ui/kit";
 import { Lockup, TripLine } from "../ui/brand";
 
+// The passenger app uses the individuals' door; the driver's and the operator's apps the business door (N16)
+const STAFF = VARIANT !== "passenger";
+
 export default function Login() {
   const { t } = useI18n();
-  const { signIn } = useAuth();
+  const { signIn, firstPassword } = useAuth();
   const [identifier, setIdentifier] = useState("");
+  const [companyNo, setCompanyNo] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [fresh, setFresh] = useState({ next: "", confirm: "" });
+  const [temporary, setTemporary] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
+  const ready = STAFF ? !!companyNo && !!username && !!password : !!identifier && !!password;
   const finish = async () => {
-    await signIn(identifier, password);
+    if (await signIn(STAFF ? { company_no: companyNo, username } : { identifier }, password)) { setTemporary(true); return; }
     setPassword("");
     router.replace("/");
+  };
+  const choose = async () => {
+    setBusy(true); setError(null);
+    try { await firstPassword(password, fresh.next); setPassword(""); setFresh({ next: "", confirm: "" }); router.replace("/"); }
+    catch (e) { setError(e); } finally { setBusy(false); }
   };
   const submit = async () => {
     setBusy(true); setError(null);
@@ -40,12 +53,36 @@ export default function Login() {
       </View>
       <Title sub={t(`app.${VARIANT}`)}>{t("auth.title")}</Title>
       {enrol ? <Text style={s.muted}>{t("auth.enrollOnWeb")}</Text> : <ErrorText error={error} />}
-      <Field label={t("common.email")} value={identifier} onChangeText={setIdentifier} autoCapitalize="none" autoCorrect={false}
-             keyboardType="email-address" textContentType="username" autoComplete="username" />
-      <PasswordField label={t("common.password")} value={password} onChangeText={setPassword} textContentType="password"
-             autoComplete="current-password" onSubmitEditing={submit} />
-      <Button label={t("common.signIn")} onPress={submit} busy={busy} disabled={!identifier || !password} />
-      {closed ? <Button kind="tonal" label={t("auth.reactivate")} onPress={reopen} busy={busy} disabled={!identifier || !password} /> : null}
+      {temporary ? (
+        <>
+          <Text style={s.muted}>{t("auth.firstPassword")}</Text>
+          <PasswordField label={t("auth.newPassword")} value={fresh.next} onChangeText={(v) => setFresh({ ...fresh, next: v })}
+                         textContentType="newPassword" autoComplete="new-password" />
+          <PasswordField label={t("auth.confirmPassword")} value={fresh.confirm} onChangeText={(v) => setFresh({ ...fresh, confirm: v })}
+                         textContentType="newPassword" autoComplete="new-password" onSubmitEditing={choose} />
+          {fresh.confirm && fresh.confirm !== fresh.next ? <Text style={s.muted}>{t("auth.passwordMismatch")}</Text> : null}
+          <Button label={t("auth.savePassword")} onPress={choose} busy={busy}
+                  disabled={fresh.next.length < 12 || fresh.confirm !== fresh.next} />
+        </>
+      ) : (
+        <>
+          {STAFF ? (
+            <>
+              <Field label={t("auth.companyNo")} value={companyNo} onChangeText={(v) => setCompanyNo(v.replace(/\D/g, ""))}
+                     keyboardType="number-pad" maxLength={8} autoCorrect={false} />
+              <Field label={t("auth.username")} value={username} onChangeText={setUsername} autoCapitalize="none" autoCorrect={false}
+                     textContentType="username" autoComplete="username" />
+            </>
+          ) : (
+            <Field label={t("auth.identifier")} value={identifier} onChangeText={setIdentifier} autoCapitalize="none" autoCorrect={false}
+                   keyboardType="email-address" textContentType="username" autoComplete="username" />
+          )}
+          <PasswordField label={t("common.password")} value={password} onChangeText={setPassword} textContentType="password"
+                 autoComplete="current-password" onSubmitEditing={submit} />
+          <Button label={t("common.signIn")} onPress={submit} busy={busy} disabled={!ready} />
+          {closed && !STAFF ? <Button kind="tonal" label={t("auth.reactivate")} onPress={reopen} busy={busy} disabled={!ready} /> : null}
+        </>
+      )}
     </Screen>
   );
 }

@@ -8,6 +8,7 @@ import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, use
 import { LayoutPreview, type LayoutRow } from "./Layouts";
 import { CarrierConnectionPolicy } from "../passenger/Connections";
 import { TripChanges } from "./TripChanges";
+import { useSignInSlip, type SignIn } from "../../components/SignInSlip";
 
 export interface CarrierTrip {
   uid: string; trip_no: string; trip_code?: string | null; status: string; departure_at: string; arrival_at?: string; seats_total: number; segments_count?: number;
@@ -524,6 +525,7 @@ export function CarrierCrew() {
   const { t } = useI18n();
   const toast = useToast();
   const state = useLoad(() => api.get<{ crew: Crew[] }>("/api/carrier/crew"));
+  const slip = useSignInSlip();
   const [open, setOpen] = useState(false);
   const blank = { full_name: "", email: "", mobile: "", password: "", license_class: "D" };
   const [f, setF] = useState(blank);
@@ -533,13 +535,14 @@ export function CarrierCrew() {
   const submit = async () => {
     setBusy(true); setError(null);
     try {
-      await api.post("/api/carrier/crew", { ...f, mobile: f.mobile || null });
-      setOpen(false); setF(blank); toast(t("common.saved")); state.reload();
+      const r = await api.post<{ sign_in?: SignIn }>("/api/carrier/crew", { ...f, mobile: f.mobile || null });
+      setOpen(false); setF(blank); toast(t("common.saved")); state.reload(); slip.show(r.sign_in);
     } catch (e) { setError(e); } finally { setBusy(false); }
   };
   return (
     <div className="stack">
       <PageHead title={t("carrier.crew")}><button className="btn" onClick={() => setOpen(true)}><Icon name="person_add" />{t("carrier.newDriver")}</button></PageHead>
+      {slip.element}
       <Loaded state={state}>{({ crew }) => crew.length === 0 ? <div className="card"><Empty icon="badge" title={t("common.noData")} /></div> : (
         <div className="table-wrap" tabIndex={0}><table className="table">
           <thead><tr><th>{t("common.name")}</th><th>{t("common.email")}</th><th>{t("carrier.licenseClass")}</th><th>{t("common.status")}</th></tr></thead>

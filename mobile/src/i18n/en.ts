@@ -35,7 +35,10 @@ const en = {
   },
   auth: { title: "Sign in to Masslak", code: "Code from your authenticator app", verify: "Verify",
           enrollOnWeb: "Set up two-step sign-in on the website first, then sign in here.",
-          reactivate: "Reactivate account" },
+          reactivate: "Reactivate account", identifier: "E-mail or mobile number", companyNo: "Company number",
+          username: "Username", firstPassword: "Your company gave you a temporary password. Choose your own to continue.",
+          newPassword: "New password", confirmPassword: "Type the new password again", passwordMismatch: "The passwords differ.",
+          savePassword: "Save and continue" },
   mfa: {
     choose: "Choose how to receive your code.", enrolTitle: "Set up two-step sign-in",
     method: { TOTP: "Authenticator app", SMS: "Text message", WHATSAPP: "WhatsApp" },

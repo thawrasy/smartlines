@@ -190,6 +190,7 @@ erDiagram
     bigint party_id FK
     text status
     text preferred_locale FK
+    bigint home_company_id FK
   }
   iam_auth_token {
     bigint id PK
@@ -568,6 +569,7 @@ erDiagram
   iam_api_client }o..o| iam_company : "company_id"
   iam_document }o..o| iam_company : "company_id"
   iam_verification }o..o| iam_company : "subject_company_id"
+  iam_app_user }o..o| iam_company : "home_company_id"
   iam_document }o..o| iam_company : "owner_company_id"
   iam_kyc_decision }o--|| iam_company_kyc : "kyc_id"
   iam_photo_policy_change }o..o| iam_data_requirement : "field_code"

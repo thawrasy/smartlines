@@ -167,24 +167,103 @@ async def send_email_code(to: str, code: str, minutes: int, locale: str) -> bool
         return False
 
 
+class IndividualIn(BaseModel):
+    """The individuals' door (N16): a passenger's e-mail or mobile number and password."""
+    identifier: str = Field(min_length=3, max_length=200)
+    password: str = Field(min_length=1, max_length=200)
+    device_id: Optional[str] = Field(default=None, min_length=16, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
+    app_version: Optional[str] = Field(default=None, max_length=20)
+
+
+class BusinessIn(BaseModel):
+    """The business door (N16): the company number, the employee's username and password; the company's kind decides
+    the portal. The driver's and the inspector's apps name their portal."""
+    company_no: str = Field(pattern=r"^[0-9]{6,8}$")
+    username: str = Field(min_length=3, max_length=32)
+    password: str = Field(min_length=1, max_length=200)
+    portal: Optional[Literal["DRIVER", "INSPECTOR"]] = None
+    device_id: Optional[str] = Field(default=None, min_length=16, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
+    app_version: Optional[str] = Field(default=None, max_length=20)
+
+
+async def doors(conn) -> dict:
+    v = await conn.fetchval("SELECT value FROM sys.setting WHERE key = 'auth.doors'")
+    return json.loads(v) if isinstance(v, str) else dict(v or {})
+
+
 @router.post("/login")
 async def login(body: LoginIn, request: Request, response: Response):
-    s = get_settings()
+    """The older sign-in with a portal picker, kept for the apps until the public launch (auth.doors.legacy_portal_login)."""
+    ctx = base_context(request)
+    ctx.scope = "AUTH"
+    async with db.transaction(ctx) as conn:
+        if not (await doors(conn)).get("legacy_portal_login", True):
+            raise ApiError(410, "USE_SIGN_IN_DOORS", "sign in through the individuals' or the business door")
     ident = body.identifier.strip()
+    return await _sign_in(body, request, response, ident=ident, where="email = $1 OR mobile = $1", args=(ident,))
+
+
+@router.post("/login/individual")
+async def login_individual(body: IndividualIn, request: Request, response: Response):
+    ident = body.identifier.strip()
+    return await _sign_in(LoginIn(identifier=ident, password=body.password, portal="PASSENGER", device_id=body.device_id,
+                                  app_version=body.app_version),
+                          request, response, ident=ident, where="(email = $1 OR mobile = $1) AND account_kind = 'CUSTOMER'",
+                          args=(ident,))
+
+
+@router.post("/login/business")
+async def login_business(body: BusinessIn, request: Request, response: Response):
+    username = body.username.strip().lower()
+    ctx = base_context(request)
+    ctx.scope = "AUTH"
+    async with db.transaction(ctx) as conn:
+        d = await doors(conn)
+        company = None if body.company_no == str(d.get("platform_no")) else await conn.fetchrow(
+            "SELECT id, company_type FROM iam.company WHERE company_no = $1 AND approval_status = 'APPROVED'", body.company_no)
+    ident = f"{body.company_no}:{username}"
+    if company is None and body.company_no != str(d.get("platform_no")):
+        # an unknown number is answered as a wrong password, after the same work, so numbers cannot be probed
+        verify_password(None, body.password)
+        async with db.transaction(ctx) as conn:
+            await ratelimit.check_identifier(conn, ident)
+            await _auth_event(conn, request, "LOGIN_FAILED", "FAILURE", identifier=ident, reason="unknown_company")
+        raise ApiError(401, "INVALID_CREDENTIALS", "invalid login details")
+    if company is None:
+        portal = "INSPECTOR" if body.portal == "INSPECTOR" else "PLATFORM"
+        where, args = "username = $1 AND account_kind = 'PLATFORM'", (username,)
+    else:
+        kind = company["company_type"]
+        portal = "AGENCY" if kind == "AGENCY" else "STATION" if kind == "STATION_OPERATOR" else (
+            "DRIVER" if body.portal == "DRIVER" else "OPERATOR")
+        where, args = "username = $1 AND home_company_id = $2", (username, company["id"])
+    return await _sign_in(LoginIn(identifier=ident, password=body.password, portal=portal, device_id=body.device_id,
+                                  app_version=body.app_version),
+                          request, response, ident=ident, where=where, args=args, block=False,
+                          company_id=company["id"] if company else None, auto_driver=body.portal is None)
+
+
+async def _sign_in(body: LoginIn, request: Request, response: Response, *, ident: str, where: str, args: tuple,
+                   block: bool = True, company_id: Optional[int] = None, auto_driver: bool = False):
+    """One sign-in for the three entries: the account found by the door's own rule, then the same checks, session and
+    second factor for all."""
+    s = get_settings()
+    fixed_company = company_id
     ctx = base_context(request)
     ctx.scope = "AUTH"                     # opens accounts, factors and sessions only, not the rest of the platform
     async with db.transaction(ctx) as conn:    # its own transaction, so the token stays taken whatever follows
         await ratelimit.check_identifier(conn, ident)
     async with db.transaction(ctx) as conn:
         user = await conn.fetchrow(
-            """SELECT id, account_kind, password_hash, status, locked_until, failed_attempts, mfa_required,
-                      ARRAY(SELECT f.factor_type FROM iam.mfa_factor f WHERE f.user_id = app_user.id
-                               AND f.factor_type IN ('TOTP','SMS','WHATSAPP')
-                               AND f.verified_at IS NOT NULL AND f.disabled_at IS NULL) AS mfa_factors
-                 FROM iam.app_user WHERE email = $1 OR mobile = $1""", ident)
+            f"""SELECT id, account_kind, password_hash, status, locked_until, failed_attempts, mfa_required,
+                       password_must_change, temp_password_expires_at,
+                       ARRAY(SELECT f.factor_type FROM iam.mfa_factor f WHERE f.user_id = app_user.id
+                                AND f.factor_type IN ('TOTP','SMS','WHATSAPP')
+                                AND f.verified_at IS NOT NULL AND f.disabled_at IS NULL) AS mfa_factors
+                  FROM iam.app_user WHERE {where}""", *args)
         policy = await mfa_policy.current(conn)
         deactivated = False
-        blocked = await _blocked(conn, ("EMAIL" if "@" in ident else "PHONE", ident), ("DEVICE", body.device_id))
+        blocked = await _blocked(conn, *((("EMAIL" if "@" in ident else "PHONE", ident),) if block else ()), ("DEVICE", body.device_id))
         if blocked:             # recorded, then refused once the record is committed
             await _auth_event(conn, request, "LOGIN_FAILED", "BLOCKED", user_id=user["id"] if user else None,
                               portal=body.portal, identifier=ident, reason="blocklist")
@@ -224,6 +303,8 @@ async def login(body: LoginIn, request: Request, response: Response):
         raise ApiError(403, "ACCOUNT_DEACTIVATED", "this account is closed; reactivate it with the same details")
     if raise_invalid:
         raise ApiError(401, "INVALID_CREDENTIALS", "invalid login details")
+    if user["password_must_change"] and user["temp_password_expires_at"] <= datetime.now(timezone.utc):
+        raise ApiError(403, "TEMP_PASSWORD_EXPIRED", "the temporary password has expired; ask your administrator for a new one")
 
     if body.portal not in PORTALS_BY_KIND.get(user["account_kind"], set()):
         raise ApiError(403, "PORTAL_NOT_ALLOWED", "this account cannot open the requested portal")
@@ -242,11 +323,16 @@ async def login(body: LoginIn, request: Request, response: Response):
                       AND CASE $2 WHEN 'AGENCY' THEN c.company_type = 'AGENCY'
                                   WHEN 'STATION' THEN c.company_type = 'STATION_OPERATOR'
                                   ELSE c.company_type NOT IN ('AGENCY', 'STATION_OPERATOR') END
-                    ORDER BY m.is_owner DESC LIMIT 1""", user["id"], body.portal)
+                      AND ($3::bigint IS NULL OR m.company_id = $3)
+                    ORDER BY m.is_owner DESC LIMIT 1""", user["id"], body.portal, fixed_company)
             if company_id is None:
                 raise ApiError(403, "COMPANY_NOT_ACTIVE", "no approved company for this account")
             ctx.company_id = company_id
             await db.apply_context(conn, ctx)  # the crew check below reads rows of that company
+            if auto_driver and body.portal == "OPERATOR" and await conn.fetchval(
+                    """SELECT r.code = 'CARRIER_DRIVER' FROM iam.company_member m JOIN iam.role r ON r.id = m.role_id
+                        WHERE m.user_id = $1 AND m.company_id = $2""", user["id"], company_id):
+                body.portal = "DRIVER"      # the business door: a driver lands in the driver's portal unasked (N16)
             if body.portal == "DRIVER" and not await conn.fetchval(
                     "SELECT 1 FROM fleet.crew_profile cp JOIN iam.app_user u ON u.party_id = cp.party_id "
                     "WHERE u.id = $1 AND cp.company_id = $2 AND cp.status = 'ACTIVE'", user["id"], company_id):
@@ -302,7 +388,8 @@ async def login(body: LoginIn, request: Request, response: Response):
     needs = mfa_required_for(body.portal, user["mfa_required"], bool(factors), policy)
     enrolled = mfa_policy.enrolled(factors, policy)
     out = {"ok": True, "portal": body.portal, "mfa": ("VERIFY" if enrolled else "ENROLL") if needs else None,
-           "mfa_methods": [m for m in factors if m in policy.available()] if needs else []}
+           "mfa_methods": [m for m in factors if m in policy.available()] if needs else [],
+           "password_change_required": user["password_must_change"]}
     if refresh:
         # Mobile apps keep both tokens in the Keychain or Android Keystore; nothing goes into a cookie
         return {**out, "access_token": token, "refresh_token": refresh, "access_expires_at": access_expires.isoformat(),

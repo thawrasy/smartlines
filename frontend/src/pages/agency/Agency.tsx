@@ -7,6 +7,7 @@ import { PageHead } from "../../components/layout";
 import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, useToast, PasswordInput } from "../../components/ui";
 import { SearchForm } from "../passenger/Home";
 import Results from "../passenger/Results";
+import { useSignInSlip, type SignIn } from "../../components/SignInSlip";
 
 interface AgencyBooking extends BookingRow { contact_mobile: string | null; sold_by: string | null; commission: number | null; passengers: number }
 interface Dashboard {
@@ -173,6 +174,7 @@ export function AgencyStaff() {
   const { can } = useAuth();
   const toast = useToast();
   const state = useLoad(() => api.get<{ staff: StaffMember[] }>("/api/agency/staff"));
+  const slip = useSignInSlip();
   const blank = { full_name: "", email: "", mobile: "", password: "", role: "SELLER" };
   const [f, setF] = useState(blank);
   const [open, setOpen] = useState(false);
@@ -182,12 +184,13 @@ export function AgencyStaff() {
   const save = async () => {
     setBusy(true); setError(null);
     try {
-      await api.post("/api/agency/staff", { ...f, mobile: f.mobile || null });
-      setOpen(false); setF(blank); toast(t("common.saved")); state.reload();
+      const r = await api.post<{ sign_in?: SignIn }>("/api/agency/staff", { ...f, mobile: f.mobile || null });
+      setOpen(false); setF(blank); toast(t("common.saved")); state.reload(); slip.show(r.sign_in);
     } catch (e) { setError(e); } finally { setBusy(false); }
   };
   return (
     <div className="stack">
+      {slip.element}
       <PageHead title={t("agency.staff")} sub={t("agency.staffHint")}>
         {can("company.staff") && <button className="btn" onClick={() => setOpen(true)}><Icon name="person_add" />{t("agency.addStaff")}</button>}
       </PageHead>

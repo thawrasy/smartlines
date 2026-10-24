@@ -1,6 +1,6 @@
 // Signed-in state for the app. The keystore holds the tokens; this context holds only who is signed in.
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { api, ApiError, session, signIn as apiSignIn, signOut as apiSignOut } from "./api";
+import { api, ApiError, session, signIn as apiSignIn, signOut as apiSignOut, type Credentials } from "./api";
 import { getJSON, putJSON, wipe } from "./secure";
 import { useI18n, type Market } from "../i18n";
 
@@ -13,7 +13,9 @@ interface Auth {
   status: Status; me: Me | null;
   /** The second step the session owes: a code (VERIFY) or the first set-up of a method (ENROLL). */
   mfaStep: "VERIFY" | "ENROLL";
-  signIn: (identifier: string, password: string) => Promise<void>;
+  /** Resolves true when the password was a temporary one: the caller asks for the person's own (firstPassword). */
+  signIn: (who: Credentials, password: string) => Promise<boolean>;
+  firstPassword: (current: string, next: string) => Promise<void>;
   verifyMfa: (code: string, method?: MfaMethod | null) => Promise<void>;
   signOut: () => Promise<void>;
   refresh: () => Promise<void>;
@@ -33,6 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<Status>("loading");
   const [me, setMe] = useState<Me | null>(null);
   const [mfaStep, setMfaStep] = useState<"VERIFY" | "ENROLL">("VERIFY");
+  const [owed, setOwed] = useState<"VERIFY" | "ENROLL" | null>(null);   // the second factor owed after the first password
   const { setMarket } = useI18n();
 
   const refresh = useCallback(async () => {
@@ -59,10 +62,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<Auth>(() => ({
     status, me, refresh, mfaStep,
-    signIn: async (identifier, password) => {
-      const r = await apiSignIn(identifier, password);
+    signIn: async (who, password) => {
+      const r = await apiSignIn(who, password);
+      // a temporary password set by the company is replaced first (N16, 1150), then the second factor
+      if (r.passwordChange) { setOwed(r.mfa); return true; }
       // a second factor is owed: a code, or the first set-up of a method in the app (owner's decision 2)
-      if (r.mfa) { setMfaStep(r.mfa); setStatus("mfa"); return; }
+      if (r.mfa) { setMfaStep(r.mfa); setStatus("mfa"); return false; }
+      await refresh();
+      return false;
+    },
+    firstPassword: async (current, next) => {
+      await api.post("/api/account/password/first", { current_password: current, new_password: next });
+      if (owed) { setMfaStep(owed); setStatus("mfa"); setOwed(null); return; }
       await refresh();
     },
     verifyMfa: async (code, method) => {
@@ -74,7 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await wipe(CACHE_KEYS);
       setMe(null); setStatus("signedOut");
     },
-  }), [status, me, refresh, mfaStep]);
+  }), [status, me, refresh, mfaStep, owed]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

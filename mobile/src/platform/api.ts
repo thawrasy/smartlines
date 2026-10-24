@@ -82,15 +82,20 @@ export async function authHeaders(): Promise<Record<string, string>> {
   return { "X-Masslak-Client": CLIENT, ...(token ? { Authorization: `Bearer ${token}` } : {}) };
 }
 
-export interface LoginResult { mfa: "VERIFY" | "ENROLL" | null }
+export interface LoginResult { mfa: "VERIFY" | "ENROLL" | null; passwordChange: boolean }
+/** The two sign-in doors (N16): passengers by e-mail or mobile number, staff by company number and username. */
+export type Credentials = { identifier: string } | { company_no: string; username: string };
 
-export async function signIn(identifier: string, password: string): Promise<LoginResult> {
-  const r = await raw("POST", "/api/auth/login", {
-    identifier: identifier.trim(), password, portal: PORTAL, device_id: await deviceId(), app_version: "1.0.0",
-  });
-  const data = await parse<{ mfa: LoginResult["mfa"] } & Tokens>(r);
+export async function signIn(who: Credentials, password: string): Promise<LoginResult> {
+  const device = { device_id: await deviceId(), app_version: "1.0.0" };
+  const r = "identifier" in who
+    ? await raw("POST", "/api/auth/login/individual", { identifier: who.identifier.trim(), password, ...device })
+    : await raw("POST", "/api/auth/login/business", {
+        company_no: who.company_no.trim(), username: who.username.trim().toLowerCase(), password,
+        ...(PORTAL === "DRIVER" ? { portal: "DRIVER" } : {}), ...device });
+  const data = await parse<{ mfa: LoginResult["mfa"]; password_change_required?: boolean } & Tokens>(r);
   await tokenStore.save({ access_token: data.access_token, refresh_token: data.refresh_token, access_expires_at: data.access_expires_at });
-  return { mfa: data.mfa };
+  return { mfa: data.mfa, passwordChange: !!data.password_change_required };
 }
 
 /** A closed account comes back with the same details (1085); the caller signs in afterwards. */

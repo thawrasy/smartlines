@@ -13,7 +13,7 @@ const noPaste = (e: ClipboardEvent<HTMLInputElement>) => e.preventDefault();
 
 export default function Register() {
   const { t, locale } = useI18n();
-  const { login } = useAuth();
+  const { signIn } = useAuth();
   const nav = useNavigate();
   const [name, setName] = useState<NameDraft>(blankName());
   const [form, setForm] = useState({ email: "", email_confirm: "", mobile: "", password: "", password_confirm: "" });
@@ -31,7 +31,7 @@ export default function Register() {
     try {
       await api.post("/api/auth/register", { name: nameBody(name), email: form.email.trim(), email_confirm: form.email_confirm.trim(),
         mobile: form.mobile.trim() || null, password: form.password, password_confirm: form.password_confirm, locale });
-      await login(form.email.trim(), form.password, "PASSENGER");
+      await signIn({ kind: "individual", identifier: form.email.trim(), password: form.password });
       nav("/account?verify=email", { replace: true });
     } catch (err) { setError(err); } finally { setBusy(false); }
   };

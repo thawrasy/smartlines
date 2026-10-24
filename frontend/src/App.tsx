@@ -17,6 +17,7 @@ import Support from "./pages/passenger/Support";
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
 import Mfa from "./pages/auth/Mfa";
+import FirstPassword from "./pages/auth/FirstPassword";
 import Verify from "./pages/Verify";
 import Track from "./pages/Track";
 import { AccountPage, AdminPrivacy } from "./pages/account/Account";
@@ -271,6 +272,7 @@ export default function App() {
           <Route path="login" element={<Login />} />
           <Route path="register" element={<Register />} />
           <Route path="mfa" element={<Mfa />} />
+          <Route path="first-password" element={<FirstPassword />} />
           <Route path="*" element={<NotFound />} />
         </Route>
         <Route element={<RequirePortal portal="OPERATOR"><CarrierShell /></RequirePortal>}>

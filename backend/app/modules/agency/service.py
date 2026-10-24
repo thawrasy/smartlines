@@ -14,6 +14,7 @@ from ...deps import Principal
 from ...errors import ApiError, forbidden, not_found
 from ...ledger import company_wallet
 from ...util import row_dict, rows
+from ..account.doors import temporary_password
 from ..sales import service as sales
 from ..sales.models import AgencyBookingIn
 from . import repository as repo
@@ -171,7 +172,7 @@ async def staff(conn: asyncpg.Connection, pr: Principal) -> list[dict]:
 
 
 async def add_staff(conn: asyncpg.Connection, pr: Principal, full_name: str, email: str, mobile: str | None,
-                    password: str, role: str) -> tuple[int, str]:
+                    password: str, role: str) -> tuple[int, str, dict]:
     """Adds a seller or accountant. Agency staff always sign in with a second factor."""
     from ...security import hash_password
     agency_id = require_agency(pr)
@@ -186,5 +187,6 @@ async def add_staff(conn: asyncpg.Connection, pr: Principal, full_name: str, ema
         party_id, email, mobile, hash_password(password))
     await conn.execute("INSERT INTO iam.company_member (user_id, company_id, role_id) VALUES ($1, $2, $3)",
                        user_id, agency_id, role_id)
+    door = await temporary_password(conn, user_id)
     uid = await conn.fetchval("SELECT uid FROM iam.party WHERE id = $1", party_id)
-    return party_id, str(uid)
+    return party_id, str(uid), door

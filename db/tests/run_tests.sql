@@ -3848,6 +3848,36 @@ SELECT pg_temp.expect_error($$UPDATE iam.party SET first_name_latin = 'Sam3r' WH
 ROLLBACK;
 SET ROLE masslak_app;
 
+-- Sign-in doors (1150): every company has a number, staff a username unique in the company; a temporary password expires
+BEGIN;
+RESET ROLE;
+SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM iam.company WHERE company_no !~ '^[0-9]{6,8}$')
+                  AND (SELECT count(DISTINCT company_no) = count(*) FROM iam.company),
+  'Sign-in doors (1150): every company has its own number of 6 to 8 digits');
+SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM iam.app_user u JOIN iam.company_member m ON m.user_id = u.id
+                               WHERE u.account_kind IN ('COMPANY', 'AGENCY') AND (u.username IS NULL OR u.home_company_id IS NULL)),
+  'Sign-in doors (1150): every member of a company''s staff has a username and a home company');
+SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM iam.app_user WHERE account_kind = 'PLATFORM' AND username IS NULL),
+  'Sign-in doors (1150): the platform''s staff have usernames');
+INSERT INTO iam.party (party_type, legal_name) VALUES ('PERSON', 'Door Test') RETURNING id AS dpp \gset
+INSERT INTO iam.app_user (party_id, account_kind, email, password_hash, status) VALUES (:dpp, 'COMPANY', 'door1@test.invalid', 'x', 'ACTIVE') RETURNING id AS du1 \gset
+INSERT INTO iam.company_member (user_id, company_id, role_id) VALUES (:du1, :ca, (SELECT id FROM iam.role WHERE code = 'CARRIER_DRIVER' AND company_id IS NULL));
+SELECT pg_temp.ok((SELECT home_company_id = :ca AND username = 'door1' FROM iam.app_user WHERE id = :du1),
+  'Sign-in doors (1150): joining a company gives the account its home company and a username from the e-mail');
+INSERT INTO iam.party (party_type, legal_name) VALUES ('PERSON', 'Door Test 2') RETURNING id AS dpp2 \gset
+INSERT INTO iam.app_user (party_id, account_kind, email, password_hash, status) VALUES (:dpp2, 'COMPANY', 'door1@other.invalid', 'x', 'ACTIVE') RETURNING id AS du2 \gset
+INSERT INTO iam.company_member (user_id, company_id, role_id) VALUES (:du2, :ca, (SELECT id FROM iam.role WHERE code = 'CARRIER_DRIVER' AND company_id IS NULL));
+SELECT pg_temp.ok((SELECT username FROM iam.app_user WHERE id = :du2) = 'door12',
+  'Sign-in doors (1150): a username already taken in the company gets a number');
+SELECT pg_temp.expect_error(format($$UPDATE iam.app_user SET username = 'door1' WHERE id = %s$$, :du2),
+  'unique', 'Sign-in doors (1150): two employees of one company never share a username');
+SELECT pg_temp.expect_error(format($$UPDATE iam.app_user SET password_must_change = true WHERE id = %s$$, :du1),
+  'check constraint', 'Sign-in doors (1150): a temporary password always has an end');
+SELECT pg_temp.expect_error($$UPDATE iam.company SET company_no = '12AB' WHERE id = (SELECT min(id) FROM iam.company)$$,
+  'check constraint', 'Sign-in doors (1150): a company number is digits only');
+ROLLBACK;
+SET ROLE masslak_app;
+
 -- Charter (1123): carriers hire out vehicles and whole trips on their terms; requests are priced, paid and their seats held
 BEGIN;
 RESET ROLE;

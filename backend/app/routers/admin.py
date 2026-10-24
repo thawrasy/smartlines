@@ -11,6 +11,7 @@ from .. import company_logo, db, markets
 from ..deps import Principal, context_for, require_permission, require_portal, require_step_up
 from ..errors import ApiError, not_found
 from ..ledger import company_wallet, platform_wallet, post_txn
+from ..modules.account.doors import temporary_password
 from ..security import hash_password, password_problem
 from ..util import row_dict, rows
 
@@ -107,11 +108,12 @@ async def onboard_carrier(body: OnboardIn, request: Request, pr: Principal = Dep
             owner_party, body.owner_email, hash_password(body.owner_password))
         await conn.execute("INSERT INTO iam.company_member (user_id, company_id, is_owner) VALUES ($1, $2, true)",
                            owner_user, cid)
+        door = await temporary_password(conn, owner_user)
         await company_wallet(conn, cid, m.currency)
         await conn.fetchval("SELECT iam.open_company_kyc($1)", cid)       # its KYC file to fill (1118)
         uid = await conn.fetchval("SELECT uid FROM iam.party WHERE id = $1", cid)
     request.state.audit = {"action": "company.onboard", "object_type": "company", "object_id": cid}
-    return {"uid": str(uid)}
+    return {"uid": str(uid), "sign_in": door}
 
 
 class StatusIn(BaseModel):
@@ -324,10 +326,11 @@ async def onboard_agency(body: AgencyIn, request: Request, pr: Principal = Depen
             owner_party, body.owner_email, hash_password(body.owner_password))
         await conn.execute("INSERT INTO iam.company_member (user_id, company_id, is_owner) VALUES ($1, $2, true)",
                            owner_user, aid)
+        door = await temporary_password(conn, owner_user)
         await company_wallet(conn, aid, m.currency, label="Agency wallet")
         uid = await conn.fetchval("SELECT uid FROM iam.party WHERE id = $1", aid)
     request.state.audit = {"action": "agency.onboard", "object_type": "company", "object_id": aid}
-    return {"uid": str(uid)}
+    return {"uid": str(uid), "sign_in": door}
 
 
 async def _agency_id(conn, agency_uid: uuid.UUID) -> int:

@@ -11,6 +11,7 @@ import asyncpg
 
 from ...errors import ApiError, not_found
 from ...security import hash_password
+from ..account.doors import temporary_password
 
 SETTINGS = ("boarding.stations.enabled", "boarding.mode.state_mandated", "boarding.mode.carrier_contracted",
             "boarding.checkin.opens_minutes", "boarding.checkin.closes_minutes", "boarding.references.required",
@@ -213,7 +214,7 @@ async def revoke_grant(conn, uid: uuid.UUID, user_id: int) -> int:
     return row["id"]
 
 
-async def onboard_operator(conn, body, user_id: int) -> tuple[int, uuid.UUID]:
+async def onboard_operator(conn, body, user_id: int) -> tuple[int, uuid.UUID, dict]:
     """A station operating company (1099) with its owner: it signs in to the STATION portal only."""
     company_id = await conn.fetchval(
         "INSERT INTO iam.party (party_type, legal_name) VALUES ('COMPANY', $1) RETURNING id", body.legal_name.strip())
@@ -234,7 +235,8 @@ async def onboard_operator(conn, body, user_id: int) -> tuple[int, uuid.UUID]:
         raise ApiError(409, "EMAIL_TAKEN", "an account with this email exists") from exc
     await conn.execute("INSERT INTO iam.company_member (user_id, company_id, is_owner) VALUES ($1, $2, true)",
                        owner_user, company_id)
-    return company_id, await conn.fetchval("SELECT uid FROM iam.party WHERE id = $1", company_id)
+    door = await temporary_password(conn, owner_user)
+    return company_id, await conn.fetchval("SELECT uid FROM iam.party WHERE id = $1", company_id), door
 
 
 async def operator_overview(conn, company_id: int) -> dict:

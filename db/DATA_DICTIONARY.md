@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**572 tables, 6082 columns, in 26 schemas.**
+**572 tables, 6087 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -124,6 +124,10 @@ Login account; the account kind determines the portal: platform, company, agency
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
 | `email_verified_at` | `timestamp with time zone` |  |  |
+| `username` | `text` |  |  |
+| `home_company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `password_must_change` | `boolean` | ✱ | `false` |
+| `temp_password_expires_at` | `timestamp with time zone` |  |  |
 
 ### `iam.auth_token` 🛡️
 
@@ -205,6 +209,7 @@ Carrier company (tenant): 1:1 profile with party; all company data is isolated b
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
 | `payout_bank_account_id` | `bigint` | 🔗 `iam.bank_account`  |  |
+| `company_no` | `text` | ✱ | `(nextval('iam.company_no_seq'::regcla...` |
 
 ### `iam.company_kyc` 🛡️
 

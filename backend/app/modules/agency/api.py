@@ -135,6 +135,6 @@ async def add_staff(body: StaffIn, request: Request, pr: Principal = Depends(age
     if problem:
         raise ApiError(422, problem, "password does not meet the policy")
     async with db.transaction(context_for(request, pr)) as conn:
-        party_id, uid = await service.add_staff(conn, pr, body.full_name, body.email, body.mobile, body.password, body.role)
+        party_id, uid, door = await service.add_staff(conn, pr, body.full_name, body.email, body.mobile, body.password, body.role)
     request.state.audit = {"action": "agency.staff_create", "object_type": "party", "object_id": party_id}
-    return {"uid": uid}
+    return {"uid": uid, "sign_in": door}

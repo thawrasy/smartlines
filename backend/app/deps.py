@@ -42,6 +42,7 @@ class Principal:
     roles: set[str] = field(default_factory=set)
     is_owner: bool = False
     mfa_pending: bool = False       # staff session that still owes its second factor
+    password_must_change: bool = False   # a temporary password set by an administrator, not yet replaced (N16, 1150)
     mfa_enrolled: bool = False      # holds a second factor of a method open on this server
     mfa_required: bool = False
     mfa_factors: list[str] = field(default_factory=list)
@@ -57,7 +58,7 @@ async def load_principal(conn: asyncpg.Connection, token: str) -> Optional[Princ
     row = await conn.fetchrow(
         """
         SELECT s.id AS session_id, s.portal, s.company_id, u.id AS user_id, u.uid, u.party_id, u.email,
-               u.preferred_locale, p.legal_name, s.mfa_passed, s.mfa_at, u.mfa_required, 
+               u.preferred_locale, p.legal_name, s.mfa_passed, s.mfa_at, u.mfa_required, u.password_must_change,
                ARRAY(SELECT f.factor_type FROM iam.mfa_factor f WHERE f.user_id = u.id AND f.verified_at IS NOT NULL
                         AND f.disabled_at IS NULL AND f.factor_type IN ('TOTP','SMS','WHATSAPP')) AS mfa_factors
           FROM iam.user_session s
@@ -82,6 +83,7 @@ async def load_principal(conn: asyncpg.Connection, token: str) -> Optional[Princ
     pr.mfa_required = mfa_required_for(pr.portal, row["mfa_required"], bool(pr.mfa_factors), policy)
     pr.mfa_pending = pr.mfa_required and not row["mfa_passed"]
     pr.mfa_at, pr.step_up_minutes = row["mfa_at"], policy.step_up_minutes
+    pr.password_must_change = row["password_must_change"]
     await load_permissions(conn, pr)
     return pr
 
@@ -188,6 +190,8 @@ async def require_session(request: Request, principal: Optional[Principal] = Dep
 
 
 async def require_user(principal: Principal = Depends(require_session)) -> Principal:
+    if principal.password_must_change:     # the temporary password is replaced before anything else (N16, 1150)
+        raise ApiError(403, "PASSWORD_CHANGE_REQUIRED", "choose your own password before you continue", next="FIRST_PASSWORD")
     if principal.mfa_pending:
         raise ApiError(401, "MFA_REQUIRED", "enter the code from your authenticator app",
                        next="VERIFY" if principal.mfa_enrolled else "ENROLL")

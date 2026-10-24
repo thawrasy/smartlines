@@ -5,13 +5,21 @@ import { useI18n, LOCALES, type Locale } from "./i18n";
 interface Auth {
   me: Me | null;
   ready: boolean;
-  /** Resolves with the account, or with the second-factor step a staff sign-in still needs. */
-  /** The signed-in user, or the second-factor step the session still owes (Me also has an "mfa" field). */
-  login: (identifier: string, password: string, portal: Portal) => Promise<Me | { mfaStep: MfaStep }>;
+  /** The signed-in user, or the step the session still owes: its own password in place of a temporary one, then the
+   *  second factor (Me also has an "mfa" field). */
+  login: (identifier: string, password: string, portal: Portal) => Promise<SignedIn>;
+  /** The two sign-in doors (N16): individuals by e-mail or mobile, businesses by company number and username. */
+  signIn: (door: Door) => Promise<SignedIn>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
   can: (...perms: string[]) => boolean;
 }
+
+export type Door =
+  | { kind: "individual"; identifier: string; password: string }
+  | { kind: "business"; company_no: string; username: string; password: string; portal?: "DRIVER" | "INSPECTOR" };
+export type SignedIn = Me | { mfaStep: MfaStep } | { passwordStep: true; mfaStep: MfaStep | null };
+interface LoginOut { mfa: MfaStep | null; password_change_required?: boolean }
 
 const Ctx = createContext<Auth | null>(null);
 
@@ -34,8 +42,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => { void refresh(); }, [refresh]);
 
-  const login = useCallback(async (identifier: string, password: string, portal: Portal) => {
-    const res = await api.post<{ mfa: MfaStep | null }>("/api/auth/login", { identifier, password, portal });
+  const finish = useCallback(async (res: LoginOut): Promise<SignedIn> => {
+    if (res.password_change_required) return { passwordStep: true, mfaStep: res.mfa };
     if (res.mfa) return { mfaStep: res.mfa };
     const m = await api.get<Me>("/api/auth/me");
     if (m.market) setMarket(m.market);
@@ -44,13 +52,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return m;
   }, [setLocale, setMarket]);
 
+  const login = useCallback(async (identifier: string, password: string, portal: Portal) =>
+    finish(await api.post<LoginOut>("/api/auth/login", { identifier, password, portal })), [finish]);
+
+  const signIn = useCallback(async (door: Door) => {
+    const { kind, ...body } = door;
+    return finish(await api.post<LoginOut>(`/api/auth/login/${kind}`, body));
+  }, [finish]);
+
   const logout = useCallback(async () => {
     try { await api.post("/api/auth/logout"); } finally { setMe(null); }
   }, []);
 
   const can = useCallback((...perms: string[]) => !!me && perms.some((p) => me.permissions.includes(p)), [me]);
 
-  return <Ctx.Provider value={{ me, ready, login, logout, refresh, can }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ me, ready, login, signIn, logout, refresh, can }}>{children}</Ctx.Provider>;
 }
 
 export function useAuth() {

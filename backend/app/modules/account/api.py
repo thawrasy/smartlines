@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 
 from ... import db
 from ...config import get_settings
-from ...deps import Principal, context_for, require_portal, require_user, require_step_up
+from ...deps import Principal, context_for, require_portal, require_session, require_user, require_step_up
 from ...errors import ApiError
 from ..photo import service as photo
 from . import names, service
@@ -149,6 +149,18 @@ async def verify_photo_identity(request: Request, pr: Principal = Depends(requir
     ctx = context_for(request, pr)
     async with db.transaction(ctx) as conn:
         return await photo.verify_identity(conn, pr)
+
+
+@router.post("/password/first")
+async def first_password(body: PasswordIn, request: Request, pr: Principal = Depends(require_session)):
+    """The temporary password set by an administrator is replaced here, before the second factor and anything else
+    (N16, 1150)."""
+    if not pr.password_must_change:
+        raise ApiError(409, "PASSWORD_NOT_TEMPORARY", "this password was chosen by you; change it from the account page")
+    ctx = context_for(request, pr)
+    async with db.transaction(ctx) as conn:
+        await service.change_password(conn, ctx, pr, body.current_password, body.new_password)
+    return {"ok": True}
 
 
 @router.post("/password")

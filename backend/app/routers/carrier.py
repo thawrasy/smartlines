@@ -13,6 +13,7 @@ from .. import db, markets
 from ..deps import Principal, context_for, require_portal, require_step_up
 from ..errors import ApiError, forbidden, not_found
 from ..ledger import platform_wallet, post_txn
+from ..modules.account.doors import temporary_password
 from ..modules.cash import service as cash
 from ..modules.fleet import service as fleet
 from ..modules.photo import service as photo
@@ -180,12 +181,13 @@ async def add_driver(body: DriverIn, request: Request, pr: Principal = Depends(o
             party_id, body.email, body.mobile, hash_password(body.password))
         await conn.execute("INSERT INTO iam.company_member (user_id, company_id, role_id) VALUES ($1, $2, $3)",
                            user_id, pr.company_id, role_id)
+        door = await temporary_password(conn, user_id)
         await conn.execute(
             "INSERT INTO fleet.crew_profile (party_id, company_id, crew_type, license_class) VALUES ($1, $2, 'DRIVER', $3)",
             party_id, pr.company_id, body.license_class)
         uid = await conn.fetchval("SELECT uid FROM iam.party WHERE id = $1", party_id)
     request.state.audit = {"action": "crew.create", "object_type": "party", "object_id": party_id}
-    return {"uid": str(uid)}
+    return {"uid": str(uid), "sign_in": door}
 
 
 # ------------------------------------------------------------------ routes

@@ -252,9 +252,9 @@ async def onboard_operator(body: OperatorIn, request: Request, pr: Principal = D
     if problem:
         raise ApiError(422, problem, "password does not meet the policy")
     async with db.transaction(context_for(request, pr)) as conn:
-        company_id, uid = await service.onboard_operator(conn, body, pr.user_id)
+        company_id, uid, door = await service.onboard_operator(conn, body, pr.user_id)
     request.state.audit = {"action": "boarding.operator_onboard", "object_type": "company", "object_id": company_id}
-    return {"uid": uid}
+    return {"uid": uid, "sign_in": door}
 
 
 @station.get("/overview")

@@ -65,7 +65,8 @@ async def change_password(conn, ctx: db.Context, pr: Principal, current: str, ne
         raise ApiError(422, problem, "password does not meet the policy")
     if verify_password(stored, new):
         raise ApiError(422, "PASSWORD_SAME", "choose a password you have not been using")
-    await conn.execute("UPDATE iam.app_user SET password_hash = $2, password_changed_at = now() WHERE id = $1",
+    await conn.execute("""UPDATE iam.app_user SET password_hash = $2, password_changed_at = now(),
+                                 password_must_change = false, temp_password_expires_at = NULL WHERE id = $1""",
                        pr.user_id, hash_password(new))
     await revoke_others(conn, ctx, pr)
     await auth_event(conn, ctx, pr, "PASSWORD_CHANGED")

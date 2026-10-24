@@ -5,7 +5,7 @@ import uuid
 
 import pytest
 
-from test_e2e import login, owner_sql
+from test_e2e import login, owner_sql, settle_password
 
 ADMIN = ("admin@masslak.test", "PLATFORM")
 CARRIER = ("owner@carrier.test", "OPERATOR")
@@ -240,6 +240,7 @@ def operating_company(admin):
     r = admin.post("/api/admin/boarding/operating-companies", json={
         "legal_name": "Damascus Station Services", "owner_name": "Station Owner", "owner_email": email, "owner_password": password})
     assert r.status_code == 201, r.text
+    settle_password(email)
     return {"uid": r.json()["uid"], "email": email, "password": password}
 
 

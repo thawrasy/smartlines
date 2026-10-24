@@ -32,7 +32,15 @@ def login(email: str, portal: str, password: str = PASSWORD) -> httpx.Client:
     c = client()
     r = c.post("/api/auth/login", json={"identifier": email, "password": password, "portal": portal})
     assert r.status_code == 200, r.text
+    if r.json().get("password_change_required"):
+        settle_password(email)
     return c
+
+
+def settle_password(email: str) -> None:
+    """Staff made by a test keep the password the test gave them: the first-sign-in change (N16, 1150) is tested on its own
+    in test_signin_doors.py."""
+    owner_sql("UPDATE iam.app_user SET password_must_change = false, temp_password_expires_at = NULL WHERE email = $1", email)
 
 
 def day(offset: int) -> str:
@@ -101,6 +109,7 @@ def publish_fresh_trip() -> None:
     email = f"driver{uuid.uuid4().hex[:8]}@example.com"
     r = o.post("/api/carrier/crew", json={"full_name": "Test Driver", "email": email, "password": FRESH_DRIVER_PASSWORD})
     assert r.status_code == 201, r.text
+    settle_password(email)
     FRESH_DRIVERS.append(email)
     driver = r.json()["uid"]
     # Trip numbers carry the route, date and departure minute, so another run may already hold a minute: try others

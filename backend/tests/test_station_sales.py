@@ -7,7 +7,7 @@ import uuid
 import pytest
 
 from test_boarding_stations import ADMIN, CARRIER, set_setting, station_session, stations_module
-from test_e2e import OWNER_URL, day, free_seats, login, owner_sql, syrian
+from test_e2e import OWNER_URL, day, free_seats, login, owner_sql, settle_password, syrian
 from test_use_case_gaps import fresh_trip
 
 
@@ -22,6 +22,7 @@ def _company(admin, name):
     r = admin.post("/api/admin/boarding/operating-companies", json={
         "legal_name": name, "owner_name": "Counter Owner", "owner_email": email, "owner_password": password})
     assert r.status_code == 201, r.text
+    settle_password(email)
     return {"uid": r.json()["uid"], "email": email, "password": password}
 
 

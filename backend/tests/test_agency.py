@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from test_e2e import (OWNER_URL, bookable_trip, client, free_seats, login, owner_sql, publish_fresh_trip, syrian)
+from test_e2e import (OWNER_URL, bookable_trip, client, free_seats, login, owner_sql, publish_fresh_trip, settle_password, syrian)
 
 FEE = 100000
 RATE_BP = 500
@@ -171,6 +171,8 @@ def test_new_agency_staff_must_use_a_second_factor(agency):
                                                 "password": "counter-desk-long-passphrase", "role": "SELLER"})
     assert r.status_code == 201, r.text
     assert any(s["email"] == email and s["role"] == "AGENCY_SELLER" for s in agency.get("/api/agency/staff").json()["staff"])
+    assert r.json()["sign_in"]["username"] == email.split("@")[0]
+    settle_password(email)
     c = client()
     r = c.post("/api/auth/login", json={"identifier": email, "password": "counter-desk-long-passphrase", "portal": "AGENCY"})
     assert r.status_code == 200 and r.json()["mfa"] == "ENROLL"

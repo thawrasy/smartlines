@@ -4,6 +4,7 @@ import { useI18n } from "../../i18n";
 import { useAuth } from "../../auth";
 import { PageHead } from "../../components/layout";
 import { PlacePicker, type PickedPlace } from "../../components/PlacePicker";
+import { useSignInSlip, type SignIn } from "../../components/SignInSlip";
 import { CarrierName, Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, useToast, PasswordInput } from "../../components/ui";
 
 interface Overview { carriers: number; carriers_pending: number; passengers: number; active_trips: number; bookings: number; gmv: number; stations: number }
@@ -44,6 +45,7 @@ export function AdminCompanies() {
   const blank = { legal_name: "", code3: "", code2: "", transport_license_no: "", owner_name: "", owner_email: "", owner_password: "" };
   const [f, setF] = useState(blank);
   const [identity, setIdentity] = useState<Company | null>(null);
+  const slip = useSignInSlip();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [statusFor, setStatusFor] = useState<{ uid: string; status: string } | null>(null);
@@ -53,8 +55,8 @@ export function AdminCompanies() {
   const onboard = async () => {
     setBusy(true); setError(null);
     try {
-      await api.post("/api/admin/companies", { ...f, code2: f.code2 || null, transport_license_no: f.transport_license_no || null });
-      setOpen(false); setF(blank); toast(t("common.saved")); state.reload();
+      const r = await api.post<{ sign_in?: SignIn }>("/api/admin/companies", { ...f, code2: f.code2 || null, transport_license_no: f.transport_license_no || null });
+      setOpen(false); setF(blank); toast(t("common.saved")); state.reload(); slip.show(r.sign_in);
     } catch (e) { setError(e); } finally { setBusy(false); }
   };
   const changeStatus = async () => {
@@ -68,6 +70,7 @@ export function AdminCompanies() {
 
   return (
     <div className="stack">
+      {slip.element}
       <PageHead title={t("admin.companies")}>
         {can("company.approve") && <button className="btn" onClick={() => setOpen(true)}><Icon name="add" />{t("admin.onboard")}</button>}
       </PageHead>
@@ -285,6 +288,7 @@ export function AdminAgencies() {
   const blank = { legal_name: "", license_no: "", owner_name: "", owner_email: "", owner_password: "", commission_pct: "5", daily_limit: "500000" };
   const [f, setF] = useState(blank);
   const [mode, setMode] = useState<null | "new" | { terms: AdminAgency } | { deposit: AdminAgency }>(null);
+  const slip = useSignInSlip();
   const [terms, setTerms] = useState({ commission_pct: "", daily_limit: "", status: "ACTIVE", reason: "" });
   const [dep, setDep] = useState({ amount: "", bank_reference: "", key: newKey() });
   const [busy, setBusy] = useState(false);
@@ -299,7 +303,7 @@ export function AdminAgencies() {
   const onboard = () => run(() => api.post("/api/admin/agencies", {
     legal_name: f.legal_name, license_no: f.license_no || null, owner_name: f.owner_name, owner_email: f.owner_email,
     owner_password: f.owner_password, commission_bp: Math.round(Number(f.commission_pct) * 100), daily_limit: toMinor(f.daily_limit),
-  }).then(() => setF(blank)));
+  }).then((r) => { setF(blank); slip.show((r as { sign_in?: SignIn }).sign_in); }));
   const saveTerms = (a: AdminAgency) => run(() => api.post(`/api/admin/agencies/${a.uid}/agreement`, {
     commission_bp: Math.round(Number(terms.commission_pct) * 100), daily_limit: toMinor(terms.daily_limit), status: terms.status, reason: terms.reason,
   }));
@@ -317,6 +321,7 @@ export function AdminAgencies() {
 
   return (
     <div className="stack">
+      {slip.element}
       <PageHead title={t("admin.agencies")} sub={t("admin.agenciesHint")}>
         {can("company.approve") && <button className="btn" onClick={() => setMode("new")}><Icon name="add" />{t("admin.onboardAgency")}</button>}
       </PageHead>
