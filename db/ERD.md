@@ -237,6 +237,11 @@ erDiagram
     bigint role_id FK
     text status
   }
+  iam_contact_code {
+    bigint id PK
+    uuid uid
+    bigint user_id FK
+  }
   iam_data_requirement {
     text field_code PK
     bigint changed_by_user_id FK
@@ -533,6 +538,7 @@ erDiagram
   iam_auth_token }o..o| iam_app_user : "user_id"
   iam_device_permission_state }o--|| iam_app_user : "user_id"
   iam_mfa_challenge }o--|| iam_app_user : "user_id"
+  iam_contact_code }o--|| iam_app_user : "user_id"
   iam_photo_change_request }o--|| iam_app_user : "requested_by_user_id"
   iam_data_requirement }o..o| iam_app_user : "changed_by_user_id"
   iam_photo_evidence_kind }o..o| iam_app_user : "changed_by_user_id"

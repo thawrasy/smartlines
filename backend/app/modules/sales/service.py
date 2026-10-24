@@ -21,6 +21,7 @@ from ..family import service as fam
 from ..fares import categories as cat
 from ..notify.outbox import emit
 from ..photo import service as photo
+from ..account.names import rules as names_rules
 from ..trips import changes as trip_changes
 from . import charter, documents, options, penalties, repository as repo
 from .models import MAX_LOCKED_SEATS, BookingIn, HoldIn
@@ -163,6 +164,7 @@ class Traveller:
     member: Optional[asyncpg.Record] = None
     category: str = "ADULT"
     fare: int = 0
+    latin: tuple = (None, None, None, None)      # first, father, grandfather, last in Latin letters (N4, 1149)
 
     @property
     def full_name(self) -> str:
@@ -174,7 +176,8 @@ async def travellers(conn: asyncpg.Connection, ctx: db.Context, body: BookingIn,
     out, seen = [], set()
     for i, p in enumerate(body.passengers, start=1):
         t = Traveller(i, p.nationality, p.first_name, p.father_name, p.grandfather_name, p.last_name, p.seat_no, p.id_type, p.id_no,
-                      p.id_last4, p.passport_expiry, p.birth_date, p.gender, p.mobile, p.category, p.with_adult)
+                      p.id_last4, p.passport_expiry, p.birth_date, p.gender, p.mobile, p.category, p.with_adult,
+                      latin=(p.first_name_latin, p.father_name_latin, p.grandfather_name_latin, p.last_name_latin))
         if p.family_member_uid:
             if membership is None:
                 raise ApiError(404, "NOT_IN_FAMILY", "this traveller is not a member of your family")
@@ -353,6 +356,12 @@ async def create_booking(conn: asyncpg.Connection, ctx: db.Context, buyer: Buyer
         codes = documents.check(r, t.id_type, t.id_no, t.passport_expiry, departs)
         documents.enforce(r, [(t.index, codes)])
         doc_issues.append(codes)
+    # The name as in the passport (N4, 1149): on an international trip, and on any trip when the platform asks for it
+    latin_domestic = bool((await names_rules(conn)).get("latin_required_domestic"))
+    for t in people:
+        if (reqs[t.nationality].international or latin_domestic) and not (t.latin[0] and t.latin[3]):
+            raise ApiError(422, "LATIN_NAME_REQUIRED", "give the first and family names in Latin letters, as in the passport",
+                           passenger=t.index)
 
     # A boarding photo the platform's rules require (WP1, 1087): refused here, not at the gate. A traveller without a
     # linked profile has no photo on file, so a required photo blocks their booking until the profile is linked (WP3).
@@ -442,14 +451,16 @@ async def create_booking(conn: asyncpg.Connection, ctx: db.Context, buyer: Buyer
                 """INSERT INTO sales.passenger (booking_id, full_name, first_name, father_name, grandfather_name,
                      last_name, nationality, id_type, id_no_last4, mobile_enc, id_no_enc, id_no_bidx, enc_key_id,
                      passport_expiry, passport_country, passenger_category, birth_date, gender, party_id, family_member_id,
-                     accompanied_by_passenger_id, mobile_last4)
-                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+                     accompanied_by_passenger_id, mobile_last4, first_name_latin, father_name_latin, grandfather_name_latin,
+                     last_name_latin)
+                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22,
+                           $23, $24, $25, $26)
                    RETURNING id""",
                 booking_id, t.full_name, t.first_name, t.father_name, t.grandfather_name, t.last_name,
                 t.nationality, t.id_type, masked, mobile_enc, enc, bidx, key_id,
                 t.passport_expiry if t.id_type == "PASSPORT" else None, t.nationality if t.id_type == "PASSPORT" else None,
                 t.category, t.birth_date, t.gender, t.member["party_id"] if t.member else None, t.member["id"] if t.member else None,
-                pids.get(t.with_adult) if t.seat_no is None else None, mobile_last4)
+                pids.get(t.with_adult) if t.seat_no is None else None, mobile_last4, *t.latin)
             pids[t.index] = pid
             tid = await conn.fetchval(
                 """INSERT INTO sales.ticket (ticket_no, booking_id, passenger_id, trip_id, from_seq, to_seq, seat_no,

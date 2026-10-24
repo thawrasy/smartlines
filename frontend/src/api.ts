@@ -79,6 +79,8 @@ export interface Me {
   mfa?: { enrolled: boolean; required: boolean };
   /** Minutes without activity after which the session ends (1146). */
   idle_minutes?: number;
+  /** The name parts still to give (N4), the e-mail still to confirm (N35), the account's verification (KYC). */
+  names_complete?: boolean; email_verified?: boolean; verification_status?: string;
 }
 
 export type MfaStep = "VERIFY" | "ENROLL";

@@ -2,6 +2,7 @@
 import asyncio
 import hmac
 import json
+import logging
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Literal, Optional
@@ -13,6 +14,7 @@ from .. import crypto, db, markets, metrics, mfa, mfa_policy, ratelimit, shield
 from ..config import get_settings
 from ..deps import REPLACED, SESSION_COOKIE, Principal, base_context, mfa_required_for, require_session, require_user
 from ..errors import ApiError
+from ..modules.account import names
 from ..security import (hash_password, identifier_blocked, identifier_hash, new_token, password_needs_rehash, password_problem, token_hash,
                         verify_password)
 
@@ -29,10 +31,16 @@ MAX_FAILS, LOCK_MIN = 5, 15
 
 
 class RegisterIn(BaseModel):
-    full_name: str = Field(min_length=3, max_length=120)
+    """The sign-up form (N35): the nationality first, then the name in parts as its rules require (N4); the e-mail and
+    the password typed twice. A client that still sends one full name (older app versions) is asked for the parts at
+    the next sign-in."""
+    name: Optional[names.NameIn] = None
+    full_name: Optional[str] = Field(default=None, min_length=3, max_length=120)
     email: EmailStr
+    email_confirm: Optional[EmailStr] = None
     mobile: Optional[str] = Field(default=None, pattern=r"^\+?[0-9]{8,15}$")
     password: str = Field(min_length=1, max_length=200)
+    password_confirm: Optional[str] = Field(default=None, max_length=200)
     locale: Optional[str] = None             # defaults to the platform setting
 
 
@@ -98,7 +106,14 @@ async def reactivate(body: ReactivateIn, request: Request):
 
 @router.post("/register", status_code=201)
 async def register(body: RegisterIn, request: Request):
-    problem = password_problem(body.password, body.email, body.full_name, body.mobile)
+    if body.name is None and not body.full_name:
+        raise ApiError(422, "NAME_PARTS_REQUIRED", "give the name parts the identity document carries", missing=["first", "last"])
+    if body.email_confirm is not None and body.email_confirm.lower() != body.email.lower():
+        raise ApiError(422, "EMAIL_MISMATCH", "the two e-mail addresses differ")
+    if body.password_confirm is not None and body.password_confirm != body.password:
+        raise ApiError(422, "PASSWORD_MISMATCH", "the two passwords differ")
+    display = names.full_of(body.name) if body.name else body.full_name.strip()
+    problem = password_problem(body.password, body.email, display, body.mobile)
     if problem:
         raise ApiError(422, problem, "password does not meet the policy")
     ctx = base_context(request)
@@ -116,9 +131,13 @@ async def register(body: RegisterIn, request: Request):
         locale = body.locale if body.locale and await conn.fetchval(
             "SELECT 1 FROM ref.locale WHERE code = $1 AND is_enabled", body.locale) else await conn.fetchval(
             "SELECT coalesce((SELECT value #>> '{}' FROM sys.setting WHERE key = 'ui.default_locale'), 'en')")
+        if body.name:
+            names.check(await names.rules(conn), body.name)
         party_id = await conn.fetchval(
             "INSERT INTO iam.party (party_type, legal_name) VALUES ('PERSON', $1) RETURNING id",   # contact lives on the account
-            body.full_name.strip())
+            display)
+        if body.name:
+            await names.save(conn, party_id, body.name)
         await conn.execute("INSERT INTO iam.party_role (party_id, role_code) VALUES ($1, 'PASSENGER')", party_id)
         user_id = await conn.fetchval(
             """INSERT INTO iam.app_user (party_id, account_kind, email, mobile, password_hash, password_changed_at,
@@ -129,8 +148,23 @@ async def register(body: RegisterIn, request: Request):
             # the passenger's market currency (1061): the default market until a country is known
             "INSERT INTO fin.wallet (owner_party_id, wallet_type, label, currency) VALUES ($1, 'USER', 'Passenger wallet', ref.company_currency($1))",
             party_id)
+        code, minutes = await names.issue_email_code(conn, user_id)
     request.state.audit = {"action": "auth.register", "object_type": "app_user", "object_id": user_id}
-    return {"ok": True}
+    sent = await send_email_code(body.email, code, minutes, locale)
+    return {"ok": True, "email_code_sent": sent}
+
+
+async def send_email_code(to: str, code: str, minutes: int, locale: str) -> bool:
+    """Sends the code that confirms the e-mail (N35); a failure leaves the account unconfirmed, to ask again later."""
+    from ..modules.notify import providers
+    from ..modules.notify.render import render
+    subject, text = render("account.verify_email", "EMAIL", locale, {"code": code, "minutes": minutes})
+    try:
+        await asyncio.to_thread(providers.send_email, to, subject, text)
+        return True
+    except Exception:                                                  # noqa: BLE001 - the person asks for another code
+        logging.getLogger("masslak.auth").warning("the e-mail confirmation code could not be sent")
+        return False
 
 
 @router.post("/login")
@@ -368,12 +402,18 @@ async def me(request: Request, principal: Principal = Depends(require_user)):
         # the market the screens show times and money in (1061): the company's, or the person's
         market = (await markets.of_party(conn, principal.company_id or principal.party_id)).public()
         idle = await conn.fetchval("SELECT iam.idle_minutes($1)", principal.portal)
+        person = await conn.fetchrow(
+            """SELECT p.names_complete, p.verification_status, u.email_verified_at IS NOT NULL AS email_verified
+                 FROM iam.app_user u JOIN iam.party p ON p.id = u.party_id WHERE u.id = $1""", principal.user_id)
     return {
         "uid": principal.user_uid, "name": principal.display_name, "email": principal.email,
         "portal": principal.portal, "locale": principal.locale, "company": company, "market": market,
         "roles": sorted(principal.roles), "permissions": sorted(principal.permissions), "is_owner": principal.is_owner,
         "mfa": {"enrolled": principal.mfa_enrolled, "required": principal.mfa_required},
         "idle_minutes": idle,           # the screen signs out by itself after this long without activity (1146)
+        # the name parts still to give (N4), the e-mail still to confirm (N35), and the account's verification (KYC)
+        "names_complete": person["names_complete"], "email_verified": person["email_verified"],
+        "verification_status": person["verification_status"],
     }
 
 

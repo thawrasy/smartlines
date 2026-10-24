@@ -11,10 +11,64 @@ from ...config import get_settings
 from ...deps import Principal, context_for, require_portal, require_user, require_step_up
 from ...errors import ApiError
 from ..photo import service as photo
-from . import service
+from . import names, service
 
 router = APIRouter(prefix="/api/account", tags=["account"])
 platform = APIRouter(prefix="/api/admin/privacy", tags=["account"])
+
+
+@router.get("/profile")
+async def profile(request: Request, pr: Principal = Depends(require_user)):
+    """The person's name in parts and its rules (N4), the e-mail's confirmation (N35) and the account's verification."""
+    async with db.transaction(context_for(request, pr)) as conn:
+        person = await names.of_party(conn, pr.party_id)
+        verified = await conn.fetchval("SELECT email_verified_at IS NOT NULL FROM iam.app_user WHERE id = $1", pr.user_id)
+        return {"name": {k: person.get(k) for k in ("nationality", "first_name", "father_name", "grandfather_name", "last_name",
+                                                     "mother_name", "first_name_latin", "father_name_latin",
+                                                     "grandfather_name_latin", "last_name_latin")},
+                "names_complete": person.get("names_complete"), "verification_status": person.get("verification_status"),
+                "email": pr.email, "email_verified": verified, "rules": await names.rules(conn)}
+
+
+@router.put("/names")
+async def set_names(body: names.NameIn, request: Request, pr: Principal = Depends(require_user)):
+    """The person gives or corrects their name parts. Once the account is verified (KYC), the name follows the
+    document reviewed and is changed through a new review, not here."""
+    async with db.transaction(context_for(request, pr)) as conn:
+        status = await conn.fetchval("SELECT verification_status FROM iam.party WHERE id = $1", pr.party_id)
+        if status == "VERIFIED":
+            raise ApiError(409, "NAME_LOCKED", "the account is verified: a change of name goes through a new identity review")
+        names.check(await names.rules(conn), body)
+        await names.save(conn, pr.party_id, body)
+    request.state.audit = {"action": "account.names", "object_type": "party", "object_id": pr.party_id}
+    return {"ok": True, "name": names.full_of(body)}
+
+
+class CodeIn(BaseModel):
+    code: str = Field(pattern=r"^\s*[0-9]{6}\s*$")
+
+
+@router.post("/email/send")
+async def send_email_code(request: Request, pr: Principal = Depends(require_user)):
+    """Another code to confirm the account's e-mail."""
+    from ...routers.auth import send_email_code as deliver
+    async with db.transaction(context_for(request, pr)) as conn:
+        if await conn.fetchval("SELECT email_verified_at IS NOT NULL FROM iam.app_user WHERE id = $1", pr.user_id):
+            return {"ok": True, "already": True}
+        if not pr.email:
+            raise ApiError(409, "NO_EMAIL", "the account has no e-mail")
+        code, minutes = await names.issue_email_code(conn, pr.user_id)
+    return {"ok": True, "sent": await deliver(pr.email, code, minutes, pr.locale)}
+
+
+@router.post("/email/verify")
+async def verify_email(body: CodeIn, request: Request, pr: Principal = Depends(require_user)):
+    async with db.transaction(context_for(request, pr)) as conn:
+        ok = await names.confirm_email(conn, pr.user_id, body.code)
+    if not ok:
+        raise ApiError(422, "CODE_WRONG", "the code is wrong or has expired; ask for another one")
+    request.state.audit = {"action": "account.email_verified", "object_type": "app_user", "object_id": pr.user_id}
+    return {"ok": True}
 
 
 @router.get("/security")

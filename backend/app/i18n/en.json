@@ -1361,5 +1361,9 @@
   },
   "trip_change_labels": {
     "FREE_CANCEL": "If the new time does not suit you, cancel the booking and get everything back."
+  },
+  "account.verify_email": {
+    "subject": "Your Masslak confirmation code",
+    "body": "Your code to confirm this e-mail on Masslak is {code}. It lasts {minutes} minutes. If you did not create an account, ignore this message."
   }
 }

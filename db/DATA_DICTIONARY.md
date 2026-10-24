@@ -2,13 +2,13 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**571 tables, 6057 columns, in 26 schemas.**
+**572 tables, 6082 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
 ## Index
 
-- [`iam` — Identity, parties, users, permissions and API clients](#iam) (44 tables)
+- [`iam` — Identity, parties, users, permissions and API clients](#iam) (45 tables)
 - [`ref` — Reference data, locales and files](#ref) (18 tables)
 - [`sys` — Settings, outbox and webhooks](#sys) (27 tables)
 - [`net` — Network: stations, routes, lines, corridors and geofences](#net) (28 tables)
@@ -123,6 +123,7 @@ Login account; the account kind determines the portal: platform, company, agency
 | `preferred_locale` | `text` | 🔗 `ref.locale` ✱ | `'en'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+| `email_verified_at` | `timestamp with time zone` |  |  |
 
 ### `iam.auth_token` 🛡️
 
@@ -265,6 +266,23 @@ Company users (seats) and their role; one owner per company, not editable from i
 | `role_id` | `bigint` | 🔗 `iam.role`  |  |
 | `is_owner` | `boolean` | ✱ | `false` |
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `iam.contact_code` 🛡️
+
+A code sent to confirm an account's e-mail (or mobile): only its keyed hash is kept, used once, five tries (1149, N35)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `user_id` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `channel` | `text` | ✱ |  |
+| `purpose` | `text` | ✱ |  |
+| `code_hash` | `bytea` | ✱ |  |
+| `attempts` | `smallint` | ✱ | `0` |
+| `expires_at` | `timestamp with time zone` | ✱ |  |
+| `consumed_at` | `timestamp with time zone` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `iam.data_requirement` 🛡️
@@ -607,6 +625,16 @@ Unified party: person, company or entity; registered once and holds multiple rol
 | `legal_hold` | `boolean` | ✱ | `false` |
 | `anonymized_at` | `timestamp with time zone` |  |  |
 | `erasure_request_id` | `bigint` | 🔗 `gov.subject_request`  |  |
+| `first_name` | `text` |  |  |
+| `father_name` | `text` |  |  |
+| `grandfather_name` | `text` |  |  |
+| `last_name` | `text` |  |  |
+| `mother_name` | `text` |  |  |
+| `first_name_latin` | `text` |  |  |
+| `father_name_latin` | `text` |  |  |
+| `grandfather_name_latin` | `text` |  |  |
+| `last_name_latin` | `text` |  |  |
+| `names_complete` | `boolean` | ✱ | `false` |
 
 ### `iam.party_photo` 🛡️
 
@@ -4330,6 +4358,10 @@ Passenger data on the booking; document numbers encrypted with a blind index for
 | `erasure_request_id` | `bigint` | 🔗 `gov.subject_request`  |  |
 | `mobile_enc` | `bytea` |  |  |
 | `mobile_last4` | `text` |  |  |
+| `first_name_latin` | `text` |  |  |
+| `father_name_latin` | `text` |  |  |
+| `grandfather_name_latin` | `text` |  |  |
+| `last_name_latin` | `text` |  |  |
 
 ### `sales.passenger_compensation` 🛡️
 

@@ -5,6 +5,7 @@ import { useI18n } from "../../i18n";
 import { useAuth } from "../../auth";
 import { PageHead } from "../../components/layout";
 import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Status, useLoad, useToast, PasswordInput } from "../../components/ui";
+import { ProfileCard } from "./Profile";
 
 interface Security {
   sessions: { id: number; portal: string; ip: string; user_agent: string | null; issued_at: string; last_seen_at: string; current: boolean }[];
@@ -53,6 +54,7 @@ export function AccountPage() {
     <div className="page stack" style={{ maxWidth: 980 }}>
       <PageHead title={t("account.title")} sub={me?.email ?? undefined} />
       <ErrorBox error={!erase ? error : null} />
+      {me?.portal === "PASSENGER" && <ProfileCard />}
       <Loaded state={sec}>{(s) => (
         <>
           <div className="grid cols-2" style={{ alignItems: "start" }}>

@@ -72,7 +72,7 @@ def beirut_trip(admin):
 
 def passenger(seat, **doc):
     return {"nationality": "SY", "first_name": "Rami", "father_name": "Khaled", "grandfather_name": "Omar",
-            "last_name": "Haddad", "seat_no": seat, **doc}
+            "last_name": "Haddad", "first_name_latin": "Rami", "last_name_latin": "Haddad", "seat_no": seat, **doc}
 
 
 def try_book(c, trip, **doc):
@@ -108,8 +108,13 @@ def test_international_trips_need_a_valid_passport(beirut_trip):
     r = try_book(pax, beirut_trip, id_type="PASSPORT", id_no="N0123456", passport_expiry=soon)
     assert r.status_code == 422 and r.json()["error"]["code"] == "PASSPORT_EXPIRES_TOO_SOON"
     good = (date.today() + timedelta(days=900)).isoformat()
+    # the name as in the passport, in Latin letters, is required across a border (N4, 1149)
+    r = try_book(pax, beirut_trip, id_type="PASSPORT", id_no="N0123456", passport_expiry=good, first_name_latin=None, last_name_latin=None)
+    assert r.status_code == 422 and r.json()["error"]["code"] == "LATIN_NAME_REQUIRED", r.text
     r = try_book(pax, beirut_trip, id_type="PASSPORT", id_no="N0123456", passport_expiry=good)
     assert r.status_code == 201, r.text
+    assert owner_sql("""SELECT p.first_name_latin || ' ' || p.last_name_latin FROM sales.passenger p JOIN sales.booking b ON b.id = p.booking_id
+                         WHERE b.booking_ref = $1""", r.json()["booking_ref"]) == "Rami Haddad"
     row = owner_sql("""SELECT d.doc_type, d.dest_country, d.exception, p.passport_expiry::text AS expiry FROM sales.ticket_doc d
                          JOIN sales.ticket t ON t.id = d.ticket_id JOIN sales.booking b ON b.id = t.booking_id
                          JOIN sales.passenger p ON p.id = t.passenger_id WHERE b.booking_ref = $1""", r.json()["booking_ref"], fetch=True)

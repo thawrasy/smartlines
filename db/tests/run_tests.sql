@@ -3837,6 +3837,17 @@ SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM ops.trip_change WHERE trip_id = :cht
 ROLLBACK;
 SET ROLE masslak_app;
 
+-- Names in parts (1149): the rules follow the nationality; a Latin name part holds Latin letters only
+SELECT pg_temp.ok((SELECT value -> 'SY' -> 'required' = '["first", "father", "last"]'::jsonb AND (value -> 'OTHER' ->> 'latin_required')::boolean
+                     FROM sys.setting WHERE key = 'identity.name_rules'),
+  'Names (1149): a Syrian gives first, father''s and family names; others give their Latin name too');
+BEGIN;
+RESET ROLE;
+SELECT pg_temp.expect_error($$UPDATE iam.party SET first_name_latin = 'Sam3r' WHERE id = (SELECT min(id) FROM iam.party WHERE party_type = 'PERSON')$$,
+  'check constraint', 'Names (1149): a Latin name part is in Latin letters');
+ROLLBACK;
+SET ROLE masslak_app;
+
 -- Charter (1123): carriers hire out vehicles and whole trips on their terms; requests are priced, paid and their seats held
 BEGIN;
 RESET ROLE;

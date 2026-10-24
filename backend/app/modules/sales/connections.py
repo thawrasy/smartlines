@@ -324,6 +324,8 @@ async def _passengers(conn: asyncpg.Connection, booking_id: int) -> list[Passeng
             id_type=id_type if (id_no or r["id_no_last4"]) else None, id_no=id_no,
             id_last4=None if id_no else r["id_no_last4"], mobile=mobile,
             passport_expiry=r["passport_expiry"] if id_type == "PASSPORT" else None,
+            first_name_latin=r["first_name_latin"], father_name_latin=r["father_name_latin"],
+            grandfather_name_latin=r["grandfather_name_latin"], last_name_latin=r["last_name_latin"],
             seat_no=r["seat_no"], with_adult=order.get(r["accompanied_by_passenger_id"]) if r["seat_no"] is None else None))
     return out
 

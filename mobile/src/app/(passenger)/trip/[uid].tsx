@@ -30,12 +30,15 @@ interface Names {
   birth_date: string; member_uid: string | null;
   syrian: boolean; country: string; first_name: string; father_name: string; grandfather_name: string; last_name: string;
   id_type: string; id_no: string; passport_expiry: string;           // international trips
+  first_name_latin: string; last_name_latin: string;                  // as in the passport: international trips (N4)
 }
 const blank: Names = { birth_date: "", member_uid: null, syrian: true, country: "", first_name: "", father_name: "", grandfather_name: "", last_name: "",
-                       id_type: "PASSPORT", id_no: "", passport_expiry: "" };
+                       id_type: "PASSPORT", id_no: "", passport_expiry: "", first_name_latin: "", last_name_latin: "" };
 // What a nationality needs on this segment: a passport on international trips unless an approved exception applies
 interface Docs { international: boolean; docs: string[]; passport_min_days: number; exception: boolean; notes: string[]; departs: string }
 const minExpiry = (d: Docs) => { const x = new Date(`${d.departs}T12:00:00Z`); x.setUTCDate(x.getUTCDate() + d.passport_min_days); return x.toISOString().slice(0, 10); };
+const LATIN = /^[A-Za-z][A-Za-z '.-]{0,59}$/;
+const latinOk = (x: Names, d?: Docs) => !d?.international || (LATIN.test(x.first_name_latin.trim()) && LATIN.test(x.last_name_latin.trim()));
 const docOk = (x: Names, d?: Docs) => !d?.international || (d.docs.includes(x.id_type) && /^[0-9A-Za-z \-/]{4,24}$/.test(x.id_no.trim())
   && (x.id_type !== "PASSPORT" || (/^\d{4}-\d{2}-\d{2}$/.test(x.passport_expiry) && x.passport_expiry >= minExpiry(d))));
 
@@ -106,7 +109,7 @@ export default function Trip() {
   const countries = new Set(ref.data?.countries ?? []);
   const complete = (x?: Names) => !!x && !!x.first_name.trim() && !!x.last_name.trim()
     && (x.syrian ? !!x.father_name.trim() && !!x.grandfather_name.trim() : countries.has(x.country) && x.country !== "SY")
-    && (!!x.member_uid || docOk(x, docs[nat(x)]));            // a family member's stored document is used when none is typed
+    && (!!x.member_uid || docOk(x, docs[nat(x)])) && latinOk(x, docs[nat(x)]);   // a family member's stored document is used when none is typed
 
   const bands = detail.data?.categories ?? [];
   const lapAllowed = bands.some((b) => b.category === "INFANT" && !b.seat_required);
@@ -118,6 +121,7 @@ export default function Trip() {
     return { seat_no: seat, nationality: x.syrian ? "SY" : x.country, first_name: x.first_name.trim(), last_name: x.last_name.trim(),
              father_name: x.father_name.trim() || null, grandfather_name: x.grandfather_name.trim() || null,
              birth_date: x.birth_date || null, family_member_uid: x.member_uid,
+             first_name_latin: x.first_name_latin.trim() || null, last_name_latin: x.last_name_latin.trim() || null,
              ...(d?.international && x.id_no.trim() ? { id_type: x.id_type, id_no: x.id_no.trim(), passport_expiry: x.id_type === "PASSPORT" ? x.passport_expiry : null } : {}) };
   };
   const travellers = () => keys.map((k) => body(names[k] ?? blank, k.startsWith("s") ? Number(k.slice(1)) : null));
@@ -292,6 +296,8 @@ export default function Trip() {
                             <Pill key={k} on={type === k} label={t(`trip.docTypes.${k}`)} onPress={() => set({ id_type: k })} />
                           ))}</View>
                         ) : null}
+                        <Field label={t("trip.firstLatin")} value={x.first_name_latin} onChangeText={(v) => set({ first_name_latin: v })} autoComplete="off" autoCapitalize="words" />
+                        <Field label={t("trip.lastLatin")} value={x.last_name_latin} onChangeText={(v) => set({ last_name_latin: v })} autoComplete="off" autoCapitalize="words" />
                         <Field label={t("trip.docNumber")} value={x.id_no} onChangeText={(v) => set({ id_no: v, id_type: type })} autoComplete="off" autoCapitalize="characters" />
                         {type === "PASSPORT" ? <Field label={t("trip.passportExpiry", { date: minExpiry(d) })} value={x.passport_expiry} placeholder="YYYY-MM-DD"
                                                       onChangeText={(v) => set({ passport_expiry: v.trim(), id_type: type })} maxLength={10} /> : null}

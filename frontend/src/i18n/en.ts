@@ -506,6 +506,7 @@ const en = {
     statement: "Statement", topupDone: "The wallet was topped up.", noLive: "Online top-up will be available when payment gateways are connected.",
   },
   auth: {
+    emailConfirm: "Confirm e-mail", passwordConfirm: "Confirm password", emailMismatch: "The two e-mail addresses differ.", passwordMismatch: "The two passwords differ.", unverifiedNote: "Your account starts unverified: you can book at once. Verifying your identity later unlocks points, miles and other services.", 
     mfa: {
       verifyTitle: "Two-step sign-in", verifyText: "Enter the 6-digit code from your authenticator app.",
       recoveryText: "Enter one of the recovery codes you saved. Each code works once.",
@@ -1042,6 +1043,21 @@ const en = {
     policy: { title: "Reasons and limits of trip changes", sub: "The reasons a carrier picks from, in Arabic and English, and how far a moved departure lets a passenger cancel without fee.",
       freeCancel: "Cancel without fee from (minutes)", maxShift: "Largest move of the departure (minutes)", window: "Move passengers to trips within (hours)",
       code: "Code", en: "English", ar: "Arabic", addReason: "Add a reason", otherKept: "OTHER stays for what the list does not name.", saved: "Policy saved." },
+  },
+  names: {
+    title: "My name", sub: "As in your identity document. Syrians give at least the first, father's and family names; others give first and family names and the name in Latin letters.",
+    syrianHint: "Syrian citizens: as on the national ID card; the grandfather's name is optional.",
+    foreignHint: "Other nationalities: given and family names as in the passport, and the same in Latin letters.",
+    motherName: "Mother's name", firstLatin: "First name (Latin, as in the passport)", fatherLatin: "Father's name (Latin)",
+    grandfatherLatin: "Grandfather's name (Latin)", lastLatin: "Family name (Latin, as in the passport)",
+    latinRequired: "The name in Latin letters, as in the passport (required)", latinOptional: "The name in Latin letters, as in the passport (needed for international trips)",
+    latinIntl: "International trip: the Latin name must match the passport exactly.",
+    complete: "Please complete your name in parts: tickets and manifests carry it as in your document.",
+    locked: "Your account is verified: the name follows the document reviewed. To change it, ask for a new identity review.",
+    status: { UNVERIFIED: "Unverified", PENDING: "Under review", VERIFIED: "Verified", REJECTED: "Not accepted" },
+    verifyEmailTitle: "Confirm your e-mail", verifyEmailSub: "We sent a six-digit code to {email}. Enter it here.",
+    code: "Code", confirm: "Confirm", resend: "Send another code", emailVerified: "E-mail confirmed.", codeSent: "A new code is on its way.",
+    bannerName: "Complete your name in parts.", bannerEmail: "Confirm your e-mail with the code we sent you.", bannerGo: "Open my account",
   },
   parcel: {
     title: "Send a parcel", sub: "Book space in a coach's hold. The price follows the weight, the size or both, and the space is yours once booked.",

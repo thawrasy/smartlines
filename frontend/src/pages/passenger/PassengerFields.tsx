@@ -15,6 +15,7 @@ export interface PassengerDraft {
   family_member_uid: string;                       // filled from the family register (4.20); the server uses the register
   stored_doc: boolean;                             // the register holds the document number (encrypted): no need to type it
   lap: boolean;                                    // an infant on an adult's lap, without a seat
+  first_name_latin: string; last_name_latin: string; // as in the passport: required on international trips (N4)
 }
 
 /** Documents a nationality needs on the trip (GET /api/trips/{uid}/documents). */
@@ -29,6 +30,7 @@ export const minPassportExpiry = (req: TravelDocs) => addDays(req.departs, req.p
 export const blankPassenger = (lap = false): PassengerDraft => ({
   nationality: "SY", first_name: "", father_name: "", grandfather_name: "", last_name: "", more_names: false,
   id_type: "NATIONAL_ID", id_last4: "", id_no: "", passport_expiry: "", birth_date: "", family_member_uid: "", stored_doc: false, lap,
+  first_name_latin: "", last_name_latin: "",
 });
 
 /** A traveller filled from the family register: names, nationality, date of birth and document type as registered. */
@@ -38,6 +40,7 @@ export function fromMember(m: FamilyMember, lap = false): PassengerDraft {
     last_name: m.last_name, more_names: !!(m.father_name || m.grandfather_name) && m.nationality !== "SY",
     id_type: m.id_type ?? (m.nationality === "SY" ? "NATIONAL_ID" : "PASSPORT"), id_last4: m.id_last4 ?? "", id_no: "",
     passport_expiry: m.passport_expiry ?? "", birth_date: m.birth_date, family_member_uid: m.uid, stored_doc: !!m.id_last4, lap,
+    first_name_latin: "", last_name_latin: "",
   };
 }
 
@@ -62,6 +65,9 @@ export function categoryOf(p: PassengerDraft, bands: CategoryFare[], travel: str
 const NAME_PART = /^\p{L}+(?:[ '\-.]\p{L}+)*\.?$/u;
 const tidy = (s: string) => s.trim().replace(/\s+/g, " ");
 const validPart = (s: string) => NAME_PART.test(tidy(s)) && tidy(s).length <= 60;
+// Latin letters only, as printed in the passport's machine-readable zone
+export const LATIN_PART = /^[A-Za-z][A-Za-z '.-]{0,59}$/;
+const validLatin = (s: string) => LATIN_PART.test(tidy(s));
 
 export function namesFor(p: PassengerDraft) {
   const syrian = p.nationality === "SY";
@@ -72,6 +78,8 @@ export function namesFor(p: PassengerDraft) {
     father_name: middle && tidy(p.father_name) ? tidy(p.father_name) : null,
     grandfather_name: middle && tidy(p.grandfather_name) ? tidy(p.grandfather_name) : null,
     last_name: tidy(p.last_name),
+    first_name_latin: tidy(p.first_name_latin ?? "") || null,
+    last_name_latin: tidy(p.last_name_latin ?? "") || null,
   };
 }
 
@@ -96,6 +104,9 @@ export function passengerValid(p: PassengerDraft, req?: TravelDocs) {
   const optionalOk = (v: string | null) => v === null || validPart(v);
   if (!validPart(n.first_name) || !validPart(n.last_name) || !optionalOk(n.father_name) || !optionalOk(n.grandfather_name)) return false;
   if (p.nationality === "SY" && (!n.father_name || !n.grandfather_name)) return false;
+  const latinOk = (v: string | null) => v === null || validLatin(v);
+  if (!latinOk(n.first_name_latin) || !latinOk(n.last_name_latin)) return false;
+  if (req?.international && !(n.first_name_latin && n.last_name_latin)) return false;
   return !p.id_last4 || /^[0-9A-Za-z]{3,4}$/.test(p.id_last4);
 }
 
@@ -129,7 +140,18 @@ export function PassengerFields({ value, onChange, countries, docs, bands, trave
       </Field>
     );
   };
-  const preview = Object.values(namesFor(value)).slice(1).filter(Boolean).join(" ");
+  const { first_name, father_name, grandfather_name, last_name } = namesFor(value);
+  const preview = [first_name, father_name, grandfather_name, last_name].filter(Boolean).join(" ");
+  const latinInput = (key: "first_name_latin" | "last_name_latin", label: string) => {
+    const v = value[key] ?? "";
+    const bad = v.trim() !== "" && !validLatin(v);
+    return (
+      <Field label={intl ? label : `${label} (${t("common.optional")})`}>
+        <input className="input ltr" dir="ltr" lang="en" value={v} required={intl} maxLength={60} autoComplete="off" aria-invalid={bad}
+               style={bad ? { borderColor: "var(--error)" } : undefined} onChange={(e) => set({ [key]: e.target.value } as Partial<PassengerDraft>)} />
+      </Field>
+    );
+  };
 
   return (
     <div className="stack">
@@ -216,6 +238,11 @@ export function PassengerFields({ value, onChange, countries, docs, bands, trave
         </div>
       )}
 
+      <div className="grid cols-2">
+        {latinInput("first_name_latin", t("names.firstLatin"))}
+        {latinInput("last_name_latin", t("names.lastLatin"))}
+      </div>
+      {intl && <p className="small muted">{t("names.latinIntl")}</p>}
       {preview && <p className="small muted">{t("checkout.namePreview")}: <strong style={{ color: "var(--on-surface)" }}>{preview}</strong></p>}
     </div>
   );

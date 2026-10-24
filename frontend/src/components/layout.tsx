@@ -81,6 +81,12 @@ export function PublicLayout() {
           )}
         </div>
       </header>
+      {passenger && (me?.names_complete === false || me?.email_verified === false) && !location.pathname.startsWith("/account") && (
+        <div className="alert warn small" role="status" style={{ margin: "8px 16px 0" }}>
+          <Icon name="badge" size={20} />
+          <span>{me.names_complete === false ? t("names.bannerName") : t("names.bannerEmail")} <Link to="/account">{t("names.bannerGo")}</Link></span>
+        </div>
+      )}
       <Suspense fallback={<Spinner />}><Outlet /></Suspense>
       <footer className="footer">
         <div className="row between" style={{ flexWrap: "wrap", gap: 12 }}>

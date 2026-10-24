@@ -11,6 +11,7 @@ SEATS_BOUND, MAX_LOCKED_SEATS = 20, 8
 
 # One name part: letters in any script, single spaces, hyphens, apostrophes or dots between them
 NAME_PART = r"^[^\W\d_]+(?:[ '\-.][^\W\d_]+)*\.?$"
+LATIN_PART = r"^[A-Za-z][A-Za-z '.-]{0,59}$"
 MOBILE = r"^\+?[0-9]{8,15}$"
 
 
@@ -30,6 +31,12 @@ class PassengerIn(BaseModel):
     father_name: Optional[str] = Field(default=None, min_length=1, max_length=60, pattern=NAME_PART)
     grandfather_name: Optional[str] = Field(default=None, min_length=1, max_length=60, pattern=NAME_PART)
     last_name: str = Field(min_length=1, max_length=60, pattern=NAME_PART)
+    # The name in Latin letters as in the passport (N4, 1149): required on international trips, and on domestic trips
+    # when the platform's setting asks for it
+    first_name_latin: Optional[str] = Field(default=None, max_length=60, pattern=LATIN_PART)
+    father_name_latin: Optional[str] = Field(default=None, max_length=60, pattern=LATIN_PART)
+    grandfather_name_latin: Optional[str] = Field(default=None, max_length=60, pattern=LATIN_PART)
+    last_name_latin: Optional[str] = Field(default=None, max_length=60, pattern=LATIN_PART)
     # Empty only for an infant travelling on an adult's lap (carriers whose infant band needs no seat)
     seat_no: Optional[int] = None
     # Adult, child or infant (4.19); the date of birth decides on the travel date, so it is required for children and infants
@@ -49,7 +56,8 @@ class PassengerIn(BaseModel):
     # International trips: the passport's expiry date (checked against the rule's minimum validity)
     passport_expiry: Optional[date] = None
 
-    @field_validator("first_name", "father_name", "grandfather_name", "last_name", mode="before")
+    @field_validator("first_name", "father_name", "grandfather_name", "last_name", "first_name_latin", "father_name_latin",
+                     "grandfather_name_latin", "last_name_latin", mode="before")
     @classmethod
     def _tidy(cls, v):
         return " ".join(v.split()) or None if isinstance(v, str) else v

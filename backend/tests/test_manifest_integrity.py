@@ -99,6 +99,7 @@ def test_an_international_manifest_carries_cargo_is_signed_and_answered_through_
     seat = free_seats(p, t, 1)
     h = hold(p, t, seat).json()["hold_token"]
     traveller = {"nationality": "SY", "first_name": "Rami", "father_name": "Khaled", "grandfather_name": "Omar", "last_name": "Haddad",
+                 "first_name_latin": "Rami", "last_name_latin": "Haddad",
                  "seat_no": seat[0], "id_type": "PASSPORT", "id_no": f"N{secrets.randbelow(10**7):07d}", "birth_date": "1990-04-01",
                  "passport_expiry": "2031-01-01", "gender": "M"}
     r = p.post("/api/bookings", json={"hold_token": h, "trip_uid": t["uid"], "from_seq": t["from_seq"], "to_seq": t["to_seq"],
