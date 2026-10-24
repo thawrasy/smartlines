@@ -273,7 +273,7 @@ if grep -qaE "$FAIL_RE" "$TMP/auth.out"; then
     exit 1
 fi
 auth_pass=$(grep -oaE "$PASS_RE" "$TMP/auth.out" | sort -u | wc -l)
-# 23 cases: A1-A17 (ADR 0003: invitation, MFA enrolment and checks, recovery codes, passwords, administrator actions,
+# 27 cases: A1-A21 (ADR 0003, and A18-A21 for ADR 0048: MFA off, sign-in names, temporary password, password step-up; invitation, MFA enrolment and checks, recovery codes, passwords, administrator actions,
 # sessions; the tenant names, the challenge key, step-up, the check outcome and the password rules before binding,
 # GAP-2, GAP-3, GAP-4, GAP-8, GAP-13) and S1-S6 (tenant security settings within the platform bounds, DQ-S03-6, DQ-S04-14).
 if [ "$auth_pass" -ne 27 ]; then
