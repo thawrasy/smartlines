@@ -2,13 +2,13 @@
   "about": "Every advisory npm audit reports for the mobile apps, classed by where the code runs (reviews of October 2026, M-11). build: tooling on the build machine (Metro, the Expo CLI, config plugins), never in the app; CI checks that no build-classed package appears in the bundles' source maps. runtime: shipped inside the app. scripts/mobile_advisories.py fails CI on a high or critical advisory missing here, on a runtime one at high or above unless accepted with a date, and on any entry past its review date. The upgrade that clears them: Expo SDK 58 (expo-router 58, Metro and the CLI with fixed micromatch, node-forge and uuid), once it is the stable SDK; until then the entries are reviewed at review_by.",
   "advisories": [
     {
-      "id": "GHSA-vfj7-8cjw-p6xm",
-      "package": "braces",
+      "id": "GHSA-mrhx-c7xc-m3w5",
+      "package": "zod",
       "severity": "high",
       "class": "build",
-      "where": "micromatch in Metro's file map (metro-file-map, @expo/metro-file-map): the bundler's file watcher on the build machine",
-      "risk": "a deeply nested brace pattern exhausts the stack of the bundler; patterns come from the project's own configuration, not from users",
-      "fix": "Expo SDK 58 (Metro with micromatch on a fixed braces)",
+      "where": "@expo/cli on the build machine: validating the CLI's own configuration and server manifests during development and prebuild",
+      "risk": "an oversized constrained collection exhausts memory while being validated; the CLI validates the project's own files, never user input, and the apps do not carry zod",
+      "fix": "Expo SDK 58 (the CLI on zod 4.6.6 or later); zod 4 is a breaking major for the CLI's zod 3 code, so it cannot be forced",
       "review_by": "2027-01-31"
     },
     {

@@ -67,7 +67,7 @@ CI also bundles the three apps with Metro (`expo export`) to catch missing modul
 ### Dependency audit
 
 `mobile/advisories.json` classes every advisory `npm audit` reports (reviews of October 2026, M-11): **build** for
-tooling on the build machine (Metro's file watcher with `braces`, the Expo CLI's `node-forge`, the config plugins'
+tooling on the build machine (the Expo CLI's `node-forge` and `zod`, the config plugins'
 `uuid`), **runtime** for code the app carries (`decode-uri-component` under `expo-router`'s `query-string@7`: a crafted
 deep link can stall the app on the device that opens it; the patched release is an ES module that `query-string@7`
 cannot `require`, so it comes with expo-router 58). CI exports the three apps with source maps and runs

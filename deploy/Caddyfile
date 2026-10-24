@@ -75,10 +75,10 @@
 # "Server: Caddy" on the automatic redirect). Certificate challenges on port 80 are still answered by Caddy.
 http://{$MASSLAK_DOMAIN}, http://www.{$MASSLAK_DOMAIN} {
 	header -Server
-	redir https://{$MASSLAK_DOMAIN}{uri} permanent
+	redir https://{$MASSLAK_DOMAIN}{uri} 308
 }
 
 # Visitors typing www. land on the main domain
 www.{$MASSLAK_DOMAIN} {
-	redir https://{$MASSLAK_DOMAIN}{uri} permanent
+	redir https://{$MASSLAK_DOMAIN}{uri} 308
 }

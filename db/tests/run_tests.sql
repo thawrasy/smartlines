@@ -792,9 +792,9 @@ SELECT pg_temp.expect_error(format($$INSERT INTO sales.passenger (booking_id, fu
 SELECT pg_temp.expect_error(format($$UPDATE ops.trip SET seats_total = 60 WHERE id = %s$$, :t214),
   'CAPACITY_EXCEEDS_VEHICLE', 'Review 3.14: a trip never sells more seats than its vehicle has');
 INSERT INTO fleet.license_record (company_id, subject_type, subject_id, license_type, license_no, issuer, issue_date, expiry_date, status)
-VALUES (:ca, 'VEHICLE', :va, 'INSPECTION', 'INS-REV-1', 'Traffic', '2025-01-01', '2026-10-20', 'VALID');
+VALUES (:ca, 'VEHICLE', :va, 'INSPECTION', 'INS-REV-1', 'Traffic', current_date - 300, current_date + 60, 'VALID');   -- relative: the later tests publish trips on this vehicle today
 SELECT pg_temp.expect_error(format($$INSERT INTO ops.trip (trip_no, company_id, route_id, vehicle_id, departure_at, arrival_at, status, seats_total, segments_count, currency, base_price)
-  VALUES ('QDS901/25OCT26', %s, %s, %s, '2026-10-25 06:00+00', '2026-10-25 09:00+00', 'PUBLISHED', 40, 1, 'SYP', 1)$$, :ca, :route, :va),
+  VALUES ('QDS901/' || upper(to_char(current_date + 61, 'DDMONYY')), %s, %s, %s, current_date + 61 + time '06:00', current_date + 61 + time '09:00', 'PUBLISHED', 40, 1, 'SYP', 1)$$, :ca, :route, :va),
   'LICENSE_EXPIRED', 'License expiry race: a trip after the vehicle''s licence ends is not published');
 INSERT INTO net.line (code, name, kind, fare_regime) VALUES ('L-REV', 'Review line', 'SHUTTLE', 'REGULATED') ON CONFLICT DO NOTHING;
 SELECT pg_temp.expect_error(format($$INSERT INTO net.line_permit (line_id, company_id, valid, status, permit_no) SELECT id, %s, daterange('2030-01-01','2030-12-31'), 'ACTIVE', 'P-REV' FROM net.line WHERE code = 'L-REV'$$, :ca),
