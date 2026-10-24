@@ -15,6 +15,11 @@ env=deploy/.env
 # the release workflow tags what it publishes; this checkout gets the same tag, locally only (preflight.sh refuses a
 # production installation from a commit that is not the release VERSION names)
 git -c safe.directory="$PWD" tag -f "v$(cat VERSION)" >/dev/null
+# and stands for the release's origin: once the release itself is tagged on GitHub, the commits after it (this one)
+# would carry a tag of the same name, and deploy/update.sh's fetch of origin's tags refuses to move it
+origin=/tmp/masslak-ci-origin.git
+rm -rf "$origin" && git -c safe.directory="$PWD" clone -q --bare --no-local . "$origin"
+git -c safe.directory="$PWD" remote set-url origin "$origin"
 put() { if grep -q "^$1=" "$env"; then sed -i "s|^$1=.*|$1=$2|" "$env"; else echo "$1=$2" >> "$env"; fi; }
 rand() { openssl rand -hex 16; }
 offsite="${MASSLAK_CI_OFFSITE:-/tmp/masslak-offsite}"; mkdir -p "$offsite"
