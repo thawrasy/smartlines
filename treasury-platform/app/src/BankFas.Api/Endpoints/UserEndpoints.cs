@@ -139,6 +139,7 @@ public static class UserEndpoints
         await using (var u = await BoundUser.OpenAsync(http, db, Manage))
         {
             var roleRows = await ResolveRolesAsync(u.Connection, body.RoleIds ?? [], http.RequestAborted);
+            var minLength = (await TenantAuthProcedures.GetPasswordPolicyAsync(u.Connection, u.TenantId, http.RequestAborted)).MinLength;
             await using var tx = (SqlTransaction)await u.Connection.BeginTransactionAsync(http.RequestAborted);
             try
             {
@@ -162,8 +163,7 @@ public static class UserEndpoints
             if (method == "TEMP_PASSWORD")
             {
                 // Shown once to the administrator, never stored or sent by the platform (ADR 0048).
-                var policy = await TenantAuthProcedures.GetPasswordPolicyAsync(u.Connection, u.TenantId, http.RequestAborted);
-                var temporary = SignInIdentity.TemporaryPassword(policy.MinLength);
+                var temporary = SignInIdentity.TemporaryPassword(minLength);
                 await TenantAdminProcedures.SetTemporaryPasswordAsync(u.Connection, tx, u.TenantId, userId, PasswordHasher.HashNew(temporary), http.RequestAborted);
                 await tx.CommitAsync(http.RequestAborted);
                 return Results.Created($"/api/v1/users/{publicId}", new { id = publicId, status = "ACTIVE", temporaryPassword = temporary, invitationSent = false });
