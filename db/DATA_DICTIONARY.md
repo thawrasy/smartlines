@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**567 tables, 5994 columns, in 26 schemas.**
+**569 tables, 6026 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -23,7 +23,7 @@ Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant i
 - [`gov` — Governance, obligations and data protection](#gov) (15 tables)
 - [`sec` — Security: IP rules, risk, signing, the security hub and government adapters](#sec) (32 tables)
 - [`ptn` — Service partners: fuel stations, rest stops and maintenance](#ptn) (14 tables)
-- [`ship` — Shipments and the integrated shipping network](#ship) (57 tables)
+- [`ship` — Shipments and the integrated shipping network](#ship) (59 tables)
 - [`frt` — Trucking, heavy transport and transit freight](#frt) (31 tables)
 - [`brd` — Border manifest gateway](#brd) (12 tables)
 - [`ctr` — Contracted transport: universities and employees](#ctr) (6 tables)
@@ -7765,6 +7765,24 @@ Truck or hold load with capacity by weight, volume and pallet positions; no book
 | `fragile` | `boolean` | ✱ | `false` |
 | `volume_m3` | `numeric(8,4)` |  | `(((length_cm * width_cm) * height_cm)...` |
 
+### `ship.parcel_carrier` 🛡️
+
+A carrier's parcel choices: online with drop-off or counter only, the hand-over time before departure, its fees; stopped by the platform with a reason (N5, 1147)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `company_id` | `bigint` | 🔑 🔗 `iam.company` ✱ |  |
+| `booking_mode` | `text` | ✱ | `'ONLINE_DROPOFF'::text` |
+| `handover_minutes` | `integer` | ✱ | `120` |
+| `cancel_fee` | `bigint` | ✱ | `0` |
+| `no_show_fee` | `bigint` | ✱ | `0` |
+| `pending_fees` | `jsonb` |  |  |
+| `fees_decision` | `text` |  |  |
+| `stopped` | `boolean` | ✱ | `false` |
+| `stopped_reason` | `text` |  |  |
+| `updated_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+
 ### `ship.parcel_offer` 🛡️
 
 A price agreed between a carrier and a customer for one parcel on one trip (letters and the like): asked, offered, accepted and paid (owner's decision 3, 1078)
@@ -7791,6 +7809,25 @@ A price agreed between a carrier and a customer for one parcel on one trip (lett
 | `offered_at` | `timestamp with time zone` |  |  |
 | `valid_until` | `timestamp with time zone` |  |  |
 | `shipment_id` | `bigint` | 🔗 `ship.shipment`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ship.parcel_point` 🛡️
+
+Where a carrier receives parcels: its stations and offices, with address and opening hours (N5, 1147)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `kind` | `text` | ✱ |  |
+| `station_id` | `bigint` | 🔗 `net.station`  |  |
+| `name` | `text` | ✱ |  |
+| `address` | `text` | ✱ |  |
+| `hours` | `text` | ✱ |  |
+| `phone` | `text` |  |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `created_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `ship.parcel_tariff` 🛡️
@@ -8094,6 +8131,15 @@ A consignment from sender to receiver, independent of the vehicles that carry it
 | `guaranteed` | `boolean` | ✱ | `false` |
 | `tariff_id` | `bigint` | 🔗 `ship.parcel_tariff`  |  |
 | `idempotency_key` | `text` |  |  |
+| `handover_by` | `timestamp with time zone` |  |  |
+| `drop_point_id` | `bigint` | 🔗 `ship.parcel_point`  |  |
+| `handed_over_at` | `timestamp with time zone` |  |  |
+| `handed_over_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `paid_at` | `timestamp with time zone` |  |  |
+| `pay_method` | `text` |  |  |
+| `sold_at_counter` | `boolean` | ✱ | `false` |
+| `sender_name` | `text` |  |  |
+| `release_reason` | `text` |  |  |
 
 ### `ship.shipment_leg` 🛡️
 

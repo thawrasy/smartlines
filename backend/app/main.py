@@ -45,6 +45,7 @@ from .modules.boarding import station_sales
 from .modules.loyalty import admin as loyalty_admin
 from .modules.loyalty import api as loyalty_api
 from .modules.parcels import api as parcels_api
+from .modules.parcels import trip_api as trip_parcels
 from .modules.seo import pages as seo_pages
 from .modules.seo.app_shell import shell as app_shell
 from .modular import api as modular_api
@@ -148,7 +149,7 @@ for r in (metrics.router, auth.router, public.router, bookings.router, wallet.ro
           account_api.router, account_api.platform, modular_api.router, modular_workflows.router, reports_api.router, payments_api.router,
           integration_console.router, integration_v1.router, family_api.router, photo_api.platform, boarding_api.platform, boarding_api.carrier, boarding_api.station_operators, boarding_api.station,
           manifests_api.carrier, manifests_api.platform,
-          support_api.router, support_api.admin, cash_api.router, payment_activation.router, seo_pages.router, parcels_api.customer, parcels_api.carrier,
+          support_api.router, support_api.admin, cash_api.router, payment_activation.router, seo_pages.router, parcels_api.customer, parcels_api.carrier, trip_parcels.customer, trip_parcels.carrier, trip_parcels.platform,
           loyalty_api.router, loyalty_admin.router, station_sales.router, boarding_screens.platform, boarding_screens.carrier,
           boarding_screens.public, boarding_bays.station, boarding_bays.platform,
           boarding_displays.station, boarding_displays.platform, boarding_displays.public, schedules_api.carrier, schedules_api.platform,

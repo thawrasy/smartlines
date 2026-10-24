@@ -3801,6 +3801,24 @@ SELECT pg_temp.ok(iam.idle_minutes('PLATFORM') = 15 AND iam.idle_minutes('PASSEN
                   AND iam.idle_minutes('NOWHERE') = 30,
   'Idle sign-out (1146): each portal has its period; an unknown portal gets 30 minutes');
 
+-- Parcels on trips (1147): only the platform stops a carrier's parcels; the policy names the prohibited items
+BEGIN;
+RESET ROLE;
+SET LOCAL ROLE masslak_app;
+SELECT sys.set_context(:ua, :ca, 'COMPANY');
+INSERT INTO ship.parcel_carrier (company_id, booking_mode, handover_minutes) VALUES (:ca, 'COUNTER_ONLY', 90);
+SELECT pg_temp.ok((SELECT booking_mode FROM ship.parcel_carrier WHERE company_id = :ca) = 'COUNTER_ONLY',
+  'Parcels (1147): a carrier sets how its parcels are booked');
+SELECT pg_temp.expect_error(format($$UPDATE ship.parcel_carrier SET stopped = false, stopped_reason = 'lifting my own stop' WHERE company_id = %s$$, :ca),
+  'FORBIDDEN', 'Parcels (1147): a carrier does not stop or resume its own parcels');
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+UPDATE ship.parcel_carrier SET stopped = true, stopped_reason = 'Complaints under review' WHERE company_id = :ca;
+SELECT pg_temp.ok((SELECT stopped FROM ship.parcel_carrier WHERE company_id = :ca)
+                  AND (SELECT value -> 'prohibited' ? 'WEAPONS' FROM sys.setting WHERE key = 'parcels.policy'),
+  'Parcels (1147): the platform stops a carrier, and its policy names the prohibited items');
+ROLLBACK;
+SET ROLE masslak_app;
+
 -- Charter (1123): carriers hire out vehicles and whole trips on their terms; requests are priced, paid and their seats held
 BEGIN;
 RESET ROLE;

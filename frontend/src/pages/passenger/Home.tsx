@@ -227,7 +227,7 @@ export default function Home() {
   const on = useLoad(() => api.get<{ enabled: string[] }>("/api/features"));
   const enabled = new Set(on.data?.enabled ?? []);
   const partners: [IconName, string, boolean][] = [
-    ["directions_bus", "home.p1", true], ["local_shipping", "home.p2", enabled.has("cargo")],
+    ["directions_bus", "home.p1", true], ["local_shipping", "home.p2", enabled.has("cargo") || enabled.has("trip_parcels")],
     ["local_gas_station", "home.p3", enabled.has("service_partners")], ["restaurant", "home.p4", enabled.has("service_partners")],
     ["loyalty", "home.p5", enabled.has("loyalty")], ["support_agent", "home.p6", enabled.has("support_cases")],
   ];

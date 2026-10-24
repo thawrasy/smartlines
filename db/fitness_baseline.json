@@ -1274,6 +1274,10 @@
   "ship.tg_shipment_size_cargo()": [],
   "ship.tg_trip_cargo_capacity()": [],
   "ship.tg_vehicle_cargo_limit()": [],
+  "ship.release_unhanded_parcels()": [
+   "masslak_api",
+   "masslak_app"
+  ],
   "ship.trip_cargo_usage(bigint)": [],
   "ship.trip_hold(bigint)": [
    "masslak_api",

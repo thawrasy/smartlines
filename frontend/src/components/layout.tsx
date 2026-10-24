@@ -61,7 +61,7 @@ export function PublicLayout() {
           {passenger && <NavLink to="/family">{t("nav.family")}</NavLink>}
           {passenger && <NavLink to="/charter">{t("nav.charter")}</NavLink>}
           {passenger && <NavLink to="/support">{t("nav.support")}</NavLink>}
-          {passenger && mine.some((m) => m.key === "cargo") && <NavLink to="/parcels">{t("nav.parcels")}</NavLink>}
+          {passenger && mine.some((m) => m.key === "cargo" || m.key === "trip_parcels") && <NavLink to="/parcels">{t("nav.parcels")}</NavLink>}
           {mine.length > 0 && <ModulesMenu items={mine.map((m) => ({ to: `/m/${m.key}`, icon: m.icon as IconName, label: L.module(m.key) }))} />}
           {passenger && <NavLink to="/account">{t("nav.account")}</NavLink>}
           <NavLink to="/verify">{t("nav.verify")}</NavLink>
@@ -99,7 +99,7 @@ export function PublicLayout() {
           </span>
         </div>
       </footer>
-      {passenger && <MobileNav services={mine.length ? "/services" : undefined} parcels={mine.some((m) => m.key === "cargo")} />}
+      {passenger && <MobileNav services={mine.length ? "/services" : undefined} parcels={mine.some((m) => m.key === "cargo" || m.key === "trip_parcels")} />}
     </>
   );
 }

@@ -49,6 +49,10 @@ ALLOWED = {
     "sales.charter_request.company_id": "a tourism company sees the charter it asked of a carrier (1123)",
     "sales.charter_request.agency_id": "a carrier sees the charter requests tourism companies made of it (1123)",
     "brd.station_sale.carrier_company_id": "the operating company sees the sales it made on a carrier's trips, the carrier sees them too (1110)",
+    "ship.parcel_tariff.company_id": "active parcel tariffs are the carriers' published prices for senders (1078)",
+    "ship.parcel_point.company_id": "active drop-off points are where senders hand parcels over, listed with each trip (1147)",
+    "ship.parcel_carrier.company_id": "a carrier's parcel terms (online or counter, hand-over time, fees) are published to senders (1147)",
+    "fin.agency_cash_settlement.agency_id": "the carrier sees the cash it recorded receiving from an agency, the agency sees it too (1145)",
 }
 
 
@@ -140,6 +144,8 @@ def test_no_company_can_hand_its_rows_to_another_company():
 
 # Rows naming another company that a company may still write, because they belong to it through their parent
 FOREIGN_WRITES = {
+    "ship.shipment_leg.carrier_company_id": "the company that owns a shipment routes its legs, also those a partner carrier runs "
+                                            "(ship.can_see_shipment, 1017); visible with parcels on trips (1147)",
     "ops.trip_disruption.partner_company_id": "the disrupted trip's carrier decides the disruption and names the partner "
                                              "carrier that takes its passengers (written through the trip, split_write)",
 }

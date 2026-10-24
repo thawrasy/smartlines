@@ -179,7 +179,7 @@ function CarrierShell() {
       { to: "/carrier/layouts", icon: "event_seat", label: t("layout.title") },
       { to: "/carrier/crew", icon: "badge", label: t("carrier.crew") },
       { to: "/carrier/stations", icon: "storefront", label: t("stops.nav"), show: can("boarding.operators", "boarding.references") },
-      { to: "/carrier/parcels", icon: "local_shipping", label: t("parcel.carrierNav"), show: can("parcels.tariffs", "shipping.operate") },
+      { to: "/carrier/parcels", icon: "local_shipping", label: t("parcel.carrierNav"), show: can("parcels.tariffs", "shipping.operate", "parcels.counter") },
       { to: "/carrier/charter", icon: "airport_shuttle", label: t("chr.carrierNav"), show: can("charter.manage") },
       { to: "/carrier/kyc", icon: "policy", label: t("kyc.nav"), show: can("company.kyc") },
       { to: "/carrier/documents", icon: "fact_check", label: t("documents.title"), show: can("company.staff", "vehicle.manage", "company.billing") },

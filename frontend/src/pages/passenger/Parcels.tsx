@@ -2,11 +2,14 @@ import { useState } from "react";
 import { api } from "../../api";
 import { useI18n } from "../../i18n";
 import { CarrierName, Empty, ErrorBox, Field, Icon, Loaded, Modal, Status, useLoad, useToast } from "../../components/ui";
+import { useItem } from "../carrier/ParcelDesk";
 
 type Mode = "WEIGHT" | "VOLUME" | "WEIGHT_AND_VOLUME" | "FIXED" | "NEGOTIATED";
 interface Tariff { uid: string; code: string; name: string; pricing_mode: Mode; currency: string; max_weight_kg: number | null; max_volume_m3: number | null }
 interface Hold { max_weight_kg: number; free_weight_kg: number; free_volume_m3: number | null; free_items: number | null }
-interface HoldTrip { uid: string; trip_no: string; trip_code?: string | null; carrier_name: string; carrier_uid?: string | null; carrier_logo?: string | null; from_seq: number; to_seq: number; departs_at: string; from_station: string; to_station: string; hold: Hold; tariffs: Tariff[] }
+interface DropPoint { uid: string; kind: string; name: string; address: string; hours: string; phone: string | null }
+interface HoldTrip { uid: string; trip_no: string; trip_code?: string | null; carrier_name: string; carrier_uid?: string | null; carrier_logo?: string | null; from_seq: number; to_seq: number; departs_at: string; from_station: string; to_station: string; hold: Hold; tariffs: Tariff[];
+  booking_mode?: "ONLINE_DROPOFF" | "COUNTER_ONLY"; handover_by?: string; points?: DropPoint[] }
 interface Price { mode: Mode; currency: string; weight_kg: number; volume_m3: number; weight_charge: number | null; volume_charge: number | null; fixed: number | null; basis: string; total: number | null }
 interface Quote { price: Price; fits: boolean; agreed: boolean }
 interface Mine { tracking_no: string; status: string; trip_no: string | null; weight_kg: number | null; volume_m3: number | null; currency: string; price_breakdown: { total?: number }; guaranteed: boolean }
@@ -30,13 +33,25 @@ export default function Parcels() {
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
   const [accepting, setAccepting] = useState<Offer | null>(null);
+  const rules = useLoad((signal) => api.get<{ prohibited: string[] }>("/api/parcels/rules", undefined, { signal }));
+  const item = useItem();
+  const [ok, setOk] = useState(false);
+  const [point, setPoint] = useState("");
+  const [notice, setNotice] = useState<string | null>(null);
 
   const body = () => pick && { trip_uid: pick.trip.uid, from_seq: pick.trip.from_seq, to_seq: pick.trip.to_seq, tariff_uid: pick.tariff.uid, ...size };
   const run = async (fn: () => Promise<void>) => { setBusy(true); setError(null); try { await fn(); } catch (e) { setError(e); } finally { setBusy(false); } };
   const doQuote = () => run(async () => setQuote(await api.post<Quote>("/api/parcels/quote", body())));
   const doBook = () => run(async () => {
-    const r = await api.post<{ tracking_no: string }>("/api/parcels", { ...body(), ...who, idempotency_key: crypto.randomUUID() });
-    toast(t("parcel.booked", { no: r.tracking_no })); setPick(null); setQuote(null); mine.reload(); trips.reload();
+    const r = await api.post<{ tracking_no: string; status: string; handover_by: string | null }>("/api/parcels", {
+      ...body(), ...who, accept_rules: ok, drop_point_uid: point || null, idempotency_key: crypto.randomUUID() });
+    // phase one: a reservation, paid at the carrier's point when handed over (1147)
+    setNotice(r.status === "EXPECTED" && r.handover_by ? t("parcel.reservedNotice", { no: r.tracking_no, time: dateTime(r.handover_by) })
+      : r.handover_by ? `${t("parcel.booked", { no: r.tracking_no })} ${t("parcel.handoverNotice", { time: dateTime(r.handover_by) })}` : t("parcel.booked", { no: r.tracking_no }));
+    toast(t("parcel.booked", { no: r.tracking_no })); setPick(null); setQuote(null); setOk(false); setPoint(""); mine.reload(); trips.reload();
+  });
+  const cancelReservation = (no: string) => run(async () => {
+    await api.post(`/api/parcels/${no}/cancel`, {}); toast(t("parcel.reservationCancelled")); mine.reload(); trips.reload();
   });
   const doAsk = () => run(async () => {
     await api.post("/api/parcels/offers", { ...body(), description: who.description });
@@ -59,6 +74,7 @@ export default function Parcels() {
         <Field label={t("parcel.on")}><input className="input" type="date" value={q.on} onChange={(e) => setQ({ ...q, on: e.target.value })} /></Field>
         <div style={{ alignSelf: "end" }}><button className="btn filled"><Icon name="search" />{t("parcel.find")}</button></div>
       </form>
+      {notice && <div className="alert info" role="status"><Icon name="info" /> <span>{notice}</span></div>}
       <Loaded state={trips}>{({ trips: list }) => list.length === 0 ? <Empty icon="local_shipping" title={t("parcel.none")} /> : (
         <div className="stack">{list.map((tr) => (
           <section key={tr.uid} className="card stack">
@@ -67,10 +83,13 @@ export default function Parcels() {
               <span className="small">{dateTime(tr.departs_at)} · {tr.from_station} → {tr.to_station}</span>
             </div>
             <p className="small">{t("parcel.free", { kg: num(tr.hold.free_weight_kg) })}{tr.hold.free_volume_m3 != null && ` · ${t("parcel.freeVolume", { m3: num(tr.hold.free_volume_m3) })}`}</p>
-            <div className="row" style={{ flexWrap: "wrap" }}>{tr.tariffs.map((x) => (
-              <button key={x.uid} className="btn outlined" onClick={() => { setPick({ trip: tr, tariff: x }); setQuote(null); }}>
-                {x.name} <span className="small">({t(`parcel.mode.${x.pricing_mode}`)})</span></button>
-            ))}</div>
+            {tr.handover_by && <p className="small">{t("parcel.handoverNotice", { time: dateTime(tr.handover_by) })}</p>}
+            {tr.booking_mode === "COUNTER_ONLY" ? <p className="small muted">{t("parcel.counterOnly")}</p> : (
+              <div className="row" style={{ flexWrap: "wrap" }}>{tr.tariffs.map((x) => (
+                <button key={x.uid} className="btn outlined" onClick={() => { setPick({ trip: tr, tariff: x }); setQuote(null); }}>
+                  {x.name} <span className="small">({t(`parcel.mode.${x.pricing_mode}`)})</span></button>
+              ))}</div>
+            )}
           </section>
         ))}</div>
       )}</Loaded>
@@ -80,7 +99,7 @@ export default function Parcels() {
           <button className="btn outlined" disabled={busy} onClick={doQuote}>{t("parcel.quote")}</button>
           {pick.tariff.pricing_mode === "NEGOTIATED"
             ? <button className="btn filled" disabled={busy || who.description.length < 2} onClick={doAsk}>{t("parcel.ask")}</button>
-            : <button className="btn filled" disabled={busy || !quote?.fits || who.recipient_name.length < 3} onClick={doBook}>{t("parcel.book")}</button>}
+            : <button className="btn filled" disabled={busy || !quote?.fits || !ok || who.recipient_name.length < 3} onClick={doBook}>{t("parcel.book")}</button>}
         </>}>
           <div className="grid cols-4">
             <Field label={t("parcel.weight")}><input className="input" type="number" min={0.1} step={0.1} value={size.weight_kg} onChange={set(size, setSize, "weight_kg", true)} /></Field>
@@ -93,6 +112,18 @@ export default function Parcels() {
             <Field label={t("parcel.recipient")}><input className="input" value={who.recipient_name} onChange={set(who, setWho, "recipient_name")} /></Field>
             <Field label={t("parcel.mobile")}><input className="input ltr" value={who.recipient_mobile} onChange={set(who, setWho, "recipient_mobile")} /></Field>
           </div>
+          {(pick.trip.points ?? []).length > 0 && (
+            <Field label={t("parcel.dropPoint")}>
+              <select value={point} onChange={(e) => setPoint(e.target.value)}><option value="">{t("parcel.anyPoint")}</option>
+                {(pick.trip.points ?? []).map((p) => <option key={p.uid} value={p.uid}>{p.name} · {p.address} · {p.hours}</option>)}</select>
+            </Field>
+          )}
+          {rules.data && (
+            <div className="alert info small" style={{ flexDirection: "column", alignItems: "flex-start", gap: 4 }}>
+              <strong>{t("parcel.prohibitedTitle")}</strong><span>{rules.data.prohibited.map(item).join(" · ")}</span>
+            </div>
+          )}
+          <label className="check"><input type="checkbox" checked={ok} onChange={(e) => setOk(e.target.checked)} />{t("parcel.prohibitedAck")}</label>
           {quote && (
             <div className="card stack" aria-live="polite">
               <div className="row" style={{ justifyContent: "space-between" }}><span>{t("parcel.weight")}</span><strong>{num(quote.price.weight_kg)} kg</strong></div>
@@ -135,7 +166,8 @@ export default function Parcels() {
           <div className="table-wrap" tabIndex={0}><table className="table"><tbody>{parcels.map((p) => (
             <tr key={p.tracking_no}><td className="mono">{p.tracking_no}</td><td className="mono">{p.trip_no ?? "—"}</td>
               <td>{p.weight_kg != null ? `${num(p.weight_kg)} kg` : "—"}{p.volume_m3 != null && ` · ${num(p.volume_m3)} m³`}</td>
-              <td>{p.price_breakdown.total != null ? money(p.price_breakdown.total, true, p.currency) : "—"}</td><td><Status value={p.status} /></td></tr>
+              <td>{p.price_breakdown.total != null ? money(p.price_breakdown.total, true, p.currency) : "—"}</td><td><Status value={p.status} /></td>
+              <td>{p.status === "EXPECTED" && <button className="btn text" disabled={busy} onClick={() => cancelReservation(p.tracking_no)}>{t("parcel.cancelReservation")}</button>}</td></tr>
           ))}</tbody></table></div>
         )}</Loaded>
       </section>

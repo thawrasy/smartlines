@@ -188,6 +188,8 @@ async def main(once: bool) -> None:
                         await conn.execute("SELECT sales.expire_reservations()")
                         # parcel prices offered and not taken in time lapse (1078)
                         await conn.execute("SELECT ship.expire_parcel_offers()")
+                        # parcel reservations not handed over by their time give their hold space back (1147)
+                        await conn.execute("SELECT ship.release_unhanded_parcels()")
                         # departed trips whose vehicle went silent get an alert, escalated if the silence lasts (1100)
                         await conn.execute("SELECT ops.raise_tracking_alerts()")
                         # station screens that stopped reading their board are reported to the administration (1129)

@@ -21,7 +21,11 @@ def cargo_on():
     was = next(m["enabled"] for m in admin.get("/api/admin/modules").json()["modules"] if m["key"] == "cargo")
     if not was:
         assert admin.put("/api/admin/modules/cargo", json={"enabled": True, "reason": "parcel tests"}).status_code == 200
+    # the demo trips are not scheduled ones: the policy opens any trip for these tests (1147) and is put back after
+    policy = admin.get("/api/admin/parcels/policy").json()
+    assert admin.put("/api/admin/parcels/policy", json={**policy, "scheduled_only": False, "reason": "parcel tests on demo trips"}).status_code == 200
     yield
+    admin.put("/api/admin/parcels/policy", json={**policy, "reason": "parcel tests done"})
     if not was:
         admin.put("/api/admin/modules/cargo", json={"enabled": False, "reason": "parcel tests done"})
 
@@ -78,7 +82,7 @@ def parcel(trip, tariff, kg, cm=(40, 30, 20), **extra):
 
 def booking(trip, tariff, kg, cm=(40, 30, 20)):
     return parcel(trip, tariff, kg, cm, description="Books and clothes", recipient_name="Lina Haddad", recipient_mobile="+963944555666",
-                  idempotency_key=uuid.uuid4().hex)
+                  idempotency_key=uuid.uuid4().hex, accept_rules=True)
 
 
 def test_customers_find_trips_with_free_hold_and_the_carriers_tariffs(hold_trip, tariffs):

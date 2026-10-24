@@ -650,3 +650,7 @@ tr.clickable:hover td { background: var(--surface-container-low, rgba(10, 91, 21
 .pax-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .pax-count { display: flex; align-items: center; gap: 8px; }
 .pax-count output { min-width: 1.5em; text-align: center; font-weight: 700; }
+
+/* parcel label (1147): printed on the counter's printer and stuck on the parcel */
+.parcel-label { border: 2px dashed var(--outline); border-radius: 12px; padding: 16px; }
+.parcel-label img { image-rendering: pixelated; }

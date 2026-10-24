@@ -144,8 +144,8 @@ flowchart LR
   ship -->|4| fin
   ship -->|3| fleet
   ship -->|1| frt
-  ship -->|38| iam
-  ship -->|11| net
+  ship -->|41| iam
+  ship -->|12| net
   ship -->|5| ops
   ship -->|2| ref
   sys -->|4| iam
@@ -4494,6 +4494,10 @@ erDiagram
     bigint id PK
     bigint shipment_id FK
   }
+  ship_parcel_carrier {
+    bigint company_id PK
+    bigint updated_by FK
+  }
   ship_parcel_offer {
     bigint id PK
     uuid uid
@@ -4506,6 +4510,14 @@ erDiagram
     character currency FK
     bigint offered_by FK
     bigint shipment_id FK
+  }
+  ship_parcel_point {
+    bigint id PK
+    uuid uid
+    bigint company_id FK
+    bigint station_id FK
+    text status
+    bigint created_by FK
   }
   ship_parcel_tariff {
     bigint id PK
@@ -4629,6 +4641,8 @@ erDiagram
     text cargo_category FK
     text status
     bigint tariff_id FK
+    bigint drop_point_id FK
+    bigint handed_over_by FK
   }
   ship_shipment_leg {
     bigint id PK
@@ -4764,6 +4778,8 @@ erDiagram
   ship_cod_collection }o..o| iam_app_user : "collected_by"
   ship_parcel_offer }o..o| iam_app_user : "requester_user_id"
   ship_parcel_offer }o..o| iam_app_user : "offered_by"
+  ship_shipment }o..o| iam_app_user : "handed_over_by"
+  ship_parcel_carrier }o--|| iam_company : "company_id"
   ship_rate_table }o..o| iam_company : "company_id"
   ship_cargo_rate_card }o--|| iam_company : "company_id"
   ship_pricing_agreement }o..o| iam_company : "company_id"
@@ -4775,6 +4791,7 @@ erDiagram
   ship_hub }o..o| iam_company : "company_id"
   ship_load }o--|| iam_company : "company_id"
   ship_parcel_tariff }o--|| iam_company : "company_id"
+  ship_parcel_point }o--|| iam_company : "company_id"
   ship_shipper_account }o..o| iam_company : "company_id"
   ship_parcel_offer }o--|| iam_company : "company_id"
   ship_shipment }o--|| iam_company : "company_id"
@@ -4801,6 +4818,7 @@ erDiagram
   ship_hub }o--|| net_station : "station_id"
   ship_access_point }o--|| net_station : "station_id"
   ship_load_stop }o--|| net_station : "station_id"
+  ship_parcel_point }o..o| net_station : "station_id"
   ship_handling_unit }o..o| net_station : "current_station_id"
   ship_tracking_event }o..o| net_station : "station_id"
   ship_shipment_leg }o..o| net_station : "from_station_id"
@@ -4858,6 +4876,7 @@ erDiagram
   ship_weight_audit }o--|| ship_parcel : "parcel_id"
   ship_shipment_reference }o..o| ship_parcel : "parcel_id"
   ship_handling_unit_item }o..o| ship_parcel : "parcel_id"
+  ship_shipment }o..o| ship_parcel_point : "drop_point_id"
   ship_parcel_offer }o--|| ship_parcel_tariff : "tariff_id"
   ship_shipment }o..o| ship_parcel_tariff : "tariff_id"
   ship_courier_assignment }o..o| ship_pickup_request : "pickup_request_id"

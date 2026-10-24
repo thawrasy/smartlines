@@ -209,6 +209,21 @@ def _legacy_sign(payload: str) -> str:
     return _mac(get_settings().signing_secret.encode(), payload)
 
 
+def parcel_label_token(tracking_no: str, label_no: str) -> str:
+    """The code printed on a parcel's label (1147): P1.<key id>.<tracking>.<label>.<signature>; it never rotates, since
+    the label is stuck on the parcel, and a forged or altered label does not verify."""
+    kid, key = token_keys("qr")[0]
+    payload = f"P1.{kid}.{tracking_no}.{label_no}"
+    return f"{payload}.{_mac(key, payload)}"
+
+
+def verify_parcel_label(token: str) -> tuple[str, str] | None:
+    parts = token.split(".")
+    if len(parts) != 5 or parts[0] != "P1" or not _verify_mac("qr", parts[1], ".".join(parts[:4]), parts[4]):
+        return None
+    return parts[2], parts[3]
+
+
 def ticket_qr_token(ticket_uid: str, now: float | None = None) -> tuple[str, int]:
     """Rotating ticket code: changes every qr_window_seconds; Q1.<key id>.<ticket>.<window>.<signature>."""
     window = get_settings().qr_window_seconds

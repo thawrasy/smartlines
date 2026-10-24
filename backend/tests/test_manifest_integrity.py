@@ -28,7 +28,11 @@ def modules():
     changed = [k for k in ("cargo", "trip_manifests") if not states.get(k)]
     for k in changed:
         assert admin.put(f"/api/admin/modules/{k}", json={"enabled": True, "reason": "manifest tests"}).status_code == 200
+    # the international trip of this test is not a scheduled one: the parcel policy opens any trip meanwhile (1147)
+    policy = admin.get("/api/admin/parcels/policy").json()
+    assert admin.put("/api/admin/parcels/policy", json={**policy, "scheduled_only": False, "reason": "manifest tests"}).status_code == 200
     yield
+    admin.put("/api/admin/parcels/policy", json={**policy, "reason": "manifest tests done"})
     for k in changed:
         admin.put(f"/api/admin/modules/{k}", json={"enabled": False, "reason": "manifest tests done"})
 
@@ -106,7 +110,8 @@ def test_an_international_manifest_carries_cargo_is_signed_and_answered_through_
                                                               "pricing_mode": "WEIGHT", "currency": "SYP", "per_kg": 100000}).json()
     r = p.post("/api/parcels", json={"trip_uid": t["uid"], "from_seq": t["from_seq"], "to_seq": t["to_seq"], "tariff_uid": tariff["uid"],
                                      "weight_kg": 6, "length_cm": 40, "width_cm": 30, "height_cm": 20, "description": "Household items",
-                                     "recipient_name": "Maya Haddad", "recipient_mobile": "+9613123456", "idempotency_key": uuid.uuid4().hex})
+                                     "recipient_name": "Maya Haddad", "recipient_mobile": "+9613123456", "idempotency_key": uuid.uuid4().hex,
+                                     "accept_rules": True})
     assert r.status_code == 201, r.text
     tracking = r.json()["tracking_no"]
 

@@ -341,6 +341,21 @@ async def seed_gateway(conn) -> bool:
     return n > 0
 
 
+async def seed_trip_parcels(conn) -> bool:
+    """Parcels on trips for the trial (N5, 1147): the switch on and a drop-off office of the demo carrier."""
+    if await conn.fetchval("SELECT 1 FROM ship.parcel_point LIMIT 1"):
+        return False
+    await conn.execute("""UPDATE sys.setting SET value = value || '{"trip_parcels": true}'::jsonb WHERE key = 'features'""")
+    owner = await conn.fetchrow(
+        """SELECT u.id, m.company_id FROM iam.app_user u JOIN iam.company_member m ON m.user_id = u.id
+            WHERE u.email = 'owner@carrier.test' LIMIT 1""")
+    await conn.execute(
+        """INSERT INTO ship.parcel_point (company_id, kind, name, address, hours, phone, created_by)
+           VALUES ($1, 'OFFICE', 'Baramkeh office', 'Baramkeh, next to the old bus garage, Damascus', 'Daily 08:00-20:00', '+963112223344', $2)""",
+        owner["company_id"], owner["id"])
+    return True
+
+
 async def main():
     url = os.environ.get("MASSLAK_OWNER_URL", "postgresql://postgres@localhost:5432/masslak")
     conn = await asyncpg.connect(url)
@@ -366,7 +381,8 @@ async def main():
                                                     ("family and manifest route", await seed_families(conn)),
                                                     ("charter offers", await seed_charter(conn)),
                                                     ("second carrier", await seed_carrier_b(conn)),
-                                                    ("gateway activations", await seed_gateway(conn))) if done]
+                                                    ("gateway activations", await seed_gateway(conn)),
+                                                    ("parcels on trips", await seed_trip_parcels(conn))) if done]
             print(f"demo {' and '.join(added)} added" if added else "demo data already present")
             return
         # Platform staff
@@ -519,6 +535,7 @@ async def main():
         await seed_charter(conn)
         await seed_carrier_b(conn)
         await seed_gateway(conn)
+        await seed_trip_parcels(conn)
     await conn.close()
     print(f"demo data created: {n_trips} trips")
     print(f"accounts (password: {PASSWORD}):")
