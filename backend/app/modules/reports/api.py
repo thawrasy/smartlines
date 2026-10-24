@@ -15,7 +15,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field, field_validator
 
 from ... import db, markets, release
-from ...deps import Principal, context_for, require_user
+from ...deps import Principal, context_for, require_user, require_step_up
 from ...errors import ApiError, forbidden, not_found
 from . import engine, export, freshness
 from .datasets import DATASETS
@@ -218,6 +218,7 @@ def _value_labels(group: str, loc: str) -> dict:
 
 @router.post("/export")
 async def export_file(body: ExportIn, request: Request, pr: Principal = Depends(require_user)):
+    require_step_up(pr)                 # a sensitive operation: a recent second factor (1136)
     v = viewer(pr)
     loc = locale_of(request, pr, body.locale)
     limit = engine.PDF_ROWS if body.format == "PDF" else engine.EXPORT_ROWS

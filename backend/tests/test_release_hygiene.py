@@ -21,7 +21,7 @@ def test_the_api_reports_the_release_of_its_database():
             return await conn.fetchval("SELECT version FROM sys.current_release()")
         finally:
             await conn.close()
-    spec = e2e.client().get("/api/openapi.json")          # the sandbox publishes it
+    spec = e2e.client().get("/api/openapi.json")          # the test server publishes it (MASSLAK_API_DOCS=true)
     assert spec.status_code == 200
     assert spec.json()["info"]["version"] == asyncio.run(version()) != "0.1.0"
 
@@ -33,7 +33,8 @@ def _docs(**env) -> str:
     return out.stdout.strip()
 
 
-def test_production_does_not_publish_the_internal_api_document():
+def test_no_server_publishes_the_internal_api_document_unless_told():
     assert _docs(MASSLAK_SANDBOX="false") == "None None"
     assert _docs(MASSLAK_SANDBOX="false", MASSLAK_API_DOCS="true") == "/api/docs /api/openapi.json"
-    assert _docs(MASSLAK_SANDBOX="true") == "/api/docs /api/openapi.json"
+    assert _docs(MASSLAK_SANDBOX="true") == "None None"          # a sandbox (the trial server) does not publish it either
+    assert _docs(MASSLAK_SANDBOX="true", MASSLAK_API_DOCS="true") == "/api/docs /api/openapi.json"

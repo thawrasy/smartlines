@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Text, View } from "react-native";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { useFonts } from "expo-font";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { I18nProvider, useI18n } from "../i18n";
 import { AuthProvider } from "../platform/auth";
@@ -10,7 +11,7 @@ import { checkIntegrity, type Integrity } from "../platform/integrity";
 import { VARIANT } from "../platform/config";
 import { AppLock } from "../ui/AppLock";
 import { Loading } from "../ui/kit";
-import { color } from "../ui/theme";
+import { color, FONT_FILES } from "../ui/theme";
 
 function Gate() {
   const { t } = useI18n();
@@ -42,6 +43,9 @@ function Notice({ text }: { text: string }) {
 }
 
 export default function RootLayout() {
+  // the identity's fonts; a failure to load them falls back to the system font rather than blocking the app
+  const [loaded, failed] = useFonts(FONT_FILES);
+  if (!loaded && !failed) return <Loading />;
   return (
     <SafeAreaProvider>
       <I18nProvider>

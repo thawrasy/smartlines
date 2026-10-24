@@ -131,7 +131,9 @@ table comments. So version 3.9 told the reader two different things, and the rev
 - **Growth metrics:** `masslak_table_rows_estimate` and `masslak_table_bytes` for the outbox and the other growing
   tables, and the purge backlog (`OutboxPurgeBehind`).
 - **Partitioning point:** the setting `capacity.outbox_partition_rows` (20 million). The alert
-  `OutboxPartitioningDue` opens the work to partition the outbox by day, as positions already are.
+  `OutboxPartitioningDue` opened the work to partition the outbox by day, as positions already are. *Later:* the
+  outbox was partitioned by day in 1053; 1133 replaced the point with a review point of 8 million rows over all
+  partitions (`capacity.outbox_review_rows`, alert `OutboxReviewDue`).
 - **The documented path:** `docs/integration/EVENTS.md`, "How events leave the database". It records that a later
   move to CDC keeps the envelope, ids, per-record sequence and schema versions, so receivers change nothing.
 

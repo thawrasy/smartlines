@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { api } from "../../api";
 import { useI18n } from "../../i18n";
-import { Empty, ErrorBox, Field, Icon, Loaded, Modal, useLoad, useToast } from "../../components/ui";
+import { CarrierName, Empty, ErrorBox, Field, Icon, Loaded, Modal, useLoad, useToast } from "../../components/ui";
 
 interface Claim {
   uid: string; ref: string; subject: string; claim_amount: number; approved_amount: number; liable: string; updated_at: string;
-  booking_ref: string | null; carrier_name: string | null; customer_name: string | null;
+  booking_ref: string | null; carrier_name: string | null; carrier_uid?: string | null; carrier_logo?: string | null; customer_name: string | null;
 }
 
 /** Finance: approved claims waiting for payment. The payer must not be the person who approved the claim. */
@@ -29,7 +29,8 @@ export function ClaimsToPay() {
           <tbody>{claims.map((c) => (
             <tr key={c.uid}>
               <td className="mono ltr">{c.ref}</td><td>{c.subject}{c.booking_ref && <div className="small muted mono ltr">{c.booking_ref}</div>}</td>
-              <td>{c.customer_name}</td><td>{t(`support.liableParty.${c.liable}`)}{c.liable === "CARRIER" && c.carrier_name ? ` · ${c.carrier_name}` : ""}</td>
+              <td>{c.customer_name}</td><td>{t(`support.liableParty.${c.liable}`)}{c.liable === "CARRIER" && c.carrier_name
+                ? <div><CarrierName name={c.carrier_name} uid={c.carrier_uid} logo={c.carrier_logo} /></div> : null}</td>
               <td className="num mono">{money(c.approved_amount)}</td><td className="small">{dateTime(c.updated_at)}</td>
               <td><button className="btn tonal small" onClick={() => setConfirm(c)}>{t("support.pay")}</button></td>
             </tr>

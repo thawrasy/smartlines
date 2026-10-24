@@ -75,7 +75,7 @@ def test_booking_notifies_in_app_and_by_email(trip):
 @pytest.mark.skipif(not OWNER_URL, reason="needs MASSLAK_OWNER_URL")
 def test_failed_delivery_backs_off_and_retries():
     owner_sql("""INSERT INTO sys.outbox_event (event_type, aggregate_type, aggregate_id, payload)
-                 VALUES ('booking.confirmed', 'booking', 0, '{"booking_ref": "BROKEN"}')""")    # no recipient: fails
+                 VALUES ('booking.confirmed', 'booking', 0, '{"booking_ref": "BROKEN", "test_fixture": true}')""")    # no recipient: fails
     run_worker()
     row = owner_sql("""SELECT status, attempts, last_error IS NOT NULL AS err, next_attempt_at > now() AS later
                         FROM sys.outbox_event WHERE payload ->> 'booking_ref' = 'BROKEN' ORDER BY id DESC LIMIT 1""", fetch=True)

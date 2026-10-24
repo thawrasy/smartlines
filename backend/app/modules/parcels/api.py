@@ -46,8 +46,9 @@ MODES = Literal["WEIGHT", "VOLUME", "WEIGHT_AND_VOLUME", "FIXED", "NEGOTIATED"]
 
 
 async def _on() -> None:
-    if not await features.is_on("cargo"):
-        raise ApiError(404, "MODULE_DISABLED", "module cargo is switched off")
+    """Parcels on trips have their own switch (trip_parcels, 1147); the courier module (cargo) also carries them."""
+    if not (await features.is_on("trip_parcels") or await features.is_on("cargo")):
+        raise ApiError(404, "MODULE_DISABLED", "parcels on trips are switched off")
 
 
 def _need(pr: Principal, *codes: str) -> None:
@@ -86,6 +87,8 @@ class ParcelBookIn(ParcelQuoteIn):
     recipient_mobile: str = Field(pattern=r"^\+?[0-9]{8,15}$")
     declared_value: int = Field(default=0, ge=0, le=10_000_000_000)
     idempotency_key: str = Field(min_length=8, max_length=80)
+    accept_rules: bool = False                   # the sender confirms the parcel holds none of the prohibited items (1147)
+    drop_point_uid: Optional[uuid.UUID] = None   # where the sender will hand it over
 
 
 class OfferIn(ParcelQuoteIn):
@@ -107,7 +110,8 @@ async def parcel_trips(request: Request, origin: str = Query(..., min_length=3, 
     await _on()
     async with db.transaction(context_for(request, pr)) as conn:
         trips = await conn.fetch(
-            """SELECT DISTINCT ON (t.id) t.id, t.uid, t.trip_no, t.company_id, cp.legal_name AS carrier_name, a.seq AS from_seq,
+            """SELECT DISTINCT ON (t.id) t.id, t.uid, t.trip_no, t.trip_code, t.company_id, t.template_id, cp.legal_name AS carrier_name, cp.uid AS carrier_uid,
+                      iam.logo_version(cp.id) AS carrier_logo, a.seq AS from_seq,
                       b.seq AS to_seq, a.sched_dep AS departs_at, b.sched_arr AS arrives_at, sa.name AS from_station, sb.name AS to_station
                  FROM ops.trip t JOIN iam.party cp ON cp.id = t.company_id
                  JOIN ops.trip_stop a ON a.trip_id = t.id JOIN net.station sa ON sa.id = a.station_id JOIN ref.city ca ON ca.id = sa.city_id
@@ -116,17 +120,24 @@ async def parcel_trips(request: Request, origin: str = Query(..., min_length=3, 
                 WHERE t.status IN ('PUBLISHED', 'BOARDING') AND ca.code = $1 AND cb.code = $2 AND a.kind = 'STATION' AND b.kind = 'STATION'
                   AND (a.sched_dep AT TIME ZONE ca.timezone)::date = $3 AND a.sched_dep > now()
                 ORDER BY t.id, a.seq, b.seq DESC""", origin.upper(), destination.upper(), on)
+        pol = await service.policy(conn)
         out = []
         for t in trips:
+            if await service.carrier_allowed(conn, t["company_id"], pol) or (pol.get("scheduled_only") and t["template_id"] is None):
+                continue
             hold = await service.hold_of(conn, t["id"])
             if hold is None:
                 continue
+            settings = await service.carrier_settings(conn, t["company_id"])
             tariffs = await conn.fetch(
                 "SELECT * FROM ship.parcel_tariff WHERE company_id = $1 AND status = 'ACTIVE' ORDER BY pricing_mode, code", t["company_id"])
             row = row_dict(t)
             row.pop("id")
             row.pop("company_id")
-            out.append({**row, "hold": hold, "tariffs": [_tariff_view(x) for x in tariffs]})
+            row.pop("template_id")
+            by = await service.handover_by(conn, t, settings)
+            out.append({**row, "hold": hold, "tariffs": [_tariff_view(x) for x in tariffs], "booking_mode": settings["booking_mode"],
+                        "handover_by": by.isoformat(), "points": await service.points(conn, t["company_id"])})
     out.sort(key=lambda r: r["departs_at"])
     return {"trips": out}
 
@@ -136,6 +147,7 @@ async def parcel_quote(body: ParcelQuoteIn, request: Request, pr: Principal = De
     await _on()
     async with db.transaction(context_for(request, pr)) as conn:
         trip = await service.trip_for_parcel(conn, body.trip_uid, body.from_seq, body.to_seq)
+        await service.require_parcel_trip(conn, trip)
         t = await service.tariff(conn, body.tariff_uid, trip["company_id"])
         return await service.quote(conn, trip, t, body.weight_kg, service.volume_m3(body.length_cm, body.width_cm, body.height_cm))
 
@@ -147,11 +159,12 @@ async def parcel_book(body: ParcelBookIn, request: Request, pr: Principal = Depe
     ctx = context_for(request, pr)
     async with db.transaction(ctx) as conn:
         trip = await service.trip_for_parcel(conn, body.trip_uid, body.from_seq, body.to_seq)
+        online = await service.online_terms(conn, trip, body.accept_rules, body.drop_point_uid)
         t = await service.tariff(conn, body.tariff_uid, trip["company_id"])
         out = await service.book(conn, ctx, pr, trip, t, weight_kg=body.weight_kg, length_cm=body.length_cm, width_cm=body.width_cm,
                                  height_cm=body.height_cm, description=body.description.strip(), recipient_name=body.recipient_name,
                                  recipient_mobile=body.recipient_mobile, declared_value=body.declared_value,
-                                 idempotency_key=body.idempotency_key)
+                                 idempotency_key=body.idempotency_key, **online)
     request.state.audit = {"action": "parcel.book", "object_type": "shipment", "object_id": None, "reason": out["tracking_no"]}
     return out
 
@@ -188,8 +201,8 @@ def _offer_view(o) -> dict:
     return d
 
 
-_OFFERS = """SELECT o.*, t.code AS tariff_code, t.name AS tariff_name, tr.trip_no, tr.uid AS trip_uid, cp.legal_name AS carrier_name,
-                    s.tracking_no
+_OFFERS = """SELECT o.*, t.code AS tariff_code, t.name AS tariff_name, tr.trip_no, tr.trip_code, tr.uid AS trip_uid, cp.legal_name AS carrier_name,
+                    cp.uid AS carrier_uid, iam.logo_version(cp.id) AS carrier_logo, s.tracking_no
                FROM ship.parcel_offer o JOIN ship.parcel_tariff t ON t.id = o.tariff_id JOIN ops.trip tr ON tr.id = o.trip_id
                JOIN iam.party cp ON cp.id = o.company_id LEFT JOIN ship.shipment s ON s.id = o.shipment_id"""
 
@@ -200,6 +213,7 @@ async def ask_offer(body: OfferIn, request: Request, pr: Principal = Depends(pas
     await _on()
     async with db.transaction(context_for(request, pr)) as conn:
         trip = await service.trip_for_parcel(conn, body.trip_uid, body.from_seq, body.to_seq)
+        await service.require_parcel_trip(conn, trip)
         t = await service.tariff(conn, body.tariff_uid, trip["company_id"])
         if t["pricing_mode"] != "NEGOTIATED":
             raise ApiError(409, "PRICE_PUBLISHED", "this tariff has a published price: book it directly")
@@ -243,12 +257,13 @@ async def accept_offer(uid: uuid.UUID, body: AcceptIn, request: Request, pr: Pri
             raise ApiError(409, "OFFER_EXPIRED", "the carrier's offer has lapsed")
         trip_uid = await conn.fetchval("SELECT uid FROM ops.trip WHERE id = $1", o["trip_id"])
         trip = await service.trip_for_parcel(conn, trip_uid, o["from_seq"], o["to_seq"])
+        online = await service.online_terms(conn, trip, True, None)        # the rules were confirmed when the price was asked
         t = await conn.fetchrow("SELECT * FROM ship.parcel_tariff WHERE id = $1", o["tariff_id"])
         # the size asked for: a cube of the stated volume (the carrier measures the parcel at acceptance)
         side = max(float(o["volume_m3"]), 0.000001) ** (1 / 3) * 100
         out = await service.book(conn, ctx, pr, trip, t, weight_kg=float(o["weight_kg"]), length_cm=side, width_cm=side, height_cm=side,
                                  description=o["description"], recipient_name=body.recipient_name, recipient_mobile=body.recipient_mobile,
-                                 declared_value=body.declared_value, idempotency_key=body.idempotency_key, offer=o)
+                                 declared_value=body.declared_value, idempotency_key=body.idempotency_key, offer=o, **online)
     request.state.audit = {"action": "parcel.accept_offer", "object_type": "parcel_offer", "object_id": o["id"], "reason": out["tracking_no"]}
     return out
 

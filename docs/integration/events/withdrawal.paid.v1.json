@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://masslak.com/schemas/events/withdrawal.paid.v1.json",
+  "title": "withdrawal.paid",
+  "description": "A withdrawal was paid by bank transfer. The data of the envelope (EVENTS.md); fields are only added within a version.",
+  "x-event-type": "withdrawal.paid",
+  "x-schema-version": 1,
+  "type": "object",
+  "properties": {
+    "amount": {
+      "type": "integer"
+    },
+    "bank_ref": {
+      "type": "string"
+    },
+    "iban_last4": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "amount",
+    "bank_ref"
+  ],
+  "additionalProperties": true
+}

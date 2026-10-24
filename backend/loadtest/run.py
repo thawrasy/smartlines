@@ -27,7 +27,8 @@ from datetime import datetime, timedelta
 
 import httpx
 
-PASSWORD = "load-test-password-2026"
+# not built on the accounts' name or e-mail (the password policy refuses those since reviews of October 2026, M-13)
+PASSWORD = "Bursty-Harbour-Quill-2026"
 DEMO_PASSWORD = "Masslak-Demo-2026"
 DRIVERS = ["driver@carrier.test", "driver2@carrier.test"]
 STAFF = ["owner@carrier.test"]

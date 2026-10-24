@@ -14,6 +14,9 @@ export class ApiError extends Error {
 const CLIENT = Platform.OS === "ios" ? "ios" : "android";
 const TIMEOUT_MS = 15000;
 
+// a multipart form (a photo) is sent as it is; the browser or the device sets its boundary
+const isForm = (body: unknown): body is FormData => typeof FormData !== "undefined" && body instanceof FormData;
+
 async function raw(method: string, path: string, body?: unknown, token?: string | null): Promise<Response> {
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), TIMEOUT_MS);
@@ -24,10 +27,10 @@ async function raw(method: string, path: string, body?: unknown, token?: string 
       headers: {
         "X-Masslak-Client": CLIENT,
         Accept: "application/json",
-        ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
+        ...(body !== undefined && !isForm(body) ? { "Content-Type": "application/json" } : {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      body: body !== undefined ? JSON.stringify(body) : undefined,
+      body: body === undefined ? undefined : isForm(body) ? body : JSON.stringify(body),
     });
   } catch {
     throw new ApiError(0, "NETWORK", "network unavailable");
@@ -70,7 +73,14 @@ export const api = {
   post: <T>(path: string, body: unknown = {}) => request<T>("POST", path, body),
   patch: <T>(path: string, body: unknown = {}) => request<T>("PATCH", path, body),
   del: <T>(path: string) => request<T>("DELETE", path),
+  upload: <T>(path: string, form: FormData) => request<T>("POST", path, form),
 };
+
+/** The headers an image needs when the app loads it from the API itself (a passenger's photo at boarding). */
+export async function authHeaders(): Promise<Record<string, string>> {
+  const token = await session.accessToken();
+  return { "X-Masslak-Client": CLIENT, ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+}
 
 export interface LoginResult { mfa: "VERIFY" | "ENROLL" | null }
 
@@ -81,6 +91,11 @@ export async function signIn(identifier: string, password: string): Promise<Logi
   const data = await parse<{ mfa: LoginResult["mfa"] } & Tokens>(r);
   await tokenStore.save({ access_token: data.access_token, refresh_token: data.refresh_token, access_expires_at: data.access_expires_at });
   return { mfa: data.mfa };
+}
+
+/** A closed account comes back with the same details (1085); the caller signs in afterwards. */
+export async function reactivate(identifier: string, password: string): Promise<void> {
+  await parse<{ ok: boolean }>(await raw("POST", "/api/auth/reactivate", { identifier: identifier.trim(), password }));
 }
 
 export async function signOut(): Promise<void> {

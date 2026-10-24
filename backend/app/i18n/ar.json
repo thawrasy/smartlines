@@ -9,6 +9,32 @@
     "body": "تم إلغاء حجزك {booking_ref}. المبلغ المسترد: {refund_amount} ل.س.",
     "sms": "مسلك: أُلغي الحجز {booking_ref}. المسترد {refund_amount} ل.س."
   },
+  "booking.cancelled_by_carrier": {
+    "subject": "ألغى الناقل الرحلة {trip_no}",
+    "body": "ألغى الناقل الرحلة {trip_no}. أُلغي حجزك {booking_ref} واستُرد مبلغ {refund_amount} ل.س كاملاً {refund_to}. نعتذر عن الإزعاج.",
+    "sms": "مسلك: ألغى الناقل الرحلة {trip_no}. الحجز {booking_ref}: استُرد {refund_amount} ل.س {refund_to}."
+  },
+  "trip.cancel_penalty": {
+    "subject": "غرامة إلغاء الرحلة {trip_no}",
+    "body": "بموجب قرار الجهة المنظِّمة {legal_ref}، يترتب على إلغاء الرحلة {trip_no} غرامة قدرها {amount} ل.س. تُقتطع من رصيدك، أو من أرباحك التالية عند تحريرها إن لم يكفِ الرصيد."
+  },
+  "refund_to_labels": {
+    "WALLET": "إلى محفظتك في مسلك",
+    "AGENCY": "عن طريق الوكالة التي باعته",
+    "COUNTER": "نقداً من شباك الناقل"
+  },
+  "points.earned": {
+    "subject": "ربحت {points} نقطة",
+    "body": "أكسبتك الرحلة {trip_no} عدد {points} من نقاط الولاء. رصيدك {balance} نقطة؛ حوّلها إلى رصيد في محفظتك أو إلى قسيمة لدى أحد الشركاء من صفحة المحفظة."
+  },
+  "voucher.used": {
+    "subject": "استُخدمت قسيمتك لدى {partner}",
+    "body": "استُخدمت قسيمتك بقيمة {amount} {currency} لدى {partner}."
+  },
+  "voucher.returned": {
+    "subject": "عادت {points} نقطة إلى رصيدك",
+    "body": "انتهت صلاحية قسيمة لم تستخدمها أو أُلغيت، فعادت نقاطها ({points} نقطة) إلى رصيد الولاء."
+  },
   "booking.reserved": {
     "subject": "تم حجز المقاعد {booking_ref}: ادفع قبل {pay_by_local}",
     "body": "مقاعدك في الحجز {booking_ref} محجوزة: من {from_city} إلى {to_city}، الانطلاق {departs_local}، عدد الركاب {passengers}، المبلغ {total_amount} ل.س. ادفع قبل {pay_by_local} وإلا أُلغي الحجز وعادت المقاعد للبيع. تصدر تذاكرك فور الدفع.",
@@ -21,6 +47,41 @@
   "withdrawal.rejected": {
     "subject": "لم تتم الموافقة على سحب {amount} ل.س",
     "body": "لم تتم الموافقة على طلب السحب بقيمة {amount} ل.س: {reason}. عاد المبلغ متاحاً في رصيدك."
+  },
+  "tracking.signal_lost": {
+    "subject": "الرحلة {trip_no}: لا موقع منذ {minutes} دقيقة",
+    "body": "لم ترسل مركبة الرحلة {trip_no} أي موقع منذ {minutes} دقيقة. تواصل مع السائق؛ يُغلق التنبيه عند عودة المواقع."
+  },
+  "tracking.alert_escalated": {
+    "subject": "الرحلة {trip_no}: ما زال لا موقع بعد {minutes} دقيقة",
+    "body": "مركبة الرحلة {trip_no} صامتة منذ {minutes} دقيقة وتم تصعيد التنبيه. تواصل مع السائق الآن وسجّل ما حدث."
+  },
+  "screen.unseen": {
+    "subject": "الشاشة {label} في {station}: غير مرئية منذ {minutes} دقيقة",
+    "body": "لم تقرأ الشاشة {label} في المحطة {station} لوحتها منذ {minutes} دقيقة. تحقق من الكهرباء والشبكة والمتصفح؛ ويزول التنبيه حين تعود إلى قراءة لوحتها."
+  },
+  "sos.raised": {
+    "subject": "استغاثة على الرحلة {trip_no}",
+    "body": "أُطلقت استغاثة على الرحلة {trip_no} (المركبة {plate_no}). الموقع: {where}. اتصل بالسائق وبخدمات الطوارئ الآن، ثم أكّد استلام الإنذار في البوابة.",
+    "sms": "استغاثة مسلك: الرحلة {trip_no}، المركبة {plate_no}، الموقع {where}. تصرّف الآن."
+  },
+  "incident.reported": {
+    "subject": "حادث على الرحلة {trip_no}: {incident_type}، {severity}",
+    "body": "أبلغ سائق الرحلة {trip_no} (المركبة {plate_no}) عن حادث: {incident_type}، {severity}. راجعه في البوابة وقرّر ما يحدث للرحلة."
+  },
+  "incident_type_labels": {
+    "COLLISION": "تصادم",
+    "BREAKDOWN": "عطل",
+    "FIRE": "حريق",
+    "SECURITY": "أمني",
+    "SEIZURE": "حجز",
+    "MEDICAL": "حالة طبية",
+    "OTHER": "أخرى"
+  },
+  "severity_labels": {
+    "MINOR": "بسيط",
+    "MAJOR": "كبير",
+    "SEVERE": "خطير"
   },
   "document.approved": {
     "subject": "اعتُمدت {doc_type}",
@@ -1220,5 +1281,56 @@
     "subject": "رمز الدخول إلى مسلك",
     "body": "رمز الدخول إلى مسلك هو {code}، صالح لمدة {minutes} دقائق. لا تشاركه مع أي أحد.",
     "sms": "رمز مسلك: {code} (صالح {minutes} د). لا تشاركه مع أحد."
+  },
+  "security.traffic_alert": {
+    "subject": "تنبيه أمني: {kind_label} ({severity_label})",
+    "body": "فتحت مراقبة حركة المنصة تنبيهاً: {kind_label}. الأرقام: {metrics_text}. الإجراء التلقائي: {actions_text}. افتح درع المنصة في مركز الأمن لتتحقق، أو تحظر العناوين، أو توقف المنصة مؤقتاً.",
+    "sms": "أمن مسلك: {kind_label}. {metrics_text}. تحقق من الدرع في مركز الأمن الآن."
+  },
+  "security.shield_changed": {
+    "subject": "درع المنصة: {level_label}",
+    "body": "أصبح درع المنصة {level_label} (كان {previous_label}). السبب: {reason}. بواسطة: {by_label}. راجعه في مركز الأمن.",
+    "sms": "درع مسلك: {level_label}. السبب: {reason}."
+  },
+  "account.signed_in_elsewhere": {
+    "subject": "تم الدخول إلى حسابك من جهاز آخر",
+    "body": "تم الدخول إلى حسابك في مسلك قبل قليل من جهاز آخر ({client_label}). حفاظاً على أمانك يبقى جهاز واحد فقط متصلاً، لذلك خرج الجهاز الآخر. إن لم تكن أنت، غيّر كلمة المرور الآن وتواصل مع الدعم."
+  },
+  "shield_labels": {
+    "VOLUME": "حجم حركة غير طبيعي",
+    "SPIKE": "قفزة مفاجئة فوق الحركة المعتادة",
+    "ERRORS": "أخطاء خادم كثيرة",
+    "WAF": "طلبات كثيرة أوقفها الجدار الناري",
+    "AUTH_FLOOD": "سيل من محاولات الدخول الفاشلة",
+    "HEAVY_ADDRESS": "عنوان واحد يفوق البقية بكثير",
+    "WARNING": "تحذير",
+    "CRITICAL": "حرج",
+    "NORMAL": "عادي",
+    "ELEVATED": "مرتفع",
+    "LOCKDOWN": "إيقاف مؤقت للحركة",
+    "AUTO": "المنصة نفسها",
+    "STAFF": "أحد موظفي الأمن",
+    "NONE": "لا شيء",
+    "ADDRESS_BLOCKED": "حُظر العنوان مؤقتاً",
+    "LEVEL_ELEVATED": "رُفع الدرع إلى المستوى المرتفع",
+    "web": "متصفح ويب",
+    "android": "تطبيق أندرويد",
+    "ios": "تطبيق آيفون"
+  },
+  "agency_cash.received": {
+    "subject": "سجّل {carrier_name} استلام {amount} {currency}",
+    "body": "سجّل {carrier_name} استلام {amount} {currency} من وكالتكم عن مبيعاتها النقدية (المرجع {reference}). المتبقي لهذا الناقل: {owed_after} {currency}."
+  },
+  "payment_activation.contracted": {
+    "subject": "توقيع عقد بوابة الدفع: {option}",
+    "body": "وقّعت المنصة عقد بوابة الدفع الذي يتيح لمسافريكم الدفع عبر {option}. يبدأ العمل به على رحلاتكم عند تفعيله من المنصة، وسنبلغكم حينها. السند: {basis}."
+  },
+  "payment_activation.active": {
+    "subject": "صار بإمكان المسافرين الدفع لكم عبر {option}",
+    "body": "فُعِّل الدفع عبر {option} على رحلاتكم. تُسوّي البوابة المبالغ في الحساب المصرفي للمنصة، وتُحوَّل حصتكم إليكم بعد كل رحلة كسائر المدفوعات الإلكترونية. السند: {basis}."
+  },
+  "payment_activation.suspended": {
+    "subject": "إيقاف الدفع عبر {option} مؤقتاً على رحلاتكم",
+    "body": "أوقفت المنصة الدفع عبر {option} على رحلاتكم مؤقتاً؛ يدفع المسافرون بالطرق المفتوحة الأخرى في الأثناء. السند: {basis}."
   }
 }

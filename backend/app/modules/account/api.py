@@ -2,12 +2,15 @@
 import uuid
 from typing import Literal, Optional
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, File, Request, Response, UploadFile
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from ... import db
-from ...deps import Principal, context_for, require_portal, require_user
+from ...config import get_settings
+from ...deps import Principal, context_for, require_portal, require_user, require_step_up
+from ...errors import ApiError
+from ..photo import service as photo
 from . import service
 
 router = APIRouter(prefix="/api/account", tags=["account"])
@@ -38,6 +41,60 @@ async def revoke_others(request: Request, pr: Principal = Depends(require_user))
 class PasswordIn(BaseModel):
     current_password: str = Field(min_length=1, max_length=200)
     new_password: str = Field(min_length=1, max_length=200)
+
+
+class DeactivateIn(BaseModel):
+    password: str = Field(min_length=1, max_length=200)
+
+
+@router.post("/deactivate")
+async def deactivate(body: DeactivateIn, request: Request, pr: Principal = Depends(require_user)):
+    """Closes the account, keeping its data (1085): reactivated by signing in again with the same details."""
+    ctx = context_for(request, pr)
+    async with db.transaction(ctx) as conn:
+        await service.deactivate(conn, ctx, pr, body.password)
+    request.state.audit = {"action": "account.deactivate", "object_type": "party", "object_id": pr.party_id}
+    return {"ok": True}
+
+
+@router.get("/photo")
+async def photo_status(request: Request, pr: Principal = Depends(require_user)):
+    """Whether a boarding photo is on file for the signed-in person (1086)."""
+    ctx = context_for(request, pr)
+    async with db.transaction(ctx) as conn:
+        return await photo.status(conn, ctx, pr)
+
+
+@router.post("/photo", status_code=201)
+async def take_photo(request: Request, file: UploadFile = File(...), pr: Principal = Depends(require_user)):
+    """The passenger's own boarding photo (1086): taken at the profile's creation, kept while the account exists."""
+    limit = get_settings().max_upload_bytes
+    data = await file.read(limit + 1)
+    if len(data) > limit:
+        raise ApiError(422, "FILE_TOO_LARGE", "the photo is larger than allowed", max_bytes=limit)
+    ctx = context_for(request, pr)
+    async with db.transaction(ctx) as conn:
+        out = await photo.take(conn, ctx, pr, data, file.filename or "photo", pr.party_id)
+    request.state.audit = {"action": "photo.upload", "object_type": "party", "object_id": out["party_id"]}
+    return {"taken_by": out["taken_by"]}
+
+
+@router.get("/photo/image")
+async def my_photo_image(request: Request, pr: Principal = Depends(require_user)):
+    """The traveler's own boarding photo, on request in the app (1096), when the platform lets the traveler see it."""
+    ctx = context_for(request, pr)
+    async with db.transaction(ctx) as conn:
+        data, mime = await photo.read_own(conn, ctx, pr)
+    request.state.audit = {"action": "photo.view", "object_type": "party", "object_id": pr.party_id}
+    return Response(content=data, media_type=mime)
+
+
+@router.post("/photo/verify")
+async def verify_photo_identity(request: Request, pr: Principal = Depends(require_user)):
+    """Checks the person with the identity provider the platform holds (1096). Refused until one is connected."""
+    ctx = context_for(request, pr)
+    async with db.transaction(ctx) as conn:
+        return await photo.verify_identity(conn, pr)
 
 
 @router.post("/password")
@@ -93,6 +150,7 @@ async def set_consent(body: ConsentIn, request: Request, pr: Principal = Depends
 
 @router.get("/export")
 async def export(request: Request, pr: Principal = Depends(require_user)):
+    require_step_up(pr)                 # a sensitive operation: a recent second factor (1136)
     ctx = context_for(request, pr)
     async with db.transaction(ctx) as conn:
         data = await service.export(conn, ctx, pr)

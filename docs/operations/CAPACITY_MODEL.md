@@ -212,7 +212,7 @@ What stage D added to this model, each part tested (`docs/operations/REVIEW_STAG
 - **Bookings partitioned by id (1064):** ranges of 10 million ids (about a week at the design peak), created ahead by
   the daily upkeep; vacuum, reindex and archiving work one partition at a time. Converting the 135,005 bookings of
   the volume database took part of a 10-second upgrade.
-- **Automatic failover (1065, `deploy/ha`):** Patroni with a synchronous standby (no committed transaction lost) and a
+- **Automatic failover (1065, `deploy/production/ha`, installed with two database hosts; H-01):** Patroni with a synchronous standby (no committed transaction lost) and a
   second site; measured on a development pair: writing back 2.3 s after the promotion.
 
 ## 10. Database connections with N API servers (code review of October 2026, H-04)

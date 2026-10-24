@@ -2,9 +2,11 @@
 // platform on the next start). Code and data stay English; wording lives only in the locale files.
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { I18nManager } from "react-native";
+import { getLocales } from "expo-localization";
 import en, { type Messages } from "./en";
 import ar from "./ar";
 import { get, put } from "../platform/secure";
+import { api } from "../platform/api";
 
 export const LOCALES = { en: { messages: en, rtl: false, intl: "en-GB" }, ar: { messages: ar, rtl: true, intl: "ar-SY-u-nu-latn" } } as const;
 export type Locale = keyof typeof LOCALES;
@@ -44,7 +46,27 @@ const Ctx = createContext<I18n | null>(null);
 export function I18nProvider({ children }: { children: ReactNode }) {
   const [locale, setLoc] = useState<Locale>("en");
   const [market, setMarketState] = useState<Market>(FIRST_MARKET);
-  useEffect(() => { void get("locale").then((v) => { if (v === "ar" || v === "en") setLoc(v); }); }, []);
+  // the cities of the network as the server names them (GET /api/geo/cities, 1125): a city opened for routes from the
+  // administrative geography is named in both languages without a message of its own
+  const [cityNames, setCityNames] = useState<Record<string, { en: string; ar: string }>>({});
+  // the visitor's own choice, else the language of the country they are in (1141: Arabic in Syria, English elsewhere,
+  // set per country by the platform), else the phone's; only a choice is stored, so the default follows the country
+  useEffect(() => {
+    void get("locale").then(async (v) => {
+      if (v === "ar" || v === "en") { setLoc(v); return; }
+      const first = await api.get<{ visitor?: { locale?: string } }>("/api/markets").then((d) => d.visitor?.locale).catch(() => undefined);
+      const phone = getLocales()[0]?.languageCode;
+      const l: Locale = first === "ar" || first === "en" ? first : phone === "ar" ? "ar" : "en";
+      setLoc(l);
+      I18nManager.allowRTL(LOCALES[l].rtl);
+      I18nManager.forceRTL(LOCALES[l].rtl);   // the layout direction follows on the next start
+    });
+  }, []);
+  useEffect(() => {
+    api.get<{ cities: { code: string; name_en: string; name_ar: string }[] }>("/api/geo/cities")
+      .then((d) => setCityNames(Object.fromEntries(d.cities.map((c) => [c.code, { en: c.name_en, ar: c.name_ar }]))))
+      .catch(() => { /* offline: the codes stay */ });
+  }, []);
   useEffect(() => {
     void get("market").then((v) => {
       try { if (v) { const m = JSON.parse(v) as Market; currentZone = m.time_zone; setMarketState(m); } } catch { /* ignore a bad copy */ }
@@ -66,11 +88,15 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const value = useMemo<I18n>(() => {
     const m = LOCALES[locale].messages;
     const intl = LOCALES[locale].intl;
+    const served = (key: string) => {
+      const c = key.startsWith("city.") ? cityNames[key.slice(5)] : undefined;
+      return c ? (locale === "ar" ? c.ar : c.en) : undefined;
+    };
     const t = (key: string, vars?: Vars) => {
-      const s = lookup(m, key) ?? lookup(en, key) ?? key;
+      const s = lookup(m, key) ?? lookup(en, key) ?? served(key) ?? key;
       return vars ? s.replace(/\{(\w+)\}/g, (_, k) => (k in vars ? String(vars[k]) : `{${k}}`)) : s;
     };
-    const has = (key: string) => lookup(m, key) !== undefined || lookup(en, key) !== undefined;
+    const has = (key: string) => lookup(m, key) !== undefined || lookup(en, key) !== undefined || served(key) !== undefined;
     const city = (code: string) => (has(`city.${code}`) ? t(`city.${code}`) : code);
     return {
       locale, rtl: LOCALES[locale].rtl, setLocale, t, has, city, market, setMarket,
@@ -94,7 +120,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       time: (iso) => new Intl.DateTimeFormat(intl, { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: market.time_zone }).format(new Date(iso)),
       date: (iso) => new Intl.DateTimeFormat(intl, { weekday: "short", day: "numeric", month: "short", timeZone: market.time_zone }).format(new Date(iso)),
     };
-  }, [locale, setLocale, market, setMarket]);
+  }, [locale, setLocale, market, setMarket, cityNames]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

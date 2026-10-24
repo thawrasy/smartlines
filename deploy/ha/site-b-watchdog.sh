@@ -4,13 +4,14 @@
 #
 # Every minute (deploy/ha/masslak-site-b-watchdog.timer) it checks, on the second site's standby leader:
 #   * that it receives WAL from the main site (pg_stat_wal_receiver), and how far its replay is behind;
-#   * that the main site's primary answers through its HAProxy (port 5000) and its Patroni REST API;
+#   * that the main site's primary answers: one of its database hosts (MASSLAK_MAIN_SITE_HOSTS, its MASSLAK_DB_HOSTS)
+#     accepts connections and its Patroni REST API, over TLS with the main site's authority, says it is the primary;
 # and writes the figures for node_exporter's textfile collector, where Prometheus reads them (alerts SiteBNotStreaming,
 # SiteBLagging, MainSiteUnreachableFromSiteB). With MASSLAK_WATCHDOG_WEBHOOK set it also posts a message when the
 # state changes, so the people on call hear of it even if the main site's monitoring went down with it.
 set -uo pipefail
-main_host="${MASSLAK_MAIN_SITE_HOST:-db-primary.main-site.internal}"
-main_rest="${MASSLAK_MAIN_SITE_PATRONI:-http://db-a1.internal:8008/primary}"
+main_hosts="${MASSLAK_MAIN_SITE_HOSTS:-10.0.0.11,10.0.0.12}"
+main_ca="${MASSLAK_MAIN_SITE_CA:-/etc/masslak/main-site-ca.crt}"
 out_dir="${MASSLAK_TEXTFILE_DIR:-/var/lib/node_exporter/textfile}"
 state_file="${MASSLAK_WATCHDOG_STATE:-/var/lib/masslak/site-b-watchdog.state}"
 psql_local() { psql -h /var/run/postgresql -U postgres -d postgres -qAtX -c "$1" 2>/dev/null; }
@@ -22,7 +23,9 @@ lag="${lag:--1}"
 in_recovery="$(psql_local "SELECT pg_is_in_recovery()::int")"
 in_recovery="${in_recovery:-0}"
 reachable=0
-if pg_isready -q -h "$main_host" -p 5000 -t 5 && curl -fsS -m 5 "$main_rest" >/dev/null 2>&1; then reachable=1; fi
+for h in ${main_hosts//,/ }; do
+  if pg_isready -q -h "$h" -p 5432 -t 5 && curl -fsS -m 5 --cacert "$main_ca" "https://$h:8008/primary" >/dev/null 2>&1; then reachable=1; fi
+done
 
 mkdir -p "$out_dir" "$(dirname "$state_file")"
 tmp="$(mktemp "$out_dir/.masslak_site_b.XXXXXX")"

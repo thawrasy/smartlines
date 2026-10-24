@@ -93,16 +93,49 @@ async def maintenance() -> dict:
     reconciliation of every wallet balance with its ledger entries."""
     async with db.transaction(_ctx()) as conn:
         out = json.loads(await conn.fetchval("SELECT sys.run_maintenance()::text"))
+        # loyalty points past their expiry leave the balances (1103)
+        out["points_expired"] = json.loads(await conn.fetchval("SELECT pricing.expire_points()::text"))
+        # partner vouchers past their date give their points back (1107)
+        out["vouchers_released"] = json.loads(await conn.fetchval("SELECT pricing.release_vouchers()::text"))
         keep = await conn.fetchrow("SELECT * FROM ops.position_retention()")
+        # the shield's traffic samples (7 days) and firewall hits (30 days) (1142)
+        out["shield"] = json.loads(await conn.fetchval("SELECT sec.shield_upkeep()::text"))
     # positions in the telemetry database (review stage D2): partitions ahead, the primary's retention and legal holds
     from ... import telemetry
     if telemetry.enabled():
         out["telemetry"] = await telemetry.upkeep(keep["keep_days"], keep["held"])
+    # stored files no row points to (a process that died between writing a file and its row; M-04)
+    from ...tools import files_sweep
+    try:
+        out["files_sweep"] = {k: v for k, v in (await files_sweep.sweep(delete=True)).items() if k != "sample"}
+        if "refused" in out["files_sweep"]:
+            log.error("file sweep refused: %s", out["files_sweep"]["refused"])
+    except Exception:                                   # noqa: BLE001 - the store being down never stops the upkeep
+        log.exception("file sweep failed; the next daily upkeep tries again")
     if out.get("wallet_mismatches"):
         log.error("ledger reconciliation found %s wallet(s) out of balance", out["wallet_mismatches"])
     else:
         log.info("maintenance done: %s", out)
     return out
+
+
+async def move_default_backlog(limit: int = 200) -> list[dict]:
+    """Late periods out of the default partitions, one period per transaction (1083, reviews of October 2026, M-08):
+    the daily upkeep leaves a large one where it is, still readable, and the table waits for one period at a time.
+    A period that cannot get its table's lock within 10 s is tried again on the next round."""
+    moved: list[dict] = []
+    async with db.transaction(_ctx()) as conn:
+        if not await conn.fetchval("SELECT sys.default_partition_backlog()"):
+            return moved
+    for _ in range(limit):
+        async with db.transaction(_ctx()) as conn:
+            await conn.execute("SET LOCAL statement_timeout = '15min'")     # one period, however large
+            out = await conn.fetchval("SELECT sys.move_default_period()::text")
+        if out is None:
+            break
+        moved.append(json.loads(out))
+        log.warning("late partition upkeep: moved %s", moved[-1])
+    return moved
 
 
 async def main(once: bool) -> None:
@@ -119,10 +152,13 @@ async def main(once: bool) -> None:
         if not providers.enabled(channel):
             log.warning("%s delivery is off on this server: only in-app notifications are kept", channel.lower())
     await db.open_pools()
+    from ... import release
+    await release.require_match_in_production()   # the schema its last build or upgrade recorded, as for the API
     await db.require_reports_replica()       # scheduled reports read the replica, never the booking database
     last_reports = 0.0
     last_rollup = 0.0
     last_maintenance = None if not once else 0.0     # a long-running worker maintains at start, then daily
+    last_backlog = 0.0
     try:
         while True:
             busy = await run_once()
@@ -152,8 +188,27 @@ async def main(once: bool) -> None:
                         await conn.execute("SELECT sales.expire_reservations()")
                         # parcel prices offered and not taken in time lapse (1078)
                         await conn.execute("SELECT ship.expire_parcel_offers()")
+                        # parcel reservations not handed over by their time give their hold space back (1147)
+                        await conn.execute("SELECT ship.release_unhanded_parcels()")
+                        # departed trips whose vehicle went silent get an alert, escalated if the silence lasts (1100)
+                        await conn.execute("SELECT ops.raise_tracking_alerts()")
+                        # station screens that stopped reading their board are reported to the administration (1129)
+                        await conn.execute("SELECT net.raise_screen_alerts()")
+                        # the platform shield's traffic watch: the last minute against the usual (1142)
+                        await conn.execute("SELECT sec.evaluate_traffic()")
+                    # connections held after their trip was completed are released when the change window ends (1132)
+                    from ..sales.connections import release_due_holds
+                    hold_ctx = _ctx()
+                    async with db.transaction(hold_ctx) as conn:
+                        await release_due_holds(conn, hold_ctx)
+                    # approved regular trips make their trips ahead, so one with no end runs until it is stopped (1117)
+                    from ..schedules.service import generate_due
+                    await generate_due()
                     # refunds whose provider outcome is unknown are asked again, with the same reference (R-17)
                     await resend_refunds()
+                    # paid bookings get their e-invoices, refunded ones their credit notes (1104)
+                    from ..einvoice.service import issue_due
+                    await issue_due()
                     # positions the telemetry database could not take when they arrived (R-03)
                     from ... import telemetry
                     await telemetry.drain_backlog()
@@ -170,6 +225,13 @@ async def main(once: bool) -> None:
                 if not once and (last_maintenance is None or now - last_maintenance > 24 * 3600):
                     await maintenance()
                     last_maintenance = now
+                # large late periods leave the default partitions between passes, one per transaction (M-08)
+                if once or now - last_backlog > 600:
+                    try:
+                        await move_default_backlog()
+                    except Exception:                         # noqa: BLE001 - a busy table is tried on the next round
+                        log.exception("moving a late period out of a default partition failed; trying again later")
+                    last_backlog = now
                 if once:
                     return
                 await asyncio.sleep(2)
@@ -183,6 +245,7 @@ async def maintenance_once() -> None:
     await db.open_pools()
     try:
         await maintenance()
+        await move_default_backlog()
     finally:
         await db.close_pools()
 

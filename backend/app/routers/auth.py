@@ -9,18 +9,19 @@ from typing import Literal, Optional
 from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel, EmailStr, Field
 
-from .. import crypto, db, markets, metrics, mfa, mfa_policy, ratelimit
+from .. import crypto, db, markets, metrics, mfa, mfa_policy, ratelimit, shield
 from ..config import get_settings
-from ..deps import SESSION_COOKIE, Principal, base_context, mfa_required_for, require_session, require_user
+from ..deps import REPLACED, SESSION_COOKIE, Principal, base_context, mfa_required_for, require_session, require_user
 from ..errors import ApiError
-from ..security import hash_password, identifier_hash, new_token, password_problem, token_hash, verify_password
+from ..security import (hash_password, identifier_blocked, identifier_hash, new_token, password_needs_rehash, password_problem, token_hash,
+                        verify_password)
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
-Portal = Literal["PASSENGER", "OPERATOR", "DRIVER", "AGENCY", "PLATFORM", "INSPECTOR"]
+Portal = Literal["PASSENGER", "OPERATOR", "DRIVER", "AGENCY", "PLATFORM", "INSPECTOR", "STATION"]
 PORTALS_BY_KIND = {
     "CUSTOMER": {"PASSENGER"},
-    "COMPANY": {"OPERATOR", "DRIVER"},
+    "COMPANY": {"OPERATOR", "DRIVER", "STATION"},       # STATION: a station's operating company (1099)
     "AGENCY": {"AGENCY"},
     "PLATFORM": {"PLATFORM", "INSPECTOR"},
 }
@@ -64,14 +65,40 @@ async def _auth_event(conn, request: Request, event: str, result: str, *, user_i
 async def _blocked(conn, *pairs) -> bool:
     """Whether any (type, value) is on the active blocklist; values are compared as digests (sec.is_blocked, 1054)."""
     for kind, value in pairs:
-        if value and await conn.fetchval("SELECT sec.is_blocked($1, $2)", kind, identifier_hash("".join(str(value).split()))):
+        if value and await identifier_blocked(conn, kind, value):
             return True
     return False
 
 
+class ReactivateIn(BaseModel):
+    identifier: str = Field(min_length=3, max_length=200)
+    password: str = Field(min_length=1, max_length=200)
+
+
+@router.post("/reactivate")
+async def reactivate(body: ReactivateIn, request: Request):
+    """A closed account (1085) comes back with all its data when its owner signs in again with the same details. The
+    answer for a wrong password is the answer for an unknown identifier, so the endpoint does not reveal accounts."""
+    ctx = base_context(request)
+    ctx.scope = "AUTH"
+    ident = body.identifier.strip()
+    async with db.transaction(ctx) as conn:
+        await ratelimit.check_identifier(conn, ident)
+    async with db.transaction(ctx) as conn:
+        user = await conn.fetchrow("SELECT id, password_hash, status FROM iam.app_user WHERE email = $1 OR mobile = $1", ident)
+        if user is None:
+            verify_password(None, body.password)
+        if user is None or user["status"] != "DEACTIVATED" or not verify_password(user["password_hash"], body.password):
+            raise ApiError(401, "INVALID_CREDENTIALS", "invalid login details")
+        await conn.execute("UPDATE iam.app_user SET status = 'ACTIVE', failed_attempts = 0, locked_until = NULL WHERE id = $1",
+                           user["id"])
+        await _auth_event(conn, request, "ACCOUNT_REACTIVATED", "SUCCESS", user_id=user["id"], identifier=ident)
+    return {"ok": True}
+
+
 @router.post("/register", status_code=201)
 async def register(body: RegisterIn, request: Request):
-    problem = password_problem(body.password)
+    problem = password_problem(body.password, body.email, body.full_name, body.mobile)
     if problem:
         raise ApiError(422, problem, "password does not meet the policy")
     ctx = base_context(request)
@@ -122,6 +149,7 @@ async def login(body: LoginIn, request: Request, response: Response):
                                AND f.verified_at IS NOT NULL AND f.disabled_at IS NULL) AS mfa_factors
                  FROM iam.app_user WHERE email = $1 OR mobile = $1""", ident)
         policy = await mfa_policy.current(conn)
+        deactivated = False
         blocked = await _blocked(conn, ("EMAIL" if "@" in ident else "PHONE", ident), ("DEVICE", body.device_id))
         if blocked:             # recorded, then refused once the record is committed
             await _auth_event(conn, request, "LOGIN_FAILED", "BLOCKED", user_id=user["id"] if user else None,
@@ -138,7 +166,14 @@ async def login(body: LoginIn, request: Request, response: Response):
                 await _auth_event(conn, request, "LOGIN_FAILED", "BLOCKED", user_id=user["id"], portal=body.portal,
                                   reason="account_locked")
                 raise ApiError(423, "ACCOUNT_LOCKED", "account temporarily locked after failed attempts")
-            if not verify_password(user["password_hash"], body.password) or user["status"] != "ACTIVE":
+            password_ok = verify_password(user["password_hash"], body.password)
+            if password_ok and user["status"] == "DEACTIVATED":
+                # closed by its owner (1085): the right password is told so, and nothing is counted against the account
+                deactivated = True
+                raise_invalid = True
+                await _auth_event(conn, request, "LOGIN_FAILED", "BLOCKED", user_id=user["id"], portal=body.portal,
+                                  reason="deactivated")
+            elif not password_ok or user["status"] != "ACTIVE":
                 fails = user["failed_attempts"] + 1
                 locked = fails >= MAX_FAILS
                 await conn.execute(
@@ -151,6 +186,8 @@ async def login(body: LoginIn, request: Request, response: Response):
                 raise_invalid = True
     if blocked:
         raise ApiError(403, "BLOCKED", "sign-in is not possible; contact support")
+    if deactivated:
+        raise ApiError(403, "ACCOUNT_DEACTIVATED", "this account is closed; reactivate it with the same details")
     if raise_invalid:
         raise ApiError(401, "INVALID_CREDENTIALS", "invalid login details")
 
@@ -158,14 +195,19 @@ async def login(body: LoginIn, request: Request, response: Response):
         raise ApiError(403, "PORTAL_NOT_ALLOWED", "this account cannot open the requested portal")
 
     ctx.user_id = user["id"]
+    # a hash made with weaker Argon2 parameters is replaced now that the password is known to be right
+    rehashed = hash_password(body.password) if password_needs_rehash(user["password_hash"]) else None
     async with db.transaction(ctx) as conn:
         company_id = None
-        if body.portal in ("OPERATOR", "DRIVER", "AGENCY"):
-            # Agency staff open only the agency portal, carrier staff only the carrier and driver portals
+        if body.portal in ("OPERATOR", "DRIVER", "AGENCY", "STATION"):
+            # Agency staff open only the agency portal, a station operating company's staff only the station portal
+            # (1099), carrier staff only the carrier and driver portals
             company_id = await conn.fetchval(
                 """SELECT m.company_id FROM iam.company_member m JOIN iam.company c ON c.id = m.company_id
                     WHERE m.user_id = $1 AND m.status = 'ACTIVE' AND c.approval_status = 'APPROVED'
-                      AND (c.company_type = 'AGENCY') = ($2 = 'AGENCY')
+                      AND CASE $2 WHEN 'AGENCY' THEN c.company_type = 'AGENCY'
+                                  WHEN 'STATION' THEN c.company_type = 'STATION_OPERATOR'
+                                  ELSE c.company_type NOT IN ('AGENCY', 'STATION_OPERATOR') END
                     ORDER BY m.is_owner DESC LIMIT 1""", user["id"], body.portal)
             if company_id is None:
                 raise ApiError(403, "COMPANY_NOT_ACTIVE", "no approved company for this account")
@@ -204,9 +246,24 @@ async def login(body: LoginIn, request: Request, response: Response):
             request.headers.get("user-agent", "")[:300], expires, client, device, refresh_hash, access_expires)
         await conn.execute(
             "UPDATE iam.app_user SET failed_attempts = 0, locked_until = NULL, last_login_at = now(), "
-            "last_login_ip = $2::inet WHERE id = $1", user["id"], request.state.client_ip)
+            "last_login_ip = $2::inet, password_hash = coalesce($3, password_hash) WHERE id = $1",
+            user["id"], request.state.client_ip, rehashed)
         await _auth_event(conn, request, "LOGIN_SUCCESS", "SUCCESS", user_id=user["id"], portal=body.portal,
                           company_id=company_id, session_id=session_id)
+        # one active session per account and portal (1142): this sign-in ends the others, and the holder is told
+        if shield.session_mode(body.portal) == "SINGLE":
+            ended = await conn.fetch(
+                """UPDATE iam.user_session SET revoked_at = now(), revoke_reason = $4
+                    WHERE user_id = $1 AND portal = $2 AND id <> $3 AND revoked_at IS NULL AND expires_at > now()
+                RETURNING id, client""", user["id"], body.portal, session_id, REPLACED)
+            if ended:
+                await _auth_event(conn, request, "SESSION_REVOKED", "SUCCESS", user_id=user["id"], portal=body.portal,
+                                  company_id=company_id, session_id=session_id, reason=f"{REPLACED}: {len(ended)}")
+                await conn.execute(
+                    """INSERT INTO sys.outbox_event (event_type, aggregate_type, aggregate_id, payload)
+                       VALUES ('account.signed_in_elsewhere', 'user', $1, $2::jsonb)""",
+                    user["id"], json.dumps({"user_id": user["id"], "portal": body.portal, "client": client,
+                                            "ended": len(ended)}))
     factors = list(user["mfa_factors"])
     needs = mfa_required_for(body.portal, user["mfa_required"], bool(factors), policy)
     enrolled = mfa_policy.enrolled(factors, policy)
@@ -247,6 +304,7 @@ async def refresh(body: RefreshIn, request: Request):
             """SELECT s.id, s.user_id, s.portal, s.company_id, d.fingerprint_hash FROM iam.user_session s
                  JOIN iam.device d ON d.id = s.device_id
                 WHERE s.refresh_hash = $1 AND s.revoked_at IS NULL AND s.expires_at > now() AND d.revoked_at IS NULL
+                  AND s.last_seen_at > now() - make_interval(mins => iam.idle_minutes(s.portal))   -- idle sign-out (1146)
                 FOR UPDATE OF s""", presented)
         if sess is None:
             reused = await conn.fetchrow(
@@ -302,18 +360,20 @@ async def me(request: Request, principal: Principal = Depends(require_user)):
     async with db.transaction(ctx) as conn:
         if principal.company_id:
             row = await conn.fetchrow(
-                "SELECT p.legal_name, p.uid FROM iam.party p WHERE p.id = $1", principal.company_id)
+                "SELECT p.legal_name, p.uid, iam.logo_version(p.id) AS logo FROM iam.party p WHERE p.id = $1", principal.company_id)
             code = await conn.fetchval(
                 "SELECT code3 FROM net.carrier_code WHERE company_id = $1 AND status = 'ACTIVE' LIMIT 1",
                 principal.company_id)
-            company = {"name": row["legal_name"], "uid": str(row["uid"]), "code": code}
+            company = {"name": row["legal_name"], "uid": str(row["uid"]), "code": code, "logo": row["logo"]}
         # the market the screens show times and money in (1061): the company's, or the person's
         market = (await markets.of_party(conn, principal.company_id or principal.party_id)).public()
+        idle = await conn.fetchval("SELECT iam.idle_minutes($1)", principal.portal)
     return {
         "uid": principal.user_uid, "name": principal.display_name, "email": principal.email,
         "portal": principal.portal, "locale": principal.locale, "company": company, "market": market,
         "roles": sorted(principal.roles), "permissions": sorted(principal.permissions), "is_owner": principal.is_owner,
         "mfa": {"enrolled": principal.mfa_enrolled, "required": principal.mfa_required},
+        "idle_minutes": idle,           # the screen signs out by itself after this long without activity (1146)
     }
 
 
@@ -591,7 +651,7 @@ async def mfa_confirm(body: CodeIn, request: Request, pr: Principal = Depends(re
                                             "AND factor_type = 'RECOVERY_CODES' AND disabled_at IS NULL)", pr.user_id)
             if method == "TOTP" or not has_codes:
                 codes = await _issue_recovery_codes(conn, fc, pr.user_id)
-            await conn.execute("UPDATE iam.user_session SET mfa_passed = true, mfa_failures = 0 WHERE id = $1", pr.session_id)
+            await conn.execute("UPDATE iam.user_session SET mfa_passed = true, mfa_at = now(), mfa_failures = 0 WHERE id = $1", pr.session_id)
         await _auth_event(conn, request, "MFA_SUCCESS" if ok else "MFA_FAILED", "SUCCESS" if ok else "FAILURE",
                           user_id=pr.user_id, portal=pr.portal, session_id=pr.session_id,
                           reason=f"enrolled_{method.lower()}" if ok else "enrol_wrong_code")
@@ -613,7 +673,7 @@ async def mfa_verify(body: CodeIn, request: Request, response: Response, pr: Pri
         if body.method is None or body.method in (await mfa_policy.current(conn)).available():
             how = await _second_factor_ok(conn, fc, pr.user_id, body.method, body.code, recovery=True)
         if how:
-            await conn.execute("UPDATE iam.user_session SET mfa_passed = true, mfa_failures = 0 WHERE id = $1",
+            await conn.execute("UPDATE iam.user_session SET mfa_passed = true, mfa_at = now(), mfa_failures = 0 WHERE id = $1",
                                pr.session_id)
             await _auth_event(conn, request, "MFA_SUCCESS", "SUCCESS", user_id=pr.user_id, portal=pr.portal,
                               session_id=pr.session_id, reason=how)
@@ -633,6 +693,38 @@ async def mfa_verify(body: CodeIn, request: Request, response: Response, pr: Pri
             raise ApiError(401, "MFA_TOO_MANY_ATTEMPTS", "too many wrong codes; sign in again")
         raise ApiError(422, "MFA_CODE_INVALID", "the code is not valid", attempts_left=MFA_MAX_FAILURES - fails)
     return {"ok": True, "method": how, "recovery_code_used": how == "recovery_code"}
+
+
+@router.post("/mfa/step-up")
+async def mfa_step_up(body: CodeIn, request: Request, response: Response, pr: Principal = Depends(require_user)):
+    """Confirms a sensitive operation (1136): a current code from the person's authenticator app or text or WhatsApp
+    message (no recovery code) renews the second factor of this session for auth.mfa.step_up_minutes. Wrong codes count
+    with the sign-in ones; five revoke the session."""
+    async with db.transaction(_system(request)) as conn:
+        fc = await crypto.cipher(conn)
+        how = None
+        if body.method is None or body.method in (await mfa_policy.current(conn)).available():
+            how = await _second_factor_ok(conn, fc, pr.user_id, body.method, body.code, recovery=False)
+        if how:
+            await conn.execute("UPDATE iam.user_session SET mfa_at = now(), mfa_failures = 0 WHERE id = $1", pr.session_id)
+            await _auth_event(conn, request, "MFA_SUCCESS", "SUCCESS", user_id=pr.user_id, portal=pr.portal,
+                              session_id=pr.session_id, reason=f"step_up_{how}")
+        else:
+            fails = await conn.fetchval("UPDATE iam.user_session SET mfa_failures = mfa_failures + 1 WHERE id = $1 "
+                                        "RETURNING mfa_failures", pr.session_id)
+            await _auth_event(conn, request, "MFA_FAILED", "FAILURE", user_id=pr.user_id, portal=pr.portal,
+                              session_id=pr.session_id, reason="step_up_wrong_code")
+            if fails >= MFA_MAX_FAILURES:
+                await conn.execute("UPDATE iam.user_session SET revoked_at = now(), revoke_reason = 'mfa_failures' "
+                                   "WHERE id = $1", pr.session_id)
+                await _auth_event(conn, request, "SESSION_REVOKED", "BLOCKED", user_id=pr.user_id, portal=pr.portal,
+                                  session_id=pr.session_id, reason="mfa_failures")
+    if not how:
+        if fails >= MFA_MAX_FAILURES:
+            response.delete_cookie(SESSION_COOKIE, path="/")
+            raise ApiError(401, "MFA_TOO_MANY_ATTEMPTS", "too many wrong codes; sign in again")
+        raise ApiError(422, "MFA_CODE_INVALID", "the code is not valid", attempts_left=MFA_MAX_FAILURES - fails)
+    return {"ok": True, "method": how, "valid_minutes": pr.step_up_minutes}
 
 
 @router.post("/mfa/recovery-codes")

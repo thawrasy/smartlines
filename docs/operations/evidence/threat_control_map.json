@@ -1,0 +1,127 @@
+{
+ "_note": "Each threat the platform defends against and the critical controls (critical_controls.json) that answer it (independent review, round 8, T-04). db/tools/critical_excerpts.py writes critical/THREAT_CONTROL_MAP.md with each control's test result in the same run, and fails the pack when a threat has no control or a control none of whose tests passed. A threat whose answer is not code (an external penetration test, a key service) names its launch gate instead.",
+ "threats": [
+  {
+   "id": "T-01",
+   "threat": "A test or sandbox setting lowers a production server's safeguards",
+   "controls": [
+    "C-01",
+    "C-09"
+   ]
+  },
+  {
+   "id": "T-02",
+   "threat": "A server runs on a schema changed by hand",
+   "controls": [
+    "C-02"
+   ]
+  },
+  {
+   "id": "T-03",
+   "threat": "One company reads or writes another company's rows",
+   "controls": [
+    "C-03",
+    "C-04"
+   ]
+  },
+  {
+   "id": "T-04",
+   "threat": "A stolen password is enough to move money, widen access or export data",
+   "controls": [
+    "C-05"
+   ]
+  },
+  {
+   "id": "T-05",
+   "threat": "An instruction injected into the AI assistant makes a tool act beyond its policy",
+   "controls": [
+    "C-06"
+   ]
+  },
+  {
+   "id": "T-06",
+   "threat": "A database function runs with its owner's rights for anyone who calls it",
+   "controls": [
+    "C-07"
+   ]
+  },
+  {
+   "id": "T-07",
+   "threat": "A partner integration breaks silently when an event changes",
+   "controls": [
+    "C-08"
+   ]
+  },
+  {
+   "id": "T-08",
+   "threat": "Traffic to the database or the key service is read or forged on the network",
+   "controls": [
+    "C-09"
+   ]
+  },
+  {
+   "id": "T-09",
+   "threat": "A server is made to call an internal address or an unlisted host (SSRF, DNS rebinding)",
+   "controls": [
+    "C-10"
+   ]
+  },
+  {
+   "id": "T-10",
+   "threat": "An infected file is uploaded and served to another user",
+   "controls": [
+    "C-11"
+   ]
+  },
+  {
+   "id": "T-11",
+   "threat": "Audit records are altered or deleted to hide an action",
+   "controls": [
+    "C-12"
+   ]
+  },
+  {
+   "id": "T-12",
+   "threat": "A database copy or backup exposes identity numbers and personal data",
+   "controls": [
+    "C-13"
+   ]
+  },
+  {
+   "id": "T-13",
+   "threat": "Passwords are guessed, or the service is flooded",
+   "controls": [
+    "C-14"
+   ]
+  },
+  {
+   "id": "T-14",
+   "threat": "Emergency access is opened without control or never closed",
+   "controls": [
+    "C-15"
+   ]
+  },
+  {
+   "id": "T-15",
+   "threat": "A partner misses events and nobody is told",
+   "controls": [
+    "C-16",
+    "C-08"
+   ]
+  },
+  {
+   "id": "T-16",
+   "threat": "An attacker finds a weakness no internal test covers",
+   "controls": [],
+   "gate": "G8 external penetration test"
+  },
+  {
+   "id": "T-17",
+   "threat": "The master key is lost or stolen",
+   "controls": [
+    "C-13"
+   ],
+   "gate": "key service (KMS/HSM) and the key-loss drill"
+  }
+ ]
+}

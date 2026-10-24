@@ -19,6 +19,7 @@ MODULES = (
     Module("shuttle_rides", "2", "directions_bus", ("PLATFORM", "OPERATOR", "PASSENGER", "DRIVER")),
     Module("shuttle_subscriptions", "2", "card_membership", ("PLATFORM", "OPERATOR", "PASSENGER")),
     Module("cargo", "3", "package_2", ("PLATFORM", "OPERATOR", "PASSENGER")),
+    Module("trip_parcels", "3", "inventory_2", ("PLATFORM", "OPERATOR", "PASSENGER")),
     Module("international", "4", "public", ("PLATFORM", "OPERATOR")),
     Module("border_manifest", "4-6", "assignment_ind", ("PLATFORM", "OPERATOR")),
     Module("gov_adapters", "5", "account_balance", ("PLATFORM",)),

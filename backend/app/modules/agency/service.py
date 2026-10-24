@@ -61,9 +61,17 @@ async def ensure_can_sell(conn: asyncpg.Connection, pr: Principal) -> None:
     await _active_agreement(conn, require_agency(pr))
 
 
-def buyer_for(pr: Principal, agreement: asyncpg.Record, contact_mobile: str | None = None) -> sales.Buyer:
+def buyer_for(pr: Principal, agreement: asyncpg.Record, contact_mobile: str | None = None, cash: bool = False) -> sales.Buyer:
     return sales.Buyer(party_id=pr.company_id, user_id=pr.user_id, channel="AGENCY", agency_id=pr.company_id,
-                       commission_bp=agreement["commission_bp"], contact_mobile=contact_mobile)
+                       commission_bp=agreement["commission_bp"], contact_mobile=contact_mobile, agency_cash=cash)
+
+
+async def sells_for_cash(conn: asyncpg.Connection) -> bool:
+    """An agency sells for cash while the platform holds no money (N13, 1145): its balance is closed and the cash option
+    open, the traveller pays the agency and the agency settles with the carrier."""
+    rows = {r["code"]: r["enabled"] for r in await conn.fetch(
+        "SELECT code, enabled FROM fin.payment_method WHERE code IN ('AGENCY_BALANCE','AGENCY_CASH')")}
+    return rows.get("AGENCY_CASH", False) and not rows.get("AGENCY_BALANCE", False)
 
 
 async def dashboard(conn: asyncpg.Connection, pr: Principal) -> dict:
@@ -98,7 +106,7 @@ async def sell(conn: asyncpg.Connection, ctx: db.Context, pr: Principal, body: A
             raise ApiError(409, "AGENCY_DAILY_LIMIT", "this sale would pass the agency's daily limit",
                            remaining=max(0, agreement["daily_limit"] - sold))
 
-    return await sales.create_booking(conn, ctx, buyer_for(pr, agreement, body.contact_mobile), body,
+    return await sales.create_booking(conn, ctx, buyer_for(pr, agreement, body.contact_mobile, await sells_for_cash(conn)), body,
                                       before_payment=within_daily_limit)
 
 
@@ -120,7 +128,8 @@ async def cancel(conn: asyncpg.Connection, ctx: db.Context, pr: Principal, ref: 
         raise not_found("booking")
     agreement = await repo.agreement(conn, agency_id)
     buyer = sales.Buyer(party_id=agency_id, user_id=pr.user_id, channel="AGENCY", agency_id=agency_id,
-                        commission_bp=agreement["commission_bp"] if agreement else 0)
+                        commission_bp=agreement["commission_bp"] if agreement else 0,
+                        agency_cash=b["pay_option"] == "AGENCY_CASH")       # a cash sale's refund is cash the agency hands back
     return b["id"], await sales.cancel_booking(conn, ctx, b, buyer)
 
 

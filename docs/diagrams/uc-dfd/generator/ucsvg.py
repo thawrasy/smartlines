@@ -15,6 +15,9 @@ FONT = "Liberation Sans, Arial, sans-serif"
 CW = 6.6           # average character width at 12.5 px
 ROW = 84           # vertical pitch of use cases
 EW = 228           # ellipse width
+# Optional look per case, set by a caller (the v2.0 readiness model): {case id: (fill, stroke, dash or None, tag or None,
+# tag colour)}. A case without an entry is drawn as before, with its phase under the name when it is not phase 1.
+CASE_LOOK = {}
 def act_h(name):
     """Vertical room for an actor: figure plus its wrapped name."""
     return 64 + 22 + 14 * len(lines_of(name, 18)) + 14
@@ -143,9 +146,15 @@ def layout(spec):
     return c0, c1, n
 
 
-def case_size(name, phase):
+def case_tag(cid, phase):
+    if cid in CASE_LOOK:
+        return CASE_LOOK[cid][3]
+    return f"Phase {phase}" if phase != 1 else None
+
+
+def case_size(name, phase, cid=None):
     ln = lines_of(name, 26)
-    h = 34 + 15 * len(ln) + (12 if phase != 1 else 0)
+    h = 34 + 15 * len(ln) + (12 if case_tag(cid, phase) else 0)
     return EW, max(56, h), ln
 
 
@@ -207,7 +216,7 @@ def render_uc(spec, fname, package_mode=False):
     d.add(f'<text x="{box_x0 + 16}" y="{top + 24}" font-size="14.5" font-weight="bold" fill="{NAVY}">{escape(boundary)}</text>')
     d.add(f'<text x="{W / 2}" y="34" text-anchor="middle" font-size="17" font-weight="bold" fill="#1A1C1A">{escape(spec["id"] + "  " + spec["title"])}</text>')
 
-    sizes = {c: case_size(info[c][1], info[c][2]) for c in x}
+    sizes = {c: case_size(info[c][1], info[c][2], c) for c in x}
     # associations (drawn first, under the shapes)
     for a, b in spec["assoc"]:
         if a in ay:   # primary actor -> case
@@ -281,14 +290,18 @@ def render_uc(spec, fname, package_mode=False):
             d.add(f'<path d="M{x[c] - w / 2},{y[c] - h / 2 + 10} h{70} v-10 h{48} v10 H{x[c] + w / 2} V{y[c] + h / 2} H{x[c] - w / 2} Z" '
                   f'fill="{FILL}" stroke="{NAVY}" stroke-width="1.4"/>')
         else:
-            d.add(f'<ellipse cx="{x[c]}" cy="{y[c]}" rx="{w / 2}" ry="{h / 2}" fill="{FILL}" stroke="{NAVY}" stroke-width="1.4"/>')
-        ty = y[c] - (len(ln) * 15 + (12 if phase != 1 else 0)) / 2 + 2
+            fill, stroke, dash, _, _ = CASE_LOOK.get(c, (FILL, NAVY, None, None, WHEAT))
+            dash_attr = f' stroke-dasharray="{dash}"' if dash else ""
+            d.add(f'<ellipse cx="{x[c]}" cy="{y[c]}" rx="{w / 2}" ry="{h / 2}" fill="{fill}" stroke="{stroke}" stroke-width="1.4"{dash_attr}/>')
+        tag = case_tag(c, phase)
+        ty = y[c] - (len(ln) * 15 + (12 if tag else 0)) / 2 + 2
         tagtxt = cid if package_mode else f"UC-{cid}"
         d.add(f'<text x="{x[c]}" y="{ty}" text-anchor="middle" font-size="9.5" fill="{MUTED}">{tagtxt}</text>')
         for i, l in enumerate(ln):
             d.add(f'<text x="{x[c]}" y="{ty + 15 + i * 15}" text-anchor="middle" font-size="12.5" fill="#1A1C1A">{escape(l)}</text>')
-        if phase != 1:
-            d.add(f'<text x="{x[c]}" y="{ty + 15 + len(ln) * 15}" text-anchor="middle" font-size="9.5" fill="{WHEAT}">Phase {phase}</text>')
+        if tag:
+            colour = CASE_LOOK[c][4] if c in CASE_LOOK else WHEAT
+            d.add(f'<text x="{x[c]}" y="{ty + 15 + len(ln) * 15}" text-anchor="middle" font-size="9.5" fill="{colour}">{escape(tag)}</text>')
     # relationship labels on top
     for lx, ly, kind in labels:
         t = f"«{kind}»"

@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://masslak.com/schemas/events/withdrawal.rejected.v1.json",
+  "title": "withdrawal.rejected",
+  "description": "A withdrawal request was rejected. The data of the envelope (EVENTS.md); fields are only added within a version.",
+  "x-event-type": "withdrawal.rejected",
+  "x-schema-version": 1,
+  "type": "object",
+  "properties": {
+    "amount": {
+      "type": "integer"
+    },
+    "reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "amount"
+  ],
+  "additionalProperties": true
+}

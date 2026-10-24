@@ -4,7 +4,7 @@ import { router } from "expo-router";
 import { useI18n } from "../../../i18n";
 import { api } from "../../../platform/api";
 import { PLACES } from "../../../core/places";
-import { Button, Card, Chip, Choice, ErrorText, Loading, Notice, Screen, Title, s } from "../../../ui/kit";
+import { Button, Card, Chip, Choice, Empty, ErrorText, ListCard, Loading, Notice, Screen, SvcHeader, s } from "../../../ui/kit";
 import { tone, useLabels } from "../../../ui/labels";
 import { color } from "../../../ui/theme";
 import { useLoad } from "../../../ui/useLoad";
@@ -53,8 +53,7 @@ export default function Taxi() {
   const reset = (fn: () => void) => { fn(); setEst(null); };
   return (
     <Screen>
-      <Button kind="text" label={t("common.back")} onPress={() => router.back()} />
-      <Title sub={t("svc.taxi.hint")}>{t("svc.taxi.title")}</Title>
+      <SvcHeader icon="car" title={t("svc.taxi.title")} sub={t("svc.taxi.hint")} onBack={() => router.back()} />
       {cities.loading && !cities.data ? <Loading /> : null}
       {cities.data ? (
         <Card>
@@ -75,17 +74,14 @@ export default function Taxi() {
           <ErrorText error={error} />
         </Card>
       ) : <ErrorText error={cities.error} />}
-      <Text style={s.h2}>{t("svc.taxi.mine")}</Text>
-      {mine.data && mine.data.requests.length === 0 ? <Text style={s.muted}>{t("svc.taxi.none")}</Text> : null}
+      <Text style={s.section}>{t("svc.taxi.mine")}</Text>
+      {mine.data && mine.data.requests.length === 0 ? <Empty icon="car" text={t("svc.taxi.none")} /> : null}
       {mine.data?.requests.map((r) => (
-        <Card key={r.uid}>
-          <View style={s.between}>
-            <Text style={[s.label, { flex: 1 }]}>{r.pickup_text} → {r.dropoff_text}</Text>
-            <Chip label={labels.value(r.ride_status ?? r.status)} tone={tone(r.ride_status ?? r.status)} />
-          </View>
-          <Text style={s.small}>{city(r.city)} · {dateTime(r.created_at)} · {money(r.fare ?? r.fare_estimate)}</Text>
+        <ListCard key={r.uid} title={`${r.pickup_text} → ${r.dropoff_text}`} sub={`${city(r.city)} · ${dateTime(r.created_at)}`}
+                  right={<Chip label={labels.value(r.ride_status ?? r.status)} tone={tone(r.ride_status ?? r.status)} />}>
+          <Text style={s.price}>{money(r.fare ?? r.fare_estimate)}</Text>
           {["SEARCHING", "ASSIGNED"].includes(r.status) ? <Button kind="danger" label={t("svc.cancel")} onPress={() => cancel(r)} /> : null}
-        </Card>
+        </ListCard>
       ))}
       <Text style={[s.small, { color: color.muted }]}>{t("svc.taxi.note")}</Text>
     </Screen>

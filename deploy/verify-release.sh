@@ -24,4 +24,8 @@ done
   || fail "the archive or its bill of materials does not match SHA256SUMS"
 [ "$(cd "$dir" && grep -cE "  (${base}|${name}\.spdx\.json)\$" SHA256SUMS)" = 2 ] || fail "SHA256SUMS does not list both files"
 tar -xOzf "$archive" "$name/RELEASE" || fail "the archive has no RELEASE record"
+# the signed images that go with these files (H-08, from release 1.49.0): deploy/images.sh pulls and checks them
+if tar -tzf "$archive" "$name/IMAGES" >/dev/null 2>&1; then
+  tar -xOzf "$archive" "$name/IMAGES" | grep -v '^commit=\|^version='
+fi
 echo "OK: $base is a signed release of $repo"

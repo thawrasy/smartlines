@@ -1,13 +1,14 @@
 """Platform administration: overview, carrier onboarding and approval, central stations."""
+import json
 import uuid
 from datetime import date
 from typing import Literal, Optional
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, File, Request, UploadFile
 from pydantic import BaseModel, EmailStr, Field
 
-from .. import db, markets
-from ..deps import Principal, context_for, require_permission, require_portal
+from .. import company_logo, db, markets
+from ..deps import Principal, context_for, require_permission, require_portal, require_step_up
 from ..errors import ApiError, not_found
 from ..ledger import company_wallet, platform_wallet, post_txn
 from ..security import hash_password, password_problem
@@ -36,7 +37,8 @@ async def overview(request: Request, pr: Principal = Depends(platform)):
 async def companies(request: Request, pr: Principal = Depends(platform)):
     async with db.transaction(context_for(request, pr)) as conn:
         recs = await conn.fetch(
-            """SELECT p.uid, p.legal_name, c.company_type, c.approval_status, c.created_at, cc.code3,
+            """SELECT p.uid, p.legal_name, c.company_type, c.approval_status, c.created_at, cc.code3, cc.code2,
+                      iam.logo_version(c.id) AS logo,
                       (SELECT count(*) FROM fleet.vehicle v WHERE v.company_id = c.id) AS vehicles,
                       (SELECT count(*) FROM ops.trip t WHERE t.company_id = c.id) AS trips
                  FROM iam.company c JOIN iam.party p ON p.id = c.id
@@ -53,10 +55,21 @@ async def _open_market(conn, code: Optional[str]) -> markets.Market:
     return m
 
 
+CODE2 = r"^([A-Z][A-Z0-9]|[0-9][A-Z])$"   # two characters, one at least a letter (study 4.16 a)
+
+
+async def _code_free(conn, code: str, company_id: Optional[int] = None) -> bool:
+    """A carrier code nobody else holds and the platform has not reserved (study 4.16 a)."""
+    return not await conn.fetchval(
+        """SELECT 1 FROM net.carrier_code WHERE (code3 = $1 OR code2 = $1) AND company_id IS DISTINCT FROM $2
+           UNION SELECT 1 FROM net.code_reservation WHERE code = $1""", code, company_id)
+
+
 class OnboardIn(BaseModel):
     legal_name: str = Field(min_length=3, max_length=160)
     market: Optional[str] = Field(default=None, pattern=r"^[A-Z]{2}$")     # country of an open market; default market if none
     code3: str = Field(pattern=r"^[A-Z]{3}$")
+    code2: Optional[str] = Field(default=None, pattern=CODE2)      # the designator of its trip numbers, "QD 214" (1114)
     transport_license_no: Optional[str] = None
     owner_name: str = Field(min_length=3, max_length=120)
     owner_email: EmailStr
@@ -67,12 +80,11 @@ class OnboardIn(BaseModel):
 async def onboard_carrier(body: OnboardIn, request: Request, pr: Principal = Depends(require_permission("company.approve"))):
     if pr.portal != "PLATFORM":
         raise ApiError(403, "FORBIDDEN", "platform portal only")
-    problem = password_problem(body.owner_password)
+    problem = password_problem(body.owner_password, body.owner_email, body.owner_name)
     if problem:
         raise ApiError(422, problem, "password does not meet the policy")
     async with db.transaction(context_for(request, pr)) as conn:
-        if await conn.fetchval("SELECT 1 FROM net.carrier_code WHERE code3 = $1 UNION SELECT 1 FROM net.code_reservation WHERE code = $1",
-                               body.code3):
+        if not await _code_free(conn, body.code3) or (body.code2 and not await _code_free(conn, body.code2)):
             raise ApiError(409, "CODE_TAKEN", "carrier code is taken or reserved")
         m = await _open_market(conn, body.market)
         cid = await conn.fetchval(
@@ -83,8 +95,9 @@ async def onboard_carrier(body: OnboardIn, request: Request, pr: Principal = Dep
             """INSERT INTO iam.company (id, transport_license_no, approval_status, approved_by, approved_at)
                VALUES ($1, $2, 'APPROVED', $3, now())""", cid, body.transport_license_no, pr.user_id)
         await conn.execute(
-            "INSERT INTO net.carrier_code (company_id, code3, status, approved_by, valid_from) VALUES ($1, $2, 'ACTIVE', $3, current_date)",
-            cid, body.code3, pr.user_id)
+            """INSERT INTO net.carrier_code (company_id, code3, code2, status, approved_by, valid_from)
+               VALUES ($1, $2, $3, 'ACTIVE', $4, current_date)""",
+            cid, body.code3, body.code2, pr.user_id)
         owner_party = await conn.fetchval(
             "INSERT INTO iam.party (party_type, legal_name) VALUES ('PERSON', $1) RETURNING id",   # contact on the account
             body.owner_name.strip())
@@ -95,6 +108,7 @@ async def onboard_carrier(body: OnboardIn, request: Request, pr: Principal = Dep
         await conn.execute("INSERT INTO iam.company_member (user_id, company_id, is_owner) VALUES ($1, $2, true)",
                            owner_user, cid)
         await company_wallet(conn, cid, m.currency)
+        await conn.fetchval("SELECT iam.open_company_kyc($1)", cid)       # its KYC file to fill (1118)
         uid = await conn.fetchval("SELECT uid FROM iam.party WHERE id = $1", cid)
     request.state.audit = {"action": "company.onboard", "object_type": "company", "object_id": cid}
     return {"uid": str(uid)}
@@ -119,40 +133,155 @@ async def set_company_status(company_uid: uuid.UUID, body: StatusIn, request: Re
     return {"ok": True}
 
 
+class DesignatorIn(BaseModel):
+    code2: Optional[str] = Field(default=None, pattern=CODE2)      # empty: trip numbers use the three-letter code
+
+
+async def _company(conn, company_uid: uuid.UUID) -> int:
+    cid = await conn.fetchval("SELECT c.id FROM iam.company c JOIN iam.party p ON p.id = c.id WHERE p.uid = $1", company_uid)
+    if cid is None:
+        raise not_found("company")
+    return cid
+
+
+def _platform_only(pr: Principal) -> None:
+    if pr.portal != "PLATFORM":
+        raise ApiError(403, "FORBIDDEN", "platform portal only")
+
+
+@router.put("/companies/{company_uid}/designator")
+async def set_designator(company_uid: uuid.UUID, body: DesignatorIn, request: Request,
+                         pr: Principal = Depends(require_permission("company.approve"))):
+    """The two-character designator of a carrier's trip numbers (1114). Trips already made keep the number printed on
+    their tickets; the new designator names the trips made from now on."""
+    _platform_only(pr)
+    async with db.transaction(context_for(request, pr)) as conn:
+        cid = await _company(conn, company_uid)
+        if body.code2 and not await _code_free(conn, body.code2, cid):
+            raise ApiError(409, "CODE_TAKEN", "carrier code is taken or reserved")
+        n = await conn.execute("UPDATE net.carrier_code SET code2 = $2 WHERE company_id = $1 AND status = 'ACTIVE'", cid, body.code2)
+        if n.endswith(" 0"):
+            raise ApiError(409, "NO_CARRIER_CODE", "the company has no active carrier code")
+    request.state.audit = {"action": "company.designator", "object_type": "company", "object_id": cid, "reason": body.code2 or "-"}
+    return {"code2": body.code2}
+
+
+@router.put("/companies/{company_uid}/logo")
+async def set_logo(company_uid: uuid.UUID, request: Request, file: UploadFile = File(...),
+                   pr: Principal = Depends(require_permission("company.approve"))):
+    """The company's logo, to the specification in app/company_logo.py: checked, re-encoded and kept (1115)."""
+    _platform_only(pr)
+    logo = company_logo.prepare(await file.read(company_logo.MAX_BYTES + 1))
+    async with db.transaction(context_for(request, pr)) as conn:
+        cid = await _company(conn, company_uid)
+        await conn.execute(
+            """INSERT INTO iam.company_logo (company_id, image, width, height, sha256, uploaded_by, uploaded_at)
+               VALUES ($1, $2, $3, $4, $5, $6, now())
+               ON CONFLICT (company_id) DO UPDATE SET image = excluded.image, width = excluded.width, height = excluded.height,
+                 sha256 = excluded.sha256, uploaded_by = excluded.uploaded_by, uploaded_at = excluded.uploaded_at""",
+            cid, logo.png, logo.width, logo.height, logo.sha256, pr.user_id)
+    request.state.audit = {"action": "company.logo", "object_type": "company", "object_id": cid, "reason": logo.version}
+    return {"logo": logo.version, "width": logo.width, "height": logo.height, "bytes": len(logo.png)}
+
+
+@router.delete("/companies/{company_uid}/logo")
+async def remove_logo(company_uid: uuid.UUID, request: Request, pr: Principal = Depends(require_permission("company.approve"))):
+    _platform_only(pr)
+    async with db.transaction(context_for(request, pr)) as conn:
+        cid = await _company(conn, company_uid)
+        if not await conn.fetchval("SELECT iam.remove_company_logo($1)", cid):
+            raise not_found("logo")
+    request.state.audit = {"action": "company.logo_remove", "object_type": "company", "object_id": cid}
+    return {"logo": None}
+
+
 @router.get("/stations")
 async def all_stations(request: Request, pr: Principal = Depends(platform)):
     async with db.transaction(context_for(request, pr)) as conn:
         recs = await conn.fetch(
             """SELECT s.uid, s.code, s.name, s.station_class, s.status, c.code AS city_code, s.lat, s.lng,
-                      op.legal_name AS owner_name
+                      op.legal_name AS owner_name, p.pcode AS place_pcode, p.name_en AS place_en, p.name_ar AS place_ar
                  FROM net.station s JOIN ref.city c ON c.id = s.city_id LEFT JOIN iam.party op ON op.id = s.owner_company_id
+                 LEFT JOIN ref.place p ON p.id = s.place_id
                 ORDER BY s.code""")
     return {"stations": rows(recs)}
 
 
+async def _station_place(conn, pcode: Optional[str], city_code: Optional[str]):
+    """The place a station stands in (1125): an active community or neighbourhood. The city of the network is the
+    place's own when its community is open for routes, else the one given; a station of a city stands in that city's
+    governorate."""
+    place = None
+    if pcode:
+        place = await conn.fetchrow(
+            """SELECT p.id, p.lat, p.lng, k.code AS served, g.id AS governorate
+                 FROM ref.place p
+                 LEFT JOIN ref.city k ON k.place_id = coalesce(p.parent_place_id, p.id)
+                 JOIN ref.admin_area s ON s.id = p.area_id JOIN ref.admin_area d ON d.id = s.parent_id JOIN ref.admin_area g ON g.id = d.parent_id
+                WHERE p.pcode = $1 AND p.status = 'ACTIVE'""", pcode)
+        if place is None:
+            raise ApiError(422, "PLACE_UNKNOWN", "no active place with this code", place=pcode)
+    code = city_code or (place["served"] if place else None)
+    if code is None:
+        raise ApiError(422, "CITY_REQUIRED", "the place is not in a city open for routes: open it, or name the city")
+    city = await conn.fetchrow(
+        """SELECT c.id, c.code, c.country_code,
+                  (SELECT g.id FROM ref.place p JOIN ref.admin_area s ON s.id = p.area_id JOIN ref.admin_area d ON d.id = s.parent_id
+                     JOIN ref.admin_area g ON g.id = d.parent_id WHERE p.id = c.place_id) AS governorate
+             FROM ref.city c WHERE c.code = $1""", code)
+    if city is None:
+        raise not_found("city")
+    if place and city["governorate"] and place["governorate"] != city["governorate"]:
+        raise ApiError(422, "PLACE_NOT_IN_CITY", "the place is in another governorate than the city", place=pcode, city=code)
+    return city, place
+
+
 class StationIn(BaseModel):
-    city_code: str = Field(pattern=r"^[A-Z]{3}$")
+    city_code: Optional[str] = Field(default=None, pattern=r"^[A-Z]{3}$")
+    place: Optional[str] = Field(default=None, pattern=r"^[A-Z][0-9]{3,7}$")     # the community or neighbourhood (1125)
     number: int = Field(ge=1, le=999)
     name: str = Field(min_length=3, max_length=160)
     address: Optional[str] = None
-    lat: float = Field(ge=-90, le=90)
-    lng: float = Field(ge=-180, le=180)
+    lat: Optional[float] = Field(default=None, ge=-90, le=90)                   # the place's position when not given
+    lng: Optional[float] = Field(default=None, ge=-180, le=180)
 
 
 @router.post("/stations", status_code=201)
 async def add_central_station(body: StationIn, request: Request, pr: Principal = Depends(require_permission("station.approve"))):
     async with db.transaction(context_for(request, pr)) as conn:
-        city = await conn.fetchrow("SELECT id, country_code FROM ref.city WHERE code = $1", body.city_code)
-        if city is None:
-            raise not_found("city")
-        code = f"{city['country_code']}-{body.city_code}-C{body.number:03d}"
+        city, place = await _station_place(conn, body.place, body.city_code)
+        lat = body.lat if body.lat is not None else (float(place["lat"]) if place else None)
+        lng = body.lng if body.lng is not None else (float(place["lng"]) if place else None)
+        if lat is None or lng is None:
+            raise ApiError(422, "POSITION_REQUIRED", "a station needs its position, or a place to take it from")
+        code = f"{city['country_code']}-{city['code']}-C{body.number:03d}"
         sid = await conn.fetchval(
             """INSERT INTO net.station (code, city_id, country_code, station_class, name, address, lat, lng, status,
-                 verified_by, verified_at)
-               VALUES ($1, $2, $3, 'CENTRAL', $4, $5, $6, $7, 'ACTIVE', $8, now()) RETURNING id""",
-            code, city["id"], city["country_code"], body.name.strip(), body.address, body.lat, body.lng, pr.user_id)
+                 verified_by, verified_at, place_id)
+               VALUES ($1, $2, $3, 'CENTRAL', $4, $5, $6, $7, 'ACTIVE', $8, now(), $9) RETURNING id""",
+            code, city["id"], city["country_code"], body.name.strip(), body.address, lat, lng, pr.user_id,
+            place["id"] if place else None)
     request.state.audit = {"action": "station.create", "object_type": "station", "object_id": sid}
     return {"code": code}
+
+
+class StationPlaceIn(BaseModel):
+    place: str = Field(pattern=r"^[A-Z][0-9]{3,7}$")
+
+
+@router.put("/stations/{station_uid}/place")
+async def set_station_place(station_uid: uuid.UUID, body: StationPlaceIn, request: Request,
+                            pr: Principal = Depends(require_permission("station.approve"))):
+    """Records the place an existing station stands in (1125), in the governorate of its city."""
+    async with db.transaction(context_for(request, pr)) as conn:
+        st = await conn.fetchrow(
+            "SELECT s.id, c.code AS city_code FROM net.station s JOIN ref.city c ON c.id = s.city_id WHERE s.uid = $1", station_uid)
+        if st is None:
+            raise not_found("station")
+        _, place = await _station_place(conn, body.place, st["city_code"])
+        await conn.execute("UPDATE net.station SET place_id = $2 WHERE id = $1", st["id"], place["id"])
+    request.state.audit = {"action": "station.place", "object_type": "station", "object_id": st["id"], "reason": body.place}
+    return {"place": body.place}
 
 
 # ------------------------------------------------------------------ agencies
@@ -171,7 +300,7 @@ class AgencyIn(BaseModel):
 async def onboard_agency(body: AgencyIn, request: Request, pr: Principal = Depends(require_permission("company.approve"))):
     if pr.portal != "PLATFORM":
         raise ApiError(403, "FORBIDDEN", "platform portal only")
-    problem = password_problem(body.owner_password)
+    problem = password_problem(body.owner_password, body.owner_email, body.owner_name)
     if problem:
         raise ApiError(422, problem, "password does not meet the policy")
     async with db.transaction(context_for(request, pr)) as conn:
@@ -419,6 +548,7 @@ async def grant_external_access(body: ExternalAccessIn, request: Request,
                                 pr: Principal = Depends(require_permission("external_access.grant"))):
     """Read-only access for an auditor or tester: their own platform account, a named engagement, a second person granting
     it, and an end date (at most security.external_access_max_days). The role EXTERNAL_AUDITOR cannot be given otherwise."""
+    require_step_up(pr)                 # a sensitive operation: a recent second factor (1136)
     async with db.transaction(context_for(request, pr)) as conn:
         user = await conn.fetchval("SELECT id FROM iam.app_user WHERE lower(email) = lower($1)", str(body.email).strip())
         if user is None:
@@ -441,3 +571,124 @@ async def revoke_external_access(uid: uuid.UUID, request: Request, pr: Principal
             raise ApiError(409, "INVALID_TRANSITION", "no active grant with that id")
     request.state.audit = {"action": "external_access.revoke", "object_type": "external_access_grant", "object_id": gid}
     return {"revoked": True}
+
+
+# ------------------------------------------------------------------ cancellation penalty (1106)
+class CancelPenaltyIn(BaseModel):
+    """Only where the regulators impose a penalty on a carrier that cancels a trip; the passengers are refunded in full
+    whatever this says. legal_ref names the regulator's decision."""
+    enabled: bool
+    basis: Optional[Literal["PERCENT_OF_FARES", "PER_TICKET", "PER_TRIP"]] = None
+    value: Optional[float] = Field(default=None, gt=0)
+    payee: Optional[Literal["PLATFORM", "PASSENGERS", "AUTHORITY"]] = None
+    authority_party_id: Optional[int] = None
+    within_hours: Optional[int] = Field(default=None, ge=0, le=720)
+    legal_ref: Optional[str] = Field(default=None, max_length=120)
+
+
+@router.get("/trips/cancel-penalty")
+async def get_cancel_penalty(request: Request, pr: Principal = Depends(require_permission("policy.matrix"))):
+    async with db.transaction(context_for(request, pr)) as conn:
+        value = await conn.fetchval("SELECT value::text FROM sys.setting WHERE key = 'trip.cancel_penalty'")
+    return json.loads(value or '{"enabled": false}')
+
+
+@router.put("/trips/cancel-penalty")
+async def set_cancel_penalty(body: CancelPenaltyIn, request: Request, pr: Principal = Depends(require_permission("policy.matrix"))):
+    value = {k: v for k, v in body.model_dump().items() if v is not None} if body.enabled else {"enabled": False}
+    async with db.transaction(context_for(request, pr)) as conn:
+        out = await conn.fetchval("SELECT ops.set_cancel_penalty($1::jsonb)::text", json.dumps(value))
+    request.state.audit = {"action": "trip.cancel_penalty_setting", "object_type": "setting",
+                           "reason": (body.legal_ref or "turned off")[:120]}
+    return json.loads(out)
+
+
+# ------------------------------------------------------------------ seats booked at once (1122)
+class SeatLimitsIn(BaseModel):
+    """Four seats a booking unless the platform or a regulator decides otherwise; a family head up to the family's size
+    within family_max_seats; an agency's group up to agency_group. basis names the decision behind the change."""
+    max_seats: int = Field(ge=1, le=20)
+    family_max_seats: int = Field(ge=1, le=20)
+    agency_group: int = Field(ge=1, le=60)
+    basis: str = Field(min_length=3, max_length=160)
+
+
+@router.get("/booking/seat-limits")
+async def get_seat_limits(request: Request, pr: Principal = Depends(require_permission("policy.matrix"))):
+    async with db.transaction(context_for(request, pr)) as conn:
+        return json.loads(await conn.fetchval("SELECT sales.seat_limits()::text"))
+
+
+@router.put("/booking/seat-limits")
+async def set_seat_limits(body: SeatLimitsIn, request: Request, pr: Principal = Depends(require_permission("policy.matrix"))):
+    async with db.transaction(context_for(request, pr)) as conn:
+        out = await conn.fetchval("SELECT sales.set_seat_limits($1, $2, $3, $4)::text",
+                                  body.max_seats, body.family_max_seats, body.agency_group, body.basis)
+    request.state.audit = {"action": "booking.seat_limits", "object_type": "setting",
+                           "reason": f"{body.max_seats}/{body.family_max_seats}/{body.agency_group}: {body.basis}"[:120]}
+    return json.loads(out)
+
+
+class MoneyModeIn(BaseModel):
+    """Phase one (N13): NO_FUNDS while the platform holds no money (cash at the counter only, no fee or commission), FULL
+    afterwards; basis names the decision."""
+    mode: Literal["FULL", "NO_FUNDS"]
+    basis: str = Field(min_length=3, max_length=160)
+
+
+@router.get("/money-mode")
+async def get_money_mode(request: Request, pr: Principal = Depends(require_permission("policy.matrix"))):
+    async with db.transaction(context_for(request, pr)) as conn:
+        return json.loads(await conn.fetchval("SELECT fin.money_mode_state()::text"))
+
+
+@router.put("/money-mode")
+async def set_money_mode(body: MoneyModeIn, request: Request, pr: Principal = Depends(require_permission("policy.matrix"))):
+    require_step_up(pr)                 # a sensitive operation: it opens or closes every way money moves
+    async with db.transaction(context_for(request, pr)) as conn:
+        out = await conn.fetchval("SELECT fin.set_money_mode($1, $2)::text", body.mode, body.basis)
+    request.state.audit = {"action": "platform.money_mode", "object_type": "setting", "reason": f"{body.mode}: {body.basis}"[:120]}
+    return json.loads(out)
+
+
+class PassengerMixIn(BaseModel):
+    """Adults and children of one booking (N34): four adults and six children unless the platform or a regulator decides
+    otherwise; infants on a lap stay within the adults, and every seat within max_seats. basis names the decision."""
+    max_adults: int = Field(ge=1, le=20)
+    max_children: int = Field(ge=0, le=20)
+    basis: str = Field(min_length=3, max_length=160)
+
+
+@router.put("/booking/passenger-mix")
+async def set_passenger_mix(body: PassengerMixIn, request: Request, pr: Principal = Depends(require_permission("policy.matrix"))):
+    async with db.transaction(context_for(request, pr)) as conn:
+        out = await conn.fetchval("SELECT sales.set_passenger_mix($1, $2, $3)::text", body.max_adults, body.max_children, body.basis)
+    request.state.audit = {"action": "booking.passenger_mix", "object_type": "setting",
+                           "reason": f"{body.max_adults}/{body.max_children}: {body.basis}"[:120]}
+    return json.loads(out)
+
+
+# ------------------------------------------------------------------ first interface language by country (1141)
+class VisitorLocaleIn(BaseModel):
+    """Visitors in Syria see Arabic first and visitors from elsewhere English, unless the platform decides otherwise per
+    country; a visitor's own choice always wins."""
+    default: str = Field(min_length=2, max_length=5)
+    countries: dict[str, str] = Field(default_factory=dict, max_length=250)
+    basis: str = Field(min_length=3, max_length=160)
+
+
+@router.get("/ui/visitor-locale")
+async def get_visitor_locale(request: Request, pr: Principal = Depends(require_permission("policy.matrix"))):
+    async with db.transaction(context_for(request, pr)) as conn:
+        value = await conn.fetchval("SELECT value::text FROM sys.setting WHERE key = 'ui.visitor_locale'")
+        langs = await conn.fetch("SELECT code, name, native_name FROM ref.locale WHERE is_enabled ORDER BY code")
+    return {**json.loads(value or '{"default": "en", "countries": {}}'), "languages": [dict(r) for r in langs]}
+
+
+@router.put("/ui/visitor-locale")
+async def set_visitor_locale(body: VisitorLocaleIn, request: Request, pr: Principal = Depends(require_permission("policy.matrix"))):
+    doc = {"default": body.default, "countries": {k.strip().upper(): v for k, v in body.countries.items()}}
+    async with db.transaction(context_for(request, pr)) as conn:
+        out = await conn.fetchval("SELECT sys.set_visitor_locale($1::jsonb, $2)::text", json.dumps(doc), body.basis)
+    request.state.audit = {"action": "ui.visitor_locale", "object_type": "setting", "reason": body.basis[:120]}
+    return json.loads(out)

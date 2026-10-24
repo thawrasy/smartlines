@@ -4,7 +4,7 @@ import { api, type BookingRow } from "../../api";
 import { useI18n } from "../../i18n";
 import { useAuth } from "../../auth";
 import { PageHead } from "../../components/layout";
-import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, useToast } from "../../components/ui";
+import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, useToast, PasswordInput } from "../../components/ui";
 import { SearchForm } from "../passenger/Home";
 import Results from "../passenger/Results";
 
@@ -53,6 +53,7 @@ export function AgencyDashboard() {
   return (
     <div className="stack">
       <PageHead title={me?.company?.name ?? t("nav.agency")}>
+        <Link className="btn outlined" to="/agency/finance"><Icon name="account_balance_wallet" />{t("finance.title")}</Link>
         <Link className="btn" to="/agency/search"><Icon name="search" />{t("agency.sell")}</Link>
       </PageHead>
       <Loaded state={state}>{(d) => (
@@ -80,7 +81,7 @@ export function AgencyDashboard() {
 // ------------------------------------------------------------------ sell: search, then the shared results screen
 export function AgencySell() {
   const [params] = useSearchParams();
-  return params.get("from") ? <Results /> : <AgencySearch />;
+  return params.get("from") || params.get("legs") ? <Results /> : <AgencySearch />;
 }
 
 function AgencySearch() {
@@ -220,7 +221,7 @@ export function AgencyStaff() {
                 <option value="ACCOUNTANT">{t("agency.roles.AGENCY_ACCOUNTANT")}</option>
               </select>
             </Field>
-            <Field label={t("common.password")} hint={t("auth.passwordHint")}><input className="input ltr" type="password" autoComplete="new-password" value={f.password} onChange={set("password")} /></Field>
+            <Field label={t("common.password")} hint={t("auth.passwordHint")}><PasswordInput autoComplete="new-password" value={f.password} onChange={set("password")} /></Field>
             <p className="small muted"><Icon name="shield" size={16} /> {t("agency.staffMfa")}</p>
           </div>
         </Modal>

@@ -3,7 +3,7 @@ import { Alert, Text, View } from "react-native";
 import { router } from "expo-router";
 import { useI18n } from "../../../i18n";
 import { api } from "../../../platform/api";
-import { Button, Card, Chip, Choice, ErrorText, Loading, Screen, Title, s } from "../../../ui/kit";
+import { Button, Card, Chip, Choice, Empty, ErrorText, ListCard, Loading, Screen, SvcHeader, s } from "../../../ui/kit";
 import { tone, useLabels } from "../../../ui/labels";
 import { useLoad } from "../../../ui/useLoad";
 
@@ -49,8 +49,7 @@ export default function Rental() {
   ]);
   return (
     <Screen>
-      <Button kind="text" label={t("common.back")} onPress={() => router.back()} />
-      <Title sub={t("svc.rental.hint")}>{t("svc.rental.title")}</Title>
+      <SvcHeader icon="key" title={t("svc.rental.title")} sub={t("svc.rental.hint")} onBack={() => router.back()} />
       <Card>
         {data.data ? <Choice label={t("svc.rental.branch")} value={branch} onChange={setBranch}
                              options={data.data.branches.map((b) => ({ value: b.id, label: `${b.brand} · ${station(b.station_code, b.station) || city(b.city)}` }))} />
@@ -61,30 +60,27 @@ export default function Rental() {
                 options={[1, 3, 7, 14, 30].map((n) => ({ value: n, label: t("svc.rental.days", { n }) }))} />
       </Card>
       <ErrorText error={error ?? data.error} />
-      {branch && data.data && data.data.offers.length === 0 && !data.loading ? <Text style={s.muted}>{t("svc.rental.noOffers")}</Text> : null}
+      {branch && data.data && data.data.offers.length === 0 && !data.loading ? <Empty icon="key" text={t("svc.rental.noOffers")} /> : null}
       {data.data?.offers.map((o) => (
         <Card key={o.rate_id}>
           <View style={s.between}>
             <Text style={[s.h2, { flex: 1 }]}>{o.class_name}</Text>
-            <Text style={s.h2}>{money(o.total)}</Text>
+            <Text style={s.price}>{money(o.total)}</Text>
           </View>
           <Text style={s.small}>{t("svc.rental.rate", { price: money(o.price), unit: t(`svc.rental.unit.${o.unit}`) })} · {t("svc.rental.deposit", { amount: money(o.deposit) })}</Text>
           {o.km_per_day ? <Text style={s.small}>{t("svc.rental.km", { n: o.km_per_day })}</Text> : null}
-          <Text style={s.small}>{o.available > 0 ? t("svc.rental.available", { n: o.available }) : t("svc.rental.onRequest")}</Text>
+          <Chip tone={o.available > 0 ? "green" : "amber"} label={o.available > 0 ? t("svc.rental.available", { n: o.available }) : t("svc.rental.onRequest")} />
           <Button label={t("svc.rental.book")} busy={busy === o.rate_id} disabled={busy !== null} onPress={() => book(o)} />
         </Card>
       ))}
-      <Text style={s.h2}>{t("svc.rental.mine")}</Text>
-      {mine.data && mine.data.bookings.length === 0 ? <Text style={s.muted}>{t("svc.rental.none")}</Text> : null}
+      <Text style={s.section}>{t("svc.rental.mine")}</Text>
+      {mine.data && mine.data.bookings.length === 0 ? <Empty icon="key" text={t("svc.rental.none")} /> : null}
       {mine.data?.bookings.map((b) => (
-        <Card key={b.uid}>
-          <View style={s.between}>
-            <Text style={[s.label, { flex: 1 }]}>{b.class_name} · {b.brand}</Text>
-            <Chip label={labels.value(b.status)} tone={tone(b.status)} />
-          </View>
-          <Text style={s.small}>{station(b.pickup_code, b.pickup)} · {date(b.starts_at)} → {date(b.ends_at)} · {money(b.quoted_total)}</Text>
+        <ListCard key={b.uid} title={`${b.class_name} · ${b.brand}`} sub={`${station(b.pickup_code, b.pickup)} · ${date(b.starts_at)} → ${date(b.ends_at)}`}
+                  right={<Chip label={labels.value(b.status)} tone={tone(b.status)} />}>
+          <Text style={s.price}>{money(b.quoted_total)}</Text>
           {["PENDING", "CONFIRMED"].includes(b.status) ? <Button kind="danger" label={t("svc.cancel")} onPress={() => cancel(b)} /> : null}
-        </Card>
+        </ListCard>
       ))}
     </Screen>
   );

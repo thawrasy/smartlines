@@ -42,6 +42,13 @@ ROUTES = [
 ]
 DEPARTURES = {"DAM-ALP": ["07:30", "10:00", "15:00"], "ALP-DAM": ["08:00", "16:00"], "DAM-LTK": ["09:00", "14:00"],
               "DAM-DRA": ["08:30", "13:30", "18:00"]}
+# Four-digit trip numbers (1119): the first three digits are the line of a vehicle's day, the last its leg, odd away
+# from Damascus and even back. DC 1101 to Aleppo at 07:30 returns as DC 1102 at 16:00 on the same vehicle; the other
+# departures start lines of their own (a return on its own takes leg 2 of its line).
+NUMBERS = {("DAM-ALP", "07:30"): (1101, None), ("DAM-ALP", "10:00"): (1111, None), ("DAM-ALP", "15:00"): (1121, None),
+           ("ALP-DAM", "08:00"): (1132, None), ("ALP-DAM", "16:00"): (1102, ("DAM-ALP", "07:30")),
+           ("DAM-LTK", "09:00"): (1141, None), ("DAM-LTK", "14:00"): (1151, None),
+           ("DAM-DRA", "08:30"): (1161, None), ("DAM-DRA", "13:30"): (1171, None), ("DAM-DRA", "18:00"): (1181, None)}
 
 
 async def user(conn, party_type, name, email, kind, locale="en"):
@@ -100,6 +107,16 @@ async def seed_finance(conn) -> bool:
     return added
 
 
+async def seed_geography(conn) -> bool:
+    """A geography officer, so the places surveyed in the field that the administrator proposes are reviewed by
+    someone else (1125)."""
+    if await conn.fetchval("SELECT 1 FROM iam.app_user WHERE email = 'geo@masslak.test'"):
+        return False
+    _, uid = await user(conn, "PERSON", "Geography Officer", "geo@masslak.test", "PLATFORM")
+    await conn.execute("INSERT INTO iam.user_role (user_id, role_id) SELECT $1, id FROM iam.role WHERE code = 'PLATFORM_GEOGRAPHY' AND company_id IS NULL", uid)
+    return True
+
+
 async def seed_counter(conn) -> bool:
     """A counter clerk of the demo carrier, who sells tickets for cash and collects pay-later reservations (1056)."""
     if await conn.fetchval("SELECT 1 FROM iam.app_user WHERE email = 'counter@carrier.test'"):
@@ -114,12 +131,40 @@ async def seed_counter(conn) -> bool:
     return True
 
 
+async def seed_station(conn) -> bool:
+    """A station operating company that administers Damascus Central Station, with its owner and a counter agent, so
+    the station portal can be tried (owner's trial notes, October 2026: no station account existed)."""
+    if await conn.fetchval("SELECT 1 FROM iam.app_user WHERE email = 'station@station.test'"):
+        return False
+    station = await conn.fetchval("SELECT s.id FROM net.station s JOIN ref.city c ON c.id = s.city_id "
+                                  "WHERE c.code = 'DAM' AND s.station_class = 'CENTRAL' ORDER BY s.id LIMIT 1")
+    if station is None:
+        return False
+    company = await conn.fetchval("INSERT INTO iam.party (party_type, legal_name) VALUES ('COMPANY', 'Demo Station Operations') RETURNING id")
+    await conn.execute("INSERT INTO iam.party_role (party_id, role_code) VALUES ($1, 'STATION_OPERATOR')", company)
+    await conn.execute("""INSERT INTO iam.company (id, company_type, transport_license_no, approval_status, approved_at)
+                          VALUES ($1, 'STATION_OPERATOR', 'ST-DEMO-001', 'APPROVED', now())""", company)
+    _, owner = await user(conn, "PERSON", "Samer (station manager)", "station@station.test", "COMPANY")
+    await conn.execute("INSERT INTO iam.company_member (user_id, company_id, is_owner) VALUES ($1, $2, true)", owner, company)
+    _, clerk = await user(conn, "PERSON", "Rana (station counter)", "counter@station.test", "COMPANY")
+    await conn.execute("INSERT INTO iam.company_member (user_id, company_id, role_id) SELECT $1, $2, id FROM iam.role "
+                       "WHERE code = 'STATION_COUNTER' AND company_id IS NULL", clerk, company)
+    # the company is the station's administration: it assigns the bays and the screens
+    await conn.execute("""INSERT INTO net.station_boarding (station_id, manager_company_id) VALUES ($1, $2)
+                          ON CONFLICT (station_id) DO UPDATE SET manager_company_id = EXCLUDED.manager_company_id""", station, company)
+    return True
+
+
 async def seed_security(conn) -> bool:
     """A security officer, so travel-document exceptions drafted by the administrator are approved by someone else."""
     if await conn.fetchval("SELECT 1 FROM iam.app_user WHERE email = 'security@masslak.test'"):
         return False
     _, uid = await user(conn, "PERSON", "Security Officer", "security@masslak.test", "PLATFORM")
     await conn.execute("INSERT INTO iam.user_role (user_id, role_id) SELECT $1, id FROM iam.role WHERE code = 'PLATFORM_SECURITY' AND company_id IS NULL", uid)
+    _, uid_privacy = await user(conn, "PERSON", "Privacy Officer", "privacy@masslak.test", "PLATFORM")
+    await conn.execute("INSERT INTO iam.user_role (user_id, role_id) SELECT $1, id FROM iam.role WHERE code = 'PLATFORM_SECURITY' AND company_id IS NULL", uid_privacy)
+    _, uid_privacy2 = await user(conn, "PERSON", "Privacy Officer (second)", "privacy2@masslak.test", "PLATFORM")
+    await conn.execute("INSERT INTO iam.user_role (user_id, role_id) SELECT $1, id FROM iam.role WHERE code = 'PLATFORM_SECURITY' AND company_id IS NULL", uid_privacy2)
     return True
 
 
@@ -189,6 +234,128 @@ async def seed_families(conn) -> bool:
     return True
 
 
+async def seed_charter(conn) -> bool:
+    """What the demo carrier hires out (1123): coaches for tourism companies by the day, its scheduled trips whole or in
+    blocks of ten seats, and a van for travellers by special request. Idempotent."""
+    carrier = await conn.fetchval("SELECT id FROM iam.party WHERE legal_name = 'Demo Carrier A' AND party_type = 'COMPANY'")
+    if carrier is None or await conn.fetchval("SELECT 1 FROM sales.charter_offer WHERE company_id = $1", carrier):
+        return False
+    owner = await conn.fetchval("SELECT id FROM iam.app_user WHERE email = 'owner@carrier.test'")
+    dam = await conn.fetchval("SELECT id FROM ref.city WHERE code = 'DAM'")
+    offers = (
+        ("VEHICLE", "Coach with driver for tours", "COACH", 45, 4, None, ["AGENCY"], "PER_DAY", 150_000_000, 48, 72, 80,
+         "Driver and fuel included up to 300 km a day; the driver rests 9 hours a night; waiting beyond two hours is charged."),
+        ("WHOLE_TRIP", "Our scheduled trips, whole or in blocks", None, None, 1, 10, ["AGENCY"], "PER_SEAT", 2_500_000, 24, 48, 100,
+         "A block of ten seats or more on any of our scheduled trips, or the whole trip when no seat is sold yet."),
+        ("VEHICLE", "Family van by special request", "VAN", 12, 2, None, ["PASSENGER", "AGENCY"], "ON_REQUEST", None, 24, 24, 50,
+         "Priced for each request: the route, the day and the waiting. Driver included."),
+    )
+    for kind, title, vtype, seats, vehicles, min_seats, audience, basis, price, notice, before, pct, policy in offers:
+        await conn.execute(
+            """INSERT INTO sales.charter_offer (company_id, kind, title, vehicle_type, seats, vehicles, partial_seats, min_seats, audience,
+                 price_basis, price, currency, notice_hours, cancel_before_hours, cancel_refund_pct, base_city_id, policy, created_by)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'SYP', $12, $13, $14, $15, $16, $17)""",
+            carrier, kind, title, vtype, seats, vehicles, min_seats is not None, min_seats, audience, basis, price, notice, before, pct,
+            dam, policy, owner)
+    return True
+
+
+async def seed_carrier_b(conn) -> bool:
+    """A second carrier, from Daraa to Damascus, timed so its trips connect with Demo Carrier A's trips from Damascus to
+    Aleppo (1130): Daraa to Aleppo has no direct trip, and the search offers the connection. Demo Carrier B changes a
+    missed trip free when the first trip of a connection arrived late; Demo Carrier A keeps its fares' change rules."""
+    if await conn.fetchval("SELECT 1 FROM iam.party WHERE legal_name = 'Demo Carrier B' AND party_type = 'COMPANY'"):
+        return False
+    admin = await conn.fetchval("SELECT id FROM iam.app_user WHERE email = 'admin@masslak.test'")
+    await conn.execute("SELECT sys.set_context($1, NULL, 'SYSTEM')", admin)
+    dra = await conn.fetchval("SELECT s.id FROM net.station s JOIN ref.city c ON c.id = s.city_id WHERE c.code = 'DRA' AND s.station_class = 'CENTRAL' ORDER BY s.id LIMIT 1")
+    dam = await conn.fetchval("SELECT s.id FROM net.station s JOIN ref.city c ON c.id = s.city_id WHERE c.code = 'DAM' AND s.station_class = 'CENTRAL' ORDER BY s.id LIMIT 1")
+    company = await conn.fetchval("INSERT INTO iam.party (party_type, legal_name) VALUES ('COMPANY', 'Demo Carrier B') RETURNING id")
+    await conn.execute("INSERT INTO iam.party_role (party_id, role_code) VALUES ($1, 'OPERATOR')", company)
+    await conn.execute("INSERT INTO iam.company (id, approval_status, approved_by, approved_at) VALUES ($1, 'APPROVED', $2, now())",
+                       company, admin)
+    await conn.execute("""INSERT INTO net.carrier_code (company_id, code3, code2, status, approved_by, valid_from)
+                          VALUES ($1, 'DCB', 'DB', 'ACTIVE', $2, current_date)""", company, admin)
+    await conn.execute("INSERT INTO fin.wallet (owner_party_id, company_id, wallet_type, label, currency) VALUES ($1, $1, 'COMPANY', 'Carrier wallet', 'SYP')",
+                       company)
+    _, owner = await user(conn, "PERSON", "Nour (carrier owner)", "owner@carrierb.test", "COMPANY")
+    await conn.execute("INSERT INTO iam.company_member (user_id, company_id, is_owner) VALUES ($1, $2, true)", owner, company)
+    dparty, duser = await user(conn, "PERSON", "Fadi (driver)", "driver@carrierb.test", "COMPANY")
+    await conn.execute("INSERT INTO iam.company_member (user_id, company_id, role_id) SELECT $1, $2, id FROM iam.role WHERE code = 'CARRIER_DRIVER' AND company_id IS NULL",
+                       duser, company)
+    await conn.execute("INSERT INTO fleet.crew_profile (party_id, company_id, crew_type, license_class) VALUES ($1, $2, 'DRIVER', 'D')", dparty, company)
+    vehicle = await conn.fetchval(
+        """INSERT INTO fleet.vehicle (company_id, vehicle_type, make, model, manufacture_year, plate_no, chassis_no, passenger_seats,
+             owner_party_id, status, cargo_capacity_kg) VALUES ($1, 'COACH', 'Demo', 'Coach', 2021, '445566', 'CHS-DCB-0001', 44, $1, 'ACTIVE', 800)
+           RETURNING id""", company)
+    await conn.execute(
+        """INSERT INTO fleet.license_record (company_id, subject_type, subject_id, license_type, license_no, issuer, issue_date, expiry_date, status)
+           VALUES ($1, 'VEHICLE', $2, 'INSURANCE', 'POL-445566', 'Demo Insurance Co.', current_date - 30, current_date + 335, 'VALID')""",
+        company, vehicle)
+    await conn.execute("""INSERT INTO ops.carrier_connection_policy (company_id, missed_connection, change_window_hours, note, updated_by)
+                          VALUES ($1, 'FREE_CHANGE', 24, 'A traveller who misses our trip because the first trip arrived late travels on our next trip at no charge.', $2)""",
+                       company, owner)
+    await conn.execute("SELECT sys.set_context($1, $2, 'COMPANY')", owner, company)
+    route = await conn.fetchval(
+        """INSERT INTO net.route (company_id, code, origin_station_id, dest_station_id, service_type, std_duration_min)
+           VALUES ($1, 'DRA-DAM', $2, $3, 'DIRECT', 90) RETURNING id""", company, dra, dam)
+    await conn.execute(
+        """INSERT INTO net.route_stop (route_id, seq, station_id, kind, arr_offset_min, dep_offset_min, fare_from_origin)
+           VALUES ($1, 0, $2, 'ORIGIN', 0, 0, 0), ($1, 1, $3, 'DEST', 90, 90, 1500000)""", route, dra, dam)
+    today = datetime.now(LOCAL_TZ).date()
+    for hhmm, number in (("05:30", 1201), ("08:00", 1211), ("13:00", 1221)):
+        sn = await conn.fetchval(
+            """INSERT INTO net.service_number (company_id, number, block, route_id, direction, valid)
+               VALUES ($1, $2, 'SCHEDULED', $3, 'OUTBOUND', daterange(current_date - 1, NULL)) RETURNING id""", company, number, route)
+        h, m = map(int, hhmm.split(":"))
+        for day in range(0, 7):
+            dep_at = datetime(today.year, today.month, today.day, h, m, tzinfo=LOCAL_TZ) + timedelta(days=day)
+            if dep_at < datetime.now(LOCAL_TZ) + timedelta(minutes=45):
+                continue
+            arr_at = dep_at + timedelta(minutes=90)
+            tid = await conn.fetchval(
+                """INSERT INTO ops.trip (trip_no, company_id, route_id, service_type, vehicle_id, departure_at, arrival_at, status,
+                     seats_total, segments_count, currency, base_price, published_at, service_number_id)
+                   VALUES ($1, $2, $3, 'DIRECT', $4, $5, $6, 'PUBLISHED', 44, 1, 'SYP', 1500000, now(), $7) RETURNING id""",
+                None, company, route, vehicle, dep_at, arr_at, sn)           # the reference is written by the database (1143)
+            await conn.execute(
+                """INSERT INTO ops.trip_stop (trip_id, seq, station_id, sched_arr, sched_dep, fare_from_origin)
+                   VALUES ($1, 0, $2, $3, $3, 0), ($1, 1, $4, $5, $5, 1500000)""", tid, dra, dep_at, dam, arr_at)
+            await conn.execute("INSERT INTO ops.seat_segment (trip_id, seat_no, seg) SELECT $1, s, 0 FROM generate_series(1, 44) s", tid)
+            await conn.execute("INSERT INTO ops.crew_assignment (trip_id, party_id, crew_role) VALUES ($1, $2, 'DRIVER')", tid, dparty)
+    await conn.execute("SELECT sys.set_context(NULL, NULL, 'SYSTEM')")
+    return True
+
+
+async def seed_gateway(conn) -> bool:
+    """The demo carriers take the gateway options (1145): their contracts are signed and the options active, so a
+    traveller can pay them by card, instalments or financing once the platform opens those options."""
+    admin = await conn.fetchval("SELECT id FROM iam.app_user WHERE email = 'admin@masslak.test'")
+    n = await conn.fetchval(
+        """WITH ins AS (INSERT INTO fin.carrier_payment_activation (carrier_id, option_code, status, basis, activated_at, changed_by)
+                        SELECT c.id, o, 'ACTIVE', 'Demo: gateway contract signed and option active', now(), $1
+                          FROM iam.company c, unnest(ARRAY['CARD','INSTALLMENT','FINANCING']) o
+                         WHERE c.company_type IN ('CARRIER','INDIVIDUAL_OPERATOR','FOREIGN_CARRIER')
+                        ON CONFLICT (carrier_id, option_code) DO NOTHING RETURNING 1)
+           SELECT count(*) FROM ins""", admin)
+    return n > 0
+
+
+async def seed_trip_parcels(conn) -> bool:
+    """Parcels on trips for the trial (N5, 1147): the switch on and a drop-off office of the demo carrier."""
+    if await conn.fetchval("SELECT 1 FROM ship.parcel_point LIMIT 1"):
+        return False
+    await conn.execute("""UPDATE sys.setting SET value = value || '{"trip_parcels": true}'::jsonb WHERE key = 'features'""")
+    owner = await conn.fetchrow(
+        """SELECT u.id, m.company_id FROM iam.app_user u JOIN iam.company_member m ON m.user_id = u.id
+            WHERE u.email = 'owner@carrier.test' LIMIT 1""")
+    await conn.execute(
+        """INSERT INTO ship.parcel_point (company_id, kind, name, address, hours, phone, created_by)
+           VALUES ($1, 'OFFICE', 'Baramkeh office', 'Baramkeh, next to the old bus garage, Damascus', 'Daily 08:00-20:00', '+963112223344', $2)""",
+        owner["company_id"], owner["id"])
+    return True
+
+
 async def main():
     url = os.environ.get("MASSLAK_OWNER_URL", "postgresql://postgres@localhost:5432/masslak")
     conn = await asyncpg.connect(url)
@@ -198,12 +365,24 @@ async def main():
         sys.exit("refusing to load demo data: this database belongs to a production server")
     async with conn.transaction():
         await conn.execute("SELECT sys.set_context(NULL, NULL, 'SYSTEM')")
+        # the demo accounts are shared by everyone trying the platform and by the tests, so they keep several
+        # sessions, and many of them share one address (an office, the test runner): the watch alerts on such an address
+        # but does not block it; a real server keeps one session per account and portal and blocks floods (1142)
+        await conn.execute("""UPDATE sec.shield_state SET session_policy =
+                                (SELECT jsonb_object_agg(k, 'MULTI') FROM jsonb_object_keys(session_policy) k),
+                              policy = policy || '{"auto_block_heavy": false}' WHERE id = 1""")
         if await conn.fetchval("SELECT 1 FROM iam.app_user WHERE email = 'admin@masslak.test'"):
             added = [what for what, done in (("agency", await seed_agency(conn)), ("seat layouts", await seed_layouts(conn)),
                                                     ("finance user", await seed_finance(conn)),
                                                     ("security officer", await seed_security(conn)),
+                                                    ("geography officer", await seed_geography(conn)),
                                                     ("counter clerk", await seed_counter(conn)),
-                                                    ("family and manifest route", await seed_families(conn))) if done]
+                                                    ("station operator", await seed_station(conn)),
+                                                    ("family and manifest route", await seed_families(conn)),
+                                                    ("charter offers", await seed_charter(conn)),
+                                                    ("second carrier", await seed_carrier_b(conn)),
+                                                    ("gateway activations", await seed_gateway(conn)),
+                                                    ("parcels on trips", await seed_trip_parcels(conn))) if done]
             print(f"demo {' and '.join(added)} added" if added else "demo data already present")
             return
         # Platform staff
@@ -230,8 +409,9 @@ async def main():
         await conn.execute("INSERT INTO iam.party_role (party_id, role_code) VALUES ($1, 'OPERATOR')", company)
         await conn.execute("INSERT INTO iam.company (id, approval_status, approved_by, approved_at) VALUES ($1, 'APPROVED', $2, now())",
                            company, admin)
-        await conn.execute("INSERT INTO net.carrier_code (company_id, code3, status, approved_by, valid_from) VALUES ($1, 'DCA', 'ACTIVE', $2, current_date)",
-                           company, admin)
+        # DCA, and DC the designator of its trip numbers ("DC 1101", 1114, 1119)
+        await conn.execute("""INSERT INTO net.carrier_code (company_id, code3, code2, status, approved_by, valid_from)
+                              VALUES ($1, 'DCA', 'DC', 'ACTIVE', $2, current_date)""", company, admin)
         await conn.execute("INSERT INTO fin.wallet (owner_party_id, company_id, wallet_type, label, currency) VALUES ($1, $1, 'COMPANY', 'Carrier wallet', 'SYP')",
                            company)
         _, owner = await user(conn, "PERSON", "Maher (carrier owner)", "owner@carrier.test", "COMPANY")
@@ -264,6 +444,10 @@ async def main():
         today = datetime.now(LOCAL_TZ).date()
         busy: dict[int, list] = {v: [] for v, _ in vehicles}
         n_trips = 0
+        number_ids: dict[tuple, int] = {}          # (route, departure) -> its service number
+        reserved: dict[tuple, tuple] = {}          # (route, departure, day) -> the vehicle kept for it, and when
+        followers = {after: key for key, (_, after) in NUMBERS.items() if after}
+        stops_of = dict(ROUTES)
         for code, stops in ROUTES:
             ids = [station[c] for c, *_ in stops]
             rid = await conn.fetchval(
@@ -275,6 +459,15 @@ async def main():
                     """INSERT INTO net.route_stop (route_id, seq, station_id, kind, arr_offset_min, dep_offset_min, fare_from_origin)
                        VALUES ($1, $2, $3, $4, $5, $6, $7)""",
                     rid, i, station[city], "ORIGIN" if i == 0 else ("DEST" if i == len(stops) - 1 else "STOP"), arr, dep, fare * 100)
+            # one service number for each departure time, repeated every day (study 4.16 b, 1114): odd outbound from
+            # Damascus, even on the way back; a leg after another on the same vehicle follows it (1119)
+            numbers = {}
+            for hhmm in DEPARTURES[code]:
+                number, after = NUMBERS[(code, hhmm)]
+                numbers[hhmm] = number_ids[(code, hhmm)] = await conn.fetchval(
+                    """INSERT INTO net.service_number (company_id, number, block, route_id, direction, valid, follows_id)
+                       VALUES ($1, $2, 'SCHEDULED', $3, $4, daterange(current_date - 1, NULL), $5) RETURNING id""",
+                    company, number, rid, "OUTBOUND" if number % 2 else "INBOUND", number_ids.get(after) if after else None)
             for day in range(0, 7):
                 for hhmm in DEPARTURES[code]:
                     h, m = map(int, hhmm.split(":"))
@@ -282,19 +475,29 @@ async def main():
                     if dep_at < datetime.now(LOCAL_TZ) + timedelta(minutes=45):
                         continue
                     arr_at = dep_at + timedelta(minutes=stops[-1][1])
-                    vid, seats = next(((v, s) for v, s in vehicles
+                    kept = reserved.pop((code, hhmm, day), None)                  # the vehicle of the leg before it
+                    if kept:
+                        busy[kept[0]].remove(kept[1])
+                    vid, seats = next(((v, s) for v, s in sorted(vehicles, key=lambda x: x[0] != (kept[0] if kept else None))
                                        if all(arr_at + timedelta(minutes=30) <= b0 or dep_at >= b1 + timedelta(minutes=30) for b0, b1 in busy[v])),
                                       (None, None))
                     if vid is None:
                         continue
                     busy[vid].append((dep_at, arr_at))
-                    trip_no = f"DCA-{code}-{dep_at:%H%M}/{dep_at:%d%b%y}".upper()
+                    if (code, hhmm) in followers:                                  # keep the vehicle for its next leg
+                        fcode, fhhmm = followers[(code, hhmm)]
+                        fh, fm = map(int, fhhmm.split(":"))
+                        f_dep = datetime(today.year, today.month, today.day, fh, fm, tzinfo=LOCAL_TZ) + timedelta(days=day)
+                        window = (f_dep, f_dep + timedelta(minutes=stops_of[fcode][-1][1]))
+                        busy[vid].append(window)
+                        reserved[(fcode, fhhmm, day)] = (vid, window)
+                    trip_no = None                                                 # written by the database (1143)
                     tid = await conn.fetchval(
                         """INSERT INTO ops.trip (trip_no, company_id, route_id, service_type, vehicle_id, departure_at, arrival_at, status,
-                             seats_total, segments_count, currency, base_price, published_at)
-                           VALUES ($1, $2, $3, $4, $5, $6, $7, 'PUBLISHED', $8, $9, 'SYP', $10, now()) RETURNING id""",
+                             seats_total, segments_count, currency, base_price, published_at, service_number_id)
+                           VALUES ($1, $2, $3, $4, $5, $6, $7, 'PUBLISHED', $8, $9, 'SYP', $10, now(), $11) RETURNING id""",
                         trip_no, company, rid, "INDIRECT" if len(stops) > 2 else "DIRECT", vid, dep_at, arr_at, seats,
-                        len(stops) - 1, stops[-1][3] * 100)
+                        len(stops) - 1, stops[-1][3] * 100, numbers[hhmm])
                     for i, (city, arr, dep, fare) in enumerate(stops):
                         await conn.execute(
                             """INSERT INTO ops.trip_stop (trip_id, seq, station_id, sched_arr, sched_dep, fare_from_origin)
@@ -312,6 +515,7 @@ async def main():
         await seed_layouts(conn)
         await seed_finance(conn)
         await seed_security(conn)
+        await seed_geography(conn)
 
         # Passenger with a funded wallet
         await conn.execute("SELECT sys.set_context(NULL, NULL, 'SYSTEM')")
@@ -327,13 +531,18 @@ async def main():
                            txn, clearing, wallet)
         await seed_families(conn)
         await seed_counter(conn)
+        await seed_station(conn)
+        await seed_charter(conn)
+        await seed_carrier_b(conn)
+        await seed_gateway(conn)
+        await seed_trip_parcels(conn)
     await conn.close()
     print(f"demo data created: {n_trips} trips")
     print(f"accounts (password: {PASSWORD}):")
-    for e, p in (("passenger@masslak.test", "PASSENGER"), ("owner@carrier.test", "OPERATOR"), ("counter@carrier.test", "OPERATOR"),
-                 ("driver@carrier.test", "DRIVER"),
+    for e, p in (("passenger@masslak.test", "PASSENGER"), ("owner@carrier.test", "OPERATOR"), ("owner@carrierb.test", "OPERATOR"), ("counter@carrier.test", "OPERATOR"),
+                 ("driver@carrier.test", "DRIVER"), ("station@station.test", "STATION"), ("counter@station.test", "STATION"),
                  ("agency@agency.test", "AGENCY"), ("finance@masslak.test", "PLATFORM"), ("treasury@masslak.test", "PLATFORM"),
-                 ("security@masslak.test", "PLATFORM"), ("admin@masslak.test", "PLATFORM"), ("regulator@masslak.test", "PLATFORM")):
+                 ("security@masslak.test", "PLATFORM"), ("privacy@masslak.test", "PLATFORM"), ("privacy2@masslak.test", "PLATFORM"), ("geo@masslak.test", "PLATFORM"), ("admin@masslak.test", "PLATFORM"), ("regulator@masslak.test", "PLATFORM")):
         print(f"  {e:28s} portal {p}")
 
 

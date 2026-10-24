@@ -1,0 +1,35 @@
+{
+ "what": "Failover drill (reviews of October 2026, H-01): writes at 20 a second through HAProxy configured by deploy/production/db/proxy.sh (the db proxy), the primary killed without warning (kill -9 of its Patroni and its PostgreSQL), the synchronous standby promoted by Patroni.",
+ "where": "Development host, 10 October 2026: native etcd 3.5 (three members, TLS with client certificates, environment from the bundles deploy/production/init.sh writes), Patroni 4.0.6 with deploy/production/db/patroni.yml (REST API over HTTPS), PostgreSQL 16 with pg_hba.conf as masslak-db-entry writes it, HAProxy 2.8; zero data loss off (with it on and two hosts, writes wait for the lost host). The old primary then rejoined as the synchronous standby by pg_rewind.",
+ "drill": "53e33c31-1647-40dc-98c4-1b97c62b22ae",
+ "kill_exit": 0,
+ "promote_exit": null,
+ "acknowledged_before_kill": 193,
+ "acknowledged": 298,
+ "kept": 298,
+ "lost": 0,
+ "lost_seconds": 0.0,
+ "rto_seconds": 25.4,
+ "errors": {
+  "TimeoutError": 1,
+  "ConnectionError": 124
+ },
+ "servers_written": [
+  "127.0.0.11:5432",
+  "127.0.0.12:5432"
+ ],
+ "old_primary": {
+  "server": "127.0.0.11:5432",
+  "synchronous_standby_names": "db2",
+  "standbys": 1,
+  "sync_standbys": 1
+ },
+ "new_primary": "127.0.0.12:5432",
+ "new_primary_is_standby": false,
+ "api_not_ready_seconds": [],
+ "targets": {
+  "rto_seconds": 60.0,
+  "rpo_seconds": 0.0
+ },
+ "passed": true
+}

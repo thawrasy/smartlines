@@ -93,10 +93,23 @@ RESOURCES = [
     # ------------------------------------------------------------- loyalty partners
     Resource("loyalty-partner", "loyalty_partners", "pricing.loyalty_partner",
              c("program_id party_id partner_type earn_rate burn_rate conversion_ratio settlement_cycle status"),
-             c("program_id party_id service_partner_id partner_type earn_rate burn_rate conversion_ratio settlement_cycle contract_ref"),
+             c("program_id party_id service_partner_id partner_type earn_rate burn_rate conversion_ratio settlement_cycle contract_ref api_client_id"),
              {P: "loyalty.manage", PA: None}, readonly_portals=(PA,), group="loyalty",
              actions=(Action("activate", {"status": "ACTIVE"}, {"status": ["PENDING", "SUSPENDED"]}), suspend(),
                       Action("end", {"status": "ENDED"}, {"status": ["ACTIVE", "SUSPENDED"]}))),
+    # the agreed redemption price per partner (1107): written by one person, activated by another, frozen once active
+    Resource("loyalty-agreement", "loyalty_partners", "pricing.loyalty_agreement",
+             c("loyalty_partner_id currency points amount platform_share_pct min_points step_points voucher_days valid contract_ref status"),
+             c("loyalty_partner_id currency points amount platform_share_pct min_points step_points voucher_days valid contract_ref note"),
+             {P: "loyalty.manage"}, creator_col="created_by", group="loyalty",
+             actions=(Action("activate", {"status": "ACTIVE"}, {"status": ["DRAFT"]}, four_eyes=("created_by", "approved_by")),
+                      Action("end", {"status": "ENDED"}, {"status": ["DRAFT", "ACTIVE"]}))),
+    Resource("loyalty-settlement", "loyalty_partners", "pricing.loyalty_settlement",
+             c("loyalty_partner_id currency period redemptions value payable status bank_ref paid_at"), (),
+             {P: "loyalty.manage"}, create=False, update=False, group="loyalty",
+             actions=(Action("approve", {"status": "APPROVED"}, {"status": ["DRAFT"]}, four_eyes=("created_by", "approved_by"),
+                             stamp="approved_at"),
+                      Action("cancel", {"status": "CANCELLED"}, {"status": ["DRAFT"]}))),
     Resource("reward", "loyalty_partners", "pricing.reward_catalog",
              c("program_id loyalty_partner_id reward_type name points_cost conversion_value currency valid status"),
              c("program_id loyalty_partner_id reward_type name points_cost conversion_value currency commission_bp external_code valid"),
@@ -118,7 +131,7 @@ RESOURCES = [
              c("program_id issuer_party_id period issued redeemed expired breakage_est"),
              c("program_id issuer_party_id period issued redeemed expired breakage_est"), {P: "loyalty.manage"}, group="loyalty"),
     Resource("partner-redemption", "loyalty_partners", "pricing.partner_redemption",
-             c("loyalty_partner_id voucher_id points value commission currency redeemed_at"), (),
+             c("loyalty_partner_id voucher_id agreement_id points value payable commission currency partner_ref redeemed_at"), (),
              {P: "loyalty.manage"}, create=False, update=False, order="redeemed_at DESC", group="loyalty"),
 
     # ------------------------------------------------------------- campaigns and sponsors (5.12)

@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { api } from "../../api";
 import { useI18n } from "../../i18n";
 import { useAuth } from "../../auth";
-import { ErrorBox, Field } from "../../components/ui";
+import { ErrorBox, Field, PasswordInput } from "../../components/ui";
 import { AuthSide } from "./Login";
 
 export default function Register() {
@@ -36,7 +36,7 @@ export default function Register() {
           <Field label={t("common.email")}><input className="input ltr" type="email" value={form.email} onChange={set("email")} required autoComplete="email" /></Field>
           <Field label={`${t("common.mobile")} (${t("common.optional")})`}><input className="input ltr" inputMode="tel" value={form.mobile} onChange={set("mobile")} pattern="\+?[0-9]{8,15}" autoComplete="tel" /></Field>
           <Field label={t("common.password")} hint={t("auth.passwordHint")}>
-            <input className="input ltr" type="password" value={form.password} onChange={set("password")} required minLength={12} autoComplete="new-password" />
+            <PasswordInput value={form.password} onChange={set("password")} required minLength={12} autoComplete="new-password" />
           </Field>
           <button className="btn large block" disabled={busy}>{t("nav.register")}</button>
           <p className="center small">{t("auth.haveAccount")} <Link to="/login">{t("nav.login")}</Link></p>

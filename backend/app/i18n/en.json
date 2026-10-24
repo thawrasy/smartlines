@@ -9,6 +9,32 @@
     "body": "Your booking {booking_ref} is cancelled. Refund: SYP {refund_amount}.",
     "sms": "Masslak: booking {booking_ref} cancelled. Refund SYP {refund_amount}."
   },
+  "booking.cancelled_by_carrier": {
+    "subject": "Trip {trip_no} cancelled by the carrier",
+    "body": "The carrier cancelled trip {trip_no}. Your booking {booking_ref} is cancelled and SYP {refund_amount} is refunded in full {refund_to}. We are sorry for the trouble.",
+    "sms": "Masslak: the carrier cancelled trip {trip_no}. Booking {booking_ref}: SYP {refund_amount} refunded {refund_to}."
+  },
+  "trip.cancel_penalty": {
+    "subject": "Penalty for cancelling trip {trip_no}",
+    "body": "Under the regulator's decision {legal_ref}, cancelling trip {trip_no} carries a penalty of SYP {amount}. It is taken from your balance, or from your next released earnings if the balance does not cover it."
+  },
+  "refund_to_labels": {
+    "WALLET": "to your Masslak wallet",
+    "AGENCY": "through the agency that sold it",
+    "COUNTER": "in cash at the carrier's counter"
+  },
+  "points.earned": {
+    "subject": "You earned {points} points",
+    "body": "Trip {trip_no} earned you {points} loyalty points. Your balance is {balance} points; turn them into wallet credit or a voucher at a partner from your wallet page."
+  },
+  "voucher.used": {
+    "subject": "Voucher used at {partner}",
+    "body": "Your voucher worth {currency} {amount} was used at {partner}."
+  },
+  "voucher.returned": {
+    "subject": "{points} points back in your balance",
+    "body": "A voucher you did not use has expired or was cancelled, so its {points} points are back in your loyalty balance."
+  },
   "booking.reserved": {
     "subject": "Booking {booking_ref} reserved: pay by {pay_by_local}",
     "body": "Your seats on booking {booking_ref} are reserved: {from_city} to {to_city}, departing {departs_local}, {passengers} passenger(s), SYP {total_amount}. Pay by {pay_by_local}, or the reservation lapses and the seats go back on sale. Your tickets are issued once paid.",
@@ -21,6 +47,41 @@
   "withdrawal.rejected": {
     "subject": "Withdrawal of SYP {amount} not approved",
     "body": "Your withdrawal of SYP {amount} was not approved: {reason}. The amount is available in your balance again."
+  },
+  "tracking.signal_lost": {
+    "subject": "Trip {trip_no}: no position for {minutes} min",
+    "body": "The vehicle on trip {trip_no} has sent no position for {minutes} minutes. Check with the driver; the alert closes when positions return."
+  },
+  "tracking.alert_escalated": {
+    "subject": "Trip {trip_no}: still no position after {minutes} min",
+    "body": "The vehicle on trip {trip_no} has been silent for {minutes} minutes and the alert was escalated. Contact the driver now and record what happened."
+  },
+  "screen.unseen": {
+    "subject": "Screen {label} at {station}: unseen for {minutes} min",
+    "body": "The screen {label} at station {station} has not read its board for {minutes} minutes. Check its power, network and browser; the alert clears when it reads its board again."
+  },
+  "sos.raised": {
+    "subject": "SOS on trip {trip_no}",
+    "body": "An SOS was raised on trip {trip_no} (vehicle {plate_no}). Position: {where}. Call the driver and the emergency services now, then acknowledge the alarm in the portal.",
+    "sms": "Masslak SOS: trip {trip_no}, vehicle {plate_no}, position {where}. Act now."
+  },
+  "incident.reported": {
+    "subject": "Incident on trip {trip_no}: {incident_type}, {severity}",
+    "body": "The driver of trip {trip_no} (vehicle {plate_no}) reported an incident: {incident_type}, {severity}. Review it in the portal and decide what happens to the trip."
+  },
+  "incident_type_labels": {
+    "COLLISION": "collision",
+    "BREAKDOWN": "breakdown",
+    "FIRE": "fire",
+    "SECURITY": "security",
+    "SEIZURE": "seizure",
+    "MEDICAL": "medical",
+    "OTHER": "other"
+  },
+  "severity_labels": {
+    "MINOR": "minor",
+    "MAJOR": "major",
+    "SEVERE": "severe"
   },
   "document.approved": {
     "subject": "{doc_type} approved",
@@ -1220,5 +1281,56 @@
     "subject": "Masslak sign-in code",
     "body": "Your Masslak sign-in code is {code}. It expires in {minutes} minutes. Do not share it with anyone.",
     "sms": "Masslak code: {code} (valid {minutes} min). Never share it."
+  },
+  "security.traffic_alert": {
+    "subject": "Security alert: {kind_label} ({severity_label})",
+    "body": "The platform's traffic watch opened an alert: {kind_label}. Figures: {metrics_text}. Automatic action: {actions_text}. Open the shield in the security console to check it, block addresses or pause the platform.",
+    "sms": "Masslak security: {kind_label}. {metrics_text}. Check the shield in the console now."
+  },
+  "security.shield_changed": {
+    "subject": "Platform shield: {level_label}",
+    "body": "The platform shield is now {level_label} (it was {previous_label}). Reason: {reason}. Set by: {by_label}. Review it in the security console.",
+    "sms": "Masslak shield: {level_label}. Reason: {reason}."
+  },
+  "account.signed_in_elsewhere": {
+    "subject": "Your account was signed in on another device",
+    "body": "Your Masslak account was just signed in on another device ({client_label}). For your safety only one device stays signed in, so the other device was signed out. If this was not you, change your password now and contact support."
+  },
+  "shield_labels": {
+    "VOLUME": "abnormal traffic volume",
+    "SPIKE": "a sudden spike over the usual traffic",
+    "ERRORS": "many server errors",
+    "WAF": "many requests stopped by the firewall",
+    "AUTH_FLOOD": "a flood of failed sign-ins",
+    "HEAVY_ADDRESS": "one address far above the rest",
+    "WARNING": "warning",
+    "CRITICAL": "critical",
+    "NORMAL": "normal",
+    "ELEVATED": "elevated",
+    "LOCKDOWN": "lockdown (traffic paused)",
+    "AUTO": "the platform itself",
+    "STAFF": "a member of the security staff",
+    "NONE": "none",
+    "ADDRESS_BLOCKED": "the address was blocked for a while",
+    "LEVEL_ELEVATED": "the shield was raised to elevated",
+    "web": "a web browser",
+    "android": "the Android app",
+    "ios": "the iPhone app"
+  },
+  "agency_cash.received": {
+    "subject": "{carrier_name} recorded receiving {currency} {amount}",
+    "body": "{carrier_name} recorded receiving {currency} {amount} from your agency for its cash sales (reference {reference}). Still owed to this carrier: {currency} {owed_after}."
+  },
+  "payment_activation.contracted": {
+    "subject": "Payment gateway contract signed: {option}",
+    "body": "The platform has signed the payment gateway contract that lets your travellers pay by {option}. It goes live on your trips once the platform activates it; you will be told then. Basis: {basis}."
+  },
+  "payment_activation.active": {
+    "subject": "Travellers can now pay you by {option}",
+    "body": "Payment by {option} is now active on your trips. The gateway settles into the platform's bank account and your share is paid to you after each trip, as with every electronic payment. Basis: {basis}."
+  },
+  "payment_activation.suspended": {
+    "subject": "Payment by {option} paused on your trips",
+    "body": "The platform has paused payment by {option} on your trips; travellers pay in the other open ways meanwhile. Basis: {basis}."
   }
 }

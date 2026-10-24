@@ -7,15 +7,21 @@ Nothing runs half set up.
 
 | Finding | What the profile requires | Checked by |
 |---|---|---|
+| H-01 | The database on two hosts with automatic failover (Patroni, etcd, HAProxy; a synchronous standby confirms every commit), or on one host the owner accepted in writing (`MASSLAK_SINGLE_HOST_ACCEPTED`) | host preflight (one primary, a synchronous standby, over TLS); migration preflight; CI failover drill |
 | H-02 | WAL archived by pgBackRest to a repository off this host, proven before every migration | migration preflight; update; alert `WalArchiveStale` |
 | H-03 | Every backup copied off the server before an update | update (refuses), alert `BackupOffsiteStale` |
+| H-04 | Documents in an object store: a bucket with versioning and Object Lock, every file's version recorded with each backup and put back by a restore | migration preflight; backup (fails without the record); restore |
 | H-05 | TLS to the database, the read replica and PgBouncer; every client checks the certificate (`verify-full`) | `pg_hba.conf` accepts nothing else; migration preflight; API start |
 | H-06 | Data keys opened by the key service (Vault); each container receives only its part of `deploy/.env` | host preflight; API and worker start |
 | H-07 | Prometheus, Alertmanager, node_exporter, the PgBouncer exporter, Grafana and ClamAV run on the server; alerts reach the receivers | host preflight (receivers); `alert-drill.sh`; alerts `MetricsMissing`, `ScrapeTargetDown` |
+| H-08 | The API, egress proxy and database images built once by the release workflow, signed, and pulled by digest; never built on the server | host preflight (cosign, IMAGES); install and update (`deploy/images.sh`) |
 | H-09 | No constraint left NOT VALID | `/api/ready` |
 | H-10 | Warehouse login only from its address, over TLS with a client certificate; no decoding plugin but pgoutput | `pg_hba.conf`; migration preflight |
 | M-07 | No drift override (`MASSLAK_SCHEMA_DRIFT=warn`) | `db/upgrade.sh` |
 | Addition 2 | Every metric an alert rests on is watched for absence | alert `MetricsMissing` |
+| C-01 (residual, reviews of release 1.49.0) | The database server loads the settings guard (`db/guard`): only the platform's own functions can set the request context and the flags the row rules and the ledger trust, never a statement a login types | migration preflight; `/api/ready` (`settings_guard`); alert `SettingsGuardMissing` |
+| Reviews of release 1.49.0 | TLS to the telemetry database too; QR codes and document tokens signed with keys of their own (`MASSLAK_QR_KEYS`, `MASSLAK_DOCUMENT_KEYS`); the session cookie over HTTPS only | API and worker start |
+| Owner's decision, October 2026 | E-invoices signed with a key of their own, named on each document (`MASSLAK_EINVOICE_KEYS`; TAXES_AND_EINVOICES.md) | API and worker start |
 
 ## 1. What to prepare before installing
 
@@ -38,10 +44,20 @@ Nothing runs half set up.
   cipher pass. The repository is encrypted.
 * **The off-site copy of the nightly backups.** An rclone destination in `MASSLAK_BACKUP_OFFSITE`, and an age public
   key in `MASSLAK_BACKUP_AGE_RECIPIENT`, whose private key is kept off the server.
+* **With documents in an object store** (`MASSLAK_FILES_BACKEND=s3`), a bucket created with Object Lock and a default
+  retention of at least `MASSLAK_BACKUP_KEEP_DAYS` days (RUNBOOKS.md, section 24). Each backup records the version of
+  every file, and a restore puts those versions back, so files and database return to the same moment (H-04).
 * **The alert receivers.** Three webhook addresses: the on-call channel (page), the team queue (ticket), and a dead
   man's switch that pages when the minute heartbeat stops (deadman).
+* **Two database hosts** of equal size on a private network with this server (H-01), with Docker and cosign
+  installed: `MASSLAK_DB_LAYOUT=ha`, `MASSLAK_DB_HOSTS` (their private IPv4 addresses) and `MASSLAK_DB_WITNESS` (this
+  server's), [HIGH_AVAILABILITY.md](HIGH_AVAILABILITY.md). A pilot on one host instead records the owner's acceptance
+  in `MASSLAK_SINGLE_HOST_ACCEPTED` (who and when): losing that host means a restore, about 30 minutes.
 
 ## 2. Installing
+
+A production server installs from a release archive checked with `deploy/verify-release.sh` (RUNBOOKS.md, section 19),
+never from a git checkout: the archive's `IMAGES` names the signed images it runs. Install `cosign` first.
 
 ```
 sudo ./deploy/init-env.sh --domain masslak.com --email ops@masslak.com
@@ -58,23 +74,33 @@ exists. It creates:
 * the database's certificate, for the names `db`, `db-replica`, `pgbouncer` and any in `MASSLAK_DB_TLS_NAMES`;
 * the warehouse login's client certificate;
 * the monitoring secrets;
+* with two database hosts: the cluster's certificate (both hosts, this server and the names `db` and `db-replica`),
+  the password of Patroni's REST API, etcd's token, and one bundle per host in `deploy/production/ha/bundles/` for
+  `deploy/production/ha/install-db-host.sh` on that host (it holds the cluster's key and the database passwords:
+  copy it over SSH and delete it there once installed);
 * `COMPOSE_FILE` in `deploy/.env`, so every `docker compose --env-file deploy/.env ...` on the server uses the
-  profile.
+  profile (with two database hosts, `deploy/production/ha/docker-compose.ha.yml` too: `db` and `db-replica` become
+  HAProxy in front of the hosts, and the third etcd member runs here).
 
 **Move `deploy/production/tls/ca.key` to offline storage** once the certificates exist. It is needed again only to
 renew them.
 
 `install.sh` then works in this order:
 
-1. The host preflight (`deploy/production/preflight.sh`) checks `deploy/.env` and `deploy/production`.
-2. `deploy/env-split.sh` writes one environment file per container.
-3. The images are built and the stack starts. The migration first runs the database preflight
+1. `deploy/env-split.sh` writes one environment file per container; with two database hosts the third etcd member
+   starts here.
+2. The host preflight (`deploy/production/preflight.sh`) checks `deploy/.env` and `deploy/production`, and with two
+   database hosts that one is the primary and the other its synchronous standby (until both are installed with
+   their bundles it stops here; run `install.sh` again afterwards).
+3. The signed images are pulled and the stack starts. The migration first runs the database preflight
    (`python -m app.tools.preflight`) on the database itself:
    * TLS is on and is the only way in;
    * `pg_hba.conf` asks for scram and, for the warehouse, a certificate;
    * WAL archiving works now (pgBackRest's own check, against the repository);
    * the repository is off this host;
-   * no decoding plugin but pgoutput is installed.
+   * no decoding plugin but pgoutput is installed;
+   * with documents in an object store, the bucket keeps every version and locks them long enough;
+   * two database hosts with a synchronous standby streaming now, or one host the owner accepted.
 4. The migration then wraps every data key with the key service (`python -m app.tools.keys bootstrap`). The API and
    the worker never hold a clear key in their environment.
 
@@ -90,25 +116,32 @@ first migration and only their wrapped form is stored (`sec.key_registry`).
 |---|---|---|
 | app, worker | Settings, the signing keys, the key service's address and token | The owner's password; replication, warehouse and telemetry-owner passwords; backup and pgBackRest settings; on a production server, any data key |
 | migrate | Everything but backup and pgBackRest settings | — |
-| db | The owner's login, pgBackRest's repository, the warehouse's address | — |
+| db | The owner's login, pgBackRest's repository, the warehouse's address; with two database hosts (the proxies) the owner's login only, the rest going to the hosts in their bundles | — |
 
 The API and the worker check this themselves at start (`app/profile.py`). They also refuse to start:
 
 * outside the production profile;
-* with a database connection that does not check the certificate;
-* without the key service.
+* with a database connection that does not check the certificate, the telemetry database's included;
+* without the key service;
+* without keys of their own for QR codes and document tokens (RUNBOOKS.md, section 31);
+* with `MASSLAK_COOKIE_SECURE=false`.
 
 ## 4. Updating
 
 `deploy/update.sh` on a production server runs these steps in order:
 
 1. The host preflight.
-2. The build.
-3. A restart of the database, its replica and PgBouncer, only if their image or settings changed.
-4. The database preflight.
-5. The backup. It must be copied off the server, or the update stops: nothing has been changed at that point.
+2. The backup. It must be copied off the server, or the update stops: nothing has been changed at that point.
+3. The images of the release: each signature and bill of materials checked, then pulled by digest (`deploy/images.sh`;
+   `MASSLAK_IMAGES` names the release's `IMAGES` file when it is not in the current directory). An image the release
+   did not sign stops the update; the running version keeps serving.
+4. A restart of the database, its replica and PgBouncer, only if their image or settings changed.
+5. The database preflight.
 6. The update itself.
 7. The WAL archive check, which must pass.
+
+With two database hosts, the hosts are updated after the application host: `install-db-host.sh` with the new
+release's bundle on the standby's host, then on the primary's, which hands the role to the standby before it restarts.
 
 `MASSLAK_SCHEMA_DRIFT=warn` is refused on a production server, whether the environment or the database declares it
 production.
@@ -160,17 +193,20 @@ Two rules guard the monitoring itself:
 * `ScrapeTargetDown` fires when a target stops answering.
 
 `./deploy/monitoring/alert-drill.sh` proves the path to the people on call. It sends a synthetic page, checks that
-Alertmanager delivered it without a failure, and resolves it. Run it after installing, after changing a receiver, and
+the page receiver accepted it, and resolves it. Alertmanager counts its requests per receiver
+(`--enable-feature=receiver-name-in-metrics`), so the heartbeat to the dead man's switch never passes for the page. Run it after installing, after changing a receiver, and
 monthly. The person on call confirms receipt; the drill is recorded as launch gate evidence.
 
 ## 7. What the profile does not do yet
 
-These are in package 3:
+* The second site: its design and watchdog are in `deploy/ha`, and the installer does not set it up
+  ([HIGH_AVAILABILITY.md](HIGH_AVAILABILITY.md)).
 
-* hosts of their own for the database and its standby (H-01);
-* object versions recorded with backups when files are in object storage (H-04);
-* images built once in CI and signed (H-08);
-* TLS to the telemetry database (overlay `deploy/telemetry`).
+A production server accepted on one host is protected by TLS and the address rules against a container or a
+password leaking, not against a lost host: that is what the layout with two database hosts covers.
 
-The profile runs on one host. On that host, TLS and the address rules protect against a container or a password
-leaking, not against a lost host. That is what the second site and package 3 cover.
+Done in release 1.50.0: the telemetry database (overlay `deploy/telemetry`) runs the production database image with
+TLS 1.3 only, a certificate `deploy/production/init.sh` issues for the name `telemetry`, and `hostssl` lines only; the
+migration, the API and the worker check it (`sslmode=verify-full`), through `deploy/production/docker-compose.telemetry.yml`,
+which `init.sh` adds whenever `MASSLAK_COMPOSE_EXTRA` names the telemetry overlay. A telemetry database on a server of
+its own takes the same settings there: its certificate names its host (`MASSLAK_TELEMETRY_TLS_NAMES`).

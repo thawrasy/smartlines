@@ -1,0 +1,210 @@
+{
+ "what": "Independent verification of the signed release v1.49.0 and of its images (reviews of release 1.49.0: the evidence of the current release, not of 1.48.0)",
+ "date": "2026-10-10",
+ "environment": "development",
+ "release": {
+  "url": "https://github.com/thawrasy/smartlines/releases/tag/v1.49.0",
+  "tag": "v1.49.0",
+  "commit": "dacc603dbe0544e5044d9a8fcc2dd89bcde78f09",
+  "published_utc": "2026-10-10T18:12:37Z",
+  "published_from": "the repository's Releases page, with a new tag on branch claude/land-shipping-development-dz68oz"
+ },
+ "workflow_runs": [
+  {
+   "run": "https://github.com/thawrasy/smartlines/actions/runs/38074855548",
+   "event": "release",
+   "result": "success",
+   "note": "12 of 12 jobs: CI on the tagged commit (10 jobs, the failover drill on two database hosts included), the images built once, pushed to ghcr.io and signed, then the signed release archive"
+  }
+ ],
+ "assets": [
+  {
+   "name": "SHA256SUMS",
+   "bytes": 270,
+   "sha256": "4b156f89a9ae4f1ec4301c1edc8610d0884fa25cb7cfdf2cb9f039d898e9489b"
+  },
+  {
+   "name": "SHA256SUMS.sigstore.json",
+   "bytes": 10383,
+   "sha256": "083d4c23fa77493c2da45e08f8ca7b7a94d05ec247b13fa68476accede0d9b26"
+  },
+  {
+   "name": "masslak-v1.49.0.IMAGES",
+   "bytes": 399,
+   "sha256": "bd2993df6c20e418338a19e0d4acd60ba600e5921245e592716f0e13296cb82e"
+  },
+  {
+   "name": "masslak-v1.49.0.IMAGES.sigstore.json",
+   "bytes": 10523,
+   "sha256": "c85099650fb9995f5cc13ff831675da89ccc8d44f28418c6a8a05a63b3d28f6e"
+  },
+  {
+   "name": "masslak-v1.49.0.spdx.json",
+   "bytes": 1589758,
+   "sha256": "cf01e332c5cd74bbe2e4a7833893714b991ee7140dd13a35a07abdba4176cde9"
+  },
+  {
+   "name": "masslak-v1.49.0.spdx.json.sigstore.json",
+   "bytes": 10479,
+   "sha256": "43c9e7d89b3c8790672719b9891f3f1e450db5f78f268001863db0dac73f6e9b"
+  },
+  {
+   "name": "masslak-v1.49.0.tar.gz",
+   "bytes": 51084489,
+   "sha256": "ffbb2c0296b707f267b6ba8cce6065a56c15c5d8af0c6d08252ba072ec8f4e89"
+  },
+  {
+   "name": "masslak-v1.49.0.tar.gz.sigstore.json",
+   "bytes": 10383,
+   "sha256": "bc43ce55ae076bf848f064dc1be325bc19e6332e088825362572bca61e25f336"
+  }
+ ],
+ "verification": {
+  "tool": "deploy/verify-release.sh with cosign v3.0.6, the Sigstore production trust root taken from the sigstore 4.5.0 package (the verification sandbox could not reach tuf-repo-cdn.sigstore.dev)",
+  "result": "OK: masslak-v1.49.0.tar.gz is a signed release of thawrasy/smartlines",
+  "certificate_identity": "https://github.com/thawrasy/smartlines/.github/workflows/release.yml@refs/tags/v1.49.0",
+  "certificate_oidc_issuer": "https://token.actions.githubusercontent.com",
+  "signatures": {
+   "SHA256SUMS": "OK",
+   "masslak-v1.49.0.tar.gz": "OK",
+   "masslak-v1.49.0.spdx.json": "OK",
+   "masslak-v1.49.0.IMAGES": "OK"
+  },
+  "checksums": {
+   "masslak-v1.49.0.tar.gz": "OK",
+   "masslak-v1.49.0.spdx.json": "OK",
+   "masslak-v1.49.0.IMAGES": "OK"
+  },
+  "release_record_in_archive": {
+   "commit": "dacc603dbe0544e5044d9a8fcc2dd89bcde78f09",
+   "version": "v1.49.0"
+  },
+  "images_record_in_archive": "identical to the published masslak-v1.49.0.IMAGES",
+  "negative_checks": {
+   "archive with one byte appended": "refused",
+   "identity of another tag (release.yml@refs/tags/v9.9.9)": "refused"
+  }
+ },
+ "images": {
+  "names": {
+   "masslak": "ghcr.io/thawrasy/masslak@sha256:a1a2af52505ced2967051b8ad6ca52dd1623dd1446dee586bddea4bf5a6153dd",
+   "masslak-egress": "ghcr.io/thawrasy/masslak-egress@sha256:3604ee6f31da03524b38bfee9ff5a8283295404c6643834f0c04e223f9287e8e",
+   "masslak-db": "ghcr.io/thawrasy/masslak-db@sha256:16f56b7c335f489cd9e39b9d721d76a7b43105c55f6d77ab483960654dc16d92"
+  },
+  "public": "the manifests are read without signing in to ghcr.io",
+  "referrers": "each image carries three Sigstore bundles in its referrers index (sha256-<digest>): its signature, its SPDX bill of materials and its build provenance",
+  "build_provenance": {
+   "tool": "cosign verify-blob-attestation --type https://slsa.dev/provenance/v1 against each digest, bundles from the GitHub attestations API",
+   "result": {
+    "masslak": "Verified OK",
+    "masslak-egress": "Verified OK",
+    "masslak-db": "Verified OK"
+   },
+   "workflow": ".github/workflows/release.yml @ refs/tags/v1.49.0",
+   "commit": "dacc603dbe0544e5044d9a8fcc2dd89bcde78f09"
+  },
+  "not_checked_here": "the image signatures and bills of materials themselves (deploy/images.sh verify): ghcr.io serves them from pkg-containers.githubusercontent.com, which the verification sandbox cannot reach. A production server runs that check on every install and update (deploy/images.sh pull) and refuses an image that fails it; RUNBOOKS.md section 19 names the hosts it needs."
+ },
+ "bundles": {
+  "SHA256SUMS.sigstore.json": {
+   "media_type": "application/vnd.dev.sigstore.bundle.v0.3+json",
+   "certificate_identity": "https://github.com/thawrasy/smartlines/.github/workflows/release.yml@refs/tags/v1.49.0",
+   "certificate_valid_utc": [
+    "2026-10-10T18:29:06+00:00",
+    "2026-10-10T18:39:06+00:00"
+   ],
+   "claims": {
+    "issuer": "https://token.actions.githubusercontent.com",
+    "runner_environment": "github-hosted",
+    "source_repository_uri": "https://github.com/thawrasy/smartlines",
+    "source_repository_digest": "dacc603dbe0544e5044d9a8fcc2dd89bcde78f09",
+    "source_repository_ref": "refs/tags/v1.49.0",
+    "build_config_uri": "https://github.com/thawrasy/smartlines/.github/workflows/release.yml@refs/tags/v1.49.0",
+    "build_trigger": "release",
+    "run_invocation_uri": "https://github.com/thawrasy/smartlines/actions/runs/38074855548/attempts/1"
+   },
+   "transparency_log": {
+    "log_index": 3191029298,
+    "integrated_time_utc": "2026-10-10T18:29:06+00:00",
+    "kind": "hashedrekord 0.0.1",
+    "inclusion_proof": true
+   },
+   "bundle_sha256": "083d4c23fa77493c2da45e08f8ca7b7a94d05ec247b13fa68476accede0d9b26"
+  },
+  "masslak-v1.49.0.tar.gz.sigstore.json": {
+   "media_type": "application/vnd.dev.sigstore.bundle.v0.3+json",
+   "certificate_identity": "https://github.com/thawrasy/smartlines/.github/workflows/release.yml@refs/tags/v1.49.0",
+   "certificate_valid_utc": [
+    "2026-10-10T18:28:52+00:00",
+    "2026-10-10T18:38:52+00:00"
+   ],
+   "claims": {
+    "issuer": "https://token.actions.githubusercontent.com",
+    "runner_environment": "github-hosted",
+    "source_repository_uri": "https://github.com/thawrasy/smartlines",
+    "source_repository_digest": "dacc603dbe0544e5044d9a8fcc2dd89bcde78f09",
+    "source_repository_ref": "refs/tags/v1.49.0",
+    "build_config_uri": "https://github.com/thawrasy/smartlines/.github/workflows/release.yml@refs/tags/v1.49.0",
+    "build_trigger": "release",
+    "run_invocation_uri": "https://github.com/thawrasy/smartlines/actions/runs/38074855548/attempts/1"
+   },
+   "transparency_log": {
+    "log_index": 3191025910,
+    "integrated_time_utc": "2026-10-10T18:28:53+00:00",
+    "kind": "hashedrekord 0.0.1",
+    "inclusion_proof": true
+   },
+   "bundle_sha256": "bc43ce55ae076bf848f064dc1be325bc19e6332e088825362572bca61e25f336"
+  },
+  "masslak-v1.49.0.spdx.json.sigstore.json": {
+   "media_type": "application/vnd.dev.sigstore.bundle.v0.3+json",
+   "certificate_identity": "https://github.com/thawrasy/smartlines/.github/workflows/release.yml@refs/tags/v1.49.0",
+   "certificate_valid_utc": [
+    "2026-10-10T18:28:55+00:00",
+    "2026-10-10T18:38:55+00:00"
+   ],
+   "claims": {
+    "issuer": "https://token.actions.githubusercontent.com",
+    "runner_environment": "github-hosted",
+    "source_repository_uri": "https://github.com/thawrasy/smartlines",
+    "source_repository_digest": "dacc603dbe0544e5044d9a8fcc2dd89bcde78f09",
+    "source_repository_ref": "refs/tags/v1.49.0",
+    "build_config_uri": "https://github.com/thawrasy/smartlines/.github/workflows/release.yml@refs/tags/v1.49.0",
+    "build_trigger": "release",
+    "run_invocation_uri": "https://github.com/thawrasy/smartlines/actions/runs/38074855548/attempts/1"
+   },
+   "transparency_log": {
+    "log_index": 3191026561,
+    "integrated_time_utc": "2026-10-10T18:28:56+00:00",
+    "kind": "hashedrekord 0.0.1",
+    "inclusion_proof": true
+   },
+   "bundle_sha256": "43c9e7d89b3c8790672719b9891f3f1e450db5f78f268001863db0dac73f6e9b"
+  },
+  "masslak-v1.49.0.IMAGES.sigstore.json": {
+   "media_type": "application/vnd.dev.sigstore.bundle.v0.3+json",
+   "certificate_identity": "https://github.com/thawrasy/smartlines/.github/workflows/release.yml@refs/tags/v1.49.0",
+   "certificate_valid_utc": [
+    "2026-10-10T18:28:59+00:00",
+    "2026-10-10T18:38:59+00:00"
+   ],
+   "claims": {
+    "issuer": "https://token.actions.githubusercontent.com",
+    "runner_environment": "github-hosted",
+    "source_repository_uri": "https://github.com/thawrasy/smartlines",
+    "source_repository_digest": "dacc603dbe0544e5044d9a8fcc2dd89bcde78f09",
+    "source_repository_ref": "refs/tags/v1.49.0",
+    "build_config_uri": "https://github.com/thawrasy/smartlines/.github/workflows/release.yml@refs/tags/v1.49.0",
+    "build_trigger": "release",
+    "run_invocation_uri": "https://github.com/thawrasy/smartlines/actions/runs/38074855548/attempts/1"
+   },
+   "transparency_log": {
+    "log_index": 3191028039,
+    "integrated_time_utc": "2026-10-10T18:29:01+00:00",
+    "kind": "hashedrekord 0.0.1",
+    "inclusion_proof": true
+   },
+   "bundle_sha256": "c85099650fb9995f5cc13ff831675da89ccc8d44f28418c6a8a05a63b3d28f6e"
+  }
+ }
+}

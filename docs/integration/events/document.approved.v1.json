@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://masslak.com/schemas/events/document.approved.v1.json",
+  "title": "document.approved",
+  "description": "A company document was approved. The data of the envelope (EVENTS.md); fields are only added within a version.",
+  "x-event-type": "document.approved",
+  "x-schema-version": 1,
+  "type": "object",
+  "properties": {
+    "doc_type": {
+      "type": "string"
+    },
+    "note": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "uploaded_by": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "doc_type"
+  ],
+  "additionalProperties": true
+}

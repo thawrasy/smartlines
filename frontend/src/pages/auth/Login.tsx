@@ -3,13 +3,13 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import type { Portal } from "../../api";
 import { useI18n } from "../../i18n";
 import { useAuth, homeFor } from "../../auth";
-import { ErrorBox, Field, Icon } from "../../components/ui";
+import { ErrorBox, Field, Icon, PasswordInput } from "../../components/ui";
 
-const PORTALS: Portal[] = ["PASSENGER", "OPERATOR", "DRIVER", "AGENCY", "PLATFORM"];
+const PORTALS: Portal[] = ["PASSENGER", "OPERATOR", "DRIVER", "AGENCY", "STATION", "PLATFORM"];
 // Demo accounts are listed only in the test environment build
 const DEMO: Record<Portal, string[]> = {
   PASSENGER: ["passenger@masslak.test"], OPERATOR: ["owner@carrier.test"], DRIVER: ["driver@carrier.test", "driver2@carrier.test", "driver3@carrier.test"],
-  AGENCY: ["agency@agency.test"], PLATFORM: ["admin@masslak.test", "regulator@masslak.test"],
+  AGENCY: ["agency@agency.test"], PLATFORM: ["admin@masslak.test", "regulator@masslak.test"], STATION: ["station@station.test", "counter@station.test"],
 };
 const SHOW_DEMO = import.meta.env.VITE_SHOW_DEMO !== "false";
 
@@ -72,16 +72,17 @@ export default function Login() {
               ))}
             </div>
           </div>
+          {params.get("idle") === "1" && !error && <div className="alert info" role="status">{t("idle.signedOut")}</div>}
           <ErrorBox error={error} />
           <Field label={t("auth.identifier")}>
             <input className="input ltr" autoComplete="username" value={identifier} onChange={(e) => setIdentifier(e.target.value)} required />
           </Field>
           <Field label={t("common.password")}>
-            <input className="input ltr" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+            <PasswordInput autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
           </Field>
           <button className="btn large block" disabled={busy}>{t("auth.loginTitle")}</button>
           {portal === "PASSENGER" && <p className="center small">{t("auth.noAccount")} <Link to="/register">{t("nav.register")}</Link></p>}
-          {SHOW_DEMO && (
+          {SHOW_DEMO && DEMO[portal].length > 0 && (
             <div className="alert info small" style={{ flexDirection: "column", gap: 6 }}>
               <strong>{t("common.demoAccounts")}</strong>
               <div className="row" style={{ gap: 6 }}>

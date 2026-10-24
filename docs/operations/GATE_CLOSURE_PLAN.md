@@ -47,7 +47,10 @@ development evidence.
   1 s), no errors before, during or after.
 - **Gate 3:** the runner drives the burst and soak tools of stage B, whose development runs are in
   `evidence/burst_dev_2026-10-08.json` and `soak_dev_2026-10-08.json`; section 6 has the runner's own short run,
-  which fails here as expected (one API process on a 4-vCPU host) and keeps every correctness check.
+  which fails here as expected (one API process on a 4-vCPU host) and keeps every correctness check. A planned
+  8-hour soak on the development host (`evidence/soak_dev_2026-10-18_interrupted.json`) was cut at 3.4 hours by a
+  restart of the host container: inconclusive for the gate, but with no failure signal in the window it covers (no
+  errors in 298,441 requests, API memory flat at 468–471 MB for the last 75 minutes). The 8-hour run stays a staging task.
 - **Gate 6:** the export, its signatures and the hash chain verify. The bucket steps need the real bucket.
 
 **Defects found and fixed:**

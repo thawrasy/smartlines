@@ -49,8 +49,14 @@ def test_egress_counts_only_in_production(tmp_path):
 
 
 def test_capacity_needs_1x_and_2x_passing_a_5x_run_and_an_8_hour_soak(tmp_path):
-    def run(rate, verdict):
-        return {"environment": "staging", "target_per_second": rate, "verdict": {"status": verdict}}
+    def run(rate, verdict, **over):
+        return {"environment": "staging", "target_per_second": rate, "verdict": {"status": verdict}, "seconds": 900,
+                "warmup_seconds": 300, "build": {"commit": "a" * 40}, "release": {"hash_matches": True}, **over}
+    # a burst that cannot be tied to what it measured does not count (reviews of release 1.49.0)
+    write(tmp_path, "burst_staging_1x.json", run(240, "PASS", seconds=120))
+    write(tmp_path, "burst_staging_2x.json", run(480, "PASS", release={"hash_matches": False}))
+    write(tmp_path, "burst_staging_5x.json", run(1200, "FAIL", build={"commit": None}))
+    assert len([x for x in status(tmp_path, 3)["reasons"] if x.startswith("burst at")]) == 3
     write(tmp_path, "burst_staging_1x.json", run(240, "PASS"))
     write(tmp_path, "burst_staging_2x.json", run(480, "PASS"))
     write(tmp_path, "burst_staging_5x.json", run(1200, "FAIL"))         # 5x records the limit; it need not pass

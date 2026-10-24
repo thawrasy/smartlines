@@ -63,8 +63,11 @@ sudo docker compose --env-file deploy/.env logs -f migrate app
 ```
 
 A production server (`MASSLAK_ENVIRONMENT=production`, the default without `--demo`) installs only in the production
-profile: TLS to the database, WAL archived off the server, the key service, monitoring. It needs the settings of
-docs/operations/PRODUCTION_PROFILE.md first; `deploy/install.sh` checks them and refuses an incomplete setup.
+profile: TLS to the database, WAL archived off the server, the key service, monitoring, and the database on two
+hosts with automatic failover (or one host the owner accepted in writing). It needs the settings of
+docs/operations/PRODUCTION_PROFILE.md first; `deploy/install.sh` checks them and refuses an incomplete setup. The
+database hosts are installed from the bundles it writes, with `deploy/production/ha/install-db-host.sh`
+(docs/operations/HIGH_AVAILABILITY.md).
 
 `init-env.sh` writes `deploy/.env` (mode 600) with random passwords and keys. **Copy its keys section to a
 password manager or secret store right away.** Without those keys, the encrypted identity numbers, MFA secrets
@@ -84,6 +87,7 @@ vehicles and drivers, four routes with a week of trips, and these accounts. They
 | owner@carrier.test | Carrier |
 | agency@agency.test | Agency |
 | driver@carrier.test, driver2@carrier.test, driver3@carrier.test | Driver |
+| station@station.test (administration of Damascus Central Station), counter@station.test (counter) | Station |
 | admin@masslak.test (administration, security, finance) | Platform |
 | finance@masslak.test | Platform (finance) |
 | security@masslak.test | Platform (security: approves travel-document exceptions drafted by the administrator) |
@@ -165,6 +169,7 @@ files (`db/upgrade.sh`, recorded in `sys.schema_file`) before the new API starts
 `GET /api/health` says only that the process answers (the container health check and Caddy use it). `GET /api/ready`
 answers 200 when the database, the applied schema, the audit connection and the reports replica are all in order,
 and 503 otherwise; use it for deployment checks, monitoring and any load balancer in front of several API instances.
+Only callers on the server's own network see which check failed; the public sees `{"ready": true|false}`.
 
 ## 4. Backups
 
@@ -213,6 +218,11 @@ MASSLAK_API_URL=https://masslak.com MASSLAK_API_PINS=<pin1>,<pin2> npx eas build
 - `MASSLAK_TRUSTED_PROXIES` is the Caddy subnet. IP rules, automatic blocking and the logs all use the client
   address. The app takes that address from `X-Forwarded-For` only when the request comes from this subnet. It
   reads the header from the right, so a client cannot choose its own address.
+- The first interface language follows the visitor's country (1141): Arabic in Syria, English elsewhere, and the
+  platform changes it per country under Booking rules → Visitor language. The country comes from the header named by
+  `MASSLAK_COUNTRY_HEADER` (default `CF-IPCountry`, which Cloudflare sends; a GeoIP module in front of Caddy can set
+  the same header). Without that header the browser's first language decides, then the default. A visitor's own
+  choice always wins, and nothing but the first language depends on the header.
 - `MASSLAK_SIGNING_SECRET` signs ticket QR codes and verification links, and `MASSLAK_TICKET_SIGNING_KEY` signs
   offline ticket credentials. Changing either invalidates everything already issued. Outside the sandbox the API
   and the worker refuse to start when the signing secret is missing, a placeholder, shorter than 32 bytes or not

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://masslak.com/schemas/events/subscription.activated.v1.json",
+  "title": "subscription.activated",
+  "description": "A travel pass was activated. The data of the envelope (EVENTS.md); fields are only added within a version.",
+  "x-event-type": "subscription.activated",
+  "x-schema-version": 1,
+  "type": "object",
+  "properties": {
+    "plan": {
+      "type": "string"
+    },
+    "pass_no": {
+      "type": "string"
+    },
+    "ends_on": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "plan",
+    "pass_no",
+    "ends_on"
+  ],
+  "additionalProperties": true
+}

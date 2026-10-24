@@ -199,15 +199,23 @@ def _clients_of(c: httpx.Client, n: int) -> list[httpx.Client]:
 def test_holds_sent_together_cannot_pass_the_limit():
     from app.modules.sales.models import MAX_LOCKED_SEATS
     c = e2e.new_passenger()
-    t = e2e.bookable_trip(c)
+    held_max = max(MAX_LOCKED_SEATS, 2 * c.get("/api/bookings/limits").json()["max_seats"])   # two bookings' worth
+
+    def roomy():                            # a trip with seats for every request, beyond the limit
+        for offset in range(1, 7):
+            r = c.get("/api/trips/search", params={"origin": "DAM", "destination": "HMA", "on": e2e.day(offset), "passengers": 1})
+            found = [x for x in r.json()["trips"] if x["seats_left"] >= held_max + 4]
+            if found:
+                return found[0]
+    t = roomy()
     if t is None:
         e2e.publish_fresh_trip()
-        t = e2e.bookable_trip(c)
-    seats = e2e.free_seats(c, t, MAX_LOCKED_SEATS + 4)
+        t = roomy()
+    seats = e2e.free_seats(c, t, held_max + 4)
     clients = _clients_of(c, len(seats))
     with ThreadPoolExecutor(len(seats)) as pool:
         codes = list(pool.map(lambda cs: e2e.hold(cs[0], t, [cs[1]]).status_code, zip(clients, seats)))
-    assert codes.count(201) == MAX_LOCKED_SEATS and set(codes) == {201, 429}       # the count and the lock are one step
+    assert codes.count(201) == held_max and set(codes) == {201, 429}       # the count and the lock are one step
 
 
 def test_the_same_booking_key_sent_together_answers_with_one_booking(pax_wallet):

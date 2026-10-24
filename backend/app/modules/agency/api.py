@@ -2,14 +2,15 @@
 import uuid
 from typing import Literal, Optional
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query, Request, Response
 from pydantic import BaseModel, EmailStr, Field
 
 from ... import db
-from ...deps import Principal, context_for, require_portal
+from ...deps import Principal, context_for, require_portal, require_step_up
 from ...errors import ApiError, not_found
 from ...routers.bookings import qr_response
 from ...security import password_problem
+from ..photo import service as photo
 from ..sales import service as sales
 from ..sales.models import AgencyBookingIn, HoldIn
 from . import repository as repo
@@ -82,6 +83,21 @@ async def ticket_qr(ticket_uid: uuid.UUID, request: Request, pr: Principal = Dep
     return qr_response(ticket_uid, status)
 
 
+@router.get("/tickets/{ticket_uid}/photo")
+async def ticket_photo(ticket_uid: uuid.UUID, request: Request, pr: Principal = Depends(agency)):
+    """The boarding photo of the passenger on a ticket this agency sold, while the trip is boarding, when the platform lets
+    agents see it (1096). A ticket of another agency is not found."""
+    agency_id = service.require_agency(pr)
+    ctx = context_for(request, pr)
+    async with db.transaction(ctx) as conn:
+        if await repo.ticket_status(conn, agency_id, ticket_uid) is None:
+            raise not_found("ticket")
+        trip_id = await conn.fetchval("SELECT trip_id FROM sales.ticket WHERE uid = $1", ticket_uid)
+        party_id, data, mime = await photo.read_for_ticket(conn, ctx, trip_id, ticket_uid, "AGENT")
+    request.state.audit = {"action": "photo.view", "object_type": "party", "object_id": party_id}
+    return Response(content=data, media_type=mime)
+
+
 @router.get("/tickets/{ticket_uid}/offline")
 async def ticket_offline(ticket_uid: uuid.UUID, request: Request, pr: Principal = Depends(agency)):
     ctx = context_for(request, pr)
@@ -114,7 +130,8 @@ class StaffIn(BaseModel):
 
 @router.post("/staff", status_code=201)
 async def add_staff(body: StaffIn, request: Request, pr: Principal = Depends(agency)):
-    problem = password_problem(body.password)
+    require_step_up(pr)                 # a sensitive operation: a recent second factor (1136)
+    problem = password_problem(body.password, body.email, body.full_name, body.mobile)
     if problem:
         raise ApiError(422, problem, "password does not meet the policy")
     async with db.transaction(context_for(request, pr)) as conn:

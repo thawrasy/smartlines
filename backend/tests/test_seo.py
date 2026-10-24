@@ -75,8 +75,15 @@ def test_sitemap_lists_every_page_in_both_languages():
 
 
 def test_robots_and_private_screens():
-    robots = get("/robots.txt").text
-    assert "Sitemap: " in robots and "Disallow: /api/" in robots and "Disallow: /admin" in robots
+    from app.modules.seo.pages import robots_text, security_txt
+    assert get("/robots.txt").text == "User-agent: *\nDisallow: /\n"        # the test server is kept out of every index
+    live = robots_text(test_server=False)
+    assert "Sitemap: " in live and "Disallow: /api/" in live and "/admin" not in live   # no map of the portals
+    sec = get("/.well-known/security.txt").text
+    assert sec.startswith("Contact: mailto:") and "Expires: " in sec and "Canonical: " in sec
+    from datetime import date
+    assert "Expires: 2027-10-20T00:00:00Z" in security_txt(date(2026, 10, 25))
+    assert "noindex" in get("/ar").headers.get("x-robots-tag", "")          # every page of a test server
     assert "noindex" in get("/api/health").headers.get("x-robots-tag", "")
     login = get("/login")
     if login.status_code == 200:          # the app screens exist only when the web interface is built

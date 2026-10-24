@@ -1,5 +1,98 @@
 {
  "app": {
+  "DELETE /api/admin/authorities/{code}/members/{user_uid}": {
+   "body": null,
+   "parameters": {
+    "path:code": {
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    },
+    "path:user_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "DELETE /api/admin/boarding/stations/{station_uid}/screens/{screen_uid}": {
+   "body": null,
+   "parameters": {
+    "path:screen_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    },
+    "path:station_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "DELETE /api/admin/companies/{company_uid}/logo": {
+   "body": null,
+   "parameters": {
+    "path:company_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "DELETE /api/admin/geo/names/{correction_id}": {
+   "body": null,
+   "parameters": {
+    "path:correction_id": {
+     "required": true,
+     "schema": {
+      "type": "integer"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "DELETE /api/agency/charter/requests/{uid}/travellers/{ticket_no}": {
+   "body": null,
+   "parameters": {
+    "path:ticket_no": {
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    },
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "DELETE /api/agency/holds/{hold_token}": {
    "body": null,
    "parameters": {
@@ -15,10 +108,53 @@
     "200": {}
    }
   },
+  "DELETE /api/carrier/charter/requests/{uid}/vehicles/{vehicle_uid}": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    },
+    "path:vehicle_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "DELETE /api/carrier/counter/holds/{hold_token}": {
    "body": null,
    "parameters": {
     "path:hold_token": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "DELETE /api/charter/requests/{uid}/travellers/{ticket_no}": {
+   "body": null,
+   "parameters": {
+    "path:ticket_no": {
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    },
+    "path:uid": {
      "required": true,
      "schema": {
       "format": "uuid",
@@ -147,6 +283,36 @@
     "200": {}
    }
   },
+  "DELETE /api/station/holds/{hold_token}": {
+   "body": null,
+   "parameters": {
+    "path:hold_token": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "DELETE /api/station/screens/{screen_uid}": {
+   "body": null,
+   "parameters": {
+    "path:screen_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "DELETE /api/v1/holds/{hold_token}": {
    "body": null,
    "parameters": {
@@ -198,6 +364,20 @@
     "200": {}
    }
   },
+  "GET /api/account/photo": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/account/photo/image": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/account/requests": {
    "body": null,
    "parameters": {},
@@ -242,6 +422,86 @@
     "200": {}
    }
   },
+  "GET /api/admin/boarding/operating-companies": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/admin/boarding/operator-grants": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/admin/boarding/settings": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/admin/boarding/stations": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/admin/boarding/stations/{station_uid}": {
+   "body": null,
+   "parameters": {
+    "path:station_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/admin/boarding/stations/{station_uid}/bays": {
+   "body": null,
+   "parameters": {
+    "path:station_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/admin/boarding/stations/{station_uid}/screens": {
+   "body": null,
+   "parameters": {
+    "path:station_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/admin/booking/seat-limits": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/admin/cash/positions": {
    "body": null,
    "parameters": {},
@@ -269,6 +529,38 @@
     "200": {}
    }
   },
+  "GET /api/admin/charter/commission": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/admin/charter/requests": {
+   "body": null,
+   "parameters": {
+    "query:status": {
+     "required": false,
+     "schema": {
+      "enum": [
+       "REQUESTED",
+       "QUOTED",
+       "CONFIRMED",
+       "COMPLETED",
+       "DECLINED",
+       "WITHDRAWN",
+       "EXPIRED",
+       "CANCELLED"
+      ],
+      "nullable": true,
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/admin/companies": {
    "body": null,
    "parameters": {},
@@ -277,6 +569,13 @@
    }
   },
   "GET /api/admin/compliance/requirements": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/admin/connections/settings": {
    "body": null,
    "parameters": {},
    "responses": {
@@ -399,6 +698,106 @@
     "200": {}
    }
   },
+  "GET /api/admin/geo": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/admin/geo/areas/{pcode}/map": {
+   "body": null,
+   "parameters": {
+    "path:pcode": {
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/admin/geo/names": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/admin/geo/proposed": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/admin/kyc": {
+   "body": null,
+   "parameters": {
+    "query:status": {
+     "required": false,
+     "schema": {
+      "default": "ALL",
+      "enum": [
+       "WAITING",
+       "ALL",
+       "DUE",
+       "OPEN",
+       "NONE"
+      ],
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/admin/kyc/form": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/admin/kyc/settings": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/admin/kyc/{kyc_uid}": {
+   "body": null,
+   "parameters": {
+    "path:kyc_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/admin/loyalty/partners": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/admin/loyalty/settlements": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/admin/manifests": {
    "body": null,
    "parameters": {
@@ -481,7 +880,77 @@
     "200": {}
    }
   },
+  "GET /api/admin/photos/changes": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/admin/photos/changes/{uid}/evidence": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/admin/photos/evidence-kinds": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/admin/photos/policy-changes": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/admin/photos/rules": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/admin/privacy/requests": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/admin/schedules/requests": {
+   "body": null,
+   "parameters": {
+    "query:status": {
+     "required": false,
+     "schema": {
+      "default": "PENDING",
+      "enum": [
+       "PENDING",
+       "DECIDED",
+       "ALL"
+      ],
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/admin/schedules/settings": {
    "body": null,
    "parameters": {},
    "responses": {
@@ -496,6 +965,13 @@
    }
   },
   "GET /api/admin/support/claims": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/admin/trips/cancel-penalty": {
    "body": null,
    "parameters": {},
    "responses": {
@@ -540,9 +1016,105 @@
     "200": {}
    }
   },
+  "GET /api/agency/charter/offers": {
+   "body": null,
+   "parameters": {
+    "query:kind": {
+     "required": false,
+     "schema": {
+      "enum": [
+       "VEHICLE",
+       "WHOLE_TRIP"
+      ],
+      "nullable": true,
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/agency/charter/requests": {
+   "body": null,
+   "parameters": {
+    "query:status": {
+     "required": false,
+     "schema": {
+      "enum": [
+       "REQUESTED",
+       "QUOTED",
+       "CONFIRMED",
+       "COMPLETED",
+       "DECLINED",
+       "WITHDRAWN",
+       "EXPIRED",
+       "CANCELLED"
+      ],
+      "nullable": true,
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/agency/charter/requests/{uid}": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/agency/charter/requests/{uid}/travellers": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/agency/dashboard": {
    "body": null,
    "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/agency/journeys/options": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/agency/journeys/{journey_uid}": {
+   "body": null,
+   "parameters": {
+    "path:journey_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
    "responses": {
     "200": {}
    }
@@ -571,6 +1143,21 @@
    }
   },
   "GET /api/agency/tickets/{ticket_uid}/offline": {
+   "body": null,
+   "parameters": {
+    "path:ticket_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/agency/tickets/{ticket_uid}/photo": {
    "body": null,
    "parameters": {
     "path:ticket_uid": {
@@ -628,6 +1215,13 @@
     "200": {}
    }
   },
+  "GET /api/bookings/limits": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/bookings/{ref}": {
    "body": null,
    "parameters": {
@@ -638,6 +1232,74 @@
      }
     }
    },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/bookings/{ref}/change-options": {
+   "body": null,
+   "parameters": {
+    "path:ref": {
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/carrier/charter/offers": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/carrier/charter/requests": {
+   "body": null,
+   "parameters": {
+    "query:status": {
+     "required": false,
+     "schema": {
+      "enum": [
+       "REQUESTED",
+       "QUOTED",
+       "CONFIRMED",
+       "COMPLETED",
+       "DECLINED",
+       "WITHDRAWN",
+       "EXPIRED",
+       "CANCELLED"
+      ],
+      "nullable": true,
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/carrier/charter/requests/{uid}/travellers": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/carrier/connection-policy": {
+   "body": null,
+   "parameters": {},
    "responses": {
     "200": {}
    }
@@ -710,6 +1372,21 @@
     "200": {}
    }
   },
+  "GET /api/carrier/counter/tickets/{ticket_uid}/offline": {
+   "body": null,
+   "parameters": {
+    "path:ticket_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/carrier/counter/tickets/{ticket_uid}/qr": {
    "body": null,
    "parameters": {
@@ -733,6 +1410,101 @@
    }
   },
   "GET /api/carrier/dashboard": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/carrier/freight/bills": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/carrier/freight/bills/{uid}": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/carrier/freight/consignments": {
+   "body": null,
+   "parameters": {
+    "query:status": {
+     "required": false,
+     "schema": {
+      "maxLength": 20,
+      "nullable": true,
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/carrier/freight/consignments/{uid}": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/carrier/freight/documents": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/carrier/freight/documents/{doc_no}": {
+   "body": null,
+   "parameters": {
+    "path:doc_no": {
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/carrier/freight/invoices": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/carrier/freight/rates": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/carrier/kyc": {
    "body": null,
    "parameters": {},
    "responses": {
@@ -806,7 +1578,21 @@
     "200": {}
    }
   },
+  "GET /api/carrier/references": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/carrier/routes": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/carrier/schedules": {
    "body": null,
    "parameters": {},
    "responses": {
@@ -831,6 +1617,36 @@
      }
     }
    },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/carrier/station-operators/activity": {
+   "body": null,
+   "parameters": {
+    "query:day": {
+     "required": false,
+     "schema": {
+      "format": "date",
+      "nullable": true,
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/carrier/station-operators/grants": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/carrier/station-operators/options": {
+   "body": null,
+   "parameters": {},
    "responses": {
     "200": {}
    }
@@ -894,9 +1710,105 @@
     "200": {}
    }
   },
+  "GET /api/carrier/trips/{trip_uid}/tickets/{ticket_uid}/photo": {
+   "body": null,
+   "parameters": {
+    "path:ticket_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    },
+    "path:trip_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/carrier/vehicles": {
    "body": null,
    "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/charter/offers": {
+   "body": null,
+   "parameters": {
+    "query:kind": {
+     "required": false,
+     "schema": {
+      "enum": [
+       "VEHICLE",
+       "WHOLE_TRIP"
+      ],
+      "nullable": true,
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/charter/requests": {
+   "body": null,
+   "parameters": {
+    "query:status": {
+     "required": false,
+     "schema": {
+      "enum": [
+       "REQUESTED",
+       "QUOTED",
+       "CONFIRMED",
+       "COMPLETED",
+       "DECLINED",
+       "WITHDRAWN",
+       "EXPIRED",
+       "CANCELLED"
+      ],
+      "nullable": true,
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/charter/requests/{uid}": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/charter/requests/{uid}/travellers": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
    "responses": {
     "200": {}
    }
@@ -933,6 +1845,28 @@
   "GET /api/driver/trips/{trip_uid}/offline": {
    "body": null,
    "parameters": {
+    "path:trip_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/driver/trips/{trip_uid}/tickets/{ticket_uid}/photo": {
+   "body": null,
+   "parameters": {
+    "path:ticket_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    },
     "path:trip_uid": {
      "required": true,
      "schema": {
@@ -1046,6 +1980,132 @@
     "200": {}
    }
   },
+  "GET /api/geo/areas": {
+   "body": null,
+   "parameters": {
+    "query:parent": {
+     "required": false,
+     "schema": {
+      "nullable": true,
+      "pattern": "^[A-Z]{2}([0-9]{2}){0,3}$",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/geo/areas/{pcode}/boundary": {
+   "body": null,
+   "parameters": {
+    "path:pcode": {
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    },
+    "query:detail": {
+     "required": false,
+     "schema": {
+      "default": 0.002,
+      "maximum": 0.05,
+      "minimum": 0,
+      "type": "number"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/geo/cities": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/geo/locate": {
+   "body": null,
+   "parameters": {
+    "query:lat": {
+     "required": true,
+     "schema": {
+      "maximum": 90,
+      "minimum": -90,
+      "type": "number"
+     }
+    },
+    "query:limit": {
+     "required": false,
+     "schema": {
+      "default": 5,
+      "maximum": 20,
+      "minimum": 1,
+      "type": "integer"
+     }
+    },
+    "query:lng": {
+     "required": true,
+     "schema": {
+      "maximum": 180,
+      "minimum": -180,
+      "type": "number"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/geo/places": {
+   "body": null,
+   "parameters": {
+    "query:kind": {
+     "required": false,
+     "schema": {
+      "nullable": true,
+      "pattern": "^(COMMUNITY|NEIGHBOURHOOD)$",
+      "type": "string"
+     }
+    },
+    "query:limit": {
+     "required": false,
+     "schema": {
+      "default": 20,
+      "maximum": 50,
+      "minimum": 1,
+      "type": "integer"
+     }
+    },
+    "query:q": {
+     "required": true,
+     "schema": {
+      "maxLength": 60,
+      "minLength": 2,
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/geo/places/{pcode}": {
+   "body": null,
+   "parameters": {
+    "path:pcode": {
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/health": {
    "body": null,
    "parameters": {},
@@ -1076,6 +2136,28 @@
    }
   },
   "GET /api/integrations/meta": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/journeys/{journey_uid}": {
+   "body": null,
+   "parameters": {
+    "path:journey_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/loyalty": {
    "body": null,
    "parameters": {},
    "responses": {
@@ -1236,6 +2318,105 @@
     "200": {}
    }
   },
+  "GET /api/public/companies/{company_uid}/logo": {
+   "body": null,
+   "parameters": {
+    "path:company_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    },
+    "query:v": {
+     "required": false,
+     "schema": {
+      "nullable": true,
+      "pattern": "^[0-9a-f]{12}$",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/public/freight/documents/{doc_no}": {
+   "body": null,
+   "parameters": {
+    "path:doc_no": {
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    },
+    "query:code": {
+     "required": true,
+     "schema": {
+      "maxLength": 10,
+      "minLength": 10,
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/public/freight/rates": {
+   "body": null,
+   "parameters": {
+    "query:from_city": {
+     "required": false,
+     "schema": {
+      "nullable": true,
+      "pattern": "^[A-Z]{3}$",
+      "type": "string"
+     }
+    },
+    "query:to_city": {
+     "required": false,
+     "schema": {
+      "nullable": true,
+      "pattern": "^[A-Z]{3}$",
+      "type": "string"
+     }
+    },
+    "query:to_country": {
+     "required": false,
+     "schema": {
+      "nullable": true,
+      "pattern": "^[A-Z]{2}$",
+      "type": "string"
+     }
+    },
+    "query:unit": {
+     "required": false,
+     "schema": {
+      "nullable": true,
+      "pattern": "^[A-Z_0-9]{2,12}$",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/public/freight/shipping-lines": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/public/keys/einvoice": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/public/keys/manifest": {
    "body": null,
    "parameters": {},
@@ -1246,6 +2427,36 @@
   "GET /api/public/keys/ticket": {
    "body": null,
    "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/public/screens/{screen_uid}": {
+   "body": null,
+   "parameters": {
+    "path:screen_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/public/stations/{station_uid}/board": {
+   "body": null,
+   "parameters": {
+    "path:station_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
    "responses": {
     "200": {}
    }
@@ -1522,6 +2733,185 @@
     "200": {}
    }
   },
+  "GET /api/station/bays": {
+   "body": null,
+   "parameters": {
+    "query:station_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/station/bookings": {
+   "body": null,
+   "parameters": {
+    "query:day": {
+     "required": false,
+     "schema": {
+      "format": "date",
+      "nullable": true,
+      "type": "string"
+     }
+    },
+    "query:station_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/station/bookings/{ref}": {
+   "body": null,
+   "parameters": {
+    "path:ref": {
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/station/cash": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/station/overview": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/station/passes/{pass_no}": {
+   "body": null,
+   "parameters": {
+    "path:pass_no": {
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/station/sales/summary": {
+   "body": null,
+   "parameters": {
+    "query:days": {
+     "required": false,
+     "schema": {
+      "default": 7,
+      "maximum": 62,
+      "minimum": 1,
+      "type": "integer"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/station/screens": {
+   "body": null,
+   "parameters": {
+    "query:station_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/station/tickets/{ticket_uid}/offline": {
+   "body": null,
+   "parameters": {
+    "path:ticket_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/station/tickets/{ticket_uid}/photo": {
+   "body": null,
+   "parameters": {
+    "path:ticket_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    },
+    "query:station_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/station/tickets/{ticket_uid}/qr": {
+   "body": null,
+   "parameters": {
+    "path:ticket_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/station/trips": {
+   "body": null,
+   "parameters": {
+    "query:station_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/stations": {
    "body": null,
    "parameters": {
@@ -1610,6 +3000,46 @@
     "200": {}
    }
   },
+  "GET /api/trips/connections": {
+   "body": null,
+   "parameters": {
+    "query:destination": {
+     "required": true,
+     "schema": {
+      "maxLength": 3,
+      "minLength": 3,
+      "type": "string"
+     }
+    },
+    "query:on": {
+     "required": true,
+     "schema": {
+      "format": "date",
+      "type": "string"
+     }
+    },
+    "query:origin": {
+     "required": true,
+     "schema": {
+      "maxLength": 3,
+      "minLength": 3,
+      "type": "string"
+     }
+    },
+    "query:passengers": {
+     "required": false,
+     "schema": {
+      "default": 1,
+      "maximum": 60,
+      "minimum": 1,
+      "type": "integer"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/trips/search": {
    "body": null,
    "parameters": {
@@ -1640,9 +3070,20 @@
      "required": false,
      "schema": {
       "default": 1,
-      "maximum": 4,
+      "maximum": 60,
       "minimum": 1,
       "type": "integer"
+     }
+    },
+    "query:stops": {
+     "required": false,
+     "schema": {
+      "enum": [
+       "direct",
+       "stops"
+      ],
+      "nullable": true,
+      "type": "string"
      }
     }
    },
@@ -1813,6 +3254,29 @@
   "GET /api/v1/events": {
    "body": null,
    "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/v1/loyalty/redemptions": {
+   "body": null,
+   "parameters": {
+    "query:from": {
+     "required": true,
+     "schema": {
+      "format": "date",
+      "type": "string"
+     }
+    },
+    "query:to": {
+     "required": false,
+     "schema": {
+      "format": "date",
+      "nullable": true,
+      "type": "string"
+     }
+    }
+   },
    "responses": {
     "200": {}
    }
@@ -2144,6 +3608,21 @@
     "200": {}
    }
   },
+  "GET /api/verify/einvoice/{doc_uuid}": {
+   "body": null,
+   "parameters": {
+    "path:doc_uuid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/w/freight/market": {
    "body": null,
    "parameters": {},
@@ -2294,6 +3773,56 @@
     "200": {}
    }
   },
+  "PATCH /api/admin/boarding/stations/{station_uid}/screens/{screen_uid}": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "active": {
+        "nullable": true,
+        "type": "boolean"
+       },
+       "kind": {
+        "enum": [
+         "DEPARTURES",
+         "ARRIVALS",
+         "COMBINED"
+        ],
+        "nullable": true,
+        "type": "string"
+       },
+       "label": {
+        "maxLength": 60,
+        "minLength": 1,
+        "nullable": true,
+        "type": "string"
+       }
+      },
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:screen_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    },
+    "path:station_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "PATCH /api/auth/me/locale": {
    "body": {
     "content": {
@@ -2312,6 +3841,99 @@
     "required": true
    },
    "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "PATCH /api/carrier/charter/offers/{uid}": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "audience": {
+        "items": {
+         "enum": [
+          "AGENCY",
+          "PASSENGER"
+         ],
+         "type": "string"
+        },
+        "maxItems": 2,
+        "minItems": 1,
+        "nullable": true,
+        "type": "array"
+       },
+       "balance_hours": {
+        "maximum": 2160.0,
+        "minimum": 0.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "cancel_before_hours": {
+        "maximum": 2160.0,
+        "minimum": 0.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "cancel_refund_pct": {
+        "maximum": 100.0,
+        "minimum": 0.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "deposit_pct": {
+        "maximum": 90.0,
+        "minimum": 0.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "notice_hours": {
+        "maximum": 2160.0,
+        "minimum": 0.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "policy": {
+        "maxLength": 2000,
+        "minLength": 10,
+        "nullable": true,
+        "type": "string"
+       },
+       "price": {
+        "exclusiveMinimum": 0.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "status": {
+        "enum": [
+         "ACTIVE",
+         "PAUSED",
+         "ARCHIVED"
+        ],
+        "nullable": true,
+        "type": "string"
+       },
+       "vehicles": {
+        "maximum": 500.0,
+        "minimum": 1.0,
+        "nullable": true,
+        "type": "integer"
+       }
+      },
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
    "responses": {
     "200": {}
    }
@@ -2424,6 +4046,49 @@
     "200": {}
    }
   },
+  "PATCH /api/station/screens/{screen_uid}": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "active": {
+        "nullable": true,
+        "type": "boolean"
+       },
+       "kind": {
+        "enum": [
+         "DEPARTURES",
+         "ARRIVALS",
+         "COMBINED"
+        ],
+        "nullable": true,
+        "type": "string"
+       },
+       "label": {
+        "maxLength": 60,
+        "minLength": 1,
+        "nullable": true,
+        "type": "string"
+       }
+      },
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:screen_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "POST /api/account/consents": {
    "body": {
     "content": {
@@ -2444,6 +4109,30 @@
       "required": [
        "purpose",
        "granted"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/account/deactivate": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "password": {
+        "maxLength": 200,
+        "minLength": 1,
+        "type": "string"
+       }
+      },
+      "required": [
+       "password"
       ],
       "type": "object"
      }
@@ -2515,6 +4204,36 @@
     },
     "required": true
    },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/account/photo": {
+   "body": {
+    "content": {
+     "multipart/form-data": {
+      "properties": {
+       "file": {
+        "contentMediaType": "application/octet-stream",
+        "type": "string"
+       }
+      },
+      "required": [
+       "file"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/account/photo/verify": {
+   "body": null,
    "parameters": {},
    "responses": {
     "200": {}
@@ -2795,6 +4514,256 @@
     "200": {}
    }
   },
+  "POST /api/admin/authorities/{code}/members": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "email": {
+        "maxLength": 200,
+        "minLength": 3,
+        "type": "string"
+       }
+      },
+      "required": [
+       "email"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:code": {
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/admin/boarding/operating-companies": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "legal_name": {
+        "maxLength": 160,
+        "minLength": 3,
+        "type": "string"
+       },
+       "license_no": {
+        "maxLength": 60,
+        "nullable": true,
+        "type": "string"
+       },
+       "owner_email": {
+        "format": "email",
+        "type": "string"
+       },
+       "owner_name": {
+        "maxLength": 120,
+        "minLength": 3,
+        "type": "string"
+       },
+       "owner_password": {
+        "maxLength": 200,
+        "minLength": 1,
+        "type": "string"
+       }
+      },
+      "required": [
+       "legal_name",
+       "owner_name",
+       "owner_email",
+       "owner_password"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/admin/boarding/operator-grants": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "operator_company_uid": {
+        "format": "uuid",
+        "type": "string"
+       },
+       "permission": {
+        "enum": [
+         "BOOKING",
+         "BOARDING_PASS",
+         "BOARDING"
+        ],
+        "type": "string"
+       },
+       "station_uid": {
+        "format": "uuid",
+        "nullable": true,
+        "type": "string"
+       }
+      },
+      "required": [
+       "operator_company_uid",
+       "permission"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/admin/boarding/operator-grants/{uid}/revoke": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/admin/boarding/stations/{station_uid}/gates": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "gate_type": {
+        "enum": [
+         "PLATFORM",
+         "BAY",
+         "GATE",
+         "COUNTER"
+        ],
+        "type": "string"
+       },
+       "operator_company_uid": {
+        "format": "uuid",
+        "nullable": true,
+        "type": "string"
+       }
+      },
+      "required": [
+       "gate_type"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:station_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/admin/boarding/stations/{station_uid}/screens": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "kind": {
+        "enum": [
+         "DEPARTURES",
+         "ARRIVALS",
+         "COMBINED"
+        ],
+        "type": "string"
+       },
+       "label": {
+        "maxLength": 60,
+        "minLength": 1,
+        "type": "string"
+       }
+      },
+      "required": [
+       "kind",
+       "label"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:station_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/admin/boarding/stations/{station_uid}/screens/{screen_uid}/pair": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "code": {
+        "maxLength": 8,
+        "minLength": 6,
+        "type": "string"
+       }
+      },
+      "required": [
+       "code"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:screen_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    },
+    "path:station_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "POST /api/admin/cash/remittances": {
    "body": {
     "content": {
@@ -2881,6 +4850,11 @@
     "content": {
      "application/json": {
       "properties": {
+       "code2": {
+        "nullable": true,
+        "pattern": "^([A-Z][A-Z0-9]|[0-9][A-Z])$",
+        "type": "string"
+       },
        "code3": {
         "pattern": "^[A-Z]{3}$",
         "type": "string"
@@ -3330,6 +5304,473 @@
     "200": {}
    }
   },
+  "POST /api/admin/geo/boundaries": {
+   "body": {
+    "content": {
+     "multipart/form-data": {
+      "properties": {
+       "file": {
+        "contentMediaType": "application/octet-stream",
+        "type": "string"
+       }
+      },
+      "required": [
+       "file"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/admin/geo/import": {
+   "body": {
+    "content": {
+     "multipart/form-data": {
+      "properties": {
+       "file": {
+        "contentMediaType": "application/octet-stream",
+        "type": "string"
+       }
+      },
+      "required": [
+       "file"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/admin/geo/names": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "correct": {
+        "maxLength": 80,
+        "minLength": 1,
+        "type": "string"
+       },
+       "lang": {
+        "pattern": "^(en|ar)$",
+        "type": "string"
+       },
+       "reason": {
+        "maxLength": 300,
+        "minLength": 3,
+        "type": "string"
+       },
+       "scope": {
+        "nullable": true,
+        "pattern": "^([A-Z]{2}([0-9]{2}){0,3}|[A-Z][0-9]{3,7})$",
+        "type": "string"
+       },
+       "wrong": {
+        "maxLength": 60,
+        "minLength": 2,
+        "type": "string"
+       }
+      },
+      "required": [
+       "lang",
+       "wrong",
+       "correct",
+       "reason"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/admin/geo/places": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "city": {
+        "nullable": true,
+        "pattern": "^[A-Z][0-9]{3,7}$",
+        "type": "string"
+       },
+       "kind": {
+        "pattern": "^(COMMUNITY|NEIGHBOURHOOD)$",
+        "type": "string"
+       },
+       "lat": {
+        "maximum": 90.0,
+        "minimum": -90.0,
+        "type": "number"
+       },
+       "lng": {
+        "maximum": 180.0,
+        "minimum": -180.0,
+        "type": "number"
+       },
+       "name_ar": {
+        "maxLength": 160,
+        "minLength": 2,
+        "type": "string"
+       },
+       "name_en": {
+        "maxLength": 160,
+        "minLength": 2,
+        "type": "string"
+       },
+       "not_duplicate": {
+        "default": false,
+        "type": "boolean"
+       },
+       "note": {
+        "maxLength": 1000,
+        "nullable": true,
+        "type": "string"
+       },
+       "sub_district": {
+        "nullable": true,
+        "pattern": "^[A-Z]{2}[0-9]{6}$",
+        "type": "string"
+       },
+       "surveyed_on": {
+        "format": "date",
+        "type": "string"
+       }
+      },
+      "required": [
+       "kind",
+       "name_en",
+       "name_ar",
+       "lat",
+       "lng",
+       "surveyed_on"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/admin/geo/places/{pcode}/review": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "accept": {
+        "type": "boolean"
+       },
+       "note": {
+        "maxLength": 500,
+        "nullable": true,
+        "type": "string"
+       }
+      },
+      "required": [
+       "accept"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:pcode": {
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/admin/geo/places/{pcode}/serve": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "code": {
+        "nullable": true,
+        "pattern": "^[A-Za-z]{3}$",
+        "type": "string"
+       }
+      },
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:pcode": {
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/admin/kyc/companies/{company_uid}/open": {
+   "body": null,
+   "parameters": {
+    "path:company_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/admin/kyc/form/{version}/activate": {
+   "body": null,
+   "parameters": {
+    "path:version": {
+     "required": true,
+     "schema": {
+      "type": "integer"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/admin/kyc/{kyc_uid}/decide": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "decision": {
+        "enum": [
+         "APPROVE",
+         "RETURN",
+         "REJECT"
+        ],
+        "type": "string"
+       },
+       "fields": {
+        "items": {
+         "type": "string"
+        },
+        "maxItems": 200,
+        "type": "array"
+       },
+       "note": {
+        "maxLength": 2000,
+        "nullable": true,
+        "type": "string"
+       },
+       "risk_level": {
+        "enum": [
+         "LOW",
+         "MEDIUM",
+         "HIGH",
+         "PROHIBITED"
+        ],
+        "nullable": true,
+        "type": "string"
+       }
+      },
+      "required": [
+       "decision"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:kyc_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/admin/kyc/{kyc_uid}/reveal": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "path": {
+        "pattern": "^[a-z][a-z0-9_]{1,40}(\\.[0-9]{1,3}\\.[a-z][a-z0-9_]{1,40})?$",
+        "type": "string"
+       },
+       "reason": {
+        "maxLength": 300,
+        "minLength": 5,
+        "type": "string"
+       }
+      },
+      "required": [
+       "path",
+       "reason"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:kyc_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/admin/kyc/{kyc_uid}/submit": {
+   "body": null,
+   "parameters": {
+    "path:kyc_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/admin/loyalty/settlements": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "currency": {
+        "nullable": true,
+        "pattern": "^[A-Z]{3}$",
+        "type": "string"
+       },
+       "date_from": {
+        "format": "date",
+        "type": "string"
+       },
+       "date_to": {
+        "format": "date",
+        "type": "string"
+       },
+       "partner_id": {
+        "exclusiveMinimum": 0.0,
+        "type": "integer"
+       }
+      },
+      "required": [
+       "partner_id",
+       "date_from",
+       "date_to"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/admin/loyalty/settlements/{settlement}/pay": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "bank_ref": {
+        "maxLength": 80,
+        "minLength": 3,
+        "type": "string"
+       }
+      },
+      "required": [
+       "bank_ref"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:settlement": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/admin/loyalty/vouchers/accept": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "code": {
+        "maxLength": 40,
+        "minLength": 10,
+        "type": "string"
+       },
+       "partner_id": {
+        "exclusiveMinimum": 0.0,
+        "type": "integer"
+       },
+       "reference": {
+        "maxLength": 80,
+        "nullable": true,
+        "type": "string"
+       }
+      },
+      "required": [
+       "partner_id",
+       "code"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
   "POST /api/admin/manifests/deliveries/{uid}/done": {
    "body": {
     "content": {
@@ -3647,8 +6088,503 @@
     "200": {}
    }
   },
+  "POST /api/admin/photos/changes": {
+   "body": {
+    "content": {
+     "multipart/form-data": {
+      "properties": {
+       "evidence": {
+        "contentMediaType": "application/octet-stream",
+        "type": "string"
+       },
+       "evidence_kind": {
+        "maxLength": 40,
+        "minLength": 3,
+        "type": "string"
+       },
+       "new_photo": {
+        "contentMediaType": "application/octet-stream",
+        "type": "string"
+       },
+       "party_uid": {
+        "format": "uuid",
+        "type": "string"
+       },
+       "reason": {
+        "maxLength": 500,
+        "minLength": 10,
+        "type": "string"
+       }
+      },
+      "required": [
+       "party_uid",
+       "reason",
+       "evidence_kind",
+       "evidence",
+       "new_photo"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/admin/photos/changes/{uid}/approve": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/admin/photos/changes/{uid}/reject": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/admin/photos/data-requirements/{field}/changes": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "reason": {
+        "maxLength": 500,
+        "minLength": 10,
+        "type": "string"
+       },
+       "requirement": {
+        "enum": [
+         "REQUIRED",
+         "OPTIONAL"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "requirement",
+       "reason"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:field": {
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/admin/photos/evidence-kinds/{code}/changes": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "active": {
+        "type": "boolean"
+       },
+       "reason": {
+        "maxLength": 500,
+        "minLength": 10,
+        "type": "string"
+       }
+      },
+      "required": [
+       "active",
+       "reason"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:code": {
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/admin/photos/feature/changes": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "enabled": {
+        "type": "boolean"
+       },
+       "legal_basis": {
+        "maxLength": 500,
+        "minLength": 10,
+        "type": "string"
+       },
+       "reason": {
+        "maxLength": 500,
+        "minLength": 10,
+        "type": "string"
+       }
+      },
+      "required": [
+       "enabled",
+       "legal_basis",
+       "reason"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/admin/photos/identity-age/changes": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "min_age": {
+        "maximum": 120.0,
+        "minimum": 0.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "reason": {
+        "maxLength": 500,
+        "minLength": 10,
+        "type": "string"
+       }
+      },
+      "required": [
+       "reason"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/admin/photos/policy-changes/{uid}/approve": {
+   "body": {
+    "content": {
+     "application/json": {
+      "nullable": true,
+      "properties": {
+       "document_no": {
+        "maxLength": 100,
+        "minLength": 1,
+        "nullable": true,
+        "type": "string"
+       }
+      },
+      "type": "object"
+     }
+    },
+    "required": false
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/admin/photos/policy-changes/{uid}/reject": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/admin/photos/rules": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "effective_from": {
+        "format": "date",
+        "type": "string"
+       },
+       "legal_basis": {
+        "maxLength": 500,
+        "minLength": 3,
+        "type": "string"
+       },
+       "market": {
+        "nullable": true,
+        "pattern": "^[A-Z]{2}$",
+        "type": "string"
+       },
+       "passenger_category": {
+        "enum": [
+         "ADULT",
+         "CHILD",
+         "INFANT",
+         "STUDENT",
+         "SENIOR",
+         "DISABLED"
+        ],
+        "nullable": true,
+        "type": "string"
+       },
+       "requirement": {
+        "enum": [
+         "REQUIRED",
+         "OPTIONAL",
+         "NOT_APPLICABLE"
+        ],
+        "type": "string"
+       },
+       "traveller_class": {
+        "enum": [
+         "SYRIAN_CITIZEN",
+         "FOREIGN",
+         "TRANSIT"
+        ],
+        "nullable": true,
+        "type": "string"
+       },
+       "trip_scope": {
+        "enum": [
+         "DOMESTIC",
+         "INTERNATIONAL"
+        ],
+        "nullable": true,
+        "type": "string"
+       }
+      },
+      "required": [
+       "requirement",
+       "effective_from",
+       "legal_basis"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/admin/photos/rules/{uid}/approve": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/admin/photos/rules/{uid}/retirement": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "reason": {
+        "maxLength": 500,
+        "minLength": 10,
+        "type": "string"
+       }
+      },
+      "required": [
+       "reason"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/admin/photos/rules/{uid}/retirement/approve": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/admin/photos/rules/{uid}/retirement/reject": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/admin/photos/rules/{uid}/withdraw": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/admin/photos/settings/changes": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "key": {
+        "maxLength": 60,
+        "type": "string"
+       },
+       "reason": {
+        "maxLength": 500,
+        "minLength": 10,
+        "type": "string"
+       },
+       "value": {}
+      },
+      "required": [
+       "key",
+       "value",
+       "reason"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
   "POST /api/admin/privacy/requests/{request_uid}/complete": {
    "body": null,
+   "parameters": {
+    "path:request_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/admin/schedules/requests/{request_uid}/decide": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "approve": {
+        "type": "boolean"
+       },
+       "note": {
+        "maxLength": 500,
+        "nullable": true,
+        "type": "string"
+       },
+       "number": {
+        "maximum": 9999.0,
+        "minimum": 1000.0,
+        "nullable": true,
+        "type": "integer"
+       }
+      },
+      "required": [
+       "approve"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
    "parameters": {
     "path:request_uid": {
      "required": true,
@@ -3672,17 +6608,20 @@
         "type": "string"
        },
        "city_code": {
+        "nullable": true,
         "pattern": "^[A-Z]{3}$",
         "type": "string"
        },
        "lat": {
         "maximum": 90.0,
         "minimum": -90.0,
+        "nullable": true,
         "type": "number"
        },
        "lng": {
         "maximum": 180.0,
         "minimum": -180.0,
+        "nullable": true,
         "type": "number"
        },
        "name": {
@@ -3694,14 +6633,16 @@
         "maximum": 999.0,
         "minimum": 1.0,
         "type": "integer"
+       },
+       "place": {
+        "nullable": true,
+        "pattern": "^[A-Z][0-9]{3,7}$",
+        "type": "string"
        }
       },
       "required": [
-       "city_code",
        "number",
-       "name",
-       "lat",
-       "lng"
+       "name"
       ],
       "type": "object"
      }
@@ -3940,7 +6881,7 @@
            "type": "integer"
           },
           "with_adult": {
-           "maximum": 8.0,
+           "maximum": 120.0,
            "minimum": 1.0,
            "nullable": true,
            "type": "integer"
@@ -3952,7 +6893,7 @@
          ],
          "type": "object"
         },
-        "maxItems": 8,
+        "maxItems": 40,
         "minItems": 1,
         "type": "array"
        },
@@ -4016,6 +6957,335 @@
     "200": {}
    }
   },
+  "POST /api/agency/charter/requests": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "contact_mobile": {
+        "pattern": "^\\+?[0-9]{8,15}$",
+        "type": "string"
+       },
+       "contact_name": {
+        "maxLength": 120,
+        "minLength": 2,
+        "type": "string"
+       },
+       "ends_at": {
+        "format": "date-time",
+        "nullable": true,
+        "type": "string"
+       },
+       "from_city": {
+        "nullable": true,
+        "pattern": "^[A-Z]{3}$",
+        "type": "string"
+       },
+       "from_seq": {
+        "maximum": 500.0,
+        "minimum": 0.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "idempotency_key": {
+        "maxLength": 80,
+        "minLength": 8,
+        "type": "string"
+       },
+       "itinerary": {
+        "maxLength": 1000,
+        "nullable": true,
+        "type": "string"
+       },
+       "note": {
+        "maxLength": 500,
+        "nullable": true,
+        "type": "string"
+       },
+       "offer_uid": {
+        "format": "uuid",
+        "type": "string"
+       },
+       "passengers": {
+        "maximum": 999.0,
+        "minimum": 1.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "seats": {
+        "maximum": 99.0,
+        "minimum": 1.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "starts_at": {
+        "format": "date-time",
+        "nullable": true,
+        "type": "string"
+       },
+       "to_city": {
+        "nullable": true,
+        "pattern": "^[A-Z]{3}$",
+        "type": "string"
+       },
+       "to_seq": {
+        "maximum": 500.0,
+        "minimum": 1.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "trip_uid": {
+        "format": "uuid",
+        "nullable": true,
+        "type": "string"
+       },
+       "vehicles": {
+        "default": 1,
+        "maximum": 50.0,
+        "minimum": 1.0,
+        "type": "integer"
+       },
+       "whole": {
+        "default": false,
+        "type": "boolean"
+       }
+      },
+      "required": [
+       "offer_uid",
+       "contact_name",
+       "contact_mobile",
+       "idempotency_key"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/agency/charter/requests/{uid}/accept": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/agency/charter/requests/{uid}/balance": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/agency/charter/requests/{uid}/cancel": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "reason": {
+        "maxLength": 300,
+        "minLength": 3,
+        "type": "string"
+       }
+      },
+      "required": [
+       "reason"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/agency/charter/requests/{uid}/travellers": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "travellers": {
+        "items": {
+         "properties": {
+          "birth_date": {
+           "format": "date",
+           "nullable": true,
+           "type": "string"
+          },
+          "category": {
+           "enum": [
+            "ADULT",
+            "CHILD",
+            "INFANT"
+           ],
+           "nullable": true,
+           "type": "string"
+          },
+          "family_member_uid": {
+           "format": "uuid",
+           "nullable": true,
+           "type": "string"
+          },
+          "father_name": {
+           "maxLength": 60,
+           "minLength": 1,
+           "nullable": true,
+           "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "first_name": {
+           "maxLength": 60,
+           "minLength": 1,
+           "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "gender": {
+           "enum": [
+            "M",
+            "F"
+           ],
+           "nullable": true,
+           "type": "string"
+          },
+          "grandfather_name": {
+           "maxLength": 60,
+           "minLength": 1,
+           "nullable": true,
+           "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "id_last4": {
+           "nullable": true,
+           "pattern": "^[0-9A-Za-z]{3,4}$",
+           "type": "string"
+          },
+          "id_no": {
+           "maxLength": 24,
+           "minLength": 4,
+           "nullable": true,
+           "pattern": "^[0-9A-Za-z \\-/]+$",
+           "type": "string"
+          },
+          "id_type": {
+           "enum": [
+            "NATIONAL_ID",
+            "PASSPORT",
+            "RESIDENCE",
+            "LAISSEZ_PASSER",
+            "TRAVEL_DOCUMENT",
+            "OTHER"
+           ],
+           "nullable": true,
+           "type": "string"
+          },
+          "last_name": {
+           "maxLength": 60,
+           "minLength": 1,
+           "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "mobile": {
+           "nullable": true,
+           "pattern": "^\\+?[0-9]{8,15}$",
+           "type": "string"
+          },
+          "nationality": {
+           "default": "SY",
+           "pattern": "^[A-Z]{2}$",
+           "type": "string"
+          },
+          "passport_expiry": {
+           "format": "date",
+           "nullable": true,
+           "type": "string"
+          },
+          "seat_no": {
+           "nullable": true,
+           "type": "integer"
+          },
+          "with_adult": {
+           "maximum": 120.0,
+           "minimum": 1.0,
+           "nullable": true,
+           "type": "integer"
+          }
+         },
+         "required": [
+          "first_name",
+          "last_name"
+         ],
+         "type": "object"
+        },
+        "maxItems": 99,
+        "minItems": 1,
+        "type": "array"
+       }
+      },
+      "required": [
+       "travellers"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/agency/charter/requests/{uid}/withdraw": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "POST /api/agency/holds": {
    "body": {
     "content": {
@@ -4029,7 +7299,7 @@
         "items": {
          "type": "integer"
         },
-        "maxItems": 4,
+        "maxItems": 20,
         "minItems": 1,
         "type": "array"
        },
@@ -4047,6 +7317,223 @@
        "from_seq",
        "to_seq",
        "seat_nos"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/agency/journeys": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "accept_risks": {
+        "default": false,
+        "type": "boolean"
+       },
+       "contact_mobile": {
+        "pattern": "^\\+?[0-9]{8,15}$",
+        "type": "string"
+       },
+       "fare_brand": {
+        "default": "STANDARD",
+        "type": "string"
+       },
+       "idempotency_key": {
+        "maxLength": 60,
+        "minLength": 8,
+        "type": "string"
+       },
+       "kind": {
+        "enum": [
+         "ONE_WAY",
+         "ROUND_TRIP",
+         "MULTI_CITY",
+         "CONNECTION"
+        ],
+        "type": "string"
+       },
+       "legs": {
+        "items": {
+         "properties": {
+          "fare_brand": {
+           "maxLength": 20,
+           "minLength": 2,
+           "nullable": true,
+           "type": "string"
+          },
+          "from_seq": {
+           "maximum": 500.0,
+           "minimum": 0.0,
+           "type": "integer"
+          },
+          "seats": {
+           "items": {
+            "type": "integer"
+           },
+           "maxItems": 60,
+           "minItems": 1,
+           "nullable": true,
+           "type": "array"
+          },
+          "to_seq": {
+           "maximum": 500.0,
+           "minimum": 1.0,
+           "type": "integer"
+          },
+          "trip_uid": {
+           "format": "uuid",
+           "type": "string"
+          }
+         },
+         "required": [
+          "trip_uid",
+          "from_seq",
+          "to_seq"
+         ],
+         "type": "object"
+        },
+        "maxItems": 6,
+        "minItems": 1,
+        "type": "array"
+       },
+       "passengers": {
+        "items": {
+         "properties": {
+          "birth_date": {
+           "format": "date",
+           "nullable": true,
+           "type": "string"
+          },
+          "category": {
+           "enum": [
+            "ADULT",
+            "CHILD",
+            "INFANT"
+           ],
+           "nullable": true,
+           "type": "string"
+          },
+          "family_member_uid": {
+           "format": "uuid",
+           "nullable": true,
+           "type": "string"
+          },
+          "father_name": {
+           "maxLength": 60,
+           "minLength": 1,
+           "nullable": true,
+           "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "first_name": {
+           "maxLength": 60,
+           "minLength": 1,
+           "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "gender": {
+           "enum": [
+            "M",
+            "F"
+           ],
+           "nullable": true,
+           "type": "string"
+          },
+          "grandfather_name": {
+           "maxLength": 60,
+           "minLength": 1,
+           "nullable": true,
+           "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "id_last4": {
+           "nullable": true,
+           "pattern": "^[0-9A-Za-z]{3,4}$",
+           "type": "string"
+          },
+          "id_no": {
+           "maxLength": 24,
+           "minLength": 4,
+           "nullable": true,
+           "pattern": "^[0-9A-Za-z \\-/]+$",
+           "type": "string"
+          },
+          "id_type": {
+           "enum": [
+            "NATIONAL_ID",
+            "PASSPORT",
+            "RESIDENCE",
+            "LAISSEZ_PASSER",
+            "TRAVEL_DOCUMENT",
+            "OTHER"
+           ],
+           "nullable": true,
+           "type": "string"
+          },
+          "last_name": {
+           "maxLength": 60,
+           "minLength": 1,
+           "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "mobile": {
+           "nullable": true,
+           "pattern": "^\\+?[0-9]{8,15}$",
+           "type": "string"
+          },
+          "nationality": {
+           "default": "SY",
+           "pattern": "^[A-Z]{2}$",
+           "type": "string"
+          },
+          "passport_expiry": {
+           "format": "date",
+           "nullable": true,
+           "type": "string"
+          },
+          "seat_no": {
+           "nullable": true,
+           "type": "integer"
+          },
+          "with_adult": {
+           "maximum": 120.0,
+           "minimum": 1.0,
+           "nullable": true,
+           "type": "integer"
+          }
+         },
+         "required": [
+          "first_name",
+          "last_name"
+         ],
+         "type": "object"
+        },
+        "maxItems": 60,
+        "minItems": 1,
+        "type": "array"
+       },
+       "pay_with": {
+        "default": "WALLET",
+        "enum": [
+         "WALLET",
+         "PAY_LATER"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "kind",
+       "legs",
+       "passengers",
+       "idempotency_key",
+       "contact_mobile"
       ],
       "type": "object"
      }
@@ -4176,7 +7663,8 @@
          "DRIVER",
          "AGENCY",
          "PLATFORM",
-         "INSPECTOR"
+         "INSPECTOR",
+         "STATION"
         ],
         "type": "string"
        }
@@ -4358,6 +7846,39 @@
     "200": {}
    }
   },
+  "POST /api/auth/mfa/step-up": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "code": {
+        "maxLength": 20,
+        "minLength": 6,
+        "type": "string"
+       },
+       "method": {
+        "enum": [
+         "TOTP",
+         "SMS",
+         "WHATSAPP"
+        ],
+        "nullable": true,
+        "type": "string"
+       }
+      },
+      "required": [
+       "code"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
   "POST /api/auth/mfa/verify": {
    "body": {
     "content": {
@@ -4380,6 +7901,36 @@
       },
       "required": [
        "code"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/auth/reactivate": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "identifier": {
+        "maxLength": 200,
+        "minLength": 3,
+        "type": "string"
+       },
+       "password": {
+        "maxLength": 200,
+        "minLength": 1,
+        "type": "string"
+       }
+      },
+      "required": [
+       "identifier",
+       "password"
       ],
       "type": "object"
      }
@@ -4587,7 +8138,7 @@
            "type": "integer"
           },
           "with_adult": {
-           "maximum": 8.0,
+           "maximum": 120.0,
            "minimum": 1.0,
            "nullable": true,
            "type": "integer"
@@ -4599,7 +8150,7 @@
          ],
          "type": "object"
         },
-        "maxItems": 8,
+        "maxItems": 40,
         "minItems": 1,
         "type": "array"
        },
@@ -4771,7 +8322,7 @@
            "type": "integer"
           },
           "with_adult": {
-           "maximum": 8.0,
+           "maximum": 120.0,
            "minimum": 1.0,
            "nullable": true,
            "type": "integer"
@@ -4779,7 +8330,7 @@
          },
          "type": "object"
         },
-        "maxItems": 8,
+        "maxItems": 40,
         "minItems": 1,
         "type": "array"
        },
@@ -4840,6 +8391,54 @@
     "200": {}
    }
   },
+  "POST /api/bookings/{ref}/change": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "from_seq": {
+        "maximum": 500.0,
+        "minimum": 0.0,
+        "type": "integer"
+       },
+       "idempotency_key": {
+        "maxLength": 60,
+        "minLength": 8,
+        "type": "string"
+       },
+       "to_seq": {
+        "maximum": 500.0,
+        "minimum": 1.0,
+        "type": "integer"
+       },
+       "trip_uid": {
+        "format": "uuid",
+        "type": "string"
+       }
+      },
+      "required": [
+       "trip_uid",
+       "from_seq",
+       "to_seq",
+       "idempotency_key"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:ref": {
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "POST /api/bookings/{ref}/payments": {
    "body": {
     "content": {
@@ -4874,6 +8473,301 @@
    },
    "responses": {
     "201": {}
+   }
+  },
+  "POST /api/carrier/charter/offers": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "audience": {
+        "items": {
+         "enum": [
+          "AGENCY",
+          "PASSENGER"
+         ],
+         "type": "string"
+        },
+        "maxItems": 2,
+        "minItems": 1,
+        "type": "array"
+       },
+       "balance_hours": {
+        "default": 48,
+        "maximum": 2160.0,
+        "minimum": 0.0,
+        "type": "integer"
+       },
+       "base_city": {
+        "nullable": true,
+        "pattern": "^[A-Z]{3}$",
+        "type": "string"
+       },
+       "cancel_before_hours": {
+        "default": 48,
+        "maximum": 2160.0,
+        "minimum": 0.0,
+        "type": "integer"
+       },
+       "cancel_refund_pct": {
+        "default": 100,
+        "maximum": 100.0,
+        "minimum": 0.0,
+        "type": "integer"
+       },
+       "currency": {
+        "pattern": "^[A-Z]{3}$",
+        "type": "string"
+       },
+       "deposit_pct": {
+        "default": 0,
+        "maximum": 90.0,
+        "minimum": 0.0,
+        "type": "integer"
+       },
+       "kind": {
+        "enum": [
+         "VEHICLE",
+         "WHOLE_TRIP"
+        ],
+        "type": "string"
+       },
+       "min_seats": {
+        "maximum": 99.0,
+        "minimum": 1.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "notice_hours": {
+        "default": 48,
+        "maximum": 2160.0,
+        "minimum": 0.0,
+        "type": "integer"
+       },
+       "partial_seats": {
+        "default": true,
+        "type": "boolean"
+       },
+       "policy": {
+        "maxLength": 2000,
+        "minLength": 10,
+        "type": "string"
+       },
+       "price": {
+        "exclusiveMinimum": 0.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "price_basis": {
+        "enum": [
+         "PER_DAY",
+         "PER_KM",
+         "PER_TRIP",
+         "PER_SEAT",
+         "ON_REQUEST"
+        ],
+        "type": "string"
+       },
+       "seats": {
+        "maximum": 99.0,
+        "minimum": 1.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "vehicle_type": {
+        "enum": [
+         "COACH",
+         "MINIBUS",
+         "VAN",
+         "CITY_BUS"
+        ],
+        "nullable": true,
+        "type": "string"
+       },
+       "vehicles": {
+        "default": 1,
+        "maximum": 500.0,
+        "minimum": 1.0,
+        "type": "integer"
+       },
+       "with_driver": {
+        "default": true,
+        "type": "boolean"
+       }
+      },
+      "required": [
+       "kind",
+       "title",
+       "audience",
+       "price_basis",
+       "currency",
+       "policy"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/carrier/charter/requests/{uid}/cancel": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "reason": {
+        "maxLength": 300,
+        "minLength": 3,
+        "type": "string"
+       }
+      },
+      "required": [
+       "reason"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/carrier/charter/requests/{uid}/complete": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/carrier/charter/requests/{uid}/decline": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "reason": {
+        "maxLength": 300,
+        "minLength": 3,
+        "type": "string"
+       }
+      },
+      "required": [
+       "reason"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/carrier/charter/requests/{uid}/quote": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "note": {
+        "maxLength": 500,
+        "nullable": true,
+        "type": "string"
+       },
+       "price": {
+        "exclusiveMinimum": 0.0,
+        "type": "integer"
+       },
+       "valid_hours": {
+        "default": 48,
+        "maximum": 168.0,
+        "minimum": 1.0,
+        "type": "integer"
+       },
+       "vehicle_uid": {
+        "format": "uuid",
+        "nullable": true,
+        "type": "string"
+       }
+      },
+      "required": [
+       "price"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/carrier/charter/requests/{uid}/vehicle": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "vehicle_uid": {
+        "format": "uuid",
+        "type": "string"
+       }
+      },
+      "required": [
+       "vehicle_uid"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
    }
   },
   "POST /api/carrier/counter/bookings": {
@@ -5002,7 +8896,7 @@
            "type": "integer"
           },
           "with_adult": {
-           "maximum": 8.0,
+           "maximum": 120.0,
            "minimum": 1.0,
            "nullable": true,
            "type": "integer"
@@ -5014,7 +8908,7 @@
          ],
          "type": "object"
         },
-        "maxItems": 8,
+        "maxItems": 40,
         "minItems": 1,
         "type": "array"
        },
@@ -5189,7 +9083,7 @@
            "type": "integer"
           },
           "with_adult": {
-           "maximum": 8.0,
+           "maximum": 120.0,
            "minimum": 1.0,
            "nullable": true,
            "type": "integer"
@@ -5201,7 +9095,7 @@
          ],
          "type": "object"
         },
-        "maxItems": 8,
+        "maxItems": 40,
         "minItems": 1,
         "type": "array"
        },
@@ -5291,7 +9185,7 @@
         "items": {
          "type": "integer"
         },
-        "maxItems": 4,
+        "maxItems": 20,
         "minItems": 1,
         "type": "array"
        },
@@ -5360,6 +9254,1136 @@
    "parameters": {},
    "responses": {
     "201": {}
+   }
+  },
+  "POST /api/carrier/freight/bills": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "bl_no": {
+        "maxLength": 35,
+        "minLength": 4,
+        "type": "string"
+       },
+       "cargo_description": {
+        "maxLength": 500,
+        "nullable": true,
+        "type": "string"
+       },
+       "consignee_name": {
+        "maxLength": 200,
+        "nullable": true,
+        "type": "string"
+       },
+       "container_count": {
+        "maximum": 999.0,
+        "minimum": 0.0,
+        "type": "integer"
+       },
+       "direction": {
+        "default": "IMPORT",
+        "enum": [
+         "IMPORT",
+         "EXPORT",
+         "TRANSIT"
+        ],
+        "type": "string"
+       },
+       "notify_name": {
+        "maxLength": 200,
+        "nullable": true,
+        "type": "string"
+       },
+       "port_of_discharge": {
+        "nullable": true,
+        "pattern": "^[A-Z]{2}[A-Z0-9]{3}$",
+        "type": "string"
+       },
+       "port_of_loading": {
+        "nullable": true,
+        "pattern": "^[A-Z]{2}[A-Z0-9]{3}$",
+        "type": "string"
+       },
+       "port_station_uid": {
+        "format": "uuid",
+        "nullable": true,
+        "type": "string"
+       },
+       "release_date": {
+        "format": "date",
+        "nullable": true,
+        "type": "string"
+       },
+       "release_no": {
+        "nullable": true,
+        "pattern": "^[A-Za-z0-9/ -]{2,40}$",
+        "type": "string"
+       },
+       "shipping_line": {
+        "pattern": "^[A-Z0-9]{2,6}$",
+        "type": "string"
+       },
+       "vessel": {
+        "maxLength": 80,
+        "nullable": true,
+        "type": "string"
+       },
+       "voyage": {
+        "maxLength": 30,
+        "nullable": true,
+        "type": "string"
+       }
+      },
+      "required": [
+       "shipping_line",
+       "bl_no",
+       "container_count"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/carrier/freight/bills/{uid}/containers": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "containers": {
+        "items": {
+         "properties": {
+          "container_no": {
+           "pattern": "^[A-Z]{3}[UJZ][0-9]{7}$",
+           "type": "string"
+          },
+          "empty_return_depot": {
+           "maxLength": 120,
+           "nullable": true,
+           "type": "string"
+          },
+          "free_time_until": {
+           "format": "date",
+           "nullable": true,
+           "type": "string"
+          },
+          "gross_weight_kg": {
+           "maximum": 40000.0,
+           "minimum": 1.0,
+           "nullable": true,
+           "type": "integer"
+          },
+          "hbl_no": {
+           "maxLength": 35,
+           "nullable": true,
+           "type": "string"
+          },
+          "seal_no": {
+           "nullable": true,
+           "pattern": "^[A-Za-z0-9-]{3,20}$",
+           "type": "string"
+          },
+          "size_type": {
+           "pattern": "^[24L][0-9A-Z][0-9A-Z]{2}$",
+           "type": "string"
+          }
+         },
+         "required": [
+          "container_no",
+          "size_type"
+         ],
+         "type": "object"
+        },
+        "maxItems": 200,
+        "minItems": 1,
+        "type": "array"
+       }
+      },
+      "required": [
+       "containers"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/carrier/freight/bills/{uid}/house-bills": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "consignee_name": {
+        "maxLength": 200,
+        "nullable": true,
+        "type": "string"
+       },
+       "forwarder_name": {
+        "maxLength": 200,
+        "minLength": 2,
+        "type": "string"
+       },
+       "hbl_no": {
+        "maxLength": 35,
+        "minLength": 3,
+        "type": "string"
+       }
+      },
+      "required": [
+       "hbl_no",
+       "forwarder_name"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/carrier/freight/bills/{uid}/release": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "release_date": {
+        "format": "date",
+        "nullable": true,
+        "type": "string"
+       },
+       "release_no": {
+        "pattern": "^[A-Za-z0-9/ -]{2,40}$",
+        "type": "string"
+       }
+      },
+      "required": [
+       "release_no"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/carrier/freight/consignments": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "arrival_port": {
+        "nullable": true,
+        "pattern": "^[A-Z]{2}[A-Z0-9]{3}$",
+        "type": "string"
+       },
+       "bill_uid": {
+        "format": "uuid",
+        "nullable": true,
+        "type": "string"
+       },
+       "cargo": {
+        "properties": {
+         "adr_class": {
+          "nullable": true,
+          "pattern": "^[1-9](\\.[1-6])?$",
+          "type": "string"
+         },
+         "category": {
+          "pattern": "^[A-Z_]{2,20}$",
+          "type": "string"
+         },
+         "declared_value": {
+          "minimum": 0.0,
+          "nullable": true,
+          "type": "integer"
+         },
+         "gross_weight_kg": {
+          "exclusiveMinimum": 0.0,
+          "maximum": 1000000.0,
+          "type": "number"
+         },
+         "hs_code": {
+          "nullable": true,
+          "pattern": "^[0-9]{4,10}$",
+          "type": "string"
+         },
+         "net_weight_kg": {
+          "exclusiveMinimum": 0.0,
+          "nullable": true,
+          "type": "number"
+         },
+         "package_type": {
+          "maxLength": 40,
+          "nullable": true,
+          "type": "string"
+         },
+         "packages": {
+          "minimum": 1.0,
+          "nullable": true,
+          "type": "integer"
+         },
+         "temp_max_c": {
+          "nullable": true,
+          "type": "number"
+         },
+         "temp_min_c": {
+          "nullable": true,
+          "type": "number"
+         },
+         "un_number": {
+          "nullable": true,
+          "pattern": "^UN[0-9]{4}$",
+          "type": "string"
+         },
+         "value_currency": {
+          "nullable": true,
+          "pattern": "^[A-Z]{3}$",
+          "type": "string"
+         },
+         "volume_m3": {
+          "exclusiveMinimum": 0.0,
+          "nullable": true,
+          "type": "number"
+         }
+        },
+        "required": [
+         "category",
+         "description",
+         "gross_weight_kg"
+        ],
+        "type": "object"
+       },
+       "consignee": {
+        "properties": {
+         "address": {
+          "maxLength": 300,
+          "nullable": true,
+          "type": "string"
+         },
+         "country": {
+          "pattern": "^[A-Z]{2}$",
+          "type": "string"
+         },
+         "name": {
+          "maxLength": 200,
+          "minLength": 2,
+          "type": "string"
+         },
+         "tax_no": {
+          "maxLength": 40,
+          "nullable": true,
+          "type": "string"
+         }
+        },
+        "required": [
+         "name",
+         "country"
+        ],
+        "type": "object"
+       },
+       "customs_declaration_no": {
+        "nullable": true,
+        "pattern": "^[A-Za-z0-9/ -]{2,40}$",
+        "type": "string"
+       },
+       "destination": {
+        "properties": {
+         "address": {
+          "maxLength": 300,
+          "nullable": true,
+          "type": "string"
+         },
+         "city": {
+          "nullable": true,
+          "pattern": "^[A-Z]{3}$",
+          "type": "string"
+         },
+         "country": {
+          "default": "SY",
+          "pattern": "^[A-Z]{2}$",
+          "type": "string"
+         },
+         "station_uid": {
+          "format": "uuid",
+          "nullable": true,
+          "type": "string"
+         }
+        },
+        "type": "object"
+       },
+       "entry_border_uid": {
+        "format": "uuid",
+        "nullable": true,
+        "type": "string"
+       },
+       "exit_border_uid": {
+        "format": "uuid",
+        "nullable": true,
+        "type": "string"
+       },
+       "export_permit_date": {
+        "format": "date",
+        "nullable": true,
+        "type": "string"
+       },
+       "export_permit_no": {
+        "nullable": true,
+        "pattern": "^[A-Za-z0-9/ -]{2,40}$",
+        "type": "string"
+       },
+       "freight_payer": {
+        "default": "SHIPPER",
+        "enum": [
+         "SHIPPER",
+         "CONSIGNEE",
+         "THIRD_PARTY"
+        ],
+        "type": "string"
+       },
+       "hbl_no": {
+        "maxLength": 35,
+        "nullable": true,
+        "type": "string"
+       },
+       "incoterm": {
+        "enum": [
+         "EXW",
+         "FCA",
+         "CPT",
+         "CIP",
+         "DAP",
+         "DPU",
+         "DDP",
+         "FAS",
+         "FOB",
+         "CFR",
+         "CIF"
+        ],
+        "nullable": true,
+        "type": "string"
+       },
+       "load_type": {
+        "enum": [
+         "FCL",
+         "LCL",
+         "BREAK_BULK",
+         "BULK",
+         "LIQUID",
+         "VEHICLES"
+        ],
+        "type": "string"
+       },
+       "notify_name": {
+        "maxLength": 200,
+        "nullable": true,
+        "type": "string"
+       },
+       "origin": {
+        "properties": {
+         "address": {
+          "maxLength": 300,
+          "nullable": true,
+          "type": "string"
+         },
+         "city": {
+          "nullable": true,
+          "pattern": "^[A-Z]{3}$",
+          "type": "string"
+         },
+         "country": {
+          "default": "SY",
+          "pattern": "^[A-Z]{2}$",
+          "type": "string"
+         },
+         "station_uid": {
+          "format": "uuid",
+          "nullable": true,
+          "type": "string"
+         }
+        },
+        "type": "object"
+       },
+       "port_station_uid": {
+        "format": "uuid",
+        "nullable": true,
+        "type": "string"
+       },
+       "release_no": {
+        "nullable": true,
+        "pattern": "^[A-Za-z0-9/ -]{2,40}$",
+        "type": "string"
+       },
+       "route_kind": {
+        "enum": [
+         "DOMESTIC",
+         "PORT_IMPORT",
+         "PORT_EXPORT",
+         "EXPORT",
+         "IMPORT",
+         "TRANSIT_PORT_OUT",
+         "TRANSIT_IN_PORT",
+         "TRANSIT_LAND"
+        ],
+        "type": "string"
+       },
+       "shipper": {
+        "properties": {
+         "address": {
+          "maxLength": 300,
+          "nullable": true,
+          "type": "string"
+         },
+         "country": {
+          "pattern": "^[A-Z]{2}$",
+          "type": "string"
+         },
+         "name": {
+          "maxLength": 200,
+          "minLength": 2,
+          "type": "string"
+         },
+         "tax_no": {
+          "maxLength": 40,
+          "nullable": true,
+          "type": "string"
+         }
+        },
+        "required": [
+         "name",
+         "country"
+        ],
+        "type": "object"
+       },
+       "tir_carnet_no": {
+        "nullable": true,
+        "pattern": "^[A-Z]{0,3}[0-9]{6,10}$",
+        "type": "string"
+       }
+      },
+      "required": [
+       "route_kind",
+       "load_type",
+       "shipper",
+       "consignee",
+       "origin",
+       "destination",
+       "cargo"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/carrier/freight/consignments/{uid}/containers": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "containers": {
+        "items": {
+         "properties": {
+          "container_no": {
+           "pattern": "^[A-Z]{3}[UJZ][0-9]{7}$",
+           "type": "string"
+          },
+          "empty_return_depot": {
+           "maxLength": 120,
+           "nullable": true,
+           "type": "string"
+          },
+          "free_time_until": {
+           "format": "date",
+           "nullable": true,
+           "type": "string"
+          },
+          "gross_weight_kg": {
+           "maximum": 40000.0,
+           "minimum": 1.0,
+           "nullable": true,
+           "type": "integer"
+          },
+          "hbl_no": {
+           "maxLength": 35,
+           "nullable": true,
+           "type": "string"
+          },
+          "seal_no": {
+           "nullable": true,
+           "pattern": "^[A-Za-z0-9-]{3,20}$",
+           "type": "string"
+          },
+          "size_type": {
+           "pattern": "^[24L][0-9A-Z][0-9A-Z]{2}$",
+           "type": "string"
+          }
+         },
+         "required": [
+          "container_no",
+          "size_type"
+         ],
+         "type": "object"
+        },
+        "maxItems": 200,
+        "type": "array"
+       },
+       "from_bill": {
+        "default": false,
+        "type": "boolean"
+       }
+      },
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/carrier/freight/consignments/{uid}/invoices": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "amount": {
+        "minimum": 0.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "currency": {
+        "nullable": true,
+        "pattern": "^[A-Z]{3}$",
+        "type": "string"
+       },
+       "invoice_date": {
+        "format": "date",
+        "nullable": true,
+        "type": "string"
+       },
+       "invoice_no": {
+        "pattern": "^[A-Za-z0-9/ -]{1,40}$",
+        "type": "string"
+       }
+      },
+      "required": [
+       "invoice_no"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/carrier/freight/consignments/{uid}/movements": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "container_nos": {
+        "items": {
+         "type": "string"
+        },
+        "maxItems": 3,
+        "type": "array"
+       },
+       "currency": {
+        "nullable": true,
+        "pattern": "^[A-Z]{3}$",
+        "type": "string"
+       },
+       "driver_licence_no": {
+        "maxLength": 40,
+        "nullable": true,
+        "type": "string"
+       },
+       "driver_mobile": {
+        "nullable": true,
+        "pattern": "^\\+?[0-9]{8,15}$",
+        "type": "string"
+       },
+       "driver_name": {
+        "maxLength": 120,
+        "minLength": 2,
+        "nullable": true,
+        "type": "string"
+       },
+       "driver_uid": {
+        "format": "uuid",
+        "nullable": true,
+        "type": "string"
+       },
+       "price": {
+        "minimum": 0.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "rate_uid": {
+        "format": "uuid",
+        "nullable": true,
+        "type": "string"
+       },
+       "trailer_capacity_ft": {
+        "enum": [
+         20,
+         40,
+         45
+        ],
+        "nullable": true,
+        "type": "integer"
+       },
+       "trailer_plate": {
+        "maxLength": 20,
+        "minLength": 2,
+        "nullable": true,
+        "type": "string"
+       },
+       "trailer_uid": {
+        "format": "uuid",
+        "nullable": true,
+        "type": "string"
+       },
+       "vehicle_uid": {
+        "format": "uuid",
+        "type": "string"
+       }
+      },
+      "required": [
+       "vehicle_uid"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/carrier/freight/documents": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "consignment_uids": {
+        "items": {
+         "format": "uuid",
+         "type": "string"
+        },
+        "maxItems": 50,
+        "minItems": 1,
+        "type": "array"
+       },
+       "doc_type": {
+        "enum": [
+         "CONSIGNMENT_NOTE",
+         "TCN"
+        ],
+        "type": "string"
+       },
+       "replaces": {
+        "maxLength": 40,
+        "nullable": true,
+        "type": "string"
+       }
+      },
+      "required": [
+       "doc_type",
+       "consignment_uids"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/carrier/freight/documents/{doc_no}/void": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "reason": {
+        "maxLength": 300,
+        "minLength": 3,
+        "type": "string"
+       }
+      },
+      "required": [
+       "reason"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:doc_no": {
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/carrier/freight/invoices": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "basis": {
+        "enum": [
+         "BL",
+         "CONTAINER",
+         "CONSIGNMENT"
+        ],
+        "type": "string"
+       },
+       "consignment_uid": {
+        "format": "uuid",
+        "type": "string"
+       },
+       "container_no": {
+        "nullable": true,
+        "pattern": "^[A-Z]{3}[UJZ][0-9]{7}$",
+        "type": "string"
+       }
+      },
+      "required": [
+       "consignment_uid",
+       "basis"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/carrier/freight/invoices/{uid}/paid": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/carrier/freight/invoices/{uid}/void": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "reason": {
+        "maxLength": 300,
+        "minLength": 3,
+        "type": "string"
+       }
+      },
+      "required": [
+       "reason"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/carrier/freight/movements/{uid}/status": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "note": {
+        "maxLength": 300,
+        "nullable": true,
+        "type": "string"
+       },
+       "received_by": {
+        "maxLength": 120,
+        "nullable": true,
+        "type": "string"
+       },
+       "station_uid": {
+        "format": "uuid",
+        "nullable": true,
+        "type": "string"
+       },
+       "status": {
+        "enum": [
+         "LOADING",
+         "IN_TRANSIT",
+         "AT_BORDER",
+         "DELIVERED",
+         "CANCELLED"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "status"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/carrier/freight/rates": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "currency": {
+        "nullable": true,
+        "pattern": "^[A-Z]{3}$",
+        "type": "string"
+       },
+       "free_waiting_hours": {
+        "default": 24,
+        "maximum": 240.0,
+        "minimum": 0.0,
+        "type": "integer"
+       },
+       "from_city": {
+        "nullable": true,
+        "pattern": "^[A-Z]{3}$",
+        "type": "string"
+       },
+       "from_station_uid": {
+        "format": "uuid",
+        "nullable": true,
+        "type": "string"
+       },
+       "includes_empty_return": {
+        "default": false,
+        "type": "boolean"
+       },
+       "note": {
+        "maxLength": 300,
+        "nullable": true,
+        "type": "string"
+       },
+       "price": {
+        "exclusiveMinimum": 0.0,
+        "type": "integer"
+       },
+       "route_kind": {
+        "enum": [
+         "DOMESTIC",
+         "PORT_IMPORT",
+         "PORT_EXPORT",
+         "EXPORT",
+         "IMPORT",
+         "TRANSIT_PORT_OUT",
+         "TRANSIT_IN_PORT",
+         "TRANSIT_LAND"
+        ],
+        "nullable": true,
+        "type": "string"
+       },
+       "to_city": {
+        "nullable": true,
+        "pattern": "^[A-Z]{3}$",
+        "type": "string"
+       },
+       "to_country": {
+        "nullable": true,
+        "pattern": "^[A-Z]{2}$",
+        "type": "string"
+       },
+       "to_station_uid": {
+        "format": "uuid",
+        "nullable": true,
+        "type": "string"
+       },
+       "unit": {
+        "enum": [
+         "CONTAINER_20",
+         "CONTAINER_40",
+         "CONTAINER_45",
+         "TRUCK",
+         "TON",
+         "BL"
+        ],
+        "type": "string"
+       },
+       "valid_from": {
+        "format": "date",
+        "nullable": true,
+        "type": "string"
+       },
+       "valid_to": {
+        "format": "date",
+        "nullable": true,
+        "type": "string"
+       },
+       "waiting_per_day": {
+        "minimum": 0.0,
+        "nullable": true,
+        "type": "integer"
+       }
+      },
+      "required": [
+       "unit",
+       "price"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/carrier/freight/rates/{uid}/archive": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/carrier/kyc/open": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/carrier/kyc/{kyc_uid}/submit": {
+   "body": null,
+   "parameters": {
+    "path:kyc_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
    }
   },
   "POST /api/carrier/parcels/offers/{uid}/decline": {
@@ -5517,6 +10541,75 @@
     "200": {}
    }
   },
+  "POST /api/carrier/references": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "expires_on": {
+        "format": "date",
+        "nullable": true,
+        "type": "string"
+       },
+       "issued_by": {
+        "maxLength": 120,
+        "minLength": 1,
+        "nullable": true,
+        "type": "string"
+       },
+       "issued_on": {
+        "format": "date",
+        "nullable": true,
+        "type": "string"
+       },
+       "kind": {
+        "enum": [
+         "AGREEMENT",
+         "LICENCE"
+        ],
+        "type": "string"
+       },
+       "licence_type": {
+        "maxLength": 60,
+        "minLength": 1,
+        "nullable": true,
+        "type": "string"
+       },
+       "reference_no": {
+        "maxLength": 60,
+        "minLength": 1,
+        "type": "string"
+       }
+      },
+      "required": [
+       "kind",
+       "reference_no"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/carrier/references/{uid}/retire": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "POST /api/carrier/routes": {
    "body": {
     "content": {
@@ -5571,6 +10664,369 @@
     "required": true
    },
    "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/carrier/schedule-requests/{request_uid}/withdraw": {
+   "body": null,
+   "parameters": {
+    "path:request_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/carrier/schedules": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "auto_publish": {
+        "default": true,
+        "type": "boolean"
+       },
+       "base_price": {
+        "maximum": 1000000000000.0,
+        "minimum": 0.0,
+        "type": "integer"
+       },
+       "days_of_month": {
+        "items": {
+         "type": "integer"
+        },
+        "maxItems": 31,
+        "type": "array"
+       },
+       "days_of_week": {
+        "items": {
+         "type": "integer"
+        },
+        "maxItems": 7,
+        "type": "array"
+       },
+       "departure_time": {
+        "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$",
+        "type": "string"
+       },
+       "direction": {
+        "default": "OUTBOUND",
+        "enum": [
+         "OUTBOUND",
+         "INBOUND"
+        ],
+        "type": "string"
+       },
+       "follows_uid": {
+        "format": "uuid",
+        "nullable": true,
+        "type": "string"
+       },
+       "from_date": {
+        "format": "date",
+        "type": "string"
+       },
+       "note": {
+        "maxLength": 500,
+        "nullable": true,
+        "type": "string"
+       },
+       "proposed_number": {
+        "maximum": 9999.0,
+        "minimum": 1000.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "recurrence": {
+        "enum": [
+         "DAILY",
+         "WEEKLY",
+         "MONTHLY"
+        ],
+        "type": "string"
+       },
+       "route_uid": {
+        "format": "uuid",
+        "type": "string"
+       },
+       "skip_dates": {
+        "items": {
+         "format": "date",
+         "type": "string"
+        },
+        "maxItems": 400,
+        "type": "array"
+       },
+       "trip_type": {
+        "default": "SCHEDULED",
+        "enum": [
+         "SCHEDULED",
+         "SHUTTLE",
+         "INTERNATIONAL",
+         "CARGO",
+         "EXTRA"
+        ],
+        "type": "string"
+       },
+       "until_date": {
+        "format": "date",
+        "nullable": true,
+        "type": "string"
+       },
+       "vehicle_uid": {
+        "format": "uuid",
+        "nullable": true,
+        "type": "string"
+       }
+      },
+      "required": [
+       "departure_time",
+       "recurrence",
+       "from_date",
+       "route_uid",
+       "base_price"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/carrier/schedules/preview": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "days_of_month": {
+        "items": {
+         "type": "integer"
+        },
+        "maxItems": 31,
+        "type": "array"
+       },
+       "days_of_week": {
+        "items": {
+         "type": "integer"
+        },
+        "maxItems": 7,
+        "type": "array"
+       },
+       "departure_time": {
+        "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$",
+        "type": "string"
+       },
+       "from_date": {
+        "format": "date",
+        "type": "string"
+       },
+       "recurrence": {
+        "enum": [
+         "DAILY",
+         "WEEKLY",
+         "MONTHLY"
+        ],
+        "type": "string"
+       },
+       "skip_dates": {
+        "items": {
+         "format": "date",
+         "type": "string"
+        },
+        "maxItems": 400,
+        "type": "array"
+       },
+       "until_date": {
+        "format": "date",
+        "nullable": true,
+        "type": "string"
+       }
+      },
+      "required": [
+       "departure_time",
+       "recurrence",
+       "from_date"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/carrier/schedules/{schedule_uid}/change": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "auto_publish": {
+        "nullable": true,
+        "type": "boolean"
+       },
+       "base_price": {
+        "maximum": 1000000000000.0,
+        "minimum": 0.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "days_of_month": {
+        "items": {
+         "type": "integer"
+        },
+        "maxItems": 31,
+        "nullable": true,
+        "type": "array"
+       },
+       "days_of_week": {
+        "items": {
+         "type": "integer"
+        },
+        "maxItems": 7,
+        "nullable": true,
+        "type": "array"
+       },
+       "departure_time": {
+        "nullable": true,
+        "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$",
+        "type": "string"
+       },
+       "effective_from": {
+        "format": "date",
+        "type": "string"
+       },
+       "no_end": {
+        "default": false,
+        "type": "boolean"
+       },
+       "note": {
+        "maxLength": 500,
+        "nullable": true,
+        "type": "string"
+       },
+       "recurrence": {
+        "enum": [
+         "DAILY",
+         "WEEKLY",
+         "MONTHLY"
+        ],
+        "nullable": true,
+        "type": "string"
+       },
+       "skip_dates": {
+        "items": {
+         "format": "date",
+         "type": "string"
+        },
+        "maxItems": 400,
+        "nullable": true,
+        "type": "array"
+       },
+       "until_date": {
+        "format": "date",
+        "nullable": true,
+        "type": "string"
+       },
+       "vehicle_uid": {
+        "format": "uuid",
+        "nullable": true,
+        "type": "string"
+       }
+      },
+      "required": [
+       "effective_from"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:schedule_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/carrier/schedules/{schedule_uid}/pause": {
+   "body": null,
+   "parameters": {
+    "path:schedule_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/carrier/schedules/{schedule_uid}/resume": {
+   "body": null,
+   "parameters": {
+    "path:schedule_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/carrier/schedules/{schedule_uid}/stop": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "from_date": {
+        "format": "date",
+        "type": "string"
+       },
+       "note": {
+        "maxLength": 500,
+        "nullable": true,
+        "type": "string"
+       }
+      },
+      "required": [
+       "from_date"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:schedule_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
    "responses": {
     "201": {}
    }
@@ -5710,6 +11166,58 @@
     "200": {}
    }
   },
+  "POST /api/carrier/station-operators/grants": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "operator_company_uid": {
+        "format": "uuid",
+        "type": "string"
+       },
+       "permission": {
+        "enum": [
+         "BOOKING",
+         "BOARDING_PASS",
+         "BOARDING"
+        ],
+        "type": "string"
+       },
+       "station_uid": {
+        "format": "uuid",
+        "nullable": true,
+        "type": "string"
+       }
+      },
+      "required": [
+       "operator_company_uid",
+       "permission"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/carrier/station-operators/grants/{uid}/revoke": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "POST /api/carrier/trip-templates/{template_id}/generate": {
    "body": {
     "content": {
@@ -5776,6 +11284,12 @@
         "format": "uuid",
         "type": "string"
        },
+       "service_number": {
+        "maximum": 9999.0,
+        "minimum": 1.0,
+        "nullable": true,
+        "type": "integer"
+       },
        "trip_type": {
         "default": "SCHEDULED",
         "enum": [
@@ -5805,6 +11319,38 @@
    "parameters": {},
    "responses": {
     "201": {}
+   }
+  },
+  "POST /api/carrier/trips/{trip_uid}/cancel": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "reason": {
+        "maxLength": 500,
+        "minLength": 5,
+        "type": "string"
+       }
+      },
+      "required": [
+       "reason"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:trip_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
    }
   },
   "POST /api/carrier/trips/{trip_uid}/complete": {
@@ -5990,6 +11536,335 @@
     "200": {}
    }
   },
+  "POST /api/charter/requests": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "contact_mobile": {
+        "pattern": "^\\+?[0-9]{8,15}$",
+        "type": "string"
+       },
+       "contact_name": {
+        "maxLength": 120,
+        "minLength": 2,
+        "type": "string"
+       },
+       "ends_at": {
+        "format": "date-time",
+        "nullable": true,
+        "type": "string"
+       },
+       "from_city": {
+        "nullable": true,
+        "pattern": "^[A-Z]{3}$",
+        "type": "string"
+       },
+       "from_seq": {
+        "maximum": 500.0,
+        "minimum": 0.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "idempotency_key": {
+        "maxLength": 80,
+        "minLength": 8,
+        "type": "string"
+       },
+       "itinerary": {
+        "maxLength": 1000,
+        "nullable": true,
+        "type": "string"
+       },
+       "note": {
+        "maxLength": 500,
+        "nullable": true,
+        "type": "string"
+       },
+       "offer_uid": {
+        "format": "uuid",
+        "type": "string"
+       },
+       "passengers": {
+        "maximum": 999.0,
+        "minimum": 1.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "seats": {
+        "maximum": 99.0,
+        "minimum": 1.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "starts_at": {
+        "format": "date-time",
+        "nullable": true,
+        "type": "string"
+       },
+       "to_city": {
+        "nullable": true,
+        "pattern": "^[A-Z]{3}$",
+        "type": "string"
+       },
+       "to_seq": {
+        "maximum": 500.0,
+        "minimum": 1.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "trip_uid": {
+        "format": "uuid",
+        "nullable": true,
+        "type": "string"
+       },
+       "vehicles": {
+        "default": 1,
+        "maximum": 50.0,
+        "minimum": 1.0,
+        "type": "integer"
+       },
+       "whole": {
+        "default": false,
+        "type": "boolean"
+       }
+      },
+      "required": [
+       "offer_uid",
+       "contact_name",
+       "contact_mobile",
+       "idempotency_key"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/charter/requests/{uid}/accept": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/charter/requests/{uid}/balance": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/charter/requests/{uid}/cancel": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "reason": {
+        "maxLength": 300,
+        "minLength": 3,
+        "type": "string"
+       }
+      },
+      "required": [
+       "reason"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/charter/requests/{uid}/travellers": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "travellers": {
+        "items": {
+         "properties": {
+          "birth_date": {
+           "format": "date",
+           "nullable": true,
+           "type": "string"
+          },
+          "category": {
+           "enum": [
+            "ADULT",
+            "CHILD",
+            "INFANT"
+           ],
+           "nullable": true,
+           "type": "string"
+          },
+          "family_member_uid": {
+           "format": "uuid",
+           "nullable": true,
+           "type": "string"
+          },
+          "father_name": {
+           "maxLength": 60,
+           "minLength": 1,
+           "nullable": true,
+           "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "first_name": {
+           "maxLength": 60,
+           "minLength": 1,
+           "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "gender": {
+           "enum": [
+            "M",
+            "F"
+           ],
+           "nullable": true,
+           "type": "string"
+          },
+          "grandfather_name": {
+           "maxLength": 60,
+           "minLength": 1,
+           "nullable": true,
+           "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "id_last4": {
+           "nullable": true,
+           "pattern": "^[0-9A-Za-z]{3,4}$",
+           "type": "string"
+          },
+          "id_no": {
+           "maxLength": 24,
+           "minLength": 4,
+           "nullable": true,
+           "pattern": "^[0-9A-Za-z \\-/]+$",
+           "type": "string"
+          },
+          "id_type": {
+           "enum": [
+            "NATIONAL_ID",
+            "PASSPORT",
+            "RESIDENCE",
+            "LAISSEZ_PASSER",
+            "TRAVEL_DOCUMENT",
+            "OTHER"
+           ],
+           "nullable": true,
+           "type": "string"
+          },
+          "last_name": {
+           "maxLength": 60,
+           "minLength": 1,
+           "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "mobile": {
+           "nullable": true,
+           "pattern": "^\\+?[0-9]{8,15}$",
+           "type": "string"
+          },
+          "nationality": {
+           "default": "SY",
+           "pattern": "^[A-Z]{2}$",
+           "type": "string"
+          },
+          "passport_expiry": {
+           "format": "date",
+           "nullable": true,
+           "type": "string"
+          },
+          "seat_no": {
+           "nullable": true,
+           "type": "integer"
+          },
+          "with_adult": {
+           "maximum": 120.0,
+           "minimum": 1.0,
+           "nullable": true,
+           "type": "integer"
+          }
+         },
+         "required": [
+          "first_name",
+          "last_name"
+         ],
+         "type": "object"
+        },
+        "maxItems": 99,
+        "minItems": 1,
+        "type": "array"
+       }
+      },
+      "required": [
+       "travellers"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/charter/requests/{uid}/withdraw": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "POST /api/company/documents": {
    "body": {
     "content": {
@@ -6069,6 +11944,77 @@
    "parameters": {},
    "responses": {
     "200": {}
+   }
+  },
+  "POST /api/driver/incidents": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "injuries": {
+        "default": false,
+        "type": "boolean"
+       },
+       "lat": {
+        "maximum": 90.0,
+        "minimum": -90.0,
+        "nullable": true,
+        "type": "number"
+       },
+       "lng": {
+        "maximum": 180.0,
+        "minimum": -180.0,
+        "nullable": true,
+        "type": "number"
+       },
+       "occurred_at": {
+        "format": "date-time",
+        "nullable": true,
+        "type": "string"
+       },
+       "police_report_no": {
+        "maxLength": 60,
+        "nullable": true,
+        "type": "string"
+       },
+       "severity": {
+        "enum": [
+         "MINOR",
+         "MAJOR",
+         "SEVERE"
+        ],
+        "type": "string"
+       },
+       "trip_uid": {
+        "format": "uuid",
+        "type": "string"
+       },
+       "type": {
+        "enum": [
+         "COLLISION",
+         "BREAKDOWN",
+         "FIRE",
+         "SECURITY",
+         "SEIZURE",
+         "MEDICAL",
+         "OTHER"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "trip_uid",
+       "type",
+       "severity"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
    }
   },
   "POST /api/driver/location": {
@@ -6239,14 +12185,31 @@
     "content": {
      "application/json": {
       "properties": {
+       "booking_ref": {
+        "maxLength": 12,
+        "minLength": 4,
+        "nullable": true,
+        "type": "string"
+       },
+       "identity_checked": {
+        "default": false,
+        "type": "boolean"
+       },
        "stop_seq": {
         "minimum": 0.0,
         "nullable": true,
         "type": "integer"
        },
+       "ticket_no": {
+        "maxLength": 40,
+        "minLength": 3,
+        "nullable": true,
+        "type": "string"
+       },
        "token": {
         "maxLength": 600,
         "minLength": 10,
+        "nullable": true,
         "type": "string"
        },
        "trip_uid": {
@@ -6255,8 +12218,7 @@
        }
       },
       "required": [
-       "trip_uid",
-       "token"
+       "trip_uid"
       ],
       "type": "object"
      }
@@ -6276,6 +12238,16 @@
        "scans": {
         "items": {
          "properties": {
+          "booking_ref": {
+           "maxLength": 12,
+           "minLength": 4,
+           "nullable": true,
+           "type": "string"
+          },
+          "identity_checked": {
+           "default": false,
+           "type": "boolean"
+          },
           "scan_id": {
            "maxLength": 64,
            "minLength": 8,
@@ -6291,15 +12263,21 @@
            "nullable": true,
            "type": "integer"
           },
+          "ticket_no": {
+           "maxLength": 40,
+           "minLength": 3,
+           "nullable": true,
+           "type": "string"
+          },
           "token": {
            "maxLength": 600,
            "minLength": 10,
+           "nullable": true,
            "type": "string"
           }
          },
          "required": [
           "scan_id",
-          "token",
           "scanned_at"
          ],
          "type": "object"
@@ -6325,6 +12303,41 @@
    "parameters": {},
    "responses": {
     "200": {}
+   }
+  },
+  "POST /api/driver/sos": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "lat": {
+        "maximum": 90.0,
+        "minimum": -90.0,
+        "nullable": true,
+        "type": "number"
+       },
+       "lng": {
+        "maximum": 180.0,
+        "minimum": -180.0,
+        "nullable": true,
+        "type": "number"
+       },
+       "trip_uid": {
+        "format": "uuid",
+        "type": "string"
+       }
+      },
+      "required": [
+       "trip_uid"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
    }
   },
   "POST /api/driver/trips/{trip_uid}/stops/{seq}": {
@@ -6653,6 +12666,37 @@
     "201": {}
    }
   },
+  "POST /api/family/members/{uid}/photo": {
+   "body": {
+    "content": {
+     "multipart/form-data": {
+      "properties": {
+       "file": {
+        "contentMediaType": "application/octet-stream",
+        "type": "string"
+       }
+      },
+      "required": [
+       "file"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "201": {}
+   }
+  },
   "POST /api/family/members/{uid}/rules": {
    "body": {
     "content": {
@@ -6904,7 +12948,7 @@
         "items": {
          "type": "integer"
         },
-        "maxItems": 4,
+        "maxItems": 20,
         "minItems": 1,
         "type": "array"
        },
@@ -7207,6 +13251,298 @@
      }
     },
     "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/journeys": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "accept_risks": {
+        "default": false,
+        "type": "boolean"
+       },
+       "fare_brand": {
+        "default": "STANDARD",
+        "type": "string"
+       },
+       "idempotency_key": {
+        "maxLength": 60,
+        "minLength": 8,
+        "type": "string"
+       },
+       "kind": {
+        "enum": [
+         "ONE_WAY",
+         "ROUND_TRIP",
+         "MULTI_CITY",
+         "CONNECTION"
+        ],
+        "type": "string"
+       },
+       "legs": {
+        "items": {
+         "properties": {
+          "fare_brand": {
+           "maxLength": 20,
+           "minLength": 2,
+           "nullable": true,
+           "type": "string"
+          },
+          "from_seq": {
+           "maximum": 500.0,
+           "minimum": 0.0,
+           "type": "integer"
+          },
+          "seats": {
+           "items": {
+            "type": "integer"
+           },
+           "maxItems": 60,
+           "minItems": 1,
+           "nullable": true,
+           "type": "array"
+          },
+          "to_seq": {
+           "maximum": 500.0,
+           "minimum": 1.0,
+           "type": "integer"
+          },
+          "trip_uid": {
+           "format": "uuid",
+           "type": "string"
+          }
+         },
+         "required": [
+          "trip_uid",
+          "from_seq",
+          "to_seq"
+         ],
+         "type": "object"
+        },
+        "maxItems": 6,
+        "minItems": 1,
+        "type": "array"
+       },
+       "passengers": {
+        "items": {
+         "properties": {
+          "birth_date": {
+           "format": "date",
+           "nullable": true,
+           "type": "string"
+          },
+          "category": {
+           "enum": [
+            "ADULT",
+            "CHILD",
+            "INFANT"
+           ],
+           "nullable": true,
+           "type": "string"
+          },
+          "family_member_uid": {
+           "format": "uuid",
+           "nullable": true,
+           "type": "string"
+          },
+          "father_name": {
+           "maxLength": 60,
+           "minLength": 1,
+           "nullable": true,
+           "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "first_name": {
+           "maxLength": 60,
+           "minLength": 1,
+           "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "gender": {
+           "enum": [
+            "M",
+            "F"
+           ],
+           "nullable": true,
+           "type": "string"
+          },
+          "grandfather_name": {
+           "maxLength": 60,
+           "minLength": 1,
+           "nullable": true,
+           "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "id_last4": {
+           "nullable": true,
+           "pattern": "^[0-9A-Za-z]{3,4}$",
+           "type": "string"
+          },
+          "id_no": {
+           "maxLength": 24,
+           "minLength": 4,
+           "nullable": true,
+           "pattern": "^[0-9A-Za-z \\-/]+$",
+           "type": "string"
+          },
+          "id_type": {
+           "enum": [
+            "NATIONAL_ID",
+            "PASSPORT",
+            "RESIDENCE",
+            "LAISSEZ_PASSER",
+            "TRAVEL_DOCUMENT",
+            "OTHER"
+           ],
+           "nullable": true,
+           "type": "string"
+          },
+          "last_name": {
+           "maxLength": 60,
+           "minLength": 1,
+           "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "mobile": {
+           "nullable": true,
+           "pattern": "^\\+?[0-9]{8,15}$",
+           "type": "string"
+          },
+          "nationality": {
+           "default": "SY",
+           "pattern": "^[A-Z]{2}$",
+           "type": "string"
+          },
+          "passport_expiry": {
+           "format": "date",
+           "nullable": true,
+           "type": "string"
+          },
+          "seat_no": {
+           "nullable": true,
+           "type": "integer"
+          },
+          "with_adult": {
+           "maximum": 120.0,
+           "minimum": 1.0,
+           "nullable": true,
+           "type": "integer"
+          }
+         },
+         "required": [
+          "first_name",
+          "last_name"
+         ],
+         "type": "object"
+        },
+        "maxItems": 60,
+        "minItems": 1,
+        "type": "array"
+       },
+       "pay_with": {
+        "default": "WALLET",
+        "enum": [
+         "WALLET",
+         "PAY_LATER"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "kind",
+       "legs",
+       "passengers",
+       "idempotency_key"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/loyalty/redeem": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "idempotency_key": {
+        "maxLength": 64,
+        "minLength": 8,
+        "type": "string"
+       },
+       "points": {
+        "exclusiveMinimum": 0.0,
+        "maximum": 100000000.0,
+        "type": "integer"
+       }
+      },
+      "required": [
+       "points",
+       "idempotency_key"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/loyalty/vouchers": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "agreement": {
+        "format": "uuid",
+        "type": "string"
+       },
+       "idempotency_key": {
+        "maxLength": 64,
+        "minLength": 8,
+        "type": "string"
+       },
+       "points": {
+        "exclusiveMinimum": 0.0,
+        "maximum": 100000000.0,
+        "type": "integer"
+       }
+      },
+      "required": [
+       "agreement",
+       "points",
+       "idempotency_key"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/loyalty/vouchers/{voucher}/cancel": {
+   "body": null,
+   "parameters": {
+    "path:voucher": {
      "required": true,
      "schema": {
       "format": "uuid",
@@ -7679,6 +14015,37 @@
      }
     }
    },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/public/screens/pair": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/public/screens/pair/state": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "token": {
+        "maxLength": 64,
+        "minLength": 32,
+        "type": "string"
+       }
+      },
+      "required": [
+       "token"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
    "responses": {
     "200": {}
    }
@@ -8190,6 +14557,646 @@
     "200": {}
    }
   },
+  "POST /api/station/board": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "station_uid": {
+        "format": "uuid",
+        "type": "string"
+       },
+       "token": {
+        "maxLength": 600,
+        "minLength": 10,
+        "type": "string"
+       },
+       "trip_uid": {
+        "format": "uuid",
+        "type": "string"
+       }
+      },
+      "required": [
+       "station_uid",
+       "trip_uid",
+       "token"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/station/bookings": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "contact_mobile": {
+        "nullable": true,
+        "pattern": "^\\+?[0-9]{8,15}$",
+        "type": "string"
+       },
+       "counter_code": {
+        "nullable": true,
+        "pattern": "^C[0-9]{3}$",
+        "type": "string"
+       },
+       "fare_brand": {
+        "default": "STANDARD",
+        "type": "string"
+       },
+       "from_seq": {
+        "type": "integer"
+       },
+       "hold_token": {
+        "format": "uuid",
+        "type": "string"
+       },
+       "idempotency_key": {
+        "maxLength": 80,
+        "minLength": 8,
+        "type": "string"
+       },
+       "passengers": {
+        "items": {
+         "properties": {
+          "birth_date": {
+           "format": "date",
+           "nullable": true,
+           "type": "string"
+          },
+          "category": {
+           "enum": [
+            "ADULT",
+            "CHILD",
+            "INFANT"
+           ],
+           "nullable": true,
+           "type": "string"
+          },
+          "family_member_uid": {
+           "format": "uuid",
+           "nullable": true,
+           "type": "string"
+          },
+          "father_name": {
+           "maxLength": 60,
+           "minLength": 1,
+           "nullable": true,
+           "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "first_name": {
+           "maxLength": 60,
+           "minLength": 1,
+           "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "gender": {
+           "enum": [
+            "M",
+            "F"
+           ],
+           "nullable": true,
+           "type": "string"
+          },
+          "grandfather_name": {
+           "maxLength": 60,
+           "minLength": 1,
+           "nullable": true,
+           "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "id_last4": {
+           "nullable": true,
+           "pattern": "^[0-9A-Za-z]{3,4}$",
+           "type": "string"
+          },
+          "id_no": {
+           "maxLength": 24,
+           "minLength": 4,
+           "nullable": true,
+           "pattern": "^[0-9A-Za-z \\-/]+$",
+           "type": "string"
+          },
+          "id_type": {
+           "enum": [
+            "NATIONAL_ID",
+            "PASSPORT",
+            "RESIDENCE",
+            "LAISSEZ_PASSER",
+            "TRAVEL_DOCUMENT",
+            "OTHER"
+           ],
+           "nullable": true,
+           "type": "string"
+          },
+          "last_name": {
+           "maxLength": 60,
+           "minLength": 1,
+           "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "mobile": {
+           "nullable": true,
+           "pattern": "^\\+?[0-9]{8,15}$",
+           "type": "string"
+          },
+          "nationality": {
+           "default": "SY",
+           "pattern": "^[A-Z]{2}$",
+           "type": "string"
+          },
+          "passport_expiry": {
+           "format": "date",
+           "nullable": true,
+           "type": "string"
+          },
+          "seat_no": {
+           "nullable": true,
+           "type": "integer"
+          },
+          "with_adult": {
+           "maximum": 120.0,
+           "minimum": 1.0,
+           "nullable": true,
+           "type": "integer"
+          }
+         },
+         "required": [
+          "first_name",
+          "last_name"
+         ],
+         "type": "object"
+        },
+        "maxItems": 40,
+        "minItems": 1,
+        "type": "array"
+       },
+       "pay_from": {
+        "default": "WALLET",
+        "enum": [
+         "WALLET",
+         "FAMILY_ACCOUNT"
+        ],
+        "type": "string"
+       },
+       "pay_with": {
+        "default": "WALLET",
+        "enum": [
+         "WALLET",
+         "PAY_LATER",
+         "CARD",
+         "INSTALLMENT",
+         "FINANCING"
+        ],
+        "type": "string"
+       },
+       "station_uid": {
+        "format": "uuid",
+        "type": "string"
+       },
+       "to_seq": {
+        "type": "integer"
+       },
+       "trip_uid": {
+        "format": "uuid",
+        "type": "string"
+       }
+      },
+      "required": [
+       "hold_token",
+       "trip_uid",
+       "from_seq",
+       "to_seq",
+       "passengers",
+       "idempotency_key",
+       "station_uid"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/station/bookings/quote": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "contact_mobile": {
+        "nullable": true,
+        "pattern": "^\\+?[0-9]{8,15}$",
+        "type": "string"
+       },
+       "counter_code": {
+        "nullable": true,
+        "pattern": "^C[0-9]{3}$",
+        "type": "string"
+       },
+       "fare_brand": {
+        "default": "STANDARD",
+        "type": "string"
+       },
+       "from_seq": {
+        "type": "integer"
+       },
+       "hold_token": {
+        "format": "uuid",
+        "type": "string"
+       },
+       "idempotency_key": {
+        "maxLength": 80,
+        "minLength": 8,
+        "type": "string"
+       },
+       "passengers": {
+        "items": {
+         "properties": {
+          "birth_date": {
+           "format": "date",
+           "nullable": true,
+           "type": "string"
+          },
+          "category": {
+           "enum": [
+            "ADULT",
+            "CHILD",
+            "INFANT"
+           ],
+           "nullable": true,
+           "type": "string"
+          },
+          "family_member_uid": {
+           "format": "uuid",
+           "nullable": true,
+           "type": "string"
+          },
+          "father_name": {
+           "maxLength": 60,
+           "minLength": 1,
+           "nullable": true,
+           "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "first_name": {
+           "maxLength": 60,
+           "minLength": 1,
+           "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "gender": {
+           "enum": [
+            "M",
+            "F"
+           ],
+           "nullable": true,
+           "type": "string"
+          },
+          "grandfather_name": {
+           "maxLength": 60,
+           "minLength": 1,
+           "nullable": true,
+           "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "id_last4": {
+           "nullable": true,
+           "pattern": "^[0-9A-Za-z]{3,4}$",
+           "type": "string"
+          },
+          "id_no": {
+           "maxLength": 24,
+           "minLength": 4,
+           "nullable": true,
+           "pattern": "^[0-9A-Za-z \\-/]+$",
+           "type": "string"
+          },
+          "id_type": {
+           "enum": [
+            "NATIONAL_ID",
+            "PASSPORT",
+            "RESIDENCE",
+            "LAISSEZ_PASSER",
+            "TRAVEL_DOCUMENT",
+            "OTHER"
+           ],
+           "nullable": true,
+           "type": "string"
+          },
+          "last_name": {
+           "maxLength": 60,
+           "minLength": 1,
+           "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "mobile": {
+           "nullable": true,
+           "pattern": "^\\+?[0-9]{8,15}$",
+           "type": "string"
+          },
+          "nationality": {
+           "default": "SY",
+           "pattern": "^[A-Z]{2}$",
+           "type": "string"
+          },
+          "passport_expiry": {
+           "format": "date",
+           "nullable": true,
+           "type": "string"
+          },
+          "seat_no": {
+           "nullable": true,
+           "type": "integer"
+          },
+          "with_adult": {
+           "maximum": 120.0,
+           "minimum": 1.0,
+           "nullable": true,
+           "type": "integer"
+          }
+         },
+         "required": [
+          "first_name",
+          "last_name"
+         ],
+         "type": "object"
+        },
+        "maxItems": 40,
+        "minItems": 1,
+        "type": "array"
+       },
+       "pay_from": {
+        "default": "WALLET",
+        "enum": [
+         "WALLET",
+         "FAMILY_ACCOUNT"
+        ],
+        "type": "string"
+       },
+       "pay_with": {
+        "default": "WALLET",
+        "enum": [
+         "WALLET",
+         "PAY_LATER",
+         "CARD",
+         "INSTALLMENT",
+         "FINANCING"
+        ],
+        "type": "string"
+       },
+       "station_uid": {
+        "format": "uuid",
+        "type": "string"
+       },
+       "to_seq": {
+        "type": "integer"
+       },
+       "trip_uid": {
+        "format": "uuid",
+        "type": "string"
+       }
+      },
+      "required": [
+       "hold_token",
+       "trip_uid",
+       "from_seq",
+       "to_seq",
+       "passengers",
+       "idempotency_key",
+       "station_uid"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/station/bookings/{ref}/cancel": {
+   "body": null,
+   "parameters": {
+    "path:ref": {
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/station/checkin": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "booking_ref": {
+        "maxLength": 12,
+        "minLength": 4,
+        "nullable": true,
+        "type": "string"
+       },
+       "counter_code": {
+        "nullable": true,
+        "pattern": "^C[0-9]{3}$",
+        "type": "string"
+       },
+       "document_checked": {
+        "type": "boolean"
+       },
+       "station_uid": {
+        "format": "uuid",
+        "type": "string"
+       },
+       "ticket_no": {
+        "maxLength": 40,
+        "minLength": 3,
+        "nullable": true,
+        "type": "string"
+       },
+       "token": {
+        "maxLength": 600,
+        "minLength": 10,
+        "nullable": true,
+        "type": "string"
+       }
+      },
+      "required": [
+       "station_uid",
+       "document_checked"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/station/holds": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "from_seq": {
+        "minimum": 0.0,
+        "type": "integer"
+       },
+       "seat_nos": {
+        "items": {
+         "type": "integer"
+        },
+        "maxItems": 20,
+        "minItems": 1,
+        "type": "array"
+       },
+       "station_uid": {
+        "format": "uuid",
+        "type": "string"
+       },
+       "to_seq": {
+        "minimum": 1.0,
+        "type": "integer"
+       },
+       "trip_uid": {
+        "format": "uuid",
+        "type": "string"
+       }
+      },
+      "required": [
+       "trip_uid",
+       "from_seq",
+       "to_seq",
+       "seat_nos",
+       "station_uid"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/station/passes/{pass_no}/cancel": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "reason": {
+        "maxLength": 300,
+        "minLength": 3,
+        "type": "string"
+       }
+      },
+      "required": [
+       "reason"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:pass_no": {
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/station/screens": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "kind": {
+        "enum": [
+         "DEPARTURES",
+         "ARRIVALS",
+         "COMBINED"
+        ],
+        "type": "string"
+       },
+       "label": {
+        "maxLength": 60,
+        "minLength": 1,
+        "type": "string"
+       },
+       "station_uid": {
+        "format": "uuid",
+        "type": "string"
+       }
+      },
+      "required": [
+       "kind",
+       "label",
+       "station_uid"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/station/screens/{screen_uid}/pair": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "code": {
+        "maxLength": 8,
+        "minLength": 6,
+        "type": "string"
+       }
+      },
+      "required": [
+       "code"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:screen_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "POST /api/support/cases": {
    "body": {
     "content": {
@@ -8367,6 +15374,42 @@
     "201": {}
    }
   },
+  "POST /api/tickets/{ticket_uid}/sos": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "lat": {
+        "maximum": 90.0,
+        "minimum": -90.0,
+        "nullable": true,
+        "type": "number"
+       },
+       "lng": {
+        "maximum": 180.0,
+        "minimum": -180.0,
+        "nullable": true,
+        "type": "number"
+       }
+      },
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:ticket_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "201": {}
+   }
+  },
   "POST /api/v1/bookings": {
    "body": {
     "content": {
@@ -8492,7 +15535,7 @@
            "type": "integer"
           },
           "with_adult": {
-           "maximum": 8.0,
+           "maximum": 120.0,
            "minimum": 1.0,
            "nullable": true,
            "type": "integer"
@@ -8504,7 +15547,7 @@
          ],
          "type": "object"
         },
-        "maxItems": 8,
+        "maxItems": 40,
         "minItems": 1,
         "type": "array"
        },
@@ -8652,7 +15695,7 @@
         "items": {
          "type": "integer"
         },
-        "maxItems": 4,
+        "maxItems": 20,
         "minItems": 1,
         "type": "array"
        },
@@ -8670,6 +15713,59 @@
        "from_seq",
        "to_seq",
        "seat_nos"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/v1/loyalty/vouchers/check": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "code": {
+        "maxLength": 40,
+        "minLength": 10,
+        "type": "string"
+       }
+      },
+      "required": [
+       "code"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/v1/loyalty/vouchers/redeem": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "code": {
+        "maxLength": 40,
+        "minLength": 10,
+        "type": "string"
+       },
+       "reference": {
+        "maxLength": 80,
+        "nullable": true,
+        "type": "string"
+       }
+      },
+      "required": [
+       "code"
       ],
       "type": "object"
      }
@@ -9564,6 +16660,313 @@
     "200": {}
    }
   },
+  "PUT /api/admin/boarding/settings": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "key": {
+        "enum": [
+         "boarding.stations.enabled",
+         "boarding.mode.state_mandated",
+         "boarding.mode.carrier_contracted",
+         "boarding.checkin.opens_minutes",
+         "boarding.checkin.closes_minutes",
+         "boarding.references.required",
+         "boarding.board.languages",
+         "boarding.board.rotate_seconds"
+        ],
+        "type": "string"
+       },
+       "value": {}
+      },
+      "required": [
+       "key",
+       "value"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "PUT /api/admin/boarding/stations/{station_uid}": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "checkin_closes_minutes": {
+        "maximum": 1440.0,
+        "minimum": 0.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "checkin_opens_minutes": {
+        "maximum": 1440.0,
+        "minimum": 0.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "counter_system": {
+        "default": "PLATFORM",
+        "enum": [
+         "PLATFORM",
+         "EXTERNAL"
+        ],
+        "type": "string"
+       },
+       "display_kinds": {
+        "items": {
+         "enum": [
+          "DEPARTURES",
+          "ARRIVALS",
+          "COMBINED"
+         ],
+         "type": "string"
+        },
+        "maxItems": 3,
+        "minItems": 1,
+        "nullable": true,
+        "type": "array"
+       },
+       "displays": {
+        "default": false,
+        "type": "boolean"
+       },
+       "enabled": {
+        "type": "boolean"
+       },
+       "manager_company_uid": {
+        "format": "uuid",
+        "nullable": true,
+        "type": "string"
+       }
+      },
+      "required": [
+       "enabled"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:station_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "PUT /api/admin/boarding/stations/{station_uid}/bays/carriers": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "bay": {
+        "nullable": true,
+        "pattern": "^[A-Z0-9-]{1,12}$",
+        "type": "string"
+       },
+       "carrier_uid": {
+        "format": "uuid",
+        "type": "string"
+       }
+      },
+      "required": [
+       "carrier_uid"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:station_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "PUT /api/admin/boarding/stations/{station_uid}/bays/mode": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "mode": {
+        "enum": [
+         "CARRIER",
+         "TRIP"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "mode"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:station_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "PUT /api/admin/boarding/stations/{station_uid}/bays/trips": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "bay": {
+        "nullable": true,
+        "pattern": "^[A-Z0-9-]{1,12}$",
+        "type": "string"
+       },
+       "stop_seq": {
+        "maximum": 500.0,
+        "minimum": 0.0,
+        "type": "integer"
+       },
+       "trip_uid": {
+        "format": "uuid",
+        "type": "string"
+       }
+      },
+      "required": [
+       "trip_uid",
+       "stop_seq"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:station_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "PUT /api/admin/boarding/stations/{station_uid}/screens/{screen_uid}/filter": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "bays": {
+        "items": {
+         "type": "string"
+        },
+        "maxItems": 40,
+        "type": "array"
+       },
+       "carriers": {
+        "items": {
+         "format": "uuid",
+         "type": "string"
+        },
+        "maxItems": 40,
+        "type": "array"
+       }
+      },
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:screen_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    },
+    "path:station_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "PUT /api/admin/booking/seat-limits": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "agency_group": {
+        "maximum": 60.0,
+        "minimum": 1.0,
+        "type": "integer"
+       },
+       "basis": {
+        "maxLength": 160,
+        "minLength": 3,
+        "type": "string"
+       },
+       "family_max_seats": {
+        "maximum": 20.0,
+        "minimum": 1.0,
+        "type": "integer"
+       },
+       "max_seats": {
+        "maximum": 20.0,
+        "minimum": 1.0,
+        "type": "integer"
+       }
+      },
+      "required": [
+       "max_seats",
+       "family_max_seats",
+       "agency_group",
+       "basis"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
   "PUT /api/admin/cash/limits/{company_id}": {
    "body": {
     "content": {
@@ -9594,6 +16997,220 @@
      "required": true,
      "schema": {
       "type": "integer"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "PUT /api/admin/charter/commission": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "commission_bp": {
+        "maximum": 3000.0,
+        "minimum": 0.0,
+        "type": "integer"
+       }
+      },
+      "required": [
+       "commission_bp"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "PUT /api/admin/companies/{company_uid}/designator": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "code2": {
+        "nullable": true,
+        "pattern": "^([A-Z][A-Z0-9]|[0-9][A-Z])$",
+        "type": "string"
+       }
+      },
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:company_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "PUT /api/admin/companies/{company_uid}/logo": {
+   "body": {
+    "content": {
+     "multipart/form-data": {
+      "properties": {
+       "file": {
+        "contentMediaType": "application/octet-stream",
+        "type": "string"
+       }
+      },
+      "required": [
+       "file"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:company_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "PUT /api/admin/connections/settings": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "enabled": {
+        "type": "boolean"
+       },
+       "max_minutes": {
+        "maximum": 720.0,
+        "minimum": 10.0,
+        "type": "integer"
+       },
+       "min_minutes": {
+        "maximum": 240.0,
+        "minimum": 10.0,
+        "type": "integer"
+       },
+       "min_minutes_station_change": {
+        "maximum": 360.0,
+        "minimum": 10.0,
+        "type": "integer"
+       },
+       "require_flexible": {
+        "type": "boolean"
+       }
+      },
+      "required": [
+       "enabled",
+       "min_minutes",
+       "min_minutes_station_change",
+       "max_minutes",
+       "require_flexible"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "PUT /api/admin/kyc/form": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "definition": {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       "note": {
+        "maxLength": 500,
+        "nullable": true,
+        "type": "string"
+       }
+      },
+      "required": [
+       "definition"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "PUT /api/admin/kyc/settings/{key}": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "value": {}
+      },
+      "required": [
+       "value"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:key": {
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "PUT /api/admin/kyc/{kyc_uid}": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "answers": {
+        "additionalProperties": true,
+        "type": "object"
+       }
+      },
+      "required": [
+       "answers"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:kyc_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
      }
     }
    },
@@ -9889,6 +17506,227 @@
     "200": {}
    }
   },
+  "PUT /api/admin/photos/settings/approval-stages": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "stages": {
+        "items": {
+         "enum": [
+          "CHECK",
+          "THIRD_PARTY_CHECK",
+          "APPROVE"
+         ],
+         "type": "string"
+        },
+        "maxItems": 5,
+        "minItems": 2,
+        "type": "array"
+       }
+      },
+      "required": [
+       "stages"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "PUT /api/admin/schedules/settings/{key}": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "value": {}
+      },
+      "required": [
+       "value"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:key": {
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "PUT /api/admin/stations/{station_uid}/place": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "place": {
+        "pattern": "^[A-Z][0-9]{3,7}$",
+        "type": "string"
+       }
+      },
+      "required": [
+       "place"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:station_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "PUT /api/admin/trips/cancel-penalty": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "authority_party_id": {
+        "nullable": true,
+        "type": "integer"
+       },
+       "basis": {
+        "enum": [
+         "PERCENT_OF_FARES",
+         "PER_TICKET",
+         "PER_TRIP"
+        ],
+        "nullable": true,
+        "type": "string"
+       },
+       "enabled": {
+        "type": "boolean"
+       },
+       "legal_ref": {
+        "maxLength": 120,
+        "nullable": true,
+        "type": "string"
+       },
+       "payee": {
+        "enum": [
+         "PLATFORM",
+         "PASSENGERS",
+         "AUTHORITY"
+        ],
+        "nullable": true,
+        "type": "string"
+       },
+       "value": {
+        "exclusiveMinimum": 0.0,
+        "nullable": true,
+        "type": "number"
+       },
+       "within_hours": {
+        "maximum": 720.0,
+        "minimum": 0.0,
+        "nullable": true,
+        "type": "integer"
+       }
+      },
+      "required": [
+       "enabled"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "PUT /api/carrier/connection-policy": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "change_window_hours": {
+        "default": 24,
+        "maximum": 168.0,
+        "minimum": 1.0,
+        "type": "integer"
+       },
+       "missed_connection": {
+        "default": "FARE_RULES",
+        "enum": [
+         "FREE_CHANGE",
+         "FARE_RULES",
+         "NONE"
+        ],
+        "type": "string"
+       },
+       "note": {
+        "maxLength": 500,
+        "nullable": true,
+        "type": "string"
+       },
+       "offer_in_connections": {
+        "default": true,
+        "type": "boolean"
+       }
+      },
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "PUT /api/carrier/kyc/{kyc_uid}": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "answers": {
+        "additionalProperties": true,
+        "type": "object"
+       }
+      },
+      "required": [
+       "answers"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:kyc_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "PUT /api/carrier/trips/{trip_uid}/hold": {
    "body": {
     "content": {
@@ -10105,6 +17943,7 @@
           "OPERATOR",
           "DRIVER",
           "AGENCY",
+          "STATION",
           "PASSENGER"
          ],
          "type": "string"
@@ -10122,6 +17961,12 @@
         "maximum": 20.0,
         "minimum": 3.0,
         "type": "integer"
+       },
+       "step_up_minutes": {
+        "default": 10,
+        "maximum": 60.0,
+        "minimum": 5.0,
+        "type": "integer"
        }
       },
       "required": [
@@ -10134,6 +17979,143 @@
     "required": true
    },
    "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "PUT /api/station/bays/carriers": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "bay": {
+        "nullable": true,
+        "pattern": "^[A-Z0-9-]{1,12}$",
+        "type": "string"
+       },
+       "carrier_uid": {
+        "format": "uuid",
+        "type": "string"
+       },
+       "station_uid": {
+        "format": "uuid",
+        "type": "string"
+       }
+      },
+      "required": [
+       "carrier_uid",
+       "station_uid"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "PUT /api/station/bays/mode": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "mode": {
+        "enum": [
+         "CARRIER",
+         "TRIP"
+        ],
+        "type": "string"
+       },
+       "station_uid": {
+        "format": "uuid",
+        "type": "string"
+       }
+      },
+      "required": [
+       "mode",
+       "station_uid"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "PUT /api/station/bays/trips": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "bay": {
+        "nullable": true,
+        "pattern": "^[A-Z0-9-]{1,12}$",
+        "type": "string"
+       },
+       "stop_seq": {
+        "maximum": 500.0,
+        "minimum": 0.0,
+        "type": "integer"
+       },
+       "trip_uid": {
+        "format": "uuid",
+        "type": "string"
+       }
+      },
+      "required": [
+       "trip_uid",
+       "stop_seq"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "PUT /api/station/screens/{screen_uid}/filter": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "bays": {
+        "items": {
+         "type": "string"
+        },
+        "maxItems": 40,
+        "type": "array"
+       },
+       "carriers": {
+        "items": {
+         "format": "uuid",
+         "type": "string"
+        },
+        "maxItems": 40,
+        "type": "array"
+       }
+      },
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:screen_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
    "responses": {
     "200": {}
    }
@@ -10269,6 +18251,29 @@
   "GET /api/v1/events": {
    "body": null,
    "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/v1/loyalty/redemptions": {
+   "body": null,
+   "parameters": {
+    "query:from": {
+     "required": true,
+     "schema": {
+      "format": "date",
+      "type": "string"
+     }
+    },
+    "query:to": {
+     "required": false,
+     "schema": {
+      "format": "date",
+      "nullable": true,
+      "type": "string"
+     }
+    }
+   },
    "responses": {
     "200": {}
    }
@@ -10709,7 +18714,7 @@
            "type": "integer"
           },
           "with_adult": {
-           "maximum": 8.0,
+           "maximum": 120.0,
            "minimum": 1.0,
            "nullable": true,
            "type": "integer"
@@ -10721,7 +18726,7 @@
          ],
          "type": "object"
         },
-        "maxItems": 8,
+        "maxItems": 40,
         "minItems": 1,
         "type": "array"
        },
@@ -10869,7 +18874,7 @@
         "items": {
          "type": "integer"
         },
-        "maxItems": 4,
+        "maxItems": 20,
         "minItems": 1,
         "type": "array"
        },
@@ -10887,6 +18892,59 @@
        "from_seq",
        "to_seq",
        "seat_nos"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/v1/loyalty/vouchers/check": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "code": {
+        "maxLength": 40,
+        "minLength": 10,
+        "type": "string"
+       }
+      },
+      "required": [
+       "code"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/v1/loyalty/vouchers/redeem": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "code": {
+        "maxLength": 40,
+        "minLength": 10,
+        "type": "string"
+       },
+       "reference": {
+        "maxLength": 80,
+        "nullable": true,
+        "type": "string"
+       }
+      },
+      "required": [
+       "code"
       ],
       "type": "object"
      }

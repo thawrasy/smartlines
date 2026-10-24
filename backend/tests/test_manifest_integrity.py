@@ -28,7 +28,11 @@ def modules():
     changed = [k for k in ("cargo", "trip_manifests") if not states.get(k)]
     for k in changed:
         assert admin.put(f"/api/admin/modules/{k}", json={"enabled": True, "reason": "manifest tests"}).status_code == 200
+    # the international trip of this test is not a scheduled one: the parcel policy opens any trip meanwhile (1147)
+    policy = admin.get("/api/admin/parcels/policy").json()
+    assert admin.put("/api/admin/parcels/policy", json={**policy, "scheduled_only": False, "reason": "manifest tests"}).status_code == 200
     yield
+    admin.put("/api/admin/parcels/policy", json={**policy, "reason": "manifest tests done"})
     for k in changed:
         admin.put(f"/api/admin/modules/{k}", json={"enabled": False, "reason": "manifest tests done"})
 
@@ -55,14 +59,14 @@ def international_trip(owner) -> dict:
     assert r.status_code == 201, r.text
     route = next(x for x in owner.get("/api/carrier/routes").json()["routes"] if x["code"] == code)
     layout = next(x for x in owner.get("/api/carrier/seat-layouts").json()["layouts"] if x["total_seats"] == 44)
-    plate = str(100000 + secrets.randbelow(900000))
+    plate = str(1_000_000_000 + secrets.randbelow(9_000_000_000))   # wide enough that two runs never share one
     r = owner.post("/api/carrier/vehicles", json={
         "plate_no": plate, "chassis_no": f"CHS-I{plate}", "vehicle_type": "COACH", "seat_layout_uid": layout["uid"],
         "insurance_no": f"POL-I{plate}", "insurer": "Test", "insurance_issue": "2026-01-01", "insurance_expiry": "2030-01-01"})
     assert r.status_code == 201, r.text
     vehicle = r.json()["uid"]
     email = f"driver{uuid.uuid4().hex[:8]}@example.com"
-    r = owner.post("/api/carrier/crew", json={"full_name": "Border Driver", "email": email, "password": "fresh-driver-password"})
+    r = owner.post("/api/carrier/crew", json={"full_name": "Border Driver", "email": email, "password": "night-crossing-passphrase"})
     assert r.status_code == 201, r.text
     FRESH_DRIVERS.append(email)
     driver = r.json()["uid"]
@@ -106,7 +110,8 @@ def test_an_international_manifest_carries_cargo_is_signed_and_answered_through_
                                                               "pricing_mode": "WEIGHT", "currency": "SYP", "per_kg": 100000}).json()
     r = p.post("/api/parcels", json={"trip_uid": t["uid"], "from_seq": t["from_seq"], "to_seq": t["to_seq"], "tariff_uid": tariff["uid"],
                                      "weight_kg": 6, "length_cm": 40, "width_cm": 30, "height_cm": 20, "description": "Household items",
-                                     "recipient_name": "Maya Haddad", "recipient_mobile": "+9613123456", "idempotency_key": uuid.uuid4().hex})
+                                     "recipient_name": "Maya Haddad", "recipient_mobile": "+9613123456", "idempotency_key": uuid.uuid4().hex,
+                                     "accept_rules": True})
     assert r.status_code == 201, r.text
     tracking = r.json()["tracking_no"]
 

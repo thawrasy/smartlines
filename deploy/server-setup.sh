@@ -39,6 +39,73 @@ ufw allow 443/udp
 ufw --force enable
 # Docker publishes ports through iptables, bypassing ufw: the stack publishes only Caddy's 80 and 443.
 
+# Kernel network hardening (owner's request, October 2026): make the host itself hard to exhaust with
+# background floods (ping/ICMP, half-open SYN connections, spoofed source addresses) before any packet
+# reaches Caddy or the API. These are defence in depth under the application shield (migration 1142).
+cat > /etc/sysctl.d/99-masslak-hardening.conf <<'SYSCTL'
+# Ignore ICMP echo broadcasts (smurf amplification) and rate-limit how fast the host answers pings at all,
+# so "ping -f" style floods cannot keep a core busy answering. The site does not rely on being pingable.
+net.ipv4.icmp_echo_ignore_broadcasts = 1
+net.ipv4.icmp_ratelimit = 100
+net.ipv4.icmp_ratemask = 88089
+# SYN-flood protection: cookies let the host keep accepting real connections while a flood of half-open
+# ones is in flight, with a deeper backlog and fewer retransmits so a stuck handshake is dropped sooner.
+net.ipv4.tcp_syncookies = 1
+net.ipv4.tcp_max_syn_backlog = 4096
+net.ipv4.tcp_synack_retries = 2
+net.core.somaxconn = 4096
+# Reverse-path filtering drops spoofed source addresses; logging martians keeps a trace of attempts.
+net.ipv4.conf.all.rp_filter = 1
+net.ipv4.conf.default.rp_filter = 1
+net.ipv4.conf.all.accept_source_route = 0
+net.ipv4.conf.all.log_martians = 1
+# Do not accept ICMP redirects (route poisoning) on a server that does not route for anyone.
+net.ipv4.conf.all.accept_redirects = 0
+net.ipv6.conf.all.accept_redirects = 0
+net.ipv4.conf.all.send_redirects = 0
+SYSCTL
+sysctl --quiet --system || true
+
+# Edge connection rate limit at the kernel (owner's request): throttle new TCP connections per source
+# address to the published web ports before they reach Caddy, so a single host cannot open connections
+# faster than any real browser would. Docker's own rules sit in the FORWARD chain, so the limit goes in
+# DOCKER-USER, which Docker evaluates first and never flushes. The ceiling is deliberately generous
+# (200 new connections/second per address, short burst) — real traffic, even behind a shared NAT, stays
+# well under it; a flood does not. Per-request abuse is handled above this by the application shield.
+install -m 0755 /dev/stdin /usr/local/sbin/masslak-edge-firewall.sh <<'EDGE'
+#!/usr/bin/env bash
+# Applied by masslak-edge-firewall.service after Docker has created DOCKER-USER. Idempotent: it removes its
+# own rules (marked with the comment) before adding them again.
+set -euo pipefail
+command -v iptables >/dev/null || exit 0
+iptables -w -L DOCKER-USER >/dev/null 2>&1 || exit 0
+# drop our previous rules so a restart does not stack them
+while iptables -w -L DOCKER-USER --line-numbers 2>/dev/null | awk '/masslak-edge/ {print $1}' | tail -1 | grep -q .; do
+  n=$(iptables -w -L DOCKER-USER --line-numbers | awk '/masslak-edge/ {print $1}' | tail -1)
+  iptables -w -D DOCKER-USER "$n"
+done
+for port in 80 443; do
+  iptables -w -I DOCKER-USER -p tcp --dport "$port" --syn \
+    -m hashlimit --hashlimit-name "msk$port" --hashlimit-mode srcip \
+    --hashlimit-above 200/sec --hashlimit-burst 300 \
+    -m comment --comment "masslak-edge" -j DROP
+done
+EDGE
+cat > /etc/systemd/system/masslak-edge-firewall.service <<'UNIT'
+[Unit]
+Description=Masslak edge connection rate limit (DOCKER-USER)
+After=docker.service
+Requires=docker.service
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/masslak-edge-firewall.sh
+[Install]
+WantedBy=multi-user.target
+UNIT
+systemctl daemon-reload
+systemctl enable --now masslak-edge-firewall.service || echo "warning: edge rate-limit rules will apply on next boot"
+
 systemctl enable --now fail2ban unattended-upgrades
 
 # Small servers: the first image build (web interface and Python packages) needs more than 2 GB of memory

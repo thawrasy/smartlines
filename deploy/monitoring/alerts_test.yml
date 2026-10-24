@@ -25,7 +25,7 @@ tests:
         values: "0+100x70"
       - series: 'masslak_http_requests_total{group="booking",status="5xx",method="POST",route="/api/bookings"}'
         values: "0+10x70"
-      - series: masslak_outbox_partitioning_due
+      - series: masslak_outbox_review_due
         values: "0x10 1x80"
       - series: 'masslak_db_function_calls_total{function="audit.tg_capture_change"}'
         values: "0+600x60"
@@ -204,8 +204,8 @@ tests:
         alertname: LedgerDaysNotClosing
         exp_alerts: [{ exp_labels: { severity: ticket }, exp_annotations: { summary: "Ledger days are not being closed (daily upkeep, a long transaction, or the roll-up behind)", runbook: "RUNBOOKS.md#17-ten-million-operations-a-day" } }]
       - eval_time: 75m
-        alertname: OutboxPartitioningDue
-        exp_alerts: [{ exp_labels: { severity: ticket }, exp_annotations: { summary: "The outbox passed capacity.outbox_partition_rows: partition it by day in the next release", runbook: "RUNBOOKS.md#10-load-and-capacity-r-12" } }]
+        alertname: OutboxReviewDue
+        exp_alerts: [{ exp_labels: { severity: ticket }, exp_annotations: { summary: "The outbox holds more rows than capacity.outbox_review_rows: review its retention and the capacity (finished days not dropped, or volume past plan)", runbook: "RUNBOOKS.md#10-load-and-capacity-r-12" } }]
       - eval_time: 50m
         alertname: TriggerCostOverBudget
         exp_alerts: [{ exp_labels: { severity: ticket, function: audit.tg_capture_change }, exp_annotations: { summary: "A trigger spends more than 1 ms per row (cost budget, STANDARDS.md)", runbook: "RUNBOOKS.md#10-load-and-capacity-r-12" } }]
@@ -442,7 +442,7 @@ tests:
         values: "1x30"
       - series: 'masslak_outbox_oldest_pending_seconds'
         values: "1x30"
-      - series: 'masslak_outbox_partitioning_due'
+      - series: 'masslak_outbox_review_due'
         values: "1x30"
       - series: 'masslak_outbox_purge_backlog'
         values: "1x30"
@@ -481,6 +481,10 @@ tests:
       - series: 'masslak_wallet_rollup_lag_seconds'
         values: "1x30"
       - series: 'masslak_ledger_open_days'
+        values: "1x30"
+      - series: 'masslak_context_unsigned_window_open'
+        values: "0x30"
+      - series: 'masslak_settings_guard_loaded'
         values: "1x30"
       - series: 'node_filesystem_avail_bytes{mountpoint="/",fstype="ext4"}'
         values: "50x5 5x20"
@@ -535,3 +539,41 @@ tests:
         exp_alerts:
           - exp_labels: { severity: page, job: masslak-api, instance: "app:8000", task: maintenance }
             exp_annotations: { summary: "The daily upkeep has not succeeded for more than 26 hours", runbook: "RUNBOOKS.md#9-data-lifecycle-r-11" }
+  # reviews of release 1.49.0: an unsigned-context window pages at once; a server without the guard after 5 minutes
+  - interval: 1m
+    input_series:
+      - series: 'masslak_context_unsigned_window_open'
+        values: "0 0 1 1 1 0"
+      - series: 'masslak_settings_guard_loaded'
+        values: "1 1 0 0 0 0 0 0 0 0"
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: ContextUnsignedWindowOpen
+        exp_alerts: []
+      - eval_time: 3m
+        alertname: ContextUnsignedWindowOpen
+        exp_alerts:
+          - exp_labels: { severity: page }
+            exp_annotations: { summary: "A window for request contexts without a ticket is open: row security takes unsigned contexts until it closes", runbook: "RUNBOOKS.md#30-the-request-context-and-its-ticket-reviews-of-october-2026-c-01-and-c-02" }
+      - eval_time: 5m
+        alertname: SettingsGuardMissing
+        exp_alerts: []
+      - eval_time: 8m
+        alertname: SettingsGuardMissing
+        exp_alerts:
+          - exp_labels: { severity: page }
+            exp_annotations: { summary: "The database server does not load the settings guard: a login could set the request context the row rules trust", runbook: "RUNBOOKS.md#30-the-request-context-and-its-ticket-reviews-of-october-2026-c-01-and-c-02" }
+  # a dead delivery names its destination and owner (1138, independent review round 8, T-08)
+  - interval: 1m
+    input_series:
+      - series: 'masslak_webhook_dead_by_endpoint{endpoint="1a2b3c4d",host="erp.partner.example",kind="PARTNER",client="Partner ERP",company="Partner Co",event_types="booking.confirmed"}'
+        values: "0x3 2x5"
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: WebhookEndpointDead
+        exp_alerts: []
+      - eval_time: 6m
+        alertname: WebhookEndpointDead
+        exp_alerts:
+          - exp_labels: { severity: ticket, endpoint: "1a2b3c4d", host: "erp.partner.example", kind: "PARTNER", client: "Partner ERP", company: "Partner Co", event_types: "booking.confirmed" }
+            exp_annotations: { summary: "2 delivery(ies) to erp.partner.example (Partner ERP, Partner Co) gave up in the last 7 days: booking.confirmed", runbook: "RUNBOOKS.md#33-dead-deliveries-who-is-told-and-who-resends" }

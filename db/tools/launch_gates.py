@@ -145,13 +145,24 @@ def pentest(doc) -> list[str]:
 CRITERIA = {1: recovery, 2: egress, 4: migrations, 5: monitoring, 6: audit_archive, 7: file_scanning, 8: pentest}
 
 
+BURST_MIN_SECONDS, BURST_MIN_WARMUP = 600, 60
+
+
+def burst_counts(d: dict) -> bool:
+    """A burst counts for gate 3 when it can be tied to what it measured (reviews of release 1.49.0): a measured window of
+    ten minutes or more after a warm-up, the commit of the build, and a database whose schema matches its release."""
+    return (float(d.get("seconds") or 0) >= BURST_MIN_SECONDS and float(d.get("warmup_seconds") or 0) >= BURST_MIN_WARMUP
+            and bool((d.get("build") or {}).get("commit")) and (d.get("release") or {}).get("hash_matches") is True)
+
+
 def capacity(files: list[tuple[str, str, dict]]) -> tuple[str, list[str], list[str]]:
-    """Gate 3 needs, from staging: the burst passing at 1x and 2x, a 5x run recorded, and a soak of 8 hours passing."""
+    """Gate 3 needs, from staging: the burst passing at 1x and 2x, a 5x run recorded, and a soak of 8 hours passing;
+    each burst of ten minutes or more after a warm-up, on a known build (burst_counts)."""
     staging = [(p, d) for p, env, d in files if env in ("staging", "production")]
     used, missing = [], []
     for label, rate in CAPACITY_RATES.items():
         runs = [(p, d) for p, d in staging if os.path.basename(p).startswith("burst_")
-                and float(d.get("target_per_second") or 0) >= rate]
+                and float(d.get("target_per_second") or 0) >= rate and burst_counts(d)]
         if label == "5x":
             ok = runs
         else:
@@ -159,7 +170,8 @@ def capacity(files: list[tuple[str, str, dict]]) -> tuple[str, list[str], list[s
         if ok:
             used.append(os.path.basename(ok[-1][0]))
         else:
-            missing.append(f"burst at {rate}/s ({label}) {'recorded' if label == '5x' else 'passing'} on staging")
+            missing.append(f"burst at {rate}/s ({label}) {'recorded' if label == '5x' else 'passing'} on staging"
+                           f" ({BURST_MIN_SECONDS // 60} min or more after a warm-up, build and release recorded)")
     soaks = [(p, d) for p, d in staging if os.path.basename(p).startswith("soak_")
              and (d.get("verdict") or {}).get("status") == "PASS" and float(d.get("duration_s") or 0) >= 8 * 3600]
     if soaks:

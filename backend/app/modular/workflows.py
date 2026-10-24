@@ -596,12 +596,14 @@ async def my_freight(request: Request, pr: Principal = Depends(require_user)):
                   LEFT JOIN net.station os ON os.id = r.origin_station_id LEFT JOIN net.station ds ON ds.id = r.dest_station_id
                  WHERE r.shipper_party_id = $1 ORDER BY r.created_at DESC LIMIT 30""", pr.party_id)
         bids = await conn.fetch(
-            """SELECT b.id, b.request_id, b.price, b.currency, b.valid_until, b.status, b.created_at, c.legal_name AS carrier
+            """SELECT b.id, b.request_id, b.price, b.currency, b.valid_until, b.status, b.created_at, c.legal_name AS carrier,
+                      c.uid::text AS carrier_uid, iam.logo_version(c.id) AS carrier_logo
                  FROM frt.freight_bid b JOIN iam.party c ON c.id = b.carrier_company_id
                 WHERE b.request_id = ANY($1::bigint[]) ORDER BY b.price""", [r["id"] for r in rows])
     by_req: dict = {}
     for b in bids:
-        by_req.setdefault(b["request_id"], []).append({k: b[k] for k in ("id", "price", "currency", "valid_until", "status", "created_at", "carrier")})
+        by_req.setdefault(b["request_id"], []).append({k: b[k] for k in ("id", "price", "currency", "valid_until", "status", "created_at", "carrier",
+                                                                       "carrier_uid", "carrier_logo")})
     return {"requests": [{k: (str(v) if k == "uid" else v) for k, v in dict(r).items() if k != "id"} | {"bids": by_req.get(r["id"], [])}
                          for r in rows]}
 

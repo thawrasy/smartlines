@@ -62,7 +62,7 @@ def test_report_files_are_built_in_a_thread_and_a_burst_waits_or_is_refused(monk
 
 
 @pytest.mark.skipif(not OWNER_URL, reason="needs MASSLAK_OWNER_URL")
-def test_a_booking_carries_its_trace_into_the_response_and_its_outbox_event():
+def test_a_booking_carries_its_trace_into_its_outbox_event_not_the_response():
     c = client()
     trip = bookable_trip(c)
     if trip is None:
@@ -74,7 +74,7 @@ def test_a_booking_carries_its_trace_into_the_response_and_its_outbox_event():
     h = pax.post("/api/holds", json={"trip_uid": trip["uid"], "from_seq": trip["from_seq"], "to_seq": trip["to_seq"],
                                      "seat_nos": [seat]})
     assert h.status_code == 201, h.text
-    assert h.headers["traceparent"].startswith(f"00-{TRACE}-")
+    assert "traceparent" not in h.headers                  # kept inside: logs, outbox, outbound calls
     r = pax.post("/api/bookings", json={"hold_token": h.json()["hold_token"], "trip_uid": trip["uid"],
                                         "from_seq": trip["from_seq"], "to_seq": trip["to_seq"], "passengers": [syrian(seat)],
                                         "idempotency_key": uuid.uuid4().hex})
@@ -82,9 +82,6 @@ def test_a_booking_carries_its_trace_into_the_response_and_its_outbox_event():
     stored = owner_sql("""SELECT correlation_id::text FROM sys.outbox_event WHERE event_type = 'booking.confirmed'
                            AND payload ->> 'booking_ref' = $1""", r.json()["booking_ref"])
     assert stored == str(uuid.UUID(TRACE))
-    del pax.headers["traceparent"]
-    other = pax.get("/api/health")
-    assert TRACE not in other.headers["traceparent"]       # a request without the header starts its own trace
 
 
 def test_a_request_line_says_where_its_time_went():

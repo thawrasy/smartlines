@@ -1,0 +1,8 @@
+# the renderers' working folder (render.py)
+generator/work/
+# the build scripts of the Arabic Word documents: Arabic text stays out of the repository (scripts/check_language.py)
+generator/*.js
+# the builders of Arabic files written in Python (same reason)
+generator/*_ar.py
+# the working folder of render_v2.py, render_beh.py and rules_catalog.py
+generator/work2/

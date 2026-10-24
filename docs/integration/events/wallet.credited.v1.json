@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://masslak.com/schemas/events/wallet.credited.v1.json",
+  "title": "wallet.credited",
+  "description": "A partner credited a passenger wallet with money it collected. The data of the envelope (EVENTS.md); fields are only added within a version.",
+  "x-event-type": "wallet.credited",
+  "x-schema-version": 1,
+  "type": "object",
+  "properties": {
+    "payment": {
+      "type": "string"
+    },
+    "reference": {
+      "type": "string"
+    },
+    "amount": {
+      "type": "integer"
+    },
+    "currency": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "payment",
+    "reference",
+    "amount",
+    "currency"
+  ],
+  "additionalProperties": true
+}

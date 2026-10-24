@@ -10,8 +10,14 @@
 
 services:
   db:
-    build: deploy/staging/db
-    image: masslak-staging-db:latest
+    # an init process as PID 1 reaps what pgBackRest leaves behind (its archive-push and check helpers); with postgres
+    # as PID 1 the postmaster reaped them, took an unknown child's exit 103 for a crashed backend and restarted
+    init: true
+    build:
+      context: deploy/staging/db
+      additional_contexts:
+        guard-src: db/guard                   # the settings guard, as in the production image (db/guard)
+    image: masslak-staging-db:${MASSLAK_IMAGE_TAG:-local}
     command:
       - postgres
       - -c
@@ -119,7 +125,9 @@ services:
   alertmanager:
     image: prom/alertmanager:v0.27.0@sha256:e13b6ed5cb929eeaee733479dce55e10eb3bc2e9c4586c705a4e8da41e5eacf5
     restart: unless-stopped
-    command: ["--config.file=/etc/alertmanager/alertmanager.yml", "--storage.path=/alertmanager"]
+    # the receiver's name on the delivery counters, so deploy/monitoring/alert-drill.sh can tell the page from the heartbeat
+    command: ["--config.file=/etc/alertmanager/alertmanager.yml", "--storage.path=/alertmanager",
+              "--enable-feature=receiver-name-in-metrics"]
     volumes:
       - ./deploy/staging/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
       - ./deploy/staging/secrets:/etc/alertmanager/secrets:ro

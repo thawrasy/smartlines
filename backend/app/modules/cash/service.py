@@ -88,7 +88,8 @@ async def sell(conn: asyncpg.Connection, ctx: db.Context, pr: Principal, body) -
 
 async def _booking(conn: asyncpg.Connection, company_id: int, ref: str) -> asyncpg.Record:
     b = await conn.fetchrow(
-        """SELECT b.*, t.trip_no, t.uid AS trip_uid, t.departure_at, t.status AS trip_status, cp.legal_name AS carrier_name
+        """SELECT b.*, t.trip_no, t.trip_code, t.uid AS trip_uid, t.departure_at, t.status AS trip_status, cp.legal_name AS carrier_name,
+                  cp.uid AS carrier_uid, iam.logo_version(cp.id) AS carrier_logo
              FROM sales.booking b JOIN ops.trip t ON t.id = b.trip_id JOIN iam.party cp ON cp.id = b.company_id
             WHERE b.booking_ref = $1 AND b.company_id = $2""", ref.upper(), company_id)
     if b is None:
@@ -144,7 +145,7 @@ async def bookings(conn: asyncpg.Connection, ctx: db.Context, pr: Principal, q: 
     async with db.system_scope(conn, ctx):
         recs = await conn.fetch(
             f"""SELECT b.booking_ref, b.status, b.total_amount, b.currency, b.created_at, b.pay_option, b.pay_method,
-                       b.hold_expires_at AS pay_by, b.contact_mobile, t.trip_no, t.departure_at, sp.legal_name AS sold_by,
+                       b.hold_expires_at AS pay_by, b.contact_mobile, t.trip_no, t.trip_code, t.departure_at, sp.legal_name AS sold_by,
                        (SELECT count(*) FROM sales.ticket k WHERE k.booking_id = b.id) AS passengers, {sales_repo.JOURNEY_SQL}
                   FROM sales.booking b JOIN ops.trip t ON t.id = b.trip_id
                   LEFT JOIN iam.app_user su ON su.id = b.booker_user_id LEFT JOIN iam.party sp ON sp.id = su.party_id
@@ -241,7 +242,7 @@ async def net_cash(conn: asyncpg.Connection, company_id: int, key: str, user_id:
 
 
 async def positions(conn: asyncpg.Connection) -> list[dict]:
-    """Every carrier's cash position in its market's currency (1061)."""
+    """Every carrier's and station operating company's cash position in its market's currency (1061, 1110)."""
     out = []
     for cur in sorted({m.currency for m in await markets.active(conn)}):
         out += await _positions(conn, cur)
@@ -256,10 +257,10 @@ async def _positions(conn: asyncpg.Connection, currency: str) -> list[dict]:
                   (SELECT coalesce(sum(r.amount), 0) FROM fin.cash_remittance r WHERE r.company_id = c.id AND r.status = 'PENDING')::bigint AS pending,
                   coalesce(a.days_0_7, 0) AS days_0_7, coalesce(a.days_8_30, 0) AS days_8_30, coalesce(a.days_31_60, 0) AS days_31_60,
                   coalesce(a.days_61_90, 0) AS days_61_90, coalesce(a.days_over_90, 0) AS days_over_90,
-                  coalesce(a.overdue, 0) AS overdue, a.oldest_unpaid_at
+                  coalesce(a.overdue, 0) AS overdue, a.oldest_unpaid_at, p.uid AS company_uid, iam.logo_version(p.id) AS company_logo
              FROM iam.company c JOIN iam.party p ON p.id = c.id LEFT JOIN fin.cash_credit_limit l ON l.company_id = c.id
              LEFT JOIN fin.cash_aging(now(), $1) a ON a.company_id = c.id
-            WHERE c.company_type IN ('CARRIER','INDIVIDUAL_OPERATOR','FOREIGN_CARRIER') AND c.approval_status = 'APPROVED'
+            WHERE c.company_type IN ('CARRIER','INDIVIDUAL_OPERATOR','FOREIGN_CARRIER','STATION_OPERATOR') AND c.approval_status = 'APPROVED'
               AND ref.company_currency(c.id) = $1
             ORDER BY 5 DESC, p.legal_name""", currency)
     return [{**row_dict(r), "own_limit": r["limit_reason"] is not None} for r in rows]
@@ -278,7 +279,7 @@ async def set_limit(conn: asyncpg.Connection, user_id: int, company_id: int, amo
 
 async def remittances(conn: asyncpg.Connection, status: Optional[str]) -> list[dict]:
     rows = await conn.fetch(
-        """SELECT r.id, r.company_id, p.legal_name AS carrier, r.amount, r.currency, r.method, r.ref, r.status, r.note,
+        """SELECT r.id, r.company_id, p.legal_name AS carrier, p.uid AS carrier_uid, iam.logo_version(p.id) AS carrier_logo, r.amount, r.currency, r.method, r.ref, r.status, r.note,
                   r.created_at, r.confirmed_at, rb.legal_name AS recorded_by_name, cb.legal_name AS confirmed_by_name,
                   r.recorded_by, r.confirmed_by
              FROM fin.cash_remittance r JOIN iam.party p ON p.id = r.company_id
@@ -334,7 +335,7 @@ async def decide_remittance(conn: asyncpg.Connection, user_id: int, rid: int, ap
 
 
 # ------------------------------------------------------------------ the switches
-ALLOWED_CHANNELS = {"WALLET": {"WEB", "APP"}, "AGENCY_BALANCE": {"AGENCY"}, "CASH_COUNTER": {"COUNTER"},
+ALLOWED_CHANNELS = {"WALLET": {"WEB", "APP"}, "AGENCY_BALANCE": {"AGENCY"}, "AGENCY_CASH": {"AGENCY"}, "CASH_COUNTER": {"COUNTER"},
                     "PAY_LATER": {"WEB", "APP"}, "CARD": {"WEB", "APP"}, "INSTALLMENT": {"WEB", "APP"}, "FINANCING": {"WEB", "APP"}}
 CONFIG_KEYS = {
     "CASH_COUNTER": {"default_credit_limit": (0, 100_000_000_000)},

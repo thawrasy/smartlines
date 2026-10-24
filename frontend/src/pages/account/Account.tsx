@@ -4,7 +4,7 @@ import { api } from "../../api";
 import { useI18n } from "../../i18n";
 import { useAuth } from "../../auth";
 import { PageHead } from "../../components/layout";
-import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Status, useLoad, useToast } from "../../components/ui";
+import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Status, useLoad, useToast, PasswordInput } from "../../components/ui";
 
 interface Security {
   sessions: { id: number; portal: string; ip: string; user_agent: string | null; issued_at: string; last_seen_at: string; current: boolean }[];
@@ -65,9 +65,9 @@ export function AccountPage() {
             <div className="card stack">
               <h3>{t("account.password")}</h3>
               {s.password_changed_at && <p className="small muted">{t("account.changedAt", { when: dateTime(s.password_changed_at) })}</p>}
-              <Field label={t("account.current")}><input className="input ltr" type="password" autoComplete="current-password" value={pw.current_password} onChange={(e) => setPw({ ...pw, current_password: e.target.value })} /></Field>
-              <Field label={t("account.new")} hint={t("auth.passwordHint")}><input className="input ltr" type="password" autoComplete="new-password" value={pw.new_password} onChange={(e) => setPw({ ...pw, new_password: e.target.value })} /></Field>
-              <Field label={t("account.repeat")}><input className="input ltr" type="password" autoComplete="new-password" value={pw.repeat} onChange={(e) => setPw({ ...pw, repeat: e.target.value })} /></Field>
+              <Field label={t("account.current")}><PasswordInput autoComplete="current-password" value={pw.current_password} onChange={(e) => setPw({ ...pw, current_password: e.target.value })} /></Field>
+              <Field label={t("account.new")} hint={t("auth.passwordHint")}><PasswordInput autoComplete="new-password" value={pw.new_password} onChange={(e) => setPw({ ...pw, new_password: e.target.value })} /></Field>
+              <Field label={t("account.repeat")}><PasswordInput autoComplete="new-password" value={pw.repeat} onChange={(e) => setPw({ ...pw, repeat: e.target.value })} /></Field>
               <button className="btn" disabled={busy || !pw.current_password || pw.new_password.length < 12 || pw.new_password !== pw.repeat}
                       onClick={() => run(() => api.post("/api/account/password", { current_password: pw.current_password, new_password: pw.new_password }),
                         t("account.passwordChanged"), () => setPw({ current_password: "", new_password: "", repeat: "" }))}>

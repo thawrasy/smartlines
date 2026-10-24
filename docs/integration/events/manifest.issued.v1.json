@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://masslak.com/schemas/events/manifest.issued.v1.json",
+  "title": "manifest.issued",
+  "description": "A trip manifest was issued, sealed and signed. The data of the envelope (EVENTS.md); fields are only added within a version.",
+  "x-event-type": "manifest.issued",
+  "x-schema-version": 1,
+  "type": "object",
+  "properties": {
+    "manifest_uid": {
+      "type": "string"
+    },
+    "trip_no": {
+      "type": "string"
+    },
+    "scope": {
+      "type": "string"
+    },
+    "type": {
+      "type": "string"
+    },
+    "version": {
+      "type": "integer"
+    },
+    "persons": {
+      "type": "integer"
+    },
+    "cargo": {
+      "type": "integer"
+    },
+    "deliveries": {
+      "type": "integer"
+    }
+  },
+  "required": [
+    "manifest_uid",
+    "trip_no",
+    "scope",
+    "type",
+    "version"
+  ],
+  "additionalProperties": true
+}

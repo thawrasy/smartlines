@@ -19,22 +19,30 @@ jobs:
   database:
     name: Schema tests
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgis/postgis:16-3.4@sha256:44126d872ac91993766c341e369c539e8196614321765d36a6f1bab0419a5fa5
-        env: { POSTGRES_PASSWORD: postgres }
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
     env: { PGPASSWORD: postgres }
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      # the database every image of the repository runs: PostGIS with the settings guard (db/guard, 1084), so the
+      # checks below include the ones that need it; a database without it fails here rather than skipping them
+      - name: PostgreSQL with PostGIS and the settings guard
+        run: |
+          docker build -q -t masslak-postgres:ci db/guard
+          docker run -d --name postgres -e POSTGRES_PASSWORD=postgres -p 5432:5432 masslak-postgres:ci \
+            postgres -c shared_preload_libraries=pg_stat_statements
+          for i in $(seq 1 60); do pg_isready -q -h localhost && break; sleep 1; done
+          test "$(psql -h localhost -U postgres -Atc "SELECT count(*) FROM pg_settings WHERE name LIKE 'app.%' AND context = 'superuser'")" = 9
       - name: Build a fresh database and run the checks
-        run: db/tests/run.sh -h localhost -U postgres
+        # pipefail: without it the step takes tee's status and a failed check passes (no shell is named, so bash runs
+        # without it)
+        run: set -o pipefail; db/tests/run.sh -h localhost -U postgres | tee db_tests.log
+      - name: Keep the checks' output for the evidence pack
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with: { name: db-tests, path: db_tests.log, retention-days: 30 }
       - name: Upgrading an existing database applies nothing twice
         run: |
           createdb -h localhost -U postgres upgrade_check
           db/build.sh upgrade_check -h localhost -U postgres > /dev/null
+          set -o pipefail
           db/upgrade.sh upgrade_check -h localhost -U postgres | tee upgrade.log
           ! grep -q '^>>' upgrade.log
       - name: An applied schema file that changed stops the upgrade before anything is applied (review stage A5)
@@ -72,6 +80,8 @@ jobs:
         run: python3 db/tools/gen_docs.py --check upgrade_check -h localhost -U postgres
       - name: No new two-way module dependency or table cycle without a recorded reason
         run: python3 db/tools/schema_dependencies.py upgrade_check -h localhost -U postgres
+      - name: Architecture fitness (no new foreign key without an index, no privilege change outside the baseline, nothing granted to PUBLIC, every table classified)
+        run: python3 db/tools/fitness.py upgrade_check -h localhost -U postgres
 
   warehouse:
     # Review stage D3: a primary with logical WAL streams facts and dimensions to a separate warehouse, without
@@ -87,8 +97,8 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
-        with: { python-version: "3.11", cache: pip, cache-dependency-path: backend/requirements*.txt }
-      - run: pip install -r backend/requirements.txt
+        with: { python-version: "3.11", cache: pip, cache-dependency-path: "backend/requirements*" }
+      - run: pip install --require-hashes -r backend/requirements.lock
       - name: A primary with logical WAL and a warehouse server
         run: |
           IMAGE=postgis/postgis:16-3.4@sha256:44126d872ac91993766c341e369c539e8196614321765d36a6f1bab0419a5fa5
@@ -131,21 +141,19 @@ jobs:
   api:
     name: API end-to-end tests
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgis/postgis:16-3.4@sha256:44126d872ac91993766c341e369c539e8196614321765d36a6f1bab0419a5fa5
-        env: { POSTGRES_PASSWORD: postgres, POSTGRES_DB: masslak }
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       PGPASSWORD: postgres
+      # the settings guard's tests act as the API's login; on this database they must run, not skip (db/guard, 1084)
+      MASSLAK_GUARD_REQUIRED: "1"
       MASSLAK_DATABASE_URL: postgresql://masslak_api:ci-api-password@localhost:5432/masslak
       MASSLAK_AUDIT_DATABASE_URL: postgresql://masslak_audit:ci-audit-password@localhost:5432/masslak
       MASSLAK_OWNER_URL: postgresql://postgres:postgres@localhost:5432/masslak
       MASSLAK_SANDBOX: "true"
+      MASSLAK_API_DOCS: "true"          # the test server publishes its API document for the contract tests
       MASSLAK_COOKIE_SECURE: "false"
       MASSLAK_SIGNING_SECRET: ci-signing-secret-not-for-production-use
+      # the tests board tickets of trips departing days ahead; production keeps three hours (the window of 10 Oct 2026)
+      MASSLAK_TICKET_OPENS_HOURS: "8760"
       MASSLAK_RATE_AUTH_PER_MINUTE: "600"
       MASSLAK_RATE_AUTH_IP_PER_MINUTE: "6000"
       # the whole suite runs from one address faster than any real client; production keeps the defaults (240 / 1200)
@@ -156,13 +164,19 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
-        with: { python-version: "3.11", cache: pip, cache-dependency-path: backend/requirements*.txt }
-      - run: pip install -r backend/requirements-dev.txt
+        with: { python-version: "3.11", cache: pip, cache-dependency-path: "backend/requirements*" }
+      - run: pip install --require-hashes -r backend/requirements.lock && pip install -r backend/requirements-dev.txt
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with: { node-version: "22", cache: npm, cache-dependency-path: frontend/package-lock.json }
       - name: Build the web interface the API serves (checked in the browser below)
         working-directory: frontend
         run: npm ci && npm run build
+      - name: PostgreSQL with PostGIS and the settings guard (db/guard, 1084)
+        run: |
+          docker build -q -t masslak-postgres:ci db/guard
+          docker run -d --name postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=masslak -p 5432:5432 masslak-postgres:ci \
+            postgres -c shared_preload_libraries=pg_stat_statements
+          for i in $(seq 1 60); do pg_isready -q -h localhost -d masslak && break; sleep 1; done
       - name: Schema, login roles (with the key that signs request contexts, 1080) and demo data
         run: |
           db/build.sh masslak -h localhost -U postgres > /dev/null
@@ -180,11 +194,23 @@ jobs:
           cat ../api.log; exit 1
       - name: Unit and end-to-end tests
         working-directory: backend
-        run: python -m coverage run -m pytest tests -q
+        run: set -o pipefail; python -m coverage run -m pytest tests -q --junitxml=../junit.xml 2>&1 | tee ../api_tests.log   # a failed test fails the step
+      - name: Every event the suite produced matches its published contract (docs/integration/events, systems review of study 3.8)
+        working-directory: backend
+        env: { MASSLAK_EVENT_CONTRACTS_LIVE: "1" }
+        # its own JUnit report: the suite skips this check, so the evidence pack takes its result from here
+        run: python -m pytest tests/test_event_contracts.py -q --junitxml=../junit_events.xml
+      - name: A station counter for the browser checks, boarding stations switched on at one station (design review of the station screens)
+        working-directory: backend
+        run: python tests/ui_station_setup.py ../station-ui.json
       - name: Accessibility and right-to-left layout of the web interface, English and Arabic, phone and desktop (code review 6.2)
         working-directory: frontend
-        env: { MASSLAK_UI_BASE: "http://localhost:8077", CHROME: /usr/bin/google-chrome }
+        env: { MASSLAK_UI_BASE: "http://localhost:8077", CHROME: /usr/bin/google-chrome, MASSLAK_UI_STATION: ../station-ui.json }
         run: npm run ui-checks
+      - name: Content-Security-Policy in a browser, no inline code allowed and no violation (reviews of release 1.49.0)
+        working-directory: frontend
+        env: { MASSLAK_UI_BASE: "http://localhost:8077", CHROME: /usr/bin/google-chrome }
+        run: npm run csp-check
       - name: Positions in a telemetry database (review stage D2), through a second API configured for it
         working-directory: backend
         env:
@@ -251,13 +277,84 @@ jobs:
           python -m coverage combine
           python -m coverage report --sort=cover | tail -60
           python -m coverage json -q -o coverage.json
-          python scripts/coverage_gate.py > gate.txt; rc=$?
+          rc=0; python scripts/coverage_gate.py > gate.txt || rc=$?    # the shell stops at a failed command: keep going to print why
           cat gate.txt
           { echo "### Test coverage (R-52)"; echo '```'; cat gate.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           exit $rc
+      - name: Keep the test output, the JUnit report and the coverage for the evidence pack
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: api-tests
+          path: |
+            api_tests.log
+            junit.xml
+            junit_events.xml
+            backend/coverage.json
+          retention-days: 30
       - name: API log on failure
         if: failure()
         run: tail -200 api.log; tail -100 api_tel.log 2>/dev/null || true; tail -100 api_s3.log 2>/dev/null || true
+
+  evidence:
+    # Evaluation reports of October 2026 (TEM R-15; owner's approval): every commit gets its evidence pack, built from
+    # this run's own test output: the critical controls quoted from the code with the result of the tests that prove
+    # them, every test with its result, the coverage, the database's structure and grants, the measurements. The
+    # reviewer edition holds no source file (owner's decision: documents for the independent reviewer, no access to
+    # the repository). The release workflow attaches the reviewer edition to the signed release.
+    name: Evidence pack
+    needs: [database, api]
+    runs-on: ubuntu-latest
+    env: { PGPASSWORD: postgres }
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with: { name: db-tests, path: "${{ runner.temp }}/logs" }
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with: { name: api-tests, path: "${{ runner.temp }}/logs" }
+      - name: The database of this commit (structure and grants for the pack)
+        run: |
+          docker build -q -t masslak-postgres:ci db/guard
+          docker run -d --name postgres -e POSTGRES_PASSWORD=postgres -p 5432:5432 masslak-postgres:ci
+          for i in $(seq 1 60); do pg_isready -q -h localhost && break; sleep 1; done
+          createdb -h localhost -U postgres evidence
+          db/build.sh evidence -h localhost -U postgres > /dev/null
+      - name: Build the full and the reviewer editions
+        run: |
+          L="$RUNNER_TEMP/logs"; sha="$(git rev-parse --short=12 HEAD)"
+          for edition in full reviewer; do
+            flag=""; [ "$edition" = reviewer ] && flag="--reviewer"
+            db/tools/evidence_pack.sh evidence "$RUNNER_TEMP/masslak-evidence-$edition-$sha" --db-log "$L/db_tests.log" \
+              --api-log "$L/api_tests.log" --junit "$L/junit.xml" --junit "$L/junit_events.xml" --coverage "$L/backend/coverage.json" $flag -h localhost -U postgres
+          done
+          cat "$RUNNER_TEMP/masslak-evidence-full-$sha/critical/CRITICAL_CONTROLS.md" | grep -E '^## |^Tests' >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with: { name: evidence-pack-reviewer, path: "${{ runner.temp }}/masslak-evidence-reviewer-*.tar.gz", retention-days: 90 }
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with: { name: evidence-pack-full, path: "${{ runner.temp }}/masslak-evidence-full-*.tar.gz", retention-days: 90 }
+
+  evidence-verify:
+    # Independent review, round 9 (Team R-24): the pack must not be the only witness of itself. Another job, on another
+    # runner, with no database and nothing from the build but the published archive, recomputes what the pack claims
+    # from its raw files (db/tools/verify_pack.py) and publishes the verdict next to it. A release signs that verdict.
+    name: Evidence pack verified apart from its build
+    needs: evidence
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with: { sparse-checkout: db/tools/verify_pack.py, sparse-checkout-cone-mode: false }
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with: { name: evidence-pack-reviewer, path: "${{ runner.temp }}/pack" }
+      - name: Recompute the pack's claims from its raw files
+        run: |
+          cd "$RUNNER_TEMP/pack"
+          tarball="$(ls masslak-evidence-reviewer-*.tar.gz)"
+          mkdir unpacked && tar -xzf "$tarball" -C unpacked
+          dir="$(ls -d unpacked/*/)"
+          python3 "$GITHUB_WORKSPACE/db/tools/verify_pack.py" "$dir" --out VERIFIED.txt
+          { echo "archive: $tarball"; echo "sha256: $(sha256sum "$tarball" | cut -d' ' -f1)"; echo "run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"; } >> VERIFIED.txt
+          cat VERIFIED.txt >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with: { name: evidence-pack-verified, path: "${{ runner.temp }}/pack/VERIFIED.txt", retention-days: 90 }
 
   web:
     name: Web build
@@ -283,14 +380,18 @@ jobs:
         run: npm run typecheck
       - name: Core unit tests (session, ticket credentials, offline boarding)
         run: npm test
-      - name: Bundle both variants (Metro resolves every import)
+      - name: Bundle the three variants (Metro resolves every import), with their source maps
         env: { CI: "1", EXPO_OFFLINE: "1" }
         run: |
-          npx expo export --platform android --output-dir /tmp/passenger
-          APP_VARIANT=driver npx expo export --clear --platform ios --output-dir /tmp/driver
-          APP_VARIANT=operator npx expo export --clear --platform android --output-dir /tmp/operator
+          npx expo export --platform android --source-maps --output-dir /tmp/passenger
+          APP_VARIANT=driver npx expo export --clear --platform ios --source-maps --output-dir /tmp/driver
+          APP_VARIANT=operator npx expo export --clear --platform android --source-maps --output-dir /tmp/operator
       - name: Known vulnerabilities in app dependencies
         run: npm audit --omit=dev --audit-level=critical
+      - name: Every advisory classed build or runtime; none classed build ships in a bundle (M-11)
+        run: |
+          npm audit --json > audit.json || true
+          python3 ../scripts/mobile_advisories.py audit.json /tmp/passenger /tmp/driver /tmp/operator
 
   stack:
     name: Deployment stack (compose, HTTPS, backup and restore)
@@ -317,6 +418,13 @@ jobs:
           curl -fsSk https://localhost/ | grep -q '<div id="root">'
           test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost/)" = 308       # plain HTTP redirects
           curl -sSkI https://localhost/ | grep -qi '^strict-transport-security'
+          # no token from a URL reaches Caddy's logs (reviews of release 1.49.0, F-03)
+          curl -sk -o /dev/null "https://localhost/api/verify?token=ci-token-must-not-be-logged-1"
+          curl -sk -o /dev/null "https://localhost/api/reports/deliveries/ci-token-must-not-be-logged-2"
+          sleep 1
+          logs="$(docker compose --env-file deploy/.env logs caddy)"
+          echo "$logs" | grep -q 'token=REDACTED' && echo "$logs" | grep -q 'deliveries/REDACTED'
+          ! echo "$logs" | grep -q 'ci-token-must-not-be-logged'
       - name: Sign in and search (demo data)
         run: |
           curl -fsSk -c jar -H 'X-Masslak-Client: web' -H 'Content-Type: application/json' \
@@ -330,6 +438,12 @@ jobs:
           test "$($dc exec -T db-replica psql -U postgres -Atc 'SELECT pg_is_in_recovery()')" = t
           test "$($dc exec -T db psql -U postgres -Atc "SELECT count(*) FROM pg_stat_replication WHERE state = 'streaming'")" = 1
           $dc exec -T app printenv MASSLAK_REPORTS_DATABASE_URL | grep -q '@db-replica:'
+      - name: The primary and the replica load the settings guard (reviews of release 1.49.0, db/guard)
+        run: |
+          dc="docker compose --env-file deploy/.env"
+          for svc in db db-replica; do
+            test "$($dc exec -T $svc psql -U postgres -d masslak -Atc "SELECT sys.guard_status()")" = t
+          done
       - name: The API and the worker reach the database through PgBouncer in transaction mode (capacity model)
         run: |
           dc="docker compose --env-file deploy/.env"
@@ -392,8 +506,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-      - name: Tools a production server has (age, rclone)
-        run: sudo apt-get install -y -qq age rclone > /dev/null
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      - uses: anchore/sbom-action/download-syft@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        id: syft
+      - name: Tools a production server has (age, rclone, cosign; syft stands for the release workflow's)
+        run: |
+          sudo apt-get install -y -qq age rclone > /dev/null
+          sudo install "$(command -v cosign)" /usr/local/bin/cosign
+          sudo install "${{ steps.syft.outputs.cmd }}" /usr/local/bin/syft
       - name: An incomplete production setup is refused before anything is built
         run: |
           sudo ./deploy/init-env.sh --domain localhost --email ops@install.test
@@ -402,12 +522,14 @@ jobs:
           cat refused.log
           test "$rc" != 0 && grep -q 'MASSLAK_KMS_PROVIDER=vault is required' refused.log && grep -q 'PGBACKREST_REPO1_TYPE' refused.log
           test -z "$(sudo docker ps -q)"
-      - name: Stand-ins for the key service, object storage and the alert receivers (CI only)
+      - name: Stand-ins for the key service, object storage, the alert receivers and the release workflow (CI only)
         run: sudo ./deploy/production/ci/setup.sh
-      - name: Installation in the production profile
+      - name: Installation in the production profile, from the signed images (H-08)
         run: |
-          sudo ./deploy/install.sh --domain localhost --admin-email admin@install.test --skip-server-setup
-          sudo chown "$USER" deploy/.env deploy/FIRST_LOGIN.txt
+          sudo ./deploy/install.sh --domain localhost --admin-email admin@install.test --skip-server-setup | tee install.log
+          test "${PIPESTATUS[0]}" = 0
+          grep -q 'verified masslak-db' install.log && ! grep -q 'Building and starting' install.log    # pulled, never built
+          sudo chown "$USER" deploy/.env deploy/FIRST_LOGIN.txt IMAGES
           grep -q '^MASSLAK_SANDBOX=false$' deploy/.env && grep -q '^MASSLAK_ENVIRONMENT=production$' deploy/.env
           curl -fsSk https://localhost/api/ready | tee ready.json | grep -q '"ready":true'
           sudo docker compose --env-file deploy/.env logs migrate | grep -q 'production preflight passed'
@@ -432,6 +554,42 @@ jobs:
           # no decoding plugin but pgoutput (H-10)
           if q "SELECT pg_create_logical_replication_slot('zz_probe', 'test_decoding')" 2> plugin.log; then exit 1; fi
           grep -q 'test_decoding' plugin.log
+          # the telemetry database too (reviews of release 1.49.0): the API's own login reaches it over TLS with the
+          # certificate checked, and a connection without TLS is refused before any password
+          $dc exec -T app python -c "import asyncio, os, asyncpg
+          async def main():
+              c = await asyncpg.connect(os.environ['MASSLAK_TELEMETRY_DATABASE_URL'])
+              assert await c.fetchval('SELECT ssl FROM pg_stat_ssl WHERE pid = pg_backend_pid()') is True
+              await c.close()
+          asyncio.run(main())"
+          if psql_in "host=telemetry dbname=masslak_tel user=postgres sslmode=disable" 2> tel_plain.log; then exit 1; fi
+          grep -q 'no encryption' tel_plain.log
+      - name: The settings guard - the API's login cannot set the context the row rules trust (reviews of release 1.49.0)
+        run: |
+          dc="sudo docker compose --env-file deploy/.env"
+          # loaded on the primary and on the replica, and the readiness check requires it on a production server
+          for svc in db db-replica; do
+            test "$($dc exec -T $svc psql -U postgres -d masslak -Atc "SELECT sys.guard_status()")" = t
+          done
+          $dc exec -T app python -c "import json, urllib.request; c = json.load(urllib.request.urlopen('http://localhost:8000/api/ready'))['checks']; assert c['settings_guard'], c"
+          # the reviewers' reproduction, as the API's own login through PgBouncer over TLS: refused now
+          $dc exec -T app python - <<'PY'
+          import asyncio, os, asyncpg
+          async def main():
+              conn = await asyncpg.connect(os.environ["MASSLAK_DATABASE_URL"])
+              try:
+                  for statement in ("SET LOCAL app.scope = 'PLATFORM'", "SET LOCAL fin.posting_entry = '1'"):
+                      try:
+                          async with conn.transaction():
+                              await conn.execute(statement)
+                      except asyncpg.InsufficientPrivilegeError as exc:
+                          print("refused:", statement, "-", exc)
+                      else:
+                          raise SystemExit(f"accepted: {statement}")
+              finally:
+                  await conn.close()
+          asyncio.run(main())
+          PY
       - name: WAL archived off the host, proven before the migration; a full backup into the repository (H-02)
         run: |
           dc="sudo docker compose --env-file deploy/.env"
@@ -516,11 +674,26 @@ jobs:
           sudo cp env.saved deploy/.env
           sudo ./deploy/update.sh
           curl -fsSk https://localhost/api/ready | grep -q '"ready":true'
+      - name: An image the release did not sign is refused, and the running version keeps serving (H-08)
+        run: |
+          # the API's image changed after the release (one label added) and pushed under the same name, unsigned
+          printf 'FROM %s\nLABEL tampered=true\n' "$(sed -n 's/^masslak=//p' IMAGES)" | sudo docker build -q -t 127.0.0.1:5000/masslak:tampered - > /dev/null
+          sudo docker push -q 127.0.0.1:5000/masslak:tampered > /dev/null
+          bad="$(sudo docker inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' 127.0.0.1:5000/masslak:tampered | grep -m1 '^127.0.0.1:5000/masslak@')"
+          sed "s|^masslak=.*|masslak=$bad|" IMAGES > IMAGES.tampered
+          set +e; sudo MASSLAK_IMAGES="$PWD/IMAGES.tampered" ./deploy/update.sh 2> refused.log; rc=$?; set -e
+          cat refused.log
+          test "$rc" != 0 && grep -q 'masslak .* is not signed by the key' refused.log
+          curl -fsSk https://localhost/api/ready | grep -q '"ready":true'
+          # the API still runs the signed image
+          running="$(sudo docker image inspect -f '{{.Id}}' "masslak:$(sed -n 's/^MASSLAK_IMAGE_TAG=//p' deploy/.env)")"
+          test "$running" = "$(sudo docker image inspect -f '{{.Id}}' "$(sed -n 's/^masslak=//p' IMAGES)")"
       - name: Alerts reach the receivers and every metric the alerts rest on is collected (H-07, addition 2)
         run: |
           dc="sudo docker compose --env-file deploy/.env"
           sudo ./deploy/monitoring/alert-drill.sh 120
-          $dc logs sink | grep -q '"uri":"/page"'
+          for i in $(seq 10); do $dc logs sink | grep -q '"uri":"/page"' && break; sleep 1; done
+          $dc logs sink | grep -q '"uri":"/page"'                                   # the receiver itself got the page
           prom() { $dc exec -T prometheus wget -qO- "http://localhost:9090/api/v1/query?query=$1"; }
           for i in $(seq 40); do
             prom 'count(up==1)' | grep -q '"value":\[[0-9.]*,"5"\]' && break; sleep 5
@@ -531,6 +704,174 @@ jobs:
       - name: Logs on failure
         if: failure()
         run: sudo docker compose --env-file deploy/.env logs --tail 200
+
+  production-ha:
+    # Reviews of October 2026, H-01: a production database runs on two hosts with automatic failover (Patroni, etcd,
+    # HAProxy), and the installer requires it, or the owner's written acceptance of one host. This job plays the three
+    # machines on one runner, each on its own private address (a dummy interface): the application host 10.77.0.10 and
+    # the database hosts 10.77.0.11 and 10.77.0.12, each installed from its bundle with the signed database image. It
+    # then kills the primary under load and measures how long writes stop and whether any acknowledged write is lost.
+    name: Production with two database hosts (Patroni, etcd, HAProxy, failover drill)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      - uses: anchore/sbom-action/download-syft@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        id: syft
+      - name: Tools a production server has (age, rclone, cosign), and the drill's database client
+        run: |
+          sudo apt-get install -y -qq age rclone > /dev/null
+          sudo install "$(command -v cosign)" /usr/local/bin/cosign
+          sudo install "${{ steps.syft.outputs.cmd }}" /usr/local/bin/syft
+          python3 -m venv /tmp/drill
+          /tmp/drill/bin/pip install -q "asyncpg==$(sed -n 's/^asyncpg==\([0-9.]*\).*/\1/p' backend/requirements.lock)"
+      - name: Three machines on one runner, a private address each
+        run: |
+          sudo ip link add masslak0 type dummy
+          sudo ip link set masslak0 up
+          for a in 10 11 12; do sudo ip addr add "10.77.0.$a/24" dev masslak0; done
+      - name: Settings for two database hosts; stand-ins for the key service, object storage, alerts and the release
+        run: |
+          sudo ./deploy/init-env.sh --domain localhost --email ops@install.test
+          for kv in MASSLAK_DB_LAYOUT=ha MASSLAK_DB_HOSTS=10.77.0.11,10.77.0.12 MASSLAK_DB_WITNESS=10.77.0.10; do
+            sudo sed -i "s|^${kv%%=*}=.*|$kv|" deploy/.env
+            sudo grep -q "^$kv$" deploy/.env || echo "$kv" | sudo tee -a deploy/.env > /dev/null
+          done
+          sudo ./deploy/production/ci/setup.sh
+      - name: The installation is refused until both database hosts run
+        run: |
+          set +e; sudo ./deploy/install.sh --domain localhost --admin-email admin@install.test --skip-server-setup 2> refused.log; rc=$?; set -e
+          cat refused.log
+          test "$rc" != 0 && grep -q 'show 0 primaries, not one' refused.log
+          test -z "$(sudo docker ps -q --filter name=masslak-app)"
+      - name: Each database host from its bundle (signed image checked; etcd and Patroni over TLS)
+        run: |
+          sudo ./deploy/production/init.sh                # the bundles now carry IMAGES and the key that checks it
+          for i in 1 2; do
+            sudo MASSLAK_DB_WATCHDOG=off ./deploy/production/ha/install-db-host.sh "deploy/production/ha/bundles/db$i.tar.gz" "/etc/masslak/db$i" | tee "db$i.log"
+            test "${PIPESTATUS[0]}" = 0
+            grep -q 'verified masslak-db' "db$i.log"
+          done
+          # the first Patroni to find etcd ready becomes the primary, the other its synchronous standby
+          roles="$(./deploy/production/ci/roles.sh 180)"; eval "$roles"
+          echo "primary $PRIMARY ($PRIMARY_ADDR), synchronous standby $STANDBY ($STANDBY_ADDR)"
+          # nothing answers without TLS, and etcd refuses a client without the cluster's certificate
+          if curl -s --max-time 5 "http://$PRIMARY_ADDR:8008/health"; then exit 1; fi
+          if curl -s --max-time 5 --cacert deploy/production/tls/ca.crt "https://$PRIMARY_ADDR:2379/health"; then exit 1; fi
+          sudo docker exec masslak-db1-etcd-1 etcdctl --endpoints=https://10.77.0.11:2379 --cacert /tls/ca.crt \
+            --cert /tls/cluster.crt --key /tls/cluster.key endpoint health --cluster
+      - name: Installation against the two hosts; the stack reaches the primary through HAProxy, TLS checked end to end
+        run: |
+          sudo ./deploy/install.sh --domain localhost --admin-email admin@install.test --skip-server-setup | tee install.log
+          test "${PIPESTATUS[0]}" = 0
+          sudo chown "$USER" deploy/.env deploy/FIRST_LOGIN.txt IMAGES
+          curl -fsSk https://localhost/api/ready | grep -q '"ready":true'
+          roles="$(./deploy/production/ci/roles.sh 30)"; eval "$roles"
+          dc="sudo docker compose --env-file deploy/.env"
+          $dc logs migrate | grep -q 'the database layout is two hosts with a synchronous standby'
+          $dc exec -T db masslak-patroni cluster
+          q() { $dc exec -T "${2:-db}" psql -d masslak -Atc "$1"; }
+          test "$(q "SELECT host(inet_server_addr()) || ' ' || pg_is_in_recovery()")" = "$PRIMARY_ADDR false"
+          test "$(q "SELECT host(inet_server_addr()) || ' ' || pg_is_in_recovery()" db-replica)" = "$STANDBY_ADDR true"
+          # the standby streams over TLS and confirms every commit; no network connection is unencrypted
+          test "$(q "SELECT count(*) FROM pg_stat_replication r JOIN pg_stat_ssl s USING (pid) WHERE s.ssl AND r.sync_state = 'sync'")" = 1
+          test "$(q "SELECT count(*) FROM pg_stat_ssl s JOIN pg_stat_activity a USING (pid) WHERE a.client_addr IS NOT NULL AND NOT s.ssl")" = 0
+          test "$(q "SELECT count(*) FROM pg_stat_ssl s JOIN pg_stat_activity a USING (pid) WHERE a.usename = 'masslak_api' AND s.ssl")" -ge 1
+          # zero data loss is on (owner's decision 1): Patroni's strict synchronous mode
+          grep -q '^MASSLAK_ZERO_DATA_LOSS=on$' deploy/.env
+          $dc exec -T db masslak-patroni durability on | grep -q 'synchronous_mode_strict=True'
+          # both hosts load the settings guard under Patroni (reviews of release 1.49.0, db/guard)
+          test "$(q "SELECT sys.guard_status()")" = t && test "$(q "SELECT sys.guard_status()" db-replica)" = t
+      - name: WAL archived from the primary host; the backup taken by whichever host is the primary
+        run: |
+          roles="$(./deploy/production/ci/roles.sh 30)"; eval "$roles"
+          sudo ./deploy/pitr/check-archive.sh
+          for i in 1 2; do sudo docker exec -u postgres "masslak-db$i-patroni-1" masslak-backup-if-primary full | tee -a backup.log; done
+          grep -q 'this host is a standby now' backup.log
+          sudo docker exec -u postgres "masslak-$PRIMARY-patroni-1" pgbackrest --stanza=masslak info | tee pgbackrest.info
+          grep -q 'full backup' pgbackrest.info && grep -q 'cipher: aes-256-cbc' pgbackrest.info
+      - name: With zero data loss on, a commit made while the standby host is down waits for it
+        run: |
+          roles="$(./deploy/production/ci/roles.sh 30)"; eval "$roles"
+          dc="sudo docker compose --env-file deploy/.env"
+          sudo docker stop "masslak-$STANDBY-patroni-1"
+          if timeout 10 $dc exec -T db psql -d masslak -qc "CREATE TABLE zz_ha_probe (x int)"; then
+            echo "a commit went through with no standby to confirm it"; exit 1; fi
+          sudo docker start "masslak-$STANDBY-patroni-1"
+          roles="$(./deploy/production/ci/roles.sh 120)"; eval "$roles"
+          test "$($dc exec -T db psql -d masslak -Atc "SELECT count(*) FROM pg_class WHERE relname = 'zz_ha_probe'")" = 1
+          curl -fsSk https://localhost/api/ready | grep -q '"ready":true'
+      - name: Failover drill under load - the primary host fails, the standby takes over, no acknowledged write is lost
+        run: |
+          roles="$(./deploy/production/ci/roles.sh 60)"; eval "$roles"
+          echo "PRIMARY_BEFORE=$PRIMARY" >> "$GITHUB_ENV"
+          dc="sudo docker compose --env-file deploy/.env"
+          # with two hosts and zero data loss on, writes wait for a lost host to return (the step before); the drill
+          # measures the failover itself with the setting off, and the next step turns it on again
+          $dc exec -T db masslak-patroni durability off
+          sleep 12                                      # Patroni applies a configuration change within its 10 s loop
+          sudo docker compose --env-file deploy/.env cp caddy:/data/caddy/pki/authorities/local/root.crt caddy-root.crt
+          sudo chown "$USER" caddy-root.crt
+          pw="$(sed -n 's/^POSTGRES_PASSWORD=//p' deploy/.env)"
+          /tmp/drill/bin/python db/tools/failover_drill.py --kill ./deploy/production/ci/kill-primary.sh \
+            --dsn "postgresql://postgres:$pw@10.77.0.11:5432,10.77.0.12:5432/masslak?target_session_attrs=read-write&sslmode=verify-full&sslrootcert=deploy/production/tls/ca.crt" \
+            --api https://localhost/api/ready --api-ca caddy-root.crt --rate 20 --warmup 15 --settle 30 --json failover.json || true
+          STANDBY_ADDR="$STANDBY_ADDR" python3 -c 'import json, os; d = json.load(open("failover.json")); print(json.dumps(d, indent=1)); assert d["passed"] and d["lost"] == 0 and d["acknowledged"] > 300 and d["new_primary"].startswith(os.environ["STANDBY_ADDR"]) and d["api_ready_at_end"], d'
+      - name: The old primary rejoins as the synchronous standby, and zero data loss is on again
+        run: |
+          dc="sudo docker compose --env-file deploy/.env"
+          test "$(cat /tmp/masslak-killed)" = "$PRIMARY_BEFORE"
+          sudo docker start "masslak-$PRIMARY_BEFORE-patroni-1"
+          # the old primary rewinds, then replays to a consistent point: wait while its replay moves (up to 10 minutes),
+          # not a fixed time, and say what it was doing when it stopped
+          last="" still=0
+          for i in $(seq 300); do
+            roles="$(./deploy/production/ci/roles.sh 0 2>/dev/null)" && break
+            now="$(curl -s --max-time 3 --cacert deploy/production/tls/ca.crt "https://$(test "$PRIMARY_BEFORE" = db1 && echo 10.77.0.11 || echo 10.77.0.12):8008/patroni" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("state"), d.get("xlog", {}).get("replayed_location"), d.get("xlog", {}).get("received_location"))' 2>/dev/null || echo unreachable)"
+            if [ "$now" = "$last" ]; then still=$((still + 1)); else still=0; last="$now"; echo "old primary: $now"; fi
+            [ "$still" -lt 60 ] || { echo "the old primary made no progress for 120 s: $now"; exit 1; }
+            sleep 2
+          done
+          roles="$(./deploy/production/ci/roles.sh 0)"; eval "$roles"
+          test "$STANDBY" = "$PRIMARY_BEFORE"
+          $dc exec -T db masslak-patroni cluster
+          $dc exec -T db masslak-patroni durability on | grep -q 'synchronous_mode_strict=True'
+          test "$($dc exec -T db-replica psql -d masslak -Atc "SELECT host(inet_server_addr()) || ' ' || pg_is_in_recovery()")" = "$STANDBY_ADDR true"
+          for i in $(seq 15); do curl -fsSk https://localhost/api/ready | grep -q '"ready":true' && break; sleep 2; done
+          curl -fsSk https://localhost/api/ready | grep -q '"ready":true'
+      - name: An update of the primary host hands the role to the standby first
+        run: |
+          roles="$(./deploy/production/ci/roles.sh 60)"; eval "$roles"
+          dc="sudo docker compose --env-file deploy/.env"
+          # a changed setting in the bundles (the warehouse's address), installed on the primary's host
+          sed -i 's|^MASSLAK_WAREHOUSE_ADDRESS=.*|MASSLAK_WAREHOUSE_ADDRESS=192.0.2.11/32|' deploy/.env
+          sudo ./deploy/production/init.sh
+          sudo MASSLAK_DB_WATCHDOG=off ./deploy/production/ha/install-db-host.sh "deploy/production/ha/bundles/$PRIMARY.tar.gz" "/etc/masslak/$PRIMARY" | tee update.log
+          test "${PIPESTATUS[0]}" = 0
+          grep -q "handing the role to $STANDBY" update.log
+          old_primary="$PRIMARY" new_primary="$STANDBY" new_primary_addr="$STANDBY_ADDR"
+          roles="$(./deploy/production/ci/roles.sh 180)"; eval "$roles"
+          test "$PRIMARY" = "$new_primary" && test "$STANDBY" = "$old_primary"
+          $dc exec -T db masslak-patroni cluster
+          test "$($dc exec -T db psql -d masslak -Atc "SELECT host(inet_server_addr())")" = "$new_primary_addr"
+          sudo docker exec "masslak-$old_primary-patroni-1" grep -q '192.0.2.11/32' /var/lib/postgresql/pg_hba.conf
+          for i in $(seq 15); do curl -fsSk https://localhost/api/ready | grep -q '"ready":true' && break; sleep 2; done
+          curl -fsSk https://localhost/api/ready | grep -q '"ready":true'
+      - name: Logs on failure
+        if: failure()
+        run: |
+          sudo docker compose --env-file deploy/.env logs --tail 150
+          for i in 1 2; do sudo docker logs --tail 150 "masslak-db$i-patroni-1"; sudo docker logs --tail 40 "masslak-db$i-etcd-1"; done
+          # the whole log of each member, and its PostgreSQL log, as an artifact: the tail above can miss the rewind
+          mkdir -p ha-logs
+          for i in 1 2; do
+            sudo docker logs "masslak-db$i-patroni-1" > "ha-logs/db$i-patroni.log" 2>&1 || true
+            sudo docker exec "masslak-db$i-patroni-1" sh -c 'cat /var/lib/postgresql/data/log/* /var/log/pgbackrest/* 2>/dev/null' > "ha-logs/db$i-postgres.log" 2>&1 || true
+          done
+      - name: The members' whole logs
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with: { name: ha-member-logs, path: ha-logs, if-no-files-found: ignore }
 
   security:
     name: Security and policy checks
@@ -553,12 +894,18 @@ jobs:
         run: python scripts/pin_images.py
       - name: Language policy (English code, data and docs; Arabic only in locale files)
         run: python scripts/check_language.py
+      - name: One version for the release (VERSION and the versions the schema files record, independent review round 9)
+        run: python scripts/check_release.py
+      - name: Visual identity (contrast of the promised colour pairs in both themes; web and mobile themes use the tokens)
+        run: python scripts/check_design_tokens.py
       - name: Lint the API and its tests (ruff)
         run: ruff check backend/app backend/tests
       - name: Static analysis of the API (bandit)
         run: bandit -q -c backend/pyproject.toml -r backend/app -ll
       - name: Known vulnerabilities in Python dependencies
-        run: pip-audit -r backend/requirements.txt
+        run: |
+          pip-audit --require-hashes -r backend/requirements.lock   # every package of the image, transitive ones too
+          pip-audit --require-hashes -r deploy/production/db/patroni.lock   # and of Patroni in the database image (H-01)
       - name: Known vulnerabilities in web dependencies
         working-directory: frontend
         run: npm audit --omit=dev --audit-level=high
@@ -569,6 +916,15 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - run: docker build -t masslak:ci .
+      - name: The production database image (PostGIS, pgBackRest, Patroni from its hashed lock, HAProxy, the settings guard)
+        run: |
+          docker build --progress=plain --build-context guard-src=db/guard -t masslak-db:ci deploy/production/db
+          docker run --rm --entrypoint sh masslak-db:ci -c 'patroni --version && patronictl version && haproxy -v | head -1 && pgbackrest version &&
+                                                        test -f "$(pg_config --pkglibdir)/masslak_guard.so"'
+      - name: The database image of docker-compose.yml and the CI jobs, and the staging one, with the settings guard
+        run: |
+          docker build --progress=plain -t masslak-postgres:ci db/guard
+          docker build --progress=plain --build-context guard-src=db/guard -t masslak-staging-db:ci deploy/staging/db
       # what the image contains, package by package, kept with the run (review stage C6); releases carry a signed one.
       # Not attached to a release: CI may only read, and on a tag the release workflow publishes its own signed files.
       - name: Software bill of materials of the image (SPDX)

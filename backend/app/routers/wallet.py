@@ -15,6 +15,7 @@ from ..config import get_settings
 from ..deps import Principal, context_for, require_portal
 from ..errors import ApiError
 from ..ledger import platform_wallet, post_txn, user_wallet
+from ..money_mode import refuse_in_phase_one
 from ..util import rows
 
 router = APIRouter(prefix="/api/wallet", tags=["wallet"])
@@ -44,6 +45,7 @@ async def topup(body: TopupIn, request: Request, pr: Principal = Depends(passeng
         raise ApiError(503, "PAYMENT_PROVIDER_UNAVAILABLE", "no live payment provider is configured")
     ctx = context_for(request, pr)
     async with db.transaction(ctx) as conn:
+        await refuse_in_phase_one(conn)
         # a replay is the same payer's own request: another payer's key is never looked up (review stage A2) and,
         # the key being unique, ends in ALREADY_EXISTS without saying anything about that payment
         done = await conn.fetchval("SELECT status FROM fin.payment WHERE idempotency_key = $1 AND payer_party_id = $2",

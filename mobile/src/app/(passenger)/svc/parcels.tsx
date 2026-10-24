@@ -1,10 +1,12 @@
 import { useMemo, useState } from "react";
-import { Alert, Text } from "react-native";
+import { Alert, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
 import { randomUUID } from "expo-crypto";
 import { useI18n } from "../../../i18n";
 import { api } from "../../../platform/api";
-import { Button, Card, Chip, Choice, ErrorText, Field, Loading, Notice, Row, Screen, Title, s } from "../../../ui/kit";
+import { Button, Card, Chip, Choice, Empty, ErrorText, Field, ListCard, Loading, Notice, Screen, SvcHeader, s } from "../../../ui/kit";
+import { TripLine } from "../../../ui/brand";
+import { color, font } from "../../../ui/theme";
 import { tone, useLabels } from "../../../ui/labels";
 import { useLoad } from "../../../ui/useLoad";
 
@@ -46,8 +48,7 @@ export default function Parcels() {
   ]);
   return (
     <Screen>
-      <Button kind="text" label={t("common.back")} onPress={() => router.back()} />
-      <Title sub={t("svc.parcels.hint")}>{t("svc.parcels.title")}</Title>
+      <SvcHeader icon="parcel" title={t("svc.parcels.title")} sub={t("svc.parcels.hint")} onBack={() => router.back()} />
       {opts.loading && !opts.data ? <Loading /> : null}
       {opts.data ? (
         <Card>
@@ -61,6 +62,13 @@ export default function Parcels() {
                   options={cities.map((c) => ({ value: c, label: city(c) }))} />
           {stationsIn(f.toCity).length > 1 ? <Choice value={f.to} onChange={(v) => set("to", v)}
                   options={stationsIn(f.toCity).map((x) => ({ value: x.id, label: station(x.code, x.name) }))} /> : null}
+          {f.fromCity && f.toCity ? (
+            <View style={[s.between, { paddingVertical: 4 }]}>
+              <Text style={ps.city}>{city(f.fromCity)}</Text>
+              <TripLine width={90} height={16} />
+              <Text style={ps.city}>{city(f.toCity)}</Text>
+            </View>
+          ) : null}
           <Field label={t("svc.parcels.weight")} value={f.weight} onChangeText={(v) => set("weight", v.replace(/[^0-9.]/g, ""))} keyboardType="decimal-pad" />
           <Field label={t("svc.parcels.value")} hint={t("svc.parcels.valueHint")} value={f.value} onChangeText={(v) => set("value", v.replace(/\D/g, ""))} keyboardType="number-pad" />
           {quote ? <Notice tone="green" text={t("svc.parcels.price", { amount: money(quote.price), zone: quote.zone })} /> : null}
@@ -75,14 +83,18 @@ export default function Parcels() {
           <ErrorText error={error} />
         </Card>
       ) : <ErrorText error={opts.error} />}
-      <Text style={s.h2}>{t("svc.parcels.mine")}</Text>
-      {mine.data && mine.data.parcels.length === 0 ? <Text style={s.muted}>{t("svc.parcels.none")}</Text> : null}
+      <Text style={s.section}>{t("svc.parcels.mine")}</Text>
+      {mine.data && mine.data.parcels.length === 0 ? <Empty icon="parcel" text={t("svc.parcels.none")} /> : null}
       {mine.data?.parcels.map((x) => (
-        <Row key={x.tracking_no} title={`${station(x.origin_code, x.origin)} → ${station(x.destination_code, x.destination)}`}
-             sub={`${x.tracking_no} · ${x.recipient_name} · ${date(x.created_at)}`}
-             right={<Chip label={labels.value(x.status)} tone={tone(x.status)} />}
-             onPress={() => router.push({ pathname: "/svc/track", params: { no: x.tracking_no } })} />
+        <ListCard key={x.tracking_no} title={`${station(x.origin_code, x.origin)} → ${station(x.destination_code, x.destination)}`}
+                  sub={`${x.recipient_name} · ${date(x.created_at)}`}
+                  right={<Chip label={labels.value(x.status)} tone={tone(x.status)} />}
+                  onPress={() => router.push({ pathname: "/svc/track", params: { no: x.tracking_no } })}>
+          <View style={s.between}><Text style={s.mono}>{x.tracking_no}</Text><Text style={s.price}>{money(x.price)}</Text></View>
+        </ListCard>
       ))}
     </Screen>
   );
 }
+
+const ps = StyleSheet.create({ city: { fontFamily: font.displayBold, fontSize: 20, color: color.navy } });

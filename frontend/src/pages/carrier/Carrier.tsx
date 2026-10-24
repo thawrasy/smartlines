@@ -4,11 +4,12 @@ import { api } from "../../api";
 import { useI18n } from "../../i18n";
 import { useAuth } from "../../auth";
 import { PageHead } from "../../components/layout";
-import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, useToast } from "../../components/ui";
+import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, useToast, PasswordInput } from "../../components/ui";
 import { LayoutPreview, type LayoutRow } from "./Layouts";
+import { CarrierConnectionPolicy } from "../passenger/Connections";
 
 export interface CarrierTrip {
-  uid: string; trip_no: string; status: string; departure_at: string; arrival_at?: string; seats_total: number; segments_count?: number;
+  uid: string; trip_no: string; trip_code?: string | null; status: string; departure_at: string; arrival_at?: string; seats_total: number; segments_count?: number;
   plate_no: string | null; route_code?: string; origin: string; destination: string; origin_code: string; dest_code: string; sold: number; driver_name?: string | null;
 }
 interface Dashboard {
@@ -41,7 +42,9 @@ export function CarrierDashboard() {
   const state = useLoad(() => api.get<Dashboard>("/api/carrier/dashboard"));
   return (
     <div className="stack">
-      <PageHead title={me?.company?.name ?? t("nav.carrier")} sub={me?.company?.code ? `${t("common.code")}: ${me.company.code}` : undefined}>
+      <PageHead title={me?.company?.name ?? t("nav.carrier")} logo={me?.company ?? undefined}
+                sub={me?.company?.code ? `${t("common.code")}: ${me.company.code}` : undefined}>
+        <Link className="btn outlined" to="/carrier/finance"><Icon name="account_balance_wallet" />{t("finance.title")}</Link>
         <Link className="btn" to="/carrier/trips?new=1"><Icon name="add" />{t("carrier.newTrip")}</Link>
       </PageHead>
       <Loaded state={state}>{(d) => (
@@ -62,7 +65,7 @@ export function CarrierDashboard() {
                   <thead><tr><th>{t("booking.tripNo")}</th><th>{t("booking.departs")}</th><th>{t("carrier.route")}</th><th>{t("carrier.sold")}</th><th>{t("common.status")}</th></tr></thead>
                   <tbody>{d.trips.map((x) => (
                     <tr key={x.uid}>
-                      <td className="mono small">{x.trip_no}</td><td>{dateTime(x.departure_at)}</td>
+                      <td className="mono small"><strong>{x.trip_code ?? x.trip_no}</strong>{x.trip_code && <div className="trip-ref">{x.trip_no}</div>}</td><td>{dateTime(x.departure_at)}</td>
                       <td className="small">{line(x)}</td>
                       <td className="num">{x.sold}/{x.seats_total}</td><td><Status value={x.status} /></td>
                     </tr>
@@ -92,13 +95,14 @@ function NewTrip({ onClose, onDone }: { onClose: () => void; onDone: () => void 
   const routes = useLoad(() => api.get<{ routes: Route[] }>("/api/carrier/routes"));
   const vehicles = useLoad(() => api.get<{ vehicles: Vehicle[] }>("/api/carrier/vehicles"));
   const crew = useLoad(() => api.get<{ crew: Crew[] }>("/api/carrier/crew"));
-  const [form, setForm] = useState({ route_uid: "", vehicle_uid: "", driver_uid: "", departure_local: "", publish: true, trip_type: "SCHEDULED" });
+  const [form, setForm] = useState({ route_uid: "", vehicle_uid: "", driver_uid: "", departure_local: "", publish: true, trip_type: "SCHEDULED", service_number: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const submit = async () => {
     setBusy(true); setError(null);
     try {
-      await api.post("/api/carrier/trips", { ...form, driver_uid: form.driver_uid || null });
+      await api.post("/api/carrier/trips", { ...form, driver_uid: form.driver_uid || null,
+        service_number: form.service_number ? Number(form.service_number) : null });
       onDone();
     } catch (e) { setError(e); } finally { setBusy(false); }
   };
@@ -139,6 +143,10 @@ function NewTrip({ onClose, onDone }: { onClose: () => void; onDone: () => void 
             </select>
           </Field>
         </div>
+        <Field label={`${t("trip.serviceNumber")} (${t("common.optional")})`} hint={t("trip.serviceNumberHint")}>
+          <input className="input ltr mono" inputMode="numeric" maxLength={4} value={form.service_number}
+                 onChange={(e) => setForm({ ...form, service_number: e.target.value.replace(/\D/g, "") })} />
+        </Field>
         <label className="check"><input type="checkbox" checked={form.publish} onChange={(e) => setForm({ ...form, publish: e.target.checked })} />{t("carrier.publishNow")}</label>
       </div>
     </Modal>
@@ -253,12 +261,21 @@ export function CarrierTrips() {
           <thead><tr><th>{t("booking.tripNo")}</th><th>{t("booking.departs")}</th><th>{t("carrier.route")}</th><th>{t("carrier.plate")}</th><th>{t("carrier.driver")}</th><th>{t("carrier.sold")}</th><th>{t("common.status")}</th><th>{t("common.actions")}</th></tr></thead>
           <tbody>{trips.map((x) => (
             <tr key={x.uid}>
-              <td className="mono small">{x.trip_no}</td><td>{dateTime(x.departure_at)}</td><td className="small">{line(x)}</td>
+              <td className="mono small"><strong>{x.trip_code ?? x.trip_no}</strong>{x.trip_code && <div className="trip-ref">{x.trip_no}</div>}</td><td>{dateTime(x.departure_at)}</td><td className="small">{line(x)}</td>
               <td className="mono">{x.plate_no}</td><td>{x.driver_name ?? <span className="muted">{t("carrier.noDriver")}</span>}</td>
               <td className="num">{x.sold}/{x.seats_total}</td><td><Status value={x.status} /></td>
               <td><div className="row nowrap" style={{ gap: 4 }}>
                 <button className="btn text small" onClick={() => setManifest(x.uid)}><Icon name="group" size={18} />{t("carrier.manifest")}</button>
                 {x.status === "DRAFT" && <button className="btn tonal small" onClick={() => act(async () => { await api.post(`/api/carrier/trips/${x.uid}/publish`); })}>{t("carrier.publish")}</button>}
+                {["DRAFT", "PUBLISHED", "BOARDING"].includes(x.status) && (
+                  <button className="btn text small danger" onClick={() => act(async () => {
+                    // every booking is refunded in full to whoever paid it (1102); the reason is kept with the decision
+                    const reason = window.prompt(t("carrier.cancelWhy", { trip: x.trip_no }));
+                    if (!reason || reason.trim().length < 5) return;
+                    const r = await api.post<{ bookings_refunded: number; refund_total: number }>(`/api/carrier/trips/${x.uid}/cancel`, { reason });
+                    toast(t("carrier.cancelled", { n: r.bookings_refunded, amount: money(r.refund_total) }));
+                  })}>{t("carrier.cancelTrip")}</button>
+                )}
                 {["DEPARTED", "BOARDING", "PUBLISHED"].includes(x.status) && new Date(x.arrival_at ?? x.departure_at) < new Date() && (
                   <button className="btn tonal small" onClick={() => act(async () => {
                     const r = await api.post<{ released: number }>(`/api/carrier/trips/${x.uid}/complete`);
@@ -465,6 +482,7 @@ export function CarrierRoutes() {
           </div>
         ))}</div>
       )}</Loaded>
+      <CarrierConnectionPolicy />
       {open && (
         <Modal title={t("carrier.newRoute")} onClose={() => setOpen(false)} wide
                actions={<><button className="btn text" onClick={() => setOpen(false)}>{t("common.cancel")}</button><button className="btn" disabled={busy || !code} onClick={submit}>{t("common.save")}</button></>}>
@@ -534,7 +552,7 @@ export function CarrierCrew() {
             <div className="grid cols-2">
               <Field label={t("common.email")}><input className="input ltr" type="email" value={f.email} onChange={set("email")} /></Field>
               <Field label={`${t("common.mobile")} (${t("common.optional")})`}><input className="input ltr" value={f.mobile} onChange={set("mobile")} /></Field>
-              <Field label={t("common.password")} hint={t("auth.passwordHint")}><input className="input ltr" type="password" value={f.password} onChange={set("password")} /></Field>
+              <Field label={t("common.password")} hint={t("auth.passwordHint")}><PasswordInput value={f.password} onChange={set("password")} /></Field>
               <Field label={t("carrier.licenseClass")}><input className="input ltr" value={f.license_class} onChange={set("license_class")} /></Field>
             </div>
           </div>

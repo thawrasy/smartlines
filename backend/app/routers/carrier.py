@@ -6,15 +6,19 @@ from typing import Literal, Optional
 from zoneinfo import ZoneInfo
 
 import asyncpg
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel, EmailStr, Field
 
 from .. import db, markets
-from ..deps import Principal, context_for, require_portal
+from ..deps import Principal, context_for, require_portal, require_step_up
 from ..errors import ApiError, forbidden, not_found
 from ..ledger import platform_wallet, post_txn
 from ..modules.cash import service as cash
 from ..modules.fleet import service as fleet
+from ..modules.photo import service as photo
+from ..modules.sales import penalties
+from ..modules.sales import service as sales
+from ..modules.schedules import service as schedules
 from ..security import hash_password, password_problem
 from ..util import row_dict, rows
 
@@ -51,7 +55,7 @@ async def dashboard(request: Request, pr: Principal = Depends(operator)):
                    FROM ops.trip t WHERE t.company_id = $1 AND t.status IN ('PUBLISHED','BOARDING','DEPARTED','COMPLETED')
                     AND t.departure_at > now() - interval '30 days') x""", pr.company_id)
         trips = await conn.fetch(
-            """SELECT t.uid, t.trip_no, t.status, t.departure_at, t.seats_total, v.plate_no,
+            """SELECT t.uid, t.trip_no, t.trip_code, t.status, t.departure_at, t.seats_total, v.plate_no,
                       so.name AS origin, sd.name AS destination, so.code AS origin_code, sd.code AS dest_code,
                       (SELECT count(*) FROM sales.ticket k WHERE k.trip_id = t.id AND k.status <> 'CANCELLED') AS sold
                  FROM ops.trip t JOIN net.route r ON r.id = t.route_id
@@ -159,8 +163,9 @@ async def crew(request: Request, pr: Principal = Depends(operator)):
 
 @router.post("/crew", status_code=201)
 async def add_driver(body: DriverIn, request: Request, pr: Principal = Depends(operator)):
+    require_step_up(pr)                 # a sensitive operation: a recent second factor (1136)
     _need(pr, "company.staff", "trip.assign_crew")
-    problem = password_problem(body.password)
+    problem = password_problem(body.password, body.email, body.full_name, body.mobile)
     if problem:
         raise ApiError(422, problem, "password does not meet the policy")
     async with db.transaction(context_for(request, pr)) as conn:
@@ -258,13 +263,16 @@ class TripIn(BaseModel):
     publish: bool = True
     # pilgrimages (Umrah, Hajj) and tours can be paid through a financing company where one is contracted (1056)
     trip_type: Literal["SCHEDULED", "INTERNATIONAL", "EXTRA", "PILGRIMAGE", "TOURISM"] = "SCHEDULED"
+    # the trip number passengers read, "QD 214" (1114): one of the carrier's service numbers; omitted, the trip takes the
+    # number the route had at the same time on the nearest other day, or else a free number of the extra block
+    service_number: Optional[int] = Field(default=None, ge=1, le=9999)
 
 
 @router.get("/trips")
 async def trips(request: Request, pr: Principal = Depends(operator)):
     async with db.transaction(context_for(request, pr)) as conn:
         recs = await conn.fetch(
-            """SELECT t.uid, t.trip_no, t.status, t.departure_at, t.arrival_at, t.seats_total, t.segments_count,
+            """SELECT t.uid, t.trip_no, t.trip_code, t.status, t.departure_at, t.arrival_at, t.seats_total, t.segments_count,
                       v.plate_no, r.code AS route_code, so.name AS origin, sd.name AS destination, so.code AS origin_code, sd.code AS dest_code,
                       (SELECT count(*) FROM sales.ticket k WHERE k.trip_id = t.id AND k.status <> 'CANCELLED') AS sold,
                       (SELECT p.legal_name FROM ops.crew_assignment ca JOIN iam.party p ON p.id = ca.party_id
@@ -275,45 +283,6 @@ async def trips(request: Request, pr: Principal = Depends(operator)):
                 WHERE t.company_id = $1 AND t.departure_at > now() - interval '3 days'
                 ORDER BY t.departure_at LIMIT 200""", pr.company_id)
     return {"trips": rows(recs)}
-
-
-async def _insert_trip(conn, pr: Principal, route, vehicle, dep: datetime, publish: bool,
-                       driver_party: Optional[int] = None, template_id: Optional[int] = None,
-                       trip_type: str = "SCHEDULED") -> tuple[int, str]:
-    """Writes one trip with its stops, seat segments and driver: the same trip whether made by hand or from a template."""
-    stops = await conn.fetch("SELECT * FROM net.route_stop WHERE route_id = $1 ORDER BY seq", route["id"])
-    code3 = await conn.fetchval("SELECT code3 FROM net.carrier_code WHERE company_id = $1 AND status = 'ACTIVE'",
-                                pr.company_id) or "XXX"
-    local = dep.astimezone(ZoneInfo(await markets.station_zone(conn, stops[0]["station_id"])))
-    trip_no = f"{code3}-{route['code']}-{local:%H%M}/{local:%d%b%y}".upper()
-    n = len(stops)
-    arrival = dep + timedelta(minutes=stops[-1]["arr_offset_min"])
-    status = "PUBLISHED" if publish else "DRAFT"
-    # The trip keeps the vehicle's seat map as it is today, so seats sold never move if the layout changes
-    seat_map = await fleet.trip_seat_map(conn, vehicle["id"])
-    trip_id = await conn.fetchval(
-        """INSERT INTO ops.trip (trip_no, company_id, route_id, service_type, vehicle_id, departure_at, arrival_at,
-             status, seats_total, segments_count, currency, base_price, published_at, seat_map, template_id, trip_type)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NULL, $11, CASE WHEN $8 = 'PUBLISHED' THEN now() END,
-                   $12::jsonb, $13, $14)
-           RETURNING id""",
-        trip_no, pr.company_id, route["id"], "INDIRECT" if n > 2 else "DIRECT", vehicle["id"], dep, arrival, status,
-        vehicle["passenger_seats"], n - 1, stops[-1]["fare_from_origin"], json.dumps(seat_map) if seat_map else None,
-        template_id, trip_type)
-    await conn.executemany(
-        """INSERT INTO ops.trip_stop (trip_id, seq, station_id, kind, sched_arr, sched_dep, fare_from_origin, rest_min)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)""",
-        [(trip_id, s["seq"], s["station_id"], "REST" if s["kind"] == "REST" else "STATION",
-          dep + timedelta(minutes=s["arr_offset_min"]), dep + timedelta(minutes=s["dep_offset_min"]),
-          s["fare_from_origin"], s["rest_min"]) for s in stops])
-    await conn.execute(
-        """INSERT INTO ops.seat_segment (trip_id, seat_no, seg)
-           SELECT $1, seat, seg FROM generate_series(1, $2) seat, generate_series(0, $3) seg""",
-        trip_id, vehicle["passenger_seats"], n - 2)
-    if driver_party:
-        await conn.execute("INSERT INTO ops.crew_assignment (trip_id, party_id, crew_role) VALUES ($1, $2, 'DRIVER')",
-                           trip_id, driver_party)
-    return trip_id, trip_no
 
 
 @router.post("/trips", status_code=201)
@@ -338,10 +307,32 @@ async def create_trip(body: TripIn, request: Request, pr: Principal = Depends(op
                     WHERE p.uid = $1 AND cp.status = 'ACTIVE'""", body.driver_uid)
             if driver is None:
                 raise not_found("driver")
-        trip_id, trip_no = await _insert_trip(conn, pr, route, vehicle, dep, body.publish, driver, trip_type=body.trip_type)
-        uid = await conn.fetchval("SELECT uid FROM ops.trip WHERE id = $1", trip_id)
+        # while the settings ask for it, a trip made by hand is published once its approval stages are passed (1117)
+        approval = body.publish and await conn.fetchval("SELECT ops.schedule_needs_approval('TRIP')")
+        publish = body.publish and not approval
+        number_id = None
+        if body.service_number is not None:      # one of the carrier's service numbers on the day the trip runs (1114)
+            number_id = await conn.fetchval(
+                """SELECT id FROM net.service_number WHERE company_id = $1 AND number = $2
+                    AND valid @> (($3::timestamptz) AT TIME ZONE $4)::date""", pr.company_id, body.service_number, dep, str(zone))
+            if number_id is None:
+                raise ApiError(422, "SERVICE_NUMBER_UNKNOWN", "define the service number first, or leave it out")
+        try:
+            async with conn.transaction():
+                trip_id, trip_no = await schedules.insert_trip(conn, pr.company_id, route, vehicle, dep, publish, driver,
+                                                               trip_type=body.trip_type, service_number_id=number_id)
+        except asyncpg.UniqueViolationError as exc:
+            if "trip_number_day_uq" not in str(exc):
+                raise
+            raise ApiError(409, "TRIP_NUMBER_TAKEN", "another trip runs under this number that day") from exc
+        made = await conn.fetchrow("SELECT uid, trip_code FROM ops.trip WHERE id = $1", trip_id)
+        asked = None
+        if approval:
+            asked = json.loads(await conn.fetchval(
+                "SELECT ops.request_schedule('TRIP', NULL, $1, '{}'::jsonb, NULL, NULL, NULL)::text", made["uid"]))
     request.state.audit = {"action": "trip.create", "object_type": "trip", "object_id": trip_id}
-    return {"uid": str(uid), "trip_no": trip_no}
+    return {"uid": str(made["uid"]), "trip_no": trip_no, "trip_code": made["trip_code"],
+            "approval": {"uid": asked["uid"], "status": asked["status"]} if asked else None}
 
 
 class GenerateIn(BaseModel):
@@ -353,44 +344,27 @@ class GenerateIn(BaseModel):
 
 @router.post("/trip-templates/{template_id}/generate")
 async def generate_trips(template_id: int, body: GenerateIn, request: Request, pr: Principal = Depends(operator)):
-    """Trips of a recurring template for every operating day in the range. A departure the template already produced
-    is skipped (one trip per template and departure, schema file 1054), so the same range can be generated again."""
+    """Trips of a regular trip for every day it runs in the range (its pattern, period and dates off; 1117). A departure
+    it already produced is skipped (one trip per template and departure, schema file 1054), so the same range can be
+    generated again. An approved regular trip also makes its trips by itself, up to the horizon the platform sets."""
     _need(pr, "trip.publish")
     if body.to_date < body.from_date or (body.to_date - body.from_date).days > 62:
         raise ApiError(422, "INVALID_RANGE", "generate at most 63 days at a time, from a date to a later one")
-    created, skipped = [], []
     async with db.transaction(context_for(request, pr)) as conn:
         tpl = await conn.fetchrow("SELECT * FROM ops.trip_template WHERE id = $1 AND company_id = $2", template_id, pr.company_id)
         if tpl is None:
             raise not_found("template")
         if tpl["status"] != "ACTIVE":
             raise ApiError(409, "TEMPLATE_NOT_ACTIVE", "only an active template generates trips")
-        route = await conn.fetchrow("SELECT id, code, origin_station_id FROM net.route WHERE id = $1 AND status = 'ACTIVE'", tpl["route_id"])
+        vehicle_id = None
         if body.vehicle_uid:
-            vehicle = await conn.fetchrow("SELECT id, passenger_seats FROM fleet.vehicle WHERE uid = $1", body.vehicle_uid)
-        else:
-            vehicle = await conn.fetchrow("SELECT id, passenger_seats FROM fleet.vehicle WHERE id = $1", tpl["default_vehicle_id"])
-        if route is None or vehicle is None:
-            raise ApiError(422, "TEMPLATE_INCOMPLETE", "the template needs an active route and a vehicle")
-        zone = ZoneInfo(await markets.station_zone(conn, route["origin_station_id"]))   # the template's times are local there
-        active, soonest = tpl["active"], datetime.now(zone) + timedelta(minutes=30)
-        day = body.from_date
-        while day <= body.to_date:
-            in_period = (active.lower is None or day >= active.lower) and (active.upper is None or day < active.upper)
-            if in_period and day.isoweekday() in tpl["days_of_week"]:
-                dep = datetime.combine(day, tpl["departure_time"], tzinfo=zone)
-                if dep < soonest:
-                    skipped.append({"date": day.isoformat(), "reason": "TOO_SOON"})
-                elif await conn.fetchval("SELECT 1 FROM ops.trip WHERE template_id = $1 AND departure_at = $2", tpl["id"], dep):
-                    skipped.append({"date": day.isoformat(), "reason": "EXISTS"})
-                else:
-                    try:                                  # a vehicle busy that day skips the day, not the whole range
-                        async with conn.transaction():
-                            _, trip_no = await _insert_trip(conn, pr, route, vehicle, dep, body.publish, template_id=tpl["id"])
-                        created.append({"date": day.isoformat(), "trip_no": trip_no})
-                    except (asyncpg.RaiseError, asyncpg.UniqueViolationError) as e:
-                        skipped.append({"date": day.isoformat(), "reason": str(e).split(":")[0]})
-            day += timedelta(days=1)
+            vehicle_id = await conn.fetchval("SELECT id FROM fleet.vehicle WHERE uid = $1 AND company_id = $2", body.vehicle_uid, pr.company_id)
+            if vehicle_id is None:
+                raise not_found("vehicle")
+        try:
+            created, skipped = await schedules.make_trips(conn, tpl, body.from_date, body.to_date, body.publish, vehicle_id)
+        except schedules.Incomplete as exc:
+            raise ApiError(422, "TEMPLATE_INCOMPLETE", "the template needs an active route and a vehicle") from exc
     request.state.audit = {"action": "trip.generate", "object_type": "trip_template", "object_id": tpl["id"]}
     return {"created": created, "skipped": skipped}
 
@@ -409,9 +383,30 @@ async def publish_trip(trip_uid: uuid.UUID, request: Request, pr: Principal = De
         t = await _own_trip(conn, pr, trip_uid)
         if t["status"] != "DRAFT":
             raise ApiError(409, "INVALID_TRANSITION", "only draft trips can be published")
+        # a trip made by hand waits for its approval stages while the settings ask for them (1117)
+        if t["template_id"] is None and await conn.fetchval("SELECT ops.schedule_needs_approval('TRIP')") and not await conn.fetchval(
+                "SELECT 1 FROM ops.schedule_request WHERE trip_id = $1 AND kind = 'TRIP' AND status = 'APPROVED'", t["id"]):
+            pending = await conn.fetchval("SELECT uid FROM ops.schedule_request WHERE trip_id = $1 AND status = 'PENDING'", t["id"])
+            if pending is None:
+                pending = json.loads(await conn.fetchval(
+                    "SELECT ops.request_schedule('TRIP', NULL, $1, '{}'::jsonb, NULL, NULL, NULL)::text", trip_uid))["uid"]
+            request.state.audit = {"action": "trip.publish_request", "object_type": "trip", "object_id": t["id"]}
+            return {"ok": True, "status": "PENDING_APPROVAL", "approval": {"uid": str(pending), "status": "PENDING"}}
         await conn.execute("UPDATE ops.trip SET status = 'PUBLISHED', published_at = now() WHERE id = $1", t["id"])
     request.state.audit = {"action": "trip.publish", "object_type": "trip", "object_id": t["id"]}
-    return {"ok": True}
+    return {"ok": True, "status": "PUBLISHED"}
+
+
+@router.get("/trips/{trip_uid}/tickets/{ticket_uid}/photo")
+async def ticket_photo(trip_uid: uuid.UUID, ticket_uid: uuid.UUID, request: Request, pr: Principal = Depends(operator)):
+    """The boarding photo of a passenger on this company's trip, for the office at boarding (1086). Audited."""
+    _need(pr, "manifest.view", "trip.publish")
+    ctx = context_for(request, pr)
+    async with db.transaction(ctx) as conn:
+        t = await _own_trip(conn, pr, trip_uid)
+        party_id, data, mime = await photo.read_for_ticket(conn, ctx, t["id"], ticket_uid, "CARRIER_OFFICE_AT_BOARDING")
+    request.state.audit = {"action": "photo.view", "object_type": "party", "object_id": party_id}
+    return Response(content=data, media_type=mime)
 
 
 @router.get("/trips/{trip_uid}/manifest")
@@ -430,6 +425,22 @@ async def manifest(trip_uid: uuid.UUID, request: Request, pr: Principal = Depend
     return {"trip_no": t["trip_no"], "passengers": rows(recs)}
 
 
+class CancelTripIn(BaseModel):
+    reason: str = Field(min_length=5, max_length=500)
+
+
+@router.post("/trips/{trip_uid}/cancel")
+async def cancel_trip(trip_uid: uuid.UUID, body: CancelTripIn, request: Request, pr: Principal = Depends(operator)):
+    """Cancels a trip that has not departed and refunds every booking in full to whoever paid it (1102)."""
+    _need(pr, "trip.cancel")
+    ctx = context_for(request, pr)
+    async with db.transaction(ctx) as conn:
+        t = await _own_trip(conn, pr, trip_uid)
+        out = await sales.cancel_trip(conn, ctx, t["id"], pr.user_id, body.reason.strip())
+    request.state.audit = {"action": "trip.cancel", "object_type": "trip", "object_id": t["id"], "reason": body.reason.strip()}
+    return out
+
+
 @router.post("/trips/{trip_uid}/complete")
 async def complete_trip(trip_uid: uuid.UUID, request: Request, pr: Principal = Depends(operator)):
     """Completes the trip and releases each allocation leaf from escrow to its beneficiary (5.7)."""
@@ -441,6 +452,8 @@ async def complete_trip(trip_uid: uuid.UUID, request: Request, pr: Principal = D
             raise ApiError(409, "INVALID_TRANSITION", "trip cannot be completed from its current status")
         if t["departure_at"] > datetime.now(timezone.utc):
             raise ApiError(409, "TRIP_NOT_STARTED", "a trip can be completed only after departure")
+        # a connection's booking missed by all its travellers stays open, its escrow held, until the change window ends (1132)
+        held = list(await conn.fetchval("SELECT sales.hold_missed_connections($1)", t["id"]))
         await conn.execute("UPDATE ops.trip SET status = 'COMPLETED' WHERE id = $1", t["id"])
         released = 0
         async with db.system_scope(conn, ctx):
@@ -450,7 +463,7 @@ async def complete_trip(trip_uid: uuid.UUID, request: Request, pr: Principal = D
                      FROM fin.price_allocation_line l JOIN fin.price_allocation a ON a.id = l.allocation_id
                      JOIN sales.booking b ON b.id = a.booking_id
                     WHERE b.trip_id = $1 AND l.is_leaf AND l.release_event = 'TRIP_COMPLETED'
-                      AND l.status IN ('HELD','PARTIAL_REFUND')""", t["id"])
+                      AND l.status IN ('HELD','PARTIAL_REFUND') AND b.id <> ALL($2::bigint[])""", t["id"], held)
             entries = [(ln["wallet_id"], "CR", ln["due"]) for ln in lines if ln["due"] > 0]
             released = sum(e[2] for e in entries)
             if released:
@@ -459,13 +472,19 @@ async def complete_trip(trip_uid: uuid.UUID, request: Request, pr: Principal = D
                                ref_type="trip", ref_id=t["id"], user_id=pr.user_id, memo=t["trip_no"])
             await conn.execute(
                 "UPDATE fin.price_allocation_line SET status = 'RELEASED', released_at = now() WHERE id = ANY($1::bigint[])", [ln["id"] for ln in lines])
-            await conn.execute("UPDATE sales.booking SET status = 'COMPLETED' WHERE trip_id = $1 AND status = 'CONFIRMED'",
-                               t["id"])
-            await conn.execute("UPDATE sales.ticket SET status = 'NO_SHOW' WHERE trip_id = $1 AND status = 'ISSUED'", t["id"])
+            await conn.execute("UPDATE sales.booking SET status = 'COMPLETED' WHERE trip_id = $1 AND status = 'CONFIRMED' AND id <> ALL($2::bigint[])",
+                               t["id"], held)
+            await conn.execute("UPDATE sales.ticket SET status = 'NO_SHOW' WHERE trip_id = $1 AND status = 'ISSUED' AND booking_id <> ALL($2::bigint[])",
+                               t["id"], held)
             # reservations never paid end with the trip (1056); nothing was taken for them
             await conn.execute("UPDATE sales.ticket SET status = 'CANCELLED' WHERE trip_id = $1 AND status = 'HOLD'", t["id"])
             await conn.execute("UPDATE sales.booking SET status = 'EXPIRED' WHERE trip_id = $1 AND status = 'PENDING_PAYMENT'", t["id"])
             # what the carrier earned pays first for the counter cash it holds for the platform (6.5)
             set_off = await cash.net_cash(conn, t["company_id"], f"trip:{t['id']}:cash-net", pr.user_id, t["currency"])
+            # penalties of cancelled trips still due are set off from the earnings just released (1106)
+            penalties_collected = await penalties.collect_due(conn, t["company_id"], pr.user_id)
+            # the travellers who boarded earn their loyalty points (1103)
+            points = json.loads(await conn.fetchval("SELECT pricing.earn_points_for_trip($1)::text", t["id"]))
     request.state.audit = {"action": "trip.complete", "object_type": "trip", "object_id": t["id"]}
-    return {"ok": True, "released": released, "cash_set_off": set_off}
+    return {"ok": True, "released": released, "cash_set_off": set_off, "points_earned": points["points"],
+            "penalties_collected": penalties_collected, "connections_held": len(held)}
