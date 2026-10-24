@@ -66,6 +66,7 @@ EVENTS = {
     "trip.cancelled": {"CARRIER", "CHANNEL", "INTEGRATION", "INTERNAL"},
     "trip.cancel_penalty": {"CARRIER", "INTERNAL"},
     "booking.cancelled_by_carrier": {"CARRIER", "CHANNEL", "INTEGRATION", "INTERNAL"},
+    "booking.trip_changed": {"CARRIER", "CHANNEL", "INTEGRATION", "INTERNAL"},
     "incident.reported": {"CARRIER", "INTERNAL"},
     "screen.unseen": {"INTERNAL"},
     "webhook.ping": set(KIND_SCOPES),

@@ -364,6 +364,72 @@
      "null"
     ]
    }
+  },
+  "booking.trip_changed@1": {
+   "required": [
+    "change",
+    "reason_code",
+    "booking_ref",
+    "trip_no"
+   ],
+   "properties": {
+    "change": "string",
+    "reason_code": "string",
+    "booking_ref": "string",
+    "trip_no": "string",
+    "trip_code": [
+     "string",
+     "null"
+    ],
+    "departs_local": [
+     "string",
+     "null"
+    ],
+    "vehicle_plate": [
+     "string",
+     "null"
+    ],
+    "shift_min": [
+     "integer",
+     "null"
+    ],
+    "free_cancel": [
+     "boolean",
+     "null"
+    ],
+    "new_seats": [
+     "array",
+     "null"
+    ],
+    "new_trip_no": [
+     "string",
+     "null"
+    ],
+    "new_trip_code": [
+     "string",
+     "null"
+    ],
+    "from_trip_code": [
+     "string",
+     "null"
+    ],
+    "booker_user_id": [
+     "integer",
+     "null"
+    ],
+    "agency_id": [
+     "integer",
+     "null"
+    ],
+    "counter": [
+     "boolean",
+     "null"
+    ],
+    "contact_mobile": [
+     "string",
+     "null"
+    ]
+   }
   }
  }
 }

@@ -1332,5 +1332,34 @@
   "payment_activation.suspended": {
     "subject": "Payment by {option} paused on your trips",
     "body": "The platform has paused payment by {option} on your trips; travellers pay in the other open ways meanwhile. Basis: {basis}."
+  },
+  "booking.trip_changed.reschedule": {
+    "subject": "Trip {trip_code}: new departure time",
+    "body": "The carrier moved trip {trip_code} ({shift_text}) because of: {reason_code}. Your booking {booking_ref} now departs {departs_local}. {free_cancel_text}",
+    "sms": "Masslak: trip {trip_code} now departs {departs_local} ({reason_code}). Booking {booking_ref}. {free_cancel_text}"
+  },
+  "booking.trip_changed.vehicle_swap": {
+    "subject": "Trip {trip_code}: another vehicle",
+    "body": "The carrier changed the vehicle of trip {trip_code} because of: {reason_code}. The trip keeps its number. New vehicle: {vehicle_plate}. New seat(s) for booking {booking_ref}: {seats_text}.",
+    "sms": "Masslak: trip {trip_code} now runs with vehicle {vehicle_plate} ({reason_code}). Booking {booking_ref}, new seat(s): {seats_text}."
+  },
+  "booking.trip_changed.rebook": {
+    "subject": "Your booking {booking_ref} moved to trip {trip_code}",
+    "body": "The carrier moved your booking {booking_ref} from trip {from_trip_code} to trip {trip_code} because of: {reason_code}. It departs {departs_local}, vehicle {vehicle_plate}, seat(s) {seats_text}. You pay nothing more; your tickets have new numbers in the app.",
+    "sms": "Masslak: booking {booking_ref} moved to trip {trip_code}, departing {departs_local}, seat(s) {seats_text} ({reason_code}). No extra charge."
+  },
+  "reason_code_labels": {
+    "BREAKDOWN": "a breakdown",
+    "ACCIDENT": "an accident",
+    "LATE_INCOMING_TRIP": "the late arrival of the incoming trip",
+    "REPAIR_IN_PROGRESS": "a repair in progress",
+    "VEHICLE_REPLACEMENT": "a vehicle replacement",
+    "WEATHER": "the weather",
+    "ROAD_CLOSURE": "a road closure",
+    "AUTHORITY_ORDER": "an order of an authority",
+    "OTHER": "another reason"
+  },
+  "trip_change_labels": {
+    "FREE_CANCEL": "If the new time does not suit you, cancel the booking and get everything back."
   }
 }

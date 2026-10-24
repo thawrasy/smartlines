@@ -46,6 +46,7 @@ from .modules.loyalty import admin as loyalty_admin
 from .modules.loyalty import api as loyalty_api
 from .modules.parcels import api as parcels_api
 from .modules.parcels import trip_api as trip_parcels
+from .modules.trips import api as trip_changes
 from .modules.seo import pages as seo_pages
 from .modules.seo.app_shell import shell as app_shell
 from .modular import api as modular_api
@@ -156,7 +157,7 @@ for r in (metrics.router, auth.router, public.router, bookings.router, wallet.ro
           kyc_api.carrier, kyc_api.platform, journeys_api.passenger, journeys_api.agency,
           charter_api.carrier, charter_api.agency, charter_api.passenger, charter_api.platform,
           geo_api.public, geo_api.platform, connections_api.carrier, connections_api.platform,
-          freight_api.carrier, freight_api.public):
+          freight_api.carrier, freight_api.public, trip_changes.carrier, trip_changes.platform):
     app.include_router(r)
 
 app.add_middleware(metrics.MetricsMiddleware)   # request counts and latency per route (T3-16)

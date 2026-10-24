@@ -32,7 +32,7 @@ def render(template: str, channel: str, locale: str, values: dict) -> tuple[str,
             v = words.get("cities", {}).get(v, v)          # city codes become names in the reader's language
         elif k == "doc_type":
             v = words.get("doc_types", {}).get(v, v)
-        elif k in ("incident_type", "severity", "refund_to"):   # codes become words (1101, 1102)
+        elif k in ("incident_type", "severity", "refund_to", "reason_code"):   # codes become words (1101, 1102, 1148)
             v = words.get(k + "_labels", {}).get(v, v)
         vals[k] = v
     if template.startswith("security.") or template == "account.signed_in_elsewhere":   # the shield (1142)
@@ -44,6 +44,13 @@ def render(template: str, channel: str, locale: str, values: dict) -> tuple[str,
         vals["metrics_text"] = ", ".join(f"{k} {v}" for k, v in (values.get("metrics") or {}).items())
         vals["actions_text"] = ", ".join(lab.get(a.get("action", ""), a.get("action", "")) for a in (values.get("actions") or [])) \
             or lab.get("NONE", "")
+    if template.startswith("booking.trip_changed."):         # a trip change (N42): seats and the moved time read as words
+        vals["seats_text"] = ", ".join(str(x) for x in (values.get("new_seats") or [])) or "-"
+        shift = int(values.get("shift_min") or 0)
+        vals["shift_text"] = f"{'+' if shift > 0 else '-'}{abs(shift) // 60:d}:{abs(shift) % 60:02d}"
+        vals["free_cancel_text"] = words.get("trip_change_labels", {}).get("FREE_CANCEL", "") if values.get("free_cancel") else ""
+        if vals.get("new_trip_code") is None and "new_trip_no" in vals:
+            vals["new_trip_code"] = vals["new_trip_no"]
     if vals.get("trip_code") is None and "trip_no" in vals:   # the trip number passengers read (1114), else the reference
         vals["trip_code"] = vals["trip_no"]
     def fill(s: str) -> str:

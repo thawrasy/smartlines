@@ -21,6 +21,7 @@ from ..family import service as fam
 from ..fares import categories as cat
 from ..notify.outbox import emit
 from ..photo import service as photo
+from ..trips import changes as trip_changes
 from . import charter, documents, options, penalties, repository as repo
 from .models import MAX_LOCKED_SEATS, BookingIn, HoldIn
 
@@ -721,7 +722,19 @@ async def booking_view(conn: asyncpg.Connection, ctx: db.Context, b: asyncpg.Rec
             """SELECT uuid, doc_type, number, total, currency, finalized_at FROM acct.einvoice_document
                 WHERE source_id = $1 AND source_type = 'BOOKING' AND status NOT IN ('DRAFT','CANCELLED_DRAFT')
                 ORDER BY id""", b["id"])
+        # what the carrier changed on the trip since the booking was made (N42, 1148): a new time, another vehicle, a move
+        changes = await conn.fetch(
+            """SELECT DISTINCT c.id, c.kind, c.reason_code, c.old_departure, c.new_departure, c.shift_min, c.created_at,
+                      c.details->>'plate' AS plate, c.details->>'to_trip_code' AS to_trip_code
+                 FROM ops.trip_change c
+                WHERE c.created_at >= $3 AND ((c.trip_id = $1 AND c.kind IN ('RESCHEDULE','VEHICLE_SWAP'))
+                      OR c.id IN (SELECT m.trip_change_id FROM sales.ticket_move m JOIN sales.ticket k ON k.id = m.ticket_id
+                                   WHERE k.booking_id = $2))
+                ORDER BY c.created_at, c.id""", b["trip_id"], b["id"], b["created_at"])
+        free_cancel = b["status"] == "CONFIRMED" and await trip_changes.waives_fee(conn, b["id"], b["trip_id"], b["created_at"])
     booking = {k: b[k] for k in ("booking_ref", "status", "total_amount", "currency", "trip_no", "carrier_name")}
+    booking["trip_changes"] = [{k: v for k, v in row_dict(c).items() if k != "id"} for c in changes]
+    booking["free_cancel"] = free_cancel
     # the short trip number (1114) and the carrier's logo next to its name (1116), where the caller's query read them
     booking["trip_code"] = b.get("trip_code")
     booking["carrier_uid"] = str(b["carrier_uid"]) if b.get("carrier_uid") else None
@@ -849,15 +862,25 @@ async def cancel_booking(conn: asyncpg.Connection, ctx: db.Context, b: asyncpg.R
             fares += t["total_amount"]
         if decided is not None:
             refund = max(0, min(decided, fares))
+        waived = decided is None and await trip_changes.waives_fee(conn, b["id"], b["trip_id"], b["created_at"])
         await repo.mark_cancelled(conn, b["id"], reason)
-        commission = await conn.fetchval(
-            "SELECT amount FROM fin.price_allocation_line WHERE allocation_id = $1 AND code = 'AGENCY_COMMISSION'",
-            b["price_allocation_id"]) or 0
-        # Commission kept = commission x retained / fares (rounded down); the carrier line absorbs the rest
-        kept = commission * (fares - refund) // fares if fares else 0
-        if commission:
-            await repo.refund_allocation_line(conn, b["price_allocation_id"], "AGENCY_COMMISSION", commission - kept)
-        await repo.refund_allocation_line(conn, b["price_allocation_id"], "CARRIER_FARE", refund - (commission - kept))
+        kept, commission = 0, 0
+        if waived and b["price_allocation_id"]:
+            # the carrier moved the trip by the platform's threshold or more: everything paid comes back, the platform's
+            # fee included, as when the carrier cancels (N42, 1148)
+            refund = b["total_amount"]
+            await conn.execute(
+                """UPDATE fin.price_allocation_line SET refunded_amount = amount, status = 'REFUNDED'
+                    WHERE allocation_id = $1 AND status IN ('HELD','PARTIAL_REFUND')""", b["price_allocation_id"])
+        else:
+            commission = await conn.fetchval(
+                "SELECT amount FROM fin.price_allocation_line WHERE allocation_id = $1 AND code = 'AGENCY_COMMISSION'",
+                b["price_allocation_id"]) or 0
+            # Commission kept = commission x retained / fares (rounded down); the carrier line absorbs the rest
+            kept = commission * (fares - refund) // fares if fares else 0
+            if commission:
+                await repo.refund_allocation_line(conn, b["price_allocation_id"], "AGENCY_COMMISSION", commission - kept)
+            await repo.refund_allocation_line(conn, b["price_allocation_id"], "CARRIER_FARE", refund - (commission - kept))
         if notify:
             await emit(conn, "booking.cancelled", "booking", b["id"], {
                 "booking_ref": b["booking_ref"], "refund_amount": refund, "booker_user_id": b["booker_user_id"],

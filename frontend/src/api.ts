@@ -175,6 +175,7 @@ export interface BookingDetail {
              refundable_here?: boolean;
              // a booking changed to another trip (1130): the booking it replaced, and the one that replaced it
              changed_from?: string | null; changed_to?: string | null;
+             trip_changes?: TripChangeNote[]; free_cancel?: boolean;
              return_trip?: import("./components/ReturnTrip").ReturnInfo | null;
              price_breakdown: { fare_per_passenger: number; passengers: number; fares_total: number; platform_fee: number; total: number; fare_brand: string;
                                 lines?: Quote["lines"]; family_offer?: Quote["family_offer"] } };
@@ -197,4 +198,10 @@ export interface BookingRow {
   booking_ref: string; status: string; total_amount: number; currency: string; created_at: string; trip_no: string; trip_code?: string | null; carrier_name: string;
   carrier_uid?: string | null; carrier_logo?: string | null;
   journey: { from_station: string; from_code: string; from_city: string; departs_at: string; to_station: string; to_code: string; to_city: string; arrives_at: string } | null;
+}
+
+/** What the carrier changed on a booking's trip (N42, 1148). */
+export interface TripChangeNote {
+  kind: "RESCHEDULE" | "VEHICLE_SWAP" | "REBOOK"; reason_code: string | null; old_departure: string | null; new_departure: string | null;
+  shift_min: number | null; created_at: string; plate: string | null; to_trip_code: string | null;
 }

@@ -276,7 +276,8 @@ async def trips(request: Request, pr: Principal = Depends(operator)):
                       v.plate_no, r.code AS route_code, so.name AS origin, sd.name AS destination, so.code AS origin_code, sd.code AS dest_code,
                       (SELECT count(*) FROM sales.ticket k WHERE k.trip_id = t.id AND k.status <> 'CANCELLED') AS sold,
                       (SELECT p.legal_name FROM ops.crew_assignment ca JOIN iam.party p ON p.id = ca.party_id
-                        WHERE ca.trip_id = t.id AND ca.crew_role = 'DRIVER' LIMIT 1) AS driver_name
+                        WHERE ca.trip_id = t.id AND ca.crew_role = 'DRIVER' AND ca.status <> 'RELEASED' LIMIT 1) AS driver_name,
+                      t.shift_min, (SELECT count(*) FROM ops.trip_change c WHERE c.trip_id = t.id) AS changes
                  FROM ops.trip t JOIN net.route r ON r.id = t.route_id
                  JOIN net.station so ON so.id = r.origin_station_id JOIN net.station sd ON sd.id = r.dest_station_id
                  LEFT JOIN fleet.vehicle v ON v.id = t.vehicle_id

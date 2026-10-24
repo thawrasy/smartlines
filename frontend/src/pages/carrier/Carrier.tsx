@@ -7,10 +7,12 @@ import { PageHead } from "../../components/layout";
 import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, useToast, PasswordInput } from "../../components/ui";
 import { LayoutPreview, type LayoutRow } from "./Layouts";
 import { CarrierConnectionPolicy } from "../passenger/Connections";
+import { TripChanges } from "./TripChanges";
 
 export interface CarrierTrip {
   uid: string; trip_no: string; trip_code?: string | null; status: string; departure_at: string; arrival_at?: string; seats_total: number; segments_count?: number;
   plate_no: string | null; route_code?: string; origin: string; destination: string; origin_code: string; dest_code: string; sold: number; driver_name?: string | null;
+  shift_min?: number; changes?: number;
 }
 interface Dashboard {
   trips_today: number; sales_today: number; tickets_today: number; released_balance: number; active_vehicles: number; load_factor: number;
@@ -246,6 +248,7 @@ export function CarrierTrips() {
   const state = useLoad(() => api.get<{ trips: CarrierTrip[] }>("/api/carrier/trips"));
   const [creating, setCreating] = useState(() => new URLSearchParams(location.search).has("new"));
   const [manifest, setManifest] = useState<string | null>(null);
+  const [changing, setChanging] = useState<CarrierTrip | null>(null);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const act = async (fn: () => Promise<void>) => { setError(null); try { await fn(); state.reload(); } catch (e) { setError(e); } };
@@ -261,11 +264,12 @@ export function CarrierTrips() {
           <thead><tr><th>{t("booking.tripNo")}</th><th>{t("booking.departs")}</th><th>{t("carrier.route")}</th><th>{t("carrier.plate")}</th><th>{t("carrier.driver")}</th><th>{t("carrier.sold")}</th><th>{t("common.status")}</th><th>{t("common.actions")}</th></tr></thead>
           <tbody>{trips.map((x) => (
             <tr key={x.uid}>
-              <td className="mono small"><strong>{x.trip_code ?? x.trip_no}</strong>{x.trip_code && <div className="trip-ref">{x.trip_no}</div>}</td><td>{dateTime(x.departure_at)}</td><td className="small">{line(x)}</td>
+              <td className="mono small"><strong>{x.trip_code ?? x.trip_no}</strong>{x.trip_code && <div className="trip-ref">{x.trip_no}</div>}</td><td>{dateTime(x.departure_at)}{!!x.changes && <div><span className="chip wheat small">{t("tripChange.changed")}{x.shift_min ? ` ${x.shift_min > 0 ? "+" : ""}${x.shift_min}′` : ""}</span></div>}</td><td className="small">{line(x)}</td>
               <td className="mono">{x.plate_no}</td><td>{x.driver_name ?? <span className="muted">{t("carrier.noDriver")}</span>}</td>
               <td className="num">{x.sold}/{x.seats_total}</td><td><Status value={x.status} /></td>
               <td><div className="row nowrap" style={{ gap: 4 }}>
                 <button className="btn text small" onClick={() => setManifest(x.uid)}><Icon name="group" size={18} />{t("carrier.manifest")}</button>
+                <button className="btn text small" onClick={() => setChanging(x)}><Icon name="edit_calendar" size={18} />{t("carrier.changes")}</button>
                 {x.status === "DRAFT" && <button className="btn tonal small" onClick={() => act(async () => { await api.post(`/api/carrier/trips/${x.uid}/publish`); })}>{t("carrier.publish")}</button>}
                 {["DRAFT", "PUBLISHED", "BOARDING"].includes(x.status) && (
                   <button className="btn text small danger" onClick={() => act(async () => {
@@ -289,6 +293,7 @@ export function CarrierTrips() {
       )}</Loaded>
       {creating && <NewTrip onClose={() => setCreating(false)} onDone={() => { setCreating(false); toast(t("common.saved")); state.reload(); }} />}
       {manifest && <ManifestModal uid={manifest} onClose={() => setManifest(null)} />}
+      {changing && <TripChanges trip={changing} onClose={() => setChanging(null)} onDone={() => { setChanging(null); state.reload(); }} />}
       {generating && <GenerateTrips onClose={() => setGenerating(false)} onDone={() => { setGenerating(false); state.reload(); }} />}
     </div>
   );

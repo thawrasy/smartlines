@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**569 tables, 6026 columns, in 26 schemas.**
+**571 tables, 6057 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -14,8 +14,8 @@ Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant i
 - [`net` — Network: stations, routes, lines, corridors and geofences](#net) (28 tables)
 - [`fleet` — Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance](#fleet) (22 tables)
 - [`pricing` — Pricing, taxes, commissions, campaigns and loyalty](#pricing) (38 tables)
-- [`ops` — Trips, inventory, operations, shuttle rides, tracking and incidents](#ops) (39 tables)
-- [`sales` — Channels, bookings, passengers, tickets, subscriptions and travel documents](#sales) (34 tables)
+- [`ops` — Trips, inventory, operations, shuttle rides, tracking and incidents](#ops) (40 tables)
+- [`sales` — Channels, bookings, passengers, tickets, subscriptions and travel documents](#sales) (35 tables)
 - [`fin` — Wallets, ledger, payments, allocation, settlement and float](#fin) (37 tables)
 - [`acct` — Simplified accounting, e-invoicing and tax profiles](#acct) (37 tables)
 - [`bill` — Carrier subscriptions, metering and platform invoices](#bill) (7 tables)
@@ -3627,6 +3627,28 @@ Trip change log with reasons (7.9)
 | `reason` | `text` | ✱ |  |
 | `by_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `reason_code` | `text` |  |  |
+| `note` | `text` |  |  |
+| `details` | `jsonb` | ✱ | `'{}'::jsonb` |
+| `affected` | `integer` | ✱ | `0` |
+| `notified` | `integer` | ✱ | `0` |
+| `unreachable` | `integer` | ✱ | `0` |
+
+### `ops.trip_change_contact` 🛡️
+
+A booking the system could not tell of a trip change (no account, no mobile): the carrier calls and records it (1148, N42)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `trip_change_id` | `bigint` | 🔗 `ops.trip_change` ✱ |  |
+| `booking_id` | `bigint` | 🔗 `sales.booking` ✱ |  |
+| `contacted_at` | `timestamp with time zone` |  |  |
+| `contacted_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `outcome` | `text` |  |  |
+| `note` | `text` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `ops.trip_crossing_plan` 🛡️
 
@@ -3785,6 +3807,12 @@ Swapping the trip vehicle without changing the trip number (4.16 d)
 | `seats_reassigned` | `boolean` | ✱ | `false` |
 | `approved_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `trip_change_id` | `bigint` | 🔗 `ops.trip_change`  |  |
+| `reason_code` | `text` |  |  |
+| `en_route` | `boolean` | ✱ | `false` |
+| `at_stop_seq` | `smallint` |  |  |
+| `seats_moved` | `integer` | ✱ | `0` |
+| `driver_changed` | `boolean` | ✱ | `false` |
 
 ### `ops.violation_report` 🛡️
 
@@ -4487,6 +4515,23 @@ Travel documents of one international ticket; numbers are encrypted (11.9, D.1.4
 | `source` | `text` | ✱ | `'PASSENGER'::text` |
 | `doc_type` | `text` |  |  |
 | `exception` | `boolean` | ✱ | `false` |
+
+### `sales.ticket_move` 🛡️
+
+A ticket moved by a change of its trip: to another trip (new number) or to another seat (1148, N42)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `ticket_id` | `bigint` | 🔗 `sales.ticket` ✱ |  |
+| `trip_change_id` | `bigint` | 🔗 `ops.trip_change` ✱ |  |
+| `from_trip_id` | `bigint` | 🔗 `ops.trip` ✱ |  |
+| `to_trip_id` | `bigint` | 🔗 `ops.trip` ✱ |  |
+| `old_ticket_no` | `text` | ✱ |  |
+| `new_ticket_no` | `text` | ✱ |  |
+| `old_seat_no` | `smallint` |  |  |
+| `new_seat_no` | `smallint` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `sales.waitlist_entry` 🛡️
 

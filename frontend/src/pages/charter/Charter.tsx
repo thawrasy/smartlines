@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { ParcelPolicy } from "../carrier/ParcelDesk";
+import { TripChangePolicy } from "../carrier/TripChanges";
 import { api, newKey, type TripResult } from "../../api";
 import { useI18n } from "../../i18n";
 import { useAuth } from "../../auth";
@@ -744,7 +745,7 @@ export function AdminBookingRules() {
   const { t } = useI18n();
   const { can } = useAuth();
   const tabs = [...(can("policy.matrix") ? ["limits", "connections"] : []), ...(can("report.platform", "policy.matrix") ? ["charter"] : []),
-                ...(can("policy.matrix") ? ["parcels", "language"] : [])] as ("limits" | "connections" | "charter" | "parcels" | "language")[];
+                ...(can("policy.matrix") ? ["parcels", "tripChanges", "language"] : [])] as ("limits" | "connections" | "charter" | "parcels" | "tripChanges" | "language")[];
   const asked = new URLSearchParams(location.search).get("tab") as (typeof tabs)[number] | null;
   const [tab, setTab] = useState(asked && tabs.includes(asked) ? asked : tabs[0] ?? "charter");
   return (
@@ -754,7 +755,7 @@ export function AdminBookingRules() {
         {tabs.map((v) => <button key={v} role="tab" aria-selected={tab === v} className={tab === v ? "on" : ""} onClick={() => setTab(v)}>{t(`rules.tab.${v}`)}</button>)}
       </div>
       {tab === "limits" ? <SeatLimits /> : tab === "connections" ? <ConnectionSettings /> : tab === "language" ? <VisitorLanguage />
-        : tab === "parcels" ? <ParcelPolicy /> : <PlatformCharter />}
+        : tab === "parcels" ? <ParcelPolicy /> : tab === "tripChanges" ? <TripChangePolicy /> : <PlatformCharter />}
     </div>
   );
 }

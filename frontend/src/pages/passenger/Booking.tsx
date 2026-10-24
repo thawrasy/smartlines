@@ -178,6 +178,15 @@ export default function Booking() {
               <Status value={b.status} />
             </div>
             <ChangeLinks from={b.changed_from} to={b.changed_to} />
+            {!!b.trip_changes?.length && b.status !== "CANCELLED" && (
+              <div className="alert warn small"><Icon name="edit_calendar" size={20} />
+                <div className="stack tight"><strong>{t("tripChange.passengerTitle")}</strong>
+                  {b.trip_changes.map((c, i) => (
+                    <span key={i}>{t(`tripChange.kind.${c.kind}`)}: {c.kind === "RESCHEDULE" && c.new_departure ? t("tripChange.newTime", { at: `${date(c.new_departure)} ${time(c.new_departure)}` })
+                      : c.kind === "VEHICLE_SWAP" ? t("tripChange.newVehicle2", { plate: c.plate ?? "—" }) : t("tripChange.movedTo", { trip: c.to_trip_code ?? "—" })}</span>))}
+                  {b.free_cancel && <span>{t("tripChange.freeCancelPassenger")}</span>}
+                </div></div>
+            )}
             {journey?.kind === "CONNECTION" && b.status === "CONFIRMED" && <div className="alert warn small"><Icon name="warning" size={20} />{t("conn.bookingNote")}</div>}
             {b.status === "PENDING_PAYMENT" && <PayPanel b={b} onChange={state.reload} />}
             {tickets.map((k) => (

@@ -3819,6 +3819,24 @@ SELECT pg_temp.ok((SELECT stopped FROM ship.parcel_carrier WHERE company_id = :c
 ROLLBACK;
 SET ROLE masslak_app;
 
+-- Trip changes (1148): the platform's reasons include OTHER, which needs a note; another carrier sees nothing of a change
+BEGIN;
+RESET ROLE;
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+SELECT t.id AS chtrip, t.company_id AS chco FROM sales.booking b JOIN ops.trip t ON t.id = b.trip_id WHERE b.booking_ref = 'ABC123' \gset
+SELECT pg_temp.ok((SELECT value -> 'reasons' @> '[{"code": "OTHER"}]' AND (value ->> 'free_cancel_shift_min')::int = 60
+                     FROM sys.setting WHERE key = 'trips.change_policy'),
+  'Trip changes (1148): the platform lists the reasons, OTHER among them, and the free-cancel threshold');
+SELECT pg_temp.expect_error(format($$INSERT INTO ops.trip_change (trip_id, kind, reason, reason_code) VALUES (%s, 'RESCHEDULE', 'OTHER', 'OTHER')$$, :chtrip),
+  'check constraint', 'Trip changes (1148): a change for another reason says what it is');
+INSERT INTO ops.trip_change (trip_id, kind, reason, reason_code, note) VALUES (:chtrip, 'VEHICLE_SWAP', 'BREAKDOWN', 'BREAKDOWN', 'Gearbox');
+SET LOCAL ROLE masslak_app;
+SELECT sys.set_context(:ua, CASE WHEN :chco = :ca THEN :cb ELSE :ca END, 'COMPANY');
+SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM ops.trip_change WHERE trip_id = :chtrip),
+  'Trip changes (1148): another carrier does not see the changes of a trip');
+ROLLBACK;
+SET ROLE masslak_app;
+
 -- Charter (1123): carriers hire out vehicles and whole trips on their terms; requests are priced, paid and their seats held
 BEGIN;
 RESET ROLE;

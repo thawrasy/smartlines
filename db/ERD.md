@@ -92,10 +92,10 @@ flowchart LR
   net -->|4| ref
   ops -->|2| fin
   ops -->|10| fleet
-  ops -->|25| iam
+  ops -->|26| iam
   ops -->|17| net
   ops -->|1| ref
-  ops -->|3| sales
+  ops -->|4| sales
   ops -->|1| sec
   pricing -->|2| fin
   pricing -->|24| iam
@@ -126,7 +126,7 @@ flowchart LR
   sales -->|2| gov
   sales -->|34| iam
   sales -->|2| net
-  sales -->|11| ops
+  sales -->|14| ops
   sales -->|5| pricing
   sales -->|5| ref
   sch -->|4| fleet
@@ -1926,6 +1926,13 @@ erDiagram
     bigint id PK
     bigint trip_id FK
     bigint by_user_id FK
+    uuid uid
+  }
+  ops_trip_change_contact {
+    bigint id PK
+    bigint trip_change_id FK
+    bigint booking_id FK
+    bigint contacted_by FK
   }
   ops_trip_crossing_plan {
     bigint id PK
@@ -1983,6 +1990,7 @@ erDiagram
     bigint from_vehicle_id FK
     bigint to_vehicle_id FK
     bigint approved_by FK
+    bigint trip_change_id FK
   }
   ops_violation_report {
     bigint id PK
@@ -2046,6 +2054,9 @@ erDiagram
   sales_boarding_event {
     ref external
   }
+  sales_booking {
+    ref external
+  }
   sales_ticket {
     ref external
   }
@@ -2070,6 +2081,7 @@ erDiagram
   ops_offline_pack_download }o--|| iam_app_user : "user_id"
   ops_shuttle_ride }o--|| iam_app_user : "user_id"
   ops_vehicle_position }o..o| iam_app_user : "driver_user_id"
+  ops_trip_change_contact }o..o| iam_app_user : "contacted_by"
   ops_seat_segment }o..o| iam_app_user : "lock_user_id"
   ops_transit_reconciliation }o..o| iam_app_user : "resolved_by_user_id"
   ops_seat_lock }o..o| iam_app_user : "user_id"
@@ -2142,6 +2154,8 @@ erDiagram
   ops_shuttle_ride }o--|| ops_trip : "trip_id"
   ops_route_violation }o..o| ops_trip : "trip_id"
   ops_schedule_request }o..o| ops_trip : "trip_id"
+  ops_trip_change_contact }o--|| ops_trip_change : "trip_change_id"
+  ops_vehicle_swap }o..o| ops_trip_change : "trip_change_id"
   ops_trip_pair_fare }o--|| ops_trip_stop : "trip_id,from_seq"
   ops_trip_pair_fare }o--|| ops_trip_stop : "trip_id,to_seq"
   ops_trip_stop_event }o--|| ops_trip_stop : "trip_id,seq"
@@ -2149,6 +2163,7 @@ erDiagram
   ops_trip }o..o| ops_trip_template : "template_id"
   ops_trip }o--|| ref_trip_type : "trip_type"
   ops_shuttle_ride }o..o| sales_boarding_event : "boarding_event_id"
+  ops_trip_change_contact }o--|| sales_booking : "booking_id"
   ops_seat_segment }o..o| sales_ticket : "ticket_id"
   ops_seat_segment }o..o| sales_ticket : "trip_id,ticket_id"
   ops_schedule_approval }o..o| sec_authority_profile : "authority_id"
@@ -2429,6 +2444,13 @@ erDiagram
     text status
     bigint verified_by FK
   }
+  sales_ticket_move {
+    bigint id PK
+    bigint ticket_id FK
+    bigint trip_change_id FK
+    bigint from_trip_id FK
+    bigint to_trip_id FK
+  }
   sales_waitlist_entry {
     bigint id PK
     bigint trip_id FK
@@ -2494,6 +2516,9 @@ erDiagram
     ref external
   }
   ops_trip {
+    ref external
+  }
+  ops_trip_change {
     ref external
   }
   ops_trip_disruption {
@@ -2583,9 +2608,12 @@ erDiagram
   sales_connection_hold }o--|| ops_trip : "trip_id"
   sales_boarding_event }o--|| ops_trip : "trip_id"
   sales_booking }o--|| ops_trip : "trip_id"
+  sales_ticket_move }o--|| ops_trip : "from_trip_id"
   sales_inspection_check }o..o| ops_trip : "trip_id"
+  sales_ticket_move }o--|| ops_trip : "to_trip_id"
   sales_ticket }o--|| ops_trip : "trip_id"
   sales_charter_request }o..o| ops_trip : "trip_id"
+  sales_ticket_move }o--|| ops_trip_change : "trip_change_id"
   sales_passenger_compensation }o..o| ops_trip_disruption : "trip_disruption_id"
   sales_ticket }o--|| ops_trip_stop : "trip_id,from_seq"
   sales_ticket }o--|| ops_trip_stop : "trip_id,to_seq"
@@ -2639,6 +2667,7 @@ erDiagram
   sales_external_mapping }o--|| sales_supplier_source : "source_id"
   sales_ticket_doc }o--|| sales_ticket : "ticket_id"
   sales_boarding_event }o..o| sales_ticket : "ticket_id"
+  sales_ticket_move }o--|| sales_ticket : "ticket_id"
   sales_refund_request }o..o| sales_ticket : "ticket_id"
   sales_charter_seat }o..o| sales_ticket : "ticket_id"
 ```

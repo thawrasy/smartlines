@@ -61,6 +61,15 @@ async def deliveries(conn: asyncpg.Connection, event: asyncpg.Record, payload: d
                              values=payload, booking_id=event["aggregate_id"])]
         d = await _user(conn, payload["booker_user_id"], template, ["IN_APP", "EMAIL"], payload, event["aggregate_id"])
         return [d] if d else []
+    if kind == "booking.trip_changed":   # the carrier changed the trip: new time, vehicle or trip (N42, 1148)
+        template = f"booking.trip_changed.{str(payload.get('change', '')).lower()}"
+        if payload.get("agency_id") or payload.get("counter") or not payload.get("booker_user_id"):
+            if not payload.get("contact_mobile"):
+                return []              # listed for the carrier to call (ops.trip_change_contact)
+            return [Delivery(template, ["SMS"], await default_locale(conn), mobile=payload["contact_mobile"],
+                             values=payload, booking_id=event["aggregate_id"])]
+        d = await _user(conn, payload["booker_user_id"], template, ["IN_APP", "EMAIL"], payload, event["aggregate_id"])
+        return [d] if d else []
     if kind in ("withdrawal.paid", "withdrawal.rejected"):
         return await _owners(conn, event["company_id"], kind, payload)
     if kind.startswith("payment_activation."):   # the gateway's roll-out, step by step (1145): the carrier's owners hear of it

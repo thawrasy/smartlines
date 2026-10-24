@@ -1332,5 +1332,34 @@
   "payment_activation.suspended": {
     "subject": "إيقاف الدفع عبر {option} مؤقتاً على رحلاتكم",
     "body": "أوقفت المنصة الدفع عبر {option} على رحلاتكم مؤقتاً؛ يدفع المسافرون بالطرق المفتوحة الأخرى في الأثناء. السند: {basis}."
+  },
+  "booking.trip_changed.reschedule": {
+    "subject": "الرحلة {trip_code}: موعد انطلاق جديد",
+    "body": "عدّل الناقل موعد الرحلة {trip_code} ({shift_text}) بسبب {reason_code}. موعد انطلاق حجزك {booking_ref} الآن {departs_local}. {free_cancel_text}",
+    "sms": "مسلك: الرحلة {trip_code} تنطلق الآن {departs_local} ({reason_code}). الحجز {booking_ref}. {free_cancel_text}"
+  },
+  "booking.trip_changed.vehicle_swap": {
+    "subject": "الرحلة {trip_code}: مركبة بديلة",
+    "body": "بدّل الناقل مركبة الرحلة {trip_code} بسبب {reason_code}. رقم الرحلة لم يتغير. المركبة الجديدة: {vehicle_plate}. المقعد الجديد للحجز {booking_ref}: {seats_text}.",
+    "sms": "مسلك: الرحلة {trip_code} تسير الآن بالمركبة {vehicle_plate} ({reason_code}). الحجز {booking_ref}، المقعد الجديد: {seats_text}."
+  },
+  "booking.trip_changed.rebook": {
+    "subject": "نُقل حجزك {booking_ref} إلى الرحلة {trip_code}",
+    "body": "نقل الناقل حجزك {booking_ref} من الرحلة {from_trip_code} إلى الرحلة {trip_code} بسبب {reason_code}. موعد الانطلاق {departs_local}، المركبة {vehicle_plate}، المقعد {seats_text}. لن تدفع أي فرق؛ أرقام تذاكرك الجديدة في التطبيق.",
+    "sms": "مسلك: نُقل الحجز {booking_ref} إلى الرحلة {trip_code}، الانطلاق {departs_local}، المقعد {seats_text} ({reason_code}). دون أي فرق."
+  },
+  "reason_code_labels": {
+    "BREAKDOWN": "عطل فني",
+    "ACCIDENT": "حادث",
+    "LATE_INCOMING_TRIP": "تأخر وصول الرحلة القادمة",
+    "REPAIR_IN_PROGRESS": "إصلاح قيد التنفيذ",
+    "VEHICLE_REPLACEMENT": "استبدال المركبة",
+    "WEATHER": "الأحوال الجوية",
+    "ROAD_CLOSURE": "إغلاق طريق",
+    "AUTHORITY_ORDER": "قرار جهة رسمية",
+    "OTHER": "سبب آخر"
+  },
+  "trip_change_labels": {
+    "FREE_CANCEL": "إن لم يناسبك الموعد الجديد، ألغِ الحجز واسترد المبلغ كاملاً."
   }
 }
