@@ -15,7 +15,7 @@ and move its passengers to another trip. Passengers are told directly of the rep
 
 - **The trip keeps its number and its reference** (N43): the reference keeps the time it was first scheduled at; the new
   time is shown beside it and logged.
-- **A reason from the platform's list**, in Arabic and English (`sys.setting` `trips.change_policy`): breakdown, accident,
+- **A reason from the platform's list**, in Arabic and English (`sys.setting` `trips.change_policy`; the schema holds the English wording, the Arabic comes from the Arabic messages file until the platform names it): breakdown, accident,
   late arrival of the incoming trip, repair in progress, vehicle replacement, weather, road closure, order of an
   authority, other. "Other" needs a note; the database refuses it without one. The platform edits the list (OTHER stays).
 - **Logged** in `ops.trip_change`: kind, reason, note, who and when, what it did (`details`), how many bookings it touched,

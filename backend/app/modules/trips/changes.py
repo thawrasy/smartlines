@@ -18,6 +18,7 @@ from ...errors import ApiError
 from ...util import ticket_no
 from ..fleet import service as fleet
 from ..notify.outbox import emit
+from ..notify.render import messages
 from ..sales.repository import FREE_SEG
 
 LIVE = ("PUBLISHED", "BOARDING")                    # sold and not yet left
@@ -25,8 +26,13 @@ BOOKINGS = ("CONFIRMED", "PENDING_PAYMENT")         # bookings still travelling 
 
 
 async def policy(conn: asyncpg.Connection) -> dict:
+    """The platform's reasons and limits. A reason the platform has not named in Arabic takes the wording of the Arabic
+    messages file (the schema holds no Arabic text), so both languages are always shown."""
     v = await conn.fetchval("SELECT value FROM sys.setting WHERE key = 'trips.change_policy'")
-    return json.loads(v) if isinstance(v, str) else dict(v or {})
+    p = json.loads(v) if isinstance(v, str) else dict(v or {})
+    words = messages("ar").get("reason_code_labels", {})
+    p["reasons"] = [r | {"ar": r.get("ar") or words.get(r["code"], r.get("en", r["code"]))} for r in p.get("reasons", [])]
+    return p
 
 
 async def check_reason(conn: asyncpg.Connection, code: str, note: Optional[str]) -> None:
