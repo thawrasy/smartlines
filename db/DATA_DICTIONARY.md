@@ -2,13 +2,13 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**572 tables, 6087 columns, in 26 schemas.**
+**573 tables, 6095 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
 ## Index
 
-- [`iam` — Identity, parties, users, permissions and API clients](#iam) (45 tables)
+- [`iam` — Identity, parties, users, permissions and API clients](#iam) (46 tables)
 - [`ref` — Reference data, locales and files](#ref) (18 tables)
 - [`sys` — Settings, outbox and webhooks](#sys) (27 tables)
 - [`net` — Network: stations, routes, lines, corridors and geofences](#net) (28 tables)
@@ -554,9 +554,24 @@ The KYC form in versions: its sections, fields, option sets and documents; one v
 | `activated_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `activated_at` | `timestamp with time zone` |  |  |
 
+### `iam.messenger_link` 🛡️
+
+A one-time link that ties a Telegram chat to a second factor being enrolled: only the keyed hash of its token is kept, it lasts minutes and is used once (1151, N36)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `user_id` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `factor_id` | `bigint` | 🔗 `iam.mfa_factor` ✱ |  |
+| `channel` | `text` | ✱ |  |
+| `token_hash` | `bytea` | ✱ |  |
+| `expires_at` | `timestamp with time zone` | ✱ |  |
+| `linked_at` | `timestamp with time zone` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
 ### `iam.mfa_challenge` 🛡️
 
-A one-time code sent by text or WhatsApp message: only its keyed hash is kept, it expires within minutes and allows five tries (1075, decision 2)
+A one-time code sent by e-mail, Telegram, text or WhatsApp message: only its keyed hash is kept, it expires within minutes and allows five tries (1075, 1151)
 
 | Column | Type | Constraints | Default |
 |---|---|---|---|
@@ -577,7 +592,7 @@ A one-time code sent by text or WhatsApp message: only its keyed hash is kept, i
 
 ### `iam.mfa_factor` 🛡️
 
-Second factors: TOTP (encrypted secret), SMS and WHATSAPP (the encrypted phone number the codes go to, its last four digits in label), passkeys, recovery codes (1075)
+Second factors: TOTP (encrypted secret), SMS and WHATSAPP (encrypted phone number), EMAIL (encrypted address), TELEGRAM (encrypted chat id), passkeys, recovery codes (1075, 1151)
 
 | Column | Type | Constraints | Default |
 |---|---|---|---|

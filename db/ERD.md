@@ -343,6 +343,11 @@ erDiagram
     bigint created_by FK
     bigint activated_by FK
   }
+  iam_messenger_link {
+    bigint id PK
+    bigint user_id FK
+    bigint factor_id FK
+  }
   iam_mfa_challenge {
     bigint id PK
     uuid uid
@@ -538,6 +543,7 @@ erDiagram
   iam_user_session }o--|| iam_app_user : "user_id"
   iam_auth_token }o..o| iam_app_user : "user_id"
   iam_device_permission_state }o--|| iam_app_user : "user_id"
+  iam_messenger_link }o--|| iam_app_user : "user_id"
   iam_mfa_challenge }o--|| iam_app_user : "user_id"
   iam_contact_code }o--|| iam_app_user : "user_id"
   iam_photo_change_request }o--|| iam_app_user : "requested_by_user_id"
@@ -586,6 +592,7 @@ erDiagram
   iam_gov_identity_link }o--|| iam_identity_provider : "provider_id"
   iam_verification }o..o| iam_identity_provider : "provider_id"
   iam_company_kyc }o--|| iam_kyc_form : "form_id"
+  iam_messenger_link }o--|| iam_mfa_factor : "factor_id"
   iam_mfa_challenge }o--|| iam_mfa_factor : "factor_id"
   iam_party_role }o--|| iam_party : "party_id"
   iam_company }o--|| iam_party : "id"
