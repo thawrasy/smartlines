@@ -18,7 +18,10 @@ APP = Path(__file__).resolve().parents[1] / "app"
 SENSITIVE = {
     "modules/payouts/api.py": ['@company.post("/bank-accounts"', '@company.post("/withdrawals"',
                                '@platform.post("/bank-accounts/{account_uid}/verify"', '@platform.post("/withdrawals/{withdrawal_uid}/approve"',
-                               '@platform.post("/withdrawals/{withdrawal_uid}/paid"', '@platform.post("/settlements/{batch_uid}/approve"'],
+                               '@platform.post("/withdrawals/{withdrawal_uid}/paid"', '@platform.post("/settlements/{batch_uid}/approve"',
+                               '@company.post("/bank-accounts/{account_uid}/default"', '@company.post("/bank-accounts/{account_uid}/disable"',
+                               '@platform.post("/bank-accounts/{account_uid}/reject"'],
+    "modules/registry/api.py": ['@platform.post("/{kind}/{uid}/review"', '@platform.post("/branches/{uid}/review"'],
     "modules/loyalty/admin.py": ['@router.post("/settlements/{settlement}/pay"'],
     "modules/agency/api.py": ['@router.post("/staff"'],
     "routers/carrier.py": ['@router.post("/crew"'],

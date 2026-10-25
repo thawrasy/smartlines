@@ -78,6 +78,7 @@ const AgencyTopup = lazyNamed(() => import("./pages/finance/Payments"), "AgencyT
 const PaymentsDesk = lazyNamed(() => import("./pages/finance/Payments"), "PaymentsDesk");
 const IntegrationsPage = lazyNamed(() => import("./pages/integrations/Integrations"), "IntegrationsPage");
 const PeoplePage = lazyNamed(() => import("./pages/people/People"), "PeoplePage");
+const RegistriesPage = lazyNamed(() => import("./pages/registry/Registries"), "RegistriesPage");
 const MfaPolicy = lazy(() => import("./pages/security/MfaPolicy"));
 const Statements = lazy(() => import("./pages/security/Statements"));
 const Shield = lazy(() => import("./pages/security/Shield"));
@@ -162,6 +163,7 @@ function PlatformShell() {
       { to: "/admin/payments", icon: "account_balance", label: t("pay.nav"), show: can("ledger.reconcile", "payment.fee_policy", "compensation.pay", "payment.methods", "cash.remittance", "cash.credit_limit", "policy.matrix", "loyalty.manage") },
       { to: "/admin/integrations", icon: "api", label: t("api.nav"), show: can("security.api_clients") },
       { to: "/admin/people", icon: "group", label: t("people.nav"), show: can("users.manage") },
+      { to: "/admin/registries", icon: "account_balance", label: t("reg.nav"), show: can("reference.manage") },
       { to: "/admin/modules", icon: "apps", label: t("modules.title"), show: can("modules.manage") },
       ...mods,
     ]} />
@@ -364,6 +366,7 @@ export default function App() {
           <Route path="admin/payments" element={<PaymentsDesk />} />
           <Route path="admin/integrations" element={<IntegrationsPage />} />
           <Route path="admin/people" element={<PeoplePage />} />
+          <Route path="admin/registries" element={<RegistriesPage />} />
           <Route path="security" element={<SecurityOverview />} />
           <Route path="security/rules" element={<SecurityRules />} />
           <Route path="security/auth" element={<SecurityAuthLog />} />

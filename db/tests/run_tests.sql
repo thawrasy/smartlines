@@ -3966,6 +3966,41 @@ SELECT pg_temp.expect_error($$INSERT INTO iam.integration_request (company_id, r
 ROLLBACK;
 SET ROLE masslak_app;
 
+-- Bank and insurer registries (1156): reviewed by a second person, written only by the platform, hidden kinds stay hidden
+BEGIN;
+RESET ROLE;
+INSERT INTO iam.party (party_type, legal_name) VALUES ('PERSON', 'Registry Clerk') RETURNING id AS rgp \gset
+INSERT INTO iam.app_user (party_id, account_kind, email, password_hash, status) VALUES (:rgp, 'PLATFORM', 'registry-clerk@test.invalid', 'x', 'ACTIVE') RETURNING id AS rgu \gset
+SET LOCAL ROLE masslak_app;
+SELECT sys.set_context(:ua, :ca, 'COMPANY');
+SELECT pg_temp.expect_error(format($$INSERT INTO ref.bank (code, name_ar, name_en, entered_by) VALUES ('ZZCO', 'Bank', 'Bank', %s)$$, :ua),
+  'row-level security', 'Registries (1156): a company never writes the bank registry');
+SELECT pg_temp.expect_error(format($$INSERT INTO iam.bank_account (party_id, bank_name, holder_name, iban_enc, iban_bidx, iban_last4, enc_key_id, currency, verification_status)
+  VALUES (%s, 'B', 'H', '\x01', '\x09', '1234', 1, 'SYP', 'VERIFIED_BY_GATEWAY')$$, :ca), 'only platform finance verifies',
+  'Registries (1156): a company never sets its account''s verification status');
+SELECT sys.set_context(:uadmin, NULL, 'PLATFORM');
+INSERT INTO ref.bank (code, name_ar, name_en, entered_by) VALUES ('ZZBK', 'Bank', 'Test Bank', :rgu) RETURNING id AS rgb \gset
+SELECT pg_temp.expect_error(format($$UPDATE ref.bank SET status = 'ACTIVE', reviewed_by = %s WHERE id = %s$$, :rgu, :rgb),
+  'check constraint', 'Registries (1156): the person who entered a bank never reviews it');
+SELECT pg_temp.expect_error(format($$UPDATE ref.bank SET status = 'ACTIVE' WHERE id = %s$$, :rgb),
+  'check constraint', 'Registries (1156): a bank is active only once reviewed');
+SELECT pg_temp.expect_error(format($$INSERT INTO ref.bank (code, name_ar, name_en, bank_type, entered_by) VALUES ('ZZCB', 'Bank', 'Central', 'CENTRAL', %s)$$, :rgu),
+  'check constraint', 'Registries (1156): the central bank is hidden from companies');
+SELECT pg_temp.expect_error(format($$INSERT INTO ref.bank (code, name_ar, name_en, swift_bic, entered_by) VALUES ('ZZSW', 'Bank', 'Bank', 'PCBSYDA', %s)$$, :rgu),
+  'check constraint', 'Registries (1156): a SWIFT code has 8 or 11 characters');
+INSERT INTO ref.insurer (code, name_ar, name_en, entered_by) VALUES ('ZZIN', 'Insurer', 'Pending Insurer', :rgu) RETURNING id AS rgi \gset
+SELECT pg_temp.expect_error(format($$INSERT INTO fleet.insurance_policy (vehicle_id, policy_no, coverage_type, period, insurer_id)
+    VALUES ((SELECT min(id) FROM fleet.vehicle), 'ZZ-1', 'THIRD_PARTY', daterange(current_date, current_date + 365), %s)$$, :rgi),
+  'INSURER_UNKNOWN', 'Registries (1156): a policy picks only a reviewed insurer');
+UPDATE ref.insurer SET status = 'ACTIVE', reviewed_by = :uadmin, reviewed_at = now() WHERE id = :rgi;
+INSERT INTO fleet.insurance_policy (vehicle_id, policy_no, coverage_type, period, insurer_id)
+  VALUES ((SELECT min(id) FROM fleet.vehicle), 'ZZ-2', 'THIRD_PARTY', daterange(current_date, current_date + 365), :rgi) RETURNING id AS rgpol \gset
+SELECT pg_temp.ok((SELECT insurer_name FROM fleet.insurance_policy WHERE id = :rgpol) = 'Pending Insurer',
+  'Registries (1156): a policy carries the name of the insurer it picked');
+RESET ROLE;
+ROLLBACK;
+SET ROLE masslak_app;
+
 -- Charter (1123): carriers hire out vehicles and whole trips on their terms; requests are priced, paid and their seats held
 BEGIN;
 RESET ROLE;

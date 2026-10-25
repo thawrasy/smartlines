@@ -18,9 +18,14 @@ staff = require_portal("PLATFORM")
 
 
 class BankAccountIn(BaseModel):
-    bank_name: str = Field(min_length=2, max_length=120)
+    """The bank (and branch) picked from the platform's registry (1156, N6); bank_name stays for older clients."""
+    bank_uid: Optional[uuid.UUID] = None
+    branch_uid: Optional[uuid.UUID] = None
+    bank_name: Optional[str] = Field(default=None, min_length=2, max_length=120)
     holder_name: str = Field(min_length=3, max_length=160)
     iban: str = Field(min_length=15, max_length=42, pattern=r"^[A-Za-z0-9 \-]+$")
+    account_no: Optional[str] = Field(default=None, min_length=4, max_length=34, pattern=r"^[A-Za-z0-9 \-]+$")
+    is_default: bool = False
 
 
 class WithdrawalIn(BaseModel):
@@ -62,9 +67,27 @@ async def add_bank_account(body: BankAccountIn, request: Request, pr: Principal 
     require_step_up(pr)                 # a sensitive operation: a recent second factor (1136)
     ctx = context_for(request, pr)
     async with db.transaction(ctx) as conn:
-        account_id, uid = await service.add_bank_account(conn, ctx, pr, body.bank_name, body.holder_name, body.iban)
+        account_id, uid = await service.add_bank_account(conn, ctx, pr, body)
     request.state.audit = {"action": "bank_account.create", "object_type": "bank_account", "object_id": account_id}
     return {"uid": uid}
+
+
+@company.post("/bank-accounts/{account_uid}/default")
+async def default_account(account_uid: uuid.UUID, request: Request, pr: Principal = Depends(owner)):
+    require_step_up(pr)
+    async with db.transaction(context_for(request, pr)) as conn:
+        account_id = await service.set_default(conn, pr, account_uid)
+    request.state.audit = {"action": "bank_account.default", "object_type": "bank_account", "object_id": account_id}
+    return {"ok": True}
+
+
+@company.post("/bank-accounts/{account_uid}/disable")
+async def disable_account(account_uid: uuid.UUID, request: Request, pr: Principal = Depends(owner)):
+    require_step_up(pr)
+    async with db.transaction(context_for(request, pr)) as conn:
+        account_id = await service.disable_account(conn, pr, account_uid)
+    request.state.audit = {"action": "bank_account.disable", "object_type": "bank_account", "object_id": account_id}
+    return {"ok": True}
 
 
 @company.get("/withdrawals")
@@ -111,6 +134,15 @@ async def verify(account_uid: uuid.UUID, request: Request, pr: Principal = Depen
     async with db.transaction(context_for(request, pr)) as conn:
         account_id = await service.verify_account(conn, pr, account_uid)
     request.state.audit = {"action": "bank_account.verify", "object_type": "bank_account", "object_id": account_id}
+    return {"ok": True}
+
+
+@platform.post("/bank-accounts/{account_uid}/reject")
+async def reject_account(account_uid: uuid.UUID, body: RejectIn, request: Request, pr: Principal = Depends(staff)):
+    require_step_up(pr)
+    async with db.transaction(context_for(request, pr)) as conn:
+        account_id = await service.reject_account(conn, pr, account_uid, body.reason)
+    request.state.audit = {"action": "bank_account.reject", "object_type": "bank_account", "object_id": account_id, "reason": body.reason}
     return {"ok": True}
 
 

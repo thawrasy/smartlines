@@ -2,14 +2,14 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**576 tables, 6167 columns, in 26 schemas.**
+**579 tables, 6255 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
 ## Index
 
 - [`iam` — Identity, parties, users, permissions and API clients](#iam) (49 tables)
-- [`ref` — Reference data, locales and files](#ref) (18 tables)
+- [`ref` — Reference data, locales and files](#ref) (21 tables)
 - [`sys` — Settings, outbox and webhooks](#sys) (27 tables)
 - [`net` — Network: stations, routes, lines, corridors and geofences](#net) (28 tables)
 - [`fleet` — Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance](#fleet) (22 tables)
@@ -167,6 +167,15 @@ Bank accounts for withdrawals and settlement (encrypted IBAN)
 | `uid` | `uuid` | ✱ | `gen_random_uuid()` |
 | `verified_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `verified_at` | `timestamp with time zone` |  |  |
+| `bank_id` | `bigint` | 🔗 `ref.bank`  |  |
+| `branch_id` | `bigint` | 🔗 `ref.bank_branch`  |  |
+| `swift_bic` | `text` |  |  |
+| `account_no_enc` | `bytea` |  |  |
+| `account_no_last4` | `text` |  |  |
+| `is_default` | `boolean` | ✱ | `false` |
+| `verification_status` | `text` | ✱ | `'UNVERIFIED'::text` |
+| `verification_source` | `text` |  |  |
+| `verified_holder_name` | `text` |  |  |
 
 ### `iam.beneficial_owner` 🛡️
 
@@ -1040,6 +1049,70 @@ Governorates (1), districts (2) and sub-districts (3), with their United Nations
 | `published_en` | `text` |  |  |
 | `published_ar` | `text` |  |  |
 
+### `ref.bank` 🛡️
+
+Banks entered by platform staff and reviewed by another person before companies see them; UNVERIFIED until fully verified (1156, N6)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `code` | `text` | ✱ |  |
+| `name_ar` | `text` | ✱ |  |
+| `name_en` | `text` | ✱ |  |
+| `short_name` | `text` |  |  |
+| `bank_type` | `text` | ✱ | `'PRIVATE'::text` |
+| `swift_bic` | `text` |  |  |
+| `swift_status` | `text` | ✱ | `'TO_VERIFY'::text` |
+| `swift_reported` | `text` |  |  |
+| `iban_bank_code` | `text` |  |  |
+| `address` | `jsonb` | ✱ | `'{}'::jsonb` |
+| `phone` | `text` |  |  |
+| `fax` | `text` |  |  |
+| `email` | `text` |  |  |
+| `website` | `text` |  |  |
+| `hidden_from_companies` | `boolean` | ✱ | `false` |
+| `notes` | `text` |  |  |
+| `status` | `text` | ✱ | `'PENDING_REVIEW'::text` |
+| `verification_status` | `text` | ✱ | `'UNVERIFIED'::text` |
+| `source` | `text` | ✱ | `'MANUAL'::text` |
+| `entered_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `reviewed_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `reviewed_at` | `timestamp with time zone` |  |  |
+| `pending_changes` | `jsonb` |  |  |
+| `pending_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `pending_at` | `timestamp with time zone` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ref.bank_branch` 🛡️
+
+Branches of a bank with their own codes and addresses (phase 2); reviewed by a second person (1156, N6)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `bank_id` | `bigint` | 🔗 `ref.bank` ✱ |  |
+| `name_ar` | `text` | ✱ |  |
+| `name_en` | `text` | ✱ |  |
+| `branch_code` | `text` |  |  |
+| `swift_bic` | `text` |  |  |
+| `is_head_office` | `boolean` | ✱ | `false` |
+| `area_id` | `bigint` | 🔗 `ref.admin_area`  |  |
+| `address` | `jsonb` | ✱ | `'{}'::jsonb` |
+| `lat` | `numeric(9,6)` |  |  |
+| `lng` | `numeric(9,6)` |  |  |
+| `phone` | `text` |  |  |
+| `email` | `text` |  |  |
+| `status` | `text` | ✱ | `'PENDING_REVIEW'::text` |
+| `verification_status` | `text` | ✱ | `'UNVERIFIED'::text` |
+| `entered_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `reviewed_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `reviewed_at` | `timestamp with time zone` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+
 ### `ref.cargo_category` 🛡️
 
 Cargo categories as additional information for transit and freight (annex D.3)
@@ -1152,6 +1225,41 @@ Each load of the administrative geography: the publisher, the file and its hash,
 | `imported_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `imported_at` | `timestamp with time zone` | ✱ | `now()` |
 | `content` | `text` | ✱ | `'PLACES'::text` |
+
+### `ref.insurer` 🛡️
+
+Insurance companies entered by platform staff and reviewed by another person; carriers pick their insurer from it (1156, N9)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `code` | `text` | ✱ |  |
+| `name_ar` | `text` | ✱ |  |
+| `name_en` | `text` | ✱ |  |
+| `ownership` | `text` | ✱ | `'PRIVATE'::text` |
+| `insurance_kind` | `text` | ✱ | `'CONVENTIONAL'::text` |
+| `licence_no` | `text` |  |  |
+| `address` | `jsonb` | ✱ | `'{}'::jsonb` |
+| `lat` | `numeric(9,6)` |  |  |
+| `lng` | `numeric(9,6)` |  |  |
+| `phone` | `text` |  |  |
+| `fax` | `text` |  |  |
+| `email` | `text` |  |  |
+| `website` | `text` |  |  |
+| `hidden_from_companies` | `boolean` | ✱ | `false` |
+| `notes` | `text` |  |  |
+| `status` | `text` | ✱ | `'PENDING_REVIEW'::text` |
+| `verification_status` | `text` | ✱ | `'UNVERIFIED'::text` |
+| `source` | `text` | ✱ | `'MANUAL'::text` |
+| `entered_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `reviewed_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `reviewed_at` | `timestamp with time zone` |  |  |
+| `pending_changes` | `jsonb` |  |  |
+| `pending_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `pending_at` | `timestamp with time zone` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `ref.locale` 🛡️
 
@@ -2253,7 +2361,7 @@ Insurance contract, required to activate the vehicle; later verified with the tr
 | `id` | `bigint` | 🔑 ✱ | `identity` |
 | `vehicle_id` | `bigint` | 🔗 `fleet.vehicle` ✱ |  |
 | `insurer_party_id` | `bigint` | 🔗 `iam.party`  |  |
-| `insurer_name` | `text` | ✱ |  |
+| `insurer_name` | `text` |  |  |
 | `policy_no` | `text` | ✱ |  |
 | `coverage_type` | `text` | ✱ |  |
 | `passenger_cover` | `boolean` | ✱ | `false` |
@@ -2266,6 +2374,7 @@ Insurance contract, required to activate the vehicle; later verified with the tr
 | `verified_at` | `timestamp with time zone` |  |  |
 | `status` | `text` | ✱ | `'PENDING'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `insurer_id` | `bigint` | 🔗 `ref.insurer`  |  |
 
 ### `fleet.license_change_request` 🛡️
 

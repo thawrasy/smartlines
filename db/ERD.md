@@ -71,7 +71,7 @@ flowchart LR
   fleet -->|2| net
   fleet -->|4| ops
   fleet -->|1| ptn
-  fleet -->|2| ref
+  fleet -->|3| ref
   frt -->|2| brd
   frt -->|1| crm
   frt -->|6| fleet
@@ -86,7 +86,7 @@ flowchart LR
   iam -->|6| gov
   iam -->|3| net
   iam -->|1| ops
-  iam -->|5| ref
+  iam -->|7| ref
   iam -->|2| sec
   net -->|21| iam
   net -->|4| ref
@@ -112,7 +112,7 @@ flowchart LR
   rail -->|2| net
   rail -->|2| ops
   rail -->|1| sales
-  ref -->|4| iam
+  ref -->|9| iam
   rent -->|1| crm
   rent -->|1| fin
   rent -->|3| fleet
@@ -204,6 +204,8 @@ erDiagram
     text status
     uuid uid
     bigint verified_by FK
+    bigint bank_id FK
+    bigint branch_id FK
   }
   iam_beneficial_owner {
     bigint company_id PK
@@ -534,6 +536,12 @@ erDiagram
   ops_incident {
     ref external
   }
+  ref_bank {
+    ref external
+  }
+  ref_bank_branch {
+    ref external
+  }
   ref_city {
     ref external
   }
@@ -656,6 +664,8 @@ erDiagram
   iam_user_station_scope }o--|| net_station : "station_id"
   iam_document }o..o| net_station : "owner_station_id"
   iam_document }o..o| ops_incident : "owner_incident_id"
+  iam_bank_account }o..o| ref_bank : "bank_id"
+  iam_bank_account }o..o| ref_bank_branch : "branch_id"
   iam_family_travel_rule }o..o| ref_city : "from_city_id"
   iam_family_travel_rule }o..o| ref_city : "to_city_id"
   iam_app_user }o--|| ref_locale : "preferred_locale"
@@ -676,6 +686,24 @@ erDiagram
     bigint source_id FK
     text status
     bigint boundary_source_id FK
+  }
+  ref_bank {
+    bigint id PK
+    uuid uid
+    text code
+    text status
+    bigint entered_by FK
+    bigint reviewed_by FK
+    bigint pending_by FK
+  }
+  ref_bank_branch {
+    bigint id PK
+    uuid uid
+    bigint bank_id FK
+    bigint area_id FK
+    text status
+    bigint entered_by FK
+    bigint reviewed_by FK
   }
   ref_cargo_category {
     text code PK
@@ -709,6 +737,15 @@ erDiagram
     bigint id PK
     uuid uid
     bigint imported_by FK
+  }
+  ref_insurer {
+    bigint id PK
+    uuid uid
+    text code
+    text status
+    bigint entered_by FK
+    bigint reviewed_by FK
+    bigint pending_by FK
   }
   ref_locale {
     text code PK
@@ -760,10 +797,17 @@ erDiagram
   }
   ref_name_correction }o..o| iam_app_user : "set_by"
   ref_geo_source }o..o| iam_app_user : "imported_by"
+  ref_bank_branch }o--|| iam_app_user : "entered_by"
   ref_place }o..o| iam_app_user : "proposed_by"
+  ref_insurer }o--|| iam_app_user : "entered_by"
+  ref_bank }o--|| iam_app_user : "entered_by"
+  ref_insurer }o..o| iam_app_user : "pending_by"
+  ref_bank }o..o| iam_app_user : "pending_by"
   ref_file_object }o..o| iam_company : "company_id"
   ref_place }o--|| ref_admin_area : "area_id"
   ref_admin_area }o..o| ref_admin_area : "parent_id"
+  ref_bank_branch }o..o| ref_admin_area : "area_id"
+  ref_bank_branch }o--|| ref_bank : "bank_id"
   ref_admin_area }o..o| ref_geo_source : "source_id"
   ref_admin_area }o..o| ref_geo_source : "boundary_source_id"
   ref_place }o..o| ref_geo_source : "source_id"
@@ -1205,6 +1249,7 @@ erDiagram
     bigint license_record_id FK
     bigint document_id FK
     text status
+    bigint insurer_id FK
   }
   fleet_license_change_request {
     bigint id PK
@@ -1348,6 +1393,9 @@ erDiagram
   ptn_partner {
     ref external
   }
+  ref_insurer {
+    ref external
+  }
   ref_vehicle_class {
     ref external
   }
@@ -1411,6 +1459,7 @@ erDiagram
   fleet_vehicle_service_status }o..o| ops_incident : "incident_id"
   fleet_driving_hours_log }o..o| ops_trip : "trip_id"
   fleet_license_record }o..o| ptn_partner : "subject_partner_id"
+  fleet_insurance_policy }o..o| ref_insurer : "insurer_id"
   fleet_vehicle }o--|| ref_vehicle_class : "vehicle_class"
   fleet_vehicle_fuel_profile }o..o| ref_vehicle_class : "vehicle_class"
 ```

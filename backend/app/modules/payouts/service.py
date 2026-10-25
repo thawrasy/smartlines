@@ -19,10 +19,12 @@ from ...ledger import company_wallet, platform_wallet, post_txn
 from ...util import row_dict, rows
 from ..cash import service as cash
 from ..notify.outbox import emit
+from ..registry import service as registry
 from . import iban as IBAN
 from . import repository as repo
 
 IBAN_COLUMN = "iam.bank_account.iban"
+ACCOUNT_NO_COLUMN = "iam.bank_account.account_no"
 
 
 def company_of(pr: Principal) -> int:
@@ -59,18 +61,72 @@ async def my_bank_accounts(conn, pr: Principal) -> list[dict]:
     return out
 
 
-async def add_bank_account(conn, ctx: db.Context, pr: Principal, bank_name: str, holder: str, iban: str) -> tuple[int, str]:
+async def add_bank_account(conn, ctx: db.Context, pr: Principal, body) -> tuple[int, str]:
+    """A company account at a bank (and branch) of the registry (1156, N6): IBAN and account number encrypted, the SWIFT
+    code taken from the branch or the bank, UNVERIFIED until a bank gateway or platform finance confirms it."""
     company = company_of(pr)
     need(pr, "company.payout_schedule", "company.billing")
-    if not IBAN.valid(iban):
+    if not IBAN.valid(body.iban):
         raise ApiError(422, "IBAN_INVALID", "the IBAN is not valid")
-    value = IBAN.normalise(iban)
+    bank = branch = None
+    if body.bank_uid is not None:
+        bank, branch = await registry.picked_bank(conn, body.bank_uid, body.branch_uid)
+    elif not body.bank_name:
+        raise ApiError(422, "BANK_UNKNOWN", "choose a bank from the list")
+    value = IBAN.normalise(body.iban)
+    account_no = IBAN.normalise(body.account_no) if body.account_no else None
     async with db.system_scope(conn, ctx):
         fc = await crypto.cipher(conn)
     sealed = fc.encrypt(value, IBAN_COLUMN)
-    row = await repo.insert_bank_account(conn, company, bank_name.strip(), holder.strip(), sealed.ciphertext,
-                                         fc.blind_index(value, "IBAN"), value[-4:], sealed.key_id, await _currency(conn, company))
+    row = await repo.insert_bank_account(conn, company, bank["name_en"] if bank else body.bank_name.strip(), body.holder_name.strip(),
+                                         sealed.ciphertext, fc.blind_index(value, "IBAN"), value[-4:], sealed.key_id,
+                                         await _currency(conn, company))
+    first = not await conn.fetchval("SELECT 1 FROM iam.bank_account WHERE party_id = $1 AND is_default AND status = 'ACTIVE'", company)
+    if body.is_default and not first:
+        await conn.execute("UPDATE iam.bank_account SET is_default = false WHERE party_id = $1 AND is_default", company)
+    await conn.execute(
+        """UPDATE iam.bank_account SET bank_id = $2, branch_id = $3, swift_bic = $4, account_no_enc = $5, account_no_last4 = $6, is_default = $7
+            WHERE id = $1""",
+        row["id"], bank["id"] if bank else None, branch["id"] if branch else None,
+        (branch["swift_bic"] if branch and branch["swift_bic"] else None) or (bank["swift_bic"] if bank else None),
+        fc.encrypt(account_no, ACCOUNT_NO_COLUMN).ciphertext if account_no else None, account_no[-4:] if account_no else None,
+        body.is_default or first)
     return row["id"], str(row["uid"])
+
+
+async def _own_account(conn, pr: Principal, account_uid: uuid.UUID) -> asyncpg.Record:
+    company = company_of(pr)
+    need(pr, "company.payout_schedule", "company.billing")
+    acct = await conn.fetchrow("SELECT * FROM iam.bank_account WHERE uid = $1 AND party_id = $2 FOR UPDATE", account_uid, company)
+    if acct is None:
+        raise not_found("bank account")
+    return acct
+
+
+async def set_default(conn, pr: Principal, account_uid: uuid.UUID) -> int:
+    acct = await _own_account(conn, pr, account_uid)
+    if acct["status"] != "ACTIVE" or acct["verification_status"] == "REJECTED":
+        raise ApiError(409, "BANK_ACCOUNT_NOT_USABLE", "a disabled or rejected account cannot be the default")
+    await conn.execute("UPDATE iam.bank_account SET is_default = false WHERE party_id = $1 AND is_default", acct["party_id"])
+    await conn.execute("UPDATE iam.bank_account SET is_default = true WHERE id = $1", acct["id"])
+    return acct["id"]
+
+
+async def disable_account(conn, pr: Principal, account_uid: uuid.UUID) -> int:
+    acct = await _own_account(conn, pr, account_uid)
+    if await conn.fetchval("SELECT 1 FROM fin.withdrawal_request WHERE bank_account_id = $1 AND status IN ('REQUESTED', 'APPROVED')", acct["id"]):
+        raise ApiError(409, "BANK_ACCOUNT_IN_USE", "a withdrawal to this account is still open")
+    await conn.execute("UPDATE iam.bank_account SET status = 'DISABLED', is_default = false WHERE id = $1", acct["id"])
+    return acct["id"]
+
+
+async def _verified_only(conn) -> bool:
+    """Whether money goes only to verified accounts (1156): a platform setting, off at launch."""
+    v = await conn.fetchval("SELECT value FROM sys.setting WHERE key = 'payouts.accounts'")
+    if isinstance(v, str):
+        import json
+        v = json.loads(v)
+    return bool((v or {}).get("verified_only", True))
 
 
 async def request_withdrawal(conn, pr: Principal, account_uid: uuid.UUID, amount: int, key: str,
@@ -85,7 +141,9 @@ async def request_withdrawal(conn, pr: Principal, account_uid: uuid.UUID, amount
     acct = await repo.bank_account_by_uid(conn, account_uid)
     if acct is None or acct["party_id"] != company or acct["status"] != "ACTIVE":
         raise not_found("bank account")
-    if not acct["verified"]:
+    if acct["verification_status"] == "REJECTED":
+        raise ApiError(409, "BANK_ACCOUNT_REJECTED", "platform finance rejected this bank account")
+    if not acct["verified"] and await _verified_only(conn):
         raise ApiError(409, "BANK_ACCOUNT_NOT_VERIFIED", "platform finance has not verified this bank account yet")
     if pr.portal == "OPERATOR" and ctx is not None:
         # counter cash the carrier holds for the platform is set off first (6.5, 1056); the rest can be withdrawn
@@ -146,7 +204,21 @@ async def verify_account(conn, pr: Principal, account_uid: uuid.UUID) -> int:
     acct = await repo.bank_account_by_uid(conn, account_uid)
     if acct is None:
         raise not_found("bank account")
+    if acct["status"] != "ACTIVE":
+        raise ApiError(409, "BANK_ACCOUNT_NOT_USABLE", "a disabled account is not verified")
     await repo.verify_bank_account(conn, acct["id"], pr.user_id)
+    return acct["id"]
+
+
+async def reject_account(conn, pr: Principal, account_uid: uuid.UUID, reason: str) -> int:
+    """Platform finance found the account wrong (holder, IBAN or bank): it is never paid and leaves the default."""
+    finance(pr, "withdrawal.approve", "payout.run")
+    acct = await repo.bank_account_by_uid(conn, account_uid)
+    if acct is None:
+        raise not_found("bank account")
+    await conn.execute("""UPDATE iam.bank_account SET verified = false, verification_status = 'REJECTED', verification_source = $2,
+                                 verified_by = $3, verified_at = now(), is_default = false WHERE id = $1""",
+                       acct["id"], ("platform review: " + reason.strip())[:300], pr.user_id)
     return acct["id"]
 
 

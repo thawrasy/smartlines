@@ -9,10 +9,15 @@ import asyncpg
 async def bank_accounts(conn: asyncpg.Connection, party_id: Optional[int] = None, unverified_only: bool = False):
     return await conn.fetch(
         """SELECT a.id, a.uid, a.bank_name, a.holder_name, a.iban_last4, a.currency, a.verified, a.status, a.created_at,
+                  a.account_no_last4, a.swift_bic, a.is_default, a.verification_status, a.verified_holder_name, a.verified_at,
+                  b.uid AS bank_uid, b.name_ar AS bank_name_ar, b.name_en AS bank_name_en, b.code AS bank_code,
+                  br.uid AS branch_uid, br.name_ar AS branch_name_ar, br.name_en AS branch_name_en,
                   p.legal_name AS company_name, p.uid AS company_uid, iam.logo_version(p.id) AS company_logo
              FROM iam.bank_account a JOIN iam.party p ON p.id = a.party_id
-            WHERE ($1::bigint IS NULL OR a.party_id = $1) AND (NOT $2 OR (NOT a.verified AND a.status = 'ACTIVE'))
-            ORDER BY a.created_at DESC""", party_id, unverified_only)
+             LEFT JOIN ref.bank b ON b.id = a.bank_id LEFT JOIN ref.bank_branch br ON br.id = a.branch_id
+            WHERE ($1::bigint IS NULL OR a.party_id = $1)
+              AND (NOT $2 OR (a.verification_status = 'UNVERIFIED' AND a.status = 'ACTIVE'))
+            ORDER BY a.is_default DESC, a.created_at DESC""", party_id, unverified_only)
 
 
 async def bank_account_by_uid(conn, account_uid: uuid.UUID) -> Optional[asyncpg.Record]:
@@ -28,7 +33,8 @@ async def insert_bank_account(conn, party_id: int, bank_name: str, holder: str, 
 
 
 async def verify_bank_account(conn, account_id: int, user_id: int) -> None:
-    await conn.execute("UPDATE iam.bank_account SET verified = true, verified_by = $2, verified_at = now() WHERE id = $1",
+    await conn.execute("""UPDATE iam.bank_account SET verified = true, verified_by = $2, verified_at = now(),
+                                 verification_status = 'VERIFIED_MANUAL', verification_source = 'platform finance review' WHERE id = $1""",
                        account_id, user_id)
 
 

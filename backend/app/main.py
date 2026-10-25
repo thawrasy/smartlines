@@ -26,6 +26,7 @@ from .modules.documents import storage
 from .modules.notify import api as notify_api
 from .modules.account import api as account_api
 from .modules.people import api as people_api
+from .modules.registry import api as registry_api
 from .modules.reports import api as reports_api
 from .modules.payments import api as payments_api
 from .modules.integration import console as integration_console
@@ -148,7 +149,7 @@ for r in (metrics.router, auth.router, public.router, bookings.router, wallet.ro
           admin.router, security.router, regulator.router, verify.router, agency_api.router, cash_accounts.router,
           fleet_api.router, payouts_api.company, payouts_api.platform,
           documents_api.company, documents_api.platform, notify_api.router,
-          account_api.router, account_api.platform, people_api.router, modular_api.router, modular_workflows.router, reports_api.router, payments_api.router,
+          account_api.router, account_api.platform, people_api.router, registry_api.router, registry_api.platform, modular_api.router, modular_workflows.router, reports_api.router, payments_api.router,
           integration_console.router, integration_v1.router, family_api.router, photo_api.platform, boarding_api.platform, boarding_api.carrier, boarding_api.station_operators, boarding_api.station,
           manifests_api.carrier, manifests_api.platform,
           support_api.router, support_api.admin, cash_api.router, payment_activation.router, seo_pages.router, parcels_api.customer, parcels_api.carrier, trip_parcels.customer, trip_parcels.carrier, trip_parcels.platform,

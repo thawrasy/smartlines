@@ -39,7 +39,7 @@ COLUMNS = [
     Column("iam.family_member", "id_no_enc", "iam.family_member.id_no", also=(("mobile_enc", "iam.family_member.mobile"),)),
     Column("iam.family_member", "mobile_enc", "iam.family_member.mobile", "id_no_enc IS NULL"),
     Column("brd.manifest_person", "doc_no_enc", "brd.manifest_person.doc_no"),
-    Column("iam.bank_account", "iban_enc", "iam.bank_account.iban"),
+    Column("iam.bank_account", "iban_enc", "iam.bank_account.iban", also=(("account_no_enc", "iam.bank_account.account_no"),)),
     Column("iam.mfa_factor", "secret_enc", "iam.mfa_factor.secret", "factor_type = 'TOTP'"),
     Column("iam.mfa_factor", "secret_enc", "iam.mfa_factor.recovery", "factor_type = 'RECOVERY_CODES'"),
     Column("sys.webhook_endpoint", "secret_enc", "sys.webhook_endpoint.secret", key_ref="kms://masslak/webhook/v1"),

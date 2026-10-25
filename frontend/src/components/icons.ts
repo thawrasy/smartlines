@@ -1,5 +1,6 @@
 // Material Symbols (rounded, Apache-2.0), bundled at build time. Generated list: add a name here to use it.
 
+import i_health_and_safety from "@material-symbols/svg-400/rounded/health_and_safety.svg?raw";
 import i_add_location from "@material-symbols/svg-400/rounded/add_location.svg?raw";
 import i_my_location from "@material-symbols/svg-400/rounded/my_location.svg?raw";
 import i_airport_shuttle from "@material-symbols/svg-400/rounded/airport_shuttle.svg?raw";
@@ -345,6 +346,7 @@ export const ICONS = {
   flight_takeoff: i_flight_takeoff,
   add_location: i_add_location,
   my_location: i_my_location,
+  health_and_safety: i_health_and_safety,
 } as const;
 
 export type IconName = keyof typeof ICONS;
