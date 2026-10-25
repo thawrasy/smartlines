@@ -5006,6 +5006,31 @@ UPDATE sec.traffic_alert SET status = 'RESOLVED', resolved_at = now(), resolved_
 SELECT pg_temp.ok(EXISTS (SELECT 1 FROM sec.traffic_alert WHERE alert_key = 'VOLUME' AND status = 'RESOLVED'),
   'Shield (1142): platform staff resolve an alert');
 RESET ROLE;
+-- Border crossings and airports (1168): a fixed code, edits with a reason kept field by field, a file's own changes
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+INSERT INTO ref.admin_area (pcode, country_code, level, name_en, name_ar) VALUES ('SY96', 'SY', 1, 'Port test', 'x') RETURNING id AS pg1 \gset
+INSERT INTO ref.admin_area (pcode, country_code, level, parent_id, name_en, name_ar) VALUES ('SY9601', 'SY', 2, :pg1, 'Port test', 'x') RETURNING id AS pg2 \gset
+INSERT INTO ref.admin_area (pcode, country_code, level, parent_id, name_en, name_ar) VALUES ('SY960101', 'SY', 3, :pg2, 'Port test', 'x') RETURNING id AS pg3 \gset
+SELECT pg_temp.expect_error(format($$INSERT INTO net.port_of_entry (code, kind, name_ar, name_en, area_id, match_quality, position_source)
+                                     VALUES ('LND-LB-99', 'INTL_AIRPORT', 'x port', 'Port', %s, 'AREA', 'NONE')$$, :pg3),
+  'check constraint', 'Ports (1168): a land code is a land crossing, and an airport takes no country');
+INSERT INTO net.port_of_entry (code, kind, name_ar, name_en, counterpart_country, area_id, match_quality, position_source)
+VALUES ('LND-LB-99', 'LAND_BORDER', 'x port', 'Port', 'LB', :pg3, 'AREA', 'NONE') RETURNING id AS port \gset
+SELECT pg_temp.expect_error($$UPDATE net.port_of_entry SET name_en = 'Renamed' WHERE code = 'LND-LB-99'$$,
+  'PORT_CHANGE_REASON', 'Ports (1168): a hand edit needs its reason');
+SELECT net.port_change_note('renamed by the authority');
+UPDATE net.port_of_entry SET name_en = 'Renamed', status = 'RESTRICTED' WHERE code = 'LND-LB-99';
+SELECT pg_temp.ok((SELECT count(*) FROM net.port_of_entry_change WHERE port_id = :port AND reason = 'renamed by the authority') = 2
+                  AND (SELECT edited_by_hand FROM net.port_of_entry WHERE id = :port)
+                  AND (SELECT old_value || '>' || new_value FROM net.port_of_entry_change WHERE port_id = :port AND field = 'name_en') = 'Port>Renamed',
+  'Ports (1168): each changed field is kept with its old and new value, and the port is marked edited by hand');
+SELECT pg_temp.expect_error($$UPDATE net.port_of_entry SET code = 'LND-LB-98' WHERE code = 'LND-LB-99'$$,
+  'PORT_CODE_FIXED', 'Ports (1168): the code never changes');
+SELECT pg_temp.expect_error(format('DELETE FROM net.port_of_entry_change WHERE port_id = %s', :port),
+  'PORT_HISTORY_APPEND_ONLY', 'Ports (1168): the history is never rewritten');
+SELECT pg_temp.expect_error($$UPDATE net.port_of_entry SET lat = 33.5 WHERE code = 'LND-LB-99'$$,
+  'check constraint', 'Ports (1168): a position needs both coordinates and a source');
+SELECT net.port_change_note(NULL);
 -- Security watch (1167): bait addresses block at once, the exception register needs a second person and an end date
 SELECT sec.bait_touch('100.64.88.1', 'GET', '/api/internal/users', 'curl') AS bait_rule \gset
 SELECT pg_temp.ok((SELECT action FROM sec.ip_decision('100.64.88.1', 'PASSENGER')) = 'BLOCK'

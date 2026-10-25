@@ -89,7 +89,7 @@ flowchart LR
   iam -->|8| ref
   iam -->|2| sec
   net -->|30| iam
-  net -->|13| ref
+  net -->|17| ref
   ops -->|2| fin
   ops -->|10| fleet
   ops -->|26| iam
@@ -1157,6 +1157,22 @@ erDiagram
     text status
     bigint created_by_user_id FK
   }
+  net_port_of_entry {
+    bigint id PK
+    text code
+    character counterpart_country FK
+    bigint area_id FK
+    bigint place_id FK
+    text status
+    bigint station_id FK
+    bigint source_id FK
+  }
+  net_port_of_entry_change {
+    bigint id PK
+    bigint port_id FK
+    bigint changed_by FK
+    bigint by_file FK
+  }
   net_road {
     bigint id PK
     uuid uid
@@ -1367,6 +1383,7 @@ erDiagram
   net_network_route_segment }o--|| net_network_route_version : "version_id"
   net_network_route_stop }o--|| net_network_route_version : "version_id"
   net_route }o..o| net_network_route_version : "network_version_id"
+  net_port_of_entry_change }o--|| net_port_of_entry : "port_id"
   net_road_point }o--|| net_road : "road_id"
   net_road_verification }o--|| net_road : "road_id"
   net_road_correction }o--|| net_road : "road_id"
@@ -1400,20 +1417,25 @@ erDiagram
   net_network_route }o--|| net_station : "origin_station_id"
   net_code_change }o..o| net_station : "station_id"
   net_network_route }o--|| net_station : "dest_station_id"
+  net_port_of_entry }o..o| net_station : "station_id"
   net_station_display }o..o| net_station_gate : "gate_id"
   net_station_carrier_bay }o--|| net_station_gate : "gate_id"
   net_screen_pairing }o..o| net_station_screen : "screen_id"
   net_code_history }o..o| ref_admin_area : "area_id"
   net_code_change }o..o| ref_admin_area : "area_id"
+  net_port_of_entry }o--|| ref_admin_area : "area_id"
   net_station }o--|| ref_city : "city_id"
   net_code_history }o..o| ref_city : "city_id"
   net_code_change }o..o| ref_city : "city_id"
   net_line }o..o| ref_city : "city_id"
+  net_port_of_entry_change }o..o| ref_geo_source : "by_file"
   net_road }o..o| ref_geo_source : "source_id"
+  net_port_of_entry }o..o| ref_geo_source : "source_id"
   net_code_history }o..o| ref_place : "place_id"
   net_road_point }o--|| ref_place : "place_id"
   net_code_change }o..o| ref_place : "place_id"
   net_road_correction }o..o| ref_place : "place_id"
+  net_port_of_entry }o..o| ref_place : "place_id"
   net_station }o..o| ref_place : "place_id"
   net_station }o--|| ref_station_subtype : "subtype"
 ```

@@ -103,6 +103,7 @@ const CarrierCharter = lazyNamed(() => import("./pages/charter/Charter"), "Carri
 const AdminBookingRules = lazyNamed(() => import("./pages/charter/Charter"), "AdminBookingRules");
 const AdminGeography = lazyNamed(() => import("./pages/admin/Geography"), "AdminGeography");
 const AdminRoads = lazyNamed(() => import("./pages/admin/Roads"), "AdminRoads");
+const AdminPorts = lazyNamed(() => import("./pages/admin/Ports"), "AdminPorts");
 const AdminNetworkRoutes = lazyNamed(() => import("./pages/admin/NetworkRoutes"), "AdminNetworkRoutes");
 const AdminMiles = lazyNamed(() => import("./pages/admin/Miles"), "AdminMiles");
 const AdminNumberRanges = lazyNamed(() => import("./pages/admin/NumberRanges"), "AdminNumberRanges");
@@ -161,6 +162,7 @@ function PlatformShell() {
       // governorates to neighbourhoods from the United Nations P-codes, and places opened for routes (1124)
       { to: "/admin/geography", icon: "map", label: t("geo.nav"), show: can("geo.manage") },
       { to: "/admin/roads", icon: "route", label: t("roads.nav"), show: can("geo.manage") },
+      { to: "/admin/ports", icon: "flag", label: t("ports.nav"), show: can("geo.manage") },
       { to: "/admin/network", icon: "hub", label: t("nroute.nav"), show: can("geo.manage") },
       // carrier classes and the state's price bands (1164, N10)
       { to: "/admin/pricing", icon: "payments", label: t("fares.nav"), show: can("pricing.tax_commission") },
@@ -387,6 +389,7 @@ export default function App() {
           <Route path="admin/booking" element={<AdminBookingRules />} />
           <Route path="admin/geography" element={<AdminGeography />} />
           <Route path="admin/roads" element={<AdminRoads />} />
+          <Route path="admin/ports" element={<AdminPorts />} />
           <Route path="admin/network" element={<AdminNetworkRoutes />} />
           <Route path="admin/pricing" element={<AdminCarrierClasses />} />
           <Route path="admin/numbers" element={<AdminNumberRanges />} />

@@ -40,7 +40,7 @@ const PORTALS = [
   { who: ["agency@agency.test", "AGENCY"], pages: ["/agency", "/agency/bookings", "/agency/statement", "/agency/cash-accounts", "/agency/people", "/agency/integrations", "/agency/kyc", `/agency/search?${MULTI}&pax=6`, "/agency/charter"] },
   { who: ["driver@carrier.test", "DRIVER"], pages: ["/driver", "/driver/kyc"] },
   { who: ["admin@masslak.test", "PLATFORM"],
-    pages: ["/admin", "/admin/people", "/admin/registries", "/admin/integrations", "/admin/companies", "/admin/finance", "/admin/documents", "/admin/stations", "/admin/boarding", "/admin/schedules", "/admin/kyc", "/admin/modules", "/admin/payments", "/admin/booking", "/admin/booking?tab=connections", "/admin/booking?tab=parcels", "/admin/booking?tab=tripChanges", "/admin/geography", "/admin/roads", "/admin/network", "/admin/pricing", "/admin/numbers", "/admin/miles", "/admin/photo"] },
+    pages: ["/admin", "/admin/people", "/admin/registries", "/admin/integrations", "/admin/companies", "/admin/finance", "/admin/documents", "/admin/stations", "/admin/boarding", "/admin/schedules", "/admin/kyc", "/admin/modules", "/admin/payments", "/admin/booking", "/admin/booking?tab=connections", "/admin/booking?tab=parcels", "/admin/booking?tab=tripChanges", "/admin/geography", "/admin/roads", "/admin/ports", "/admin/network", "/admin/pricing", "/admin/numbers", "/admin/miles", "/admin/photo"] },
   ...(STATION ? [{
     label: "STATION", cookies: STATION.cookies,
     choice: { station_uid: STATION.station_uid, station_code: STATION.station_code, station_name: STATION.station_code, counter_code: STATION.counter },

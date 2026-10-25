@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**603 tables, 6564 columns, in 26 schemas.**
+**605 tables, 6596 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -11,7 +11,7 @@ Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant i
 - [`iam` — Identity, parties, users, permissions and API clients](#iam) (51 tables)
 - [`ref` — Reference data, locales and files](#ref) (24 tables)
 - [`sys` — Settings, outbox and webhooks](#sys) (27 tables)
-- [`net` — Network: stations, routes, lines, corridors and geofences](#net) (42 tables)
+- [`net` — Network: stations, routes, lines, corridors and geofences](#net) (44 tables)
 - [`fleet` — Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance](#fleet) (23 tables)
 - [`pricing` — Pricing, taxes, commissions, campaigns and loyalty](#pricing) (41 tables)
 - [`ops` — Trips, inventory, operations, shuttle rides, tracking and incidents](#ops) (40 tables)
@@ -2280,6 +2280,52 @@ Agreement and licence reference numbers of a carrier (1097); optional until the 
 | `created_by_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `retired_at` | `timestamp with time zone` |  |  |
+
+### `net.port_of_entry` 🛡️
+
+Border crossings and airports under a fixed code, tied to the administrative geography (owner's note N45, 1168)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `code` | `text` | ✱ |  |
+| `kind` | `text` | ✱ |  |
+| `name_ar` | `text` | ✱ |  |
+| `name_en` | `text` | ✱ |  |
+| `counterpart_name_ar` | `text` |  |  |
+| `counterpart_name_en` | `text` |  |  |
+| `counterpart_country` | `character(2)` | 🔗 `ref.country`  |  |
+| `iata_code` | `character(3)` |  |  |
+| `area_id` | `bigint` | 🔗 `ref.admin_area` ✱ |  |
+| `place_id` | `bigint` | 🔗 `ref.place`  |  |
+| `lat` | `numeric(9,6)` |  |  |
+| `lng` | `numeric(9,6)` |  |  |
+| `position_source` | `text` | ✱ | `'UN_LOCATION'::text` |
+| `match_quality` | `text` | ✱ |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `status_confirmed` | `boolean` | ✱ | `false` |
+| `station_id` | `bigint` | 🔗 `net.station`  |  |
+| `review_note` | `text` |  |  |
+| `source_id` | `bigint` | 🔗 `ref.geo_source`  |  |
+| `edited_by_hand` | `boolean` | ✱ | `false` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `net.port_of_entry_change` 🛡️
+
+Every change of a border crossing or airport, field by field, with who, when and why (1168); never updated or deleted
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `port_id` | `bigint` | 🔗 `net.port_of_entry` ✱ |  |
+| `changed_at` | `timestamp with time zone` | ✱ | `now()` |
+| `changed_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `by_file` | `bigint` | 🔗 `ref.geo_source`  |  |
+| `field` | `text` | ✱ |  |
+| `old_value` | `text` |  |  |
+| `new_value` | `text` |  |  |
+| `reason` | `text` |  |  |
 
 ### `net.road` 🛡️
 
