@@ -27,8 +27,10 @@ COMMIT="$(git rev-parse HEAD)"
 git -C "$(git rev-parse --show-toplevel)" archive --format=tar.gz --prefix="treasury-platform/" -o "$OUT/bankfas-source-$VERSION.tar.gz" \
     "$COMMIT:treasury-platform"
 [ "$(tar -tzf "$OUT/bankfas-source-$VERSION.tar.gz" | grep -c '^treasury-platform/tools/deploy/deploy.sh$')" = 1 ] || { echo "the source archive has no tools" >&2; exit 1; }
-cp docs/57-release-1.0.0.md "$OUT/INSTALL-AR.md"
-cp docs/57-RELEASE-1.0.0.docx "$OUT/INSTALL-AR.docx"
+# The install guide is written for the release it ships with: its commands name this version's files.
+grep -q "bankfas-api-$VERSION.tar.gz" docs/57-release.md || { echo "docs/57-release.md is not written for $VERSION" >&2; exit 2; }
+cp docs/57-release.md "$OUT/INSTALL-AR.md"
+cp docs/57-RELEASE.docx "$OUT/INSTALL-AR.docx"
 {
     echo "BankFas $VERSION"
     echo "commit: $COMMIT"
