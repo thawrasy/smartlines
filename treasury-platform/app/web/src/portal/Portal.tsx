@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, lazy, Suspense, useContext, useEffect, useState, type ComponentType } from 'react';
 import { Navigate, NavLink, Route, Routes, useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { LangSwitch, useI18n } from '../i18n';
@@ -6,38 +6,112 @@ import { IdleGuard, StepUpProvider } from '../ui';
 
 const keepAlive = () => api('GET', '/me');
 import { Enrol, ForgotPassword, Invitation, Login, Mfa, ResetPassword, type Tenant, CompanyEntry, FirstPassword, entryHost } from './Auth';
-import { Audit, Calendar, DataExports, Jobs, Numbering, Settings, Support } from './Admin';
-import { Accounts, BankSetup, BaseRates, InstitutionDetail, Institutions, RelationshipDetail } from './Banks';
-import { Catalogs } from './Catalogs';
-import { Facilities, FacilityDetail } from './Facilities';
-import { CollateralDetail, Collaterals } from './Collateral';
-import { Breaches } from './Obligations';
-import { TariffSchedules } from './Pricing';
-import { TermCompare } from './Terms';
-import { StatementDetail, Statements } from './Statements';
-import { MonthlyFigures } from './MonthlyFigures';
-import { Formulas } from './Formulas';
-import { GroupCompliance } from './Compliance';
-import { StatementBreaches } from './CovenantTests';
-import { AssessmentDetail, Assessments, PresentationVersions } from './Credit';
-import { ProductLines } from './CreditInputs';
-import { LenderRatings, Provision, ReadinessFile } from './Readiness';
-import { NewRequest, RequestDetail, RequestList } from './Requests';
-import { Delegations, Inbox } from './Inbox';
-import { LcCard, LcRegister } from './Lcs';
-import { Dashboards } from './Dashboards';
-import { FormTemplateDetail, FormTemplates } from './FormTemplates';
-import { Reports } from './Reports';
-import { ProformaCard, ProformaEditor, ProformaRegister, SalesLcCard, SalesLcNew, SalesLcRegister } from './Sales';
-import { TermsEditor } from './TermsEditor';
-import { Companies, CompanyDetail, Departments, DocumentRegister } from './Companies';
-import { OwnershipMismatch, StructureIntegrity } from './Structure';
-import { AuthorityConflicts } from './Signatories';
-import { CustomFieldDefinitions, Parties, PartyDetail, PartyDuplicates } from './Parties';
 import { Bell, Notifications, NotificationSettings } from './Notifications';
-import { Profile } from './Profile';
-import { RoleDetail, Roles } from './Roles';
-import { UserDetail, Users } from './Users';
+
+
+// Each screen module is its own chunk, fetched when its route opens; sign-in and the top bar stay in the first one.
+function lazyNamed<M, K extends keyof M>(load: () => Promise<M>, name: K) {
+  return lazy(async () => ({ default: (await load())[name] as unknown as ComponentType<object> }));
+}
+const loadAdmin = () => import('./Admin');
+const Audit = lazyNamed(loadAdmin, 'Audit');
+const Calendar = lazyNamed(loadAdmin, 'Calendar');
+const DataExports = lazyNamed(loadAdmin, 'DataExports');
+const Jobs = lazyNamed(loadAdmin, 'Jobs');
+const Numbering = lazyNamed(loadAdmin, 'Numbering');
+const Settings = lazyNamed(loadAdmin, 'Settings');
+const Support = lazyNamed(loadAdmin, 'Support');
+const loadBanks = () => import('./Banks');
+const Accounts = lazyNamed(loadBanks, 'Accounts');
+const BankSetup = lazyNamed(loadBanks, 'BankSetup');
+const BaseRates = lazyNamed(loadBanks, 'BaseRates');
+const InstitutionDetail = lazyNamed(loadBanks, 'InstitutionDetail');
+const Institutions = lazyNamed(loadBanks, 'Institutions');
+const RelationshipDetail = lazyNamed(loadBanks, 'RelationshipDetail');
+const loadCatalogs = () => import('./Catalogs');
+const Catalogs = lazyNamed(loadCatalogs, 'Catalogs');
+const loadFacilities = () => import('./Facilities');
+const Facilities = lazyNamed(loadFacilities, 'Facilities');
+const FacilityDetail = lazyNamed(loadFacilities, 'FacilityDetail');
+const loadCollateral = () => import('./Collateral');
+const CollateralDetail = lazyNamed(loadCollateral, 'CollateralDetail');
+const Collaterals = lazyNamed(loadCollateral, 'Collaterals');
+const loadObligations = () => import('./Obligations');
+const Breaches = lazyNamed(loadObligations, 'Breaches');
+const loadPricing = () => import('./Pricing');
+const TariffSchedules = lazyNamed(loadPricing, 'TariffSchedules');
+const loadTerms = () => import('./Terms');
+const TermCompare = lazyNamed(loadTerms, 'TermCompare');
+const loadStatements = () => import('./Statements');
+const StatementDetail = lazyNamed(loadStatements, 'StatementDetail');
+const Statements = lazyNamed(loadStatements, 'Statements');
+const loadMonthlyFigures = () => import('./MonthlyFigures');
+const MonthlyFigures = lazyNamed(loadMonthlyFigures, 'MonthlyFigures');
+const loadFormulas = () => import('./Formulas');
+const Formulas = lazyNamed(loadFormulas, 'Formulas');
+const loadCompliance = () => import('./Compliance');
+const GroupCompliance = lazyNamed(loadCompliance, 'GroupCompliance');
+const loadCovenantTests = () => import('./CovenantTests');
+const StatementBreaches = lazyNamed(loadCovenantTests, 'StatementBreaches');
+const loadCredit = () => import('./Credit');
+const AssessmentDetail = lazyNamed(loadCredit, 'AssessmentDetail');
+const Assessments = lazyNamed(loadCredit, 'Assessments');
+const PresentationVersions = lazyNamed(loadCredit, 'PresentationVersions');
+const loadCreditInputs = () => import('./CreditInputs');
+const ProductLines = lazyNamed(loadCreditInputs, 'ProductLines');
+const loadReadiness = () => import('./Readiness');
+const LenderRatings = lazyNamed(loadReadiness, 'LenderRatings');
+const Provision = lazyNamed(loadReadiness, 'Provision');
+const ReadinessFile = lazyNamed(loadReadiness, 'ReadinessFile');
+const loadRequests = () => import('./Requests');
+const NewRequest = lazyNamed(loadRequests, 'NewRequest');
+const RequestDetail = lazyNamed(loadRequests, 'RequestDetail');
+const RequestList = lazyNamed(loadRequests, 'RequestList');
+const loadInbox = () => import('./Inbox');
+const Delegations = lazyNamed(loadInbox, 'Delegations');
+const Inbox = lazyNamed(loadInbox, 'Inbox');
+const loadLcs = () => import('./Lcs');
+const LcCard = lazyNamed(loadLcs, 'LcCard');
+const LcRegister = lazyNamed(loadLcs, 'LcRegister');
+const loadDashboards = () => import('./Dashboards');
+const Dashboards = lazyNamed(loadDashboards, 'Dashboards');
+const loadFormTemplates = () => import('./FormTemplates');
+const FormTemplateDetail = lazyNamed(loadFormTemplates, 'FormTemplateDetail');
+const FormTemplates = lazyNamed(loadFormTemplates, 'FormTemplates');
+const loadReports = () => import('./Reports');
+const Reports = lazyNamed(loadReports, 'Reports');
+const loadSales = () => import('./Sales');
+const ProformaCard = lazyNamed(loadSales, 'ProformaCard');
+const ProformaEditor = lazyNamed(loadSales, 'ProformaEditor');
+const ProformaRegister = lazyNamed(loadSales, 'ProformaRegister');
+const SalesLcCard = lazyNamed(loadSales, 'SalesLcCard');
+const SalesLcNew = lazyNamed(loadSales, 'SalesLcNew');
+const SalesLcRegister = lazyNamed(loadSales, 'SalesLcRegister');
+const loadTermsEditor = () => import('./TermsEditor');
+const TermsEditor = lazyNamed(loadTermsEditor, 'TermsEditor');
+const loadCompanies = () => import('./Companies');
+const Companies = lazyNamed(loadCompanies, 'Companies');
+const CompanyDetail = lazyNamed(loadCompanies, 'CompanyDetail');
+const Departments = lazyNamed(loadCompanies, 'Departments');
+const DocumentRegister = lazyNamed(loadCompanies, 'DocumentRegister');
+const loadStructure = () => import('./Structure');
+const OwnershipMismatch = lazyNamed(loadStructure, 'OwnershipMismatch');
+const StructureIntegrity = lazyNamed(loadStructure, 'StructureIntegrity');
+const loadSignatories = () => import('./Signatories');
+const AuthorityConflicts = lazyNamed(loadSignatories, 'AuthorityConflicts');
+const loadParties = () => import('./Parties');
+const CustomFieldDefinitions = lazyNamed(loadParties, 'CustomFieldDefinitions');
+const Parties = lazyNamed(loadParties, 'Parties');
+const PartyDetail = lazyNamed(loadParties, 'PartyDetail');
+const PartyDuplicates = lazyNamed(loadParties, 'PartyDuplicates');
+const loadProfile = () => import('./Profile');
+const Profile = lazyNamed(loadProfile, 'Profile');
+const loadRoles = () => import('./Roles');
+const RoleDetail = lazyNamed(loadRoles, 'RoleDetail');
+const Roles = lazyNamed(loadRoles, 'Roles');
+const loadUsers = () => import('./Users');
+const UserDetail = lazyNamed(loadUsers, 'UserDetail');
+const Users = lazyNamed(loadUsers, 'Users');
 
 export interface Me {
   user: {
@@ -136,6 +210,7 @@ function Shell() {
           )}
           <nav className="side">{items.map(m => <NavLink key={m.to} to={m.to} end>{t(m.label)}</NavLink>)}</nav>
           <main className="content">
+            <Suspense fallback={<p className="muted">{t('Loading…')}</p>}>
             <Routes>
               <Route path="/" element={<Home />} />
               <Route path="/users" element={<Users />} />
@@ -210,6 +285,7 @@ function Shell() {
               <Route path="/profile" element={<Profile />} />
               <Route path="*" element={<Navigate to="/" />} />
             </Routes>
+            </Suspense>
           </main>
         </div>
       </StepUpProvider>

@@ -2987,4 +2987,5 @@ export const ar: Record<string, string> = {
   'The subject is up to 300 characters and the text up to 4000.': 'العنوان حتى 300 حرف والنص حتى 4000 حرف.',
   'Your account has no e-mail.': 'لا يوجد بريد إلكتروني لحسابك.',
   'The database stopped the import at this row; correct it and import again.': 'أوقفت قاعدة البيانات الاستيراد عند هذا الصف؛ صحّحه وأعد الاستيراد.',
+  'Loading…': 'جارٍ التحميل…',
 };
