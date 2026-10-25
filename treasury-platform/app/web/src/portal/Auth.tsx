@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api';
-import { LangSwitch, useI18n } from '../i18n';
+import { useI18n } from '../i18n';
+import { AuthLayout } from '../brand';
 import { Field, Form, SecretBox } from '../ui';
 
 export interface Tenant { code: string; nameEn: string; nameAr: string; status: string; defaultLanguage: string }
@@ -27,10 +28,9 @@ function useFragmentToken(name: string, path: string): string {
 function AuthCard({ tenant, children }: { tenant: Tenant; children: React.ReactNode }) {
   const { lang } = useI18n();
   return (
-    <div className="auth">
-      <header className="auth-head"><strong>{lang === 'ar' ? tenant.nameAr : tenant.nameEn}</strong><LangSwitch /></header>
+    <AuthLayout title={lang === 'ar' ? tenant.nameAr : tenant.nameEn}>
       {children}
-    </div>
+    </AuthLayout>
   );
 }
 
@@ -192,8 +192,7 @@ export function CompanyEntry() {
   const { t } = useI18n();
   const [code, setCode] = useState('');
   return (
-    <div className="auth">
-      <header className="auth-head"><strong>BankFas</strong><LangSwitch /></header>
+    <AuthLayout>
       <Form title="Sign in" submit="Continue" onSubmit={async () => {
         const c = code.trim().toLowerCase();
         if (!/^[a-z0-9](?:[a-z0-9-]{0,28}[a-z0-9])?$/.test(c)) throw new ApiError({ status: 422, code: 'VALIDATION_FAILED', title: 'Enter your company code.' });
@@ -205,7 +204,7 @@ export function CompanyEntry() {
         <Field label="Company code" value={code} onChange={setCode} autoComplete="organization" hint="Your administrator gives it to you with your sign-in name." />
         <p className="muted">{t('The next page asks for your e-mail, employee code or mobile, and your password.')}</p>
       </Form>
-    </div>
+    </AuthLayout>
   );
 }
 

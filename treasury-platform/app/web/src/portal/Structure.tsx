@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { api, message } from '../api';
 import { useI18n } from '../i18n';
 import { Notice, Table } from '../ui';
+import { Chip } from '../brand';
 import { can, useMe } from './Portal';
 
 // Screens 14 (ownership tab) and 15 (the change wizard) of spec 10, and the mismatch report (FR-ORG-015 to 018).
@@ -212,7 +213,7 @@ export function GovernancePanel({ company }: { company: string }) {
             { header: 'Position', cell: m => name(lang, m.position) },
             { header: 'From', cell: m => <span dir="ltr">{m.termStart}</span> },
             { header: 'To', cell: m => <span dir="ltr">{m.resignedOn ?? m.termEnd ?? '—'}</span> },
-            { header: 'Status', cell: m => t(m.state) },
+            { header: 'Status', cell: m => <Chip s={m.state} /> },
             { header: '', cell: m => manage && b.status === 'ACTIVE' && m.state === 'ACTIVE'
               ? <button className="link" onClick={() => void act(() => api('POST', `/bodies/${b.id}/members/${m.id}/actions/resign`, { on: today() }))}>{t('Resigned today')}</button> : '' },
           ]} />
@@ -272,7 +273,7 @@ export function GrantsPanel({ company }: { company: string }) {
           { header: 'Ceiling', cell: g => g.ceiling ? <span dir="ltr">{g.ceiling.amount} {g.ceiling.currency}</span> : t('Not specified') },
           { header: 'Joint', cell: g => g.requiresJoint ? (g.jointNote ?? t('Yes')) : '' },
           { header: 'Period', cell: g => <span dir="ltr">{g.validFrom} → {g.validTo ?? '—'}</span> },
-          { header: 'Status', cell: g => t(g.state) },
+          { header: 'Status', cell: g => <Chip s={g.state} /> },
           { header: '', cell: g => (
             <span className="actions">
               {g.status === 'DRAFT' && can(me, 'org.grant.create') && <button className="link" onClick={() => void act(() => api('POST', `/grants/${g.id}/actions/submit`, {}))}>{t('Send for approval')}</button>}

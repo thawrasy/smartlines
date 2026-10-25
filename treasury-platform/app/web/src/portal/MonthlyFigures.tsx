@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, message } from '../api';
 import { useI18n } from '../i18n';
 import { Field, Form, Notice, Select, Table } from '../ui';
+import { Chip } from '../brand';
 import { can, useMe } from './Portal';
 
 // SCR-FIN-02 (the monthly balances of the accounts by month, a red dot where an expected month has no figure, the
@@ -127,7 +128,7 @@ function BankFlows({ company }: { company: string }) {
             { header: 'Facility', cell: f => <span dir="ltr">{f.facility?.facilityNo ?? t('Bank level')}</span> },
             { header: 'Kind', cell: f => t(f.kind) },
             { header: 'Amount', cell: f => <span dir="ltr">{amount(f.amount)} {f.currency}</span> },
-            { header: 'Status', cell: f => t(f.status) },
+            { header: 'Status', cell: f => <Chip s={f.status} /> },
             { header: '', cell: f => <>
               {f.status === 'DRAFT' && can(me, 'fin.stats.confirm') && !f.enteredByMe &&
                 <input type="checkbox" aria-label={t('Confirm')} checked={picked.includes(f.id)} onChange={e => setPicked(e.target.checked ? [...picked, f.id] : picked.filter(x => x !== f.id))} />}
@@ -167,7 +168,7 @@ function BankFlows({ company }: { company: string }) {
           { header: 'Achieved', cell: p => <span dir="ltr">{amount(p.achieved)} ({amount(p.achievementPct)}%)</span> },
           { header: 'Remaining', cell: p => <span dir="ltr">{amount(p.remaining)}</span> },
           { header: 'A month', cell: p => <span dir="ltr">{amount(p.requiredPerRemainingMonth)}</span> },
-          { header: 'State', cell: p => <span className={p.state === 'BEHIND' ? 'error' : ''}>{t(p.state)}</span> },
+          { header: 'State', cell: p => <Chip s={p.state} /> },
         ]} />
       </section>
     </>
@@ -188,7 +189,7 @@ function PeriodClose({ company }: { company: string }) {
         <h2>{t('Closed periods')}</h2>
         <Table rows={rows} columns={[
           { header: 'Closed through', cell: r => <span dir="ltr">{r.lockedThrough.slice(0, 10)}</span> },
-          { header: 'Status', cell: r => t(r.status) },
+          { header: 'Status', cell: r => <Chip s={r.status} /> },
           { header: 'Reason', cell: r => r.reopenReason ?? r.reason },
         ]} />
       </section>

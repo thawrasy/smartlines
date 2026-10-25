@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { api, message } from '../api';
 import { useI18n } from '../i18n';
 import { Field, Form, Notice, Select, Table } from '../ui';
+import { Chip } from '../brand';
 import { can, useMe } from './Portal';
 
 // SCR-OBL-01 (the agenda of a facility: what falls due, what is late, submitted, waived or not applicable), SCR-OBL-02
@@ -21,7 +22,6 @@ interface Item {
   daysLate?: number; expectsEvidence: boolean;
 }
 
-const statusClass = (s: string) => s === 'OVERDUE' ? 'error' : s === 'DUE_SOON' ? 'warn' : '';
 
 /** The obligations and the agenda on the facility card. */
 export function FacilityObligations({ id, draft, edit }: { id: string; draft: boolean; edit: boolean }) {
@@ -149,7 +149,7 @@ export function FacilityObligations({ id, draft, edit }: { id: string; draft: bo
           { header: 'Obligation', cell: i => i.titleAr },
           { header: 'Period', cell: i => <span dir="ltr">{i.periodEnd ?? i.eventDate}</span> },
           { header: 'Due date', cell: i => <span dir="ltr">{i.dueDate}</span> },
-          { header: 'Status', cell: i => <span className={statusClass(i.status)}>{t(i.status)}{i.daysLate ? ` (${i.daysLate} ${t('days late')})` : ''}</span> },
+          { header: 'Status', cell: i => <Chip s={i.status}>{i.daysLate ? ` (${i.daysLate} ${t('days late')})` : ''}</Chip> },
           { header: '', cell: i => ['SCHEDULED', 'DUE_SOON', 'OVERDUE'].includes(i.status) && can(me, 'obl.record')
             ? <button className="link" onClick={() => setSubmit({ item: i.id, on: '' })}>{t('Submit')}</button> : i.statusReason },
         ]} />
@@ -192,7 +192,7 @@ export function Breaches() {
           { header: 'Obligation', cell: b => b.obligation },
           { header: 'Kind', cell: b => t(b.kind) },
           { header: 'Detected', cell: b => <span dir="ltr">{b.detectedOn}</span> },
-          { header: 'Status', cell: b => <>{t(b.status)}{b.cureDeadline && <small className="muted" dir="ltr"> {b.cureDeadline}</small>}</> },
+          { header: 'Status', cell: b => <><Chip s={b.status} />{b.cureDeadline && <small className="muted" dir="ltr"> {b.cureDeadline}</small>}</> },
           { header: '', cell: b => ['OPEN', 'IN_CURE'].includes(b.status) ? <span className="actions">
             {can(me, 'obl.breach.manage') && <>
               <button className="link" onClick={() => void act(b.id, 'notify-bank')}>{t('Bank notified')}</button>

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { api, message, apiBackground } from '../api';
 import { useFormat, useI18n } from '../i18n';
 import { Notice, Table } from '../ui';
+import { Chip } from '../brand';
 import { can, useMe } from './Portal';
 
 // Spec 13 section 6.3: the bell with the unread counter, the user's notifications and preferences (FR-NTF-005, 006,
@@ -192,7 +193,7 @@ export function NotificationSettings() {
             { header: 'Event', cell: d => <span dir="ltr">{d.eventCode}</span> },
             { header: 'Channel', cell: d => t(d.channel) },
             { header: 'User', cell: d => d.user },
-            { header: 'Status', cell: d => t(d.status) },
+            { header: 'Status', cell: d => <Chip s={d.status} /> },
             { header: 'Attempts', cell: d => d.attempts },
           ]} />
         </section>

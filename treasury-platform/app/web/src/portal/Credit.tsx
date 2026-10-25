@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { api, message } from '../api';
 import { useI18n } from '../i18n';
 import { Field, Form, Notice, Select, Table } from '../ui';
+import { Chip } from '../brand';
 import { AssessmentBureau, AssessmentGuarantors } from './CreditInputs';
 import { can, useMe } from './Portal';
 
@@ -39,7 +40,7 @@ export function Assessments() {
           { header: 'Period end', cell: r => <Link to={`/assessments/${str(r.id)}`} dir="ltr">{str(r.periodEnd).slice(0, 10)}</Link> },
           { header: 'Scorecard', cell: r => <span dir="ltr">{str(r.scorecard)}</span> },
           { header: 'Grade', cell: r => <strong dir="ltr">{str(r.finalGrade ?? r.financialGrade)}</strong> },
-          { header: 'Status', cell: r => <>{t(str(r.status))}{r.isTrial ? ` · ${t('Trial')}` : ''}</> },
+          { header: 'Status', cell: r => <><Chip s={str(r.status)} />{r.isTrial ? ` · ${t('Trial')}` : ''}</> },
         ]} />
       </section>
       {can(me, 'fin.credit.assess') && <Form title="New assessment" submit="Create" onSubmit={async () => {
@@ -172,7 +173,7 @@ export function PresentationVersions() {
         <Notice {...notice} />
         <Table rows={rows} columns={[
           { header: 'Name', cell: v => str(v.nameAr) },
-          { header: 'Status', cell: v => t(str(v.status)) },
+          { header: 'Status', cell: v => <Chip s={str(v.status)} /> },
           { header: 'Convertible', cell: v => v.isConvertible == null ? '' : t(v.isConvertible ? 'Yes' : 'No') },
           { header: 'Trial', cell: v => v.trialAssessment ? <Link to={`/assessments/${str(v.trialAssessment)}`}>{t('Open')}</Link> : '' },
           { header: '', cell: v => <>

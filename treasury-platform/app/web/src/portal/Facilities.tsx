@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, apiWithETag, message } from '../api';
 import { useI18n } from '../i18n';
 import { Field, Form, Notice, Select, Table } from '../ui';
+import { Chip } from '../brand';
 import { AttachForm, DownloadButton, useDocTypes } from './Attach';
 import { FacilityCollateral } from './Collateral';
 import { FacilityObligations } from './Obligations';
@@ -69,7 +70,7 @@ export function Facilities() {
           { header: 'Banks', cell: r => r.lenders.map(l => l.code).join(', ') },
           { header: 'Total', cell: r => <span dir="ltr">{amount(r.totalAmount)} {r.currency}</span> },
           { header: 'Expiry date', cell: r => <span dir="ltr">{r.expiryDate}</span> },
-          { header: 'Status', cell: r => <>{t(r.status)} <Validity v={r.validity} /></> },
+          { header: 'Status', cell: r => <><Chip s={r.status} /> <Validity v={r.validity} /></> },
         ]} />
       </section>
       <Form title="New facility" submit="Create" onSubmit={async () => {
@@ -308,7 +309,7 @@ export function FacilityDetail() {
         <Table rows={card.revisions} columns={[
           { header: 'No.', cell: r => r.revisionNo },
           { header: 'Kind', cell: r => t(r.reasonKind) },
-          { header: 'Status', cell: r => t(r.status) },
+          { header: 'Status', cell: r => <Chip s={r.status} /> },
           { header: 'Date', cell: r => <span dir="ltr">{r.effectiveOn}</span> },
           { header: 'Summary', cell: r => r.changeSummary },
         ]} />
@@ -481,7 +482,7 @@ function Utilizations({ id, company, approved }: { id: string; company: string; 
           { header: 'Limit', cell: u => <span dir="ltr">{u.limitCode}{u.product && ` / ${u.product}`}</span> },
           { header: 'Company', cell: u => name(lang, u.company) },
           { header: 'Amount', cell: u => u.amount == null ? t('Hidden') : <span dir="ltr">{amount(u.amount)} {u.currency}</span> },
-          { header: 'Status', cell: u => t(u.status) },
+          { header: 'Status', cell: u => <Chip s={u.status} /> },
           { header: '', cell: u => u.status === 'ACTIVE' ? <span className="actions">
             <button className="link" onClick={() => void act(u.id, 'release', {})}>{t('Release')}</button>
           </span> : u.releaseReason },

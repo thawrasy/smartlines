@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, apiWithETag, message } from '../api';
 import { useI18n } from '../i18n';
 import { Field, Form, Notice, Select, Table } from '../ui';
+import { Chip } from '../brand';
 import { can, useMe } from './Portal';
 import { SignatoriesPanel } from './Signatories';
 
@@ -60,7 +61,7 @@ export function Institutions() {
           { header: 'Type', cell: i => t(i.type) },
           { header: 'Locality', cell: i => t(i.locality) },
           { header: 'BIC', cell: i => <span dir="ltr">{i.swiftBic ?? ''}</span> },
-          { header: 'Status', cell: i => t(i.status) },
+          { header: 'Status', cell: i => <Chip s={i.status} /> },
         ]} />
       </section>
       {can(me, 'ins.manage') && (
@@ -133,7 +134,7 @@ export function InstitutionDetail() {
         <Table rows={d.relationships} columns={[
           { header: 'Company', cell: r => <Link to={`/relationships/${r.id}`}>{r.companyName}</Link> },
           { header: 'Customer number', cell: r => <span dir="ltr">{r.customerNo ?? ''}</span> },
-          { header: 'Status', cell: r => t(r.status) },
+          { header: 'Status', cell: r => <Chip s={r.status} /> },
         ]} />
       </section>
       <section className="card">
@@ -143,7 +144,7 @@ export function InstitutionDetail() {
           { header: 'Job title', cell: k => k.jobTitleAr ?? '' },
           { header: 'Contact', cell: k => <span dir="ltr">{k.contactMethods.map(m => m.value).join(' · ')}</span> },
           { header: 'Party', cell: k => <span dir="ltr">{k.partyCode ?? ''}</span> },
-          { header: 'Status', cell: k => t(k.status) },
+          { header: 'Status', cell: k => <Chip s={k.status} /> },
         ]} />
       </section>
       {can(me, 'ins.contacts.manage') && (
@@ -232,7 +233,7 @@ export function RelationshipDetail() {
           { header: 'Product', cell: p => p.productName },
           { header: 'Default contact', cell: p => p.defaultContactName ?? t('The relationship manager') },
           { header: 'Channel', cell: p => t(p.channel) },
-          { header: 'Status', cell: p => t(p.isActive ? 'ACTIVE' : 'DISABLED') },
+          { header: 'Status', cell: p => <Chip s={p.isActive ? 'ACTIVE' : 'DISABLED'} /> },
         ]} />
       </section>
       {can(me, 'ins.deactivate') && r.status !== 'CLOSED' && (
@@ -435,7 +436,7 @@ export function Accounts() {
           { header: 'Currency', cell: a => a.currency },
           { header: 'Account number', cell: a => <code dir="ltr">{revealed[a.id]?.accountNumber ?? a.accountNumber}</code> },
           { header: 'IBAN', cell: a => <code dir="ltr">{revealed[a.id]?.iban ?? a.iban ?? ''}</code> },
-          { header: 'Status', cell: a => t(a.status) },
+          { header: 'Status', cell: a => <Chip s={a.status} /> },
           { header: '', cell: a => can(me, 'acc.reveal') && !revealed[a.id] ? <button className="link" onClick={() => void reveal(a.id)}>{t('Reveal')}</button> : null },
         ]} />
       </section>
@@ -504,7 +505,7 @@ export function BaseRates() {
           <Table rows={values} columns={[
             { header: 'Effective date', cell: v => v.effectiveDate },
             { header: 'Value (%)', cell: v => <span dir="ltr">{v.valuePct}</span> },
-            { header: 'Status', cell: v => t(v.status) },
+            { header: 'Status', cell: v => <Chip s={v.status} /> },
             { header: 'Note', cell: v => v.sourceNote ?? '' },
           ]} />
           <form className="actions" onSubmit={async e => {

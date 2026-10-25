@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { api, message } from '../api';
 import { useI18n } from '../i18n';
 import { Field, Form, Notice, Select, Table } from '../ui';
+import { Chip } from '../brand';
 import { can, useMe } from './Portal';
 
 // SCR-REQ-06 to 09 and SCR-WFL-05 (spec 13 section 7): the unified inbox with its counters (approvals waiting for me,
@@ -102,7 +103,7 @@ export function Delegations() {
         { header: 'Starts', cell: r => <span dir="ltr">{str(r.startsOn).slice(0, 10)}</span> },
         { header: 'Ends', cell: r => <span dir="ltr">{str(r.endsOn).slice(0, 10)}</span> },
         { header: 'Scope', cell: r => t(`Scope ${str(r.scope)}`) },
-        { header: 'Status', cell: r => t(str(r.status)) },
+        { header: 'Status', cell: r => <Chip s={str(r.status)} /> },
         { header: '', cell: r => ['SCHEDULED', 'ACTIVE'].includes(str(r.status)) ? <button type="button" onClick={() => void revoke(str(r.id))}>{t('Revoke')}</button> : null },
       ]} />
       {can(me, 'req.delegate.own') && (

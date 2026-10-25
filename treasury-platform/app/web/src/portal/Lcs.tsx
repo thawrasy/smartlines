@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { api, message } from '../api';
 import { useI18n } from '../i18n';
 import { Field, Form, Notice, Select, Table } from '../ui';
+import { Chip } from '../brand';
 import { AttachForm, DownloadButton, useDocTypes } from './Attach';
 import { can, useMe } from './Portal';
 
@@ -47,7 +48,7 @@ export function LcRegister() {
         { header: 'Amount', cell: r => <span dir="ltr">{str(r.amount)} {str(r.currency)}</span> },
         { header: 'Drawn', cell: r => <span dir="ltr">{str(r.drawn)}</span> },
         { header: 'Expiry', cell: r => <span dir="ltr">{day(r.expiryDate)}</span> },
-        { header: 'Status', cell: r => t(str(r.status)) },
+        { header: 'Status', cell: r => <Chip s={str(r.status)} /> },
       ]} />
     </section>
   );
@@ -102,7 +103,7 @@ export function LcCard() {
         { header: 'Examination by', cell: r => <span dir="ltr">{day(r.examinationDeadline)}</span> },
         { header: 'Maturity', cell: r => <span dir="ltr">{day(r.maturityDate)}</span> },
         { header: 'Paid', cell: r => <span dir="ltr">{str(r.settled)}</span> },
-        { header: 'Status', cell: r => t(str(r.status)) },
+        { header: 'Status', cell: r => <Chip s={str(r.status)} /> },
         { header: '', cell: r => !drawer ? null : ['PRESENTED', 'DISCREPANT'].includes(str(r.status)) ? (
           <span>
             <button type="button" onClick={() => void run(() => api('POST', `/lcs/${id}/drawings/${str(r.drawingNo)}/decision`, { status: 'ACCEPTED' }), 'Saved.')}>{t('Accepted')}</button>{' '}
@@ -132,7 +133,7 @@ export function LcCard() {
         { header: 'Changes', cell: r => str(r.changeKinds) },
         { header: 'Amount change', cell: r => <span dir="ltr">{str(r.amountDelta)}</span> },
         { header: 'New expiry', cell: r => <span dir="ltr">{day(r.newExpiryDate)}</span> },
-        { header: 'Status', cell: r => t(str(r.status)) },
+        { header: 'Status', cell: r => <Chip s={str(r.status)} /> },
       ]} />
       <h2>{t('Files of the letter of credit')}</h2>
       <LcFiles rows={data.documents ?? []} />

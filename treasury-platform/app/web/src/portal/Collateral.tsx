@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, message } from '../api';
 import { useI18n } from '../i18n';
 import { Field, Form, Notice, Select, Table } from '../ui';
+import { Chip } from '../brand';
 import { can, useMe } from './Portal';
 
 // SCR-COL-01: the register of collateral by type and status, the editor of each typed part (guarantee with its
@@ -61,7 +62,7 @@ export function Collaterals() {
           { header: 'Collateral', cell: r => <Link to={`/collaterals/${r.id}`}>{r.titleAr}</Link> },
           { header: 'Type', cell: r => name(lang, r.type) },
           { header: 'Owner', cell: r => name(lang, r.owner) },
-          { header: 'Status', cell: r => <>{t(r.status)}{r.status === 'DRAFT' && r.supersedes && <small className="muted"> ({t('New version')})</small>}</> },
+          { header: 'Status', cell: r => <><Chip s={r.status} />{r.status === 'DRAFT' && r.supersedes && <small className="muted"> ({t('New version')})</small>}</> },
         ]} />
       </section>
       {can(me, 'col.manage') && <Form title="Register a collateral" submit="Create" onSubmit={async () => {
@@ -177,7 +178,7 @@ export function CollateralDetail() {
         <h2>{t('Versions')}</h2>
         <Table rows={d.versions} columns={[
           { header: 'Version', cell: v => v.id === k.id ? <b>{t('This version')}</b> : <Link to={`/collaterals/${v.id}`}>{t('Open')}</Link> },
-          { header: 'Status', cell: v => t(v.status) },
+          { header: 'Status', cell: v => <Chip s={v.status} /> },
         ]} />
         <h2>{t('Facilities')}</h2>
         <Table rows={d.facilities} columns={[

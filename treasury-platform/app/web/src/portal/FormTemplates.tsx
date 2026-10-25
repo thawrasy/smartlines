@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, message } from '../api';
 import { useI18n } from '../i18n';
 import { Field, Form, Notice, Select, Table } from '../ui';
+import { Chip } from '../brand';
 import { can, useMe } from './Portal';
 
 // SCR-LCT-08 (FR-LCT-025 to 027, BR-LCT-017, 020): the bank form templates and their field maps. A holder of
@@ -65,7 +66,7 @@ export function FormTemplates() {
           { header: 'Product', cell: r => str(r.product) },
           { header: 'From', cell: r => <span dir="ltr">{str(r.effectiveFrom).slice(0, 10)}</span> },
           { header: 'To', cell: r => <span dir="ltr">{str(r.effectiveTo).slice(0, 10)}</span> },
-          { header: 'Status', cell: r => t(str(r.status)) },
+          { header: 'Status', cell: r => <Chip s={str(r.status)} /> },
         ]} />
       </section>
       {manage && (

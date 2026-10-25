@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, message } from '../api';
 import { useI18n } from '../i18n';
 import { Field, Form, Notice, Select, Table } from '../ui';
+import { Chip } from '../brand';
 import { can, useMe } from './Portal';
 
 // SCR-FIN-03 (the formula library: templates, facility copies and analysis measures with their versions; an editor that
@@ -53,7 +54,7 @@ export function Formulas() {
           { header: 'Formula', cell: f => <code dir="ltr">{f.expression}</code> },
           { header: 'Unit', cell: f => t(f.resultUnit) },
           { header: 'Version', cell: f => f.versionNo },
-          { header: 'Status', cell: f => t(f.status) },
+          { header: 'Status', cell: f => <Chip s={f.status} /> },
         ]} />
       </section>
       {open && (

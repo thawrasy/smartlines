@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, apiWithETag, message } from '../api';
 import { useI18n } from '../i18n';
 import { Field, Form, Notice, Select, Table } from '../ui';
+import { Chip } from '../brand';
 import { can, useMe } from './Portal';
 import { StatementRatios } from './Formulas';
 
@@ -77,7 +78,7 @@ export function Statements() {
           { header: 'Basis', cell: s => t(s.basis) },
           { header: 'Assurance', cell: s => t(s.assurance) },
           { header: 'Version', cell: s => <>{s.versionNo} <small className="muted">{t(s.versionReason)}</small></> },
-          { header: 'Status', cell: s => t(s.status) },
+          { header: 'Status', cell: s => <Chip s={s.status} /> },
         ]} />
       </section>
       {can(me, 'fin.stmt.enter') && <Form title="New statement" submit="Create" onSubmit={async () => {
@@ -168,7 +169,7 @@ export function StatementDetail() {
         <Table rows={data.versions} columns={[
           { header: 'Version', cell: v => <Link to={`/financial-statements/${v.id}`}>{v.versionNo}</Link> },
           { header: 'Reason', cell: v => t(v.versionReason) },
-          { header: 'Status', cell: v => t(v.status) },
+          { header: 'Status', cell: v => <Chip s={v.status} /> },
           { header: 'Approved on', cell: v => <span dir="ltr">{v.approvedOn?.slice(0, 10)}</span> },
         ]} />
       </section>
@@ -299,7 +300,7 @@ function RevenueEstimates({ companies }: { companies: Named[] }) {
           { header: 'Basis', cell: e => t(e.basis) },
           { header: 'Amount', cell: e => <span dir="ltr">{amount(e.amount)} {e.currency}</span> },
           { header: 'Source', cell: e => e.basisNote },
-          { header: 'Status', cell: e => t(e.status) },
+          { header: 'Status', cell: e => <Chip s={e.status} /> },
           { header: '', cell: e => e.status === 'DRAFT' && can(me, 'fin.stmt.approve') && !e.preparedByMe && <button className="link" onClick={async () => {
             setNotice({});
             try { await api('POST', `/revenue-estimates/${e.id}/actions/approve`, {}); await load(); } catch (x) { setNotice({ error: message(x) }); }

@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { api, message } from '../api';
 import { useI18n } from '../i18n';
 import { Field, Form, Notice, Select, Table } from '../ui';
+import { Chip } from '../brand';
 import { can, useMe } from './Portal';
 
 // SCR-FIN-08 (the readiness file of an assessment: the lender's dates within the lead time with their readiness, what
@@ -199,7 +200,7 @@ export function Provision() {
           { header: 'Bucket', cell: r => t(str(r.bucket)) },
           { header: 'Loss rate', cell: r => <span dir="ltr">{str(r.lossRatePct)}%</span> },
           { header: 'Effective from', cell: r => <span dir="ltr">{str(r.effectiveFrom)}</span> },
-          { header: 'Status', cell: r => <>{t(str(r.status))}{r.fromPack ? ` · ${t('Default of the pack')}` : ''}</> },
+          { header: 'Status', cell: r => <><Chip s={str(r.status)} />{r.fromPack ? ` · ${t('Default of the pack')}` : ''}</> },
           { header: '', cell: r => r.status === 'DRAFT' && !r.preparedByMe && can(me, 'fin.formula.approve') &&
             <button className="link" onClick={() => act(() => api('POST', `/fin/loss-rates/${str(r.id)}/actions/approve`, {}))}>{t('Approve')}</button> },
         ]} />
@@ -222,7 +223,7 @@ export function Provision() {
           { header: 'Expected', cell: r => <span dir="ltr">{str(r.expectedAllowance)}</span> },
           { header: 'Shortfall', cell: r => <span dir="ltr">{str(r.shortfall)}</span> },
           { header: 'Rates', cell: r => t(str(r.ratesStatus)) },
-          { header: 'Status', cell: r => <span className={r.status === 'SHORTFALL' || r.status === 'INCOMPLETE' ? 'warn' : ''}>{t(str(r.status))}</span> },
+          { header: 'Status', cell: r => <Chip s={str(r.status)} /> },
         ]} />
       </section>
     </>

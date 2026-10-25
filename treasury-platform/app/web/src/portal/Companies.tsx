@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, apiWithETag, downloadGet, message, upload } from '../api';
 import { useFormat, useI18n } from '../i18n';
 import { Field, Form, Notice, Select, Table } from '../ui';
+import { Chip } from '../brand';
 import { useMe } from './Portal';
 import { GovernancePanel, GrantsPanel, OwnershipPanel, seesStructure } from './Structure';
 
@@ -63,7 +64,7 @@ export function Companies() {
           { header: 'Code', cell: r => <span style={{ paddingInlineStart: `${r.depth * 1.5}rem` }}><Link to={`/companies/${r.c.id}`} dir="ltr">{r.c.companyCode}</Link></span> },
           { header: 'Name', cell: r => name(lang, r.c) },
           { header: 'Legal form', cell: r => name(lang, r.c.legalForm) },
-          { header: 'Status', cell: r => t(r.c.status) },
+          { header: 'Status', cell: r => <Chip s={r.c.status} /> },
           { header: 'Holding', cell: r => r.c.isHolding ? t('Yes') : '' },
           { header: 'Ownership', cell: r => t(r.c.ownershipStatus) },
         ]} />
@@ -359,7 +360,7 @@ export function Departments() {
         <Table rows={items} columns={[
           { header: 'Code', cell: d => <span dir="ltr">{d.code}</span> }, { header: 'Name', cell: d => name(lang, d) },
           { header: 'Function', cell: d => t(d.function) }, { header: 'Users', cell: d => d.users },
-          { header: 'Status', cell: d => t(d.isActive ? 'ACTIVE' : 'DISABLED') },
+          { header: 'Status', cell: d => <Chip s={d.isActive ? 'ACTIVE' : 'DISABLED'} /> },
           { header: '', cell: d => <button className="link" onClick={async () => {
             setError(null);
             try { await api('PATCH', `/departments/${d.id}`, { isActive: !d.isActive }, d.etag); await load(); } catch (e) { setError(message(e)); }

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, Navigate, NavLink, Route, Routes, useNavigate, useParams } from 'react-router-dom';
 import { api, message } from '../api';
 import { LangSwitch, useFormat, useI18n } from '../i18n';
+import { AuthLayout, Chip, Logo } from '../brand';
 import { Field, Form, IdleGuard, Notice, SecretBox, Select, StepUpProvider, Table, useStepUp } from '../ui';
 
 // The operator session ends after 15 idle minutes (FR-PLT-006); the screen leaves at the same time.
@@ -24,8 +25,7 @@ function Setup() {
     api<{ secret: string; otpauthUri: string }>('POST', '/operator/auth/setup', { token }).then(setSetup).catch(() => setSetup(null));
   }, [token]);
   return (
-    <div className="auth">
-      <header className="auth-head"><strong>BankFas</strong><LangSwitch /></header>
+    <AuthLayout>
       <Form title="Set up your operator account" submit="Finish set-up" onSubmit={async () => {
         await api('POST', '/operator/auth/setup/complete', { token, password, code });
         nav('/login');
@@ -34,7 +34,7 @@ function Setup() {
         {setup && <SecretBox secret={setup.secret} uri={setup.otpauthUri} />}
         <Field label="6-digit code" value={code} onChange={setCode} autoComplete="one-time-code" />
       </Form>
-    </div>
+    </AuthLayout>
   );
 }
 
@@ -45,8 +45,7 @@ function Login() {
   const [code, setCode] = useState('');
   const [step, setStep] = useState<'password' | 'mfa'>('password');
   return (
-    <div className="auth">
-      <header className="auth-head"><strong>BankFas</strong><LangSwitch /></header>
+    <AuthLayout>
       {step === 'mfa'
         ? <Form title="Two-step verification" submit="Verify" onSubmit={async () => { await api('POST', '/operator/auth/mfa', { code }); nav('/'); }}>
             <Field label="Code from your authenticator" value={code} onChange={setCode} autoComplete="one-time-code" />
@@ -55,7 +54,7 @@ function Login() {
             <Field label="E-mail" value={email} onChange={setEmail} type="email" autoComplete="username" />
             <Field label="Password" value={password} onChange={setPassword} type="password" autoComplete="current-password" />
           </Form>}
-    </div>
+    </AuthLayout>
   );
 }
 
@@ -80,7 +79,7 @@ function Tenants({ me }: { me: Me }) {
         <Table rows={rows} columns={[
           { header: 'Sub-domain', cell: r => <Link to={`/tenants/${r.id}`} dir="ltr">{r.code}</Link> },
           { header: 'Name', cell: r => lang === 'ar' ? r.nameAr : r.nameEn },
-          { header: 'Status', cell: r => t(r.status) },
+          { header: 'Status', cell: r => <Chip s={r.status} /> },
           { header: 'Trial ends', cell: r => fmt.date(r.trialEndsOn) },
           { header: 'Plan', cell: r => r.planCode },
         ]} />
@@ -204,7 +203,7 @@ function Operators() {
           { header: 'E-mail', cell: o => <span dir="ltr">{o.email}</span> },
           { header: 'Name', cell: o => o.displayName },
           { header: 'Role', cell: o => t(o.role) },
-          { header: 'Status', cell: o => t(o.status) },
+          { header: 'Status', cell: o => <Chip s={o.status} /> },
           { header: 'Last sign-in', cell: o => fmt.dateTime(o.lastLoginAt) },
           { header: '', cell: o => (
             <span className="actions">
@@ -257,7 +256,7 @@ function Support() {
           <Table rows={users.items} columns={[
             { header: 'E-mail', cell: u => <span dir="ltr">{u.email}</span> },
             { header: 'Name', cell: u => u.displayNameEn },
-            { header: 'Status', cell: u => t(u.status) },
+            { header: 'Status', cell: u => <Chip s={u.status} /> },
           ]} />
         </section>
       )}
@@ -318,6 +317,7 @@ function Shell() {
           <button className="link" onClick={async () => { await api('POST', '/operator/auth/logout', {}); nav('/login'); }}>{t('Sign out')}</button>
         </header>
         <nav className="side">
+          <Link to="/" className="brand"><Logo inverse height={26} /></Link>
           <NavLink to="/" end>{t('Tenants')}</NavLink>
           {me.role === 'OPERATOR_ADMIN' && <NavLink to="/operators">{t('Operators')}</NavLink>}
           <NavLink to="/support">{t('Support access')}</NavLink>

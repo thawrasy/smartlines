@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, message } from '../api';
 import { useI18n } from '../i18n';
 import { Field, Form, Notice, Select, Table } from '../ui';
+import { Chip } from '../brand';
 
 // SCR-PRC-01 (the tariff schedules of a bank: versions, items and tiers; a treasury manager who did not prepare a
 // version approves it, and it is fixed from then on) and SCR-PRC-02 (the pricing rules of a facility, with the lab that
@@ -38,7 +39,7 @@ export function TariffSchedules() {
           { header: 'Facility', cell: s => <span dir="ltr">{s.facilityNo}</span> },
           { header: 'Version', cell: s => s.versionNo },
           { header: 'Effective', cell: s => <span dir="ltr">{s.effectiveFrom}{s.effectiveTo && ` → ${s.effectiveTo}`}</span> },
-          { header: 'Status', cell: s => t(s.status) },
+          { header: 'Status', cell: s => <Chip s={s.status} /> },
         ]} />
       </section>
       {open && <TariffSchedule id={open} onChange={load} />}

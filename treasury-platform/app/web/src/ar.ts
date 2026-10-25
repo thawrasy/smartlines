@@ -2994,4 +2994,6 @@ export const ar: Record<string, string> = {
   'Add the selected': 'إضافة المحدد',
   'Add all': 'إضافة الكل',
   'lookup-items': 'بنود القوائم',
+  'Every facility starts from financial statements that were read, and ends with a decision that was worked out.': 'كل تسهيل يبدأ من قوائم مالية مقروءة، وينتهي بقرار محسوب',
+  'The platform for bank facilities and financial statement assessment': 'منصة التسهيلات البنكية وتقييم القوائم المالية',
 };

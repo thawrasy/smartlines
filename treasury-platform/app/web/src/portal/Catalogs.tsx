@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, downloadGet, message } from '../api';
 import { useI18n } from '../i18n';
 import { Field, Form, Notice, Select, Table } from '../ui';
+import { Chip } from '../brand';
 
 // SCR-CAT-01 to 04: one screen for every catalogue (FR-CAT-005): add, edit, order, deactivate with where-used first,
 // the inactive items on request; the lookup lists and the tenant's currencies (FR-CAT-020, FR-CAT-023).
@@ -144,7 +145,7 @@ function CatalogList({ path, kind, canManage, allowAdd = true }: { path: string;
         <Table rows={items} columns={[
           { header: 'Code', cell: i => <button className="link" dir="ltr" onClick={() => setSelected(i.id)}>{i.code}</button> },
           { header: 'Name', cell: i => lang === 'ar' ? i.nameAr : i.nameEn ?? i.nameAr },
-          { header: 'Status', cell: i => t(i.isActive ? 'ACTIVE' : 'DISABLED') },
+          { header: 'Status', cell: i => <Chip s={i.isActive ? 'ACTIVE' : 'DISABLED'} /> },
           { header: 'Type', cell: i => [i.isSystem && t('System'), i.isLocked && t('Locked')].filter(Boolean).join(' · ') },
           ...(canManage && !showInactive && !q ? [{ header: 'Order', cell: (i: Item) => {
             const n = items.indexOf(i);

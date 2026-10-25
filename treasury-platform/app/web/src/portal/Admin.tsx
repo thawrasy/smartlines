@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, download, message } from '../api';
 import { useFormat, useI18n } from '../i18n';
 import { Field, Form, Notice, Select, Table, useWithStepUp } from '../ui';
+import { Chip } from '../brand';
 
 // ---------- SCR-PLT-11 settings ----------
 
@@ -82,7 +83,7 @@ export function Support() {
           { header: 'From', cell: g => fmt.dateTime(g.startsAt) },
           { header: 'Until', cell: g => fmt.dateTime(g.endsAt) },
           { header: 'Reason', cell: g => g.reason },
-          { header: 'Status', cell: g => t(g.status) },
+          { header: 'Status', cell: g => <Chip s={g.status} /> },
           { header: '', cell: g => g.status === 'ACTIVE' || g.status === 'SCHEDULED'
             ? <button className="link" onClick={async () => { await api('POST', `/support-grants/${g.id}/actions/revoke`, {}); await load(); }}>{t('Revoke')}</button> : null },
         ]} />
@@ -247,7 +248,7 @@ export function Jobs() {
       <Table rows={rows} columns={[
         { header: 'Job', cell: j => <code dir="ltr">{j.jobKey}</code> },
         { header: 'Last run', cell: j => fmt.dateTime(j.lastStartedAt) },
-        { header: 'Status', cell: j => t(j.lastStatus) },
+        { header: 'Status', cell: j => <Chip s={j.lastStatus} /> },
         { header: 'Last success', cell: j => fmt.dateTime(j.lastSucceededAt) },
         { header: 'Result', cell: j => j.lastError ?? j.lastResult },
       ]} />
@@ -287,7 +288,7 @@ export function DataExports() {
         { header: 'Requested', cell: r => fmt.dateTime(r.requestedAt) },
         { header: 'By', cell: r => (lang === 'ar' ? r.requestedByAr : r.requestedByEn) ?? r.requestedByEn ?? r.requestedByAr },
         { header: 'Restricted data', cell: r => t(r.includesRestricted ? 'Yes' : 'No') },
-        { header: 'Status', cell: r => t(r.status) },
+        { header: 'Status', cell: r => <Chip s={r.status} /> },
         { header: 'Expires', cell: r => fmt.dateTime(r.expiresAt) },
         { header: 'Size', cell: r => r.sizeBytes ? `${Math.ceil(r.sizeBytes / 1024)} KB` : '' },
         { header: 'Details', cell: r => r.failureReason ?? (r.sha256 ? <small dir="ltr">SHA-256 {r.sha256}</small> : '') },

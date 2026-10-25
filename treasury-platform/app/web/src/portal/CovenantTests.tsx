@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, message } from '../api';
 import { useI18n } from '../i18n';
 import { Field, Notice, Table } from '../ui';
+import { Chip } from '../brand';
 import { can, useMe } from './Portal';
 
 // SCR-OBL-03 (the covenant tests of a facility: period, due date, state, result, actual value against the threshold,
@@ -46,7 +47,7 @@ export function FacilityCovenantTests({ id }: { id: string }) {
           { header: 'Covenant', cell: r => name(lang, r.obligationTitleAr, r.obligationTitleEn) },
           { header: 'Period end', cell: r => <span dir="ltr">{r.periodEnd}</span> },
           { header: 'Due date', cell: r => <span dir="ltr">{r.dueDate}</span> },
-          { header: 'State', cell: r => t(r.state) },
+          { header: 'State', cell: r => <Chip s={r.state} /> },
           { header: 'Result', cell: r => <span className={resultClass(r.result)}>{r.result ? t(r.result) : ''}</span> },
           { header: 'Value', cell: r => <span dir="ltr">{amount(r.actualValue)} {r.operator && `${ops[r.operator]} ${amount(r.threshold)}`}</span> },
           { header: 'Headroom', cell: r => <span dir="ltr">{amount(r.headroom)}{r.headroomPct != null && ` (${amount(r.headroomPct)}%)`}</span> },

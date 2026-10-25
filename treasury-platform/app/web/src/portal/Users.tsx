@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { api, apiWithETag, message } from '../api';
 import { useFormat, useI18n } from '../i18n';
 import { Field, Form, Notice, Select, Table, useWithStepUp } from '../ui';
+import { Chip } from '../brand';
 
 interface UserRow {
   id: string; email: string; displayNameEn?: string; displayNameAr?: string; status: string; mfaEnabled: boolean; lastLoginAt?: string; roles: string[];
@@ -81,7 +82,7 @@ export function Users() {
           { header: 'Name', cell: u => <Link to={`/users/${u.id}`}>{u.displayNameEn ?? u.email}</Link> },
           { header: 'E-mail', cell: u => <span dir="ltr">{u.email}</span> },
           { header: 'Employee code', cell: u => <span dir="ltr">{u.employeeCode ?? ''}</span> },
-          { header: 'Status', cell: u => t(u.status) },
+          { header: 'Status', cell: u => <Chip s={u.status} /> },
           { header: 'Roles', cell: u => u.roles.join(', ') },
           { header: 'Last sign-in', cell: u => fmt.dateTime(u.lastLoginAt) },
         ]} />

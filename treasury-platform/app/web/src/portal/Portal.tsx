@@ -1,8 +1,9 @@
 import { createContext, lazy, Suspense, useContext, useEffect, useState, type ComponentType } from 'react';
-import { Navigate, NavLink, Route, Routes, useNavigate } from 'react-router-dom';
+import { Link, Navigate, NavLink, Route, Routes, useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { LangSwitch, useI18n } from '../i18n';
 import { IdleGuard, StepUpProvider } from '../ui';
+import { Logo } from '../brand';
 
 const keepAlive = () => api('GET', '/me');
 import { Enrol, ForgotPassword, Invitation, Login, Mfa, ResetPassword, type Tenant, CompanyEntry, FirstPassword, entryHost } from './Auth';
@@ -208,7 +209,7 @@ function Shell() {
           {me.user.tenantStatus !== 'ACTIVE' && me.user.tenantStatus !== 'TRIAL' && (
             <p className="banner">{t('The account is {s}: you can read and export, not change.', { s: t(me.user.tenantStatus) })}</p>
           )}
-          <nav className="side">{items.map(m => <NavLink key={m.to} to={m.to} end>{t(m.label)}</NavLink>)}</nav>
+          <nav className="side"><Link to="/" className="brand"><Logo inverse height={26} /></Link>{items.map(m => <NavLink key={m.to} to={m.to} end>{t(m.label)}</NavLink>)}</nav>
           <main className="content">
             <Suspense fallback={<p className="muted">{t('Loading…')}</p>}>
             <Routes>
@@ -322,7 +323,7 @@ export function Portal() {
   const [tenant, setTenant] = useState<Tenant | null | undefined>(undefined);
   useEffect(() => { api<Tenant>('GET', '/tenant').then(setTenant).catch(() => setTenant(null)); }, []);
   if (tenant === undefined) return null;
-  if (tenant === null) return entryHost() ? <CompanyEntry /> : <section className="card neutral"><h1>BankFas</h1><p>{t('This address is not available.')}</p></section>;
+  if (tenant === null) return entryHost() ? <CompanyEntry /> : <section className="card neutral"><Logo height={36} /><p>{t('This address is not available.')}</p></section>;
   return (
     <Routes>
       <Route path="/login" element={<Login tenant={tenant} />} />

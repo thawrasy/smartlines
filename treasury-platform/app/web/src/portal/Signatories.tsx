@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, message } from '../api';
 import { useI18n } from '../i18n';
 import { Notice, Table } from '../ui';
+import { Chip } from '../brand';
 import { can, useMe } from './Portal';
 import { PartySearch } from './Structure';
 
@@ -48,7 +49,7 @@ export function SignatoriesPanel({ relationship }: { relationship: string }) {
             { header: 'Ceiling', cell: a => a.ceilingMode === 'LIMITED' ? <span dir="ltr">{a.maxPerTransaction ?? '—'} / {a.dailyLimit ?? '—'} {a.currency}</span> : t(a.ceilingMode) },
             { header: 'Joint', cell: a => a.isJoint ? a.jointClasses.join(', ') || t('Yes') : '' },
             { header: 'Period', cell: a => <span dir="ltr">{a.validFrom} → {a.validTo ?? '—'}</span> },
-            { header: 'Status', cell: a => t(a.state) },
+            { header: 'Status', cell: a => <Chip s={a.state} /> },
           ]} />
           {manage && (
             <div className="actions">
@@ -135,7 +136,7 @@ export function AuthorityConflicts() {
         { header: 'Signatory', cell: c => name(lang, c.signatory) },
         { header: 'Operation', cell: c => t(c.operation) },
         { header: 'Conflict', cell: c => c.label ? (lang === 'ar' ? c.label.ar : c.label.en) : c.code },
-        { header: 'Status', cell: c => t(c.status) },
+        { header: 'Status', cell: c => <Chip s={c.status} /> },
         { header: 'Decision', cell: c => c.reason ?? '' },
         { header: '', cell: c => data.canAcknowledge && c.status === 'OPEN' ? (
           <button className="link" onClick={() => {

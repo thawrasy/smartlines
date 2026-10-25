@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, message } from '../api';
 import { useFormat, useI18n } from '../i18n';
 import { Field, Form, Notice, Select, Table, useStepUp } from '../ui';
+import { Chip } from '../brand';
 
 /** The two-step verification policy of a tenant, as shown (ADR 0048). */
 export const MFA_LABELS: Record<string, string> = { PLATFORM: 'As the platform setting', REQUIRED: 'Required', OFF: 'Off' };
@@ -136,7 +137,7 @@ export function Incidents({ admin }: { admin: boolean }) {
           { header: 'Number', cell: i => <button className="link" dir="ltr" onClick={() => { setOpen(i); setC({ status: i.status === 'OPEN' ? 'CONTAINED' : i.status, rootCause: i.rootCause ?? '', actions: i.actions ?? '' }); }}>{i.incidentNo}</button> },
           { header: 'Title', cell: i => i.title },
           { header: 'Severity', cell: i => t(i.severity) },
-          { header: 'Status', cell: i => t(i.status) },
+          { header: 'Status', cell: i => <Chip s={i.status} /> },
           { header: 'Detected', cell: i => fmt.dateTime(i.detectedAt) },
         ]} />
       </section>

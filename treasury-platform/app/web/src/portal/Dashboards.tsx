@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { api, message } from '../api';
 import { useI18n } from '../i18n';
 import { Notice, Select, Table } from '../ui';
+import { Chip } from '../brand';
 import { can, useMe } from './Portal';
 
 // SCR-REQ-10 to 12 (FR-REQ-018 to 020): the requester's, the treasury officer's and the treasury manager's dashboards.
@@ -47,7 +48,7 @@ export function Dashboards() {
           <h2>{t('Open')}</h2>
           {list('open', 'No open request.', [{ header: 'Phase', cell: r => pick(lang, r, 'phaseName') }, { header: 'Updated', cell: r => <span dir="ltr">{day(r.updatedAt)}</span> }])}
           <h2>{t('Ended lately')}</h2>
-          {list('endedLately', 'Nothing ended lately.', [{ header: 'Status', cell: r => t(str(r.status)) }])}
+          {list('endedLately', 'Nothing ended lately.', [{ header: 'Status', cell: r => <Chip s={str(r.status)} /> }])}
         </>
       )}
       {data && view === 'officer' && (

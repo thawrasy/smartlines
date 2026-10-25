@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, apiWithETag, message } from '../api';
 import { useI18n } from '../i18n';
 import { Field, Form, Notice, Select, Table, useWithStepUp } from '../ui';
+import { Chip } from '../brand';
 import { AttachForm, DownloadButton, useDocTypes } from './Attach';
 import { LC_RECORDERS, LC_TYPES, LcFiles } from './Lcs';
 import { can, useMe } from './Portal';
@@ -221,7 +222,7 @@ export function ProformaRegister() {
         { header: 'Issued on', cell: r => <span dir="ltr">{day(r.issueDate)}</span> },
         { header: 'Valid until', cell: r => <span dir="ltr">{day(r.validUntil)}</span> },
         { header: 'Credits', cell: r => str(r.credits) },
-        { header: 'Status', cell: r => t(str(r.status)) },
+        { header: 'Status', cell: r => <Chip s={str(r.status)} /> },
       ]} />
     </section>
   );
@@ -277,7 +278,7 @@ export function ProformaCard() {
       <Table rows={d.credits} empty="No letter of credit received yet." columns={[
         { header: 'Number', cell: r => can(me, 'lc.export.view') ? <Link to={`/sales/lcs/${str(r.id)}`} dir="ltr">{str(r.lcNumber)}</Link> : <span dir="ltr">{str(r.lcNumber)}</span> },
         { header: 'Amount', cell: r => money(r.amount, pf.currency) }, { header: 'Received', cell: r => <span dir="ltr">{day(r.receivedDate)}</span> },
-        { header: 'Status', cell: r => t(str(r.status)) },
+        { header: 'Status', cell: r => <Chip s={str(r.status)} /> },
       ]} />
       {can(me, 'lc.proforma.void') && pf.status === 'ISSUED' && (
         <Form title="Void the proforma" submit="Void" onSubmit={async () => {
@@ -326,7 +327,7 @@ export function SalesLcRegister() {
         { header: 'Drawn', cell: r => money(r.drawn) },
         { header: 'Available', cell: r => <strong>{money(r.available)}</strong> },
         { header: 'Expiry', cell: r => <span dir="ltr">{day(r.expiryDate)}</span> },
-        { header: 'Status', cell: r => t(str(r.status)) },
+        { header: 'Status', cell: r => <Chip s={str(r.status)} /> },
       ]} />
     </section>
   );
@@ -472,7 +473,7 @@ export function SalesLcCard() {
           { header: 'Date', cell: r => <span dir="ltr">{day(r.orderDate)}</span> },
           { header: 'Amount', cell: r => money(r.amount) }, { header: 'Converted', cell: r => money(r.converted) },
           { header: 'Released', cell: r => money(r.released) }, { header: 'Remaining', cell: r => money(r.remaining) },
-          { header: 'Status', cell: r => t(str(r.status)) },
+          { header: 'Status', cell: r => <Chip s={str(r.status)} /> },
           { header: '', cell: r => can(me, 'lc.order.release') && ['EARMARKED', 'PARTIALLY_CONVERTED'].includes(str(r.status)) ? (
             <button type="button" className="secondary" onClick={() => {
               const reason = window.prompt(t('Reason'));
@@ -502,7 +503,7 @@ export function SalesLcCard() {
           { header: 'Presented', cell: r => <span dir="ltr">{day(r.presentationDate)}</span> },
           { header: 'Paid', cell: r => money(r.settled) },
           { header: 'Discrepancies', cell: r => r.discrepancies.map(x => `${str(x.description)} (${t(str(x.status))})`).join(' · ') },
-          { header: 'Status', cell: r => t(str(r.status)) },
+          { header: 'Status', cell: r => <Chip s={str(r.status)} /> },
           { header: '', cell: r => {
             const no = str(r.drawingNo);
             const s = str(r.status);
@@ -550,7 +551,7 @@ export function SalesLcCard() {
         <Table rows={d.amendments} empty="No amendment." columns={[
           { header: 'No.', cell: r => str(r.amendmentNo) }, { header: 'Origin', cell: r => t(str(r.origin)) },
           { header: 'Changes', cell: r => str(r.changeKinds) }, { header: 'New amount', cell: r => money(r.newAmount) },
-          { header: 'New expiry', cell: r => <span dir="ltr">{day(r.newExpiryDate)}</span> }, { header: 'Status', cell: r => t(str(r.status)) },
+          { header: 'New expiry', cell: r => <span dir="ltr">{day(r.newExpiryDate)}</span> }, { header: 'Status', cell: r => <Chip s={str(r.status)} /> },
           { header: 'Reason', cell: r => str(r.reason) },
         ]} />
         {can(me, 'lc.amendment.record') && active && (
