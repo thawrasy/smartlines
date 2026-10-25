@@ -115,6 +115,7 @@ public static partial class CatalogEndpoints
         api.MapGet("/tenant-currencies", TenantCurrenciesAsync);
         api.MapPut("/tenant-currencies", SetTenantCurrenciesAsync);
         MapCsv(api);
+        MapDefaults(api);
     }
 
     private static Kind KindOf(string segment) => Kinds.TryGetValue(segment, out var k) ? k : throw ApiProblemException.NotFound();

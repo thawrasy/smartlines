@@ -2988,4 +2988,10 @@ export const ar: Record<string, string> = {
   'Your account has no e-mail.': 'لا يوجد بريد إلكتروني لحسابك.',
   'The database stopped the import at this row; correct it and import again.': 'أوقفت قاعدة البيانات الاستيراد عند هذا الصف؛ صحّحه وأعد الاستيراد.',
   'Loading…': 'جارٍ التحميل…',
+  '{n} items added.': 'أُضيف {n} من البنود.',
+  'New defaults available': 'افتراضيات جديدة متاحة',
+  'A new release brings these items. Add the ones you want; what you changed in your catalogues is not replaced.': 'جاء الإصدار الجديد بهذه البنود. أضف ما تريد منها، ولن يُستبدل شيء مما عدّلته في كتالوجاتك.',
+  'Add the selected': 'إضافة المحدد',
+  'Add all': 'إضافة الكل',
+  'lookup-items': 'بنود القوائم',
 };

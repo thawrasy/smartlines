@@ -1,5 +1,10 @@
 using System.Net;
 using System.Text.Json;
+using System.Text.Json.Nodes;
+using BankFas.Data;
+using BankFas.Data.Jobs;
+using BankFas.Data.Seeding;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace BankFas.IntegrationTests;
 
@@ -116,5 +121,61 @@ public sealed class S5RestTests(PlatformFixture f)
             new { csv = $"code,nameAr,nameEn\r\n{unit.GetProperty("code").GetString()},اسم جديد,New name\r\n", apply = true });
         Assert.True(renamed.GetProperty("applied").GetBoolean(), renamed.ToString());
         Assert.Equal(1, renamed.GetProperty("updates").GetInt32());
+    }
+
+    [Fact]
+    public async Task A_new_release_adds_what_the_platform_needs_and_offers_the_optional_defaults()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var t = await f.CreateTenantAsync();
+        var p = t.Portal;
+        // The release: a newer version of CAT.DOCTYPES with a type the platform needs and an optional one.
+        var packs = TenantSeeder.PacksDirectory(null);
+        var latest = Directory.GetDirectories(Path.Combine(packs, "CAT.DOCTYPES"), "v*").Max(d => int.Parse(Path.GetFileName(d)[1..], System.Globalization.CultureInfo.InvariantCulture));
+        var next = Path.Combine(packs, "CAT.DOCTYPES", $"v{latest + 1}");
+        Directory.CreateDirectory(next);
+        try
+        {
+            var src = Path.Combine(packs, "CAT.DOCTYPES", $"v{latest}");
+            var manifest = JsonNode.Parse(await File.ReadAllTextAsync(Path.Combine(src, "manifest.json"), ct))!;
+            manifest["SeedVersion"] = latest + 1;
+            await File.WriteAllTextAsync(Path.Combine(next, "manifest.json"), manifest.ToJsonString(), ct);
+            var csv = await File.ReadAllTextAsync(Path.Combine(src, "cat.DocumentType.csv"), ct);
+            csv = csv.TrimEnd('\r', '\n') + "\r\n" +
+                  "RELEASE_SYSTEM_DOC,مستند النظام,System document,,1,1,0,90,CAT.DOCTYPES.RELEASE_SYSTEM_DOC,REQUEST,0,0,,\r\n" +
+                  "RELEASE_OPTIONAL_DOC,مستند اختياري,Optional document,,1,0,0,91,CAT.DOCTYPES.RELEASE_OPTIONAL_DOC,COMPANY,0,0,,\r\n";
+            await File.WriteAllTextAsync(Path.Combine(next, "cat.DocumentType.csv"), csv, ct);
+
+            // A name the tenant changed stays as it is.
+            var cr = (await p.GetJsonAsync("/api/v1/catalogs/document-types?includeInactive=true")).GetProperty("items").EnumerateArray()
+                .Single(i => i.GetProperty("code").GetString() == "COMMERCIAL_REGISTRATION");
+            await p.OkAsync(HttpMethod.Patch, $"/api/v1/catalogs/document-types/items/{cr.GetProperty("id").GetString()}", new { nameEn = "Our CR" }, cr.GetProperty("etag").GetString());
+
+            var upgrade = new SeedUpgradeJob(f.Env.Services.GetRequiredService<SqlConnectionFactory>(), new SeedPacks(packs));
+            Assert.True(await upgrade.RunTenantAsync(new JobTenant(await TestEnvironment.TenantIdAsync(t.Code), "ACTIVE", "Asia/Dubai"), ct));
+            List<string?> Codes(JsonElement list) => [.. list.GetProperty("items").EnumerateArray().Select(i => i.GetProperty("code").GetString())];
+            var types = Codes(await p.GetJsonAsync("/api/v1/catalogs/document-types?includeInactive=true"));
+            Assert.Contains("RELEASE_SYSTEM_DOC", types);
+            Assert.DoesNotContain("RELEASE_OPTIONAL_DOC", types);
+
+            var offered = (await p.GetJsonAsync("/api/v1/catalogs/defaults")).GetProperty("items").EnumerateArray().ToList();
+            var item = offered.Single(i => i.GetProperty("code").GetString() == "RELEASE_OPTIONAL_DOC");
+            Assert.Equal("document-types", item.GetProperty("kind").GetString());
+            Assert.Equal((422, "VALIDATION_FAILED"), await p.PostProblemAsync("/api/v1/catalogs/defaults/apply", new { keys = new[] { "CAT.DOCTYPES.NOT_THERE" } }));
+            var (tm, _, _) = await f.UserWithRoleAsync(t, "RQ");
+            Assert.Empty((await tm.GetJsonAsync("/api/v1/catalogs/defaults")).GetProperty("items").EnumerateArray());
+
+            var applied = await p.PostOkAsync("/api/v1/catalogs/defaults/apply", new { keys = new[] { item.GetProperty("key").GetString() } });
+            Assert.Equal(1, applied.GetProperty("added").GetInt32());
+            var after = (await p.GetJsonAsync("/api/v1/catalogs/document-types?includeInactive=true")).GetProperty("items").EnumerateArray().ToList();
+            Assert.Contains(after, i => i.GetProperty("code").GetString() == "RELEASE_OPTIONAL_DOC");
+            Assert.Equal("Our CR", after.Single(i => i.GetProperty("code").GetString() == "COMMERCIAL_REGISTRATION").GetProperty("nameEn").GetString());
+            Assert.DoesNotContain((await p.GetJsonAsync("/api/v1/catalogs/defaults")).GetProperty("items").EnumerateArray(),
+                i => i.GetProperty("code").GetString() == "RELEASE_OPTIONAL_DOC");
+        }
+        finally
+        {
+            Directory.Delete(next, true);
+        }
     }
 }

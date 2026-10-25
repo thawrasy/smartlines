@@ -66,8 +66,19 @@ public sealed record TenantPack(string PackKey, int SeedVersion, IReadOnlyList<s
     }
 }
 
-/// <summary>The result of one pack on one tenant.</summary>
-public sealed record SeedResult(string PackKey, int SeedVersion, bool AlreadyRun, int Created, int Skipped);
+/// <summary>The result of one pack on one tenant; Held counts the optional catalogue rows an upgrade leaves for the administrator.</summary>
+public sealed record SeedResult(string PackKey, int SeedVersion, bool AlreadyRun, int Created, int Skipped, int Held = 0);
+
+/// <summary>
+/// How a run treats the optional rows of the catalogues (FR-CAT-003, owner's decision of 2026-10-25, docs/31 row 57).
+/// All: every row, as at onboarding. HoldOptional: the upgrade of a tenant already onboarded adds what the platform needs
+/// (system and locked rows, and every table outside the catalogues) and holds a catalogue row that is neither, with what
+/// refers to it, for the administrator to add from the catalogue screen.
+/// </summary>
+public enum SeedMode { All, HoldOptional }
+
+/// <summary>An optional catalogue row of a pack that the tenant does not have (FR-CAT-003).</summary>
+public sealed record OptionalDefault(string PackKey, string Table, string SeedKey, string? Code, string? NameAr, string? NameEn);
 
 /// <summary>
 /// The application's tenant seeder (FR-PLT-008, DOC-B05 section 5.1): applies the packs of a folder to the tenant the
@@ -102,7 +113,8 @@ public static class TenantSeeder
             .OrderByDescending(x => x.N).Select(x => x.Dir).FirstOrDefault();
 
     /// <summary>Applies the packs in order inside the transaction; the connection is bound to the tenant (a job binding).</summary>
-    public static async Task<IReadOnlyList<SeedResult>> ApplyAsync(SqlConnection c, SqlTransaction tx, IEnumerable<TenantPack> packs, CancellationToken ct)
+    public static async Task<IReadOnlyList<SeedResult>> ApplyAsync(SqlConnection c, SqlTransaction tx, IEnumerable<TenantPack> packs, CancellationToken ct,
+        SeedMode mode = SeedMode.All)
     {
         var results = new List<SeedResult>();
         var columns = new Dictionary<string, TableInfo>(StringComparer.Ordinal);
@@ -115,14 +127,16 @@ public static class TenantSeeder
             var earlier = await c.ExecuteScalarAsync<int>(new CommandDefinition(
                 "SELECT COUNT(*) FROM cfg.SeedRun WHERE PackKey = @k;", new { k = pack.PackKey }, tx, cancellationToken: ct)).ConfigureAwait(false);
             var started = DateTime.UtcNow;
-            int created = 0, skipped = 0;
+            int created = 0, skipped = 0, held = 0;
             var diff = new List<string>();
             foreach (var t in pack.Tables)
             {
                 var info = await TableInfoAsync(c, tx, t.Table, columns, ct).ConfigureAwait(false);
-                var (n, s) = await ApplyTableAsync(c, tx, pack, t, info, columns, ct).ConfigureAwait(false);
-                created += n; skipped += s;
-                diff.Add($"{t.Table}: {n} created, {s} present");
+                var hold = mode == SeedMode.HoldOptional;
+                var (n, s, h) = await ApplyTableAsync(c, tx, pack, t, info, columns, ct,
+                    keep: hold && IsOptionalTable(t) ? row => !IsOptionalRow(t, row) : null, tolerant: hold).ConfigureAwait(false);
+                created += n; skipped += s; held += h;
+                diff.Add(h > 0 ? $"{t.Table}: {n} created, {s} present, {h} held" : $"{t.Table}: {n} created, {s} present");
             }
             foreach (var a in pack.Activate)
             {
@@ -152,9 +166,66 @@ public static class TenantSeeder
                 """,
                 new { k = pack.PackKey, v = pack.SeedVersion, kind = earlier > 0 ? "UPGRADE" : "INITIAL", created, diff = JsonSerializer.Serialize(diff), started },
                 tx, cancellationToken: ct)).ConfigureAwait(false);
-            results.Add(new SeedResult(pack.PackKey, pack.SeedVersion, false, created, skipped));
+            results.Add(new SeedResult(pack.PackKey, pack.SeedVersion, false, created, skipped, held));
         }
         return results;
+    }
+
+    /// <summary>A catalogue whose rows say whether the platform needs them (IsSystem, IsLocked).</summary>
+    private static bool IsOptionalTable(PackTable t) => t.Table.StartsWith("cat.", StringComparison.Ordinal) && t.Header.Contains("IsSystem");
+
+    private static bool IsOptionalRow(PackTable t, string?[] row)
+    {
+        string? Cell(string name) => t.Header.ToList().IndexOf(name) is var i and >= 0 && i < row.Length ? row[i] : null;
+        return Cell("IsSystem") != "1" && Cell("IsLocked") != "1" && !string.IsNullOrEmpty(Cell("SeedKey"));
+    }
+
+    /// <summary>The optional catalogue rows of the packs that the tenant does not have (FR-CAT-003); reads only.</summary>
+    public static async Task<IReadOnlyList<OptionalDefault>> OptionalAsync(SqlConnection c, SqlTransaction? tx, IEnumerable<TenantPack> packs, CancellationToken ct)
+    {
+        var found = new List<OptionalDefault>();
+        foreach (var pack in packs)
+            foreach (var t in pack.Tables.Where(IsOptionalTable))
+            {
+                var h = t.Header.ToList();
+                var rows = t.Rows.Where(r => IsOptionalRow(t, r)).ToList();
+                if (rows.Count == 0) continue;
+                string? Cell(string?[] r, string name) => h.IndexOf(name) is var i and >= 0 && i < r.Length ? r[i] : null;
+                var keys = rows.Select(r => Cell(r, "SeedKey")!).ToArray();
+                var have = (await c.QueryAsync<string>(new CommandDefinition(
+                    $"SELECT {Q("SeedKey")} FROM {QT(t.Table)} WHERE {Q("SeedKey")} IN @keys;", new { keys }, tx, cancellationToken: ct)).ConfigureAwait(false))
+                    .ToHashSet(StringComparer.Ordinal);
+                found.AddRange(rows.Where(r => !have.Contains(Cell(r, "SeedKey")!))
+                    .Select(r => new OptionalDefault(pack.PackKey, t.Table, Cell(r, "SeedKey")!, Cell(r, "Code"), Cell(r, "NameAr"), Cell(r, "NameEn"))));
+            }
+        return found;
+    }
+
+    /// <summary>
+    /// Adds the chosen optional rows (by SeedKey) and, in the same packs, the rows outside the optional catalogues that
+    /// are missing and whose references now resolve (the links of what was added). Insert only; returns the rows added.
+    /// </summary>
+    public static async Task<int> ApplyOptionalAsync(SqlConnection c, SqlTransaction tx, IEnumerable<TenantPack> packs, IReadOnlySet<string> seedKeys,
+        CancellationToken ct)
+    {
+        var columns = new Dictionary<string, TableInfo>(StringComparer.Ordinal);
+        var created = 0;
+        foreach (var pack in packs)
+        {
+            var chosen = pack.Tables.Where(IsOptionalTable).Any(t => t.Rows.Any(r => IsOptionalRow(t, r)
+                && seedKeys.Contains(r[t.Header.ToList().IndexOf("SeedKey")] ?? "")));
+            if (!chosen) continue;
+            foreach (var t in pack.Tables)
+            {
+                var info = await TableInfoAsync(c, tx, t.Table, columns, ct).ConfigureAwait(false);
+                var keyAt = t.Header.ToList().IndexOf("SeedKey");
+                Func<string?[], bool>? keep = IsOptionalTable(t)
+                    ? row => IsOptionalRow(t, row) && seedKeys.Contains(row[keyAt] ?? "")
+                    : null;
+                created += (await ApplyTableAsync(c, tx, pack, t, info, columns, ct, keep, tolerant: true).ConfigureAwait(false)).Created;
+            }
+        }
+        return created;
     }
 
     private sealed record TableInfo(string Table, IReadOnlySet<string> Columns, string PrimaryKey);
@@ -179,8 +250,10 @@ public static class TenantSeeder
     private static string Q(string name) => "[" + name.Replace("]", "]]", StringComparison.Ordinal) + "]";
     private static string QT(string table) => string.Join('.', table.Split('.').Select(Q));
 
-    private static async Task<(int Created, int Skipped)> ApplyTableAsync(SqlConnection c, SqlTransaction tx, TenantPack pack, PackTable t, TableInfo info,
-        Dictionary<string, TableInfo> cache, CancellationToken ct)
+    /// <param name="keep">When given, a missing row it refuses is held, not inserted.</param>
+    /// <param name="tolerant">A row that refers to a row the tenant does not have is held, instead of failing the run.</param>
+    private static async Task<(int Created, int Skipped, int Held)> ApplyTableAsync(SqlConnection c, SqlTransaction tx, TenantPack pack, PackTable t,
+        TableInfo info, Dictionary<string, TableInfo> cache, CancellationToken ct, Func<string?[], bool>? keep = null, bool tolerant = false)
     {
         // The target column of each CSV column, checked against the table.
         var targets = new string[t.Header.Count];
@@ -199,11 +272,12 @@ public static class TenantSeeder
         var hasCreatedBy = info.Columns.Contains("CreatedBy");
         var seedKey = Array.IndexOf(targets, "SeedKey");
         var resolved = new Dictionary<(string, string), object>();
-        int created = 0, skipped = 0;
+        int created = 0, skipped = 0, held = 0;
         foreach (var row in t.Rows)
         {
             var p = new DynamicParameters();
             var values = new object?[targets.Length];
+            var unresolved = false;
             for (var i = 0; i < targets.Length; i++)
             {
                 var raw = i < row.Length && !string.IsNullOrEmpty(row[i]) ? row[i] : null;
@@ -213,8 +287,13 @@ public static class TenantSeeder
                     {
                         var target = cache[r.Table];
                         id = await c.ExecuteScalarAsync<object?>(new CommandDefinition(
-                            $"SELECT {Q(target.PrimaryKey)} FROM {QT(r.Table)} WHERE {Q(r.Key)} = @v;", new { v = raw }, tx, cancellationToken: ct)).ConfigureAwait(false)
-                            ?? throw new InvalidDataException($"{pack.PackKey}: {t.Table} refers to {r.Table} {r.Key} = {raw}, which does not exist.");
+                            $"SELECT {Q(target.PrimaryKey)} FROM {QT(r.Table)} WHERE {Q(r.Key)} = @v;", new { v = raw }, tx, cancellationToken: ct)).ConfigureAwait(false);
+                        if (id is null)
+                        {
+                            if (!tolerant) throw new InvalidDataException($"{pack.PackKey}: {t.Table} refers to {r.Table} {r.Key} = {raw}, which does not exist.");
+                            unresolved = true;
+                            break;
+                        }
                         resolved[(r.Table + "." + r.Key, raw)] = id;
                     }
                     values[i] = id;
@@ -222,6 +301,8 @@ public static class TenantSeeder
                 else values[i] = raw;
                 p.Add("@p" + i.ToString(CultureInfo.InvariantCulture), values[i]);
             }
+            // A row that refers to a held row is held with it.
+            if (unresolved) { held++; continue; }
             // Present already: the same SeedKey, or in a table without one the same values.
             var match = seedKey >= 0 && values[seedKey] is not null
                 ? $"{Q("SeedKey")} = @p{seedKey}"
@@ -229,6 +310,7 @@ public static class TenantSeeder
             var exists = await c.ExecuteScalarAsync<int>(new CommandDefinition(
                 $"SELECT COUNT(*) FROM {QT(t.Table)} WHERE {match};", p, tx, cancellationToken: ct)).ConfigureAwait(false);
             if (exists > 0) { skipped++; continue; }
+            if (keep is not null && !keep(row)) { held++; continue; }
             var cols = new List<string>(targets.Select(Q));
             var vals = new List<string>(targets.Select((_, i) => "@p" + i.ToString(CultureInfo.InvariantCulture)));
             if (hasTenant) { cols.Insert(0, Q("TenantId")); vals.Insert(0, "CAST(SESSION_CONTEXT(N'TenantId') AS INT)"); }
@@ -237,7 +319,7 @@ public static class TenantSeeder
                 $"INSERT {QT(t.Table)} ({string.Join(", ", cols)}) VALUES ({string.Join(", ", vals)});", p, tx, cancellationToken: ct)).ConfigureAwait(false);
             created++;
         }
-        return (created, skipped);
+        return (created, skipped, held);
     }
 }
 

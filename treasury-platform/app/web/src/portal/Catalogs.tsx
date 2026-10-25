@@ -198,6 +198,7 @@ export function Catalogs() {
           { value: 'currencies', label: t('Currencies') },
         ]} />
       </section>
+      <NewDefaults onAdded={() => setVersion(v => v + 1)} />
       {current === 'currencies' && <Currencies />}
       {kind && <CatalogList key={kind.kind + version} path={`/catalogs/${kind.kind}`} kind={kind.kind} canManage={kind.canManage} />}
       {kind?.canManage && <CatalogTransfer key={'csv' + kind.kind} base={`/catalogs/${kind.kind}`} name={kind.kind} onSaved={() => setVersion(v => v + 1)} />}
@@ -205,6 +206,51 @@ export function Catalogs() {
         allowAdd={!list.isSystem || list.fields.allowTenantItems === true} />}
       {list && lookups && <CatalogTransfer key={'csv' + list.code} base={`/lookups/${list.code}`} name={list.code.toLowerCase()} onSaved={() => setVersion(v => v + 1)} />}
     </>
+  );
+}
+
+interface DefaultItem { key: string; pack: string; kind: string; code?: string; nameAr?: string; nameEn?: string }
+
+/** FR-CAT-003: the optional defaults of a newer release that the account does not have yet; nothing it changed is replaced. */
+function NewDefaults({ onAdded }: { onAdded: () => void }) {
+  const { t, lang } = useI18n();
+  const [items, setItems] = useState<DefaultItem[]>([]);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [notice, setNotice] = useState<{ ok?: string; error?: string }>({});
+  const load = useCallback(async () => {
+    try { setItems((await api<{ items: DefaultItem[] }>('GET', '/catalogs/defaults')).items); } catch { setItems([]); }
+  }, []);
+  useEffect(() => { void load(); }, [load]);
+  if (items.length === 0 && !notice.ok) return null;
+  const add = async (keys: string[]) => {
+    try {
+      const r = await api<{ added: number }>('POST', '/catalogs/defaults/apply', { keys });
+      setNotice({ ok: t('{n} items added.', { n: r.added }) });
+      setPicked(new Set());
+      await load();
+      onAdded();
+    } catch (e) { setNotice({ error: message(e) }); }
+  };
+  return (
+    <section className="card">
+      <h2>{t('New defaults available')}</h2>
+      <p className="muted">{t('A new release brings these items. Add the ones you want; what you changed in your catalogues is not replaced.')}</p>
+      <Notice ok={notice.ok} error={notice.error} />
+      {items.length > 0 && <>
+        <Table rows={items} columns={[
+          { header: '', cell: i => <input type="checkbox" checked={picked.has(i.key)} onChange={e => {
+            const next = new Set(picked); if (e.target.checked) next.add(i.key); else next.delete(i.key); setPicked(next);
+          }} /> },
+          { header: 'Catalogue', cell: i => t(KINDS[i.kind] ?? i.kind) },
+          { header: 'Code', cell: i => <span dir="ltr">{i.code}</span> },
+          { header: 'Name', cell: i => (lang === 'ar' ? i.nameAr ?? i.nameEn : i.nameEn ?? i.nameAr) ?? '' },
+        ]} />
+        <div className="actions">
+          <button disabled={picked.size === 0} onClick={() => void add([...picked])}>{t('Add the selected')}</button>
+          <button className="secondary" onClick={() => void add(items.map(i => i.key))}>{t('Add all')}</button>
+        </div>
+      </>}
+    </section>
   );
 }
 

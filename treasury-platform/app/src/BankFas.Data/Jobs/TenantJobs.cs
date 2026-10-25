@@ -310,8 +310,9 @@ public sealed class TrialReminderJob(SqlConnectionFactory db, IMailSender mail, 
 
 /// <summary>
 /// The UPGRADE run of the tenant packs (DOC-B05 section 5.1, DQ-F05-9): a tenant onboarded before a pack existed gets
-/// it here, insert only, bound as the onboarding job. A tenant whose onboarding has not seeded CORE.ROLES yet is left
-/// to the onboarding job. Daily, and at the start of the worker.
+/// it here, insert only, bound as the onboarding job. What the platform needs comes at once; an optional catalogue row
+/// is held for the administrator, who adds it from the catalogue screen (FR-CAT-003, SeedMode.HoldOptional). A tenant
+/// whose onboarding has not seeded CORE.ROLES yet is left to the onboarding job. Daily, and at the start of the worker.
 /// </summary>
 public sealed class SeedUpgradeJob(SqlConnectionFactory db, Seeding.SeedPacks packs) : TenantJob(db)
 {
@@ -325,11 +326,12 @@ public sealed class SeedUpgradeJob(SqlConnectionFactory db, Seeding.SeedPacks pa
         IReadOnlyList<Seeding.SeedResult> results;
         await using (var tx = (SqlTransaction)await c.BeginTransactionAsync(ct).ConfigureAwait(false))
         {
-            try { results = await Seeding.TenantSeeder.ApplyAsync(c, tx, packs.S1, ct).ConfigureAwait(false); }
+            try { results = await Seeding.TenantSeeder.ApplyAsync(c, tx, packs.S1, ct, Seeding.SeedMode.HoldOptional).ConfigureAwait(false); }
             catch (InvalidDataException ex) { throw new InvalidOperationException(ex.Message, ex); }
             await tx.CommitAsync(ct).ConfigureAwait(false);
         }
         var ran = results.Where(r => !r.AlreadyRun).ToList();
-        return ran.Count == 0 ? null : string.Join("; ", ran.Select(r => $"{r.PackKey} v{r.SeedVersion}: {r.Created} created, {r.Skipped} present"));
+        return ran.Count == 0 ? null
+            : string.Join("; ", ran.Select(r => $"{r.PackKey} v{r.SeedVersion}: {r.Created} created, {r.Skipped} present" + (r.Held > 0 ? $", {r.Held} held for the administrator" : "")));
     }
 }
