@@ -7,6 +7,13 @@ const en = {
     footer: "Masslak national platform for land transport. All amounts in Syrian pounds.",
   },
   lang: { ar: "Arabic", en: "English", switchTo: "Language" },
+  navg: {
+    money: "Finance and reports", kyc: "Verification and compliance",
+    partners: "Companies and parties", operations: "Operations and trips", network: "Network and geography",
+    finance: "Finance and prices", security: "Security and audit", compliance: "Compliance and reports",
+    settings: "Settings", modules: "Added modules", sales: "Sales and bookings", fleet: "Fleet and crew",
+    station: "Station administration",
+  },
   nav: {
     more: "More",
     business: "For carriers and partners", contact: "Contact us", terms: "Terms of use", privacy: "Privacy",

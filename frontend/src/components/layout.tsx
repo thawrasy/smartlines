@@ -167,27 +167,82 @@ function MobileNav({ services, parcels }: { services?: string; parcels?: boolean
   );
 }
 
-export interface NavItem { to: string; icon: IconName; label: string; end?: boolean; show?: boolean }
+// group: the module the item belongs to (a key of navg.*); an item without one stays at the top of the menu
+export interface NavItem { to: string; icon: IconName; label: string; end?: boolean; show?: boolean; group?: string }
 
-export function PortalShell({ title, items, children }: { title: string; items: NavItem[]; children?: ReactNode }) {
+// each module's icon in the menu, so a group is found at a glance
+const GROUP_ICON: Record<string, IconName> = {
+  partners: "apartment", operations: "directions_bus", network: "map", finance: "payments", money: "account_balance_wallet",
+  security: "shield", compliance: "policy", kyc: "verified_user", settings: "settings", modules: "apps",
+  sales: "point_of_sale", fleet: "directions_car", station: "storefront",
+};
+
+const isHere = (i: NavItem, path: string) => (i.end ? path === i.to : path === i.to || path.startsWith(i.to + "/"));
+
+// The portal menu by module (owner's request): the top items, then one folding group per module with its count; the
+// group of the open page is open, and the groups a person opened stay open on this device.
+function NavGroups({ portal, items, order }: { portal: string; items: NavItem[]; order: string[] }) {
+  const { t, dir } = useI18n();
+  const loc = useLocation();
+  const key = `masslak.nav.${portal}`;
+  const [opened, setOpened] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem(key) ?? "[]"); } catch { return []; }
+  });
+  const here = items.find((i) => i.group && isHere(i, loc.pathname))?.group;
+  const toggle = (g: string) => {
+    const next = opened.includes(g) ? opened.filter((x) => x !== g) : [...opened, g];
+    setOpened(next);
+    try { localStorage.setItem(key, JSON.stringify(next)); } catch { /* private window: kept for this page only */ }
+  };
+  const link = (i: NavItem) => (
+    <NavLink key={i.to} to={i.to} end={i.end} className={({ isActive }) => `nav-item${isActive ? " active" : ""}`}>
+      <Icon name={i.icon} />{i.label}
+    </NavLink>
+  );
+  // the portal's own order of modules (its daily work first); a module it does not list follows in menu order
+  const groups: string[] = order.filter((g) => items.some((i) => i.group === g));
+  for (const i of items) if (i.group && !groups.includes(i.group)) groups.push(i.group);
+  return (
+    <nav className="nav-groups" aria-label={t("nav.menu")}>
+      {items.filter((i) => !i.group).map(link)}
+      {groups.length > 0 && <div className="nav-divider" />}
+      {groups.map((g) => {
+        const members = items.filter((i) => i.group === g);
+        const open = g === here || opened.includes(g);
+        return (
+          <div key={g} className={`nav-group${open ? " open" : ""}${g === here ? " here" : ""}`}>
+            <button type="button" className="nav-group-head" aria-expanded={open} onClick={() => toggle(g)}>
+              <Icon name={GROUP_ICON[g] ?? "apps"} />
+              <span className="grow">{t(`navg.${g}`)}</span>
+              <span className="nav-count">{members.length}</span>
+              <Icon name={dir === "rtl" ? "chevron_left" : "chevron_right"} className="chev" />
+            </button>
+            {open && <div className="nav-group-items">{members.map(link)}</div>}
+          </div>
+        );
+      })}
+    </nav>
+  );
+}
+
+export function PortalShell({ portal, title, items, order = [], children }: {
+  portal: string; title: string; items: NavItem[]; order?: string[]; children?: ReactNode;
+}) {
   const { t } = useI18n();
   const { me, logout } = useAuth();
   const nav = useNavigate();
   const loc = useLocation();
   const [open, setOpen] = useState(false);
   useEffect(() => setOpen(false), [loc.pathname]);
-  const current = items.find((i) => (i.end ? loc.pathname === i.to : loc.pathname.startsWith(i.to)));
+  const shown = items.filter((i) => i.show !== false);
+  const current = shown.find((i) => isHere(i, loc.pathname)) ?? shown.find((i) => !i.end && loc.pathname.startsWith(i.to));
   return (
     <div className="shell">
       {open && <div className="scrim" onClick={() => setOpen(false)} />}
       <aside className={`drawer${open ? " open" : ""}`}>
         <Brand to={me ? homeFor(me) : "/"} />
         <div className="drawer-section">{title}</div>
-        {items.filter((i) => i.show !== false).map((i) => (
-          <NavLink key={i.to} to={i.to} end={i.end} className={({ isActive }) => `nav-item${isActive ? " active" : ""}`}>
-            <Icon name={i.icon} />{i.label}
-          </NavLink>
-        ))}
+        <NavGroups portal={portal} items={shown} order={order} />
         {children}
         <div className="org-card">
           <div style={{ fontWeight: 600 }}>{me?.company ? <CarrierName name={me.company.name} uid={me.company.uid} logo={me.company.logo} /> : me?.name}</div>
