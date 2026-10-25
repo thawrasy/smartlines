@@ -159,6 +159,7 @@ MonthlyFigureEndpoints.Map(portal);
 FormulaEndpoints.Map(portal);
 CovenantTestEndpoints.Map(portal);
 CreditEndpoints.Map(portal);
+CreditReportPrintEndpoints.Map(portal);
 ReadinessEndpoints.Map(portal);
 CreditInputsEndpoints.Map(portal);
 RequestEndpoints.Map(portal);

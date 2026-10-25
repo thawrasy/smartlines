@@ -3,4 +3,9 @@
     <ProjectReference Include="..\BankFas.Core\BankFas.Core.csproj" />
     <ProjectReference Include="..\BankFas.Data\BankFas.Data.csproj" />
   </ItemGroup>
+  <!-- The logo of the printed reports (ADR 0055): the site's own files, so both show the same drawing. -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\web\src\brand\logo-inverse.svg" LogicalName="brand.logo-inverse.svg" />
+    <EmbeddedResource Include="..\..\web\src\brand\symbol.svg" LogicalName="brand.symbol.svg" />
+  </ItemGroup>
 </Project>

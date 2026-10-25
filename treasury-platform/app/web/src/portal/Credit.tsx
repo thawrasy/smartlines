@@ -5,6 +5,7 @@ import { useI18n } from '../i18n';
 import { Field, Form, Notice, Select, Table } from '../ui';
 import { Chip } from '../brand';
 import { AssessmentBureau, AssessmentGuarantors } from './CreditInputs';
+import { PdfButton } from './Attach';
 import { can, useMe } from './Portal';
 
 // SCR-FIN-06 (the credit self-assessment of a statement: the analyst's qualitative grades and their justification, the
@@ -86,7 +87,9 @@ export function AssessmentDetail() {
     <>
       <section className="card">
         <h1>{str(r.CompanyNameAr)} <small className="muted" dir="ltr">{str(r.ScorecardCode)} · {str(r.AssessmentDate).slice(0, 10)}</small>
-          {' '}<small><Link to={`/assessments/${id}/readiness`}>{t('Readiness before the lenders')}</Link></small></h1>
+          {' '}<small><Link to={`/assessments/${id}/readiness`}>{t('Readiness before the lenders')}</Link>
+          {' · '}<a href={`/api/v1/fin/assessments/${id}/print?lang=${lang}`} target="_blank" rel="noreferrer">{t('Print the report')}</a>
+          {' · '}<PdfButton path={`/fin/assessments/${id}/print?lang=${lang}`} name={`credit-assessment-${id.slice(0, 8)}.pdf`} /></small></h1>
         <p>{t(data.status)}{data.isTrial && ` · ${t('Trial')}`} · {t(str(r.ResultState))}</p>
         <p><strong dir="ltr">{str(r.FinalGrade ?? r.FinancialGrade)}</strong> {pick(lang, r, 'FinalGradeDescription')} · {t('Liquidity')} <span dir="ltr">{str(r.LiquidityLabel)}</span>
           · {t('Outlook')} {pick(lang, r, 'OutlookName')}</p>

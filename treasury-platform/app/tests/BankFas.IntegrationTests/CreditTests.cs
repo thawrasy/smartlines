@@ -79,11 +79,28 @@ public sealed class CreditTests(PlatformFixture f)
         await tm.PostOkAsync($"/api/v1/fin/assessments/{a}/actions/approve", new { });
         Assert.Equal("APPROVED", (await tm.GetJsonAsync($"/api/v1/fin/assessments/{a}")).GetProperty("status").GetString());
 
+        // The printed report (ADR 0055, docs/56 §7): the cover names the company and the final grade, an approved one has no draft mark.
+        var ct = TestContext.Current.CancellationToken;
+        var print = await tm.GetAsync($"/api/v1/fin/assessments/{a}/print?lang=ar", ct);
+        Assert.Equal(System.Net.HttpStatusCode.OK, print.StatusCode);
+        var html = await print.Content.ReadAsStringAsync(ct);
+        Assert.Contains("تقرير تقييم ائتماني", html, StringComparison.Ordinal);
+        Assert.Contains("<h1>صناعية</h1>", html, StringComparison.Ordinal);
+        Assert.Contains(">Ba2</b>", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("غير معتمد", html, StringComparison.Ordinal);
+        if (Environment.GetEnvironmentVariable("BANKFAS_IT_CREDIT_PRINT") is { Length: > 0 } sample) await File.WriteAllTextAsync(sample, html, ct);
+        var pdf = await tm.GetAsync($"/api/v1/fin/assessments/{a}/print?format=pdf", ct);
+        Assert.True(pdf.StatusCode is System.Net.HttpStatusCode.OK or System.Net.HttpStatusCode.ServiceUnavailable);
+        if (pdf.StatusCode == System.Net.HttpStatusCode.OK)
+            Assert.Equal("%PDF", System.Text.Encoding.ASCII.GetString((await pdf.Content.ReadAsByteArrayAsync(ct))[..4]));
+        Assert.Equal((400, "UNKNOWN_PARAMETER"), await tm.ProblemAsync(HttpMethod.Get, $"/api/v1/fin/assessments/{a}/print?x=1", null));
+
         // BR-FIN-036: a trial on a draft statement is computed and stays a draft.
         var draft = await StatementAsync(fa, tm, ind, "2026-06-30", Base, approve: false);
         Assert.Equal((422, "V-FIN-ASSESSMENT"), await fa.PostProblemAsync("/api/v1/fin/assessments", new { statement = draft, scorecard = "GENERAL_CORPORATE" }));
         var trial = PlatformFixture.Id(await fa.PostOkAsync("/api/v1/fin/assessments", new { statement = draft, scorecard = "GENERAL_CORPORATE", isTrial = true, assessmentDate = "2026-07-15" }));
         await fa.PostOkAsync($"/api/v1/fin/assessments/{trial}/actions/compute", new { });
+        Assert.Contains("TRIAL — NOT APPROVED", await (await fa.GetAsync($"/api/v1/fin/assessments/{trial}/print?lang=en", ct)).Content.ReadAsStringAsync(ct), StringComparison.Ordinal);
         Assert.Equal((409, "ASSESSMENT_STATE"), await fa.PostProblemAsync($"/api/v1/fin/assessments/{trial}/actions/submit", new { }));
         Assert.True((await fa.GetJsonAsync($"/api/v1/financial-statements/{st}/item-analysis")).GetProperty("items").GetArrayLength() > 0);
     }

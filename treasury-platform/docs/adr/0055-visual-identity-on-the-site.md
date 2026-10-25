@@ -47,3 +47,12 @@ the identity guide (27 pages) and asked for the whole site in it before the pilo
    with the name as text (not an image), the text, the first link as a button, and the brand footer. Everything is
    encoded, only http and https become links, and the direction follows the first letter. The drop directory used in
    development and tests keeps writing the text alone.
+
+## Third step: the credit assessment report
+
+10. **The printed report** (`GET /fin/assessments/{id}/print`, html or pdf, ar or en; guide p.24): a full-bleed
+    vault cover with the inverse logo, the slant pattern with two mint slots, the company as the title and the final
+    grade; then the summary (the five grade steps, the recommendation in the box of its risk band, the key facts),
+    the factors and the findings, and the methodology's disclaimer. It reads the database's report views, like the
+    screen. The logo files are the site's own, embedded in the API. An assessment not approved, or a trial, carries
+    the draft mark on every page; each print is audited (CREDIT_REPORT_PRINTED).

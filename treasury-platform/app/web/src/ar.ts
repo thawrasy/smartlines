@@ -3002,4 +3002,6 @@ export const ar: Record<string, string> = {
   'Banks and accounts': 'البنوك والحسابات',
   'Employees and access': 'الموظفون والصلاحيات',
   'General settings': 'الإعدادات العامة',
+  'Print the report': 'طباعة التقرير',
+  'The language is ar or en.': 'اللغة ar أو en.',
 };
