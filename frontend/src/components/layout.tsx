@@ -174,7 +174,8 @@ export interface NavItem { to: string; icon: IconName; label: string; end?: bool
 const GROUP_ICON: Record<string, IconName> = {
   partners: "apartment", operations: "directions_bus", network: "map", finance: "payments", money: "account_balance_wallet",
   security: "shield", compliance: "policy", kyc: "verified_user", settings: "settings", modules: "apps",
-  sales: "point_of_sale", fleet: "directions_car", station: "storefront",
+  sales: "point_of_sale", fleet: "directions_car", station: "storefront", services: "local_taxi", shipping: "local_shipping",
+  government: "account_balance", loyalty: "loyalty", support: "support_agent",
 };
 
 const isHere = (i: NavItem, path: string) => (i.end ? path === i.to : path === i.to || path.startsWith(i.to + "/"));

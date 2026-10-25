@@ -114,11 +114,18 @@ const StationOps = lazy(() => import("./pages/carrier/StationOps"));
 const AdminBoarding = lazy(() => import("./pages/admin/Boarding"));
 
 /** Menu entries for the switched-on modules the signed-in user can open. */
+// A module switched on joins the menu group of its domain (sent with it by /api/modules), so a new module needs no change
+// here; the carrier, agency and station portals name the finance and compliance groups for their own work.
+function moduleGroup(base: string, domain?: string): string {
+  const own = base !== "/admin" ? ({ finance: "money", compliance: "kyc" } as Record<string, string>) : {};
+  return own[domain ?? ""] ?? domain ?? "modules";
+}
+
 function useModuleNav(base: string): NavItem[] {
   const { modules } = useModules();
   const L = useLabels();
   return modules.filter((m) => m.resources.length > 0)
-    .map((m) => ({ to: `${base}/m/${m.key}`, icon: m.icon as IconName, label: L.module(m.key), group: "modules" }));
+    .map((m) => ({ to: `${base}/m/${m.key}`, icon: m.icon as IconName, label: L.module(m.key), group: moduleGroup(base, m.domain) }));
 }
 
 // Guards only shape the interface; every permission is enforced again by the API and the database.
@@ -143,7 +150,7 @@ function PlatformShell() {
   const { can } = useAuth();
   const mods = useModuleNav("/admin");
   return (
-    <PortalShell portal="platform" title={t("nav.portals")} order={["partners", "operations", "network", "finance", "compliance", "security", "settings", "modules"]} items={[
+    <PortalShell portal="platform" title={t("nav.portals")} order={["partners", "operations", "services", "shipping", "network", "fleet", "sales", "finance", "loyalty", "support", "government", "compliance", "security", "settings", "modules"]} items={[
       { to: "/admin", end: true, icon: "dashboard", label: t("admin.overview"), show: can("company.approve", "station.approve") },
       { to: "/admin/companies", group: "partners", icon: "apartment", label: t("admin.companies"), show: can("company.approve") },
       { to: "/admin/documents", group: "partners", icon: "fact_check", label: t("documents.review"), show: can("company.approve") },
@@ -167,7 +174,7 @@ function PlatformShell() {
       // carrier classes and the state's price bands (1164, N10)
       { to: "/admin/pricing", group: "finance", icon: "payments", label: t("fares.nav"), show: can("pricing.tax_commission") },
       // the miles programme (1166)
-      { to: "/admin/miles", group: "finance", icon: "loyalty", label: t("miles.nav"), show: can("loyalty.manage") },
+      { to: "/admin/miles", group: "loyalty", icon: "loyalty", label: t("miles.nav"), show: can("loyalty.manage") },
       { to: "/security", group: "security", end: true, icon: "shield", label: t("security.title"), show: can("audit.view", "security.ip_rules") },
       { to: "/security/rules", group: "security", icon: "block", label: t("security.rules"), show: can("security.ip_rules") },
       { to: "/security/auth", group: "security", icon: "lock", label: t("security.authEvents"), show: can("audit.view", "security.ip_rules") },
@@ -194,7 +201,7 @@ function CarrierShell() {
   const { can } = useAuth();
   const mods = useModuleNav("/carrier");
   return (
-    <PortalShell portal="carrier" title={t("nav.carrier")} order={["operations", "sales", "fleet", "network", "money", "kyc", "settings", "modules"]} items={[
+    <PortalShell portal="carrier" title={t("nav.carrier")} order={["operations", "sales", "services", "shipping", "fleet", "network", "money", "loyalty", "support", "kyc", "security", "settings", "modules"]} items={[
       { to: "/carrier", end: true, icon: "dashboard", label: t("carrier.dashboard") },
       { to: "/carrier/counter", group: "sales", icon: "point_of_sale", label: t("counter.nav"), show: can("sale.cash") },
       { to: "/carrier/trips", group: "operations", icon: "directions_bus", label: t("carrier.trips") },
@@ -224,7 +231,7 @@ function AgencyShell() {
   const { can } = useAuth();
   const mods = useModuleNav("/agency");
   return (
-    <PortalShell portal="agency" title={t("nav.agency")} order={["sales", "money", "kyc", "settings", "modules"]} items={[
+    <PortalShell portal="agency" title={t("nav.agency")} order={["sales", "partners", "money", "kyc", "settings", "modules"]} items={[
       { to: "/agency", end: true, icon: "dashboard", label: t("agency.dashboard") },
       { to: "/agency/search", group: "sales", icon: "search", label: t("agency.sell"), show: can("booking.on_behalf") },
       { to: "/agency/charter", group: "sales", icon: "airport_shuttle", label: t("chr.nav"), show: can("booking.on_behalf") },

@@ -10,6 +10,8 @@ const ar: Messages = {
   },
   lang: { ar: "العربية", en: "English", switchTo: "اللغة" },
   navg: {
+    services: "خدمات النقل", shipping: "الشحن والطرود", government: "الجهات الحكومية",
+    loyalty: "الولاء والتسويق", support: "الدعم وخدمة العملاء",
     money: "المالية والتقارير", kyc: "التوثيق والامتثال",
     partners: "الشركات والجهات", operations: "التشغيل والرحلات", network: "الشبكة والجغرافيا",
     finance: "المالية والأسعار", security: "الأمن والتدقيق", compliance: "الامتثال والتقارير",

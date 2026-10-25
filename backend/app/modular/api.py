@@ -65,7 +65,7 @@ async def my_modules(pr: Optional[Principal] = Depends(optional_principal)):
                 if r.module == m.key and perm is not False and (not perm or perm in pr.permissions):
                     resources.append({"key": r.key, "group": r.group})
         if portal is None or portal in m.portals:
-            out.append({"key": m.key, "phase": m.phase, "icon": m.icon, "resources": resources})
+            out.append({"key": m.key, "phase": m.phase, "icon": m.icon, "domain": m.domain, "resources": resources})
     return {"enabled": sorted(k for k, v in state.items() if v), "modules": out}
 
 

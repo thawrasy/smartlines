@@ -3,7 +3,7 @@ import { api } from "../api";
 import { useAuth } from "../auth";
 
 export interface ModuleRes { key: string; group: string }
-export interface ModuleInfo { key: string; phase: string; icon: string; resources: ModuleRes[] }
+export interface ModuleInfo { key: string; phase: string; icon: string; domain?: string; resources: ModuleRes[] }
 interface Modules { enabled: Set<string>; modules: ModuleInfo[]; ready: boolean; reload: () => void; on: (key: string) => boolean }
 
 const Ctx = createContext<Modules>({ enabled: new Set(), modules: [], ready: false, reload: () => {}, on: () => false });

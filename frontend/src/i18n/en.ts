@@ -8,6 +8,8 @@ const en = {
   },
   lang: { ar: "Arabic", en: "English", switchTo: "Language" },
   navg: {
+    services: "Transport services", shipping: "Shipping and parcels", government: "Government bodies",
+    loyalty: "Loyalty and marketing", support: "Support and customer care",
     money: "Finance and reports", kyc: "Verification and compliance",
     partners: "Companies and parties", operations: "Operations and trips", network: "Network and geography",
     finance: "Finance and prices", security: "Security and audit", compliance: "Compliance and reports",
