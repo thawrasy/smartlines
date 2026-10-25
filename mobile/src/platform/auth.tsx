@@ -7,7 +7,7 @@ import { useI18n, type Market } from "../i18n";
 export interface Me { uid: string; name: string; email: string | null; portal: string; mfa: { enrolled: boolean; required: boolean };
                      market?: Market }
 type Status = "loading" | "signedOut" | "mfa" | "signedIn";
-export type MfaMethod = "TOTP" | "SMS" | "WHATSAPP";
+export type MfaMethod = "TOTP" | "EMAIL" | "TELEGRAM" | "SMS" | "WHATSAPP";
 
 interface Auth {
   status: Status; me: Me | null;

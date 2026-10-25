@@ -119,6 +119,8 @@ async def write_allowlists(conn, directory: str) -> int:
         domains.add(_domain(r["u"]))
     for env in ("MASSLAK_SMS_URL", "MASSLAK_SMTP_URL", "MASSLAK_WHATSAPP_URL"):
         domains.add(_domain(os.environ.get(env)))
+    if os.environ.get("MASSLAK_NOTIFY_TELEGRAM", "").strip().lower() == "bot":   # second-factor codes by Telegram (1151)
+        domains.add("api.telegram.org")
     st = get_settings()
     if st.files_backend == "s3" and st.files_s3_via_proxy:      # a cloud object store for files
         host = _domain(st.files_s3_endpoint)

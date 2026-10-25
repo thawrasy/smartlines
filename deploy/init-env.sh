@@ -37,6 +37,8 @@ sed -e "s|^MASSLAK_DOMAIN=.*|MASSLAK_DOMAIN=$domain|" \
     -e "s|^MASSLAK_NOTIFY_EMAIL=.*|MASSLAK_NOTIFY_EMAIL=$([ "$demo" = true ] && echo log || echo off)|" \
     -e "s|^MASSLAK_NOTIFY_SMS=.*|MASSLAK_NOTIFY_SMS=$([ "$demo" = true ] && echo log || echo off)|" \
     -e "s|^MASSLAK_NOTIFY_WHATSAPP=.*|MASSLAK_NOTIFY_WHATSAPP=$([ "$demo" = true ] && echo log || echo off)|" \
+    -e "s|^MASSLAK_NOTIFY_TELEGRAM=.*|MASSLAK_NOTIFY_TELEGRAM=$([ "$demo" = true ] && echo log || echo off)|" \
+    -e "s|^MASSLAK_TELEGRAM_WEBHOOK_SECRET=.*|MASSLAK_TELEGRAM_WEBHOOK_SECRET=$(pass)|" \
     -e "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(pass)|" \
     -e "s|^MASSLAK_API_PASSWORD=.*|MASSLAK_API_PASSWORD=$(pass)|" \
     -e "s|^MASSLAK_AUDIT_PASSWORD=.*|MASSLAK_AUDIT_PASSWORD=$(pass)|" \
@@ -56,4 +58,4 @@ echo "created deploy/.env (mode 600) for $domain$([ "$demo" = true ] && echo ', 
 echo "Copy the keys section to your password manager or secret store now: without it, encrypted data cannot be read."
 # a production server's data keys are made by the key service at the first migration and kept only wrapped (H-06)
 [ "$demo" = true ] || echo "Production: set MASSLAK_KMS_PROVIDER=vault, MASSLAK_VAULT_ADDR and MASSLAK_VAULT_TOKEN, the pgBackRest repository (PGBACKREST_REPO1_*), MASSLAK_BACKUP_OFFSITE and the alert receivers before installing (docs/operations/PRODUCTION_PROFILE.md)."
-[ "$demo" = true ] || echo "E-mail, SMS and WhatsApp are off until you set MASSLAK_NOTIFY_EMAIL=smtp, MASSLAK_NOTIFY_SMS=http and MASSLAK_NOTIFY_WHATSAPP=cloud with their gateways."
+[ "$demo" = true ] || echo "E-mail, Telegram, SMS and WhatsApp are off until you set MASSLAK_NOTIFY_EMAIL=smtp, MASSLAK_NOTIFY_TELEGRAM=bot, MASSLAK_NOTIFY_SMS=http and MASSLAK_NOTIFY_WHATSAPP=cloud with their gateways."

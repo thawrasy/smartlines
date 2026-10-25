@@ -793,7 +793,9 @@ hour. Platform staff always use one outside the sandbox, whatever is chosen. A c
 within half a minute and raises a security event (`security.mfa_policy_changed`). A portal added to the list asks its
 people for a second factor at their next sign-in: those without one enrol first, on the website or in the app.
 
-**Message codes** leave only when the server has delivery for the channel: `MASSLAK_NOTIFY_SMS=http` with its gateway,
+**Message codes** leave only when the server has delivery for the channel: `MASSLAK_NOTIFY_EMAIL=smtp` with its mail
+server, `MASSLAK_NOTIFY_TELEGRAM=bot` with the bot's token, name and webhook secret (the webhook
+`/api/auth/telegram/webhook` registered with Telegram, 1151), `MASSLAK_NOTIFY_SMS=http` with its gateway,
 `MASSLAK_NOTIFY_WHATSAPP=cloud` with the WhatsApp Business Cloud API endpoint, token and an approved authentication
 template (`MASSLAK_WHATSAPP_TEMPLATE`). A method open in the policy but not configured on the server is not offered
 (the policy page says so). Codes are kept only as keyed hashes, five wrong entries close a code, a code works once.

@@ -2286,11 +2286,11 @@ ROLLBACK;
 -- 1075: sign-in by several methods, boarding stops, offline packs, late partitions, positions waiting (package C)
 BEGIN;
 SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
-SELECT pg_temp.ok((SELECT value -> 'methods' FROM sys.setting WHERE key = 'auth.mfa') = '["TOTP", "SMS", "WHATSAPP"]'::jsonb
+SELECT pg_temp.ok((SELECT value -> 'methods' FROM sys.setting WHERE key = 'auth.mfa') = '["TOTP", "EMAIL", "TELEGRAM"]'::jsonb
   AND (SELECT value -> 'required_portals' FROM sys.setting WHERE key = 'auth.mfa') ? 'DRIVER'
   AND (SELECT bool_and(rls) AND count(*) = 3 FROM sys.v_security_inventory WHERE table_name IN ('iam.mfa_challenge','ops.offline_pack_download','ops.position_backlog'))
   AND (SELECT rls_forced AND NOT reporting_select FROM sys.v_security_inventory WHERE table_name = 'iam.mfa_challenge'),
-  'Sign-in (1075): the policy opens the app, text and WhatsApp methods and requires drivers too; codes, packs and waiting positions are row-secured');
+  'Sign-in (1075, 1151): the policy opens the app, e-mail and Telegram methods and requires drivers too; codes, packs and waiting positions are row-secured');
 INSERT INTO iam.mfa_factor (user_id, factor_type, label, verified_at) VALUES (:uadmin, 'WHATSAPP', '0111', now()) RETURNING id AS f_wa \gset
 SELECT pg_temp.expect_error(format($$INSERT INTO iam.mfa_factor (user_id, factor_type, label, verified_at) VALUES (%s, 'WHATSAPP', '0222', now())$$, :uadmin),
   'mfa_factor_one_verified', 'Sign-in (1075): one verified factor of each kind per person');
@@ -3875,6 +3875,24 @@ SELECT pg_temp.expect_error(format($$UPDATE iam.app_user SET password_must_chang
   'check constraint', 'Sign-in doors (1150): a temporary password always has an end');
 SELECT pg_temp.expect_error($$UPDATE iam.company SET company_no = '12AB' WHERE id = (SELECT min(id) FROM iam.company)$$,
   'check constraint', 'Sign-in doors (1150): a company number is digits only');
+ROLLBACK;
+SET ROLE masslak_app;
+
+-- Second-factor channels (1151): e-mail and Telegram open, text and WhatsApp closed; a Telegram link is kept as a hash
+SELECT pg_temp.ok((SELECT value -> 'methods' ?& ARRAY['TOTP', 'EMAIL', 'TELEGRAM'] AND NOT (value -> 'methods' ?| ARRAY['SMS', 'WHATSAPP'])
+                     FROM sys.setting WHERE key = 'auth.mfa'),
+  'Second factor (1151): codes by e-mail and Telegram are open; text and WhatsApp wait for a provider');
+BEGIN;
+RESET ROLE;
+SELECT pg_temp.expect_error($$INSERT INTO iam.mfa_factor (user_id, factor_type) VALUES ((SELECT min(id) FROM iam.app_user), 'PIGEON')$$,
+  'check constraint', 'Second factor (1151): only known methods are recorded');
+INSERT INTO iam.mfa_factor (user_id, factor_type, label) VALUES ((SELECT min(id) FROM iam.app_user), 'TELEGRAM', 'pending') RETURNING id AS tgf \gset
+SELECT pg_temp.expect_error(format($$INSERT INTO iam.messenger_link (user_id, factor_id, channel, token_hash, expires_at)
+                                      VALUES ((SELECT min(id) FROM iam.app_user), %s, 'TELEGRAM', '\x00', now() + interval '10 minutes')$$, :tgf),
+  'check constraint', 'Second factor (1151): a link token is kept only as its 32-byte keyed hash');
+SELECT pg_temp.expect_error(format($$INSERT INTO iam.messenger_link (user_id, factor_id, channel, token_hash, expires_at)
+                                      VALUES ((SELECT min(id) FROM iam.app_user), %s, 'TELEGRAM', decode(repeat('ab', 32), 'hex'), now() + interval '2 hours')$$, :tgf),
+  'check constraint', 'Second factor (1151): a Telegram link lasts minutes, not hours');
 ROLLBACK;
 SET ROLE masslak_app;
 

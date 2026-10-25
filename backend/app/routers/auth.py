@@ -3,6 +3,8 @@ import asyncio
 import hmac
 import json
 import logging
+import re
+import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Literal, Optional
@@ -258,7 +260,7 @@ async def _sign_in(body: LoginIn, request: Request, response: Response, *, ident
             f"""SELECT id, account_kind, password_hash, status, locked_until, failed_attempts, mfa_required,
                        password_must_change, temp_password_expires_at,
                        ARRAY(SELECT f.factor_type FROM iam.mfa_factor f WHERE f.user_id = app_user.id
-                                AND f.factor_type IN ('TOTP','SMS','WHATSAPP')
+                                AND f.factor_type IN ('TOTP','EMAIL','TELEGRAM','SMS','WHATSAPP')
                                 AND f.verified_at IS NOT NULL AND f.disabled_at IS NULL) AS mfa_factors
                   FROM iam.app_user WHERE {where}""", *args)
         policy = await mfa_policy.current(conn)
@@ -527,7 +529,14 @@ CODE_TRIES = 5                          # wrong entries of one message code befo
 SECRET_COLUMN = "iam.mfa_factor.secret"
 RECOVERY_COLUMN = "iam.mfa_factor.recovery"
 PHONE_COLUMN = "iam.mfa_factor.phone"
-Method = Literal["TOTP", "SMS", "WHATSAPP"]
+EMAIL_COLUMN = "iam.mfa_factor.email"           # where e-mailed codes go (1151)
+CHAT_COLUMN = "iam.mfa_factor.telegram_chat"     # the Telegram chat codes go to (1151)
+Method = Literal["TOTP", "EMAIL", "TELEGRAM", "SMS", "WHATSAPP"]
+LINK_MINUTES = 15                                # a Telegram link lasts this long (1151)
+
+
+def _dest_column(method: str) -> str:
+    return EMAIL_COLUMN if method == "EMAIL" else CHAT_COLUMN if method == "TELEGRAM" else PHONE_COLUMN
 
 
 class CodeIn(BaseModel):
@@ -540,10 +549,12 @@ class EnrollIn(BaseModel):
     method: Method = "TOTP"
     # where message codes go; the account's mobile number when omitted
     mobile: Optional[str] = Field(default=None, pattern=r"^\+?[0-9]{8,15}$")
+    # where e-mailed codes go; the account's e-mail when omitted (1151)
+    email: Optional[str] = Field(default=None, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$", max_length=200)
 
 
 class SendIn(BaseModel):
-    method: Literal["SMS", "WHATSAPP"]
+    method: Literal["EMAIL", "TELEGRAM", "SMS", "WHATSAPP"]
 
 
 def _system(request: Request):
@@ -552,8 +563,15 @@ def _system(request: Request):
     return ctx
 
 
-def _masked(mobile: Optional[str]) -> Optional[str]:
-    return ("•••" + mobile[-4:]) if mobile else None
+def _masked(mobile: Optional[str], method: str = "SMS") -> Optional[str]:
+    if not mobile:
+        return None
+    if method == "EMAIL":
+        local, _, domain = mobile.partition("@")
+        return f"{local[:1]}•••@{domain}"
+    if method == "TELEGRAM":
+        return "Telegram"
+    return "•••" + mobile[-4:]
 
 
 async def _issue_recovery_codes(conn, fc: crypto.FieldCipher, user_id: int) -> list[str]:
@@ -603,7 +621,12 @@ async def _deliver_code(request: Request, uid: uuid.UUID, channel: str, to: str,
     _, text = render("auth.mfa_code", "SMS", locale, {"code": code, "minutes": minutes})
     error = None
     try:
-        if channel == "SMS":
+        if channel == "EMAIL":
+            subject, body = render("auth.mfa_code", "EMAIL", locale, {"code": code, "minutes": minutes})
+            await asyncio.to_thread(providers.send_email, to, subject, body)
+        elif channel == "TELEGRAM":
+            await asyncio.to_thread(providers.send_telegram, to, text)
+        elif channel == "SMS":
             await asyncio.to_thread(providers.send_sms, to, text)
         else:
             await asyncio.to_thread(providers.send_whatsapp_code, to, code, locale, text)
@@ -640,7 +663,7 @@ async def _message_code_ok(conn, fc: crypto.FieldCipher, user_id: int, channel: 
 async def _second_factor_ok(conn, fc: crypto.FieldCipher, user_id: int, method: Optional[str], code: str,
                             recovery: bool) -> Optional[str]:
     """The method that accepted the code ('totp', 'sms', 'whatsapp', 'recovery_code'), or None."""
-    if method in ("SMS", "WHATSAPP"):
+    if method in mfa_policy.MESSAGE_METHODS:
         f = await conn.fetchval("""SELECT id FROM iam.mfa_factor WHERE user_id = $1 AND factor_type = $2
                                      AND verified_at IS NOT NULL AND disabled_at IS NULL""", user_id, method)
         if f and await _message_code_ok(conn, fc, user_id, method, "VERIFY", code, f):
@@ -676,6 +699,7 @@ async def _second_factor_ok(conn, fc: crypto.FieldCipher, user_id: int, method: 
 @router.get("/mfa/methods")
 async def mfa_methods(request: Request, pr: Principal = Depends(require_session)):
     """What the second step offers this person: the methods open on the platform, the ones they hold, where codes go."""
+    from ..modules.notify import providers
     async with db.transaction(_system(request)) as conn:
         policy = await mfa_policy.current(conn)
         fc = await crypto.cipher(conn)
@@ -683,11 +707,15 @@ async def mfa_methods(request: Request, pr: Principal = Depends(require_session)
                                     WHERE user_id = $1 AND disabled_at IS NULL""", pr.user_id)
         mobile = await conn.fetchval("SELECT mobile FROM iam.app_user WHERE id = $1", pr.user_id)
     enrolled = [f["factor_type"] for f in held if f["verified_at"] and f["factor_type"] in mfa_policy.METHODS]
-    sent_to = {f["factor_type"]: _masked(fc.decrypt(f["secret_enc"], f["enc_key_id"], PHONE_COLUMN))
+    sent_to = {f["factor_type"]: _masked(fc.decrypt(f["secret_enc"], f["enc_key_id"], _dest_column(f["factor_type"])),
+                                         f["factor_type"])
                for f in held if f["verified_at"] and f["factor_type"] in mfa_policy.MESSAGE_METHODS}
+    email = await _account_email(request, pr)
     return {"available": policy.available(), "enrolled": enrolled,
             "usable": [m for m in enrolled if m in policy.available()], "sent_to": sent_to,
-            "account_mobile": _masked(mobile), "required": pr.mfa_required, "pending": pr.mfa_pending,
+            "account_mobile": _masked(mobile), "account_email": _masked(email, "EMAIL"),
+            "telegram_bot": providers.telegram_bot_name() or None,
+            "required": pr.mfa_required, "pending": pr.mfa_pending,
             "recovery_codes": any(f["factor_type"] == "RECOVERY_CODES" for f in held),
             "code_minutes": policy.code_minutes, "resend_seconds": policy.resend_seconds}
 
@@ -711,21 +739,29 @@ async def mfa_enroll(request: Request, body: Optional[EnrollIn] = None, pr: Prin
                                   VALUES ($1, 'TOTP', $2, $3, 'pending')""", pr.user_id, sealed.ciphertext, sealed.key_id)
         return {"method": "TOTP", "secret": secret, "uri": mfa.provisioning_uri(secret, pr.email or pr.user_uid),
                 "digits": mfa.DIGITS, "period": mfa.STEP_SECONDS}
+    if body.method == "TELEGRAM":
+        return await _enroll_telegram(request, pr)
     async with db.transaction(_system(request)) as conn:
         policy = await _method_open(conn, body.method)
-        mobile = body.mobile or await conn.fetchval("SELECT mobile FROM iam.app_user WHERE id = $1", pr.user_id)
-        if not mobile:
-            raise ApiError(422, "MFA_MOBILE_REQUIRED", "give the mobile number the codes should go to")
+        if body.method == "EMAIL":
+            mobile = body.email or await conn.fetchval("SELECT email FROM iam.app_user WHERE id = $1", pr.user_id)
+            if not mobile:
+                raise ApiError(422, "MFA_EMAIL_REQUIRED", "give the e-mail address the codes should go to")
+        else:
+            mobile = body.mobile or await conn.fetchval("SELECT mobile FROM iam.app_user WHERE id = $1", pr.user_id)
+            if not mobile:
+                raise ApiError(422, "MFA_MOBILE_REQUIRED", "give the mobile number the codes should go to")
         fc = await crypto.cipher(conn)
-        sealed = fc.encrypt(mobile, PHONE_COLUMN)
+        sealed = fc.encrypt(mobile, _dest_column(body.method))
         await conn.execute("""UPDATE iam.mfa_factor SET disabled_at = now() WHERE user_id = $1 AND factor_type = $2
                                 AND verified_at IS NULL AND disabled_at IS NULL""", pr.user_id, body.method)
         factor_id = await conn.fetchval(
             """INSERT INTO iam.mfa_factor (user_id, factor_type, secret_enc, enc_key_id, label)
-               VALUES ($1, $2, $3, $4, $5) RETURNING id""", pr.user_id, body.method, sealed.ciphertext, sealed.key_id, mobile[-4:])
+               VALUES ($1, $2, $3, $4, $5) RETURNING id""", pr.user_id, body.method, sealed.ciphertext, sealed.key_id,
+            _masked(mobile, body.method))
         code, uid = await _new_challenge(conn, fc, pr, factor_id, body.method, "ENROL", policy)
     await _deliver_code(request, uid, body.method, mobile, code, pr.locale, policy.code_minutes)
-    return {"method": body.method, "sent_to": _masked(mobile), "expires_in": policy.code_minutes * 60,
+    return {"method": body.method, "sent_to": _masked(mobile, body.method), "expires_in": policy.code_minutes * 60,
             "resend_in": policy.resend_seconds}
 
 
@@ -737,15 +773,85 @@ async def mfa_send(body: SendIn, request: Request, pr: Principal = Depends(requi
         policy = await _method_open(conn, body.method)
         f = await conn.fetchrow("""SELECT id, secret_enc, enc_key_id, verified_at FROM iam.mfa_factor
                                     WHERE user_id = $1 AND factor_type = $2 AND disabled_at IS NULL
+                                      AND secret_enc IS NOT NULL
                                     ORDER BY verified_at IS NULL, id DESC LIMIT 1""", pr.user_id, body.method)
         if f is None:
             raise ApiError(409, "MFA_METHOD_NOT_ENROLLED", "this method is not set up for your account", method=body.method)
         fc = await crypto.cipher(conn)
-        mobile = fc.decrypt(f["secret_enc"], f["enc_key_id"], PHONE_COLUMN)
+        mobile = fc.decrypt(f["secret_enc"], f["enc_key_id"], _dest_column(body.method))
         code, uid = await _new_challenge(conn, fc, pr, f["id"], body.method, "VERIFY" if f["verified_at"] else "ENROL", policy)
     await _deliver_code(request, uid, body.method, mobile, code, pr.locale, policy.code_minutes)
-    return {"method": body.method, "sent_to": _masked(mobile), "expires_in": policy.code_minutes * 60,
+    return {"method": body.method, "sent_to": _masked(mobile, body.method), "expires_in": policy.code_minutes * 60,
             "resend_in": policy.resend_seconds}
+
+
+async def _account_email(request: Request, pr: Principal) -> Optional[str]:
+    async with db.transaction(_system(request)) as conn:
+        return await conn.fetchval("SELECT email FROM iam.app_user WHERE id = $1", pr.user_id)
+
+
+async def _enroll_telegram(request: Request, pr: Principal) -> dict:
+    """Starts linking a Telegram chat: a pending factor and a one-time link to the platform's bot. The bot's webhook
+    (telegram_webhook) records the chat and sends the first code there (1151, N36)."""
+    from ..modules.notify import providers
+    bot = providers.telegram_bot_name()
+    if not bot:
+        raise ApiError(409, "MFA_METHOD_OFF", "Telegram is not set up on this server", method="TELEGRAM")
+    token = secrets.token_urlsafe(24)
+    async with db.transaction(_system(request)) as conn:
+        await _method_open(conn, "TELEGRAM")
+        fc = await crypto.cipher(conn)
+        await conn.execute("""UPDATE iam.mfa_factor SET disabled_at = now() WHERE user_id = $1 AND factor_type = 'TELEGRAM'
+                                AND verified_at IS NULL AND disabled_at IS NULL""", pr.user_id)
+        factor_id = await conn.fetchval(
+            """INSERT INTO iam.mfa_factor (user_id, factor_type, label) VALUES ($1, 'TELEGRAM', 'pending') RETURNING id""",
+            pr.user_id)
+        await conn.execute(
+            """INSERT INTO iam.messenger_link (user_id, factor_id, channel, token_hash, expires_at)
+               VALUES ($1, $2, 'TELEGRAM', $3, now() + make_interval(mins => $4))""",
+            pr.user_id, factor_id, fc.blind_index(token, "telegram-link"), LINK_MINUTES)
+    return {"method": "TELEGRAM", "link": f"https://t.me/{bot}?start={token}", "bot": bot,
+            "expires_in": LINK_MINUTES * 60}
+
+
+class TelegramUpdate(BaseModel):
+    """The part of a Telegram update the link needs: a message with its chat and text."""
+    message: Optional[dict] = None
+
+
+@router.post("/telegram/webhook", include_in_schema=False)
+async def telegram_webhook(body: TelegramUpdate, request: Request):
+    """Telegram calls this with each message to the bot. "/start <token>" from a person who opened their link ties the
+    chat to the pending factor and sends the first code there; anything else is answered with nothing."""
+    from ..modules.notify import providers
+    secret = providers.telegram_webhook_secret()
+    given = request.headers.get("x-telegram-bot-api-secret-token", "")
+    if not secret or not hmac.compare_digest(given, secret):
+        raise ApiError(403, "FORBIDDEN", "not from the platform's bot")
+    msg = body.message or {}
+    text = str(msg.get("text") or "")
+    chat = str((msg.get("chat") or {}).get("id") or "")
+    if not text.startswith("/start ") or not re.fullmatch(r"-?[0-9]{1,20}", chat):
+        return {"ok": True}
+    token = text.split(" ", 1)[1].strip()[:64]
+    async with db.transaction(_system(request)) as conn:
+        fc = await crypto.cipher(conn)
+        link = await conn.fetchrow(
+            """UPDATE iam.messenger_link SET linked_at = now()
+                WHERE token_hash = $1 AND linked_at IS NULL AND expires_at > now()
+            RETURNING user_id, factor_id""", fc.blind_index(token, "telegram-link"))
+        if link is None:
+            return {"ok": True}
+        sealed = fc.encrypt(chat, CHAT_COLUMN)
+        await conn.execute("UPDATE iam.mfa_factor SET secret_enc = $2, enc_key_id = $3, label = 'Telegram' WHERE id = $1",
+                           link["factor_id"], sealed.ciphertext, sealed.key_id)
+        who = await conn.fetchrow("SELECT id, uid, preferred_locale FROM iam.app_user WHERE id = $1", link["user_id"])
+        policy = await mfa_policy.current(conn)
+        owner = Principal(user_id=who["id"], user_uid=str(who["uid"]), party_id=0, session_id=None, portal="PASSENGER",
+                          company_id=None, display_name="", email=None, locale=who["preferred_locale"] or "ar")
+        code, uid = await _new_challenge(conn, fc, owner, link["factor_id"], "TELEGRAM", "ENROL", policy)
+    await _deliver_code(request, uid, "TELEGRAM", chat, code, owner.locale, policy.code_minutes)
+    return {"ok": True}
 
 
 @router.post("/mfa/confirm")

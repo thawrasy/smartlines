@@ -60,7 +60,7 @@ async def load_principal(conn: asyncpg.Connection, token: str) -> Optional[Princ
         SELECT s.id AS session_id, s.portal, s.company_id, u.id AS user_id, u.uid, u.party_id, u.email,
                u.preferred_locale, p.legal_name, s.mfa_passed, s.mfa_at, u.mfa_required, u.password_must_change,
                ARRAY(SELECT f.factor_type FROM iam.mfa_factor f WHERE f.user_id = u.id AND f.verified_at IS NOT NULL
-                        AND f.disabled_at IS NULL AND f.factor_type IN ('TOTP','SMS','WHATSAPP')) AS mfa_factors
+                        AND f.disabled_at IS NULL AND f.factor_type IN ('TOTP','EMAIL','TELEGRAM','SMS','WHATSAPP')) AS mfa_factors
           FROM iam.user_session s
           JOIN iam.app_user u ON u.id = s.user_id
           JOIN iam.party p ON p.id = u.party_id

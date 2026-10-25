@@ -205,8 +205,9 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
                                 status_code=429, headers={"Retry-After": str(max(1, round(wait)))})
 
         # CSRF defence in depth: browsers cannot add this header cross-site without CORS approval
-        # (the integration API authenticates with keys in a header, never cookies, so it needs no such header)
-        if request.method in MUTATING and not path.startswith(("/api/payments/notify", "/api/v1/")) \
+        # (the integration API authenticates with keys in a header, never cookies, so it needs no such header; nor does
+        # Telegram's webhook, which carries the bot's own secret header, 1151)
+        if request.method in MUTATING and not path.startswith(("/api/payments/notify", "/api/v1/", "/api/auth/telegram/webhook")) \
                 and request.headers.get(CLIENT_HEADER) not in ("web", "android", "ios"):
             request.state.error_code = "CLIENT_HEADER_REQUIRED"
             return JSONResponse({"error": {"code": "CLIENT_HEADER_REQUIRED", "message": "missing client header"}},

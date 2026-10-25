@@ -41,13 +41,15 @@ const en = {
           savePassword: "Save and continue" },
   mfa: {
     choose: "Choose how to receive your code.", enrolTitle: "Set up two-step sign-in",
-    method: { TOTP: "Authenticator app", SMS: "Text message", WHATSAPP: "WhatsApp" },
+    method: { TOTP: "Authenticator app", EMAIL: "E-mail", TELEGRAM: "Telegram", SMS: "Text message", WHATSAPP: "WhatsApp" },
     text: {
-      VERIFY: { TOTP: "Enter the 6-digit code from your authenticator app.", SMS: "We send a 6-digit code by text message.", WHATSAPP: "We send a 6-digit code by WhatsApp." },
-      ENROLL: { TOTP: "Add this key to an authenticator app (Google Authenticator or similar), then enter the code it shows.", SMS: "Codes will come by text message. Confirm the number with the first code.", WHATSAPP: "Codes will come by WhatsApp. Confirm the number with the first code." },
+      VERIFY: { TOTP: "Enter the 6-digit code from your authenticator app.", EMAIL: "We send a 6-digit code to your e-mail.", TELEGRAM: "We send a 6-digit code to your linked Telegram chat.", SMS: "We send a 6-digit code by text message.", WHATSAPP: "We send a 6-digit code by WhatsApp." },
+      ENROLL: { TOTP: "Add this key to an authenticator app (Google Authenticator or similar), then enter the code it shows.", EMAIL: "Codes will come by e-mail. Confirm the address with the first code.", TELEGRAM: "Codes will come in Telegram. Open the platform's bot, press Start, then enter the code it sends.", SMS: "Codes will come by text message. Confirm the number with the first code.", WHATSAPP: "Codes will come by WhatsApp. Confirm the number with the first code." },
     },
     manual: "Key for the authenticator app:", openApp: "Open in the authenticator app",
     mobile: "Mobile number for the codes", mobileHint: "Leave empty to use your account number {mobile}.",
+    email: "E-mail for the codes", emailHint: "Leave empty to use your account e-mail {email}.",
+    telegramOpen: "Open Telegram", telegramAgain: "Open the link again", telegramWaiting: "Press Start in @{bot}; the code arrives in the chat.",
     send: "Send the code", resend: "Send again", sentTo: "Sent to {to}",
     savedTitle: "Save your recovery codes", savedText: "Each code signs you in once if you lose your phone. They will not be shown again.",
     continue: "I saved them, continue",

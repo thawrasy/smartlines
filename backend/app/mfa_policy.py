@@ -1,8 +1,8 @@
 """The platform's two-factor sign-in policy (owner's decision 2; review of release 1.47.0, R-31).
 
-sys.setting 'auth.mfa' says which methods are open (an authenticator app, a text message, a WhatsApp message; one or
-more) and which portals must use one. The security officers change it from the security console. A method sent by
-message is offered only when this server can deliver on that channel (MASSLAK_NOTIFY_SMS, MASSLAK_NOTIFY_WHATSAPP);
+sys.setting 'auth.mfa' says which methods are open (an authenticator app, an e-mail, a Telegram message, a text message,
+a WhatsApp message; one or more) and which portals must use one. The security officers change it from the security console. A method sent by
+message is offered only when this server can deliver on that channel (MASSLAK_NOTIFY_EMAIL, _TELEGRAM, _SMS, _WHATSAPP);
 the authenticator app needs no delivery, so it remains the way in when nothing else is open.
 
 Two rules do not depend on the setting: platform staff always use a second factor outside the sandbox, and anyone who
@@ -18,12 +18,12 @@ import asyncpg
 
 from .config import get_settings
 
-METHODS = ("TOTP", "SMS", "WHATSAPP")
-MESSAGE_METHODS = ("SMS", "WHATSAPP")
+METHODS = ("TOTP", "EMAIL", "TELEGRAM", "SMS", "WHATSAPP")
+MESSAGE_METHODS = ("EMAIL", "TELEGRAM", "SMS", "WHATSAPP")    # codes sent to the person (1151 adds e-mail and Telegram)
 PORTALS = ("PLATFORM", "INSPECTOR", "OPERATOR", "DRIVER", "AGENCY", "STATION", "PASSENGER")
 ALWAYS = ("PLATFORM",)                 # outside the sandbox, whatever the setting says
 CACHE_SECONDS = 30
-DEFAULT = {"methods": list(METHODS), "required_portals": ["PLATFORM", "INSPECTOR", "OPERATOR", "DRIVER", "AGENCY", "STATION"],
+DEFAULT = {"methods": ["TOTP", "EMAIL", "TELEGRAM"], "required_portals": ["PLATFORM", "INSPECTOR", "OPERATOR", "DRIVER", "AGENCY", "STATION"],
            "enforce_in_sandbox": False, "code_minutes": 5, "resend_seconds": 60, "sends_per_hour": 5, "step_up_minutes": 10}
 
 

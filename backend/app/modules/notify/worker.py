@@ -148,7 +148,7 @@ async def main(once: bool) -> None:
     require_keys_in_production()
     profile.require_in_production()       # the production profile, as for the API (package 2, H-05, H-06)
     providers.require_in_production()     # no personal data in plain message logs outside the sandbox (R-27)
-    for channel in ("EMAIL", "SMS", "WHATSAPP"):
+    for channel in ("EMAIL", "TELEGRAM", "SMS", "WHATSAPP"):
         if not providers.enabled(channel):
             log.warning("%s delivery is off on this server: only in-app notifications are kept", channel.lower())
     await db.open_pools()

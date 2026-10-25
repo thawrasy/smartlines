@@ -5,7 +5,7 @@ import { PageHead } from "../../components/layout";
 import { ErrorBox, Field, Icon, Loaded, useLoad, useToast } from "../../components/ui";
 import type { IconName } from "../../components/icons";
 
-type Method = "TOTP" | "SMS" | "WHATSAPP";
+type Method = "TOTP" | "EMAIL" | "TELEGRAM" | "SMS" | "WHATSAPP";
 type Portal = "PLATFORM" | "INSPECTOR" | "OPERATOR" | "DRIVER" | "AGENCY" | "STATION" | "PASSENGER";
 interface Policy { methods: Method[]; required_portals: Portal[]; enforce_in_sandbox: boolean; code_minutes: number; resend_seconds: number; sends_per_hour: number }
 interface View {
@@ -13,9 +13,9 @@ interface View {
   enrolled: Partial<Record<Method, number>>; staff_without_factor: Partial<Record<Portal, number>>;
 }
 
-const METHODS: Method[] = ["TOTP", "SMS", "WHATSAPP"];
+const METHODS: Method[] = ["TOTP", "EMAIL", "TELEGRAM", "SMS", "WHATSAPP"];
 const PORTALS: Portal[] = ["PLATFORM", "INSPECTOR", "OPERATOR", "DRIVER", "AGENCY", "STATION", "PASSENGER"];
-const ICON: Record<Method, IconName> = { TOTP: "password", SMS: "sms", WHATSAPP: "chat" };
+const ICON: Record<Method, IconName> = { TOTP: "password", EMAIL: "mail", TELEGRAM: "send", SMS: "sms", WHATSAPP: "chat" };
 
 /** The platform's two-factor sign-in policy (owner's decision 2): methods open, portals that must use one. */
 export default function MfaPolicy() {

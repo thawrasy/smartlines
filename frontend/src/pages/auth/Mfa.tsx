@@ -8,15 +8,16 @@ import { ErrorBox, Field, Icon, Spinner } from "../../components/ui";
 import type { IconName } from "../../components/icons";
 import { AuthSide } from "./Login";
 
-type Method = "TOTP" | "SMS" | "WHATSAPP";
-interface Methods { available: Method[]; enrolled: Method[]; usable: Method[]; sent_to: Partial<Record<Method, string>>; account_mobile: string | null; code_minutes: number; resend_seconds: number }
+type Method = "TOTP" | "EMAIL" | "TELEGRAM" | "SMS" | "WHATSAPP";
+interface Methods { available: Method[]; enrolled: Method[]; usable: Method[]; sent_to: Partial<Record<Method, string>>; account_mobile: string | null; account_email: string | null; telegram_bot: string | null; code_minutes: number; resend_seconds: number }
 interface Enrolment { secret: string; uri: string }
 interface Sent { sent_to: string; resend_in: number }
 
-const ICON: Record<Method, IconName> = { TOTP: "password", SMS: "sms", WHATSAPP: "chat" };
+const ICON: Record<Method, IconName> = { TOTP: "password", EMAIL: "mail", TELEGRAM: "send", SMS: "sms", WHATSAPP: "chat" };
 
-/** Second step of a staff sign-in (owner's decision 2): a code from the authenticator app, a code sent by text or
- *  WhatsApp message, or a recovery code; or the first enrolment of one of the methods the platform opened. */
+/** Second step of a staff sign-in (owner's decision 2, N36): a code from the authenticator app, a code sent by e-mail,
+ *  Telegram, text or WhatsApp message, or a recovery code; or the first enrolment of one of the methods the platform
+ *  opened. A Telegram chat is linked by opening the platform's bot with a one-time link; the first code arrives there. */
 export default function Mfa() {
   const { t } = useI18n();
   const { refresh } = useAuth();
@@ -28,6 +29,7 @@ export default function Mfa() {
   const [method, setMethod] = useState<Method | null>(null);
   const [code, setCode] = useState("");
   const [mobile, setMobile] = useState("");
+  const [email, setEmail] = useState("");
   const [useRecovery, setUseRecovery] = useState(false);
   const [enrolment, setEnrolment] = useState<Enrolment | null>(null);
   const [qr, setQr] = useState<string | null>(null);
@@ -69,8 +71,16 @@ export default function Mfa() {
     if (!method || method === "TOTP") return;
     setBusy(true); setError(null);
     try {
+      if (mode === "ENROLL" && method === "TELEGRAM") {
+        // a one-time link to the bot: pressing Start there links the chat and brings the first code
+        const r = await api.post<{ link: string; expires_in: number }>("/api/auth/mfa/enroll", { method });
+        window.open(r.link, "_blank", "noopener,noreferrer");
+        setSent({ sent_to: "Telegram", resend_in: 30 }); setWait(30);
+        return;
+      }
       const r = mode === "ENROLL" && !sent
-        ? await api.post<Sent>("/api/auth/mfa/enroll", { method, mobile: mobile.trim() || null })
+        ? await api.post<Sent>("/api/auth/mfa/enroll", method === "EMAIL" ? { method, email: email.trim() || null }
+                                                                         : { method, mobile: mobile.trim() || null })
         : await api.post<Sent>("/api/auth/mfa/send", { method });
       setSent(r); setWait(r.resend_in);
     } catch (err) { setError(err); } finally { setBusy(false); }
@@ -95,7 +105,9 @@ export default function Mfa() {
   };
 
   const choices = methods ? (mode === "ENROLL" ? methods.available : methods.usable) : [];
-  const message = method === "SMS" || method === "WHATSAPP";
+  const message = method === "SMS" || method === "WHATSAPP" || method === "EMAIL" || method === "TELEGRAM";
+  const phone = method === "SMS" || method === "WHATSAPP";
+  const linking = mode === "ENROLL" && method === "TELEGRAM";
   const ready = useRecovery || method === "TOTP" ? (mode !== "ENROLL" || !!enrolment) : !!sent;
 
   return (
@@ -136,7 +148,13 @@ export default function Mfa() {
                 <code className="mono ltr" style={{ wordBreak: "break-all" }}>{enrolment.secret.match(/.{1,4}/g)?.join(" ")}</code>
               </div>
             ) : !error && <Spinner />)}
-            {mode === "ENROLL" && message && !sent && (
+            {mode === "ENROLL" && method === "EMAIL" && !sent && (
+              <Field label={t("auth.mfa.emailLabel")} hint={methods?.account_email ? t("auth.mfa.emailHint", { email: methods.account_email }) : undefined}>
+                <input className="input ltr" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email"
+                       required={!methods?.account_email} />
+              </Field>
+            )}
+            {mode === "ENROLL" && phone && !sent && (
               <Field label={t("auth.mfa.mobileLabel")} hint={methods?.account_mobile ? t("auth.mfa.mobileHint", { mobile: methods.account_mobile }) : undefined}>
                 <input className="input ltr" value={mobile} onChange={(e) => setMobile(e.target.value)} inputMode="tel"
                        autoComplete="tel" placeholder="+9639XXXXXXXX" required={!methods?.account_mobile} />
@@ -145,9 +163,11 @@ export default function Mfa() {
             {message && !useRecovery && (
               <div className="row wrap">
                 <button type="button" className="btn outlined" onClick={() => void sendCode()} disabled={busy || wait > 0}>
-                  <Icon name="send" size={18} />{t(sent ? "auth.mfa.resend" : "auth.mfa.send")}{wait > 0 ? ` (${wait})` : ""}
+                  <Icon name="send" size={18} />
+                  {t(linking ? (sent ? "auth.mfa.telegramAgain" : "auth.mfa.telegramOpen") : sent ? "auth.mfa.resend" : "auth.mfa.send")}{wait > 0 ? ` (${wait})` : ""}
                 </button>
-                {(sent || (mode === "VERIFY" && methods?.sent_to[method!])) && (
+                {linking && sent && <span className="small muted">{t("auth.mfa.telegramWaiting", { bot: methods?.telegram_bot ?? "" })}</span>}
+                {!linking && (sent || (mode === "VERIFY" && methods?.sent_to[method!])) && (
                   <span className="small muted">{t("auth.mfa.sentTo", { to: sent?.sent_to ?? methods?.sent_to[method!] ?? "" })}</span>
                 )}
               </div>

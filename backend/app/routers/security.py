@@ -132,7 +132,7 @@ async def activity(pr: Principal = Depends(can_audit), limit: int = Query(100, l
 
 # ---------------------------------------------------------------- two-factor sign-in policy (owner's decision 2)
 class MfaPolicyIn(BaseModel):
-    methods: list[Literal["TOTP", "SMS", "WHATSAPP"]] = Field(min_length=1)
+    methods: list[Literal["TOTP", "EMAIL", "TELEGRAM", "SMS", "WHATSAPP"]] = Field(min_length=1)
     required_portals: list[Literal["PLATFORM", "INSPECTOR", "OPERATOR", "DRIVER", "AGENCY", "STATION", "PASSENGER"]]
     enforce_in_sandbox: bool = False
     code_minutes: int = Field(default=5, ge=2, le=10)
@@ -147,7 +147,7 @@ async def _mfa_policy_view(conn) -> dict:
     policy = await mfa_policy.current(conn)
     counts = await conn.fetch(
         """SELECT factor_type, count(DISTINCT user_id) AS people FROM iam.mfa_factor
-            WHERE verified_at IS NOT NULL AND disabled_at IS NULL AND factor_type IN ('TOTP','SMS','WHATSAPP')
+            WHERE verified_at IS NOT NULL AND disabled_at IS NULL AND factor_type IN ('TOTP','EMAIL','TELEGRAM','SMS','WHATSAPP')
             GROUP BY factor_type""")
     without = await conn.fetch(
         """SELECT CASE u.account_kind WHEN 'PLATFORM' THEN 'PLATFORM' WHEN 'AGENCY' THEN 'AGENCY' ELSE
@@ -156,10 +156,10 @@ async def _mfa_policy_view(conn) -> dict:
              FROM iam.app_user u
             WHERE u.status = 'ACTIVE' AND u.account_kind IN ('PLATFORM','COMPANY','AGENCY')
               AND NOT EXISTS (SELECT 1 FROM iam.mfa_factor f WHERE f.user_id = u.id AND f.verified_at IS NOT NULL
-                                 AND f.disabled_at IS NULL AND f.factor_type IN ('TOTP','SMS','WHATSAPP'))
+                                 AND f.disabled_at IS NULL AND f.factor_type IN ('TOTP','EMAIL','TELEGRAM','SMS','WHATSAPP'))
             GROUP BY 1""")
     return {"policy": policy.public(), "available": policy.available(),
-            "delivery": {"TOTP": True, "SMS": providers.enabled("SMS"), "WHATSAPP": providers.enabled("WHATSAPP")},
+            "delivery": {"TOTP": True, **{m: providers.enabled(m) for m in mfa_policy.MESSAGE_METHODS}},
             "always_required": list(mfa_policy.ALWAYS), "sandbox": get_settings().sandbox,
             "enrolled": {r["factor_type"]: r["people"] for r in counts},
             "staff_without_factor": {r["portal"]: r["people"] for r in without}}
