@@ -43,6 +43,7 @@ builder.Services.AddSingleton<BankFas.Core.Files.IMalwareScanner>(_ => builder.C
 builder.Services.AddSingleton<IKeyWrapper>(sp => KeyWrapperFactory.Create(builder.Configuration, builder.Environment));
 builder.Services.Configure<SecurityOptions>(builder.Configuration.GetSection("Security"));
 builder.Services.AddSingleton<SecurityGuard>();
+builder.Services.AddSingleton<PdfRenderer>();
 builder.Services.AddSingleton<ProformaServices>();
 builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase);
 
@@ -169,6 +170,8 @@ LcEndpoints.Map(portal);
 SalesEndpoints.Map(portal);
 SalesLcEndpoints.Map(portal);
 ReportEndpoints.Map(portal);
+RequestPrintEndpoints.Map(portal);
+AttachmentUploadEndpoints.Map(portal);
 FormTemplateEndpoints.Map(portal);
 var panel = app.MapGroup("/api/v1/operator").AddEndpointFilter(SurfaceFilter(Surface.OperatorPanel));
 OperatorEndpoints.Map(panel);

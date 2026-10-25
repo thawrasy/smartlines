@@ -79,6 +79,9 @@ public static class RequestEndpoints
     /// or creator; a user who holds or held one of its slots or stages; a member of the group of its current queue; a
     /// holder of req.view.department for a request of their department. The staff view needs req.view.internal as well.
     /// </summary>
+    internal static Task<(bool Visible, bool Staff)> AccessForAsync(BoundUser u, SqlTransaction? tx, RequestEngine.RequestRow r, Actor actor, CancellationToken ct) =>
+        AccessAsync(u, tx, r, actor, ct);
+
     private static async Task<(bool Visible, bool Staff)> AccessAsync(BoundUser u, SqlTransaction? tx, RequestEngine.RequestRow r, Actor actor, CancellationToken ct)
     {
         var scope = await CompanyScope.OfAsync(u, ct, tx);
@@ -346,10 +349,21 @@ public static class RequestEndpoints
             """, new { id = requestId }, cancellationToken: ct));
         var attachments = await u.Connection.QueryAsync(new CommandDefinition(
             $"""
-            SELECT d.PublicId AS document, d.Title AS title, a.SlotKey AS slot, a.Visibility AS visibility, a.CreatedAt AS at
-              FROM wfl.RequestAttachment AS a JOIN doc.Document AS d ON d.DocumentId = a.DocumentId
+            SELECT d.PublicId AS document, d.Title AS title, a.SlotKey AS slot, a.Visibility AS visibility, a.CreatedAt AS at, t.Code AS documentType,
+                   v.FileName AS fileName, v.ScanStatus AS scanStatus
+              FROM wfl.RequestAttachment AS a JOIN doc.Document AS d ON d.DocumentId = a.DocumentId JOIN cat.DocumentType AS t ON t.DocumentTypeId = d.DocumentTypeId
+              LEFT JOIN doc.DocumentVersion AS v ON v.DocumentVersionId = d.CurrentVersionId
              WHERE a.RequestId = @id AND a.IsActive = 1 {(staff ? "" : "AND a.Visibility = 'REQUESTER_VISIBLE'")} ORDER BY a.CreatedAt;
             """, new { id = requestId }, cancellationToken: ct));
+        // The template's attachment slots (FR-REQ-006): the type each takes, how many, before which stage, and how many it holds.
+        var slots = await u.Connection.QueryAsync(new CommandDefinition(
+            $"""
+            SELECT r.SlotKey AS slot, r.LabelAr AS labelAr, r.LabelEn AS labelEn, t.Code AS documentType, r.MinCount AS minCount, r.MaxCount AS maxCount,
+                   r.RequiredBeforeStageKey AS requiredBefore, r.VisibleToRequester AS visibleToRequester,
+                   (SELECT COUNT(*) FROM wfl.RequestAttachment AS a WHERE a.RequestId = @id AND a.SlotKey = r.SlotKey AND a.IsActive = 1) AS count
+              FROM wfl.TemplateAttachmentRule AS r JOIN cat.DocumentType AS t ON t.DocumentTypeId = r.DocumentTypeId
+             WHERE r.TemplateId = @t {(staff ? "" : "AND (r.VisibleToRequester = 1 OR r.RequiredBeforeStageKey IN ('DRAFT', 'RETURNED'))")} ORDER BY r.SlotKey;
+            """, new { id = requestId, t = r.TemplateId }, cancellationToken: ct));
         var timeline = await u.Connection.QueryAsync(new CommandDefinition(
             $"""
             SELECT a.ActionType AS action, a.OccurredAt AS at, a.Comment AS comment, a.CycleNo AS cycle
@@ -396,7 +410,8 @@ public static class RequestEndpoints
         {
             actions, fields = formFields,
             id = r.PublicId, draftRef = r.DraftRef, requestNo = r.RequestNo, status = PublicStatus(r.Status, staff), title = r.Title, amount = r.Amount, currency = r.CurrencyCode,
-            head, form, comments, attachments, timeline,
+            head, form, comments, attachments, slots, timeline,
+            canAttach = r.Status is "DRAFT" or "ACTIVE" or "AWAITING_CLOSE",
             myApprovals = approvals.Where(a => (int)a.mine == 1).Select(a => new { slot = (string)a.slot, decision = (string)a.decision }),
         };
         ETags.Set(http.Response, r.RowVersion);
@@ -460,7 +475,7 @@ public static class RequestEndpoints
     /// An attachment (FR-REQ-006, FR-WFL-024, 025): a stored document of the request's company in a slot of the template;
     /// it is visible to the requester when the slot says so or the requester attached it. A DocumentLink records the use.
     /// </summary>
-    private static async Task<IResult> AttachAsync(Guid id, RequestAttachmentBody b, HttpContext http, SqlConnectionFactory db)
+    internal static async Task<IResult> AttachAsync(Guid id, RequestAttachmentBody b, HttpContext http, SqlConnectionFactory db)
     {
         if (b.Document is null) throw ApiProblemException.Invalid("VALIDATION_FAILED", "Give the document.");
         await using var u = await OpenAsync(http, db);

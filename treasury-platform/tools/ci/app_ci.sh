@@ -57,11 +57,15 @@ chmod 600 "$TMP/sa"
 echo "== A4. browser tests (Playwright, Chromium)"
 CHROMIUM="${E2E_CHROMIUM:-}"
 if [ -z "$CHROMIUM" ] && [ -x /opt/pw-browsers/chromium ]; then CHROMIUM=/opt/pw-browsers/chromium; fi
-if [ -z "$CHROMIUM" ]; then (cd app/web && npx playwright install --with-deps chromium > "$TMP/pw-install.out" 2>&1); fi
+if [ -z "$CHROMIUM" ]; then
+    (cd app/web && npx playwright install --with-deps chromium > "$TMP/pw-install.out" 2>&1)
+    # The same Chromium prints the PDFs of the integration tests (PdfRenderer, docs/31 row 52).
+    CHROMIUM="$(ls -d "$HOME"/.cache/ms-playwright/chromium-*/chrome-linux*/chrome 2>/dev/null | head -1)"
+fi
 SA_PASSWORD="$SA_PASSWORD" SQL_SERVER="$SQL_SERVER" SQLCMD="$SQLCMD" BANKFAS_SECRETS_DIR="$SEC" E2E_WORK="$TMP/e2e" \
     E2E_HANDOFF_FILE="$TMP/operator-link" E2E_CHROMIUM="$CHROMIUM" bash tools/ci/e2e.sh
 
 echo "== A5. integration tests against the deployed database"
 BANKFAS_IT_OPERATOR_LINK_FILE="$TMP/operator-link" BANKFAS_IT_SERVER="$(echo "$SQL_SERVER" | sed 's/^localhost$/localhost,1433/')" BANKFAS_IT_SECRETS="$SEC" BANKFAS_IT_SA_FILE="$TMP/sa" \
-BANKFAS_IT_REQUIRED=1 bash -c 'cd app && dotnet test --project tests/BankFas.IntegrationTests -c Release --no-build'
+BANKFAS_IT_REQUIRED=1 Pdf__Chromium="$CHROMIUM" bash -c 'cd app && dotnet test --project tests/BankFas.IntegrationTests -c Release --no-build'
 echo "application CI passed"

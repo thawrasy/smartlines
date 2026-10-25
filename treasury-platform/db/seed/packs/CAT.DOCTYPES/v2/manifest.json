@@ -1,0 +1,23 @@
+{
+  "PackKey": "CAT.DOCTYPES",
+  "SeedVersion": 2,
+  "Slice": "Row 52",
+  "Status": "Version 2 keeps every row of version 1 and adds AUTHORITY_APPROVAL, LC_AMENDMENT_COPY and REQUEST_PRINT (the system type of a saved request PDF), at the owner's request of 2026-10-25 (docs/31 row 52). Proposed default written by an AI agent from spec 11 §6.4 (🟡 items to be reviewed by a specialist); the tenant may edit or deactivate non-locked rows",
+  "Tables": [
+    "cat.DocumentType.csv"
+  ],
+  "DependsOn": [],
+  "References": {},
+  "Sources": [
+    "docs/10-detailed-analysis/11-m2-m4-institutions-accounts-catalogs.md section 6.4 (DocumentType: * requires expiry, † sensitive)",
+    "docs/10-detailed-analysis/14-m7-m8-letters-of-credit.md section 6.5",
+    "docs/05-kyc-forms-analysis.md G-2 (MaxAgeDays)",
+    "db/static/042_data_export.sql (cfg.usp_FinishDataExport)",
+    "docs/adr/0008-data-export-in-read-only-states.md",
+    "docs/adr/0011-design-review-fixes.md",
+    "docs/30-readiness/DOC-B05-seed-and-initial-migration-plan.md section 5.1 (CAT.DOCTYPES)"
+  ],
+  "Notes": {
+    "cat.DocumentType": "42 types of spec 11 section 6.4 plus the system type DATA_EXPORT_PACKAGE (43). Retention periods, MIME lists and sizes are left empty for the defaults (Q-CAT-06). MaxAgeDays 365 for the certificates (05 G-2), proposed. Version 2: 46 types."
+  }
+}

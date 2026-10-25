@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { api, message } from '../api';
 import { useI18n } from '../i18n';
 import { Field, Form, Notice, Select, Table } from '../ui';
+import { PdfButton } from './Attach';
 
 // SCR-LCT-01 to 03 (spec 14 section 7; OQ-16): the terms of a purchase letter of credit on its request: the main fields
 // of the field dictionary, the beneficiary chosen from the counterparties, the documents required from the clause
@@ -101,6 +102,7 @@ export function TermsEditor() {
       <p>
         <Link to={`/requests/${id}`}>{t('Back to the request')}</Link>
         {' · '}<a href={`/api/v1/requests/${id}/terms/print?lang=${lang}`} target="_blank" rel="noreferrer">{t('Print the terms')}</a>
+        {' · '}<PdfButton path={`/requests/${id}/terms/print?lang=${lang}`} name={`terms-v${terms.version ?? 1}.pdf`} />
       </p>
       {terms.beneficiaryIban && <p>{t("Beneficiary's IBAN")}: <span dir="ltr">{terms.beneficiaryIban}</span></p>}
       <Notice error={error} ok={ok} />

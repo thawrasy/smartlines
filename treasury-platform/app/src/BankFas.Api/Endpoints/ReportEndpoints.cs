@@ -242,7 +242,7 @@ public static class ReportEndpoints
     private static async Task<(BoundUser U, Report R, Filters F, List<IDictionary<string, object?>> Rows)> ReadAsync(string code, HttpContext http, SqlConnectionFactory db,
         TimeProvider clock, int max)
     {
-        Query.Allow(http.Request, "company", "from", "to", "days", "status");
+        Query.Allow(http.Request, "company", "from", "to", "days", "status", "format");
         var report = Reports.FirstOrDefault(x => string.Equals(x.Code, code, StringComparison.OrdinalIgnoreCase)) ?? throw ApiProblemException.NotFound();
         var u = await BoundUser.OpenAsync(http, db);
         try
@@ -294,11 +294,27 @@ public static class ReportEndpoints
         }
     }
 
-    private static async Task<IResult> ExportAsync(string code, HttpContext http, SqlConnectionFactory db, TimeProvider clock)
+    private static async Task<IResult> ExportAsync(string code, HttpContext http, SqlConnectionFactory db, TimeProvider clock, PdfRenderer pdf)
     {
-        var (u, report, f, rows) = await ReadAsync(code, http, db, clock, 100_000);
+        // CSV by default; format=pdf prints the report as a table (docs/31 row 52), at most 5,000 rows.
+        var asPdf = http.Request.Query["format"].ToString() switch
+        {
+            "" or "csv" => false,
+            "pdf" => true,
+            _ => throw ApiProblemException.Invalid("VALIDATION_FAILED", "The format is csv or pdf."),
+        };
+        var (u, report, f, rows) = await ReadAsync(code, http, db, clock, asPdf ? 5_000 : 100_000);
         await using (u)
         {
+            if (asPdf)
+            {
+                var arabic = await u.Connection.ExecuteScalarAsync<string?>(new CommandDefinition("SELECT PreferredLanguage FROM sec.AppUser WHERE AppUserId = @u;",
+                    new { u = u.UserId }, cancellationToken: http.RequestAborted)) != "en";
+                await AuditWriter.WriteAsync(u.Connection, null, new AuditEntry("REPORT_EXPORTED", "TREASURY", "report", null,
+                    AfterJson: JsonSerializer.Serialize(new { report = report.Code, format = "pdf", company = f.Company, from = f.From, to = f.To, days = f.Days, status = f.Status, rows = rows.Count })),
+                    null, http.RequestAborted);
+                return await Pdf.FileAsync(pdf, Html(report, rows, f, arabic), $"{report.Code}-{f.Today:yyyyMMdd}.pdf", http.RequestAborted);
+            }
             var csv = new StringBuilder(string.Join(',', report.Columns)).Append("\r\n");
             foreach (var r in rows)
                 csv.AppendJoin(',', report.Columns.Select(c => Csv(r.TryGetValue(c, out var v) ? v : null))).Append("\r\n");
@@ -308,6 +324,36 @@ public static class ReportEndpoints
             return Results.File(Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(csv.ToString())).ToArray(), "text/csv; charset=utf-8",
                 $"{report.Code}-{f.Today:yyyyMMdd}.csv");
         }
+    }
+
+    private static string Html(Report report, List<IDictionary<string, object?>> rows, Filters f, bool arabic)
+    {
+        static string E(object? v) => System.Net.WebUtility.HtmlEncode(v switch
+        {
+            null => "",
+            DateTime d => d.TimeOfDay == TimeSpan.Zero ? d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : d.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture),
+            decimal m => m.ToString("#,0.##", CultureInfo.InvariantCulture),
+            IFormattable x => x.ToString(null, CultureInfo.InvariantCulture),
+            _ => v.ToString() ?? "",
+        });
+        var sb = new StringBuilder();
+        sb.Append(CultureInfo.InvariantCulture, $"<!doctype html><html lang=\"{(arabic ? "ar" : "en")}\" dir=\"{(arabic ? "rtl" : "ltr")}\"><head><meta charset=\"utf-8\"><style>")
+          .Append("@page{size:A4 landscape;margin:1cm}body{font-family:system-ui,'Noto Naskh Arabic',sans-serif;font-size:8.5pt}h1{font-size:13pt}")
+          .Append("table{border-collapse:collapse;width:100%}td,th{border:1px solid #bbb;padding:2px 4px;text-align:start}th{background:#eee}td.n{direction:ltr;text-align:end}</style></head><body>")
+          .Append(CultureInfo.InvariantCulture, $"<h1>{E(report.Code)} · {E(arabic ? report.TitleAr : report.TitleEn)}</h1><p>{E(f.Today)} · {rows.Count}</p><table><tr>");
+        foreach (var c in report.Columns) sb.Append("<th>").Append(E(c)).Append("</th>");
+        sb.Append("</tr>");
+        foreach (var r in rows)
+        {
+            sb.Append("<tr>");
+            foreach (var c in report.Columns)
+            {
+                var v = r.TryGetValue(c, out var x) ? x : null;
+                sb.Append(v is decimal or int or long or double ? "<td class=\"n\">" : "<td>").Append(E(v)).Append("</td>");
+            }
+            sb.Append("</tr>");
+        }
+        return sb.Append("</table></body></html>").ToString();
     }
 
     /// <summary>A CSV field; text that starts with =, +, - or @ is prefixed with ' so a spreadsheet never runs it as a formula.</summary>

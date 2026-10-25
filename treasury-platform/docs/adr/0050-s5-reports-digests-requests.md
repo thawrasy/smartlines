@@ -1,7 +1,7 @@
 # ADR 0050: Slice S5 of the application (reports, e-mail digests, the rest of the requests), its defaults and deviations
 
 Status: built on 2026-10-24, at the owner's request "finish to the end without coming back to me". The eight open
-questions (OQ-1 to OQ-8) were built on their recommended defaults, **pending the owner's approval** (docs/31, row 51;
+questions (OQ-1 to OQ-8) were built on their recommended defaults, **approved by the owner on 2026-10-25** (docs/31, row 51;
 docs/50 §4). Written by an AI agent.
 
 ## Context

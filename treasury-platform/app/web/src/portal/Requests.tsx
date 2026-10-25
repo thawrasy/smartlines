@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, apiWithETag, message } from '../api';
 import { useI18n } from '../i18n';
 import { Field, Form, Notice, Select, Table } from '../ui';
+import { AttachForm, DownloadButton, PdfButton, useDocTypes } from './Attach';
 import { can, useMe } from './Portal';
 
 // SCR-REQ-01 to 05 (spec 13 section 7): my requests, waiting for me and all requests; a new request; the request with
@@ -79,7 +80,7 @@ interface Detail {
   view: 'REQUESTER' | 'STAFF';
   request: {
     id: string; draftRef: string; requestNo?: string; status: string; title?: string; amount?: number; currency?: string; head: Row; form: Record<string, unknown>;
-    comments: Row[]; attachments: Row[]; timeline: Row[]; actions: string[]; fields: FieldDef[];
+    comments: Row[]; attachments: Row[]; slots?: Row[]; canAttach?: boolean; timeline: Row[]; actions: string[]; fields: FieldDef[];
   };
   staff?: Row;
 }
@@ -211,9 +212,25 @@ export function RequestDetail() {
         <h2>{t('Attachments')}</h2>
         <Table rows={rq.attachments} empty="No attachment." columns={[
           { header: 'Document', cell: r => str(r.title) },
+          { header: 'Type', cell: r => t(str(r.documentType)) },
           { header: 'Slot', cell: r => t(str(r.slot)) },
           { header: 'When', cell: r => <span dir="ltr">{day(r.at)}</span> },
+          { header: '', cell: r => r.scanStatus === 'CLEAN' ? <DownloadButton id={str(r.document)} name={str(r.fileName)} /> : <span className="muted">{t(str(r.scanStatus))}</span> },
         ]} />
+        {(rq.slots ?? []).length > 0 && (
+          <Table rows={rq.slots ?? []} columns={[
+            { header: 'Slot', cell: r => pick(lang, r, 'label') || str(r.slot) },
+            { header: 'Type', cell: r => t(str(r.documentType)) },
+            { header: 'Attached', cell: r => `${str(r.count)}${r.maxCount ? ' / ' + str(r.maxCount) : ''}` },
+            { header: 'Required', cell: r => Number(r.minCount) > 0 ? <span className={Number(r.count) < Number(r.minCount) ? 'warn' : ''}>{t('Before')} {str(r.requiredBefore)}</span> : '' },
+          ]} />
+        )}
+        {rq.canAttach && <RequestUpload id={id} slots={rq.slots ?? []} onDone={load} />}
+        <div className="row">
+          <a href={`/api/v1/requests/${id}/print?lang=${lang}`} target="_blank" rel="noreferrer">{t('Print the request')}</a>
+          <PdfButton path={`/requests/${id}/print?lang=${lang}`} name={`request-${rq.requestNo ?? rq.draftRef}.pdf`} />
+          {rq.canAttach && <button type="button" className="secondary" onClick={() => run(() => api('POST', `/requests/${id}/print/save`), 'The PDF is saved with the request.')}>{t('Save the PDF with the request')}</button>}
+        </div>
       </section>
       <section className="card">
         <h2>{t('Timeline')}</h2>
@@ -224,6 +241,25 @@ export function RequestDetail() {
           { header: 'Note', cell: r => str(r.comment) },
         ]} />
       </section>
+    </>
+  );
+}
+
+const REQUEST_TYPES = ['AUTHORITY_APPROVAL', 'SIGNED_REQUEST_ORIGINAL', 'SUPPLIER_PROFORMA', 'PURCHASE_ORDER_COPY', 'SALES_ORDER_COPY', 'LC_COPY', 'LC_SWIFT_COPY',
+  'LC_AMENDMENT_COPY', 'LC_AMENDMENT_ADVICE', 'BANK_ACKNOWLEDGEMENT', 'COLLECTION_DOCS_PACKAGE', 'OTHER'];
+
+/** FR-REQ-006 and docs/31 row 52: a file into one of the template's slots, or as an extra attachment of a chosen type. */
+function RequestUpload({ id, slots, onDone }: { id: string; slots: Row[]; onDone: () => Promise<void> }) {
+  const { t, lang } = useI18n();
+  const [slot, setSlot] = useState('');
+  const types = useDocTypes(REQUEST_TYPES);
+  const s = slots.find(x => str(x.slot) === slot);
+  return (
+    <>
+      <Select label="Where" value={slot} onChange={setSlot} options={[{ value: '', label: t('An extra attachment') },
+        ...slots.map(x => ({ value: str(x.slot), label: pick(lang, x, 'label') || str(x.slot) }))]} />
+      <AttachForm path={`/requests/${id}/attachments/upload`} types={s ? undefined : types} fixedType={s ? str(s.documentType) : undefined}
+        extra={slot ? { slot } : undefined} onDone={onDone} />
     </>
   );
 }

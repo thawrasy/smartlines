@@ -1,4 +1,5 @@
-# /opt/bankfas/compose.yml (ADR 0047): the API (and later the worker) on one fixed network. Caddy runs on the host;
+# /opt/bankfas/compose.yml (ADR 0047, ADR 0051): the API and the worker on one fixed network; the images come from
+# app/deploy/Dockerfile (targets api and worker). Caddy runs on the host;
 # the API publishes its port on loopback only, so nothing but Caddy reaches it. Docker's iptables rules bypass UFW,
 # so no container publishes a port on a public address.
 # Caddy's requests reach the API from the gateway of this network (172.30.0.1): that is the only trusted proxy.
@@ -15,7 +16,22 @@ services:
       ASPNETCORE_URLS: http://0.0.0.0:8080
       Security__TrustedProxies__0: 172.30.0.1
       Security__AlertEmails__0: <SECURITY_MAILBOX>
+      HOME: /tmp                             # Chromium's caches for the PDF prints (ADR 0051) go to the tmpfs
+    shm_size: 256m                           # Chromium's shared memory for the PDF prints
     env_file: /opt/bankfas/api.env          # the database and key settings; root-only, never in the repository
+    volumes:
+      - /opt/bankfas/secrets:/run/secrets:ro
+      - /srv/bankfas/files:/srv/bankfas/files
+    networks: [app]
+  # The worker (app/deploy/Dockerfile, target worker): the scheduled jobs and the outbox; no port at all.
+  worker:
+    image: <REGISTRY>/bankfas-worker:<VERSION>
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    env_file: /opt/bankfas/worker.env       # the database (job login) and mail settings; root-only, never in the repository
     volumes:
       - /opt/bankfas/secrets:/run/secrets:ro
       - /srv/bankfas/files:/srv/bankfas/files

@@ -45,9 +45,10 @@ public static class LcTermsEndpoints
     }
 
     /// <summary>OQ-14: the printable terms page (lc.print), in the user's or the asked language; the print is audited with the terms hash and version.</summary>
-    private static async Task<IResult> PrintAsync(Guid id, HttpContext http, SqlConnectionFactory db)
+    private static async Task<IResult> PrintAsync(Guid id, HttpContext http, SqlConnectionFactory db, PdfRenderer pdf)
     {
-        Query.Allow(http.Request, "lang");
+        Query.Allow(http.Request, "lang", "format");
+        var asPdf = Pdf.Wanted(http.Request);
         await using var u = await OpenAsync(http, db, "lc.print");
         var ct = http.RequestAborted;
         var x = await RequestAsync(u, null, id, ct);
@@ -57,8 +58,9 @@ public static class LcTermsEndpoints
                 cancellationToken: ct)) == "ar";
         var (html, hash) = await TermsPrint.BuildAsync(u.Connection, null, x.R.RequestId, t, x.Staff, arabic, ct);
         await AuditWriter.WriteAsync(u.Connection, null, new AuditEntry("LC_TERMS_PRINTED", "TREASURY", "lc.LcTerms", t.LcTermsId,
-            AfterJson: JsonSerializer.Serialize(new { version = t.VersionNo, status = t.Status, hash, lang = arabic ? "ar" : "en" })), x.R.CompanyId, ct);
+            AfterJson: JsonSerializer.Serialize(new { version = t.VersionNo, status = t.Status, hash, lang = arabic ? "ar" : "en", format = asPdf ? "pdf" : "html" })), x.R.CompanyId, ct);
         http.Response.Headers.CacheControl = "no-store";
+        if (asPdf) return await Pdf.FileAsync(pdf, html, $"terms-v{t.VersionNo}.pdf", ct);
         var styleHash = Convert.ToBase64String(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(TermsPrint.Style)));
         http.Response.Headers.ContentSecurityPolicy =
             $"default-src 'none'; style-src 'sha256-{styleHash}'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'none'";

@@ -2,7 +2,7 @@
 
 Status: built on 2026-10-24, at the owner's request "continue the plan after the check finishes" and "finish to the
 end without coming back to me". The twelve open questions (OQ-1 to OQ-12) were built on their recommended defaults,
-**pending the owner's approval** (docs/31, row 50; docs/49 §4). Written by an AI agent.
+**approved by the owner on 2026-10-25** (docs/31, row 50; docs/49 §4). Written by an AI agent.
 
 ## Context
 

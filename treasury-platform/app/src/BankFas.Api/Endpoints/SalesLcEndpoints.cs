@@ -65,7 +65,7 @@ public static class SalesLcEndpoints
         return new DynamicParameters(new { scopeAll = scope.All, scope = scope.SqlIds });
     }
 
-    private static async Task<long> IdAsync(BoundUser u, SqlTransaction? tx, Guid id, CancellationToken ct)
+    internal static async Task<long> IdAsync(BoundUser u, SqlTransaction? tx, Guid id, CancellationToken ct)
     {
         var p = await ScopeAsync(u, ct, tx);
         p.Add("id", id);
@@ -219,32 +219,16 @@ public static class SalesLcEndpoints
                    Status AS status, BankIssuedOn AS bankIssuedOn, Reason AS reason
               FROM lc.LcAmendment WHERE LcId = @lcId ORDER BY LcAmendmentId;
             """, new { lcId }, cancellationToken: ct));
-        var documents = await u.Connection.QueryAsync(new CommandDefinition(
-            """
-            SELECT d.PublicId AS id, d.Title AS title, t.Code AS type FROM doc.DocumentLink AS k JOIN doc.Document AS d ON d.DocumentId = k.DocumentId
-              JOIN cat.DocumentType AS t ON t.DocumentTypeId = d.DocumentTypeId
-             WHERE k.EntityType = 'lc.LetterOfCredit' AND k.EntityId = @lcId AND k.UnlinkedAt IS NULL ORDER BY d.DocumentId;
-            """, new { lcId }, cancellationToken: ct));
+        var documents = await LcDocuments.ListAsync(u.Connection, lcId, internalView, ct);
         return Results.Ok(new { lc, terms, orders, drawings, amendments, documents });
     }
 
     private static async Task<IResult> AttachAsync(Guid id, LcDocumentBody b, HttpContext http, SqlConnectionFactory db)
     {
-        await using var u = await SalesEndpoints.OpenAsync(http, db, "lc.export.record");
+        await using var u = await SalesEndpoints.OpenAsync(http, db);
         var ct = http.RequestAborted;
         await using var tx = (SqlTransaction)await u.Connection.BeginTransactionAsync(ct);
-        var lcId = await IdAsync(u, tx, id, ct);
-        var d = await u.Connection.ExecuteScalarAsync<long?>(new CommandDefinition(
-            """
-            SELECT d.DocumentId FROM doc.Document AS d JOIN lc.LetterOfCredit AS l ON l.LetterOfCreditId = @lcId
-             WHERE d.PublicId = @doc AND d.Status = 'ACTIVE' AND (d.OwnerCompanyId IS NULL OR d.OwnerCompanyId = l.CompanyId);
-            """, new { doc = b.Document, lcId }, tx, cancellationToken: ct)) ?? throw ApiProblemException.Invalid("DOCUMENT_NOT_FOUND", "The document is not a stored document of the company.");
-        await u.Connection.ExecuteAsync(new CommandDefinition(
-            """
-            IF NOT EXISTS (SELECT 1 FROM doc.DocumentLink WHERE DocumentId = @d AND EntityType = 'lc.LetterOfCredit' AND EntityId = @lcId AND UnlinkedAt IS NULL)
-                INSERT doc.DocumentLink (TenantId, DocumentId, EntityType, EntityId, LinkRole, CreatedBy)
-                VALUES (CAST(SESSION_CONTEXT(N'TenantId') AS INT), @d, 'lc.LetterOfCredit', @lcId, 'ATTACHMENT', @u);
-            """, new { d, lcId, u = u.UserId }, tx, cancellationToken: ct));
+        await LcDocuments.LinkAsync(u, tx, await IdAsync(u, tx, id, ct), b.Document, ct);
         await tx.CommitAsync(ct);
         return Results.NoContent();
     }

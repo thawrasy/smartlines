@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { api, message } from '../api';
 import { useI18n } from '../i18n';
 import { Field, Form, Notice, Select, Table } from '../ui';
+import { AttachForm, DownloadButton, useDocTypes } from './Attach';
 import { can, useMe } from './Portal';
 
 // SCR-LCI-13 and 14 (spec 14 section 7): the register of purchase letters of credit with its search, and the card of a
@@ -56,7 +57,8 @@ export function LcCard() {
   const { id } = useParams();
   const { t, lang } = useI18n();
   const me = useMe();
-  const [data, setData] = useState<{ lc: Row; drawings: Row[]; amendments: Row[] } | null>(null);
+  const [data, setData] = useState<{ lc: Row; drawings: Row[]; amendments: Row[]; documents?: Row[] } | null>(null);
+  const docTypes = useDocTypes(LC_TYPES);
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
   const [amount, setAmount] = useState('');
@@ -132,11 +134,33 @@ export function LcCard() {
         { header: 'New expiry', cell: r => <span dir="ltr">{day(r.newExpiryDate)}</span> },
         { header: 'Status', cell: r => t(str(r.status)) },
       ]} />
+      <h2>{t('Files of the letter of credit')}</h2>
+      <LcFiles rows={data.documents ?? []} />
+      {LC_RECORDERS.some(p => can(me, p)) && (
+        <AttachForm path={`/lcs/${id}/documents/upload`} types={docTypes} title="File a document on the credit" onDone={load} />
+      )}
       {can(me, 'lc.close') && active && (
         <Form title="Close the letter of credit" submit="Close" onSubmit={() => run(() => api('POST', `/lcs/${id}/close`, { reason }), 'The letter of credit is closed.')}>
           <Field label="Reason" value={reason} onChange={setReason} />
         </Form>
       )}
     </section>
+  );
+}
+
+/** The files a credit keeps (docs/31 row 52): its copy and SWIFT, the amendment copies and SWIFTs, the bank's advices and the approvals. */
+export const LC_TYPES = ['LC_COPY', 'LC_SWIFT_COPY', 'LC_AMENDMENT_COPY', 'LC_AMENDMENT_ADVICE', 'BANK_ACKNOWLEDGEMENT', 'AUTHORITY_APPROVAL', 'COLLECTION_DOCS_PACKAGE', 'OTHER'];
+export const LC_RECORDERS = ['lc.issuance.record', 'lc.amendment.record', 'lc.drawing.record', 'lc.export.record'];
+
+export function LcFiles({ rows }: { rows: Row[] }) {
+  const { t, lang } = useI18n();
+  return (
+    <Table rows={rows} empty="No document." columns={[
+      { header: 'Document', cell: r => str(r.title) },
+      { header: 'Type', cell: r => pick(lang, r, 'typeName') || t(str(r.type)) },
+      { header: 'From', cell: r => r.source === 'REQUEST' ? <span dir="ltr">{str(r.requestNo)}</span> : t('The credit') },
+      { header: 'When', cell: r => <span dir="ltr">{day(r.at)}</span> },
+      { header: '', cell: r => r.scanStatus === 'CLEAN' ? <DownloadButton id={str(r.id)} name={str(r.fileName)} /> : <span className="muted">{t(str(r.scanStatus))}</span> },
+    ]} />
   );
 }

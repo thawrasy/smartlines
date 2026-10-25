@@ -177,7 +177,7 @@ public static class DocumentEndpoints
             new { code }, tx, cancellationToken: ct)) is { IsActive: true } t ? t
         : throw ApiProblemException.Invalid("DOCUMENT_TYPE_UNKNOWN", "Choose a document type from the list.");
 
-    private static async Task RequireRestrictedAsync(BoundUser u, DocType type, CancellationToken ct)
+    internal static async Task RequireRestrictedAsync(BoundUser u, DocType type, CancellationToken ct)
     {
         if (!type.IsSensitive) return;
         var perms = await u.PermissionsAsync(ct);

@@ -3,6 +3,8 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, apiWithETag, message } from '../api';
 import { useI18n } from '../i18n';
 import { Field, Form, Notice, Select, Table, useWithStepUp } from '../ui';
+import { AttachForm, DownloadButton, useDocTypes } from './Attach';
+import { LC_RECORDERS, LC_TYPES, LcFiles } from './Lcs';
 import { can, useMe } from './Portal';
 
 // SCR-LCE-01 to 09 (spec 15 section 7): the proforma of a request (customer, branch, project, lines and the totals the
@@ -245,7 +247,8 @@ export function ProformaCard() {
       <h1 dir="ltr">{str(pf.proformaNo)} <small>{t(str(pf.status))}</small></h1>
       <Notice {...notice} />
       <p>
-        <a href={`/api/v1/documents/${str(pf.documentId)}/content`} target="_blank" rel="noreferrer">{t('Open the issued proforma')}</a>
+        <a href={`/api/v1/documents/${str(pf.documentId)}/content?version=1`} target="_blank" rel="noreferrer">{t('Open the issued proforma')}</a>
+        {' · '}<DownloadPdf id={str(pf.documentId)} name={`proforma-${str(pf.proformaNo)}.pdf`} />
         {' · '}<Link to={`/requests/${str(pf.requestId)}`} dir="ltr">{str(pf.requestNo)}</Link>
         {can(me, 'req.create') && <> · <button type="button" className="secondary" onClick={async () => {
           try { const r = await api<{ id: string }>('POST', `/requests/${str(pf.requestId)}/copy`); nav(`/requests/${r.id}/proforma`); }
@@ -421,6 +424,7 @@ export function SalesLcCard() {
   const [disc, setDisc] = useState<Record<string, string>>({});
   const [pay, setPay] = useState<Record<string, string>>({});
   const [closeReason, setCloseReason] = useState('');
+  const docTypes = useDocTypes(LC_TYPES);
   const load = useCallback(async () => {
     setD(await api('GET', `/sales/lcs/${id}`));
     if (can(me, 'lc.compare')) setCmp(await api('GET', `/sales/lcs/${id}/comparison`).catch(() => ({ comparison: null, lines: [] })) as typeof cmp);
@@ -583,11 +587,9 @@ export function SalesLcCard() {
         </section>
       ) : null}
       <section className="card">
-        <h2>{t('Documents')}</h2>
-        <Table rows={d.documents} empty="No document." columns={[
-          { header: 'Document', cell: r => <a href={`/api/v1/documents/${str(r.id)}/content`} target="_blank" rel="noreferrer">{str(r.title)}</a> },
-          { header: 'Type', cell: r => t(str(r.type)) },
-        ]} />
+        <h2>{t('Files of the letter of credit')}</h2>
+        <LcFiles rows={d.documents} />
+        {LC_RECORDERS.some(p => can(me, p)) && <AttachForm path={`/sales/lcs/${id}/documents/upload`} types={docTypes} title="File a document on the credit" onDone={load} />}
         {can(me, 'lc.close') && ['ACTIVE', 'EXPIRED'].includes(str(lc.status)) && (
           <Form title="Close the letter of credit" submit="Close" onSubmit={() => run(() => post('/close', { reason: closeReason }), 'The letter of credit is closed.')}>
             <Field label="Reason" value={closeReason} onChange={setCloseReason} />
@@ -596,4 +598,10 @@ export function SalesLcCard() {
       </section>
     </>
   );
+}
+
+/** The issued proforma's PDF (its current version, docs/31 row 52). */
+function DownloadPdf({ id, name }: { id: string; name: string }) {
+  const { t } = useI18n();
+  return <span>{t('PDF')}: <DownloadButton id={id} name={name} /></span>;
 }

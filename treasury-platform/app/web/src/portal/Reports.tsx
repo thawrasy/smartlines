@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, message } from '../api';
 import { useI18n } from '../i18n';
 import { Field, Notice, Select, Table } from '../ui';
+import { PdfButton } from './Attach';
 
 // The letter of credit reports (spec 14 section 10; S5): the catalogue the server allows this user, a report's filters,
 // its rows (up to 1,000 on the screen) and the CSV export, which the server audits.
@@ -50,6 +51,7 @@ export function Reports() {
       </div>
       <p>
         <a href={`/api/v1/reports/${code}/export?${query()}`} download>{t('Export as CSV')}</a>
+        {' · '}<PdfButton path={`/reports/${code}/export?${query()}`} name={`${code}.pdf`} label="Export as PDF" />
         {data && <> · {t('As of')} <span dir="ltr">{str(data.asOf).slice(0, 10)}</span> · {data.items.length} {t('rows')}</>}
         {data?.truncated && <> · <span className="warn">{t('The screen shows the first 1,000 rows; the export has them all.')}</span></>}
       </p>

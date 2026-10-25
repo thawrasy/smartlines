@@ -33,6 +33,7 @@ public static class LcEndpoints
         api.MapPost("/lcs/{id:guid}/drawings/{no:int}/settlements", SettleAsync);
         api.MapPost("/lcs/{id:guid}/close", CloseAsync);
         api.MapPost("/lcs/{id:guid}/amendments", AmendAsync);
+        api.MapPost("/lcs/{id:guid}/documents", DocumentAsync);
         api.MapPut("/requests/{id:guid}/amendment-result", AmendmentResultAsync);
     }
 
@@ -69,7 +70,7 @@ public static class LcEndpoints
         return Results.NoContent();
     }
 
-    private static async Task<BoundUser> OpenAsync(HttpContext http, SqlConnectionFactory db)
+    internal static async Task<BoundUser> OpenAsync(HttpContext http, SqlConnectionFactory db)
     {
         var u = await BoundUser.OpenAsync(http, db);
         try
@@ -125,7 +126,7 @@ public static class LcEndpoints
         return Results.Ok(new { items = rows });
     }
 
-    private static async Task<long> IdAsync(BoundUser u, SqlTransaction? tx, Guid id, CancellationToken ct)
+    internal static async Task<long> IdAsync(BoundUser u, SqlTransaction? tx, Guid id, CancellationToken ct)
     {
         var p = new DynamicParameters(await ScopeAsync(u, ct, tx));
         p.Add("id", id);
@@ -172,7 +173,19 @@ public static class LcEndpoints
                    BeneficiaryResponse AS beneficiaryResponse, BankIssuedOn AS bankIssuedOn
               FROM lc.LcAmendment WHERE LcId = @lcId ORDER BY LcAmendmentId;
             """, new { lcId }, cancellationToken: ct));
-        return Results.Ok(new { lc = row, drawings, amendments });
+        var documents = await LcDocuments.ListAsync(u.Connection, lcId, internalView, ct);
+        return Results.Ok(new { lc = row, drawings, amendments, documents });
+    }
+
+    /// <summary>A file of the credit (docs/31 row 52): its copy, a SWIFT, an amendment copy, a bank advice or an approval.</summary>
+    private static async Task<IResult> DocumentAsync(Guid id, LcDocumentBody b, HttpContext http, SqlConnectionFactory db)
+    {
+        await using var u = await OpenAsync(http, db);
+        var ct = http.RequestAborted;
+        await using var tx = (SqlTransaction)await u.Connection.BeginTransactionAsync(ct);
+        await LcDocuments.LinkAsync(u, tx, await IdAsync(u, tx, id, ct), b.Document, ct);
+        await tx.CommitAsync(ct);
+        return Results.NoContent();
     }
 
     private static async Task<IResult> InTxAsync(Guid id, HttpContext http, SqlConnectionFactory db, string audit, Func<BoundUser, SqlTransaction, Actor, long, CancellationToken, Task<object?>> act)

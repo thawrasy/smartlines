@@ -9,7 +9,7 @@ record. Values between `<...>` are host-specific and are never written in the re
 | `ufw.sh` | run once as root | Default deny in; 80/443 open; SSH from the admin addresses only; ICMP echo limited; new connections to 443 limited per address |
 | `sysctl-bankfas.conf` | `/etc/sysctl.d/60-bankfas.conf` | SYN cookies, reverse-path filter, no redirects or source routes, larger SYN backlog |
 | `Caddyfile` | `/etc/caddy/Caddyfile` (Caddy on the host) | TLS with automatic certificates, JSON access log, timeouts, body limit, proxy to the API |
-| `compose.yml` | `/opt/bankfas/compose.yml` | The API on a fixed network, its port on loopback only, trusting the network's gateway (Caddy) only |
+| `compose.yml` | `/opt/bankfas/compose.yml` | The API and the worker on a fixed network, the API's port on loopback only, trusting the network's gateway (Caddy) only; images from `app/deploy/Dockerfile` (the API's carries Chromium and an Arabic font for the PDF, ADR 0051) |
 | `docker-daemon.json` | `/etc/docker/daemon.json` | Log rotation, no new privileges, containers on the default bridge isolated |
 | `journald-bankfas.conf` | `/etc/systemd/journald.conf.d/60-bankfas.conf` | Persistent journal with size limits |
 | `auditd-bankfas.rules` | `/etc/audit/rules.d/60-bankfas.rules` | Watches accounts, sudo, SSH, keys, Docker, Caddy and the application's secrets |

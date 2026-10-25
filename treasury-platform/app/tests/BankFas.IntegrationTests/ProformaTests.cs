@@ -161,7 +161,7 @@ public sealed class ProformaTests(PlatformFixture f)
 
         // The printed proforma is a stored document of the company, with its number and the proceeds IBAN in clear.
         var doc = card.GetProperty("proforma").GetProperty("documentId").GetString()!;
-        var print = await b.Tm.GetAsync($"/api/v1/documents/{doc}/content", TestContext.Current.CancellationToken);
+        var print = await b.Tm.GetAsync($"/api/v1/documents/{doc}/content?version=1", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, print.StatusCode);
         var html = await print.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         Assert.Contains($"001-XX05-{yy}", html, StringComparison.Ordinal);

@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, apiWithETag, message } from '../api';
 import { useI18n } from '../i18n';
 import { Field, Form, Notice, Select, Table } from '../ui';
+import { AttachForm, DownloadButton, useDocTypes } from './Attach';
 import { FacilityCollateral } from './Collateral';
 import { FacilityObligations } from './Obligations';
 import { FacilityCompliance } from './Compliance';
@@ -140,6 +141,7 @@ export function FacilityDetail() {
   const [notice, setNotice] = useState<{ ok?: string; error?: string }>({});
   const [lender, setLender] = useState({ institution: '', sharePct: '', roles: 'SOLE' });
   const [doc, setDoc] = useState({ document: '', precedenceRank: '1', language: 'AR' });
+  const agreementTypes = useDocTypes(AGREEMENT_TYPES);
   const [header, setHeader] = useState({ totalAmount: '', expiryDate: '', bankReferenceNo: '', facilityClass: '' });
   const [revision, setRevision] = useState({ reasonKind: 'AMENDMENT', changeSummary: '', expiryDate: '' });
   const [reason, setReason] = useState('');
@@ -196,6 +198,7 @@ export function FacilityDetail() {
           { header: 'Document', cell: d => d.title },
           { header: 'Type', cell: d => t(d.documentType) },
           { header: 'Language', cell: d => t(d.language) },
+          { header: '', cell: d => <DownloadButton id={d.document} name={d.title} /> },
         ]} />
         <Notice error={notice.error} ok={notice.ok} />
         {(card.permissions.lifecycle || card.permissions.suspend) && card.approvedRevision > 0 && (
@@ -274,6 +277,8 @@ export function FacilityDetail() {
             <Select label="Roles" value={lender.roles} onChange={v => setLender({ ...lender, roles: v })}
               options={['SOLE', 'LEAD,AGENT', 'LEAD', 'AGENT', 'ARRANGER', 'PARTICIPANT'].map(r => ({ value: r, label: r }))} />
           </Form>
+          <AttachForm path="/documents" types={agreementTypes} extra={{ company: card.borrower.id }} title="Upload an agreement file"
+            onDone={async () => setDocs((await api<{ items: { id: string; title: string; type: { code: string } }[] }>('GET', `/documents?company=${card.borrower.id}`)).items)} />
           <Form title="Add a document" submit="Add" onSubmit={async () => {
             await api('POST', `/facilities/${id}/documents`, { document: doc.document, precedenceRank: Number(doc.precedenceRank), language: doc.language });
             await load();
@@ -494,3 +499,7 @@ function Utilizations({ id, company, approved }: { id: string; company: string; 
     </>
   );
 }
+
+/** The agreement files a facility keeps (docs/31 row 52), uploaded to the borrower's documents and then ranked in the revision. */
+const AGREEMENT_TYPES = ['FACILITY_AGREEMENT', 'FACILITY_ADDENDUM', 'TARIFF_ANNEX', 'FX_ADDENDUM', 'FACILITY_STATEMENT', 'PROMISSORY_NOTE', 'DEBT_ACKNOWLEDGEMENT',
+  'GUARANTEE_DEED', 'LAND_SHIPMENT_UNDERTAKING', 'BOARD_RESOLUTION', 'AUTHORITY_APPROVAL', 'OTHER'];
