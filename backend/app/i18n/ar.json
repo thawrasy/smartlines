@@ -1315,7 +1315,9 @@
     "LEVEL_ELEVATED": "رُفع الدرع إلى المستوى المرتفع",
     "web": "متصفح ويب",
     "android": "تطبيق أندرويد",
-    "ios": "تطبيق آيفون"
+    "ios": "تطبيق آيفون",
+    "FIRING": "تنبيه قائم",
+    "RESOLVED": "انتهى التنبيه"
   },
   "agency_cash.received": {
     "subject": "سجّل {carrier_name} استلام {amount} {currency}",
@@ -1369,5 +1371,9 @@
   "account.guest_code": {
     "subject": "رمز الحجز في مسلك",
     "body": "رمز الحجز في مسلك دون حساب هو {code}، وهو صالح لمدة {minutes} دقيقة. إن لم تطلبه فتجاهل هذه الرسالة."
+  },
+  "security.monitoring_alert": {
+    "subject": "المراقبة: {alertname} {status_label}",
+    "body": "{status_label}: {alertname} ({severity}). {summary} منذ {starts_at} بالتوقيت العالمي."
   }
 }

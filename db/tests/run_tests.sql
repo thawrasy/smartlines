@@ -5006,6 +5006,46 @@ UPDATE sec.traffic_alert SET status = 'RESOLVED', resolved_at = now(), resolved_
 SELECT pg_temp.ok(EXISTS (SELECT 1 FROM sec.traffic_alert WHERE alert_key = 'VOLUME' AND status = 'RESOLVED'),
   'Shield (1142): platform staff resolve an alert');
 RESET ROLE;
+-- Security watch (1167): bait addresses block at once, the exception register needs a second person and an end date
+SELECT sec.bait_touch('100.64.88.1', 'GET', '/api/internal/users', 'curl') AS bait_rule \gset
+SELECT pg_temp.ok((SELECT action FROM sec.ip_decision('100.64.88.1', 'PASSENGER')) = 'BLOCK'
+                  AND EXISTS (SELECT 1 FROM sec.ip_rule WHERE id = :bait_rule AND source = 'AUTO_ABUSE' AND expires_at > now() + interval '23 hours')
+                  AND EXISTS (SELECT 1 FROM sec.waf_hit WHERE ip = '100.64.88.1' AND rule = 'bait'),
+  'Security watch (1167): touching a bait address records the hit and blocks the address for a day');
+SELECT pg_temp.ok(sec.bait_touch('100.64.88.1', 'GET', '/backup/', 'curl') IS NULL
+                  AND (SELECT count(*) FROM sec.ip_rule WHERE cidr = '100.64.88.1/32' AND revoked_at IS NULL) = 1,
+  'Security watch (1167): a blocked address touching again adds no second rule');
+SELECT coalesce((SELECT id FROM iam.app_user WHERE id <> :uadmin ORDER BY id LIMIT 1), 0) AS uother \gset
+SELECT pg_temp.expect_error($$INSERT INTO sec.shield_exception (target, reason, requested_by, expires_at)
+                              VALUES ('100.64.88.2/32', 'a partner gateway address', $$ || :uadmin || $$, now() + interval '200 days')$$,
+  'EXCEPTION_EXPIRY_INVALID', 'Security watch (1167): an exception cannot last longer than the setting allows');
+INSERT INTO sec.shield_exception (target, reason, requested_by, expires_at)
+VALUES ('100.64.88.2/32', 'a partner gateway address', :uadmin, now() + interval '7 days') RETURNING id AS shx \gset
+SELECT pg_temp.expect_error($$UPDATE sec.shield_exception SET status = 'APPROVED', decided_by = $$ || :uadmin || $$ WHERE id = $$ || :shx,
+  'EXCEPTION_SAME_PERSON', 'Security watch (1167): the person who asked cannot approve');
+SELECT pg_temp.expect_error($$UPDATE sec.shield_exception SET expires_at = now() + interval '80 days' WHERE id = $$ || :shx,
+  'EXCEPTION_FROZEN', 'Security watch (1167): a request is not changed after it is made');
+UPDATE sec.shield_exception SET status = 'APPROVED', decided_by = :uother WHERE id = :shx;
+SELECT pg_temp.ok((SELECT action FROM sec.ip_decision('100.64.88.2', 'PASSENGER')) = 'ALLOW'
+                  AND (SELECT r.expires_at = e.expires_at AND r.approved_by = :uother AND r.created_by = :uadmin
+                         FROM sec.shield_exception e JOIN sec.ip_rule r ON r.id = e.ip_rule_id WHERE e.id = :shx),
+  'Security watch (1167): the approval writes an allow rule that ends with the exception');
+SELECT pg_temp.ok(sec.bait_touch('100.64.88.2', 'GET', '/api/debug', 'curl') IS NULL
+                  AND (SELECT action FROM sec.ip_decision('100.64.88.2', 'PASSENGER')) = 'ALLOW',
+  'Security watch (1167): an address with an approved exception is not blocked by a bait');
+UPDATE sec.shield_exception SET status = 'REVOKED', revoked_by = :uother WHERE id = :shx;
+SELECT pg_temp.ok((SELECT action FROM sec.ip_decision('100.64.88.2', 'PASSENGER')) IS NULL
+                  AND (SELECT revoked_at IS NOT NULL FROM sec.ip_rule WHERE id = (SELECT ip_rule_id FROM sec.shield_exception WHERE id = :shx)),
+  'Security watch (1167): revoking the exception revokes its allow rule');
+SELECT pg_temp.expect_error($$UPDATE sec.shield_exception SET status = 'APPROVED', decided_by = $$ || :uother || $$ WHERE id = $$ || :shx,
+  'EXCEPTION_NOT_PENDING', 'Security watch (1167): a revoked exception is not approved again');
+SELECT pg_temp.ok((SELECT count(*) FROM sys.security_metrics() WHERE metric LIKE 'masslak_security_%') >= 25
+                  AND (SELECT value FROM sys.security_metrics() WHERE metric = 'masslak_security_waf_hits_15m' AND labels ->> 'rule' = 'bait') >= 2,
+  'Security watch (1167): the security figures reach the metrics, bait hits included');
+SELECT pg_temp.ok((SELECT value FROM sys.setting WHERE key = 'security.alert_telegram_chats') = '[]'::jsonb
+                  AND sec.setting_int('security.signin_device_per_minute', 0) = 10
+                  AND sec.setting_int('security.signin_network_per_minute', 0) = 600,
+  'Security watch (1167): no chat is sent alerts until the platform names one; sign-in limits per device and network');
 ROLLBACK;
 
 \echo '=== ALL TESTS PASSED ==='

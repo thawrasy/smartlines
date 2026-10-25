@@ -104,6 +104,8 @@ services:
     volumes: [*trust]
     depends_on:
       clamav: { condition: service_healthy }
+    # the alerts network: Alertmanager reaches the API's relay of security alerts here and nothing else (1167)
+    networks: [internal, front, egress_in, alerts]
 
   worker:
     image: masslak:${MASSLAK_IMAGE_TAG:?set by deploy/install.sh and deploy/update.sh, the images of the release}
@@ -177,7 +179,31 @@ services:
       - ./deploy/production/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
       - ./deploy/production/secrets:/etc/alertmanager/secrets:ro
       - alertmanager_data:/alertmanager
+    networks: [monitoring, alerts]
+
+  # Logs (wave 7): Alloy reads the containers' log files and the host's sign-in and fail2ban logs, read-only and without
+  # the Docker socket, and ships them to Loki; Grafana reads Loki (deploy/production/logs, 30 days kept)
+  loki:
+    image: grafana/loki:3.2.1@sha256:09a53b4a4ff81ffcd8f13886df19d33fac7a8d3aaf952e3c7e66cbade5b2fc31
+    restart: unless-stopped
+    command: ["-config.file=/etc/loki/loki.yml"]
+    volumes:
+      - ./deploy/production/logs/loki.yml:/etc/loki/loki.yml:ro
+      - loki_data:/loki
     networks: [monitoring]
+
+  alloy:
+    image: grafana/alloy:v1.4.3@sha256:06bdcbb51fc22b16c2e96b31cbdf9cb0972e3bdedfbac2cc55ed36743f7fb9aa
+    restart: unless-stopped
+    command: ["run", "--storage.path=/var/lib/alloy/data", "--disable-reporting", "/etc/alloy/config.alloy"]
+    volumes:
+      - ./deploy/production/logs/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      # the directory, not the two files: a bind mount of a missing file would make Docker create a directory there
+      - /var/log:/var/log/host:ro
+      - alloy_data:/var/lib/alloy/data
+    networks: [monitoring]
+    depends_on: [loki]
 
   grafana:
     image: grafana/grafana:11.2.2@sha256:d5133220d770aba5cb655147b619fa8770b90f41d8489a821d33b1cd34d16f89
@@ -191,6 +217,8 @@ services:
     volumes:
       - ./deploy/staging/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./deploy/monitoring/grafana-dashboard.json:/var/lib/grafana/dashboards/masslak.json:ro
+      - ./deploy/monitoring/grafana-security.json:/var/lib/grafana/dashboards/masslak-security.json:ro
+      - ./deploy/production/logs/grafana-loki.yml:/etc/grafana/provisioning/datasources/loki.yml:ro
       - ./deploy/production/secrets/grafana_admin_password:/run/secrets/grafana_admin_password:ro
       - grafana_data:/var/lib/grafana
     networks: [monitoring]
@@ -198,9 +226,14 @@ services:
 networks:
   # Prometheus, Alertmanager, node_exporter and Grafana; Alertmanager sends its notifications from here
   monitoring: {}
+  # Alertmanager to the API's alert relay only (1167); no route out
+  alerts:
+    internal: true
 
 volumes:
   clamav_db:
   prometheus_data:
   alertmanager_data:
   grafana_data:
+  loki_data:
+  alloy_data:

@@ -577,3 +577,68 @@ tests:
         exp_alerts:
           - exp_labels: { severity: ticket, endpoint: "1a2b3c4d", host: "erp.partner.example", kind: "PARTNER", client: "Partner ERP", company: "Partner Co", event_types: "booking.confirmed" }
             exp_annotations: { summary: "2 delivery(ies) to erp.partner.example (Partner ERP, Partner Co) gave up in the last 7 days: booking.confirmed", runbook: "RUNBOOKS.md#33-dead-deliveries-who-is-told-and-who-resends" }
+  # the security watch (1167): each rule fires on its figure, with area "security" for the relay to Telegram
+  - interval: 1m
+    input_series:
+      - series: 'masslak_security_waf_hits_15m{rule="bait"}'
+        values: "0x3 1x5"
+      - series: 'masslak_security_waf_hits_15m{rule="sql_injection"}'
+        values: "0x3 150x10"
+      - series: masslak_security_auth_failures_15m
+        values: "0x3 400x10"
+      - series: 'masslak_security_alerts_open{severity="CRITICAL"}'
+        values: "0x3 1x5"
+      - series: masslak_security_shield_level
+        values: "0x3 2x5"
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: BaitTouched
+        exp_alerts: []
+      - eval_time: 4m
+        alertname: BaitTouched
+        exp_alerts:
+          - exp_labels: { severity: ticket, area: security, rule: bait }
+            exp_annotations: { summary: "An address touched a bait address and was blocked: someone is mapping the platform", runbook: "RUNBOOKS.md#34-security-alerts-bait-addresses-and-exceptions-1167" }
+      - eval_time: 6m
+        alertname: AttackPatternsSurge
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: AttackPatternsSurge
+        exp_alerts:
+          - exp_labels: { severity: page, area: security }
+            exp_annotations: { summary: "More than 100 requests with attack patterns in 15 minutes", runbook: "RUNBOOKS.md#34-security-alerts-bait-addresses-and-exceptions-1167" }
+      - eval_time: 10m
+        alertname: SignInFailuresSurge
+        exp_alerts:
+          - exp_labels: { severity: page, area: security }
+            exp_annotations: { summary: "More than 300 failed sign-ins in 15 minutes: password guessing", runbook: "RUNBOOKS.md#34-security-alerts-bait-addresses-and-exceptions-1167" }
+      - eval_time: 4m
+        alertname: TrafficAlertCritical
+        exp_alerts:
+          - exp_labels: { severity: page, area: security }
+            exp_annotations: { summary: "The traffic watch has a critical alert open: check the shield in the security console", runbook: "RUNBOOKS.md#34-security-alerts-bait-addresses-and-exceptions-1167" }
+      - eval_time: 4m
+        alertname: ShieldLockdown
+        exp_alerts:
+          - exp_labels: { severity: page, area: security }
+            exp_annotations: { summary: "The platform is in lockdown: only the console, sign-in and payment notices pass", runbook: "RUNBOOKS.md#34-security-alerts-bait-addresses-and-exceptions-1167" }
+  - interval: 1m
+    input_series:
+      - series: masslak_security_exceptions_pending
+        values: "1x1600"
+      - series: masslak_security_exceptions_ending_7d
+        values: "0 1x200"
+    alert_rule_test:
+      - eval_time: 12h
+        alertname: ExceptionAwaitingApproval
+        exp_alerts: []
+      - eval_time: 25h
+        alertname: ExceptionAwaitingApproval
+        exp_alerts:
+          - exp_labels: { severity: ticket, area: security }
+            exp_annotations: { summary: "An exception to the shield has waited a day for a second person", runbook: "RUNBOOKS.md#34-security-alerts-bait-addresses-and-exceptions-1167" }
+      - eval_time: 3h
+        alertname: ExceptionEndingSoon
+        exp_alerts:
+          - exp_labels: { severity: ticket, area: security }
+            exp_annotations: { summary: "An exception to the shield ends within 7 days: renew it through the register or let it end", runbook: "RUNBOOKS.md#34-security-alerts-bait-addresses-and-exceptions-1167" }

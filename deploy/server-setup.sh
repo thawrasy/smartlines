@@ -63,6 +63,23 @@ net.ipv4.conf.all.log_martians = 1
 net.ipv4.conf.all.accept_redirects = 0
 net.ipv6.conf.all.accept_redirects = 0
 net.ipv4.conf.all.send_redirects = 0
+net.ipv6.conf.default.accept_redirects = 0
+net.ipv4.conf.default.accept_source_route = 0
+# Wave 7 (owner's notes 20-32): the host itself. RFC 1337 drops stray resets of closed connections; kernel pointers and
+# the kernel log are hidden from users who are not root; a process may trace only its own children; unprivileged
+# processes cannot load BPF programs and the BPF compiler is hardened; links in shared directories cannot be used to
+# trick a privileged process; programs that change user never leave a core file behind.
+net.ipv4.tcp_rfc1337 = 1
+kernel.kptr_restrict = 2
+kernel.dmesg_restrict = 1
+kernel.yama.ptrace_scope = 1
+kernel.unprivileged_bpf_disabled = 1
+net.core.bpf_jit_harden = 2
+fs.protected_hardlinks = 1
+fs.protected_symlinks = 1
+fs.protected_fifos = 2
+fs.protected_regular = 2
+fs.suid_dumpable = 0
 SYSCTL
 sysctl --quiet --system || true
 
@@ -129,4 +146,15 @@ if [ -x "$app_dir/deploy/audit-archive.sh" ]; then
   echo "5 * * * * root $app_dir/deploy/audit-archive.sh >> /var/log/masslak-audit-archive.log 2>&1" > /etc/cron.d/masslak-audit-archive
   echo "hourly audit archive scheduled for $app_dir"
 fi
+# Weekly encrypted copy of the server's own configuration (deploy/config-backup.sh; restore guide
+# docs/operations/SERVER_CONFIG_RESTORE.md)
+if [ -x "$app_dir/deploy/config-backup.sh" ]; then
+  echo "20 3 * * 0 root $app_dir/deploy/config-backup.sh >> /var/log/masslak-config-backup.log 2>&1" > /etc/cron.d/masslak-config-backup
+  echo "weekly configuration backup scheduled for $app_dir"
+fi
+# Shared memory is never a place to run programs from
+grep -q '^tmpfs /dev/shm' /etc/fstab || echo "tmpfs /dev/shm tmpfs defaults,nodev,nosuid,noexec 0 0" >> /etc/fstab
+mount -o remount,nodev,nosuid,noexec /dev/shm 2>/dev/null || true
+# SSH itself (keys only, no root password, a changed port) is set with the owner present (wave 9): this script leaves
+# the SSH daemon's settings as they are
 echo "server ready: put the application in /opt/masslak and follow deploy/README.md"

@@ -1154,6 +1154,31 @@ A delivery gives up after eight attempts (`docs/integration/EVENTS.md`). Two ale
 The alert clears by itself once no delivery of that endpoint died in the last 7 days. A dead delivery is never deleted:
 it stays as the record of what the partner did not receive.
 
+## 34. Security alerts, bait addresses and exceptions (1167)
+
+The security watch (`docs/design/SECURITY_WATCH.md`). Every alert of the group `masslak-security` carries
+`area="security"`: Alertmanager sends it to the page or ticket receiver by its severity and also to the security staff's
+Telegram chats through the API's relay (`security.alert_telegram_chats`, set by the platform; empty sends none).
+
+| Alert | First look | Then |
+|---|---|---|
+| `BaitTouched` | The **Masslak security** dashboard, the shield's log: which address, which path, which agent | Nothing to unblock: the address is blocked for a day. If several addresses of one network touch baits, block the range (security console, address rules) with an end date |
+| `AttackPatternsSurge` | Firewall hits by rule; the top addresses in the shield screen | Block the addresses or ranges behind most hits; if the firewall is in detect mode, switch it to block (shield policy) |
+| `SignInFailuresSurge` | Sign-in log: one account guessed from many addresses, or many accounts from one network | The per-account, per-address, per-device and per-network limits already slow it; lower `security.signin_network_per_minute` for the attack's duration, or raise the shield to elevated |
+| `TrafficAlertCritical` | The shield screen: the alert's figures and what the platform did by itself | Acknowledge it, act as the figures say, resolve it when traffic is normal |
+| `ShieldLockdown` | Who set it and why (shield history) | Lower it as soon as the check is done: lockdown stops passengers, carriers and agencies |
+| `ShieldElevatedLong` | Why it was raised and whether the cause is gone | Lower it to normal: request limits are halved while it is raised |
+| `ExceptionAwaitingApproval` | The exception register (address rules page) | A second person approves or declines it; an exception is never approved by the person who asked |
+| `ExceptionEndingSoon` | The exception register | Ask again (a new request, approved by another person) if it is still needed; otherwise let it end |
+
+Bait addresses: `/api/internal`, `/api/debug`, `/api/v0`, `/api/private`, `/backup`, `/db-backup`. A partner or a
+monitor that must reach the platform from a fixed address is put in the exception register, never given an allow rule
+directly (the console refuses it). An address blocked by mistake is unblocked by revoking its rule in the console, with a
+reason.
+
+Logs: Grafana's Loki datasource holds 30 days of the containers' logs and the host's SSH and fail2ban logs. Useful
+queries: `{logger="masslak.shield"}`, `{logger="masslak.access"} | json | status >= 400`, `{job="host_auth"} |= "Failed"`.
+
 ## Rehearsal schedule
 
 | Procedure | Before launch | After launch |

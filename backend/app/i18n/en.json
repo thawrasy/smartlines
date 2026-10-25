@@ -1315,7 +1315,9 @@
     "LEVEL_ELEVATED": "the shield was raised to elevated",
     "web": "a web browser",
     "android": "the Android app",
-    "ios": "the iPhone app"
+    "ios": "the iPhone app",
+    "FIRING": "firing",
+    "RESOLVED": "resolved"
   },
   "agency_cash.received": {
     "subject": "{carrier_name} recorded receiving {currency} {amount}",
@@ -1369,5 +1371,9 @@
   "account.guest_code": {
     "subject": "Your Masslak booking code",
     "body": "Your code to book on Masslak without an account is {code}. It lasts {minutes} minutes. If you did not ask for it, ignore this message."
+  },
+  "security.monitoring_alert": {
+    "subject": "Monitoring: {alertname} {status_label}",
+    "body": "{status_label}: {alertname} ({severity}). {summary} Since {starts_at} UTC."
   }
 }

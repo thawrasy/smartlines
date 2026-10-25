@@ -789,6 +789,14 @@ const en = {
     actions: { BLOCK: "Block", ALLOW: "Allow", THROTTLE: "Throttle", CHALLENGE: "Challenge" },
     scopes: { ALL: "Everything", PASSENGER: "Passenger site", OPERATOR: "Carrier portal", AGENCY: "Agencies", ADMIN: "Administration", API: "API", PAYMENT_WEBHOOK: "Payment notifications", DRIVER: "Driver app" },
     endpoint: "Endpoint", latency: "Time", event: "Event", readOnlyNote: "Logs are append-only and read through a separate audit connection.",
+    allowNote: "To let an address through the shield, ask in the exception register below: another person approves it, with an end date.",
+    exceptions: {
+      title: "Exception register", sub: "Addresses let through the shield. One person asks, another approves; every exception ends on its own (at most {days} days).",
+      request: "Request an exception", target: "IP address or range", targetHint: "Examples: 203.0.113.7, 203.0.113.0/28 (at most a /16)",
+      days: "Ends after (days)", reason: "Why it is needed (at least 10 characters)", requestedBy: "Requested by", decidedBy: "Decided by",
+      ends: "Ends", approve: "Approve", decline: "Decline", revoke: "Revoke", note: "Note", yours: "your request: another person decides it",
+      none: "No exceptions.", status: { PENDING: "Waiting for approval", APPROVED: "In force", DECLINED: "Declined", REVOKED: "Revoked", ENDED: "Ended" },
+    },
     mfaNav: "Two-step sign-in",
     mfa: {
       title: "Two-step sign-in policy", sub: "Which methods staff and drivers may use, and which portals must use one. Changes reach every server within half a minute.",

@@ -337,6 +337,7 @@ async def _sign_in(body: LoginIn, request: Request, response: Response, *, ident
     ctx = base_context(request)
     ctx.scope = "AUTH"                     # opens accounts, factors and sessions only, not the rest of the platform
     async with db.transaction(ctx) as conn:    # its own transaction, so the token stays taken whatever follows
+        await ratelimit.check_device_and_network(conn, body.device_id, request.state.client_ip)
         await ratelimit.check_identifier(conn, ident)
     async with db.transaction(ctx) as conn:
         user = await conn.fetchrow(

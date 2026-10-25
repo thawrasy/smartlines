@@ -138,12 +138,18 @@ if [ -z "$token" ]; then
   token="$(rand)"; echo "MASSLAK_METRICS_TOKEN=$token" >> "$env_file"; echo "added MASSLAK_METRICS_TOKEN to deploy/.env"
 fi
 printf '%s' "$token" > "$sec/metrics_token"
+# the token Alertmanager posts security alerts to the API's relay with (1167)
+relay="$(value MASSLAK_ALERT_RELAY_TOKEN)"
+if [ -z "$relay" ]; then
+  relay="$(rand)"; echo "MASSLAK_ALERT_RELAY_TOKEN=$relay" >> "$env_file"; echo "added MASSLAK_ALERT_RELAY_TOKEN to deploy/.env"
+fi
+printf '%s' "$relay" > "$sec/alert_relay_token"
 [ -s "$sec/grafana_admin_password" ] || rand > "$sec/grafana_admin_password"
 for r in page ticket deadman; do
   [ -s "$sec/${r}_webhook_url" ] || echo "http://127.0.0.1:9/replace-with-the-${r}-receiver" > "$sec/${r}_webhook_url"
 done
 # Prometheus, Alertmanager and Grafana read these as their own users
-chmod 0644 "$sec"/metrics_token "$sec"/grafana_admin_password "$sec"/*_webhook_url
+chmod 0644 "$sec"/metrics_token "$sec"/alert_relay_token "$sec"/grafana_admin_password "$sec"/*_webhook_url
 chmod 0755 "$sec"
 
 # ---- the second site's metrics, when there is one (Prometheus reads targets/site-b.yml) ---------------------------

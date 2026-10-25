@@ -4375,6 +4375,15 @@ erDiagram
     bigint id PK
     bigint set_by FK
   }
+  sec_shield_exception {
+    bigint id PK
+    uuid uid
+    text status
+    bigint requested_by FK
+    bigint decided_by FK
+    bigint ip_rule_id FK
+    bigint revoked_by FK
+  }
   sec_shield_state {
     smallint id PK
     bigint set_by FK
@@ -4540,6 +4549,7 @@ erDiagram
   sec_authority_alert }o..o| sec_authority_profile : "authority_id"
   sec_verification_job }o--|| sec_gov_adapter_config : "adapter_id"
   sec_security_event }o..o| sec_ip_rule : "ip_rule_id"
+  sec_shield_exception }o..o| sec_ip_rule : "ip_rule_id"
   sec_screening_result }o--|| sec_screening_request : "request_id"
 ```
 

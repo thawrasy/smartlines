@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**602 tables, 6549 columns, in 26 schemas.**
+**603 tables, 6564 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -21,7 +21,7 @@ Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant i
 - [`bill` — Carrier subscriptions, metering and platform invoices](#bill) (7 tables)
 - [`crm` — Complaints, ratings, notifications, the AI assistant and the contact center](#crm) (19 tables)
 - [`gov` — Governance, obligations and data protection](#gov) (15 tables)
-- [`sec` — Security: IP rules, risk, signing, the security hub and government adapters](#sec) (32 tables)
+- [`sec` — Security: IP rules, risk, signing, the security hub and government adapters](#sec) (33 tables)
 - [`ptn` — Service partners: fuel stations, rest stops and maintenance](#ptn) (14 tables)
 - [`ship` — Shipments and the integrated shipping network](#ship) (59 tables)
 - [`frt` — Trucking, heavy transport and transit freight](#frt) (31 tables)
@@ -7684,6 +7684,28 @@ Every change of the shield level, by whom or by the platform, and why (1142); ne
 | `set_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `auto` | `boolean` | ✱ |  |
 | `until` | `timestamp with time zone` |  |  |
+
+### `sec.shield_exception` 🛡️
+
+An address or range let through the shield: requested by one person, approved by another, always with an end date (1167)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `target` | `cidr` | ✱ |  |
+| `scope` | `text` | ✱ | `'ALL'::text` |
+| `reason` | `text` | ✱ |  |
+| `status` | `text` | ✱ | `'PENDING'::text` |
+| `requested_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `requested_at` | `timestamp with time zone` | ✱ | `now()` |
+| `expires_at` | `timestamp with time zone` | ✱ |  |
+| `decided_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `decided_at` | `timestamp with time zone` |  |  |
+| `decision_note` | `text` |  |  |
+| `ip_rule_id` | `bigint` | 🔗 `sec.ip_rule`  |  |
+| `revoked_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `revoked_at` | `timestamp with time zone` |  |  |
 
 ### `sec.shield_state` 🛡️
 

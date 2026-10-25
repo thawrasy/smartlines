@@ -37,7 +37,7 @@ def render(template: str, channel: str, locale: str, values: dict) -> tuple[str,
         vals[k] = v
     if template.startswith("security.") or template == "account.signed_in_elsewhere":   # the shield (1142)
         lab = words.get("shield_labels", {})
-        for k in ("kind", "severity", "level", "previous", "client"):
+        for k in ("kind", "severity", "level", "previous", "client", "status"):
             if k in values:
                 vals[k + "_label"] = lab.get(str(values[k]), str(values[k]))
         vals["by_label"] = lab.get("AUTO" if values.get("auto") else "STAFF", "")

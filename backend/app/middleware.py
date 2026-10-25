@@ -117,6 +117,8 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         request.state.audit = None          # handlers may set {"action","object_type","object_id","reason"}
         path = request.url.path
         started = time.monotonic()
+        if shield.is_bait(path) and shield.waf_mode() != "OFF":
+            return await self._bait(request, path)
         if not path.startswith("/api/"):
             # the web pages: probes for files no route serves, scanners and odd methods are refused here too (1142)
             hit = shield.inspect_line(request.method, path, request.url.query, dict(request.headers)) \
@@ -206,8 +208,10 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
 
         # CSRF defence in depth: browsers cannot add this header cross-site without CORS approval
         # (the integration API authenticates with keys in a header, never cookies, so it needs no such header; nor does
-        # Telegram's webhook, which carries the bot's own secret header, 1151)
-        if request.method in MUTATING and not path.startswith(("/api/payments/notify", "/api/v1/", "/api/auth/telegram/webhook")) \
+        # Telegram's webhook, which carries the bot's own secret header, 1151; nor Alertmanager's relay, with its bearer
+        # token, 1167)
+        if request.method in MUTATING and not path.startswith(("/api/payments/notify", "/api/v1/", "/api/auth/telegram/webhook",
+                                                               "/api/security/relay/")) \
                 and request.headers.get(CLIENT_HEADER) not in ("web", "android", "ios"):
             request.state.error_code = "CLIENT_HEADER_REQUIRED"
             return JSONResponse({"error": {"code": "CLIENT_HEADER_REQUIRED", "message": "missing client header"}},
@@ -224,6 +228,21 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
             await self._log(request, scope, None, result, response.status_code, started)
         response.headers["X-Request-Id"] = str(request.state.request_id)
         return response
+
+    async def _bait(self, request: Request, path: str):
+        """A bait address (1167): recorded, the address blocked at once (unless an approved exception lets it through),
+        and answered as an address that does not exist, so the client learns nothing."""
+        ip = request.state.client_ip
+        try:
+            async with db.transaction(db.Context(request_id=request.state.request_id, ip=ip, scope="SYSTEM")) as conn:
+                await shield.bait_touch(conn, ip, request.method, path, request.headers.get("user-agent", ""))
+        except Exception:                      # noqa: BLE001 - a failed record must not open the door
+            logging.getLogger("masslak.shield").warning("bait touch not recorded", exc_info=True)
+        shield.traffic.record(ip, 404, "waf")
+        request.state.error_code = "NOT_FOUND"
+        if path.startswith("/api/"):
+            return JSONResponse({"error": {"code": "NOT_FOUND", "message": "unknown endpoint"}}, status_code=404)
+        return PlainTextResponse("Not found", status_code=404)
 
     async def _waf_refused(self, request: Request, path: str, hit, started: float, *, scope: str = "PASSENGER",
                            page: bool = False, recorded: bool = False):

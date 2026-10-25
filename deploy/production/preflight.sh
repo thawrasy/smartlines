@@ -66,6 +66,7 @@ for r in page ticket deadman; do
   case "$url" in ""|*replace-with-the-*) gap "deploy/production/secrets/${r}_webhook_url is a placeholder: put the ${r} receiver's address there" ;; esac
 done
 [ -s secrets/metrics_token ] || gap "deploy/production/secrets/metrics_token is missing: run deploy/production/init.sh"
+[ -s secrets/alert_relay_token ] || gap "deploy/production/secrets/alert_relay_token is missing: run deploy/production/init.sh"
 
 # where the database runs (H-01): on two hosts with automatic failover, or on this one host as the owner accepted
 case "$(value MASSLAK_DB_LAYOUT)" in

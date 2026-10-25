@@ -71,6 +71,9 @@ PROBES = re.compile(
     r"|phpmyadmin|pma|myadmin|cgi-bin|actuator|server-status|vendor/phpunit|boaform|hnap1|owa/|autodiscover|telescope|_ignition"
     r"|console/|solr/|jmx-console|manager/html)"
     r"|\.(php\d?|asp|aspx|jsp|cgi|pl|env|bak|old|orig|sql|ini|swp|map)$", _I)
+# bait addresses (1167): paths no route serves and no honest client asks for; robots.txt names /backup/ as disallowed,
+# which only a scanner reads as an invitation. A touch blocks the address at once (sec.bait_touch).
+BAIT = re.compile(r"^/(api/internal|api/debug|api/v0|api/private|backup|db-backup)(/|$)", _I)
 BAD_METHODS = {"TRACE", "TRACK", "CONNECT", "DEBUG", "PROPFIND", "PROPPATCH", "MKCOL", "COPY", "MOVE", "LOCK", "UNLOCK"}
 HEADERS_INSPECTED = ("user-agent", "referer", "x-forwarded-host", "origin", "x-original-url", "x-rewrite-url")
 SECRET_KEYS = re.compile(r"pass(word)?|secret|token|code|otp|pin|signature|refresh|credential", _I)
@@ -286,6 +289,15 @@ async def publisher() -> None:
                 await flush(conn, closed)
         except Exception:                      # noqa: BLE001 - the counters must never stop the API
             log.warning("traffic sample not written; %d windows dropped", len(closed), exc_info=True)
+
+
+def is_bait(path: str) -> bool:
+    return bool(BAIT.match(path))
+
+
+async def bait_touch(conn, ip: str, method: str, path: str, agent: str) -> Optional[int]:
+    """Records the touch and blocks the address, unless an approved exception lets it through (1167)."""
+    return await conn.fetchval("SELECT sec.bait_touch($1::inet, $2, $3, $4)", ip, method, path[:300], agent[:200])
 
 
 async def strike(conn, ip: str, method: str, path: str, hit: Hit, agent: str, blocked: bool) -> int:

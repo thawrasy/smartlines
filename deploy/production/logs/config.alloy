@@ -1,0 +1,47 @@
+// Grafana Alloy of the production profile (wave 7, owner's notes 20-32): ships logs to Loki. It reads files only, mounted
+// read-only, and never the Docker socket (which would hand it the whole host):
+//   * every container's log (Docker's json-file driver): the API's and the worker's JSON lines give their severity (as
+//     "level") and logger as labels (masslak.access, masslak.shield, masslak.alerts, ...), the rest stays in the line;
+//   * the host's sign-in log (SSH) and fail2ban's log.
+// Values that could identify a person are already left out or masked by the application's log redaction.
+
+local.file_match "containers" {
+  path_targets = [{"__path__" = "/var/lib/docker/containers/*/*-json.log", "job" = "containers"}]
+}
+
+loki.source.file "containers" {
+  targets    = local.file_match.containers.targets
+  forward_to = [loki.process.containers.receiver]
+}
+
+loki.process "containers" {
+  stage.docker {}
+
+  stage.json {
+    expressions = {level = "severity", logger = "logger"}
+  }
+
+  stage.labels {
+    values = {level = "", logger = ""}
+  }
+
+  forward_to = [loki.write.local.receiver]
+}
+
+local.file_match "host" {
+  path_targets = [
+    {"__path__" = "/var/log/host/auth.log", "job" = "host_auth"},
+    {"__path__" = "/var/log/host/fail2ban.log", "job" = "fail2ban"},
+  ]
+}
+
+loki.source.file "host" {
+  targets    = local.file_match.host.targets
+  forward_to = [loki.write.local.receiver]
+}
+
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

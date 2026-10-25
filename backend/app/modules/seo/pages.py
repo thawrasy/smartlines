@@ -72,7 +72,7 @@ def robots_text(test_server: bool) -> str:
     (owner's trial notes, October 2026)."""
     if test_server:
         return "User-agent: *\nDisallow: /\n"
-    return "\n".join(["User-agent: *", "Allow: /", "Disallow: /api/", "", f"Sitemap: {base()}/sitemap.xml", ""])
+    return "\n".join(["User-agent: *", "Allow: /", "Disallow: /api/", "Disallow: /backup/", "", f"Sitemap: {base()}/sitemap.xml", ""])
 
 
 @router.get("/robots.txt")

@@ -73,6 +73,9 @@ async def add_ip_rule(body: IpRuleIn, request: Request, pr: Principal = Depends(
         except ValueError:
             raise ApiError(422, "INVALID_TARGET", "enter an IP address, a CIDR range, a country code or an AS number")
         rule_type = "CIDR"
+    if body.action == "ALLOW":
+        raise ApiError(409, "USE_EXCEPTION_REGISTER", "letting addresses through the shield goes through the exception register: "
+                       "one person asks, another approves, with an end date (1167)")
     if rule_type == "CIDR" and body.action == "BLOCK" and ipaddress.ip_address(request.state.client_ip) in ipaddress.ip_network(cidr):
         raise ApiError(409, "SELF_BLOCK", "this rule would block your own address")
     async with db.transaction(context_for(request, pr)) as conn:
@@ -388,3 +391,122 @@ async def shield_alert_step(alert_id: int, step: Literal["acknowledge", "resolve
     request.state.audit = {"action": f"security.shield.alert.{step}", "object_type": "traffic_alert", "object_id": alert_id,
                            "reason": body.note}
     return {"ok": True}
+
+
+# ------------------------------------------------------------------ the exception register (1167)
+class ExceptionIn(BaseModel):
+    target: str = Field(min_length=2, max_length=64, description="IP address or CIDR range")
+    scope: Literal["ALL", "PASSENGER", "OPERATOR", "AGENCY", "ADMIN", "API", "PAYMENT_WEBHOOK", "DRIVER"] = "ALL"
+    reason: str = Field(min_length=10, max_length=500)
+    days: int = Field(ge=1, le=365, description="the exception ends on its own after this; the platform setting caps it")
+
+
+class DecisionIn(BaseModel):
+    note: Optional[str] = Field(default=None, max_length=500)
+
+
+@router.get("/exceptions")
+async def exceptions(request: Request, pr: Principal = Depends(can_rules)):
+    """Addresses let through the shield: open requests, approved ones with their end dates, and the last decisions."""
+    async with db.transaction(context_for(request, pr)) as conn:
+        recs = await conn.fetch(
+            """SELECT e.uid, host(e.target) || '/' || masklen(e.target) AS target, e.scope, e.reason, e.status,
+                      e.requested_at, e.expires_at, e.decided_at, e.decision_note, e.revoked_at, e.ip_rule_id,
+                      e.requested_by = $1 AS mine, rp.legal_name AS requested_by, dp.legal_name AS decided_by,
+                      (e.status = 'APPROVED' AND e.expires_at <= now()) AS ended
+                 FROM sec.shield_exception e
+                 JOIN iam.app_user ru ON ru.id = e.requested_by LEFT JOIN iam.party rp ON rp.id = ru.party_id
+                 LEFT JOIN iam.app_user du ON du.id = e.decided_by LEFT JOIN iam.party dp ON dp.id = du.party_id
+                WHERE e.status IN ('PENDING','APPROVED') OR e.requested_at > now() - interval '90 days'
+                ORDER BY (e.status = 'PENDING') DESC, e.requested_at DESC LIMIT 200""", pr.user_id)
+        max_days = await conn.fetchval("SELECT sec.setting_int('security.exception_max_days', 90)")
+    return {"exceptions": rows(recs), "max_days": max_days}
+
+
+@router.post("/exceptions", status_code=201)
+async def request_exception(body: ExceptionIn, request: Request, pr: Principal = Depends(can_rules)):
+    """Asks to let an address or range through the shield; another person approves it (four eyes)."""
+    try:
+        target = str(ipaddress.ip_network(body.target.strip(), strict=False))
+    except ValueError:
+        raise ApiError(422, "INVALID_TARGET", "enter an IP address or a CIDR range")
+    net = ipaddress.ip_network(target)
+    if net.prefixlen < (16 if net.version == 4 else 32):
+        raise ApiError(422, "EXCEPTION_TOO_WIDE", "an exception covers at most a /16 (IPv4) or a /32 (IPv6)")
+    async with db.transaction(context_for(request, pr)) as conn:
+        uid = await conn.fetchval(
+            """INSERT INTO sec.shield_exception (target, scope, reason, requested_by, expires_at)
+               VALUES ($1::cidr, $2, $3, $4, now() + make_interval(days => $5::int)) RETURNING uid""",
+            target, body.scope, body.reason, pr.user_id, body.days)
+    request.state.audit = {"action": "security.exception.request", "object_type": "shield_exception", "object_id": str(uid),
+                           "reason": body.reason}
+    return {"uid": str(uid), "status": "PENDING"}
+
+
+@router.post("/exceptions/{uid}/{step}")
+async def decide_exception(uid: str, step: Literal["approve", "decline", "revoke"], body: DecisionIn, request: Request,
+                           pr: Principal = Depends(can_rules)):
+    """Approve or decline a request (another person than the one who asked), or revoke an approved exception."""
+    if step == "approve":
+        require_step_up(pr)             # it opens the shield for an address: a recent second factor (1136)
+    async with db.transaction(context_for(request, pr)) as conn:
+        if step == "revoke":
+            row = await conn.fetchrow(
+                """UPDATE sec.shield_exception SET status = 'REVOKED', revoked_by = $2, decision_note = coalesce($3, decision_note)
+                    WHERE uid = $1::uuid AND status = 'APPROVED' RETURNING status""", uid, pr.user_id, body.note)
+        else:
+            row = await conn.fetchrow(
+                """UPDATE sec.shield_exception SET status = $4, decided_by = $2, decision_note = $3
+                    WHERE uid = $1::uuid AND status = 'PENDING' RETURNING status""",
+                uid, pr.user_id, body.note, "APPROVED" if step == "approve" else "DECLINED")
+    if row is None:
+        raise not_found("exception in that state")
+    request.state.audit = {"action": f"security.exception.{step}", "object_type": "shield_exception", "object_id": uid,
+                           "reason": body.note}
+    return {"status": row["status"]}
+
+
+# ------------------------------------------------------------------ the alert relay (1167)
+@router.post("/relay/alertmanager", include_in_schema=False)
+async def alert_relay(request: Request):
+    """Alertmanager's security route posts here (deploy/production/alertmanager.yml): each alert goes to the Telegram
+    chats of security.alert_telegram_chats, in Arabic and English. Answers only with the bearer token
+    MASSLAK_ALERT_RELAY_TOKEN; without the setting the address does not exist."""
+    import asyncio
+    import hmac
+    import logging
+    import os
+
+    from ..modules.notify import providers
+    from ..modules.notify.render import render
+    token = os.environ.get("MASSLAK_ALERT_RELAY_TOKEN", "")
+    given = request.headers.get("authorization", "").removeprefix("Bearer ").strip()
+    if not token:
+        raise ApiError(404, "NOT_FOUND", "unknown endpoint")
+    if not hmac.compare_digest(given.encode(), token.encode()):
+        raise ApiError(401, "UNAUTHORIZED", "a valid relay token is required")
+    try:
+        payload = await request.json()
+        alerts = list(payload.get("alerts") or [])[:50]
+    except (ValueError, AttributeError):
+        raise ApiError(422, "INVALID_PAYLOAD", "an Alertmanager webhook body is expected")
+    async with db.transaction(db.Context(request_id=request.state.request_id, ip=request.state.client_ip, scope="SYSTEM")) as conn:
+        chats = await conn.fetchval("SELECT value FROM sys.setting WHERE key = 'security.alert_telegram_chats'")
+    chats = [str(c) for c in (json.loads(chats) if isinstance(chats, str) else chats or []) if str(c).lstrip("-").isdigit()][:10]
+    sent = failed = 0
+    for alert in alerts:
+        labels, notes = alert.get("labels") or {}, alert.get("annotations") or {}
+        values = {"status": str(alert.get("status", "firing")).upper(), "alertname": str(labels.get("alertname", "?"))[:80],
+                  "severity": str(labels.get("severity", "?"))[:20], "summary": str(notes.get("summary", ""))[:600],
+                  "starts_at": str(alert.get("startsAt", ""))[:16].replace("T", " ")}
+        text = "\n\n".join("\n".join(render("security.monitoring_alert", "TELEGRAM", loc, values)) for loc in ("ar", "en"))
+        for chat in chats:
+            try:
+                await asyncio.to_thread(providers.send_telegram, chat, text)
+                sent += 1
+            except Exception:              # noqa: BLE001 - one chat failing does not stop the others
+                failed += 1
+                logging.getLogger("masslak.alerts").warning("alert relay: Telegram delivery failed", exc_info=True)
+    if failed and not sent:
+        raise ApiError(502, "RELAY_FAILED", "no chat received the alerts")
+    return {"alerts": len(alerts), "sent": sent, "failed": failed}

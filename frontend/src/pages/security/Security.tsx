@@ -91,12 +91,13 @@ export function SecurityRules() {
             <ErrorBox error={error} />
             <Field label={t("security.target")} hint={t("security.targetHint")}><input className="input ltr mono" value={f.target} onChange={set("target")} /></Field>
             <div className="grid cols-2">
-              <Field label={t("security.action")}><select className="input" value={f.action} onChange={set("action")}>{["BLOCK", "ALLOW", "THROTTLE", "CHALLENGE"].map((k) => <option key={k} value={k}>{t(`security.actions.${k}`)}</option>)}</select></Field>
+              <Field label={t("security.action")}><select className="input" value={f.action} onChange={set("action")}>{["BLOCK", "THROTTLE", "CHALLENGE"].map((k) => <option key={k} value={k}>{t(`security.actions.${k}`)}</option>)}</select></Field>
               <Field label={t("security.scope")}><select className="input" value={f.scope} onChange={set("scope")}>{["ALL", "PASSENGER", "OPERATOR", "AGENCY", "ADMIN", "API", "PAYMENT_WEBHOOK", "DRIVER"].map((k) => <option key={k} value={k}>{t(`security.scopes.${k}`)}</option>)}</select></Field>
               <Field label={t("security.priority")}><input className="input ltr" type="number" min={0} max={1000} value={f.priority} onChange={set("priority")} /></Field>
               <Field label={`${t("security.expires")} (${t("common.optional")})`}><input className="input ltr" type="number" min={1} value={f.expires_hours} onChange={set("expires_hours")} /></Field>
             </div>
             <Field label={t("common.reason")}><input className="input" value={f.reason} onChange={set("reason")} /></Field>
+            <p className="small muted">{t("security.allowNote")}</p>
           </div>
         </Modal>
       )}
@@ -106,7 +107,96 @@ export function SecurityRules() {
           <div className="stack"><ErrorBox error={error} /><Field label={t("security.revokeReason")}><input className="input" value={reason} onChange={(e) => setReason(e.target.value)} /></Field></div>
         </Modal>
       )}
+      {can("security.ip_rules") && <ExceptionsCard onChange={state.reload} />}
       {can("security.console") && <BlocklistCard />}
+    </div>
+  );
+}
+
+interface ShieldException { uid: string; target: string; scope: string; reason: string; status: string; requested_at: string; expires_at: string; decided_at: string | null; decision_note: string | null; mine: boolean; requested_by: string | null; decided_by: string | null; ended: boolean }
+
+// The exception register (1167): an address let through the shield is asked for by one person and approved by another,
+// always with an end date; approving writes the ALLOW rule, revoking or the end date removes it
+function ExceptionsCard({ onChange }: { onChange: () => void }) {
+  const { t, dateTime } = useI18n();
+  const toast = useToast();
+  const state = useLoad(() => api.get<{ exceptions: ShieldException[]; max_days: number }>("/api/security/exceptions"));
+  const blank = { target: "", scope: "ALL", reason: "", days: "30" };
+  const [f, setF] = useState(blank);
+  const [open, setOpen] = useState(false);
+  const [step, setStep] = useState<{ e: ShieldException; action: "approve" | "decline" | "revoke" } | null>(null);
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const set = (k: keyof typeof blank) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value });
+  const request = async () => {
+    setBusy(true); setError(null);
+    try {
+      await api.post("/api/security/exceptions", { ...f, target: f.target.trim(), days: Number(f.days) });
+      setOpen(false); setF(blank); toast(t("common.saved")); state.reload();
+    } catch (e) { setError(e); } finally { setBusy(false); }
+  };
+  const decide = async () => {
+    if (!step) return;
+    setBusy(true); setError(null);
+    try {
+      await api.post(`/api/security/exceptions/${step.e.uid}/${step.action}`, { note: note || null });
+      setStep(null); setNote(""); toast(t("common.saved")); state.reload(); onChange();
+    } catch (e) { setError(e); } finally { setBusy(false); }
+  };
+  const status = (e: ShieldException) => e.ended ? "ENDED" : e.status;
+  return (
+    <div className="card stack">
+      <Loaded state={state}>{({ exceptions, max_days }) => (<>
+        <div className="row between">
+          <div><h3>{t("security.exceptions.title")}</h3><p className="small muted">{t("security.exceptions.sub", { days: max_days })}</p></div>
+          <button className="btn outlined" onClick={() => setOpen(true)}><Icon name="add" />{t("security.exceptions.request")}</button>
+        </div>
+        {exceptions.length === 0 ? <Empty icon="shield" title={t("security.exceptions.none")} /> : (
+          <div className="table-wrap" tabIndex={0}><table className="table">
+            <thead><tr><th>{t("security.target_")}</th><th>{t("security.scope")}</th><th>{t("common.reason")}</th><th>{t("security.exceptions.requestedBy")}</th><th>{t("security.exceptions.decidedBy")}</th><th>{t("security.exceptions.ends")}</th><th>{t("common.status")}</th><th /></tr></thead>
+            <tbody>{exceptions.map((e) => (
+              <tr key={e.uid} style={{ opacity: e.status === "PENDING" || (e.status === "APPROVED" && !e.ended) ? 1 : .55 }}>
+                <td className="mono ltr">{e.target}</td>
+                <td className="small">{t(`security.scopes.${e.scope}`)}</td>
+                <td className="small">{e.reason}{e.decision_note && <div className="muted">{e.decision_note}</div>}</td>
+                <td className="small">{e.requested_by ?? "—"}<div className="muted">{dateTime(e.requested_at)}</div></td>
+                <td className="small">{e.decided_by ?? "—"}</td>
+                <td className="small">{dateTime(e.expires_at)}</td>
+                <td><span className={`chip ${status(e) === "APPROVED" ? "green" : status(e) === "PENDING" ? "wheat" : ""}`}>{t(`security.exceptions.status.${status(e)}`)}</span></td>
+                <td className="nowrap">
+                  {e.status === "PENDING" && (e.mine ? <span className="small muted">{t("security.exceptions.yours")}</span> : <>
+                    <button className="btn text small" onClick={() => setStep({ e, action: "approve" })}>{t("security.exceptions.approve")}</button>
+                    <button className="btn text small" onClick={() => setStep({ e, action: "decline" })}>{t("security.exceptions.decline")}</button>
+                  </>)}
+                  {e.status === "APPROVED" && !e.ended && <button className="btn text small" onClick={() => setStep({ e, action: "revoke" })}>{t("security.exceptions.revoke")}</button>}
+                </td>
+              </tr>
+            ))}</tbody>
+          </table></div>
+        )}
+        {open && (
+          <Modal title={t("security.exceptions.request")} onClose={() => setOpen(false)}
+                 actions={<><button className="btn text" onClick={() => setOpen(false)}>{t("common.cancel")}</button><button className="btn" disabled={busy || !f.target || f.reason.trim().length < 10 || !f.days} onClick={request}>{t("common.save")}</button></>}>
+            <div className="stack">
+              <ErrorBox error={error} />
+              <Field label={t("security.exceptions.target")} hint={t("security.exceptions.targetHint")}><input className="input ltr mono" value={f.target} onChange={set("target")} /></Field>
+              <div className="grid cols-2">
+                <Field label={t("security.scope")}><select className="input" value={f.scope} onChange={set("scope")}>{["ALL", "PASSENGER", "OPERATOR", "AGENCY", "ADMIN", "API", "PAYMENT_WEBHOOK", "DRIVER"].map((k) => <option key={k} value={k}>{t(`security.scopes.${k}`)}</option>)}</select></Field>
+                <Field label={t("security.exceptions.days")}><input className="input ltr" type="number" min={1} max={max_days} value={f.days} onChange={set("days")} /></Field>
+              </div>
+              <Field label={t("security.exceptions.reason")}><input className="input" value={f.reason} onChange={set("reason")} /></Field>
+            </div>
+          </Modal>
+        )}
+        {step && (
+          <Modal title={`${t(`security.exceptions.${step.action}`)} · ${step.e.target}`} onClose={() => setStep(null)}
+                 actions={<><button className="btn text" onClick={() => setStep(null)}>{t("common.cancel")}</button><button className="btn" disabled={busy} onClick={decide}>{t("common.confirm")}</button></>}>
+            <div className="stack"><ErrorBox error={error} /><p className="small">{step.e.reason}</p>
+              <Field label={`${t("security.exceptions.note")} (${t("common.optional")})`}><input className="input" value={note} onChange={(ev) => setNote(ev.target.value)} /></Field></div>
+          </Modal>
+        )}
+      </>)}</Loaded>
     </div>
   );
 }

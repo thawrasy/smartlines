@@ -157,6 +157,47 @@ groups:
         for: 5m
         labels: { severity: page }
         annotations: { summary: "The database server does not load the settings guard: a login could set the request context the row rules trust", runbook: "RUNBOOKS.md#30-the-request-context-and-its-ticket-reviews-of-october-2026-c-01-and-c-02" }
+  # the security watch (wave 7, migration 1167): every rule here carries area "security", which Alertmanager also
+  # relays to the security staff's Telegram chats (deploy/production/alertmanager.yml); severities route as usual
+  - name: masslak-security
+    rules:
+      - alert: BaitTouched
+        expr: masslak_security_waf_hits_15m{rule="bait"} > 0
+        labels: { severity: ticket, area: security }
+        annotations: { summary: "An address touched a bait address and was blocked: someone is mapping the platform", runbook: "RUNBOOKS.md#34-security-alerts-bait-addresses-and-exceptions-1167" }
+      - alert: AttackPatternsSurge
+        expr: sum(masslak_security_waf_hits_15m{rule!="bait"}) > 100
+        for: 5m
+        labels: { severity: page, area: security }
+        annotations: { summary: "More than 100 requests with attack patterns in 15 minutes", runbook: "RUNBOOKS.md#34-security-alerts-bait-addresses-and-exceptions-1167" }
+      - alert: SignInFailuresSurge
+        expr: masslak_security_auth_failures_15m > 300
+        for: 5m
+        labels: { severity: page, area: security }
+        annotations: { summary: "More than 300 failed sign-ins in 15 minutes: password guessing", runbook: "RUNBOOKS.md#34-security-alerts-bait-addresses-and-exceptions-1167" }
+      - alert: TrafficAlertCritical
+        expr: masslak_security_alerts_open{severity="CRITICAL"} > 0
+        labels: { severity: page, area: security }
+        annotations: { summary: "The traffic watch has a critical alert open: check the shield in the security console", runbook: "RUNBOOKS.md#34-security-alerts-bait-addresses-and-exceptions-1167" }
+      - alert: ShieldLockdown
+        expr: masslak_security_shield_level == 2
+        labels: { severity: page, area: security }
+        annotations: { summary: "The platform is in lockdown: only the console, sign-in and payment notices pass", runbook: "RUNBOOKS.md#34-security-alerts-bait-addresses-and-exceptions-1167" }
+      - alert: ShieldElevatedLong
+        expr: masslak_security_shield_level == 1
+        for: 2h
+        labels: { severity: ticket, area: security }
+        annotations: { summary: "The shield has been raised for two hours: request limits are halved", runbook: "RUNBOOKS.md#34-security-alerts-bait-addresses-and-exceptions-1167" }
+      - alert: ExceptionAwaitingApproval
+        expr: masslak_security_exceptions_pending > 0
+        for: 24h
+        labels: { severity: ticket, area: security }
+        annotations: { summary: "An exception to the shield has waited a day for a second person", runbook: "RUNBOOKS.md#34-security-alerts-bait-addresses-and-exceptions-1167" }
+      - alert: ExceptionEndingSoon
+        expr: masslak_security_exceptions_ending_7d > 0
+        for: 1h
+        labels: { severity: ticket, area: security }
+        annotations: { summary: "An exception to the shield ends within 7 days: renew it through the register or let it end", runbook: "RUNBOOKS.md#34-security-alerts-bait-addresses-and-exceptions-1167" }
   - name: masslak-database
     rules:
       - alert: DatabaseDown

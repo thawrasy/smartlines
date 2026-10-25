@@ -145,3 +145,38 @@ async def check_identifier(conn: asyncpg.Connection, identifier: str) -> None:
     if wait:
         raise ApiError(429, "RATE_LIMITED", "too many attempts for this account, try again shortly",
                        retry_after=max(1, round(wait)))
+
+
+def network_key(address: str, v4_prefix: int = 24, v6_prefix: int = 48) -> str:
+    """The network a client address belongs to, for the per-network sign-in limit (1167)."""
+    try:
+        ip = ipaddress.ip_address(address)
+    except ValueError:
+        return address
+    if ip.version == 6 and ip.ipv4_mapped is not None:
+        ip = ip.ipv4_mapped
+    prefix = v4_prefix if ip.version == 4 else v6_prefix
+    return str(ipaddress.ip_network(f"{ip}/{prefix}", strict=False))
+
+
+async def check_device_and_network(conn: asyncpg.Connection, device_id: str | None, address: str) -> None:
+    """Sign-in limits per device identifier of the mobile apps and per network, on top of the per-address and
+    per-account ones; their sizes are platform settings (1167). The device identifier is stored as a keyed hash."""
+    s = await conn.fetchrow(
+        """SELECT sec.setting_int('security.signin_device_per_minute', 10) AS device,
+                  sec.setting_int('security.signin_network_per_minute', 600) AS network,
+                  sec.setting_int('security.signin_network_prefix_v4', 24) AS v4,
+                  sec.setting_int('security.signin_network_prefix_v6', 48) AS v6""")
+    waits = []
+    if device_id:
+        waits.append(("device", await take_shared(conn, "auth_device", identifier_hash(device_id).hex()[:40], max(1, s["device"]))))
+    v4 = min(32, max(8, s["v4"]))
+    v6 = min(128, max(16, s["v6"]))
+    # a network holds many addresses, so its limit is never below the server's per-address one: a server sized up for a
+    # load test (or CI, the whole suite from one address) is not held back by the platform's default
+    waits.append(("network", await take_shared(conn, "auth_net", network_key(address, v4, v6),
+                                               max(1, s["network"], get_settings().rate_auth_ip_per_minute))))
+    for what, wait in waits:
+        if wait:
+            raise ApiError(429, "RATE_LIMITED", f"too many sign-in attempts from this {what}, try again shortly",
+                           retry_after=max(1, round(wait)))
