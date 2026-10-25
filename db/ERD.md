@@ -67,11 +67,11 @@ flowchart LR
   fin -->|6| pricing
   fin -->|5| sales
   fin -->|2| ship
-  fleet -->|28| iam
+  fleet -->|29| iam
   fleet -->|2| net
   fleet -->|4| ops
   fleet -->|1| ptn
-  fleet -->|3| ref
+  fleet -->|6| ref
   frt -->|2| brd
   frt -->|1| crm
   frt -->|6| fleet
@@ -112,7 +112,7 @@ flowchart LR
   rail -->|2| net
   rail -->|2| ops
   rail -->|1| sales
-  ref -->|9| iam
+  ref -->|11| iam
   rent -->|1| crm
   rent -->|1| fin
   rent -->|3| fleet
@@ -789,6 +789,23 @@ erDiagram
   ref_vehicle_class {
     text code PK
   }
+  ref_vehicle_make {
+    bigint id PK
+    uuid uid
+    text code
+    character country_code FK
+    text status
+    bigint entered_by FK
+    bigint reviewed_by FK
+  }
+  ref_vehicle_model {
+    bigint id PK
+    uuid uid
+    bigint make_id FK
+    text status
+    bigint entered_by FK
+    bigint reviewed_by FK
+  }
   iam_app_user {
     ref external
   }
@@ -797,6 +814,8 @@ erDiagram
   }
   ref_name_correction }o..o| iam_app_user : "set_by"
   ref_geo_source }o..o| iam_app_user : "imported_by"
+  ref_vehicle_make }o--|| iam_app_user : "entered_by"
+  ref_vehicle_model }o--|| iam_app_user : "entered_by"
   ref_bank_branch }o--|| iam_app_user : "entered_by"
   ref_place }o..o| iam_app_user : "proposed_by"
   ref_insurer }o--|| iam_app_user : "entered_by"
@@ -815,6 +834,7 @@ erDiagram
   ref_translation }o--|| ref_locale : "locale"
   ref_place }o..o| ref_place : "parent_place_id"
   ref_city }o..o| ref_place : "place_id"
+  ref_vehicle_model }o--|| ref_vehicle_make : "make_id"
 ```
 
 ## `sys` — Settings, outbox and webhooks
@@ -1333,6 +1353,7 @@ erDiagram
     bigint seat_layout_id FK
     bigint owner_party_id FK
     text status
+    bigint model_id FK
   }
   fleet_vehicle_fuel_profile {
     bigint id PK
@@ -1347,6 +1368,16 @@ erDiagram
     bigint lessee_company_id FK
     bigint document_id FK
     text status
+  }
+  fleet_vehicle_model_request {
+    bigint id PK
+    uuid uid
+    bigint company_id FK
+    bigint requested_by FK
+    bigint make_id FK
+    text status
+    bigint model_id FK
+    bigint handled_by FK
   }
   fleet_vehicle_qr_tag {
     bigint id PK
@@ -1399,6 +1430,12 @@ erDiagram
   ref_vehicle_class {
     ref external
   }
+  ref_vehicle_make {
+    ref external
+  }
+  ref_vehicle_model {
+    ref external
+  }
   fleet_driving_hours_log }o--|| fleet_crew_profile : "party_id"
   fleet_truck_combination }o..o| fleet_crew_profile : "driver_party_id"
   fleet_insurance_claim }o--|| fleet_insurance_policy : "policy_id"
@@ -1438,6 +1475,7 @@ erDiagram
   fleet_vehicle }o--|| iam_company : "company_id"
   fleet_trailer }o--|| iam_company : "company_id"
   fleet_line_permit_vehicle }o--|| iam_company : "company_id"
+  fleet_vehicle_model_request }o--|| iam_company : "company_id"
   fleet_vehicle_lease }o--|| iam_company : "lessee_company_id"
   fleet_license_record }o..o| iam_company : "subject_company_id"
   fleet_license_change_request }o..o| iam_document : "document_id"
@@ -1462,6 +1500,9 @@ erDiagram
   fleet_insurance_policy }o..o| ref_insurer : "insurer_id"
   fleet_vehicle }o--|| ref_vehicle_class : "vehicle_class"
   fleet_vehicle_fuel_profile }o..o| ref_vehicle_class : "vehicle_class"
+  fleet_vehicle_model_request }o..o| ref_vehicle_make : "make_id"
+  fleet_vehicle_model_request }o..o| ref_vehicle_model : "model_id"
+  fleet_vehicle }o..o| ref_vehicle_model : "model_id"
 ```
 
 ## `pricing` — Pricing, taxes, commissions, campaigns and loyalty

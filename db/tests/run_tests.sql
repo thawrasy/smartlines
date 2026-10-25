@@ -4001,6 +4001,40 @@ RESET ROLE;
 ROLLBACK;
 SET ROLE masslak_app;
 
+-- Vehicle makes and models (1157): reviewed by a second person; vehicles pick only reviewed models and carry their names
+BEGIN;
+RESET ROLE;
+INSERT INTO iam.party (party_type, legal_name) VALUES ('PERSON', 'Model Clerk') RETURNING id AS vmp \gset
+INSERT INTO iam.app_user (party_id, account_kind, email, password_hash, status) VALUES (:vmp, 'PLATFORM', 'model-clerk@test.invalid', 'x', 'ACTIVE') RETURNING id AS vmu \gset
+SET LOCAL ROLE masslak_app;
+SELECT sys.set_context(:ua, :ca, 'COMPANY');
+SELECT pg_temp.expect_error(format($$INSERT INTO ref.vehicle_make (code, name_en, name_ar, entered_by) VALUES ('ZZMK', 'Make', 'Make', %s)$$, :ua),
+  'row-level security', 'Vehicle models (1157): a company never writes the list of makes');
+SELECT sys.set_context(:uadmin, NULL, 'PLATFORM');
+INSERT INTO ref.vehicle_make (code, name_en, name_ar, entered_by) VALUES ('ZZMK', 'Zz Make', 'Make', :vmu) RETURNING id AS vmk \gset
+SELECT pg_temp.expect_error(format($$UPDATE ref.vehicle_make SET status = 'ACTIVE', reviewed_by = %s WHERE id = %s$$, :vmu, :vmk),
+  'check constraint', 'Vehicle models (1157): the person who entered a make never reviews it');
+UPDATE ref.vehicle_make SET status = 'ACTIVE', reviewed_by = :uadmin, reviewed_at = now() WHERE id = :vmk;
+SELECT pg_temp.expect_error(format($$INSERT INTO ref.vehicle_model (make_id, name, vehicle_class, vehicle_type, seats_from, seats_to, entered_by)
+    VALUES (%s, 'Z1', 'BUS', 'COACH', 50, 40, %s)$$, :vmk, :vmu),
+  'check constraint', 'Vehicle models (1157): a seats range does not end before it starts');
+SELECT pg_temp.expect_error(format($$INSERT INTO ref.vehicle_model (make_id, name, vehicle_class, vehicle_type, weight_class, entered_by)
+    VALUES (%s, 'Z2', 'BUS', 'COACH', 'HEAVY', %s)$$, :vmk, :vmu),
+  'check constraint', 'Vehicle models (1157): only trucks have a weight class');
+INSERT INTO ref.vehicle_model (make_id, name, vehicle_class, vehicle_type, entered_by) VALUES (:vmk, 'Z3', 'BUS', 'COACH', :vmu) RETURNING id AS vmm \gset
+SELECT pg_temp.expect_error(format($$UPDATE fleet.vehicle SET model_id = %s WHERE id = (SELECT min(id) FROM fleet.vehicle)$$, :vmm),
+  'MODEL_UNKNOWN', 'Vehicle models (1157): a vehicle picks only a reviewed model');
+UPDATE ref.vehicle_model SET status = 'ACTIVE', reviewed_by = :uadmin, reviewed_at = now() WHERE id = :vmm;
+UPDATE fleet.vehicle SET model_id = :vmm WHERE id = (SELECT min(id) FROM fleet.vehicle);
+SELECT pg_temp.ok((SELECT make || ' ' || model FROM fleet.vehicle WHERE id = (SELECT min(id) FROM fleet.vehicle)) = 'Zz Make Z3',
+  'Vehicle models (1157): a vehicle carries the make and model names of its list entry');
+SELECT pg_temp.expect_error(format($$INSERT INTO fleet.vehicle_model_request (company_id, requested_by, model_name, vehicle_type, status, handled_by, handled_at)
+    VALUES (%s, %s, 'R1', 'VAN', 'REJECTED', %s, now())$$, :ca, :ua, :uadmin),
+  'check constraint', 'Vehicle models (1157): a request names its make, and a rejection says why');
+RESET ROLE;
+ROLLBACK;
+SET ROLE masslak_app;
+
 -- Charter (1123): carriers hire out vehicles and whole trips on their terms; requests are priced, paid and their seats held
 BEGIN;
 RESET ROLE;

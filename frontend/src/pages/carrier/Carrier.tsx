@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../api";
 import { useI18n } from "../../i18n";
+import type { VMake } from "../registry/VehicleModels";
 import { useAuth } from "../../auth";
 import { PageHead } from "../../components/layout";
 import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, useToast, PasswordInput } from "../../components/ui";
@@ -352,15 +353,62 @@ function GenerateTrips({ onClose, onDone }: { onClose: () => void; onDone: () =>
 }
 
 // ------------------------------------------------------------------ vehicles
+/** A carrier asks the platform for a vehicle model missing from the list (1157, N8). */
+function ModelRequest({ makes, onClose }: { makes: VMake[]; onClose: () => void }) {
+  const { t, locale } = useI18n();
+  const toast = useToast();
+  const [f, setF] = useState({ make_uid: "", make_name: "", model_name: "", vehicle_type: "COACH", seats: "", note: "" });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const send = async () => {
+    setBusy(true); setError(null);
+    try {
+      await api.post("/api/vehicle-models/requests", { make_uid: f.make_uid || null, make_name: f.make_uid ? null : f.make_name || null,
+        model_name: f.model_name, vehicle_type: f.vehicle_type, seats: f.seats ? Number(f.seats) : null, note: f.note || null });
+      toast(t("vm.requested")); onClose();
+    } catch (e) { setError(e); } finally { setBusy(false); }
+  };
+  return (
+    <Modal title={t("vm.missing")} onClose={onClose}
+           actions={<><button className="btn text" onClick={onClose}>{t("common.cancel")}</button>
+             <button className="btn" disabled={busy || !f.model_name.trim() || (!f.make_uid && f.make_name.trim().length < 2)} onClick={send}>{t("vm.send")}</button></>}>
+      <div className="stack">
+        <ErrorBox error={error} />
+        <p className="small muted">{t("vm.requestNote")}</p>
+        <Field label={t("carrier.make")}>
+          <select className="input" value={f.make_uid} onChange={(e) => setF({ ...f, make_uid: e.target.value })}>
+            <option value="">{t("vm.otherMake")}</option>
+            {makes.map((k) => <option key={k.uid} value={k.uid}>{locale === "ar" ? k.name_ar : k.name_en}</option>)}
+          </select>
+        </Field>
+        {!f.make_uid && <Field label={t("vm.makeName")}><input className="input ltr" value={f.make_name} onChange={(e) => setF({ ...f, make_name: e.target.value })} /></Field>}
+        <Field label={t("carrier.model")}><input className="input ltr" value={f.model_name} onChange={(e) => setF({ ...f, model_name: e.target.value })} /></Field>
+        <Field label={t("carrier.vtype")}>
+          <select className="input" value={f.vehicle_type} onChange={(e) => setF({ ...f, vehicle_type: e.target.value })}>
+            {["COACH", "MINIBUS", "CITY_BUS", "VAN", "OTHER"].map((k) => <option key={k} value={k}>{t(`carrier.vtypes.${k}`)}</option>)}
+          </select>
+        </Field>
+        <Field label={t("carrier.seatsCount")}><input className="input ltr" type="number" min={1} value={f.seats} onChange={(e) => setF({ ...f, seats: e.target.value })} /></Field>
+        <Field label={t("reg.f.notes")}><textarea className="input" value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} /></Field>
+      </div>
+    </Modal>
+  );
+}
+
 export function CarrierVehicles() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const toast = useToast();
   const state = useLoad(() => api.get<{ vehicles: Vehicle[] }>("/api/carrier/vehicles"));
   const layouts = useLoad(() => api.get<{ layouts: LayoutRow[] }>("/api/carrier/seat-layouts"));
   const [open, setOpen] = useState(false);
   const [relayout, setRelayout] = useState<Vehicle | null>(null);
   const [newLayout, setNewLayout] = useState("");
-  const blank = { plate_no: "", chassis_no: "", vehicle_type: "COACH", make: "", model: "", manufacture_year: "", seat_layout_uid: "", insurance_no: "", insurer: "", insurance_issue: "", insurance_expiry: "" };
+  const blank = { plate_no: "", chassis_no: "", vehicle_type: "COACH", make: "", model: "", make_uid: "", model_uid: "", manufacture_year: "", seat_layout_uid: "",
+                  insurance_no: "", insurer: "", insurer_uid: "", insurance_issue: "", insurance_expiry: "" };
+  const catalog = useLoad(() => open ? api.get<{ makes: VMake[] }>("/api/vehicle-models").then((r) => r.makes) : Promise.resolve([] as VMake[]), [open]);
+  const insurers = useLoad(() => open ? api.get<{ insurers: { uid: string; name_ar: string; name_en: string }[] }>("/api/registry/insurers").then((r) => r.insurers)
+    : Promise.resolve([]), [open]);
+  const [asking, setAsking] = useState(false);
   const [f, setF] = useState(blank);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
@@ -368,7 +416,8 @@ export function CarrierVehicles() {
   const submit = async () => {
     setBusy(true); setError(null);
     try {
-      await api.post("/api/carrier/vehicles", { ...f, make: f.make || null, model: f.model || null,
+      await api.post("/api/carrier/vehicles", { ...f, make: f.make || null, model: f.model || null, model_uid: f.model_uid || null,
+        insurer: f.insurer_uid ? null : f.insurer || null, insurer_uid: f.insurer_uid || null,
         manufacture_year: f.manufacture_year ? Number(f.manufacture_year) : null, seat_layout_uid: f.seat_layout_uid || null });
       setOpen(false); setF(blank); toast(t("common.saved")); state.reload();
     } catch (e) { setError(e); } finally { setBusy(false); }
@@ -412,8 +461,23 @@ export function CarrierVehicles() {
                   {["COACH", "MINIBUS", "CITY_BUS", "VAN"].map((k) => <option key={k} value={k}>{t(`carrier.vtypes.${k}`)}</option>)}
                 </select>
               </Field>
-              <Field label={t("carrier.make")}><input className="input" value={f.make} onChange={set("make")} /></Field>
-              <Field label={t("carrier.model")}><input className="input" value={f.model} onChange={set("model")} /></Field>
+              <Field label={t("carrier.make")}>
+                <select className="input" value={f.make_uid} onChange={(e) => setF({ ...f, make_uid: e.target.value, model_uid: "" })}>
+                  <option value="">{t("finance.choose")}</option>
+                  {(catalog.data ?? []).map((k) => <option key={k.uid} value={k.uid}>{locale === "ar" ? k.name_ar : k.name_en}</option>)}
+                </select>
+              </Field>
+              <Field label={t("carrier.model")}>
+                <select className="input" value={f.model_uid} disabled={!f.make_uid}
+                        onChange={(e) => {
+                          const m = (catalog.data ?? []).flatMap((k) => k.models).find((x) => x.uid === e.target.value);
+                          setF({ ...f, model_uid: e.target.value, vehicle_type: m && m.vehicle_type !== "OTHER" ? m.vehicle_type : f.vehicle_type });
+                        }}>
+                  <option value="">{t("finance.choose")}</option>
+                  {((catalog.data ?? []).find((k) => k.uid === f.make_uid)?.models ?? []).map((m) =>
+                    <option key={m.uid} value={m.uid}>{m.name}{m.seats_from ? ` · ${m.seats_from}${m.seats_to && m.seats_to !== m.seats_from ? `–${m.seats_to}` : ""}` : ""}</option>)}
+                </select>
+              </Field>
               <Field label={t("carrier.year")}><input className="input ltr" type="number" value={f.manufacture_year} onChange={set("manufacture_year")} /></Field>
               <Field label={t("layout.layout")} hint={t("layout.vehicleHint")}>
                 <select className="input" value={f.seat_layout_uid} onChange={set("seat_layout_uid")} required>
@@ -421,14 +485,23 @@ export function CarrierVehicles() {
                 </select>
               </Field>
               <Field label={t("carrier.insuranceNo")}><input className="input ltr" value={f.insurance_no} onChange={set("insurance_no")} /></Field>
-              <Field label={t("carrier.insurer")}><input className="input" value={f.insurer} onChange={set("insurer")} /></Field>
+              <Field label={t("carrier.insurer")}>
+                {(insurers.data ?? []).length > 0
+                  ? <select className="input" value={f.insurer_uid} onChange={set("insurer_uid")}>
+                      <option value="">{t("finance.choose")}</option>
+                      {(insurers.data ?? []).map((i) => <option key={i.uid} value={i.uid}>{locale === "ar" ? i.name_ar : i.name_en}</option>)}
+                    </select>
+                  : <input className="input" value={f.insurer} onChange={set("insurer")} />}
+              </Field>
               <Field label={t("carrier.insuranceIssue")}><input className="input ltr" type="date" value={f.insurance_issue} onChange={set("insurance_issue")} /></Field>
               <Field label={t("carrier.insuranceExpiry")}><input className="input ltr" type="date" value={f.insurance_expiry} onChange={set("insurance_expiry")} /></Field>
             </div>
+            <div><button type="button" className="btn text small" onClick={() => setAsking(true)}><Icon name="add" />{t("vm.missing")}</button></div>
             {f.seat_layout_uid && <LayoutPreview uid={f.seat_layout_uid} />}
           </div>
         </Modal>
       )}
+      {asking && <ModelRequest makes={catalog.data ?? []} onClose={() => setAsking(false)} />}
       {relayout && (
         <Modal title={`${t("layout.change")} · ${relayout.plate_no}`} onClose={() => setRelayout(null)} wide
                actions={<><button className="btn text" onClick={() => setRelayout(null)}>{t("common.cancel")}</button>

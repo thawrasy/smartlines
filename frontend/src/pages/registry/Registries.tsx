@@ -3,6 +3,7 @@ import { api } from "../../api";
 import { useI18n } from "../../i18n";
 import { PageHead } from "../../components/layout";
 import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Status, useLoad, useToast } from "../../components/ui";
+import { VehicleModels } from "./VehicleModels";
 
 type Kind = "banks" | "insurers";
 interface Branch { uid: string; name_ar: string; name_en: string; branch_code: string | null; swift_bic: string | null; is_head_office: boolean;
@@ -28,18 +29,18 @@ const CHOICES: Record<string, string[]> = {
  *  it before companies see it, and a change to a reviewed entry waits as a proposal for a second person. */
 export function RegistriesPage() {
   const { t } = useI18n();
-  const [kind, setKind] = useState<Kind>("banks");
+  const [kind, setKind] = useState<Kind | "vehicles">("banks");
   return (
     <div className="stack">
       <PageHead title={t("reg.title")} sub={t("reg.sub")} />
       <div className="segmented" role="tablist" aria-label={t("reg.title")} style={{ alignSelf: "flex-start" }}>
-        {(["banks", "insurers"] as const).map((k) => (
+        {(["banks", "insurers", "vehicles"] as const).map((k) => (
           <button key={k} type="button" role="tab" aria-selected={kind === k} className={kind === k ? "on" : ""} onClick={() => setKind(k)}>
-            <Icon name={k === "banks" ? "account_balance" : "health_and_safety"} size={18} />{t(`reg.tab.${k}`)}
+            <Icon name={k === "banks" ? "account_balance" : k === "insurers" ? "health_and_safety" : "directions_bus"} size={18} />{t(`reg.tab.${k}`)}
           </button>
         ))}
       </div>
-      <Registry key={kind} kind={kind} />
+      {kind === "vehicles" ? <VehicleModels /> : <Registry key={kind} kind={kind} />}
     </div>
   );
 }
@@ -70,10 +71,10 @@ function Registry({ kind }: { kind: Kind }) {
   const name = (e: { name_ar: string; name_en: string }) => locale === "ar" ? e.name_ar : e.name_en;
   return (
     <div className="card">
-      <div className="card-title">
+      <div className="card-title" style={{ flexWrap: "wrap", gap: 8 }}>
         <h3>{t(`reg.tab.${kind}`)}</h3>
-        <div className="row nowrap" style={{ gap: 6 }}>
-          <input className="input" style={{ width: 200 }} aria-label={t("common.search")} placeholder={t("common.search")} value={filter} onChange={(e) => setFilter(e.target.value)} />
+        <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
+          <input className="input" style={{ width: 200, maxWidth: "100%" }} aria-label={t("common.search")} placeholder={t("common.search")} value={filter} onChange={(e) => setFilter(e.target.value)} />
           <input ref={file} type="file" accept=".xlsx" hidden aria-label={t("reg.import")} onChange={(e) => e.target.files?.[0] && load(e.target.files[0])} />
           <button className="btn outlined small" disabled={busy} onClick={() => file.current?.click()}><Icon name="upload_file" />{t("reg.import")}</button>
           <button className="btn small" onClick={() => { setError(null); setEdit("new"); }}><Icon name="add" />{t("reg.add")}</button>

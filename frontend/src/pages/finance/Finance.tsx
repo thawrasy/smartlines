@@ -109,13 +109,13 @@ export function CompanyFinance() {
           <div className="card-title"><h3>{t("finance.accounts")}</h3></div>
           <Loaded state={accounts}>{({ accounts: list }) => list.length === 0 ? <Empty icon="account_balance_wallet" title={t("finance.noAccount")} /> : (
             <div className="stack tight">{list.map((a) => (
-              <div key={a.uid} className="row between">
-                <span>{named(locale, a.bank_name_ar, a.bank_name_en) || a.bank_name}
+              <div key={a.uid} className="row between" style={{ flexWrap: "wrap" }}>
+                <span style={{ minWidth: 0 }}>{named(locale, a.bank_name_ar, a.bank_name_en) || a.bank_name}
                   {a.is_default && <span className="chip blue small">{t("finance.default")}</span>}
                   <div className="small muted">{[named(locale, a.branch_name_ar, a.branch_name_en), a.holder_name].filter(Boolean).join(" · ")} · IBAN ···· <span className="ltr mono">{a.iban_last4}</span>
                     {a.account_no_last4 && <> · {t("finance.accountNo")} ···· <span className="ltr mono">{a.account_no_last4}</span></>}
                     {a.swift_bic && <> · SWIFT <span className="ltr mono">{a.swift_bic}</span></>}</div></span>
-                <div className="row nowrap" style={{ gap: 4 }}>
+                <div className="row" style={{ gap: 4, flexWrap: "wrap" }}>
                   {a.status !== "ACTIVE" ? <span className="chip">{t("finance.disabled")}</span>
                     : a.verification_status === "REJECTED" ? <span className="chip red">{t("finance.rejectedAccount")}</span>
                     : a.verified ? <span className="chip green"><Icon name="verified" size={16} />{t("finance.verified")}</span>

@@ -2,17 +2,17 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**579 tables, 6255 columns, in 26 schemas.**
+**582 tables, 6305 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
 ## Index
 
 - [`iam` — Identity, parties, users, permissions and API clients](#iam) (49 tables)
-- [`ref` — Reference data, locales and files](#ref) (21 tables)
+- [`ref` — Reference data, locales and files](#ref) (23 tables)
 - [`sys` — Settings, outbox and webhooks](#sys) (27 tables)
 - [`net` — Network: stations, routes, lines, corridors and geofences](#net) (28 tables)
-- [`fleet` — Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance](#fleet) (22 tables)
+- [`fleet` — Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance](#fleet) (23 tables)
 - [`pricing` — Pricing, taxes, commissions, campaigns and loyalty](#pricing) (38 tables)
 - [`ops` — Trips, inventory, operations, shuttle rides, tracking and incidents](#ops) (40 tables)
 - [`sales` — Channels, bookings, passengers, tickets, subscriptions and travel documents](#sales) (35 tables)
@@ -1424,6 +1424,52 @@ Vehicle classes
 | `sort` | `integer` | ✱ | `100` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
+### `ref.vehicle_make` 🛡️
+
+Vehicle makes kept by the platform and reviewed by a second person (1157, N8)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `code` | `text` | ✱ |  |
+| `name_en` | `text` | ✱ |  |
+| `name_ar` | `text` | ✱ |  |
+| `country_code` | `character(2)` | 🔗 `ref.country`  |  |
+| `status` | `text` | ✱ | `'PENDING_REVIEW'::text` |
+| `source` | `text` | ✱ | `'MANUAL'::text` |
+| `entered_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `reviewed_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `reviewed_at` | `timestamp with time zone` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ref.vehicle_model` 🛡️
+
+Vehicle models of a make: kind, approximate seats or truck weight class, whether still made and how sure the name is; reviewed by a second person (1157, N8)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `make_id` | `bigint` | 🔗 `ref.vehicle_make` ✱ |  |
+| `name` | `text` | ✱ |  |
+| `vehicle_class` | `text` | ✱ | `'BUS'::text` |
+| `vehicle_type` | `text` | ✱ |  |
+| `seats_from` | `smallint` |  |  |
+| `seats_to` | `smallint` |  |  |
+| `weight_class` | `text` |  |  |
+| `production` | `text` | ✱ | `'CURRENT'::text` |
+| `confidence` | `text` | ✱ | `'VERIFY'::text` |
+| `notes` | `text` |  |  |
+| `status` | `text` | ✱ | `'PENDING_REVIEW'::text` |
+| `source` | `text` | ✱ | `'MANUAL'::text` |
+| `entered_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `reviewed_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `reviewed_at` | `timestamp with time zone` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+
 <a id="sys"></a>
 ## `sys` — Settings, outbox and webhooks
 
@@ -2591,6 +2637,7 @@ Vehicle: type, seated and standing capacity, ownership and owner, and the status
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
 | `tracking_source` | `text` | ✱ | `'DRIVER_APP'::text` |
+| `model_id` | `bigint` | 🔗 `ref.vehicle_model`  |  |
 
 ### `fleet.vehicle_fuel_profile` 🛡️
 
@@ -2621,6 +2668,30 @@ Vehicle lease contract; one active lessee per vehicle per period (exclusion cons
 | `document_id` | `bigint` | 🔗 `iam.document`  |  |
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `fleet.vehicle_model_request` 🛡️
+
+A carrier's request for a vehicle model missing from the list; platform staff approve, match to an existing model or reject (1157, N8)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `requested_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `make_id` | `bigint` | 🔗 `ref.vehicle_make`  |  |
+| `make_name` | `text` |  |  |
+| `model_name` | `text` | ✱ |  |
+| `vehicle_type` | `text` | ✱ |  |
+| `seats` | `smallint` |  |  |
+| `note` | `text` |  |  |
+| `status` | `text` | ✱ | `'SUBMITTED'::text` |
+| `model_id` | `bigint` | 🔗 `ref.vehicle_model`  |  |
+| `handled_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `handled_at` | `timestamp with time zone` |  |  |
+| `decision_note` | `text` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `fleet.vehicle_qr_tag` 🛡️
 

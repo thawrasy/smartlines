@@ -8,14 +8,18 @@
     POST /api/admin/registry/{kind}/import                 the owner's table (.xlsx); every row waits for review
     POST /api/admin/registry/banks/{uid}/branches          a branch of a bank, reviewed by another person
     POST /api/admin/registry/branches/{uid}/review
+    GET  /api/vehicle-models                               reviewed makes and models (N8, 1157); carriers' requests below it
+    GET  /api/admin/vehicle-models                         every make and model with its review; makes, models, import, requests
 """
 import uuid
+from typing import Literal
+
 from fastapi import APIRouter, Depends, File, Request, UploadFile
 
 from ... import db
 from ...deps import Principal, context_for, require_portal, require_step_up, require_user
 from ...errors import ApiError
-from . import importer, service
+from . import importer, service, vehicles
 from .service import BankIn, BranchIn, InsurerIn, Kind, ReviewIn
 
 router = APIRouter(prefix="/api/registry", tags=["registry"])
@@ -125,3 +129,99 @@ async def retire(kind: Kind, uid: uuid.UUID, request: Request, pr: Principal = D
         out = await service.retire(conn, pr, kind, uid)
     request.state.audit = {"action": f"registry.{kind}_retire", "object_type": kind, "object_id": None}
     return out
+
+
+# ------------------------------------------------------------------ vehicle makes and models (N8, 1157)
+vehicle_router = APIRouter(prefix="/api/vehicle-models", tags=["registry"])
+vehicle_platform = APIRouter(prefix="/api/admin/vehicle-models", tags=["registry"])
+
+
+@vehicle_router.get("")
+async def vehicle_catalog(request: Request, pr: Principal = Depends(require_user)):
+    """Reviewed makes and their models, for the vehicle form."""
+    async with db.transaction(context_for(request, pr)) as conn:
+        return await vehicles.catalog(conn, pr)
+
+
+@vehicle_router.get("/requests")
+async def my_model_requests(request: Request, pr: Principal = Depends(require_portal("OPERATOR"))):
+    async with db.transaction(context_for(request, pr)) as conn:
+        return {"requests": await vehicles.requests(conn, pr)}
+
+
+@vehicle_router.post("/requests", status_code=201)
+async def request_model(body: vehicles.RequestIn, request: Request, pr: Principal = Depends(require_portal("OPERATOR"))):
+    async with db.transaction(context_for(request, pr)) as conn:
+        out = await vehicles.submit_request(conn, pr, body)
+    request.state.audit = {"action": "vehicle_model.request", "object_type": "vehicle_model_request", "object_id": None}
+    return out
+
+
+@vehicle_router.post("/requests/{uid}/withdraw")
+async def withdraw_model_request(uid: uuid.UUID, request: Request, pr: Principal = Depends(require_portal("OPERATOR"))):
+    async with db.transaction(context_for(request, pr)) as conn:
+        return await vehicles.withdraw(conn, pr, uid)
+
+
+@vehicle_platform.get("")
+async def vehicle_catalog_all(request: Request, pr: Principal = Depends(staff)):
+    async with db.transaction(context_for(request, pr)) as conn:
+        return await vehicles.catalog(conn, pr)
+
+
+@vehicle_platform.post("/makes", status_code=201)
+async def add_make(body: vehicles.MakeIn, request: Request, pr: Principal = Depends(staff)):
+    async with db.transaction(context_for(request, pr)) as conn:
+        out = await vehicles.add_make(conn, pr, body)
+    request.state.audit = {"action": "vehicle_make.create", "object_type": "vehicle_make", "object_id": None}
+    return out
+
+
+@vehicle_platform.post("/models", status_code=201)
+async def add_model(body: vehicles.ModelIn, request: Request, pr: Principal = Depends(staff)):
+    async with db.transaction(context_for(request, pr)) as conn:
+        out = await vehicles.add_model(conn, pr, body)
+    request.state.audit = {"action": "vehicle_model.create", "object_type": "vehicle_model", "object_id": None}
+    return out
+
+
+@vehicle_platform.post("/import")
+async def load_models(request: Request, file: UploadFile = File(...), pr: Principal = Depends(staff)):
+    vehicles.need(pr)
+    data = await file.read(vehicles.MAX_FILE + 1)
+    if len(data) > vehicles.MAX_FILE:
+        raise ApiError(413, "REGISTRY_FILE_TOO_LARGE", "the workbook is larger than 5 MB")
+    async with db.transaction(context_for(request, pr)) as conn:
+        out = await vehicles.load(conn, pr, data)
+    request.state.audit = {"action": "vehicle_model.import", "object_type": "vehicle_model", "object_id": None,
+                           "reason": f"{out['makes']} makes, {out['models']} models, {out['skipped']} skipped"}
+    return out
+
+
+@vehicle_platform.get("/requests")
+async def model_requests(request: Request, pr: Principal = Depends(staff)):
+    async with db.transaction(context_for(request, pr)) as conn:
+        return {"requests": await vehicles.requests(conn, pr)}
+
+
+@vehicle_platform.post("/requests/{uid}/decide")
+async def decide_model_request(uid: uuid.UUID, body: vehicles.DecideIn, request: Request, pr: Principal = Depends(staff)):
+    async with db.transaction(context_for(request, pr)) as conn:
+        out = await vehicles.decide(conn, pr, uid, body)
+    request.state.audit = {"action": "vehicle_model.request_decide", "object_type": "vehicle_model_request", "object_id": None,
+                           "reason": body.decision}
+    return out
+
+
+@vehicle_platform.post("/{kind}/{uid}/review")
+async def review_vehicle_entry(kind: Literal["makes", "models"], uid: uuid.UUID, body: ReviewIn, request: Request, pr: Principal = Depends(staff)):
+    async with db.transaction(context_for(request, pr)) as conn:
+        out = await vehicles.review(conn, pr, kind, uid, body)
+    request.state.audit = {"action": f"vehicle_{kind[:-1]}.review", "object_type": f"vehicle_{kind[:-1]}", "object_id": None, "reason": body.decision}
+    return out
+
+
+@vehicle_platform.post("/{kind}/{uid}/retire")
+async def retire_vehicle_entry(kind: Literal["makes", "models"], uid: uuid.UUID, request: Request, pr: Principal = Depends(staff)):
+    async with db.transaction(context_for(request, pr)) as conn:
+        return await vehicles.retire(conn, pr, kind, uid)

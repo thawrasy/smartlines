@@ -17,6 +17,7 @@ from ..modules.account.doors import temporary_password
 from ..modules.cash import service as cash
 from ..modules.fleet import service as fleet
 from ..modules.photo import service as photo
+from ..modules.registry import service as registry
 from ..modules.sales import penalties
 from ..modules.sales import service as sales
 from ..modules.schedules import service as schedules
@@ -96,12 +97,14 @@ class VehicleIn(BaseModel):
     vehicle_type: Literal["COACH", "MINIBUS", "CITY_BUS", "VAN"] = "COACH"
     make: Optional[str] = None
     model: Optional[str] = None
+    model_uid: Optional[uuid.UUID] = None           # chosen from the platform's list (1157, N8); fills make and model
     manufacture_year: Optional[int] = Field(default=None, ge=1970, le=2100)
     # The seat layout defines rows, seats per row, aisle and doors; the seat count comes from it
     seat_layout_uid: Optional[uuid.UUID] = None
     passenger_seats: Optional[int] = Field(default=None, ge=1, le=99)
     insurance_no: str = Field(min_length=3, max_length=40)
-    insurer: str = Field(min_length=2, max_length=120)
+    insurer: Optional[str] = Field(default=None, min_length=2, max_length=120)
+    insurer_uid: Optional[uuid.UUID] = None         # chosen from the platform's registry (1156, N9)
     insurance_issue: date
     insurance_expiry: date
 
@@ -126,17 +129,27 @@ async def add_vehicle(body: VehicleIn, request: Request, pr: Principal = Depends
         raise ApiError(422, "INSURANCE_EXPIRED", "a valid insurance policy is required to register a vehicle")
     async with db.transaction(context_for(request, pr)) as conn:
         layout_id, seats = await fleet.layout_for_new_vehicle(conn, body.seat_layout_uid, body.passenger_seats)
+        model_id = None
+        if body.model_uid is not None:
+            model_id = await conn.fetchval("SELECT id FROM ref.vehicle_model WHERE uid = $1 AND status = 'ACTIVE'", body.model_uid)
+            if model_id is None:
+                raise ApiError(422, "MODEL_UNKNOWN", "choose a vehicle model from the list, or ask the platform to add it")
+        insurer = body.insurer
+        if body.insurer_uid is not None:
+            insurer = (await registry.picked_insurer(conn, body.insurer_uid))["name_en"]
+        if not insurer:
+            raise ApiError(422, "INSURER_UNKNOWN", "choose an insurance company from the list")
         vid = await conn.fetchval(
-            """INSERT INTO fleet.vehicle (company_id, vehicle_type, make, model, manufacture_year, plate_no, chassis_no,
+            """INSERT INTO fleet.vehicle (company_id, vehicle_type, make, model, model_id, manufacture_year, plate_no, chassis_no,
                  passenger_seats, seat_layout_id, owner_party_id, status)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $1, 'ACTIVE') RETURNING id""",
+               VALUES ($1, $2, $3, $4, $10, $5, $6, $7, $8, $9, $1, 'ACTIVE') RETURNING id""",
             pr.company_id, body.vehicle_type, body.make, body.model, body.manufacture_year, body.plate_no.strip(),
-            body.chassis_no.strip().upper(), seats, layout_id)
+            body.chassis_no.strip().upper(), seats, layout_id, model_id)
         await conn.execute(
             """INSERT INTO fleet.license_record (company_id, subject_type, subject_id, license_type, license_no, issuer,
                  issue_date, expiry_date, status)
                VALUES ($1, 'VEHICLE', $2, 'INSURANCE', $3, $4, $5, $6, 'VALID')""",
-            pr.company_id, vid, body.insurance_no, body.insurer, body.insurance_issue, body.insurance_expiry)
+            pr.company_id, vid, body.insurance_no, insurer, body.insurance_issue, body.insurance_expiry)
         uid = await conn.fetchval("SELECT uid FROM fleet.vehicle WHERE id = $1", vid)
     request.state.audit = {"action": "vehicle.create", "object_type": "vehicle", "object_id": vid}
     return {"uid": str(uid)}
