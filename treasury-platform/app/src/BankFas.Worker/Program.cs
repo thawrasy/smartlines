@@ -41,5 +41,9 @@ builder.Services.AddSingleton<BankFas.Data.Workflow.LcReconcileJob>();
 builder.Services.AddSingleton<BankFas.Data.Workflow.ProformaNoLcJob>();
 builder.Services.AddSingleton<NotificationDigestJob>();
 builder.Services.AddSingleton<NotificationRetentionJob>();
+// The document store, for the data export packages (JOB-PLT-EXPORT); Files:Root is the API's.
+builder.Services.AddSingleton(_ => new BankFas.Core.Files.FileStore(builder.Configuration["Files:Root"] ?? ""));
+builder.Services.AddSingleton<DataExportJob>();
+builder.Services.AddSingleton<DataExportExpiryJob>();
 builder.Services.AddHostedService<JobLoop>();
 builder.Build().Run();

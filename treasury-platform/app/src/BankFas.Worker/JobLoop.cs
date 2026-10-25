@@ -17,7 +17,8 @@ public sealed partial class JobLoop(OnboardingJob onboarding, OutboxJob outbox, 
     BankFas.Data.Workflow.WorkflowDelegationJob delegations, BankFas.Data.Workflow.NotificationReminderJob remind,
     BankFas.Data.Workflow.FacilityReservationJob reservations, BankFas.Data.Workflow.WorkflowStaleJob stale,
     BankFas.Data.Workflow.LcExpiryJob lcExpiry, BankFas.Data.Workflow.LcReconcileJob lcReconcile, BankFas.Data.Workflow.ProformaNoLcJob proformaNoLc,
-    NotificationDigestJob digest, NotificationRetentionJob retention, SqlConnectionFactory db, TimeProvider clock, ILogger<JobLoop> logger) : BackgroundService
+    NotificationDigestJob digest, NotificationRetentionJob retention,
+    DataExportJob export, DataExportExpiryJob exportExpiry, SqlConnectionFactory db, TimeProvider clock, ILogger<JobLoop> logger) : BackgroundService
 {
     private DateOnly _dailyDoneOn;
     private DateTimeOffset _slaDoneAt = DateTimeOffset.MinValue;
@@ -35,6 +36,8 @@ public sealed partial class JobLoop(OnboardingJob onboarding, OutboxJob outbox, 
             if (now - _slaDoneAt >= TimeSpan.FromMinutes(5))
             {
                 await RunAsync(sla.JobKey, () => sla.RunOnceAsync(stoppingToken));
+                // The approved data exports are built within five minutes (FR-PLT-039).
+                await RunAsync(export.JobKey, () => export.RunOnceAsync(stoppingToken));
                 _slaDoneAt = now;
             }
             if (now - _hourlyDoneAt >= TimeSpan.FromHours(1))
@@ -77,6 +80,7 @@ public sealed partial class JobLoop(OnboardingJob onboarding, OutboxJob outbox, 
                 await RunAsync(lcReconcile.JobKey, () => lcReconcile.RunOnceAsync(stoppingToken));
                 await RunAsync(proformaNoLc.JobKey, () => proformaNoLc.RunOnceAsync(stoppingToken));
                 await RunAsync(retention.JobKey, () => retention.RunOnceAsync(stoppingToken));
+                await RunAsync(exportExpiry.JobKey, () => exportExpiry.RunOnceAsync(stoppingToken));
                 _dailyDoneOn = today;
             }
         }

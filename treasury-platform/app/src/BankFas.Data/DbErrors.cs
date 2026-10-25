@@ -59,6 +59,11 @@ public static class DbErrors
     // comparison) and stay unmapped: a 500 with the correlation id.
     public const int NumberingNotConfigured = 50030;
     public const int NumberVoidRefused = 50032;
+    // 042: the tenant data export (FR-PLT-039).
+    public const int ExportNotAllowed = 50034;
+    public const int ExportInProgress = 50035;
+    public const int ExportState = 50036;
+    public const int ExportNotConfigured = 50037;
     public const int TermsLocked = 50056;
     public const int TemplatePublished = 50057;
     public const int ReservationFinal = 50177;

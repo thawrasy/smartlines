@@ -172,6 +172,7 @@ SalesLcEndpoints.Map(portal);
 ReportEndpoints.Map(portal);
 RequestPrintEndpoints.Map(portal);
 AttachmentUploadEndpoints.Map(portal);
+DataExportEndpoints.Map(portal);
 FormTemplateEndpoints.Map(portal);
 var panel = app.MapGroup("/api/v1/operator").AddEndpointFilter(SurfaceFilter(Surface.OperatorPanel));
 OperatorEndpoints.Map(panel);

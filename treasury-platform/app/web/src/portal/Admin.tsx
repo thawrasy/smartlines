@@ -254,3 +254,49 @@ export function Jobs() {
     </section>
   );
 }
+
+// ---------- FR-PLT-039 tenant data export ----------
+
+interface DataExport {
+  id: string; status: string; includesRestricted: boolean; requestedAt: string; requestedByEn?: string; requestedByAr?: string;
+  finishedAt?: string; expiresAt?: string; sizeBytes?: number; sha256?: string; failureReason?: string; mine: number;
+}
+
+export function DataExports() {
+  const { t, lang } = useI18n();
+  const fmt = useFormat();
+  const withStepUp = useWithStepUp();
+  const [rows, setRows] = useState<DataExport[]>([]);
+  const [restricted, setRestricted] = useState(false);
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const load = useCallback(() => api<{ items: DataExport[] }>('GET', '/data-exports').then(r => setRows(r.items)).catch(e => setError(message(e))), []);
+  useEffect(() => { void load(); }, [load]);
+  const act = async (f: () => Promise<unknown>) => { try { await f(); setError(null); await load(); } catch (e) { setError(message(e)); } };
+  return (
+    <section className="card">
+      <h1>{t('Data export')}</h1>
+      <p>{t('The whole account is exported as one package: the tables as JSON and the files. It is kept for 7 days; only the user who asked downloads it, sealed with a password chosen at download and never stored. Open it with: openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -md sha256 -in package.zip.enc -out package.zip')}</p>
+      <div className="actions">
+        <label><input type="checkbox" checked={restricted} onChange={e => setRestricted(e.target.checked)} /> {t('Include restricted data (needs the approval of a holder of identity reveal)')}</label>
+        <button onClick={() => void act(() => api('POST', '/data-exports', { includesRestricted: restricted }))}>{t('Request an export')}</button>
+      </div>
+      <Field label="Package password (12 characters or more)" type="password" value={password} onChange={setPassword} required={false} />
+      <Notice error={error} />
+      <Table rows={rows} columns={[
+        { header: 'Requested', cell: r => fmt.dateTime(r.requestedAt) },
+        { header: 'By', cell: r => (lang === 'ar' ? r.requestedByAr : r.requestedByEn) ?? r.requestedByEn ?? r.requestedByAr },
+        { header: 'Restricted data', cell: r => t(r.includesRestricted ? 'Yes' : 'No') },
+        { header: 'Status', cell: r => t(r.status) },
+        { header: 'Expires', cell: r => fmt.dateTime(r.expiresAt) },
+        { header: 'Size', cell: r => r.sizeBytes ? `${Math.ceil(r.sizeBytes / 1024)} KB` : '' },
+        { header: 'Details', cell: r => r.failureReason ?? (r.sha256 ? <small dir="ltr">SHA-256 {r.sha256}</small> : '') },
+        { header: '', cell: r => <>
+          {r.status === 'REQUESTED' && r.includesRestricted && <button className="secondary" onClick={() => void act(() => api('POST', `/data-exports/${r.id}/approve`))}>{t('Approve')}</button>}
+          {r.status === 'READY' && r.mine === 1 && <button className="secondary" disabled={password.length < 12} onClick={() => void act(() =>
+            withStepUp('Downloading the data export needs a fresh code.', code => download(`/data-exports/${r.id}/download`, { password, stepUpCode: code }, 'export.zip.enc')))}>{t('Download')}</button>}
+        </> },
+      ]} />
+    </section>
+  );
+}

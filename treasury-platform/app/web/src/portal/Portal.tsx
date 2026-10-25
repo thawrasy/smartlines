@@ -6,7 +6,7 @@ import { IdleGuard, StepUpProvider } from '../ui';
 
 const keepAlive = () => api('GET', '/me');
 import { Enrol, ForgotPassword, Invitation, Login, Mfa, ResetPassword, type Tenant, CompanyEntry, FirstPassword, entryHost } from './Auth';
-import { Audit, Calendar, Jobs, Numbering, Settings, Support } from './Admin';
+import { Audit, Calendar, DataExports, Jobs, Numbering, Settings, Support } from './Admin';
 import { Accounts, BankSetup, BaseRates, InstitutionDetail, Institutions, RelationshipDetail } from './Banks';
 import { Catalogs } from './Catalogs';
 import { Facilities, FacilityDetail } from './Facilities';
@@ -62,6 +62,7 @@ const menu: { to: string; label: string; permission?: string; anyOf?: string[] }
   { to: '/calendar', label: 'Non-working days', permission: 'cfg.settings.manage' },
   { to: '/audit', label: 'Audit log', anyOf: ['audit.view', 'audit.view.treasury'] },
   { to: '/jobs', label: 'Background jobs', permission: 'cfg.jobs.view' },
+  { to: '/data-exports', label: 'Data export', permission: 'cfg.export.request' },
   { to: '/companies', label: 'Companies', permission: 'org.company.view' },
   { to: '/documents', label: 'Company documents', permission: 'org.document.view' },
   { to: '/reports/ownership-mismatch', label: 'Ownership check', permission: 'org.ownership.manage' },
@@ -147,6 +148,7 @@ function Shell() {
               <Route path="/calendar" element={<Calendar />} />
               <Route path="/audit" element={<Audit />} />
               <Route path="/jobs" element={<Jobs />} />
+              <Route path="/data-exports" element={<DataExports />} />
               <Route path="/catalogs" element={<Catalogs />} />
               <Route path="/companies" element={<Companies />} />
               <Route path="/companies/:id" element={<CompanyDetail />} />
