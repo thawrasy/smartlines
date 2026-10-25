@@ -1,5 +1,20 @@
 {
  "app": {
+  "DELETE /api/account/travellers/{uid}": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "DELETE /api/admin/authorities/{code}/members/{user_uid}": {
    "body": null,
    "parameters": {
@@ -364,6 +379,13 @@
     "200": {}
    }
   },
+  "GET /api/account/me-traveller": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/account/photo": {
    "body": null,
    "parameters": {},
@@ -378,6 +400,13 @@
     "200": {}
    }
   },
+  "GET /api/account/profile": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/account/requests": {
    "body": null,
    "parameters": {},
@@ -386,6 +415,13 @@
    }
   },
   "GET /api/account/security": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/account/travellers": {
    "body": null,
    "parameters": {},
    "responses": {
@@ -820,7 +856,35 @@
     "200": {}
    }
   },
+  "GET /api/admin/money-mode": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/admin/overview": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/admin/parcels/carriers": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/admin/parcels/policy": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/admin/payment-activations": {
    "body": null,
    "parameters": {},
    "responses": {
@@ -930,6 +994,24 @@
     "200": {}
    }
   },
+  "GET /api/admin/registry/{kind}": {
+   "body": null,
+   "parameters": {
+    "path:kind": {
+     "required": true,
+     "schema": {
+      "enum": [
+       "banks",
+       "insurers"
+      ],
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/admin/schedules/requests": {
    "body": null,
    "parameters": {
@@ -971,7 +1053,35 @@
     "200": {}
    }
   },
+  "GET /api/admin/trip-changes/policy": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/admin/trips/cancel-penalty": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/admin/ui/visitor-locale": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/admin/vehicle-models": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/admin/vehicle-models/requests": {
    "body": null,
    "parameters": {},
    "responses": {
@@ -1012,6 +1122,13 @@
      }
     }
    },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/agency/cash-accounts": {
+   "body": null,
+   "parameters": {},
    "responses": {
     "200": {}
    }
@@ -1250,6 +1367,13 @@
     "200": {}
    }
   },
+  "GET /api/carrier/agency-cash": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/carrier/charter/offers": {
    "body": null,
    "parameters": {},
@@ -1409,6 +1533,21 @@
     "200": {}
    }
   },
+  "GET /api/carrier/crew/{uid}": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/carrier/dashboard": {
    "body": null,
    "parameters": {},
@@ -1556,6 +1695,13 @@
     "200": {}
    }
   },
+  "GET /api/carrier/parcels/awaiting": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/carrier/parcels/offers": {
    "body": null,
    "parameters": {
@@ -1571,7 +1717,42 @@
     "200": {}
    }
   },
+  "GET /api/carrier/parcels/points": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/carrier/parcels/settings": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/carrier/parcels/tariffs": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/carrier/parcels/{tracking_no}/label": {
+   "body": null,
+   "parameters": {
+    "path:tracking_no": {
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/carrier/payment-activations": {
    "body": null,
    "parameters": {},
    "responses": {
@@ -1658,9 +1839,31 @@
     "200": {}
    }
   },
+  "GET /api/carrier/trip-changes/reasons": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/carrier/trips": {
    "body": null,
    "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/carrier/trips/{trip_uid}/changes": {
+   "body": null,
+   "parameters": {
+    "path:trip_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
    "responses": {
     "200": {}
    }
@@ -1696,6 +1899,21 @@
    }
   },
   "GET /api/carrier/trips/{trip_uid}/manifests": {
+   "body": null,
+   "parameters": {
+    "path:trip_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/carrier/trips/{trip_uid}/rebook-options": {
    "body": null,
    "parameters": {
     "path:trip_uid": {
@@ -2142,6 +2360,13 @@
     "200": {}
    }
   },
+  "GET /api/integrations/requests": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/journeys/{journey_uid}": {
    "body": null,
    "parameters": {
@@ -2213,6 +2438,13 @@
     "200": {}
    }
   },
+  "GET /api/parcels/rules": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/parcels/trips": {
    "body": null,
    "parameters": {
@@ -2246,7 +2478,16 @@
   },
   "GET /api/payments/booking-options": {
    "body": null,
-   "parameters": {},
+   "parameters": {
+    "query:trip_uid": {
+     "required": false,
+     "schema": {
+      "format": "uuid",
+      "nullable": true,
+      "type": "string"
+     }
+    }
+   },
    "responses": {
     "200": {}
    }
@@ -2314,6 +2555,34 @@
      }
     }
    },
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/people/catalog": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/people/exceptions": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/people/roles": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/people/users": {
+   "body": null,
+   "parameters": {},
    "responses": {
     "200": {}
    }
@@ -2577,6 +2846,24 @@
     "200": {}
    }
   },
+  "GET /api/registry/{kind}": {
+   "body": null,
+   "parameters": {
+    "path:kind": {
+     "required": true,
+     "schema": {
+      "enum": [
+       "banks",
+       "insurers"
+      ],
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/regulator/dashboard": {
    "body": null,
    "parameters": {},
@@ -2666,6 +2953,13 @@
     "200": {}
    }
   },
+  "GET /api/security/idle-policy": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/security/ip-rules": {
    "body": null,
    "parameters": {
@@ -2682,6 +2976,13 @@
    }
   },
   "GET /api/security/mfa-policy": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/security/shield": {
    "body": null,
    "parameters": {},
    "responses": {
@@ -3043,12 +3344,61 @@
   "GET /api/trips/search": {
    "body": null,
    "parameters": {
+    "query:adults": {
+     "required": false,
+     "schema": {
+      "maximum": 60,
+      "minimum": 0,
+      "nullable": true,
+      "type": "integer"
+     }
+    },
+    "query:cabin": {
+     "required": false,
+     "schema": {
+      "enum": [
+       "ECONOMY",
+       "BUSINESS",
+       "VIP",
+       "ACCESSIBLE"
+      ],
+      "nullable": true,
+      "type": "string"
+     }
+    },
+    "query:children": {
+     "required": false,
+     "schema": {
+      "default": 0,
+      "maximum": 60,
+      "minimum": 0,
+      "type": "integer"
+     }
+    },
     "query:destination": {
      "required": true,
      "schema": {
       "maxLength": 3,
       "minLength": 3,
       "type": "string"
+     }
+    },
+    "query:infants_lap": {
+     "required": false,
+     "schema": {
+      "default": 0,
+      "maximum": 60,
+      "minimum": 0,
+      "type": "integer"
+     }
+    },
+    "query:infants_seat": {
+     "required": false,
+     "schema": {
+      "default": 0,
+      "maximum": 60,
+      "minimum": 0,
+      "type": "integer"
      }
     },
     "query:on": {
@@ -3592,6 +3942,20 @@
     "200": {}
    }
   },
+  "GET /api/vehicle-models": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "GET /api/vehicle-models/requests": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
   "GET /api/verify": {
    "body": null,
    "parameters": {
@@ -4089,6 +4453,108 @@
     "200": {}
    }
   },
+  "POST /api/account/claim": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "name": {
+        "properties": {
+         "father_name": {
+          "maxLength": 60,
+          "minLength": 1,
+          "nullable": true,
+          "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+          "type": "string"
+         },
+         "father_name_latin": {
+          "maxLength": 60,
+          "nullable": true,
+          "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
+          "type": "string"
+         },
+         "first_name": {
+          "maxLength": 60,
+          "minLength": 1,
+          "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+          "type": "string"
+         },
+         "first_name_latin": {
+          "maxLength": 60,
+          "nullable": true,
+          "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
+          "type": "string"
+         },
+         "grandfather_name": {
+          "maxLength": 60,
+          "minLength": 1,
+          "nullable": true,
+          "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+          "type": "string"
+         },
+         "grandfather_name_latin": {
+          "maxLength": 60,
+          "nullable": true,
+          "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
+          "type": "string"
+         },
+         "last_name": {
+          "maxLength": 60,
+          "minLength": 1,
+          "nullable": true,
+          "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+          "type": "string"
+         },
+         "last_name_latin": {
+          "maxLength": 60,
+          "nullable": true,
+          "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
+          "type": "string"
+         },
+         "mother_name": {
+          "maxLength": 60,
+          "minLength": 1,
+          "nullable": true,
+          "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+          "type": "string"
+         },
+         "nationality": {
+          "default": "SY",
+          "pattern": "^[A-Z]{2}$",
+          "type": "string"
+         }
+        },
+        "required": [
+         "first_name"
+        ],
+        "type": "object"
+       },
+       "password": {
+        "maxLength": 200,
+        "minLength": 12,
+        "type": "string"
+       },
+       "password_confirm": {
+        "maxLength": 200,
+        "minLength": 12,
+        "type": "string"
+       }
+      },
+      "required": [
+       "name",
+       "password",
+       "password_confirm"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
   "POST /api/account/consents": {
    "body": {
     "content": {
@@ -4158,6 +4624,36 @@
     "200": {}
    }
   },
+  "POST /api/account/email/send": {
+   "body": null,
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/account/email/verify": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "code": {
+        "pattern": "^\\s*[0-9]{6}\\s*$",
+        "type": "string"
+       }
+      },
+      "required": [
+       "code"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
   "POST /api/account/erasure": {
    "body": {
     "content": {
@@ -4180,6 +4676,36 @@
    }
   },
   "POST /api/account/password": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "current_password": {
+        "maxLength": 200,
+        "minLength": 1,
+        "type": "string"
+       },
+       "new_password": {
+        "maxLength": 200,
+        "minLength": 1,
+        "type": "string"
+       }
+      },
+      "required": [
+       "current_password",
+       "new_password"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/account/password/first": {
    "body": {
     "content": {
      "application/json": {
@@ -4283,6 +4809,128 @@
    },
    "responses": {
     "200": {}
+   }
+  },
+  "POST /api/account/travellers": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "birth_date": {
+        "format": "date",
+        "nullable": true,
+        "type": "string"
+       },
+       "consent": {
+        "type": "boolean"
+       },
+       "father_name": {
+        "maxLength": 60,
+        "minLength": 1,
+        "nullable": true,
+        "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+        "type": "string"
+       },
+       "father_name_latin": {
+        "maxLength": 60,
+        "nullable": true,
+        "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
+        "type": "string"
+       },
+       "first_name": {
+        "maxLength": 60,
+        "minLength": 1,
+        "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+        "type": "string"
+       },
+       "first_name_latin": {
+        "maxLength": 60,
+        "nullable": true,
+        "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
+        "type": "string"
+       },
+       "gender": {
+        "enum": [
+         "M",
+         "F"
+        ],
+        "nullable": true,
+        "type": "string"
+       },
+       "grandfather_name": {
+        "maxLength": 60,
+        "minLength": 1,
+        "nullable": true,
+        "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+        "type": "string"
+       },
+       "grandfather_name_latin": {
+        "maxLength": 60,
+        "nullable": true,
+        "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
+        "type": "string"
+       },
+       "id_expiry": {
+        "format": "date",
+        "nullable": true,
+        "type": "string"
+       },
+       "id_no": {
+        "maxLength": 24,
+        "minLength": 4,
+        "nullable": true,
+        "pattern": "^[0-9A-Za-z \\-/]+$",
+        "type": "string"
+       },
+       "id_type": {
+        "enum": [
+         "NATIONAL_ID",
+         "PASSPORT",
+         "RESIDENCE",
+         "LAISSEZ_PASSER",
+         "TRAVEL_DOCUMENT",
+         "OTHER"
+        ],
+        "nullable": true,
+        "type": "string"
+       },
+       "label": {
+        "maxLength": 40,
+        "minLength": 1,
+        "nullable": true,
+        "type": "string"
+       },
+       "last_name": {
+        "maxLength": 60,
+        "minLength": 1,
+        "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+        "type": "string"
+       },
+       "last_name_latin": {
+        "maxLength": 60,
+        "nullable": true,
+        "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
+        "type": "string"
+       },
+       "nationality": {
+        "default": "SY",
+        "pattern": "^[A-Z]{2}$",
+        "type": "string"
+       }
+      },
+      "required": [
+       "first_name",
+       "last_name",
+       "consent"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
    }
   },
   "POST /api/admin/agencies": {
@@ -5161,6 +5809,38 @@
     "200": {}
    }
   },
+  "POST /api/admin/finance/bank-accounts/{account_uid}/reject": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "reason": {
+        "maxLength": 300,
+        "minLength": 3,
+        "type": "string"
+       }
+      },
+      "required": [
+       "reason"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:account_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "POST /api/admin/finance/bank-accounts/{account_uid}/verify": {
    "body": null,
    "parameters": {
@@ -5797,6 +6477,42 @@
       },
       "required": [
        "status"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/admin/parcels/carriers/{uid}/fees": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "approve": {
+        "type": "boolean"
+       },
+       "reason": {
+        "maxLength": 300,
+        "minLength": 5,
+        "type": "string"
+       }
+      },
+      "required": [
+       "approve",
+       "reason"
       ],
       "type": "object"
      }
@@ -6557,6 +7273,429 @@
     "200": {}
    }
   },
+  "POST /api/admin/registry/banks": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "address": {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       "bank_type": {
+        "default": "PRIVATE",
+        "enum": [
+         "CENTRAL",
+         "PUBLIC",
+         "PRIVATE",
+         "ISLAMIC"
+        ],
+        "type": "string"
+       },
+       "code": {
+        "pattern": "^[A-Z0-9]{2,12}$",
+        "type": "string"
+       },
+       "email": {
+        "maxLength": 200,
+        "nullable": true,
+        "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+        "type": "string"
+       },
+       "fax": {
+        "maxLength": 40,
+        "minLength": 5,
+        "nullable": true,
+        "type": "string"
+       },
+       "iban_bank_code": {
+        "nullable": true,
+        "pattern": "^[0-9A-Z]{2,10}$",
+        "type": "string"
+       },
+       "name_ar": {
+        "maxLength": 160,
+        "minLength": 2,
+        "type": "string"
+       },
+       "name_en": {
+        "maxLength": 160,
+        "minLength": 2,
+        "type": "string"
+       },
+       "notes": {
+        "maxLength": 1000,
+        "nullable": true,
+        "type": "string"
+       },
+       "phone": {
+        "maxLength": 40,
+        "minLength": 5,
+        "nullable": true,
+        "type": "string"
+       },
+       "short_name": {
+        "maxLength": 40,
+        "minLength": 2,
+        "nullable": true,
+        "type": "string"
+       },
+       "swift_bic": {
+        "nullable": true,
+        "pattern": "^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$",
+        "type": "string"
+       },
+       "swift_status": {
+        "default": "TO_VERIFY",
+        "enum": [
+         "TO_VERIFY",
+         "VERIFIED",
+         "INVALID"
+        ],
+        "type": "string"
+       },
+       "website": {
+        "maxLength": 300,
+        "nullable": true,
+        "pattern": "^https?://\\S+$",
+        "type": "string"
+       }
+      },
+      "required": [
+       "name_ar",
+       "name_en",
+       "code"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/admin/registry/banks/{uid}/branches": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "address": {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       "branch_code": {
+        "nullable": true,
+        "pattern": "^[0-9A-Z]{1,12}$",
+        "type": "string"
+       },
+       "email": {
+        "maxLength": 200,
+        "nullable": true,
+        "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+        "type": "string"
+       },
+       "is_head_office": {
+        "default": false,
+        "type": "boolean"
+       },
+       "name_ar": {
+        "maxLength": 160,
+        "minLength": 2,
+        "type": "string"
+       },
+       "name_en": {
+        "maxLength": 160,
+        "minLength": 2,
+        "type": "string"
+       },
+       "phone": {
+        "maxLength": 40,
+        "minLength": 5,
+        "nullable": true,
+        "type": "string"
+       },
+       "swift_bic": {
+        "nullable": true,
+        "pattern": "^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$",
+        "type": "string"
+       }
+      },
+      "required": [
+       "name_ar",
+       "name_en"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/admin/registry/branches/{uid}/review": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "decision": {
+        "enum": [
+         "ACCEPT",
+         "REJECT"
+        ],
+        "type": "string"
+       },
+       "note": {
+        "maxLength": 300,
+        "minLength": 3,
+        "nullable": true,
+        "type": "string"
+       }
+      },
+      "required": [
+       "decision"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/admin/registry/insurers": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "address": {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       "code": {
+        "pattern": "^[A-Z0-9]{2,12}$",
+        "type": "string"
+       },
+       "email": {
+        "maxLength": 200,
+        "nullable": true,
+        "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+        "type": "string"
+       },
+       "fax": {
+        "maxLength": 40,
+        "minLength": 5,
+        "nullable": true,
+        "type": "string"
+       },
+       "insurance_kind": {
+        "default": "CONVENTIONAL",
+        "enum": [
+         "CONVENTIONAL",
+         "TAKAFUL",
+         "REINSURANCE"
+        ],
+        "type": "string"
+       },
+       "lat": {
+        "maximum": 90.0,
+        "minimum": -90.0,
+        "nullable": true,
+        "type": "number"
+       },
+       "licence_no": {
+        "maxLength": 40,
+        "minLength": 2,
+        "nullable": true,
+        "type": "string"
+       },
+       "lng": {
+        "maximum": 180.0,
+        "minimum": -180.0,
+        "nullable": true,
+        "type": "number"
+       },
+       "name_ar": {
+        "maxLength": 160,
+        "minLength": 2,
+        "type": "string"
+       },
+       "name_en": {
+        "maxLength": 160,
+        "minLength": 2,
+        "type": "string"
+       },
+       "notes": {
+        "maxLength": 1000,
+        "nullable": true,
+        "type": "string"
+       },
+       "ownership": {
+        "default": "PRIVATE",
+        "enum": [
+         "PUBLIC",
+         "PRIVATE"
+        ],
+        "type": "string"
+       },
+       "phone": {
+        "maxLength": 40,
+        "minLength": 5,
+        "nullable": true,
+        "type": "string"
+       },
+       "website": {
+        "maxLength": 300,
+        "nullable": true,
+        "pattern": "^https?://\\S+$",
+        "type": "string"
+       }
+      },
+      "required": [
+       "name_ar",
+       "name_en",
+       "code"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/admin/registry/{kind}/import": {
+   "body": {
+    "content": {
+     "multipart/form-data": {
+      "properties": {
+       "file": {
+        "contentMediaType": "application/octet-stream",
+        "type": "string"
+       }
+      },
+      "required": [
+       "file"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:kind": {
+     "required": true,
+     "schema": {
+      "enum": [
+       "banks",
+       "insurers"
+      ],
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/admin/registry/{kind}/{uid}/retire": {
+   "body": null,
+   "parameters": {
+    "path:kind": {
+     "required": true,
+     "schema": {
+      "enum": [
+       "banks",
+       "insurers"
+      ],
+      "type": "string"
+     }
+    },
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/admin/registry/{kind}/{uid}/review": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "decision": {
+        "enum": [
+         "ACCEPT",
+         "REJECT"
+        ],
+        "type": "string"
+       },
+       "note": {
+        "maxLength": 300,
+        "minLength": 3,
+        "nullable": true,
+        "type": "string"
+       }
+      },
+      "required": [
+       "decision"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:kind": {
+     "required": true,
+     "schema": {
+      "enum": [
+       "banks",
+       "insurers"
+      ],
+      "type": "string"
+     }
+    },
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "POST /api/admin/schedules/requests/{request_uid}/decide": {
    "body": {
     "content": {
@@ -6716,6 +7855,291 @@
     "200": {}
    }
   },
+  "POST /api/admin/vehicle-models/import": {
+   "body": {
+    "content": {
+     "multipart/form-data": {
+      "properties": {
+       "file": {
+        "contentMediaType": "application/octet-stream",
+        "type": "string"
+       }
+      },
+      "required": [
+       "file"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/admin/vehicle-models/makes": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "code": {
+        "nullable": true,
+        "pattern": "^[A-Z0-9]{2,16}$",
+        "type": "string"
+       },
+       "country_code": {
+        "nullable": true,
+        "pattern": "^[A-Z]{2}$",
+        "type": "string"
+       },
+       "name_ar": {
+        "maxLength": 80,
+        "minLength": 2,
+        "type": "string"
+       },
+       "name_en": {
+        "maxLength": 80,
+        "minLength": 2,
+        "type": "string"
+       }
+      },
+      "required": [
+       "name_en",
+       "name_ar"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/admin/vehicle-models/models": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "confidence": {
+        "default": "VERIFY",
+        "enum": [
+         "HIGH",
+         "MEDIUM",
+         "VERIFY"
+        ],
+        "type": "string"
+       },
+       "make_uid": {
+        "format": "uuid",
+        "type": "string"
+       },
+       "name": {
+        "maxLength": 80,
+        "minLength": 1,
+        "type": "string"
+       },
+       "notes": {
+        "maxLength": 500,
+        "nullable": true,
+        "type": "string"
+       },
+       "production": {
+        "default": "CURRENT",
+        "enum": [
+         "CURRENT",
+         "OLDER"
+        ],
+        "type": "string"
+       },
+       "seats_from": {
+        "maximum": 120.0,
+        "minimum": 1.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "seats_to": {
+        "maximum": 120.0,
+        "minimum": 1.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "vehicle_class": {
+        "default": "BUS",
+        "enum": [
+         "BUS",
+         "TRUCK",
+         "TRAIN",
+         "CAR",
+         "OTHER"
+        ],
+        "type": "string"
+       },
+       "vehicle_type": {
+        "default": "COACH",
+        "enum": [
+         "COACH",
+         "MINIBUS",
+         "CITY_BUS",
+         "VAN",
+         "TRAIN_SET",
+         "OTHER"
+        ],
+        "type": "string"
+       },
+       "weight_class": {
+        "enum": [
+         "LIGHT",
+         "MEDIUM",
+         "HEAVY"
+        ],
+        "nullable": true,
+        "type": "string"
+       }
+      },
+      "required": [
+       "make_uid",
+       "name"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/admin/vehicle-models/requests/{uid}/decide": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "decision": {
+        "enum": [
+         "APPROVE",
+         "MATCH",
+         "REJECT"
+        ],
+        "type": "string"
+       },
+       "make_name_ar": {
+        "maxLength": 80,
+        "minLength": 2,
+        "nullable": true,
+        "type": "string"
+       },
+       "model_uid": {
+        "format": "uuid",
+        "nullable": true,
+        "type": "string"
+       },
+       "note": {
+        "maxLength": 300,
+        "minLength": 3,
+        "nullable": true,
+        "type": "string"
+       }
+      },
+      "required": [
+       "decision"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/admin/vehicle-models/{kind}/{uid}/retire": {
+   "body": null,
+   "parameters": {
+    "path:kind": {
+     "required": true,
+     "schema": {
+      "enum": [
+       "makes",
+       "models"
+      ],
+      "type": "string"
+     }
+    },
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/admin/vehicle-models/{kind}/{uid}/review": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "decision": {
+        "enum": [
+         "ACCEPT",
+         "REJECT"
+        ],
+        "type": "string"
+       },
+       "note": {
+        "maxLength": 300,
+        "minLength": 3,
+        "nullable": true,
+        "type": "string"
+       }
+      },
+      "required": [
+       "decision"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:kind": {
+     "required": true,
+     "schema": {
+      "enum": [
+       "makes",
+       "models"
+      ],
+      "type": "string"
+     }
+    },
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "POST /api/admin/violations/{uid}/review": {
    "body": {
     "content": {
@@ -6810,10 +8234,22 @@
            "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
            "type": "string"
           },
+          "father_name_latin": {
+           "maxLength": 60,
+           "nullable": true,
+           "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
+           "type": "string"
+          },
           "first_name": {
            "maxLength": 60,
            "minLength": 1,
            "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "first_name_latin": {
+           "maxLength": 60,
+           "nullable": true,
+           "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
            "type": "string"
           },
           "gender": {
@@ -6829,6 +8265,12 @@
            "minLength": 1,
            "nullable": true,
            "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "grandfather_name_latin": {
+           "maxLength": 60,
+           "nullable": true,
+           "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
            "type": "string"
           },
           "id_last4": {
@@ -6861,6 +8303,12 @@
            "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
            "type": "string"
           },
+          "last_name_latin": {
+           "maxLength": 60,
+           "nullable": true,
+           "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
+           "type": "string"
+          },
           "mobile": {
            "nullable": true,
            "pattern": "^\\+?[0-9]{8,15}$",
@@ -6876,9 +8324,18 @@
            "nullable": true,
            "type": "string"
           },
+          "saved_traveller_uid": {
+           "format": "uuid",
+           "nullable": true,
+           "type": "string"
+          },
           "seat_no": {
            "nullable": true,
            "type": "integer"
+          },
+          "self_traveller": {
+           "default": false,
+           "type": "boolean"
           },
           "with_adult": {
            "maximum": 120.0,
@@ -7162,10 +8619,22 @@
            "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
            "type": "string"
           },
+          "father_name_latin": {
+           "maxLength": 60,
+           "nullable": true,
+           "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
+           "type": "string"
+          },
           "first_name": {
            "maxLength": 60,
            "minLength": 1,
            "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "first_name_latin": {
+           "maxLength": 60,
+           "nullable": true,
+           "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
            "type": "string"
           },
           "gender": {
@@ -7181,6 +8650,12 @@
            "minLength": 1,
            "nullable": true,
            "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "grandfather_name_latin": {
+           "maxLength": 60,
+           "nullable": true,
+           "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
            "type": "string"
           },
           "id_last4": {
@@ -7213,6 +8688,12 @@
            "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
            "type": "string"
           },
+          "last_name_latin": {
+           "maxLength": 60,
+           "nullable": true,
+           "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
+           "type": "string"
+          },
           "mobile": {
            "nullable": true,
            "pattern": "^\\+?[0-9]{8,15}$",
@@ -7228,9 +8709,18 @@
            "nullable": true,
            "type": "string"
           },
+          "saved_traveller_uid": {
+           "format": "uuid",
+           "nullable": true,
+           "type": "string"
+          },
           "seat_no": {
            "nullable": true,
            "type": "integer"
+          },
+          "self_traveller": {
+           "default": false,
+           "type": "boolean"
           },
           "with_adult": {
            "maximum": 120.0,
@@ -7432,10 +8922,22 @@
            "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
            "type": "string"
           },
+          "father_name_latin": {
+           "maxLength": 60,
+           "nullable": true,
+           "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
+           "type": "string"
+          },
           "first_name": {
            "maxLength": 60,
            "minLength": 1,
            "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "first_name_latin": {
+           "maxLength": 60,
+           "nullable": true,
+           "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
            "type": "string"
           },
           "gender": {
@@ -7451,6 +8953,12 @@
            "minLength": 1,
            "nullable": true,
            "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "grandfather_name_latin": {
+           "maxLength": 60,
+           "nullable": true,
+           "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
            "type": "string"
           },
           "id_last4": {
@@ -7483,6 +8991,12 @@
            "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
            "type": "string"
           },
+          "last_name_latin": {
+           "maxLength": 60,
+           "nullable": true,
+           "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
+           "type": "string"
+          },
           "mobile": {
            "nullable": true,
            "pattern": "^\\+?[0-9]{8,15}$",
@@ -7498,9 +9012,18 @@
            "nullable": true,
            "type": "string"
           },
+          "saved_traveller_uid": {
+           "format": "uuid",
+           "nullable": true,
+           "type": "string"
+          },
           "seat_no": {
            "nullable": true,
            "type": "integer"
+          },
+          "self_traveller": {
+           "default": false,
+           "type": "boolean"
           },
           "with_adult": {
            "maximum": 120.0,
@@ -7628,6 +9151,76 @@
     "201": {}
    }
   },
+  "POST /api/auth/guest/start": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "email": {
+        "format": "email",
+        "type": "string"
+       },
+       "locale": {
+        "nullable": true,
+        "pattern": "^(ar|en)$",
+        "type": "string"
+       }
+      },
+      "required": [
+       "email"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/auth/guest/verify": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "app_version": {
+        "maxLength": 20,
+        "nullable": true,
+        "type": "string"
+       },
+       "code": {
+        "maxLength": 6,
+        "minLength": 6,
+        "pattern": "^[0-9]{6}$",
+        "type": "string"
+       },
+       "device_id": {
+        "maxLength": 64,
+        "minLength": 16,
+        "nullable": true,
+        "pattern": "^[A-Za-z0-9_-]+$",
+        "type": "string"
+       },
+       "email": {
+        "format": "email",
+        "type": "string"
+       }
+      },
+      "required": [
+       "email",
+       "code"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
   "POST /api/auth/login": {
    "body": {
     "content": {
@@ -7683,6 +9276,103 @@
     "200": {}
    }
   },
+  "POST /api/auth/login/business": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "app_version": {
+        "maxLength": 20,
+        "nullable": true,
+        "type": "string"
+       },
+       "company_no": {
+        "pattern": "^[0-9]{6,8}$",
+        "type": "string"
+       },
+       "device_id": {
+        "maxLength": 64,
+        "minLength": 16,
+        "nullable": true,
+        "pattern": "^[A-Za-z0-9_-]+$",
+        "type": "string"
+       },
+       "password": {
+        "maxLength": 200,
+        "minLength": 1,
+        "type": "string"
+       },
+       "portal": {
+        "enum": [
+         "DRIVER",
+         "INSPECTOR"
+        ],
+        "nullable": true,
+        "type": "string"
+       },
+       "username": {
+        "maxLength": 32,
+        "minLength": 3,
+        "type": "string"
+       }
+      },
+      "required": [
+       "company_no",
+       "username",
+       "password"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/auth/login/individual": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "app_version": {
+        "maxLength": 20,
+        "nullable": true,
+        "type": "string"
+       },
+       "device_id": {
+        "maxLength": 64,
+        "minLength": 16,
+        "nullable": true,
+        "pattern": "^[A-Za-z0-9_-]+$",
+        "type": "string"
+       },
+       "identifier": {
+        "maxLength": 200,
+        "minLength": 3,
+        "type": "string"
+       },
+       "password": {
+        "maxLength": 200,
+        "minLength": 1,
+        "type": "string"
+       }
+      },
+      "required": [
+       "identifier",
+       "password"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
   "POST /api/auth/logout": {
    "body": null,
    "parameters": {},
@@ -7703,6 +9393,8 @@
        "method": {
         "enum": [
          "TOTP",
+         "EMAIL",
+         "TELEGRAM",
          "SMS",
          "WHATSAPP"
         ],
@@ -7736,6 +9428,8 @@
        "method": {
         "enum": [
          "TOTP",
+         "EMAIL",
+         "TELEGRAM",
          "SMS",
          "WHATSAPP"
         ],
@@ -7762,10 +9456,18 @@
      "application/json": {
       "nullable": true,
       "properties": {
+       "email": {
+        "maxLength": 200,
+        "nullable": true,
+        "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+        "type": "string"
+       },
        "method": {
         "default": "TOTP",
         "enum": [
          "TOTP",
+         "EMAIL",
+         "TELEGRAM",
          "SMS",
          "WHATSAPP"
         ],
@@ -7800,6 +9502,8 @@
        "method": {
         "enum": [
          "TOTP",
+         "EMAIL",
+         "TELEGRAM",
          "SMS",
          "WHATSAPP"
         ],
@@ -7827,6 +9531,8 @@
       "properties": {
        "method": {
         "enum": [
+         "EMAIL",
+         "TELEGRAM",
          "SMS",
          "WHATSAPP"
         ],
@@ -7859,6 +9565,8 @@
        "method": {
         "enum": [
          "TOTP",
+         "EMAIL",
+         "TELEGRAM",
          "SMS",
          "WHATSAPP"
         ],
@@ -7892,6 +9600,8 @@
        "method": {
         "enum": [
          "TOTP",
+         "EMAIL",
+         "TELEGRAM",
          "SMS",
          "WHATSAPP"
         ],
@@ -7982,9 +9692,15 @@
         "format": "email",
         "type": "string"
        },
+       "email_confirm": {
+        "format": "email",
+        "nullable": true,
+        "type": "string"
+       },
        "full_name": {
         "maxLength": 120,
         "minLength": 3,
+        "nullable": true,
         "type": "string"
        },
        "locale": {
@@ -7996,14 +9712,90 @@
         "pattern": "^\\+?[0-9]{8,15}$",
         "type": "string"
        },
+       "name": {
+        "nullable": true,
+        "properties": {
+         "father_name": {
+          "maxLength": 60,
+          "minLength": 1,
+          "nullable": true,
+          "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+          "type": "string"
+         },
+         "father_name_latin": {
+          "maxLength": 60,
+          "nullable": true,
+          "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
+          "type": "string"
+         },
+         "first_name": {
+          "maxLength": 60,
+          "minLength": 1,
+          "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+          "type": "string"
+         },
+         "first_name_latin": {
+          "maxLength": 60,
+          "nullable": true,
+          "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
+          "type": "string"
+         },
+         "grandfather_name": {
+          "maxLength": 60,
+          "minLength": 1,
+          "nullable": true,
+          "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+          "type": "string"
+         },
+         "grandfather_name_latin": {
+          "maxLength": 60,
+          "nullable": true,
+          "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
+          "type": "string"
+         },
+         "last_name": {
+          "maxLength": 60,
+          "minLength": 1,
+          "nullable": true,
+          "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+          "type": "string"
+         },
+         "last_name_latin": {
+          "maxLength": 60,
+          "nullable": true,
+          "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
+          "type": "string"
+         },
+         "mother_name": {
+          "maxLength": 60,
+          "minLength": 1,
+          "nullable": true,
+          "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+          "type": "string"
+         },
+         "nationality": {
+          "default": "SY",
+          "pattern": "^[A-Z]{2}$",
+          "type": "string"
+         }
+        },
+        "required": [
+         "first_name"
+        ],
+        "type": "object"
+       },
        "password": {
         "maxLength": 200,
         "minLength": 1,
         "type": "string"
+       },
+       "password_confirm": {
+        "maxLength": 200,
+        "nullable": true,
+        "type": "string"
        }
       },
       "required": [
-       "full_name",
        "email",
        "password"
       ],
@@ -8067,10 +9859,22 @@
            "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
            "type": "string"
           },
+          "father_name_latin": {
+           "maxLength": 60,
+           "nullable": true,
+           "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
+           "type": "string"
+          },
           "first_name": {
            "maxLength": 60,
            "minLength": 1,
            "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "first_name_latin": {
+           "maxLength": 60,
+           "nullable": true,
+           "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
            "type": "string"
           },
           "gender": {
@@ -8086,6 +9890,12 @@
            "minLength": 1,
            "nullable": true,
            "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "grandfather_name_latin": {
+           "maxLength": 60,
+           "nullable": true,
+           "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
            "type": "string"
           },
           "id_last4": {
@@ -8118,6 +9928,12 @@
            "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
            "type": "string"
           },
+          "last_name_latin": {
+           "maxLength": 60,
+           "nullable": true,
+           "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
+           "type": "string"
+          },
           "mobile": {
            "nullable": true,
            "pattern": "^\\+?[0-9]{8,15}$",
@@ -8133,9 +9949,18 @@
            "nullable": true,
            "type": "string"
           },
+          "saved_traveller_uid": {
+           "format": "uuid",
+           "nullable": true,
+           "type": "string"
+          },
           "seat_no": {
            "nullable": true,
            "type": "integer"
+          },
+          "self_traveller": {
+           "default": false,
+           "type": "boolean"
           },
           "with_adult": {
            "maximum": 120.0,
@@ -8249,11 +10074,23 @@
            "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
            "type": "string"
           },
+          "father_name_latin": {
+           "maxLength": 60,
+           "nullable": true,
+           "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
+           "type": "string"
+          },
           "first_name": {
            "default": "Traveller",
            "maxLength": 60,
            "minLength": 1,
            "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "first_name_latin": {
+           "maxLength": 60,
+           "nullable": true,
+           "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
            "type": "string"
           },
           "gender": {
@@ -8269,6 +10106,12 @@
            "minLength": 1,
            "nullable": true,
            "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "grandfather_name_latin": {
+           "maxLength": 60,
+           "nullable": true,
+           "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
            "type": "string"
           },
           "id_last4": {
@@ -8302,6 +10145,12 @@
            "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
            "type": "string"
           },
+          "last_name_latin": {
+           "maxLength": 60,
+           "nullable": true,
+           "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
+           "type": "string"
+          },
           "mobile": {
            "nullable": true,
            "pattern": "^\\+?[0-9]{8,15}$",
@@ -8317,9 +10166,18 @@
            "nullable": true,
            "type": "string"
           },
+          "saved_traveller_uid": {
+           "format": "uuid",
+           "nullable": true,
+           "type": "string"
+          },
           "seat_no": {
            "nullable": true,
            "type": "integer"
+          },
+          "self_traveller": {
+           "default": false,
+           "type": "boolean"
           },
           "with_adult": {
            "maximum": 120.0,
@@ -8471,6 +10329,46 @@
      }
     }
    },
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/carrier/agency-cash/receipts": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "agency_uid": {
+        "format": "uuid",
+        "type": "string"
+       },
+       "amount": {
+        "exclusiveMinimum": 0.0,
+        "type": "integer"
+       },
+       "currency": {
+        "maxLength": 3,
+        "minLength": 3,
+        "type": "string"
+       },
+       "reference": {
+        "maxLength": 80,
+        "minLength": 3,
+        "type": "string"
+       }
+      },
+      "required": [
+       "agency_uid",
+       "currency",
+       "amount",
+       "reference"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
    "responses": {
     "201": {}
    }
@@ -8825,10 +10723,22 @@
            "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
            "type": "string"
           },
+          "father_name_latin": {
+           "maxLength": 60,
+           "nullable": true,
+           "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
+           "type": "string"
+          },
           "first_name": {
            "maxLength": 60,
            "minLength": 1,
            "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "first_name_latin": {
+           "maxLength": 60,
+           "nullable": true,
+           "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
            "type": "string"
           },
           "gender": {
@@ -8844,6 +10754,12 @@
            "minLength": 1,
            "nullable": true,
            "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "grandfather_name_latin": {
+           "maxLength": 60,
+           "nullable": true,
+           "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
            "type": "string"
           },
           "id_last4": {
@@ -8876,6 +10792,12 @@
            "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
            "type": "string"
           },
+          "last_name_latin": {
+           "maxLength": 60,
+           "nullable": true,
+           "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
+           "type": "string"
+          },
           "mobile": {
            "nullable": true,
            "pattern": "^\\+?[0-9]{8,15}$",
@@ -8891,9 +10813,18 @@
            "nullable": true,
            "type": "string"
           },
+          "saved_traveller_uid": {
+           "format": "uuid",
+           "nullable": true,
+           "type": "string"
+          },
           "seat_no": {
            "nullable": true,
            "type": "integer"
+          },
+          "self_traveller": {
+           "default": false,
+           "type": "boolean"
           },
           "with_adult": {
            "maximum": 120.0,
@@ -9012,10 +10943,22 @@
            "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
            "type": "string"
           },
+          "father_name_latin": {
+           "maxLength": 60,
+           "nullable": true,
+           "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
+           "type": "string"
+          },
           "first_name": {
            "maxLength": 60,
            "minLength": 1,
            "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "first_name_latin": {
+           "maxLength": 60,
+           "nullable": true,
+           "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
            "type": "string"
           },
           "gender": {
@@ -9031,6 +10974,12 @@
            "minLength": 1,
            "nullable": true,
            "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "grandfather_name_latin": {
+           "maxLength": 60,
+           "nullable": true,
+           "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
            "type": "string"
           },
           "id_last4": {
@@ -9063,6 +11012,12 @@
            "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
            "type": "string"
           },
+          "last_name_latin": {
+           "maxLength": 60,
+           "nullable": true,
+           "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
+           "type": "string"
+          },
           "mobile": {
            "nullable": true,
            "pattern": "^\\+?[0-9]{8,15}$",
@@ -9078,9 +11033,18 @@
            "nullable": true,
            "type": "string"
           },
+          "saved_traveller_uid": {
+           "format": "uuid",
+           "nullable": true,
+           "type": "string"
+          },
           "seat_no": {
            "nullable": true,
            "type": "integer"
+          },
+          "self_traveller": {
+           "default": false,
+           "type": "boolean"
           },
           "with_adult": {
            "maximum": 120.0,
@@ -9219,17 +11183,58 @@
     "content": {
      "application/json": {
       "properties": {
+       "birth_date": {
+        "format": "date",
+        "nullable": true,
+        "type": "string"
+       },
+       "crew_type": {
+        "default": "DRIVER",
+        "enum": [
+         "DRIVER",
+         "HOST",
+         "ASSISTANT"
+        ],
+        "type": "string"
+       },
        "email": {
         "format": "email",
+        "nullable": true,
+        "type": "string"
+       },
+       "father_name": {
+        "maxLength": 60,
+        "minLength": 2,
+        "nullable": true,
+        "type": "string"
+       },
+       "first_name": {
+        "maxLength": 60,
+        "minLength": 2,
+        "nullable": true,
         "type": "string"
        },
        "full_name": {
         "maxLength": 120,
         "minLength": 3,
+        "nullable": true,
+        "type": "string"
+       },
+       "grandfather_name": {
+        "maxLength": 60,
+        "minLength": 2,
+        "nullable": true,
+        "type": "string"
+       },
+       "last_name": {
+        "maxLength": 60,
+        "minLength": 2,
+        "nullable": true,
         "type": "string"
        },
        "license_class": {
         "nullable": true,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9 +-]{0,15}$",
         "type": "string"
        },
        "mobile": {
@@ -9237,21 +11242,144 @@
         "pattern": "^\\+?[0-9]{8,15}$",
         "type": "string"
        },
+       "mother_name": {
+        "maxLength": 60,
+        "minLength": 2,
+        "nullable": true,
+        "type": "string"
+       },
+       "national_id": {
+        "nullable": true,
+        "pattern": "^[0-9A-Za-z-]{5,20}$",
+        "type": "string"
+       },
        "password": {
+        "nullable": true,
         "type": "string"
        }
       },
-      "required": [
-       "full_name",
-       "email",
-       "password"
-      ],
       "type": "object"
      }
     },
     "required": true
    },
    "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/carrier/crew/{uid}/licences": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "expiry_date": {
+        "format": "date",
+        "type": "string"
+       },
+       "issue_date": {
+        "format": "date",
+        "type": "string"
+       },
+       "issuer": {
+        "maxLength": 120,
+        "minLength": 2,
+        "type": "string"
+       },
+       "license_class": {
+        "nullable": true,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9 +-]{0,15}$",
+        "type": "string"
+       },
+       "license_no": {
+        "maxLength": 40,
+        "minLength": 3,
+        "type": "string"
+       },
+       "license_type": {
+        "enum": [
+         "DRIVING",
+         "HEAVY_DRIVING",
+         "TRANSPORT",
+         "TRAFFIC",
+         "CROSS_BORDER",
+         "MEDICAL",
+         "FIRST_AID",
+         "CRIMINAL_RECORD",
+         "OTHER"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "license_type",
+       "license_no",
+       "issuer",
+       "issue_date",
+       "expiry_date"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/carrier/crew/{uid}/licences/{licence_uid}/images/{side}": {
+   "body": {
+    "content": {
+     "multipart/form-data": {
+      "properties": {
+       "file": {
+        "contentMediaType": "application/octet-stream",
+        "type": "string"
+       }
+      },
+      "required": [
+       "file"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:licence_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    },
+    "path:side": {
+     "required": true,
+     "schema": {
+      "enum": [
+       "front",
+       "back"
+      ],
+      "type": "string"
+     }
+    },
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
    "responses": {
     "201": {}
    }
@@ -10386,6 +12514,104 @@
     "200": {}
    }
   },
+  "POST /api/carrier/parcels/counter": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "accept_rules": {
+        "default": false,
+        "type": "boolean"
+       },
+       "declared_value": {
+        "default": 0,
+        "maximum": 10000000000.0,
+        "minimum": 0.0,
+        "type": "integer"
+       },
+       "from_seq": {
+        "maximum": 60.0,
+        "minimum": 0.0,
+        "type": "integer"
+       },
+       "height_cm": {
+        "exclusiveMinimum": 0.0,
+        "maximum": 300.0,
+        "type": "number"
+       },
+       "idempotency_key": {
+        "maxLength": 80,
+        "minLength": 8,
+        "type": "string"
+       },
+       "length_cm": {
+        "exclusiveMinimum": 0.0,
+        "maximum": 400.0,
+        "type": "number"
+       },
+       "recipient_mobile": {
+        "pattern": "^\\+?[0-9]{8,15}$",
+        "type": "string"
+       },
+       "recipient_name": {
+        "maxLength": 120,
+        "minLength": 3,
+        "type": "string"
+       },
+       "sender_name": {
+        "maxLength": 120,
+        "minLength": 3,
+        "type": "string"
+       },
+       "tariff_uid": {
+        "format": "uuid",
+        "type": "string"
+       },
+       "to_seq": {
+        "maximum": 60.0,
+        "minimum": 1.0,
+        "type": "integer"
+       },
+       "trip_uid": {
+        "format": "uuid",
+        "type": "string"
+       },
+       "weight_kg": {
+        "exclusiveMinimum": 0.0,
+        "maximum": 1000.0,
+        "type": "number"
+       },
+       "width_cm": {
+        "exclusiveMinimum": 0.0,
+        "maximum": 300.0,
+        "type": "number"
+       }
+      },
+      "required": [
+       "weight_kg",
+       "length_cm",
+       "width_cm",
+       "height_cm",
+       "trip_uid",
+       "from_seq",
+       "to_seq",
+       "tariff_uid",
+       "description",
+       "sender_name",
+       "recipient_name",
+       "recipient_mobile",
+       "idempotency_key"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
   "POST /api/carrier/parcels/offers/{uid}/decline": {
    "body": null,
    "parameters": {
@@ -10430,6 +12656,75 @@
     },
     "required": true
    },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/carrier/parcels/points": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "address": {
+        "maxLength": 300,
+        "minLength": 3,
+        "type": "string"
+       },
+       "hours": {
+        "maxLength": 200,
+        "minLength": 2,
+        "type": "string"
+       },
+       "kind": {
+        "enum": [
+         "STATION",
+         "OFFICE"
+        ],
+        "type": "string"
+       },
+       "name": {
+        "maxLength": 120,
+        "minLength": 2,
+        "type": "string"
+       },
+       "phone": {
+        "nullable": true,
+        "pattern": "^\\+?[0-9]{6,15}$",
+        "type": "string"
+       },
+       "station_uid": {
+        "format": "uuid",
+        "nullable": true,
+        "type": "string"
+       }
+      },
+      "required": [
+       "kind",
+       "name",
+       "address",
+       "hours"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/carrier/parcels/points/{uid}/close": {
+   "body": null,
    "parameters": {
     "path:uid": {
      "required": true,
@@ -10533,6 +12828,35 @@
      "required": true,
      "schema": {
       "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/carrier/parcels/{tracking_no}/receive": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "weight_kg": {
+        "exclusiveMinimum": 0.0,
+        "maximum": 1000.0,
+        "nullable": true,
+        "type": "number"
+       }
+      },
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:tracking_no": {
+     "required": true,
+     "schema": {
       "type": "string"
      }
     }
@@ -11353,6 +13677,52 @@
     "200": {}
    }
   },
+  "POST /api/carrier/trips/{trip_uid}/changes/calls/{contact_id}": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "note": {
+        "maxLength": 300,
+        "nullable": true,
+        "type": "string"
+       },
+       "outcome": {
+        "enum": [
+         "INFORMED",
+         "NO_ANSWER",
+         "WRONG_NUMBER"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "outcome"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:contact_id": {
+     "required": true,
+     "schema": {
+      "type": "integer"
+     }
+    },
+    "path:trip_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "POST /api/carrier/trips/{trip_uid}/complete": {
    "body": null,
    "parameters": {
@@ -11418,6 +13788,148 @@
     "200": {}
    }
   },
+  "POST /api/carrier/trips/{trip_uid}/rebook": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "booking_refs": {
+        "items": {
+         "type": "string"
+        },
+        "maxItems": 200,
+        "nullable": true,
+        "type": "array"
+       },
+       "note": {
+        "maxLength": 500,
+        "nullable": true,
+        "type": "string"
+       },
+       "reason": {
+        "pattern": "^[A-Z_]{3,40}$",
+        "type": "string"
+       },
+       "to_trip_uid": {
+        "format": "uuid",
+        "type": "string"
+       }
+      },
+      "required": [
+       "reason",
+       "to_trip_uid"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:trip_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/carrier/trips/{trip_uid}/reschedule": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "departure_at": {
+        "format": "date-time",
+        "type": "string"
+       },
+       "note": {
+        "maxLength": 500,
+        "nullable": true,
+        "type": "string"
+       },
+       "reason": {
+        "pattern": "^[A-Z_]{3,40}$",
+        "type": "string"
+       }
+      },
+      "required": [
+       "reason",
+       "departure_at"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:trip_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/carrier/trips/{trip_uid}/vehicle": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "at_stop_seq": {
+        "maximum": 60.0,
+        "minimum": 0.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "driver_uid": {
+        "format": "uuid",
+        "nullable": true,
+        "type": "string"
+       },
+       "note": {
+        "maxLength": 500,
+        "nullable": true,
+        "type": "string"
+       },
+       "reason": {
+        "pattern": "^[A-Z_]{3,40}$",
+        "type": "string"
+       },
+       "vehicle_uid": {
+        "format": "uuid",
+        "type": "string"
+       }
+      },
+      "required": [
+       "reason",
+       "vehicle_uid"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:trip_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "POST /api/carrier/vehicles": {
    "body": {
     "content": {
@@ -11444,6 +13956,12 @@
        "insurer": {
         "maxLength": 120,
         "minLength": 2,
+        "nullable": true,
+        "type": "string"
+       },
+       "insurer_uid": {
+        "format": "uuid",
+        "nullable": true,
         "type": "string"
        },
        "make": {
@@ -11457,6 +13975,11 @@
         "type": "integer"
        },
        "model": {
+        "nullable": true,
+        "type": "string"
+       },
+       "model_uid": {
+        "format": "uuid",
         "nullable": true,
         "type": "string"
        },
@@ -11491,7 +14014,6 @@
        "plate_no",
        "chassis_no",
        "insurance_no",
-       "insurer",
        "insurance_issue",
        "insurance_expiry"
       ],
@@ -11741,10 +14263,22 @@
            "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
            "type": "string"
           },
+          "father_name_latin": {
+           "maxLength": 60,
+           "nullable": true,
+           "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
+           "type": "string"
+          },
           "first_name": {
            "maxLength": 60,
            "minLength": 1,
            "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "first_name_latin": {
+           "maxLength": 60,
+           "nullable": true,
+           "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
            "type": "string"
           },
           "gender": {
@@ -11760,6 +14294,12 @@
            "minLength": 1,
            "nullable": true,
            "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "grandfather_name_latin": {
+           "maxLength": 60,
+           "nullable": true,
+           "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
            "type": "string"
           },
           "id_last4": {
@@ -11792,6 +14332,12 @@
            "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
            "type": "string"
           },
+          "last_name_latin": {
+           "maxLength": 60,
+           "nullable": true,
+           "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
+           "type": "string"
+          },
           "mobile": {
            "nullable": true,
            "pattern": "^\\+?[0-9]{8,15}$",
@@ -11807,9 +14353,18 @@
            "nullable": true,
            "type": "string"
           },
+          "saved_traveller_uid": {
+           "format": "uuid",
+           "nullable": true,
+           "type": "string"
+          },
           "seat_no": {
            "nullable": true,
            "type": "integer"
+          },
+          "self_traveller": {
+           "default": false,
+           "type": "boolean"
           },
           "with_adult": {
            "maximum": 120.0,
@@ -12868,9 +15423,27 @@
     "content": {
      "application/json": {
       "properties": {
+       "account_no": {
+        "maxLength": 34,
+        "minLength": 4,
+        "nullable": true,
+        "pattern": "^[A-Za-z0-9 \\-]+$",
+        "type": "string"
+       },
        "bank_name": {
         "maxLength": 120,
         "minLength": 2,
+        "nullable": true,
+        "type": "string"
+       },
+       "bank_uid": {
+        "format": "uuid",
+        "nullable": true,
+        "type": "string"
+       },
+       "branch_uid": {
+        "format": "uuid",
+        "nullable": true,
         "type": "string"
        },
        "holder_name": {
@@ -12883,10 +15456,13 @@
         "minLength": 15,
         "pattern": "^[A-Za-z0-9 \\-]+$",
         "type": "string"
+       },
+       "is_default": {
+        "default": false,
+        "type": "boolean"
        }
       },
       "required": [
-       "bank_name",
        "holder_name",
        "iban"
       ],
@@ -12898,6 +15474,36 @@
    "parameters": {},
    "responses": {
     "201": {}
+   }
+  },
+  "POST /api/finance/bank-accounts/{account_uid}/default": {
+   "body": null,
+   "parameters": {
+    "path:account_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/finance/bank-accounts/{account_uid}/disable": {
+   "body": null,
+   "parameters": {
+    "path:account_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
    }
   },
   "POST /api/finance/withdrawals": {
@@ -13262,6 +15868,215 @@
     "200": {}
    }
   },
+  "POST /api/integrations/requests": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "connection_type": {
+        "enum": [
+         "READ",
+         "WEBHOOKS",
+         "TWO_WAY"
+        ],
+        "type": "string"
+       },
+       "contact_email": {
+        "maxLength": 200,
+        "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+        "type": "string"
+       },
+       "contact_mobile": {
+        "nullable": true,
+        "pattern": "^\\+?[0-9]{8,15}$",
+        "type": "string"
+       },
+       "contact_name": {
+        "maxLength": 120,
+        "minLength": 3,
+        "type": "string"
+       },
+       "data_needed": {
+        "items": {
+         "type": "string"
+        },
+        "maxItems": 12,
+        "minItems": 1,
+        "type": "array"
+       },
+       "environment": {
+        "default": "SANDBOX",
+        "enum": [
+         "SANDBOX",
+         "PRODUCTION"
+        ],
+        "type": "string"
+       },
+       "expected_volume": {
+        "enum": [
+         "LOW",
+         "MEDIUM",
+         "HIGH"
+        ],
+        "type": "string"
+       },
+       "ip_addresses": {
+        "items": {
+         "type": "string"
+        },
+        "maxItems": 20,
+        "type": "array"
+       },
+       "purpose": {
+        "maxLength": 1000,
+        "minLength": 10,
+        "type": "string"
+       },
+       "system_host": {
+        "nullable": true,
+        "pattern": "^[A-Za-z0-9.-]{3,253}$",
+        "type": "string"
+       },
+       "system_name": {
+        "maxLength": 120,
+        "minLength": 2,
+        "type": "string"
+       },
+       "system_vendor": {
+        "maxLength": 120,
+        "minLength": 2,
+        "nullable": true,
+        "type": "string"
+       }
+      },
+      "required": [
+       "purpose",
+       "connection_type",
+       "data_needed",
+       "system_name",
+       "contact_name",
+       "contact_email",
+       "expected_volume"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/integrations/requests/{uid}/client": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "kind": {
+        "enum": [
+         "CARRIER",
+         "CHANNEL",
+         "INTEGRATION"
+        ],
+        "type": "string"
+       },
+       "name": {
+        "maxLength": 120,
+        "minLength": 3,
+        "type": "string"
+       },
+       "note": {
+        "maxLength": 500,
+        "minLength": 1,
+        "nullable": true,
+        "type": "string"
+       },
+       "rate_limit_per_min": {
+        "default": 600,
+        "maximum": 6000.0,
+        "minimum": 10.0,
+        "type": "integer"
+       },
+       "scopes": {
+        "items": {
+         "type": "string"
+        },
+        "maxItems": 12,
+        "minItems": 1,
+        "type": "array"
+       }
+      },
+      "required": [
+       "name",
+       "kind",
+       "scopes"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/integrations/requests/{uid}/reject": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "note": {
+        "maxLength": 500,
+        "minLength": 3,
+        "type": "string"
+       }
+      },
+      "required": [
+       "note"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/integrations/requests/{uid}/withdraw": {
+   "body": null,
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "POST /api/journeys": {
    "body": {
     "content": {
@@ -13362,10 +16177,22 @@
            "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
            "type": "string"
           },
+          "father_name_latin": {
+           "maxLength": 60,
+           "nullable": true,
+           "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
+           "type": "string"
+          },
           "first_name": {
            "maxLength": 60,
            "minLength": 1,
            "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "first_name_latin": {
+           "maxLength": 60,
+           "nullable": true,
+           "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
            "type": "string"
           },
           "gender": {
@@ -13381,6 +16208,12 @@
            "minLength": 1,
            "nullable": true,
            "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "grandfather_name_latin": {
+           "maxLength": 60,
+           "nullable": true,
+           "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
            "type": "string"
           },
           "id_last4": {
@@ -13413,6 +16246,12 @@
            "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
            "type": "string"
           },
+          "last_name_latin": {
+           "maxLength": 60,
+           "nullable": true,
+           "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
+           "type": "string"
+          },
           "mobile": {
            "nullable": true,
            "pattern": "^\\+?[0-9]{8,15}$",
@@ -13428,9 +16267,18 @@
            "nullable": true,
            "type": "string"
           },
+          "saved_traveller_uid": {
+           "format": "uuid",
+           "nullable": true,
+           "type": "string"
+          },
           "seat_no": {
            "nullable": true,
            "type": "integer"
+          },
+          "self_traveller": {
+           "default": false,
+           "type": "boolean"
           },
           "with_adult": {
            "maximum": 120.0,
@@ -13583,11 +16431,20 @@
     "content": {
      "application/json": {
       "properties": {
+       "accept_rules": {
+        "default": false,
+        "type": "boolean"
+       },
        "declared_value": {
         "default": 0,
         "maximum": 10000000000.0,
         "minimum": 0.0,
         "type": "integer"
+       },
+       "drop_point_uid": {
+        "format": "uuid",
+        "nullable": true,
+        "type": "string"
        },
        "from_seq": {
         "maximum": 60.0,
@@ -13859,6 +16716,20 @@
     "200": {}
    }
   },
+  "POST /api/parcels/{tracking_no}/cancel": {
+   "body": null,
+   "parameters": {
+    "path:tracking_no": {
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "POST /api/payments/bank-transfers": {
    "body": {
     "content": {
@@ -14017,6 +16888,176 @@
    },
    "responses": {
     "200": {}
+   }
+  },
+  "POST /api/people/exceptions/{uid}/{action}": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "note": {
+        "maxLength": 500,
+        "minLength": 1,
+        "nullable": true,
+        "type": "string"
+       }
+      },
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:action": {
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    },
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/people/roles": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "name": {
+        "maxLength": 80,
+        "minLength": 2,
+        "type": "string"
+       },
+       "permissions": {
+        "items": {
+         "type": "string"
+        },
+        "maxItems": 200,
+        "minItems": 1,
+        "type": "array"
+       }
+      },
+      "required": [
+       "name",
+       "permissions"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/people/users": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "email": {
+        "format": "email",
+        "type": "string"
+       },
+       "full_name": {
+        "maxLength": 120,
+        "minLength": 3,
+        "type": "string"
+       },
+       "mobile": {
+        "nullable": true,
+        "pattern": "^\\+?[0-9]{8,15}$",
+        "type": "string"
+       },
+       "password": {
+        "maxLength": 200,
+        "minLength": 12,
+        "type": "string"
+       },
+       "roles": {
+        "items": {
+         "format": "uuid",
+         "type": "string"
+        },
+        "maxItems": 10,
+        "minItems": 1,
+        "type": "array"
+       }
+      },
+      "required": [
+       "full_name",
+       "email",
+       "password",
+       "roles"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/people/users/{uid}/exceptions": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "effect": {
+        "enum": [
+         "GRANT",
+         "DENY"
+        ],
+        "type": "string"
+       },
+       "permission": {
+        "maxLength": 80,
+        "minLength": 3,
+        "type": "string"
+       },
+       "reason": {
+        "maxLength": 500,
+        "minLength": 5,
+        "type": "string"
+       },
+       "valid_to": {
+        "format": "date-time",
+        "type": "string"
+       }
+      },
+      "required": [
+       "permission",
+       "effect",
+       "valid_to",
+       "reason"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "201": {}
    }
   },
   "POST /api/public/screens/pair": {
@@ -14550,6 +17591,44 @@
     "200": {}
    }
   },
+  "POST /api/security/shield/alerts/{alert_id}/{step}": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "note": {
+        "maxLength": 500,
+        "nullable": true,
+        "type": "string"
+       }
+      },
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:alert_id": {
+     "required": true,
+     "schema": {
+      "type": "integer"
+     }
+    },
+    "path:step": {
+     "required": true,
+     "schema": {
+      "enum": [
+       "acknowledge",
+       "resolve"
+      ],
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "POST /api/security/statements/reset": {
    "body": null,
    "parameters": {},
@@ -14651,10 +17730,22 @@
            "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
            "type": "string"
           },
+          "father_name_latin": {
+           "maxLength": 60,
+           "nullable": true,
+           "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
+           "type": "string"
+          },
           "first_name": {
            "maxLength": 60,
            "minLength": 1,
            "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "first_name_latin": {
+           "maxLength": 60,
+           "nullable": true,
+           "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
            "type": "string"
           },
           "gender": {
@@ -14670,6 +17761,12 @@
            "minLength": 1,
            "nullable": true,
            "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "grandfather_name_latin": {
+           "maxLength": 60,
+           "nullable": true,
+           "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
            "type": "string"
           },
           "id_last4": {
@@ -14702,6 +17799,12 @@
            "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
            "type": "string"
           },
+          "last_name_latin": {
+           "maxLength": 60,
+           "nullable": true,
+           "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
+           "type": "string"
+          },
           "mobile": {
            "nullable": true,
            "pattern": "^\\+?[0-9]{8,15}$",
@@ -14717,9 +17820,18 @@
            "nullable": true,
            "type": "string"
           },
+          "saved_traveller_uid": {
+           "format": "uuid",
+           "nullable": true,
+           "type": "string"
+          },
           "seat_no": {
            "nullable": true,
            "type": "integer"
+          },
+          "self_traveller": {
+           "default": false,
+           "type": "boolean"
           },
           "with_adult": {
            "maximum": 120.0,
@@ -14848,10 +17960,22 @@
            "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
            "type": "string"
           },
+          "father_name_latin": {
+           "maxLength": 60,
+           "nullable": true,
+           "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
+           "type": "string"
+          },
           "first_name": {
            "maxLength": 60,
            "minLength": 1,
            "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "first_name_latin": {
+           "maxLength": 60,
+           "nullable": true,
+           "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
            "type": "string"
           },
           "gender": {
@@ -14867,6 +17991,12 @@
            "minLength": 1,
            "nullable": true,
            "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "grandfather_name_latin": {
+           "maxLength": 60,
+           "nullable": true,
+           "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
            "type": "string"
           },
           "id_last4": {
@@ -14899,6 +18029,12 @@
            "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
            "type": "string"
           },
+          "last_name_latin": {
+           "maxLength": 60,
+           "nullable": true,
+           "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
+           "type": "string"
+          },
           "mobile": {
            "nullable": true,
            "pattern": "^\\+?[0-9]{8,15}$",
@@ -14914,9 +18050,18 @@
            "nullable": true,
            "type": "string"
           },
+          "saved_traveller_uid": {
+           "format": "uuid",
+           "nullable": true,
+           "type": "string"
+          },
           "seat_no": {
            "nullable": true,
            "type": "integer"
+          },
+          "self_traveller": {
+           "default": false,
+           "type": "boolean"
           },
           "with_adult": {
            "maximum": 120.0,
@@ -15464,10 +18609,22 @@
            "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
            "type": "string"
           },
+          "father_name_latin": {
+           "maxLength": 60,
+           "nullable": true,
+           "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
+           "type": "string"
+          },
           "first_name": {
            "maxLength": 60,
            "minLength": 1,
            "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "first_name_latin": {
+           "maxLength": 60,
+           "nullable": true,
+           "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
            "type": "string"
           },
           "gender": {
@@ -15483,6 +18640,12 @@
            "minLength": 1,
            "nullable": true,
            "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "grandfather_name_latin": {
+           "maxLength": 60,
+           "nullable": true,
+           "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
            "type": "string"
           },
           "id_last4": {
@@ -15515,6 +18678,12 @@
            "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
            "type": "string"
           },
+          "last_name_latin": {
+           "maxLength": 60,
+           "nullable": true,
+           "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
+           "type": "string"
+          },
           "mobile": {
            "nullable": true,
            "pattern": "^\\+?[0-9]{8,15}$",
@@ -15530,9 +18699,18 @@
            "nullable": true,
            "type": "string"
           },
+          "saved_traveller_uid": {
+           "format": "uuid",
+           "nullable": true,
+           "type": "string"
+          },
           "seat_no": {
            "nullable": true,
            "type": "integer"
+          },
+          "self_traveller": {
+           "default": false,
+           "type": "boolean"
           },
           "with_adult": {
            "maximum": 120.0,
@@ -15984,6 +19162,79 @@
       "type": "string"
      }
     },
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "POST /api/vehicle-models/requests": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "make_name": {
+        "maxLength": 80,
+        "minLength": 2,
+        "nullable": true,
+        "type": "string"
+       },
+       "make_uid": {
+        "format": "uuid",
+        "nullable": true,
+        "type": "string"
+       },
+       "model_name": {
+        "maxLength": 80,
+        "minLength": 1,
+        "type": "string"
+       },
+       "note": {
+        "maxLength": 500,
+        "nullable": true,
+        "type": "string"
+       },
+       "seats": {
+        "maximum": 120.0,
+        "minimum": 1.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "vehicle_type": {
+        "default": "COACH",
+        "enum": [
+         "COACH",
+         "MINIBUS",
+         "CITY_BUS",
+         "VAN",
+         "TRAIN_SET",
+         "OTHER"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "model_name"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "201": {}
+   }
+  },
+  "POST /api/vehicle-models/requests/{uid}/withdraw": {
+   "body": null,
+   "parameters": {
     "path:uid": {
      "required": true,
      "schema": {
@@ -16600,6 +19851,271 @@
     "200": {}
    }
   },
+  "PUT /api/account/document": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "birth_date": {
+        "format": "date",
+        "type": "string"
+       },
+       "gender": {
+        "enum": [
+         "M",
+         "F"
+        ],
+        "type": "string"
+       },
+       "id_expiry": {
+        "format": "date",
+        "nullable": true,
+        "type": "string"
+       },
+       "id_no": {
+        "maxLength": 24,
+        "minLength": 4,
+        "pattern": "^[0-9A-Za-z \\-/]+$",
+        "type": "string"
+       },
+       "id_type": {
+        "enum": [
+         "NATIONAL_ID",
+         "PASSPORT",
+         "RESIDENCE",
+         "OTHER"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "birth_date",
+       "gender",
+       "id_type",
+       "id_no"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "PUT /api/account/names": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "father_name": {
+        "maxLength": 60,
+        "minLength": 1,
+        "nullable": true,
+        "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+        "type": "string"
+       },
+       "father_name_latin": {
+        "maxLength": 60,
+        "nullable": true,
+        "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
+        "type": "string"
+       },
+       "first_name": {
+        "maxLength": 60,
+        "minLength": 1,
+        "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+        "type": "string"
+       },
+       "first_name_latin": {
+        "maxLength": 60,
+        "nullable": true,
+        "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
+        "type": "string"
+       },
+       "grandfather_name": {
+        "maxLength": 60,
+        "minLength": 1,
+        "nullable": true,
+        "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+        "type": "string"
+       },
+       "grandfather_name_latin": {
+        "maxLength": 60,
+        "nullable": true,
+        "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
+        "type": "string"
+       },
+       "last_name": {
+        "maxLength": 60,
+        "minLength": 1,
+        "nullable": true,
+        "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+        "type": "string"
+       },
+       "last_name_latin": {
+        "maxLength": 60,
+        "nullable": true,
+        "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
+        "type": "string"
+       },
+       "mother_name": {
+        "maxLength": 60,
+        "minLength": 1,
+        "nullable": true,
+        "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+        "type": "string"
+       },
+       "nationality": {
+        "default": "SY",
+        "pattern": "^[A-Z]{2}$",
+        "type": "string"
+       }
+      },
+      "required": [
+       "first_name"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "PUT /api/account/travellers/{uid}": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "birth_date": {
+        "format": "date",
+        "nullable": true,
+        "type": "string"
+       },
+       "consent": {
+        "type": "boolean"
+       },
+       "father_name": {
+        "maxLength": 60,
+        "minLength": 1,
+        "nullable": true,
+        "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+        "type": "string"
+       },
+       "father_name_latin": {
+        "maxLength": 60,
+        "nullable": true,
+        "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
+        "type": "string"
+       },
+       "first_name": {
+        "maxLength": 60,
+        "minLength": 1,
+        "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+        "type": "string"
+       },
+       "first_name_latin": {
+        "maxLength": 60,
+        "nullable": true,
+        "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
+        "type": "string"
+       },
+       "gender": {
+        "enum": [
+         "M",
+         "F"
+        ],
+        "nullable": true,
+        "type": "string"
+       },
+       "grandfather_name": {
+        "maxLength": 60,
+        "minLength": 1,
+        "nullable": true,
+        "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+        "type": "string"
+       },
+       "grandfather_name_latin": {
+        "maxLength": 60,
+        "nullable": true,
+        "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
+        "type": "string"
+       },
+       "id_expiry": {
+        "format": "date",
+        "nullable": true,
+        "type": "string"
+       },
+       "id_no": {
+        "maxLength": 24,
+        "minLength": 4,
+        "nullable": true,
+        "pattern": "^[0-9A-Za-z \\-/]+$",
+        "type": "string"
+       },
+       "id_type": {
+        "enum": [
+         "NATIONAL_ID",
+         "PASSPORT",
+         "RESIDENCE",
+         "LAISSEZ_PASSER",
+         "TRAVEL_DOCUMENT",
+         "OTHER"
+        ],
+        "nullable": true,
+        "type": "string"
+       },
+       "label": {
+        "maxLength": 40,
+        "minLength": 1,
+        "nullable": true,
+        "type": "string"
+       },
+       "last_name": {
+        "maxLength": 60,
+        "minLength": 1,
+        "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+        "type": "string"
+       },
+       "last_name_latin": {
+        "maxLength": 60,
+        "nullable": true,
+        "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
+        "type": "string"
+       },
+       "nationality": {
+        "default": "SY",
+        "pattern": "^[A-Z]{2}$",
+        "type": "string"
+       }
+      },
+      "required": [
+       "first_name",
+       "last_name",
+       "consent"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "PUT /api/admin/approvals/policies/{action}": {
    "body": {
     "content": {
@@ -16921,6 +20437,42 @@
      }
     }
    },
+   "responses": {
+    "200": {}
+   }
+  },
+  "PUT /api/admin/booking/passenger-mix": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "basis": {
+        "maxLength": 160,
+        "minLength": 3,
+        "type": "string"
+       },
+       "max_adults": {
+        "maximum": 20.0,
+        "minimum": 1.0,
+        "type": "integer"
+       },
+       "max_children": {
+        "maximum": 20.0,
+        "minimum": 0.0,
+        "type": "integer"
+       }
+      },
+      "required": [
+       "max_adults",
+       "max_children",
+       "basis"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
    "responses": {
     "200": {}
    }
@@ -17251,6 +20803,189 @@
     "200": {}
    }
   },
+  "PUT /api/admin/money-mode": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "basis": {
+        "maxLength": 160,
+        "minLength": 3,
+        "type": "string"
+       },
+       "mode": {
+        "enum": [
+         "FULL",
+         "NO_FUNDS"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "mode",
+       "basis"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "PUT /api/admin/parcels/carriers/{uid}/stop": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "reason": {
+        "maxLength": 300,
+        "minLength": 5,
+        "type": "string"
+       },
+       "stopped": {
+        "type": "boolean"
+       }
+      },
+      "required": [
+       "stopped",
+       "reason"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "PUT /api/admin/parcels/policy": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "carrier_types": {
+        "items": {
+         "enum": [
+          "CARRIER",
+          "INDIVIDUAL_OPERATOR",
+          "FOREIGN_CARRIER"
+         ],
+         "type": "string"
+        },
+        "type": "array"
+       },
+       "fee_policy": {
+        "enum": [
+         "CARRIER",
+         "PLATFORM"
+        ],
+        "type": "string"
+       },
+       "min_handover_minutes": {
+        "maximum": 1440.0,
+        "minimum": 15.0,
+        "type": "integer"
+       },
+       "prohibited": {
+        "items": {
+         "type": "string"
+        },
+        "maxItems": 60,
+        "minItems": 1,
+        "type": "array"
+       },
+       "reason": {
+        "maxLength": 300,
+        "minLength": 5,
+        "type": "string"
+       },
+       "scheduled_only": {
+        "type": "boolean"
+       }
+      },
+      "required": [
+       "carrier_types",
+       "scheduled_only",
+       "min_handover_minutes",
+       "fee_policy",
+       "prohibited",
+       "reason"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "PUT /api/admin/payment-activations/{carrier_uid}/{option}": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "basis": {
+        "maxLength": 200,
+        "minLength": 3,
+        "type": "string"
+       },
+       "status": {
+        "enum": [
+         "CONTRACTED",
+         "ACTIVE",
+         "SUSPENDED"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "status",
+       "basis"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:carrier_uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    },
+    "path:option": {
+     "required": true,
+     "schema": {
+      "enum": [
+       "CARD",
+       "INSTALLMENT",
+       "FINANCING"
+      ],
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "PUT /api/admin/payment-methods/{code}": {
    "body": {
     "content": {
@@ -17312,6 +21047,7 @@
       "enum": [
        "WALLET",
        "AGENCY_BALANCE",
+       "AGENCY_CASH",
        "CASH_COUNTER",
        "PAY_LATER",
        "CARD",
@@ -17538,6 +21274,228 @@
     "200": {}
    }
   },
+  "PUT /api/admin/registry/banks/{uid}": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "address": {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       "bank_type": {
+        "default": "PRIVATE",
+        "enum": [
+         "CENTRAL",
+         "PUBLIC",
+         "PRIVATE",
+         "ISLAMIC"
+        ],
+        "type": "string"
+       },
+       "code": {
+        "pattern": "^[A-Z0-9]{2,12}$",
+        "type": "string"
+       },
+       "email": {
+        "maxLength": 200,
+        "nullable": true,
+        "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+        "type": "string"
+       },
+       "fax": {
+        "maxLength": 40,
+        "minLength": 5,
+        "nullable": true,
+        "type": "string"
+       },
+       "iban_bank_code": {
+        "nullable": true,
+        "pattern": "^[0-9A-Z]{2,10}$",
+        "type": "string"
+       },
+       "name_ar": {
+        "maxLength": 160,
+        "minLength": 2,
+        "type": "string"
+       },
+       "name_en": {
+        "maxLength": 160,
+        "minLength": 2,
+        "type": "string"
+       },
+       "notes": {
+        "maxLength": 1000,
+        "nullable": true,
+        "type": "string"
+       },
+       "phone": {
+        "maxLength": 40,
+        "minLength": 5,
+        "nullable": true,
+        "type": "string"
+       },
+       "short_name": {
+        "maxLength": 40,
+        "minLength": 2,
+        "nullable": true,
+        "type": "string"
+       },
+       "swift_bic": {
+        "nullable": true,
+        "pattern": "^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$",
+        "type": "string"
+       },
+       "swift_status": {
+        "default": "TO_VERIFY",
+        "enum": [
+         "TO_VERIFY",
+         "VERIFIED",
+         "INVALID"
+        ],
+        "type": "string"
+       },
+       "website": {
+        "maxLength": 300,
+        "nullable": true,
+        "pattern": "^https?://\\S+$",
+        "type": "string"
+       }
+      },
+      "required": [
+       "name_ar",
+       "name_en",
+       "code"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "PUT /api/admin/registry/insurers/{uid}": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "address": {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       "code": {
+        "pattern": "^[A-Z0-9]{2,12}$",
+        "type": "string"
+       },
+       "email": {
+        "maxLength": 200,
+        "nullable": true,
+        "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+        "type": "string"
+       },
+       "fax": {
+        "maxLength": 40,
+        "minLength": 5,
+        "nullable": true,
+        "type": "string"
+       },
+       "insurance_kind": {
+        "default": "CONVENTIONAL",
+        "enum": [
+         "CONVENTIONAL",
+         "TAKAFUL",
+         "REINSURANCE"
+        ],
+        "type": "string"
+       },
+       "lat": {
+        "maximum": 90.0,
+        "minimum": -90.0,
+        "nullable": true,
+        "type": "number"
+       },
+       "licence_no": {
+        "maxLength": 40,
+        "minLength": 2,
+        "nullable": true,
+        "type": "string"
+       },
+       "lng": {
+        "maximum": 180.0,
+        "minimum": -180.0,
+        "nullable": true,
+        "type": "number"
+       },
+       "name_ar": {
+        "maxLength": 160,
+        "minLength": 2,
+        "type": "string"
+       },
+       "name_en": {
+        "maxLength": 160,
+        "minLength": 2,
+        "type": "string"
+       },
+       "notes": {
+        "maxLength": 1000,
+        "nullable": true,
+        "type": "string"
+       },
+       "ownership": {
+        "default": "PRIVATE",
+        "enum": [
+         "PUBLIC",
+         "PRIVATE"
+        ],
+        "type": "string"
+       },
+       "phone": {
+        "maxLength": 40,
+        "minLength": 5,
+        "nullable": true,
+        "type": "string"
+       },
+       "website": {
+        "maxLength": 300,
+        "nullable": true,
+        "pattern": "^https?://\\S+$",
+        "type": "string"
+       }
+      },
+      "required": [
+       "name_ar",
+       "name_en",
+       "code"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "PUT /api/admin/schedules/settings/{key}": {
    "body": {
     "content": {
@@ -17596,6 +21554,72 @@
     "200": {}
    }
   },
+  "PUT /api/admin/trip-changes/policy": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "free_cancel_shift_min": {
+        "maximum": 1440.0,
+        "minimum": 0.0,
+        "type": "integer"
+       },
+       "max_shift_min": {
+        "maximum": 10080.0,
+        "minimum": 15.0,
+        "type": "integer"
+       },
+       "reasons": {
+        "items": {
+         "properties": {
+          "ar": {
+           "maxLength": 80,
+           "minLength": 2,
+           "type": "string"
+          },
+          "code": {
+           "pattern": "^[A-Z_]{3,40}$",
+           "type": "string"
+          },
+          "en": {
+           "maxLength": 80,
+           "minLength": 2,
+           "type": "string"
+          }
+         },
+         "required": [
+          "code",
+          "en",
+          "ar"
+         ],
+         "type": "object"
+        },
+        "maxItems": 40,
+        "minItems": 1,
+        "type": "array"
+       },
+       "rebook_window_hours": {
+        "maximum": 720.0,
+        "minimum": 1.0,
+        "type": "integer"
+       }
+      },
+      "required": [
+       "reasons",
+       "free_cancel_shift_min",
+       "max_shift_min",
+       "rebook_window_hours"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
   "PUT /api/admin/trips/cancel-penalty": {
    "body": {
     "content": {
@@ -17645,6 +21669,43 @@
       },
       "required": [
        "enabled"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "PUT /api/admin/ui/visitor-locale": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "basis": {
+        "maxLength": 160,
+        "minLength": 3,
+        "type": "string"
+       },
+       "countries": {
+        "additionalProperties": {
+         "type": "string"
+        },
+        "maxProperties": 250,
+        "type": "object"
+       },
+       "default": {
+        "maxLength": 5,
+        "minLength": 2,
+        "type": "string"
+       }
+      },
+      "required": [
+       "default",
+       "basis"
       ],
       "type": "object"
      }
@@ -17723,6 +21784,50 @@
      }
     }
    },
+   "responses": {
+    "200": {}
+   }
+  },
+  "PUT /api/carrier/parcels/settings": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "booking_mode": {
+        "enum": [
+         "ONLINE_DROPOFF",
+         "COUNTER_ONLY"
+        ],
+        "type": "string"
+       },
+       "cancel_fee": {
+        "maximum": 100000000.0,
+        "minimum": 0.0,
+        "type": "integer"
+       },
+       "handover_minutes": {
+        "maximum": 2880.0,
+        "minimum": 15.0,
+        "type": "integer"
+       },
+       "no_show_fee": {
+        "maximum": 100000000.0,
+        "minimum": 0.0,
+        "type": "integer"
+       }
+      },
+      "required": [
+       "booking_mode",
+       "handover_minutes",
+       "cancel_fee",
+       "no_show_fee"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
    "responses": {
     "200": {}
    }
@@ -17832,6 +21937,97 @@
     "200": {}
    }
   },
+  "PUT /api/people/roles/{uid}": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "name": {
+        "maxLength": 80,
+        "minLength": 2,
+        "type": "string"
+       },
+       "permissions": {
+        "items": {
+         "type": "string"
+        },
+        "maxItems": 200,
+        "minItems": 1,
+        "type": "array"
+       },
+       "status": {
+        "default": "ACTIVE",
+        "enum": [
+         "ACTIVE",
+         "RETIRED"
+        ],
+        "type": "string"
+       }
+      },
+      "required": [
+       "name",
+       "permissions"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
+  "PUT /api/people/users/{uid}": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "roles": {
+        "items": {
+         "format": "uuid",
+         "type": "string"
+        },
+        "maxItems": 10,
+        "minItems": 1,
+        "nullable": true,
+        "type": "array"
+       },
+       "status": {
+        "enum": [
+         "ACTIVE",
+         "DISABLED"
+        ],
+        "nullable": true,
+        "type": "string"
+       }
+      },
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {
+    "path:uid": {
+     "required": true,
+     "schema": {
+      "format": "uuid",
+      "type": "string"
+     }
+    }
+   },
+   "responses": {
+    "200": {}
+   }
+  },
   "PUT /api/reports/definitions/{uid}": {
    "body": {
     "content": {
@@ -17908,6 +22104,48 @@
     "200": {}
    }
   },
+  "PUT /api/security/idle-policy": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "minutes": {
+        "additionalProperties": {
+         "type": "integer"
+        },
+        "propertyNames": {
+         "enum": [
+          "PLATFORM",
+          "INSPECTOR",
+          "OPERATOR",
+          "DRIVER",
+          "AGENCY",
+          "STATION",
+          "PASSENGER"
+         ]
+        },
+        "type": "object"
+       },
+       "reason": {
+        "maxLength": 300,
+        "minLength": 5,
+        "type": "string"
+       }
+      },
+      "required": [
+       "minutes",
+       "reason"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
   "PUT /api/security/mfa-policy": {
    "body": {
     "content": {
@@ -17927,6 +22165,8 @@
         "items": {
          "enum": [
           "TOTP",
+          "EMAIL",
+          "TELEGRAM",
           "SMS",
           "WHATSAPP"
          ],
@@ -17972,6 +22212,167 @@
       "required": [
        "methods",
        "required_portals"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "PUT /api/security/shield/level": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "level": {
+        "enum": [
+         "NORMAL",
+         "ELEVATED",
+         "LOCKDOWN"
+        ],
+        "type": "string"
+       },
+       "minutes": {
+        "maximum": 10080.0,
+        "minimum": 5.0,
+        "nullable": true,
+        "type": "integer"
+       },
+       "reason": {
+        "maxLength": 300,
+        "minLength": 3,
+        "type": "string"
+       }
+      },
+      "required": [
+       "level",
+       "reason"
+      ],
+      "type": "object"
+     }
+    },
+    "required": true
+   },
+   "parameters": {},
+   "responses": {
+    "200": {}
+   }
+  },
+  "PUT /api/security/shield/policy": {
+   "body": {
+    "content": {
+     "application/json": {
+      "properties": {
+       "alert_auth_fail_per_min": {
+        "maximum": 1000000.0,
+        "minimum": 1.0,
+        "type": "integer"
+       },
+       "alert_error_pct": {
+        "maximum": 100.0,
+        "minimum": 1.0,
+        "type": "number"
+       },
+       "alert_ip_rpm": {
+        "maximum": 1000000.0,
+        "minimum": 30.0,
+        "type": "integer"
+       },
+       "alert_rpm": {
+        "maximum": 10000000.0,
+        "minimum": 100.0,
+        "type": "integer"
+       },
+       "alert_waf_per_min": {
+        "maximum": 1000000.0,
+        "minimum": 1.0,
+        "type": "integer"
+       },
+       "auto_block_heavy": {
+        "type": "boolean"
+       },
+       "auto_elevate": {
+        "type": "boolean"
+       },
+       "auto_elevate_min": {
+        "maximum": 1440.0,
+        "minimum": 5.0,
+        "type": "integer"
+       },
+       "elevated_rate_factor": {
+        "default": 0.5,
+        "maximum": 1.0,
+        "minimum": 0.1,
+        "type": "number"
+       },
+       "lockdown_allow_signed_in": {
+        "type": "boolean"
+       },
+       "session_policy": {
+        "additionalProperties": {
+         "enum": [
+          "SINGLE",
+          "MULTI"
+         ],
+         "type": "string"
+        },
+        "type": "object"
+       },
+       "spike_factor": {
+        "maximum": 100.0,
+        "minimum": 1.5,
+        "type": "number"
+       },
+       "spike_min_rpm": {
+        "maximum": 10000000.0,
+        "minimum": 10.0,
+        "type": "integer"
+       },
+       "waf_block_min": {
+        "maximum": 43200.0,
+        "minimum": 1.0,
+        "type": "integer"
+       },
+       "waf_mode": {
+        "enum": [
+         "OFF",
+         "DETECT",
+         "BLOCK"
+        ],
+        "type": "string"
+       },
+       "waf_strikes": {
+        "maximum": 100.0,
+        "minimum": 1.0,
+        "type": "integer"
+       },
+       "waf_window_min": {
+        "maximum": 1440.0,
+        "minimum": 1.0,
+        "type": "integer"
+       }
+      },
+      "required": [
+       "waf_mode",
+       "waf_strikes",
+       "waf_window_min",
+       "waf_block_min",
+       "alert_rpm",
+       "alert_ip_rpm",
+       "spike_factor",
+       "spike_min_rpm",
+       "alert_error_pct",
+       "alert_waf_per_min",
+       "alert_auth_fail_per_min",
+       "auto_block_heavy",
+       "auto_elevate",
+       "auto_elevate_min",
+       "lockdown_allow_signed_in",
+       "session_policy"
       ],
       "type": "object"
      }
@@ -18643,10 +23044,22 @@
            "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
            "type": "string"
           },
+          "father_name_latin": {
+           "maxLength": 60,
+           "nullable": true,
+           "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
+           "type": "string"
+          },
           "first_name": {
            "maxLength": 60,
            "minLength": 1,
            "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "first_name_latin": {
+           "maxLength": 60,
+           "nullable": true,
+           "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
            "type": "string"
           },
           "gender": {
@@ -18662,6 +23075,12 @@
            "minLength": 1,
            "nullable": true,
            "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
+           "type": "string"
+          },
+          "grandfather_name_latin": {
+           "maxLength": 60,
+           "nullable": true,
+           "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
            "type": "string"
           },
           "id_last4": {
@@ -18694,6 +23113,12 @@
            "pattern": "^[^\\W\\d_]+(?:[ '\\-.][^\\W\\d_]+)*\\.?$",
            "type": "string"
           },
+          "last_name_latin": {
+           "maxLength": 60,
+           "nullable": true,
+           "pattern": "^[A-Za-z][A-Za-z '.-]{0,59}$",
+           "type": "string"
+          },
           "mobile": {
            "nullable": true,
            "pattern": "^\\+?[0-9]{8,15}$",
@@ -18709,9 +23134,18 @@
            "nullable": true,
            "type": "string"
           },
+          "saved_traveller_uid": {
+           "format": "uuid",
+           "nullable": true,
+           "type": "string"
+          },
           "seat_no": {
            "nullable": true,
            "type": "integer"
+          },
+          "self_traveller": {
+           "default": false,
+           "type": "boolean"
           },
           "with_adult": {
            "maximum": 120.0,

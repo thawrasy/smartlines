@@ -7,3 +7,7 @@
 
 - app POST /api/admin/schedules/requests/{request_uid}/decide body.number: minimum tightened to 1000.0
 - app POST /api/carrier/schedules body.proposed_number: minimum tightened to 1000.0
+
+## 2026-10-25: carrier crew: license_class is a licence class (letters, digits, space, + and -, up to 16 characters), checked since crew details (N3, 1158)
+
+- app POST /api/carrier/crew body.license_class: pattern changed to ^[A-Za-z0-9][A-Za-z0-9 +-]{0,15}$
