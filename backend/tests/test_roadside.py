@@ -60,6 +60,8 @@ def test_the_carrier_prints_one_placard_and_revokes_it_with_a_reason(setup):
     pdf = carrier.get(f"/api/carrier/vehicles/{vehicle}/placard.pdf")
     assert pdf.status_code == 200 and pdf.content[:4] == b"%PDF" and pdf.content.count(b"/Type /Page") >= 2
     assert carrier.get(f"/api/carrier/vehicles/{vehicle}/placard").json()["placard"]["serial"] == serial
+    listed = next(v for v in carrier.get("/api/carrier/placards").json()["vehicles"] if v["uid"] == vehicle)
+    assert listed["serial"] == serial and listed["revoked"] >= 0
     assert carrier.post(f"/api/carrier/vehicles/{vehicle}/placard/revoke", json={"reason": ""}).status_code == 422
     other = login("passenger@masslak.test", "PASSENGER")
     assert other.post(f"/api/carrier/vehicles/{vehicle}/placard").status_code in (401, 403)
@@ -103,7 +105,7 @@ def test_a_scan_shows_the_movement_and_the_server_draws_the_sample(setup):
     assert mine[0]["uid"] == check and mine[0]["outcome"] == "ISSUES" and mine[0]["body"] == code
     # the carrier sees the check of its vehicle, without the officer's account
     seen = next(c for c in carrier.get("/api/carrier/roadside-checks").json()["checks"] if c["uid"] == check)
-    assert seen["outcome"] == "ISSUES" and "inspector" not in seen
+    assert seen["outcome"] == "ISSUES" and "inspector" not in seen and isinstance(seen["warnings"], list)
     assert any(c["uid"] == check for c in admin.get("/api/admin/authorities/checks").json()["checks"])
 
 

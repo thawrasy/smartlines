@@ -1,12 +1,19 @@
 # Masslak mobile apps
 
-One Expo (React Native) code base builds three apps:
+One Expo (React Native) code base builds four apps:
 
 | Variant | Command | Bundle id | Portal |
 |---|---|---|---|
 | Passenger | `npm start` | `sy.masslak.app` | `PASSENGER` |
 | Driver | `npm run start:driver` | `sy.masslak.driver` | `DRIVER` |
 | Operator (Masslak Business) | `npm run start:operator` | `sy.masslak.business` | `OPERATOR` |
+| Officer (Masslak Roadside) | `npm run start:officer` | `sy.masslak.roadside` | `INSPECTOR` |
+
+The officer app is the platform's own app for the members of government bodies (N47): the camera reads the movement code
+on a vehicle's placard from a distance, and the officer sees the vehicle's movement within the body's approved scopes,
+asks the server for a random sample of passengers (or all of them) and closes the check (N48). It signs in at the business
+door with the platform's number and the member's username; a rooted phone is refused. Other applications of a body link
+through the integration API v1 when the body asks for it.
 
 `APP_VARIANT` selects the variant at build time (`app.config.ts`). Native modules (keystore, camera, biometrics,
 certificate pinning) need a development build: `npx expo run:android` or `npx expo run:ios`. Expo Go is not enough.
@@ -15,7 +22,7 @@ certificate pinning) need a development build: `npx expo run:android` or `npx ex
 
 | Variable | Purpose |
 |---|---|
-| `APP_VARIANT` | `passenger` (default), `driver` or `operator` |
+| `APP_VARIANT` | `passenger` (default), `driver`, `operator` or `officer` |
 | `MASSLAK_API_URL` | API origin, e.g. `https://masslak.com` |
 | `MASSLAK_API_PINS` | Comma-separated SHA-256 SPKI pins of the API certificate: current key and at least one backup |
 

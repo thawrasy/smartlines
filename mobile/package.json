@@ -35,6 +35,7 @@
     "start": "expo start",
     "start:driver": "APP_VARIANT=driver expo start",
     "start:operator": "APP_VARIANT=operator expo start",
+    "start:officer": "APP_VARIANT=officer expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
     "typecheck": "tsc --noEmit",

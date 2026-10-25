@@ -155,3 +155,13 @@ test("a round trip comes back the way it went; several places follow each other 
   assert.equal(canFollow("2026-10-16T12:45:00Z", "2026-10-16T12:30:00Z"), false);
   assert.equal(canFollow("2026-10-16T12:45:00Z", "2026-10-16T16:00:00Z"), true);
 });
+
+import { vehicleCode } from "../src/core/vehicleCode.ts";
+
+test("a vehicle movement code is read as the server reads it", () => {
+  assert.equal(vehicleCode("MS14BJWF53YF32MP"), "MS14BJWF53YF32MP");
+  assert.equal(vehicleCode(" ms14bjwf 53yf32mp "), "MS14BJWF53YF32MP");          // typed by hand
+  for (const bad of ["", "MS14BJWF53YF32M", "MS14BJWF53YF32MPA", "MS24BJWF53YF32MP", "MS14BJWF53YF32M1", "Q1.s1.x.y.z"]) {
+    assert.equal(vehicleCode(bad), null, bad);
+  }
+});

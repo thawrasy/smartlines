@@ -112,6 +112,8 @@ const CarrierRoads = lazyNamed(() => import("./pages/admin/Roads"), "CarrierRoad
 const AdminPhotoPolicy = lazyNamed(() => import("./pages/admin/PhotoPolicy"), "AdminPhotoPolicy");
 const StationOps = lazy(() => import("./pages/carrier/StationOps"));
 const AdminBoarding = lazy(() => import("./pages/admin/Boarding"));
+const AdminAuthorities = lazyNamed(() => import("./pages/admin/Authorities"), "AdminAuthorities");
+const CarrierPlacards = lazyNamed(() => import("./pages/carrier/Placards"), "CarrierPlacards");
 
 /** Menu entries for the switched-on modules the signed-in user can open. */
 // A module switched on joins the menu group of its domain (sent with it by /api/modules), so a new module needs no change
@@ -184,6 +186,8 @@ function PlatformShell() {
       { to: "/security/statements", group: "security", icon: "monitoring", label: t("security.stmt.nav"), show: can("security.console") },
       { to: "/admin/privacy", group: "compliance", icon: "privacy_tip", label: t("account.privacyRequests"), show: can("privacy.manage") },
       { to: "/admin/photo", group: "compliance", icon: "badge", label: t("photo.nav"), show: can("privacy.manage") },
+      // government bodies (N47): the register, their scopes, members and the roadside checks (N48)
+      { to: "/admin/authorities", group: "government", icon: "account_balance", label: t("gov.nav"), show: can("authority.manage") },
       { to: "/regulator", group: "compliance", icon: "gavel", label: t("nav.regulator"), show: can("regulator.dashboard", "report.platform") },
       { to: "/admin/reports", group: "compliance", icon: "summarize", label: t("rpt.nav"), show: can("report.platform") },
       { to: "/admin/payments", group: "finance", icon: "account_balance", label: t("pay.nav"), show: can("ledger.reconcile", "payment.fee_policy", "compensation.pay", "payment.methods", "cash.remittance", "cash.credit_limit", "policy.matrix", "loyalty.manage") },
@@ -210,6 +214,7 @@ function CarrierShell() {
       { to: "/carrier/roads", group: "network", icon: "map", label: t("roads.carrierNav") },
       { to: "/carrier/vehicles", group: "fleet", icon: "directions_car", label: t("carrier.vehicles") },
       { to: "/carrier/layouts", group: "fleet", icon: "event_seat", label: t("layout.title") },
+      { to: "/carrier/placards", group: "fleet", icon: "qr_code_2", label: t("plc.nav"), show: can("vehicle.placard") },
       { to: "/carrier/crew", group: "fleet", icon: "badge", label: t("carrier.crew") },
       { to: "/carrier/stations", group: "operations", icon: "storefront", label: t("stops.nav"), show: can("boarding.operators", "boarding.references") },
       { to: "/carrier/parcels", group: "sales", icon: "local_shipping", label: t("parcel.carrierNav"), show: can("parcels.tariffs", "shipping.operate", "parcels.counter") },
@@ -327,6 +332,7 @@ export default function App() {
           <Route path="carrier/finance" element={<CompanyFinance />} />
           <Route path="carrier/documents" element={<CompanyDocuments />} />
           <Route path="carrier/crew" element={<CarrierCrew />} />
+          <Route path="carrier/placards" element={<CarrierPlacards />} />
           <Route path="carrier/stations" element={<StationOps />} />
           <Route path="carrier/parcels" element={<CarrierParcels />} />
           <Route path="carrier/charter" element={<CarrierCharter />} />
@@ -402,6 +408,7 @@ export default function App() {
           <Route path="admin/numbers" element={<AdminNumberRanges />} />
           <Route path="admin/miles" element={<AdminMiles />} />
           <Route path="admin/photo" element={<AdminPhotoPolicy />} />
+          <Route path="admin/authorities" element={<AdminAuthorities />} />
           <Route path="admin/kyc" element={<AdminKyc />} />
           <Route path="admin/modules" element={<AdminModules />} />
           <Route path="admin/m/:module" element={<ModulePage />} />

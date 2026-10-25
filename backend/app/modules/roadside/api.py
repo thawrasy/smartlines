@@ -9,6 +9,7 @@
     (members are added and removed by the routes of the regular trips module, schedules/api.py, which take this right too)
     GET  /api/admin/authorities/checks                  the latest roadside checks across the network
     Carrier (vehicle.placard)
+    GET  /api/carrier/placards                          every vehicle of the company with its placard in force, if any
     GET  /api/carrier/vehicles/{uid}/placard            the vehicle's placard in force, if any
     POST /api/carrier/vehicles/{uid}/placard            prints a placard (the next serial) when none is in force
     GET  /api/carrier/vehicles/{uid}/placard.pdf        the two pages to print
@@ -187,12 +188,19 @@ _CHECKS = """SELECT f.uid, f.created_at, f.closed_at, f.status, f.result, f.outc
                LEFT JOIN iam.app_user u ON u.id = f.inspector_user_id"""
 
 
+def _check_row(r, drop: tuple[str, ...] = ()) -> dict:
+    d = {k: v for k, v in dict(r).items() if k not in drop}
+    if isinstance(d.get("warnings"), str):              # jsonb comes back as text
+        d["warnings"] = json.loads(d["warnings"])
+    return d
+
+
 @platform.get("/checks")
 async def checks_all(request: Request, pr: Principal = Depends(require_portal("PLATFORM"))):
     _platform(pr)
     async with db.transaction(context_for(request, pr)) as conn:
         rows = await conn.fetch(f"{_CHECKS} ORDER BY f.created_at DESC LIMIT 200")
-    return {"checks": [dict(r) for r in rows]}
+    return {"checks": [_check_row(r) for r in rows]}
 
 
 # ------------------------------------------------------------------ carrier: the placard
@@ -215,6 +223,21 @@ async def _tag(conn, vehicle_id: int):
     return await conn.fetchrow(
         """SELECT t.id, t.serial, t.issued_at, t.token_hash, u.email AS issued_by FROM fleet.vehicle_qr_tag t
              LEFT JOIN iam.app_user u ON u.id = t.issued_by WHERE t.vehicle_id = $1 AND t.revoked_at IS NULL""", vehicle_id)
+
+
+@carrier.get("/placards")
+async def placards(request: Request, pr: Principal = Depends(require_portal("OPERATOR"))):
+    _carrier(pr)
+    async with db.transaction(context_for(request, pr)) as conn:
+        rows = await conn.fetch(
+            """SELECT v.uid::text AS uid, v.plate_no, v.passenger_seats, v.status, t.serial, t.issued_at, u.email AS issued_by,
+                      (SELECT count(*) FROM fleet.vehicle_qr_tag r WHERE r.vehicle_id = v.id AND r.revoked_at IS NOT NULL) AS revoked,
+                      (SELECT max(f.created_at) FROM fleet.field_check_log f WHERE f.vehicle_id = v.id) AS last_check
+                 FROM fleet.vehicle v
+                 LEFT JOIN fleet.vehicle_qr_tag t ON t.vehicle_id = v.id AND t.revoked_at IS NULL
+                 LEFT JOIN iam.app_user u ON u.id = t.issued_by
+                WHERE v.company_id = $1 ORDER BY v.plate_no""", pr.company_id)
+    return {"vehicles": [dict(r) for r in rows]}
 
 
 @carrier.get("/vehicles/{uid}/placard")
@@ -286,7 +309,7 @@ async def carrier_checks(request: Request, pr: Principal = Depends(require_porta
         raise forbidden("the company's roadside checks")
     async with db.transaction(context_for(request, pr)) as conn:
         rows = await conn.fetch(f"{_CHECKS} WHERE v.company_id = $1 ORDER BY f.created_at DESC LIMIT 200", pr.company_id)
-    return {"checks": [{k: v for k, v in dict(r).items() if k != "inspector"} for r in rows]}
+    return {"checks": [_check_row(r, ("inspector",)) for r in rows]}
 
 
 # ------------------------------------------------------------------ inspector: scan, sample, close
@@ -486,4 +509,4 @@ async def close(uid: uuid.UUID, body: CloseIn, request: Request, pr: Principal =
 async def my_checks(request: Request, pr: Principal = Depends(inspect)):
     async with db.transaction(context_for(request, pr)) as conn:
         rows = await conn.fetch(f"{_CHECKS} WHERE f.inspector_user_id = $1 ORDER BY f.created_at DESC LIMIT 100", pr.user_id)
-    return {"checks": [dict(r) for r in rows]}
+    return {"checks": [_check_row(r) for r in rows]}

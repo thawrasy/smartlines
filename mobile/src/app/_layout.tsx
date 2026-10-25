@@ -24,6 +24,8 @@ function Gate() {
   if (integrity.problem) return <Notice text={t("security.insecure")} />;
   // A driver phone that is rooted could forge boarding records offline.
   if (integrity.rooted && VARIANT === "driver") return <Notice text={t("security.driverRooted")} />;
+  // nor an officer's: it shows passengers' names and records checks for a government body
+  if (integrity.rooted && VARIANT === "officer") return <Notice text={t("security.officerRooted")} />;
   return (
     <AuthProvider>
       <AppLock>

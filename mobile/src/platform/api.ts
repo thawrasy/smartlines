@@ -92,7 +92,7 @@ export async function signIn(who: Credentials, password: string): Promise<LoginR
     ? await raw("POST", "/api/auth/login/individual", { identifier: who.identifier.trim(), password, ...device })
     : await raw("POST", "/api/auth/login/business", {
         company_no: who.company_no.trim(), username: who.username.trim().toLowerCase(), password,
-        ...(PORTAL === "DRIVER" ? { portal: "DRIVER" } : {}), ...device });
+        ...(PORTAL === "DRIVER" || PORTAL === "INSPECTOR" ? { portal: PORTAL } : {}), ...device });
   const data = await parse<{ mfa: LoginResult["mfa"]; password_change_required?: boolean } & Tokens>(r);
   await tokenStore.save({ access_token: data.access_token, refresh_token: data.refresh_token, access_expires_at: data.access_expires_at });
   return { mfa: data.mfa, passwordChange: !!data.password_change_required };

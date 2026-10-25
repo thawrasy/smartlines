@@ -35,12 +35,12 @@ const PORTALS = [
     `/search?from=DRA&to=ALP&on=${later}`] },   // no trip runs direct: the connections through Damascus (1130)
   { who: ["passenger@masslak.test", "PASSENGER"], pages: ["/trips", "/wallet", "/family", "/account", "/account/kyc", "/services", "/support", "@journey", "@connection", "/charter"] },
   { who: ["owner@carrier.test", "OPERATOR"],
-    pages: ["/carrier", "/carrier/people", "/carrier/integrations", "/carrier/trips", "/carrier/routes", "/carrier/roads", "/carrier/vehicles", "/carrier/finance", "/carrier/documents", "/carrier/reports", "/carrier/stations", "/carrier/schedules", "/carrier/kyc", "/carrier/charter", "/carrier/agency-cash", "/carrier/parcels"] },
+    pages: ["/carrier", "/carrier/people", "/carrier/integrations", "/carrier/trips", "/carrier/routes", "/carrier/roads", "/carrier/vehicles", "/carrier/finance", "/carrier/documents", "/carrier/reports", "/carrier/stations", "/carrier/schedules", "/carrier/kyc", "/carrier/charter", "/carrier/agency-cash", "/carrier/parcels", "/carrier/placards"] },
   { who: ["counter@carrier.test", "OPERATOR"], pages: ["/carrier/counter", "/carrier/counter/report"] },
   { who: ["agency@agency.test", "AGENCY"], pages: ["/agency", "/agency/bookings", "/agency/statement", "/agency/cash-accounts", "/agency/people", "/agency/integrations", "/agency/kyc", `/agency/search?${MULTI}&pax=6`, "/agency/charter"] },
   { who: ["driver@carrier.test", "DRIVER"], pages: ["/driver", "/driver/kyc"] },
   { who: ["admin@masslak.test", "PLATFORM"],
-    pages: ["/admin", "/admin/people", "/admin/registries", "/admin/integrations", "/admin/companies", "/admin/finance", "/admin/documents", "/admin/stations", "/admin/boarding", "/admin/schedules", "/admin/kyc", "/admin/modules", "/admin/payments", "/admin/booking", "/admin/booking?tab=connections", "/admin/booking?tab=parcels", "/admin/booking?tab=tripChanges", "/admin/geography", "/admin/roads", "/admin/ports", "/admin/network", "/admin/pricing", "/admin/numbers", "/admin/miles", "/admin/photo"] },
+    pages: ["/admin", "/admin/people", "/admin/registries", "/admin/integrations", "/admin/companies", "/admin/finance", "/admin/documents", "/admin/stations", "/admin/boarding", "/admin/schedules", "/admin/kyc", "/admin/modules", "/admin/payments", "/admin/booking", "/admin/booking?tab=connections", "/admin/booking?tab=parcels", "/admin/booking?tab=tripChanges", "/admin/geography", "/admin/roads", "/admin/ports", "/admin/network", "/admin/pricing", "/admin/numbers", "/admin/miles", "/admin/photo", "/admin/authorities"] },
   ...(STATION ? [{
     label: "STATION", cookies: STATION.cookies,
     choice: { station_uid: STATION.station_uid, station_code: STATION.station_code, station_name: STATION.station_code, counter_code: STATION.counter },
@@ -136,7 +136,8 @@ try {
           const where = `${locale} ${screen} ${portal.label ?? portal.who?.[1] ?? "VISITOR"} ${path}`;
           const resp = await page.goto(BASE + path, { waitUntil: "networkidle" });
           if (!resp || resp.status() >= 400) { failures.push(`${where}: answered ${resp?.status()}`); continue; }
-          await page.waitForSelector("#root *", { timeout: 10000 });
+          // a page that never renders is a failure of that page, named, not the end of the run
+          if (!await page.waitForSelector("#root *", { timeout: 10000 }).then(() => true, () => false)) { failures.push(`${where}: nothing rendered`); continue; }
           await page.waitForTimeout(300);
           checked += 1;
           const [dir, lang] = await page.evaluate(() => [document.documentElement.dir, document.documentElement.lang]);

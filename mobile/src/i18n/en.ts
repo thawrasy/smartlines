@@ -1,6 +1,6 @@
 // English messages: the keys every other locale file must provide.
 const en = {
-  app: { passenger: "Masslak", driver: "Masslak Driver", operator: "Masslak Business" },
+  app: { passenger: "Masslak", driver: "Masslak Driver", operator: "Masslak Business", officer: "Masslak Roadside" },
   city: {
     ALP: "Aleppo", AMM: "Amman", BEY: "Beirut", DAM: "Damascus", DRA: "Daraa", DRZ: "Deir ez-Zor", HMA: "Hama",
     HMS: "Homs", HSK: "Al-Hasakah", IDL: "Idlib", LTK: "Latakia", QNT: "Quneitra", RDM: "Rif Dimashq", RQA: "Raqqa",
@@ -29,6 +29,7 @@ const en = {
   security: {
     locked: "Masslak is locked", unlock: "Unlock", unlockPrompt: "Unlock your tickets and wallet",
     rooted: "This device appears to be rooted or jailbroken. Your tickets and wallet are less protected on it.",
+    officerRooted: "Roadside checks are not available on a rooted or jailbroken device.",
     driverRooted: "Boarding is not available on a rooted or jailbroken device.",
     insecure: "This build cannot connect securely. Install the official app.",
     noPasscode: "Set a screen lock on this device to protect your tickets and wallet.",
@@ -97,6 +98,27 @@ const en = {
              photoNone: "No photo yet. Take one now: the driver and the office compare it with your identity document at boarding.",
              photoTake: "Take photo", photoShoot: "Take this photo", photoAllow: "Allow the camera",
              photoHow: "Face the camera in good light, with nothing covering your face." },
+  officer: {
+    title: "Roadside check", scan: "Scan", mine: "My checks", none: "No check yet.", open: "Open",
+    noBody: "Your account is not a member of a government body yet. Ask the platform to add it.",
+    body: "Checking for", pickBody: "Choose the body you are checking for.", camera: "The camera reads the code on the vehicle's placard.",
+    allow: "Allow the camera", aim: "Aim at the placard on the windscreen or the rear. It reads from a distance.",
+    typed: "Or type the code (MS1…)", check: "Check", seats: "{n} seats",
+    departs: "Departs {at}", counts: "Sold {sold} · boarded {boarded} · seats {seats}", licence: "licence to {d}",
+    cargo: "{n} parcels · {kg} kg", hidden: "Your body may not see this vehicle's movement.",
+    sample: "Draw a sample of passengers", full: "Check all passengers", drawn: "{n} passengers drawn by the server",
+    namesHidden: "Your body may not see passengers' names: check by seat.", seat: "Seat {n}", boarded: "Boarded", notBoarded: "Not boarded yet",
+    result: "Result", note: "Note (optional)", closeClear: "Close: all clear", closeIssues: "Close: issues found",
+    closed: "Check closed: {outcome}", next: "Next vehicle",
+    person: { CHECKED: "Checked", ISSUE: "Issue", ABSENT: "Absent" },
+    res: { VALID: "Valid placard", REVOKED: "Revoked placard", EXPIRED: "Expired", NOT_FOUND: "Not found", MISMATCH: "Mismatch" },
+    out: { CLEAR: "all clear", ISSUES: "issues found" },
+    mk: { SCHEDULED_TRIP: "Trip", CHARTER: "Charter" },
+    role: { DRIVER: "Driver", CO_DRIVER: "Co-driver", HOST: "Host", ASSISTANT: "Assistant" },
+    warn: { VEHICLE_BLOCKED: "Vehicle blocked", VEHICLE_DOCUMENT_EXPIRED: "Vehicle document expired", NO_MOVEMENT: "No published movement",
+      OVERLOAD: "More boarded than seats", LICENCE_EXPIRED: "Driver's licence expired", MANIFEST_NOT_ISSUED: "Manifest not issued",
+      CODE_REVOKED: "This placard is revoked", CODE_EXPIRED: "Placard expired", CODE_NOT_FOUND: "Placard not found", CODE_MISMATCH: "Placard mismatch" },
+  },
   driver: {
     passengerPhoto: "Passenger photo", noPhoto: "No photo could be shown. Check the identity document by hand.", photoAtBoarding: "The photo is shown when boarding starts.",
     today: "Your trips", board: "Boarding", download: "Download for offline", downloaded: "Ready offline · {n} tickets",
