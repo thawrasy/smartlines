@@ -215,10 +215,10 @@ services:
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_AUTH_ANONYMOUS_ENABLED: "false"
     volumes:
-      - ./deploy/staging/grafana/provisioning:/etc/grafana/provisioning:ro
+      # its own provisioning (wave 7): the Prometheus and Loki datasources and the dashboards folder
+      - ./deploy/production/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./deploy/monitoring/grafana-dashboard.json:/var/lib/grafana/dashboards/masslak.json:ro
       - ./deploy/monitoring/grafana-security.json:/var/lib/grafana/dashboards/masslak-security.json:ro
-      - ./deploy/production/logs/grafana-loki.yml:/etc/grafana/provisioning/datasources/loki.yml:ro
       - ./deploy/production/secrets/grafana_admin_password:/run/secrets/grafana_admin_password:ro
       - grafana_data:/var/lib/grafana
     networks: [monitoring]

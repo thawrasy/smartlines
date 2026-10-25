@@ -1,4 +1,4 @@
-# Grafana's Loki datasource on the production profile (wave 7); mounted next to the Prometheus one
+# Grafana's Loki datasource on the production profile (wave 7), next to the Prometheus one
 apiVersion: 1
 datasources:
   - name: Loki
