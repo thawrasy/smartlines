@@ -25,10 +25,11 @@ services:
     shm_size: 256m                           # Chromium's shared memory for the PDF prints
     env_file: /opt/bankfas/api.env          # the database and key settings; root-only, never in the repository
     volumes:
-      - /opt/bankfas/secrets:/run/secrets:ro
+      - /opt/bankfas/secrets:/run/secrets:ro  # root:10001 750; db/ and master-keys/ owned by 10001 (docs/54 H-04)
       - /srv/bankfas/files:/srv/bankfas/files
       - /srv/bankfas/dataprotection:/srv/bankfas/dataprotection
       - /srv/bankfas/breached:/srv/bankfas/breached:ro               # the leaked-password list (download_breached.sh)
+    depends_on: [clamav]
     networks: [app]
   # The worker (app/deploy/Dockerfile, target worker): the scheduled jobs and the outbox; no port at all.
   worker:
@@ -46,6 +47,17 @@ services:
       - /opt/bankfas/secrets:/run/secrets:ro
       - /srv/bankfas/files:/srv/bankfas/files
     networks: [app]
+  # The malware scan of every upload (FR-PLT-029; Scanning__Provider=clamav, Scanning__Host=clamav): no port outside
+  # the network. It fetches its signatures itself (freshclam) and needs about 3 GB of memory.
+  clamav:
+    image: clamav/clamav:<CLAMAV_VERSION>
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    volumes:
+      - clamav-db:/var/lib/clamav            # a named volume: Docker gives it the image's owner
+    networks: [app]
+volumes:
+  clamav-db: {}
 networks:
   app:
     ipam:

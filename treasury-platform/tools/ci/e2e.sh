@@ -63,11 +63,13 @@ if [ -n "${E2E_API_IMAGE:-}" ]; then
     done
     unset Web__Root                                    # the image carries the portal's files
     env | grep -E '^(ASPNETCORE_ENVIRONMENT|DOTNET_ENVIRONMENT|Database__|Hosts__|Portal__|Keys__|DataProtection__|Mail__|Passwords__|Files__|Scanning__|Kestrel__)' > "$W/app.env"
-    RUN=(docker run --rm --network host --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges:true -e HOME=/tmp
-         --env-file "$W/app.env" -v "$W:$W")
-    "${RUN[@]}" --name bankfas-pilot-api --shm-size 256m -e ASPNETCORE_URLS="$ASPNETCORE_URLS" "$E2E_API_IMAGE" > "$W/api.log" 2>&1 &
+    # Each process gets only its own logins, as on the host (docs/54): the API app, platform and support, the worker jobs.
+    grep -v '^Database__Logins__Jobs__' "$W/app.env" > "$W/api.env"
+    grep -vE '^(Database__Logins__(App|Platform|Support)__|Kestrel__|DataProtection__)' "$W/app.env" > "$W/worker.env"
+    RUN=(docker run --rm --network host --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges:true -e HOME=/tmp -v "$W:$W")
+    "${RUN[@]}" --env-file "$W/api.env" --name bankfas-pilot-api --shm-size 256m -e ASPNETCORE_URLS="$ASPNETCORE_URLS" "$E2E_API_IMAGE" > "$W/api.log" 2>&1 &
     API=$!
-    "${RUN[@]}" --name bankfas-pilot-worker "$E2E_WORKER_IMAGE" > "$W/worker.log" 2>&1 &
+    "${RUN[@]}" --env-file "$W/worker.env" --name bankfas-pilot-worker "$E2E_WORKER_IMAGE" > "$W/worker.log" 2>&1 &
     WORKER=$!
     stop() { docker stop -t 10 bankfas-pilot-api bankfas-pilot-worker > /dev/null 2>&1 || true; wait "$API" "$WORKER" 2>/dev/null || true; }
 else

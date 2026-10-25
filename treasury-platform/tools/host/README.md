@@ -17,11 +17,14 @@ record. Values between `<...>` are host-specific and are never written in the re
 | `collect_evidence.sh` | run as root on suspicion | DOC-S15 steps 2, 5, 6 and 9: copies the logs with a timestamp and checksums, lists processes, ports, containers, users and keys; changes nothing |
 | `check_host.sh` | systemd timer every 5 minutes | Alerts on new listening ports, new containers, changed `authorized_keys`, disk and memory pressure, a stopped service |
 | `download_breached.sh` | run once, then monthly, as a user that can write `/srv/bankfas/breached` | The leaked-password list (DQ-S04-1): one file per SHA-1 prefix from the public range API, resumable, about 30 GB |
+| `api.env.example`, `worker.env.example` | `/opt/bankfas/api.env`, `/opt/bankfas/worker.env` (root, 600) | The settings of the two processes; each has only its own database logins (docs/54 H-05) |
 
 The application's own guard (per-address limit, temporary blocks, the security page of the operator panel) is in
 `app/src/BankFas.Api/Infrastructure/SecurityGuard.cs`; its values are the `Security` section of the configuration.
 
-## Before the first start (docs/53, ADR 0053)
+## Before the first start (docs/53, docs/54, ADR 0053)
+
+The whole order, both servers, is `docs/54-deployment-runbook.md`.
 
 - **Master keys:** `/opt/bankfas/secrets/master-keys/<name>.key`, each the base64 of 32 random bytes
   (`openssl rand -base64 32`), owned by 10001 and mode 400; `Keys__File__Current=file:<name>` in `api.env` and
