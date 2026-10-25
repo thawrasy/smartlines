@@ -8,6 +8,7 @@ import { PageHead } from "../../components/layout";
 import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, useToast, PasswordInput } from "../../components/ui";
 import { LayoutPreview, type LayoutRow } from "./Layouts";
 import { CarrierConnectionPolicy } from "../passenger/Connections";
+import { RequestTable } from "../admin/NetworkRoutes";
 import { TripChanges } from "./TripChanges";
 import { useSignInSlip, type SignIn } from "../../components/SignInSlip";
 
@@ -27,6 +28,9 @@ interface Route {
 interface Vehicle { uid: string; plate_no: string; vehicle_type: string; make: string | null; model: string | null; manufacture_year: number | null; passenger_seats: number; status: string; next_expiry: string | null; seat_layout_uid: string | null; seat_layout_name: string | null }
 interface Crew { uid: string; full_name: string; crew_type: string; license_class: string | null; status: string; email: string | null }
 interface Station { uid: string; code: string; name: string; city_code: string }
+interface NetRoute { uid: string; code: string; name_en: string; name_ar: string; distance_km: number;
+  stops: { seq: number; station_uid: string; station_code: string; station_name: string; km_from_start: number; mandatory: boolean }[] }
+type RouteRequest = Parameters<typeof RequestTable>[0]["rows"][number];
 
 export function useArrow() {
   return useI18n().dir === "rtl" ? "←" : "→";
@@ -524,29 +528,51 @@ export function CarrierVehicles() {
 
 // ------------------------------------------------------------------ routes
 export function CarrierRoutes() {
-  const { t, station, money, duration } = useI18n();
+  const { t, station, money, duration, locale } = useI18n();
   const toast = useToast();
   const state = useLoad(() => api.get<{ routes: Route[] }>("/api/carrier/routes"));
+  const network = useLoad(() => api.get<{ routes: NetRoute[] }>("/api/network/routes"));
   const stations = useLoad(() => api.get<{ stations: Station[] }>("/api/carrier/stations"));
+  const requests = useLoad(() => api.get<{ requests: RouteRequest[] }>("/api/carrier/route-requests"));
   const [open, setOpen] = useState(false);
-  type StopRow = { station_uid: string; arr: string; dep: string; fare: string };
-  const blankStops: StopRow[] = [{ station_uid: "", arr: "0", dep: "0", fare: "0" }, { station_uid: "", arr: "", dep: "", fare: "" }];
-  const [code, setCode] = useState("");
-  const [stops, setStops] = useState<StopRow[]>(blankStops);
+  const [asking, setAsking] = useState(false);
+  // a service on a route of the network (1163, N11): the stations served on it, with times and the fare ladder
+  type Row = { station_uid: string; name: string; code: string; mandatory: boolean; serve: boolean; arr: string; dep: string; fare: string };
+  const [netUid, setNetUid] = useState("");
+  const [rows, setRows] = useState<Row[]>([]);
+  const [ask, setAsk] = useState({ from_station_uid: "", to_station_uid: "", via: "", note: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
-  const setStop = (i: number, k: keyof StopRow, v: string) => setStops(stops.map((s, j) => (j === i ? { ...s, [k]: v, ...(k === "arr" && (j === stops.length - 1) ? { dep: v } : {}) } : s)));
+  const pick = (uid: string) => {
+    setNetUid(uid);
+    const r = network.data?.routes.find((x) => x.uid === uid);
+    setRows((r?.stops ?? []).map((s) => ({ station_uid: s.station_uid, name: s.station_name, code: s.station_code, mandatory: s.mandatory, serve: true, arr: "", dep: "", fare: "" })));
+  };
+  const setRow = (i: number, k: keyof Row, v: string | boolean) => setRows(rows.map((r, j) => (j === i ? { ...r, [k]: v } : r)));
+  const served = rows.filter((r) => r.serve);
+  const firstServed = rows.findIndex((r) => r.serve);
+  const lastServed = rows.length - 1 - [...rows].reverse().findIndex((r) => r.serve);
   const submit = async () => {
     setBusy(true); setError(null);
     try {
-      await api.post("/api/carrier/routes", { code: code.toUpperCase(), stops: stops.map((s) => ({
-        station_uid: s.station_uid, arr_offset_min: Number(s.arr), dep_offset_min: Number(s.dep || s.arr), fare_from_origin: Number(s.fare) * 100 })) });
-      setOpen(false); setCode(""); setStops(blankStops); toast(t("common.saved")); state.reload();
+      await api.post("/api/carrier/routes", { network_route_uid: netUid, stops: served.map((s, i) => ({
+        station_uid: s.station_uid, arr_offset_min: i === 0 ? 0 : Number(s.arr), dep_offset_min: i === 0 ? 0 : Number(s.dep || s.arr),
+        fare_from_origin: i === 0 ? 0 : Number(s.fare) * 100 })) });
+      setOpen(false); setNetUid(""); setRows([]); toast(t("common.saved")); state.reload();
     } catch (e) { setError(e); } finally { setBusy(false); }
+  };
+  const sendAsk = async () => {
+    setBusy(true); setError(null);
+    try { await api.post("/api/carrier/route-requests", { ...ask, via: ask.via || undefined }); setAsking(false); toast(t("nroute.asked")); requests.reload(); }
+    catch (e) { setError(e); } finally { setBusy(false); }
   };
   return (
     <div className="stack">
-      <PageHead title={t("carrier.routes")}><button className="btn" onClick={() => setOpen(true)}><Icon name="add" />{t("carrier.newRoute")}</button></PageHead>
+      <PageHead title={t("carrier.routes")}>
+        <button className="btn outlined" onClick={() => setAsking(true)}><Icon name="send" />{t("nroute.ask")}</button>
+        <button className="btn" onClick={() => setOpen(true)}><Icon name="add" />{t("carrier.newRoute")}</button>
+      </PageHead>
+      <p className="small muted" style={{ margin: 0 }}>{t("nroute.carrierHint")}</p>
       <Loaded state={state}>{({ routes }) => routes.length === 0 ? <div className="card"><Empty icon="route" title={t("common.noData")} /></div> : (
         <div className="grid cols-2">{routes.map((r) => (
           <div key={r.uid} className="card stack">
@@ -561,31 +587,58 @@ export function CarrierRoutes() {
           </div>
         ))}</div>
       )}</Loaded>
+      <Loaded state={requests}>{({ requests: list }) => list.length === 0 ? null : (
+        <div className="card stack"><h3 style={{ margin: 0 }}>{t("nroute.myRequests")}</h3><RequestTable rows={list} /></div>
+      )}</Loaded>
       <CarrierConnectionPolicy />
       {open && (
         <Modal title={t("carrier.newRoute")} onClose={() => setOpen(false)} wide
-               actions={<><button className="btn text" onClick={() => setOpen(false)}>{t("common.cancel")}</button><button className="btn" disabled={busy || !code} onClick={submit}>{t("common.save")}</button></>}>
+               actions={<><button className="btn text" onClick={() => setOpen(false)}>{t("common.cancel")}</button>
+                 <button className="btn" disabled={busy || served.length < 2} onClick={submit}>{t("common.save")}</button></>}>
           <div className="stack">
             <ErrorBox error={error} />
-            <Field label={t("carrier.routeCode")}><input className="input ltr mono" value={code} placeholder="DAM-ALP" onChange={(e) => setCode(e.target.value.toUpperCase())} /></Field>
-            <strong>{t("carrier.stopsLabel")}</strong>
-            {stops.map((s, i) => (
-              <div key={i} className="grid" style={{ gridTemplateColumns: "2fr 1fr 1fr 1.2fr auto", alignItems: "end" }}>
-                <Field label={`${i + 1}. ${t("common.station")}`}>
-                  <select className="input" value={s.station_uid} onChange={(e) => setStop(i, "station_uid", e.target.value)}>
-                    <option value="" disabled>—</option>
-                    {stations.data?.stations.map((st) => <option key={st.uid} value={st.uid}>{station(st.code, st.name)}</option>)}
-                  </select>
+            <Field label={t("nroute.pickRoute")}>
+              <select className="input" value={netUid} onChange={(e) => pick(e.target.value)}>
+                <option value="">—</option>
+                {network.data?.routes.map((r) => <option key={r.uid} value={r.uid}>{r.code} · {locale === "ar" ? r.name_ar : r.name_en}</option>)}
+              </select>
+            </Field>
+            {network.data && network.data.routes.length === 0 && <p className="small muted" style={{ margin: 0 }}>{t("nroute.noneForCarrier")}</p>}
+            {rows.length > 0 && <p className="small muted" style={{ margin: 0 }}>{t("nroute.serveHint")}</p>}
+            {rows.map((r, i) => {
+              const forced = r.mandatory && i > firstServed && i < lastServed;
+              const at = served.findIndex((x) => x.station_uid === r.station_uid);
+              return (
+                <div key={r.station_uid} className="grid" style={{ gridTemplateColumns: "auto 2fr 1fr 1fr 1.2fr", alignItems: "end" }}>
+                  <label className="row small" style={{ gap: 6, alignItems: "center", paddingBottom: 10 }}>
+                    <input type="checkbox" aria-label={`${t("nroute.serve")} ${r.name}`} checked={r.serve || forced} disabled={forced} onChange={(e) => setRow(i, "serve", e.target.checked)} />
+                  </label>
+                  <div style={{ paddingBottom: 10 }}>{station(r.code, r.name)}{r.mandatory && <span className="small muted"> *</span>}</div>
+                  <Field label={t("carrier.arrOffset")}><input className="input ltr" type="number" min={0} disabled={!r.serve || at <= 0} value={at <= 0 ? "0" : r.arr} onChange={(e) => setRow(i, "arr", e.target.value)} /></Field>
+                  <Field label={t("carrier.depOffset")}><input className="input ltr" type="number" min={0} disabled={!r.serve || at <= 0 || at === served.length - 1} value={at <= 0 ? "0" : r.dep} onChange={(e) => setRow(i, "dep", e.target.value)} /></Field>
+                  <Field label={t("carrier.fareFromOrigin")}><input className="input ltr" type="number" min={0} step={500} disabled={!r.serve || at <= 0} value={at <= 0 ? "0" : r.fare} onChange={(e) => setRow(i, "fare", e.target.value)} /></Field>
+                </div>
+              );
+            })}
+          </div>
+        </Modal>
+      )}
+      {asking && (
+        <Modal title={t("nroute.ask")} onClose={() => setAsking(false)}
+               actions={<><button className="btn text" onClick={() => setAsking(false)}>{t("common.cancel")}</button>
+                 <button className="btn" disabled={busy || !ask.from_station_uid || !ask.to_station_uid || ask.note.trim().length < 5} onClick={sendAsk}>{t("nroute.send")}</button></>}>
+          <div className="stack">
+            <ErrorBox error={error} />
+            <div className="grid cols-2">
+              {(["from_station_uid", "to_station_uid"] as const).map((k) => (
+                <Field key={k} label={t(k === "from_station_uid" ? "nroute.from" : "nroute.to")}>
+                  <select className="input" value={ask[k]} onChange={(e) => setAsk({ ...ask, [k]: e.target.value })}>
+                    <option value="">—</option>{stations.data?.stations.map((st) => <option key={st.uid} value={st.uid}>{station(st.code, st.name)}</option>)}</select>
                 </Field>
-                <Field label={t("carrier.arrOffset")}><input className="input ltr" type="number" min={0} disabled={i === 0} value={s.arr} onChange={(e) => setStop(i, "arr", e.target.value)} /></Field>
-                <Field label={t("carrier.depOffset")}><input className="input ltr" type="number" min={0} disabled={i === 0 || i === stops.length - 1} value={s.dep} onChange={(e) => setStop(i, "dep", e.target.value)} /></Field>
-                <Field label={t("carrier.fareFromOrigin")}><input className="input ltr" type="number" min={0} step={500} disabled={i === 0} value={s.fare} onChange={(e) => setStop(i, "fare", e.target.value)} /></Field>
-                <button className="icon-btn" disabled={i === 0 || stops.length <= 2} onClick={() => setStops(stops.filter((_, j) => j !== i))}><Icon name="close" /></button>
-              </div>
-            ))}
-            <button className="btn outlined" style={{ alignSelf: "flex-start" }} onClick={() => setStops([...stops.slice(0, -1), { station_uid: "", arr: "", dep: "", fare: "" }, stops[stops.length - 1]])}>
-              <Icon name="add" />{t("carrier.addStop")}
-            </button>
+              ))}
+            </div>
+            <Field label={t("nroute.via")}><input className="input" value={ask.via} onChange={(e) => setAsk({ ...ask, via: e.target.value })} /></Field>
+            <Field label={t("nroute.requestNote")}><input className="input" value={ask.note} onChange={(e) => setAsk({ ...ask, note: e.target.value })} /></Field>
           </div>
         </Modal>
       )}

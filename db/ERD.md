@@ -88,7 +88,7 @@ flowchart LR
   iam -->|1| ops
   iam -->|7| ref
   iam -->|2| sec
-  net -->|23| iam
+  net -->|26| iam
   net -->|13| ref
   ops -->|2| fin
   ops -->|10| fleet
@@ -1090,6 +1090,35 @@ erDiagram
     bigint line_version_id PK
     bigint user_id PK
   }
+  net_network_route {
+    bigint id PK
+    uuid uid
+    text code
+    bigint origin_station_id FK
+    bigint dest_station_id FK
+    text status
+    bigint created_by FK
+  }
+  net_network_route_segment {
+    bigint version_id PK
+    smallint seq PK
+    bigint road_id FK
+    bigint from_point_id FK
+    bigint to_point_id FK
+  }
+  net_network_route_stop {
+    bigint version_id PK
+    smallint seq PK
+    bigint station_id FK
+  }
+  net_network_route_version {
+    bigint id PK
+    uuid uid
+    bigint route_id FK
+    text status
+    bigint proposed_by FK
+    bigint decided_by FK
+  }
   net_operation_reference {
     bigint id PK
     uuid uid
@@ -1137,6 +1166,19 @@ erDiagram
     bigint dest_station_id FK
     text status
     bigint line_id FK
+    bigint network_route_id FK
+    bigint network_version_id FK
+  }
+  net_route_request {
+    bigint id PK
+    uuid uid
+    bigint company_id FK
+    bigint from_station_id FK
+    bigint to_station_id FK
+    text status
+    bigint requested_by FK
+    bigint network_route_id FK
+    bigint answered_by FK
   }
   net_route_stop {
     bigint route_id PK
@@ -1247,9 +1289,11 @@ erDiagram
   net_screen_pairing }o..o| iam_app_user : "paired_by"
   net_station_screen }o..o| iam_app_user : "created_by_user_id"
   net_station_operator_grant }o..o| iam_app_user : "revoked_by_user_id"
+  net_network_route_version }o--|| iam_app_user : "proposed_by"
   net_station_screen }o..o| iam_app_user : "updated_by_user_id"
   net_operation_reference }o..o| iam_app_user : "created_by_user_id"
   net_road_correction }o--|| iam_app_user : "proposed_by"
+  net_route_request }o..o| iam_app_user : "answered_by"
   net_carrier_code }o--|| iam_company : "company_id"
   net_service_number }o--|| iam_company : "company_id"
   net_station_carrier_bay }o--|| iam_company : "carrier_company_id"
@@ -1258,6 +1302,7 @@ erDiagram
   net_timetable_template }o--|| iam_company : "company_id"
   net_operation_reference }o--|| iam_company : "company_id"
   net_station_operator_grant }o..o| iam_company : "carrier_company_id"
+  net_route_request }o--|| iam_company : "company_id"
   net_station_operator_grant }o--|| iam_company : "operator_company_id"
   net_station_gate }o..o| iam_company : "operator_company_id"
   net_station }o..o| iam_company : "owner_company_id"
@@ -1275,10 +1320,19 @@ erDiagram
   net_line_fare }o--|| net_line_tariff : "tariff_id"
   net_line_version_approval }o--|| net_line_version : "line_version_id"
   net_line_stop }o--|| net_line_version : "line_version_id"
+  net_network_route_version }o--|| net_network_route : "route_id"
+  net_route_request }o..o| net_network_route : "network_route_id"
+  net_route }o..o| net_network_route : "network_route_id"
+  net_network_route_segment }o--|| net_network_route_version : "version_id"
+  net_network_route_stop }o--|| net_network_route_version : "version_id"
+  net_route }o..o| net_network_route_version : "network_version_id"
   net_road_point }o--|| net_road : "road_id"
   net_road_verification }o--|| net_road : "road_id"
   net_road_correction }o--|| net_road : "road_id"
+  net_network_route_segment }o--|| net_road : "road_id"
   net_road_correction }o..o| net_road_point : "point_id"
+  net_network_route_segment }o--|| net_road_point : "from_point_id"
+  net_network_route_segment }o--|| net_road_point : "to_point_id"
   net_route_stop }o--|| net_route : "route_id"
   net_service_number }o..o| net_route : "route_id"
   net_service_number }o..o| net_service_number : "follows_id"
@@ -1292,13 +1346,18 @@ erDiagram
   net_line_stop }o--|| net_station : "station_id"
   net_line_fare }o..o| net_station : "from_station_id"
   net_station_screen }o--|| net_station : "station_id"
+  net_network_route_stop }o--|| net_station : "station_id"
   net_line_fare }o..o| net_station : "to_station_id"
   net_geofence }o..o| net_station : "station_id"
+  net_route_request }o--|| net_station : "from_station_id"
   net_route }o--|| net_station : "origin_station_id"
   net_station_operator_grant }o..o| net_station : "station_id"
+  net_route_request }o--|| net_station : "to_station_id"
   net_route }o--|| net_station : "dest_station_id"
   net_code_history }o..o| net_station : "station_id"
+  net_network_route }o--|| net_station : "origin_station_id"
   net_code_change }o..o| net_station : "station_id"
+  net_network_route }o--|| net_station : "dest_station_id"
   net_station_display }o..o| net_station_gate : "gate_id"
   net_station_carrier_bay }o--|| net_station_gate : "gate_id"
   net_screen_pairing }o..o| net_station_screen : "screen_id"

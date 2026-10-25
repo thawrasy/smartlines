@@ -198,6 +198,8 @@ async def main(once: bool) -> None:
                         await conn.execute("SELECT sec.evaluate_traffic()")
                         # approved code changes whose date has come take effect, the old codes kept (1161, N39)
                         await conn.execute("SELECT ref.apply_due_code_changes()")
+                        # approved versions of network routes whose date has come take effect (1163, N11)
+                        await conn.execute("SELECT net.activate_due_route_versions()")
                     # connections held after their trip was completed are released when the change window ends (1132)
                     from ..sales.connections import release_due_holds
                     hold_ctx = _ctx()

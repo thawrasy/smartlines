@@ -4074,6 +4074,34 @@ SELECT pg_temp.ok(jsonb_array_length(ref.geo_cascade(NULL, NULL, NULL) -> 'citie
 ROLLBACK;
 SET ROLE masslak_app;
 
+-- Network routes (1163): versions approved by another person, frozen once proposed, one in effect at a time
+BEGIN;
+RESET ROLE;
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+SELECT id AS nra FROM net.station ORDER BY id LIMIT 1 \gset
+SELECT id AS nrb FROM net.station WHERE id <> :nra ORDER BY id LIMIT 1 \gset
+INSERT INTO net.network_route (code, name_en, name_ar, origin_station_id, dest_station_id, created_by)
+VALUES (net.next_network_route_code(:nra, :nrb), 'Check route', 'Check route ar', :nra, :nrb, :uadmin) RETURNING id AS nr, code AS nrcode \gset
+SELECT pg_temp.ok(:'nrcode' ~ '^[A-Z]{3}-[A-Z]{3}-01$', 'Network routes (1163): the system gives the code, origin city - destination city - number');
+INSERT INTO net.network_route_version (route_id, version, effective_from, distance_km, proposed_by)
+VALUES (:nr, 1, current_date, 120, :uadmin) RETURNING id AS nv, uid AS nvu \gset
+INSERT INTO net.network_route_stop (version_id, seq, station_id, km_from_start, mandatory) VALUES (:nv, 1, :nra, 0, true), (:nv, 2, :nrb, 120, true);
+SELECT pg_temp.expect_error(format($$SELECT net.decide_route_version(%L, true, NULL)$$, :'nvu'), 'FOUR_EYES',
+  'Network routes (1163): who proposed a version does not approve it');
+SELECT sys.set_context(:ufin, NULL, 'SYSTEM');
+SELECT net.decide_route_version(:'nvu', true, NULL) AS nvd \gset
+SELECT pg_temp.ok(:'nvd' = 'ACTIVE' AND (SELECT status FROM net.network_route WHERE id = :nr) = 'ACTIVE',
+  'Network routes (1163): another person approves; due today, the version and the route are in effect');
+SELECT pg_temp.expect_error(format($$UPDATE net.network_route_stop SET km_from_start = 99 WHERE version_id = %s AND seq = 2$$, :nv),
+  'ROUTE_VERSION_FROZEN', 'Network routes (1163): a decided version is not changed');
+SELECT pg_temp.expect_error(format($$INSERT INTO net.network_route_version (route_id, version, effective_from, distance_km, status, proposed_by, decided_by)
+    VALUES (%s, 2, current_date, 100, 'ACTIVE', %s, %s)$$, :nr, :uadmin, :ufin), 'duplicate key',
+  'Network routes (1163): one version in effect at a time');
+SELECT pg_temp.ok((SELECT value FROM sys.setting WHERE key = 'network.platform_routes_only') = 'true'::jsonb,
+  'Network routes (1163): carriers define their services on routes of the network');
+ROLLBACK;
+SET ROLE masslak_app;
+
 -- Roads guide (1162): roads of places in order, junctions worked out, verification and corrections by another person
 BEGIN;
 RESET ROLE;

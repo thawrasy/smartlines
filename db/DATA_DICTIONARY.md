@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**589 tables, 6414 columns, in 26 schemas.**
+**594 tables, 6465 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -11,7 +11,7 @@ Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant i
 - [`iam` — Identity, parties, users, permissions and API clients](#iam) (50 tables)
 - [`ref` — Reference data, locales and files](#ref) (23 tables)
 - [`sys` — Settings, outbox and webhooks](#sys) (27 tables)
-- [`net` — Network: stations, routes, lines, corridors and geofences](#net) (34 tables)
+- [`net` — Network: stations, routes, lines, corridors and geofences](#net) (39 tables)
 - [`fleet` — Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance](#fleet) (23 tables)
 - [`pricing` — Pricing, taxes, commissions, campaigns and loyalty](#pricing) (38 tables)
 - [`ops` — Trips, inventory, operations, shuttle rides, tracking and incidents](#ops) (40 tables)
@@ -2134,6 +2134,69 @@ Four-eyes approval of a line version (approved_by[] in 4.15), one row per approv
 | `role` | `text` | ✱ |  |
 | `approved_at` | `timestamp with time zone` | ✱ | `now()` |
 
+### `net.network_route` 🛡️
+
+A route of the network from one station to another, defined by the platform in versions; carriers run their services on it (1163, N11)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `code` | `text` | ✱ |  |
+| `name_en` | `text` | ✱ |  |
+| `name_ar` | `text` | ✱ |  |
+| `origin_station_id` | `bigint` | 🔗 `net.station` ✱ |  |
+| `dest_station_id` | `bigint` | 🔗 `net.station` ✱ |  |
+| `status` | `text` | ✱ | `'DRAFT'::text` |
+| `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `net.network_route_segment` 🛡️
+
+The roads a route version follows, in order: a road from one of its points to another (1163, N38)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `version_id` | `bigint` | 🔑 🔗 `net.network_route_version` ✱ |  |
+| `seq` | `smallint` | 🔑 ✱ |  |
+| `road_id` | `bigint` | 🔗 `net.road` ✱ |  |
+| `from_point_id` | `bigint` | 🔗 `net.road_point` ✱ |  |
+| `to_point_id` | `bigint` | 🔗 `net.road_point` ✱ |  |
+| `km` | `numeric(8,1)` | ✱ |  |
+
+### `net.network_route_stop` 🛡️
+
+The stations of a route version in order with their distance from the start; a mandatory one is served by every carrier on the route (1163, N11)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `version_id` | `bigint` | 🔑 🔗 `net.network_route_version` ✱ |  |
+| `seq` | `smallint` | 🔑 ✱ |  |
+| `station_id` | `bigint` | 🔗 `net.station` ✱ |  |
+| `km_from_start` | `numeric(8,1)` | ✱ |  |
+| `mandatory` | `boolean` | ✱ | `false` |
+
+### `net.network_route_version` 🛡️
+
+A version of a network route: its stations and road segments, proposed by one person, approved by another, in effect from its date (1163)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `route_id` | `bigint` | 🔗 `net.network_route` ✱ |  |
+| `version` | `integer` | ✱ |  |
+| `status` | `text` | ✱ | `'PENDING'::text` |
+| `effective_from` | `date` | ✱ |  |
+| `distance_km` | `numeric(8,1)` | ✱ |  |
+| `note` | `text` |  |  |
+| `proposed_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `proposed_at` | `timestamp with time zone` | ✱ | `now()` |
+| `decided_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `decided_at` | `timestamp with time zone` |  |  |
+| `decision_note` | `text` |  |  |
+| `activated_at` | `timestamp with time zone` |  |  |
+
 ### `net.operation_reference` 🛡️
 
 Agreement and licence reference numbers of a carrier (1097); optional until the setting boarding.references.required asks for them
@@ -2252,6 +2315,29 @@ Carrier route template between two stations; its stops are copied to the trip wh
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `line_id` | `bigint` | 🔗 `net.line`  |  |
+| `network_route_id` | `bigint` | 🔗 `net.network_route`  |  |
+| `network_version_id` | `bigint` | 🔗 `net.network_route_version`  |  |
+
+### `net.route_request` 🛡️
+
+A carrier's request for a route the network lacks; the platform answers it (1163, N11)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `from_station_id` | `bigint` | 🔗 `net.station` ✱ |  |
+| `to_station_id` | `bigint` | 🔗 `net.station` ✱ |  |
+| `via` | `text` |  |  |
+| `note` | `text` | ✱ |  |
+| `status` | `text` | ✱ | `'OPEN'::text` |
+| `requested_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `requested_at` | `timestamp with time zone` | ✱ | `now()` |
+| `network_route_id` | `bigint` | 🔗 `net.network_route`  |  |
+| `answered_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `answered_at` | `timestamp with time zone` |  |  |
+| `answer` | `text` |  |  |
 
 ### `net.route_stop` 🛡️
 

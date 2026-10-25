@@ -238,7 +238,10 @@ class RouteStopIn(BaseModel):
 
 
 class RouteIn(BaseModel):
-    code: str = Field(min_length=2, max_length=20, pattern=r"^[A-Z0-9-]+$")
+    # the route of the network the service runs on (1163, N11); required while network.platform_routes_only is on
+    network_route_uid: Optional[uuid.UUID] = None
+    # set by the system (designator - from city - to city - number); a code is taken only for a free route
+    code: Optional[str] = Field(default=None, min_length=2, max_length=20, pattern=r"^[A-Z0-9-]+$")
     stops: list[RouteStopIn] = Field(min_length=2, max_length=20)
 
 
@@ -280,10 +283,17 @@ async def add_route(body: RouteIn, request: Request, pr: Principal = Depends(ope
             ids.append(sid)
         if len(set(ids)) != len(ids):
             raise ApiError(422, "DUPLICATE_STATION", "a station appears twice")
+        network_id, version_id, distance = await _on_network(conn, body, ids)
+        code = body.code if body.code and network_id is None else await conn.fetchval(
+            """SELECT d || '-' || a.code || '-' || b.code || '-' ||
+                      (SELECT count(*) + 1 FROM net.route r WHERE r.company_id = $1 AND r.code LIKE d || '-' || a.code || '-' || b.code || '-%')
+                 FROM (SELECT ops.trip_designator($1) AS d) x, net.station sa JOIN ref.city a ON a.id = sa.city_id,
+                      net.station sb JOIN ref.city b ON b.id = sb.city_id WHERE sa.id = $2 AND sb.id = $3""", pr.company_id, ids[0], ids[-1])
         rid = await conn.fetchval(
-            """INSERT INTO net.route (company_id, code, origin_station_id, dest_station_id, service_type, std_duration_min)
-               VALUES ($1, $2, $3, $4, $5, $6) RETURNING id""",
-            pr.company_id, body.code, ids[0], ids[-1], "INDIRECT" if len(ids) > 2 else "DIRECT", offs[-1][0])
+            """INSERT INTO net.route (company_id, code, origin_station_id, dest_station_id, service_type, std_duration_min,
+                                      network_route_id, network_version_id, distance_km)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id""",
+            pr.company_id, code, ids[0], ids[-1], "INDIRECT" if len(ids) > 2 else "DIRECT", offs[-1][0], network_id, version_id, distance)
         n = len(ids)
         await conn.executemany(
             """INSERT INTO net.route_stop (route_id, seq, station_id, kind, arr_offset_min, dep_offset_min, fare_from_origin)
@@ -292,7 +302,33 @@ async def add_route(body: RouteIn, request: Request, pr: Principal = Depends(ope
               s.arr_offset_min, s.dep_offset_min, s.fare_from_origin) for i, s in enumerate(body.stops)])
         uid = await conn.fetchval("SELECT uid FROM net.route WHERE id = $1", rid)
     request.state.audit = {"action": "route.create", "object_type": "route", "object_id": rid}
-    return {"uid": str(uid)}
+    return {"uid": str(uid), "code": code}
+
+
+async def _on_network(conn, body: RouteIn, ids: list[int]) -> tuple[Optional[int], Optional[int], Optional[int]]:
+    """The carrier's stations on a route of the network (1163, N11): in its order, with every mandatory station between the
+    first and the last. Returns the network route, its version in effect and the distance between them."""
+    if body.network_route_uid is None:
+        if await conn.fetchval("SELECT coalesce((SELECT value::text = 'true' FROM sys.setting WHERE key = 'network.platform_routes_only'), false)"):
+            raise ApiError(422, "ROUTE_FROM_NETWORK", "choose a route of the network; ask the platform for one it lacks")
+        return None, None, None
+    version = await conn.fetchrow(
+        """SELECT r.id AS route_id, v.id FROM net.network_route r JOIN net.network_route_version v ON v.route_id = r.id AND v.status = 'ACTIVE'
+            WHERE r.uid = $1 AND r.status = 'ACTIVE'""", body.network_route_uid)
+    if version is None:
+        raise ApiError(422, "NETWORK_ROUTE_UNKNOWN", "no route of the network in effect")
+    stops = await conn.fetch("SELECT seq, station_id, km_from_start, mandatory FROM net.network_route_stop WHERE version_id = $1 ORDER BY seq",
+                             version["id"])
+    at = {s["station_id"]: s for s in stops}
+    if any(i not in at for i in ids):
+        raise ApiError(422, "STATION_NOT_ON_ROUTE", "every station must be a station of the network route")
+    seqs = [at[i]["seq"] for i in ids]
+    if seqs != sorted(seqs):
+        raise ApiError(422, "STATION_ORDER", "the stations follow the order of the network route")
+    missed = [s for s in stops if seqs[0] < s["seq"] < seqs[-1] and s["mandatory"] and s["station_id"] not in ids]
+    if missed:
+        raise ApiError(422, "MANDATORY_STOP", "the network route requires a stop at every mandatory station on the way")
+    return version["route_id"], version["id"], max(1, round(float(at[ids[-1]]["km_from_start"]) - float(at[ids[0]]["km_from_start"])))
 
 
 # ------------------------------------------------------------------ trips

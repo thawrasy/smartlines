@@ -7,6 +7,7 @@ from datetime import date, timedelta
 
 import pytest
 
+from network_helper import network_route
 from test_e2e import OWNER_URL, day, login, new_passenger, owner_sql
 
 pytestmark = pytest.mark.skipif(not OWNER_URL, reason="needs MASSLAK_OWNER_URL")
@@ -46,12 +47,12 @@ def beirut_trip(admin):
     bey = stations[0]["uid"]
     dam = next(s for s in admin.get("/api/stations", params={"city": "DAM"}).json()["stations"] if s["station_class"] == "CENTRAL")["uid"]
     o = login("owner@carrier.test", "OPERATOR")
-    code = f"DAM-BEY-{secrets.randbelow(9000) + 1000}"
-    r = o.post("/api/carrier/routes", json={"code": code, "stops": [
+    net = network_route([dam, bey], [0, 110], "Damascus Beirut")
+    r = o.post("/api/carrier/routes", json={"network_route_uid": net, "stops": [
         {"station_uid": dam, "arr_offset_min": 0, "dep_offset_min": 0, "fare_from_origin": 0},
         {"station_uid": bey, "arr_offset_min": 180, "dep_offset_min": 180, "fare_from_origin": 5500000}]})
     assert r.status_code == 201, r.text
-    route = next(x for x in o.get("/api/carrier/routes").json()["routes"] if x["code"] == code)
+    route = next(x for x in o.get("/api/carrier/routes").json()["routes"] if x["uid"] == r.json()["uid"])
     layout = next(x for x in o.get("/api/carrier/seat-layouts").json()["layouts"] if x["total_seats"] == 44)
     plate = str(1_000_000_000 + secrets.randbelow(9_000_000_000))   # wide enough that two runs never share one
     r = o.post("/api/carrier/vehicles", json={

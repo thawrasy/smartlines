@@ -15,6 +15,7 @@ import uuid
 import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
+from network_helper import network_route
 from test_e2e import FRESH_DRIVERS, OWNER_URL, bookable_trip, client, day, free_seats, hold, login, new_passenger, owner_sql
 from test_integration import api
 
@@ -52,12 +53,12 @@ def international_trip(owner) -> dict:
         assert r.status_code == 201, r.text
         stations = admin.get("/api/stations", params={"city": "BEY"}).json()["stations"]
     dam = next(s for s in admin.get("/api/stations", params={"city": "DAM"}).json()["stations"] if s["station_class"] == "CENTRAL")["uid"]
-    code = f"DAM-BEY-{secrets.randbelow(9000) + 1000}"
-    r = owner.post("/api/carrier/routes", json={"code": code, "stops": [
+    net = network_route([dam, stations[0]["uid"]], [0, 110], "Damascus Beirut")
+    r = owner.post("/api/carrier/routes", json={"network_route_uid": net, "stops": [
         {"station_uid": dam, "arr_offset_min": 0, "dep_offset_min": 0, "fare_from_origin": 0},
         {"station_uid": stations[0]["uid"], "arr_offset_min": 180, "dep_offset_min": 180, "fare_from_origin": 5500000}]})
     assert r.status_code == 201, r.text
-    route = next(x for x in owner.get("/api/carrier/routes").json()["routes"] if x["code"] == code)
+    route = next(x for x in owner.get("/api/carrier/routes").json()["routes"] if x["uid"] == r.json()["uid"])
     layout = next(x for x in owner.get("/api/carrier/seat-layouts").json()["layouts"] if x["total_seats"] == 44)
     plate = str(1_000_000_000 + secrets.randbelow(9_000_000_000))   # wide enough that two runs never share one
     r = owner.post("/api/carrier/vehicles", json={
