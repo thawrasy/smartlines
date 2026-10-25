@@ -59,6 +59,7 @@ flowchart LR
 | B-10 | **التدقيق:** `sudo install -d -o mssql -g mssql -m 0750 /var/opt/mssql/audit`، ثم `tools/deploy/server_audit.sh apply` | ADR 0012 | `server_audit.sh check` يخرج بصفر |
 | B-11 | **مفاتيح TDE في master** ونسخ الشهادة إلى المكان الآمن (A-06) | DOC-S02 §5.1، الخطوات 1 إلى 4 | سجل الضمان |
 | B-12 | **إنشاء القاعدة الفارغة وحساب النشر:** `tools/deploy/prepare_database.sh prepare --generate` | ADR 0010 | القاعدة بترتيب `Arabic_100_CI_AS_SC` |
+| B-13 | **فحص جاهزية خادم القاعدة** (قراءة فقط): النظام والإصدار والتشفير والشهادة والمجلدات والجدار وSSH | `sudo tools/deploy/check_db_host.sh` | يخرج بصفر |
 
 **ملاحظة على شهادة B-08:**
 - **الأسهل:** شهادة من جهة عامة لاسم `<DB_HOST>` (مثل `db.<DOMAIN>`)، تُصدر بـ certbot بتحدي DNS. فتثق بها حاويات التطبيق دون أي إعداد.
@@ -123,8 +124,8 @@ sudo tar -C "$BANKFAS_SECRETS_DIR" -cf - bankfas_app_a.secret bankfas_jobs_a.sec
 | H-01 | **الأساس:** حسابات المسؤولين وSSH والتحديثات والوقت، كما في B-01 إلى B-04 | DOC-S16 §4 |
 | H-02 | **الجدار وإعدادات النواة** | `sudo ADMIN_CIDRS="<cidr> ..." bash tools/host/ufw.sh` ثم `sudo cp tools/host/sysctl-bankfas.conf /etc/sysctl.d/60-bankfas.conf && sudo sysctl --system` |
 | H-03 | **تثبيت Docker وإعداداته** | انظر الأوامر بعد الجدول |
-| H-04 | **المجلدات والمفتاح الرئيسي.** **يُنسخ ملف المفتاح فورًا إلى المكان الآمن (A-06):** إن ضاع لا يُفتح أي شيء مشفّر أبدًا | انظر الأوامر بعد الجدول |
-| H-05 | **ملفات الإعداد:** تُملأ القيم بين `<...>`. ويُفك ملف الأسرار المنقول ويُحذف | انظر الأوامر بعد الجدول |
+| H-04 | **ملف القيم:** تُنسخ `tools/host/site.conf.example` إلى `/opt/bankfas/site.conf` (600)، وتُملأ قيم الخادم كلها في مكان واحد | `sudo install -d -m 700 /opt/bankfas && sudo install -m 600 tools/host/site.conf.example /opt/bankfas/site.conf && sudoedit /opt/bankfas/site.conf` |
+| H-05 | **التجهيز من ملف القيم:** المجلدات بصلاحياتها، والمفتاح الرئيسي مرة واحدة، وملفات الإعداد وCaddyfile، وأسرار القاعدة، وكلمة SMTP، ورمز DNS. **يُنسخ ملف المفتاح فورًا إلى المكان الآمن (A-06)**، ويُسجَّل البصمة التي يطبعها السكربت | `sudo tools/host/provision_app_host.sh --db-secrets /tmp/db-secrets.tar` |
 | H-06 | **شهادة SQL من جهة داخلية فقط.** تُضاف حزمة الجهات إلى الحاويتين: `/opt/bankfas/ca/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt:ro` في `volumes` للخدمتين في `compose.yml` | DOC-S05 |
 | H-07 | **قائمة كلمات المرور المسرّبة.** تستغرق ساعات، ويمكن تشغيلها في الخلفية وإعادتها إن انقطعت | `sudo bash tools/host/download_breached.sh /srv/bankfas/breached` |
 | H-08 | **Caddy بوحدة مزوّد DNS** (لأن الشهادة شاملة)، ثم ملف الإعداد | انظر الأوامر بعد الجدول |
@@ -139,35 +140,14 @@ sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plug
 sudo cp tools/host/docker-daemon.json /etc/docker/daemon.json && sudo systemctl restart docker
 ```
 
-**أوامر الخطوة H-04:**
-
-```bash
-sudo install -d -m 700 /opt/bankfas
-sudo install -d -m 750 -o root -g 10001 /opt/bankfas/secrets       # يدخله مستخدم التطبيق ولا يكتب فيه
-sudo install -d -m 700 -o 10001 -g 10001 /opt/bankfas/secrets/master-keys /opt/bankfas/secrets/db
-sudo install -d -m 750 -o 10001 -g 10001 /srv/bankfas/files /srv/bankfas/dataprotection
-sudo install -d -m 755 /srv/bankfas/breached
-openssl rand -base64 32 | sudo tee /opt/bankfas/secrets/master-keys/2026-10.key > /dev/null
-sudo chown 10001:10001 /opt/bankfas/secrets/master-keys/2026-10.key && sudo chmod 400 /opt/bankfas/secrets/master-keys/2026-10.key
-```
-
-**أوامر الخطوة H-05:**
-
-```bash
-sudo cp tools/host/compose.yml /opt/bankfas/compose.yml
-sudo cp tools/host/api.env.example /opt/bankfas/api.env && sudo cp tools/host/worker.env.example /opt/bankfas/worker.env
-sudo chmod 600 /opt/bankfas/*.env && sudoedit /opt/bankfas/api.env /opt/bankfas/worker.env
-sudo tar -C /opt/bankfas/secrets/db -xf /tmp/db-secrets.tar && sudo rm /tmp/db-secrets.tar
-sudo chown 10001:10001 /opt/bankfas/secrets/db/*.secret && sudo chmod 400 /opt/bankfas/secrets/db/*.secret
-printf '%s' '<SMTP_PASSWORD>' | sudo tee /opt/bankfas/secrets/smtp.secret > /dev/null
-sudo chown 10001:10001 /opt/bankfas/secrets/smtp.secret && sudo chmod 400 /opt/bankfas/secrets/smtp.secret
-```
+**بديل يدوي للخطوة H-05:** السكربت قصير ومقسّم بعناوين (`tools/host/provision_app_host.sh`)، ويمكن تنفيذ كل جزء منه يدويًا. وتجربته دون تغيير الخادم ممكنة: `BANKFAS_ROOT=/tmp/try` يكتب كل شيء تحت ذلك المجلد.
 
 **أوامر الخطوة H-08:**
 
 ```bash
 xcaddy build --with github.com/caddy-dns/<provider>     # مثل cloudflare
-sudo cp tools/host/Caddyfile /etc/caddy/Caddyfile && sudoedit /etc/caddy/Caddyfile
+# الخطوة H-05 كتبت /etc/caddy/Caddyfile ورمز DNS (/etc/caddy/dns.env)
+sudo systemctl daemon-reload
 sudo caddy validate --config /etc/caddy/Caddyfile && sudo systemctl reload caddy
 ```
 
@@ -179,6 +159,7 @@ sudo caddy validate --config /etc/caddy/Caddyfile && sudo systemctl reload caddy
 |---|---|---|
 | R-01 | **بناء الصورتين** على خادم التطبيق أو جهاز بناء، من نسخة المستودع بالإصدار المعتمد | انظر الأوامر بعد الجدول |
 | R-02 | **ضبط `compose.yml`:** اسما الصورتين ورقم إصدار ClamAV في `/opt/bankfas/compose.yml`. الصورة `bankfas-api:<VERSION>` تُكتب بلا سجل إن بُنيت على الخادم نفسه | `sudoedit /opt/bankfas/compose.yml` |
+| R-02a | **فحص الجاهزية:** يجب أن يخرج بصفر قبل أول تشغيل، ويُحفظ ناتجه | `sudo tools/host/check_ready.sh` |
 | R-03 | **التشغيل** | `cd /opt/bankfas && sudo docker compose up -d && sudo docker compose ps` |
 | R-04 | **فحص التشغيل:** الحاويات الثلاث تعمل، وسجل الخادم بلا أخطاء، ولوحة المشغّل تُفتح | `sudo docker compose logs --tail 50 api worker` ثم `curl -sI https://admin.<DOMAIN>/` |
 | R-05 | **المشغّل الأول:** يفتح الرابط من D-10، ويضع كلمة المرور، ويربط تطبيق المصادقة | المتصفح |

@@ -18,6 +18,9 @@ record. Values between `<...>` are host-specific and are never written in the re
 | `check_host.sh` | systemd timer every 5 minutes | Alerts on new listening ports, new containers, changed `authorized_keys`, disk and memory pressure, a stopped service |
 | `download_breached.sh` | run once, then monthly, as a user that can write `/srv/bankfas/breached` | The leaked-password list (DQ-S04-1): one file per SHA-1 prefix from the public range API, resumable, about 30 GB |
 | `api.env.example`, `worker.env.example` | `/opt/bankfas/api.env`, `/opt/bankfas/worker.env` (root, 600) | The settings of the two processes; each has only its own database logins (docs/54 H-05) |
+| `site.conf.example` | `/opt/bankfas/site.conf` (root, 600) | Every value of the host in one file (docs/55) |
+| `provision_app_host.sh` | run as root, again after any change of site.conf | Folders and owners, the master key once, the env files, compose.yml and the Caddyfile written from site.conf, the secrets put in place (docs/54 H-05) |
+| `check_ready.sh` | run as root before the first start and after every change | Read-only readiness: permissions, Production settings, the leaked-password list, images, Caddy, firewall, DNS, the database and the mail relay (docs/54 R-02a) |
 
 The application's own guard (per-address limit, temporary blocks, the security page of the operator panel) is in
 `app/src/BankFas.Api/Infrastructure/SecurityGuard.cs`; its values are the `Security` section of the configuration.
