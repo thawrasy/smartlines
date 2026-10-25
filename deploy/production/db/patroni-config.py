@@ -16,6 +16,7 @@ import json
 import os
 import ssl
 import sys
+import time
 import urllib.error
 import urllib.request
 
@@ -70,9 +71,17 @@ def durability(mode: str) -> int:
         raise SystemExit("durability on or off")
     call("PATCH", "/config", {"synchronous_mode": True, "synchronous_mode_strict": mode == "on",
                               "postgresql": {"parameters": {"synchronous_commit": "on"}}})
-    config = call("GET", "/config")
+    # the change is written to the host that answered and reaches the other through etcd within a loop of Patroni's;
+    # the read may go to the other host first, so it is asked again until the change is there (or 30 seconds pass)
+    deadline = time.monotonic() + 30
+    while True:
+        config = call("GET", "/config")
+        done = bool(config.get("synchronous_mode_strict")) == (mode == "on") and bool(config.get("synchronous_mode"))
+        if done or time.monotonic() > deadline:
+            break
+        time.sleep(1)
     print(f"synchronous_mode={config.get('synchronous_mode')} synchronous_mode_strict={config.get('synchronous_mode_strict')}")
-    return 0 if bool(config.get("synchronous_mode_strict")) == (mode == "on") else 1
+    return 0 if done else 1
 
 
 def main(argv: list[str]) -> int:
