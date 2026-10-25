@@ -6,7 +6,7 @@
 // invites a financial analyst, who signs in, enters a statement in the grid and sees its totals live, and opens the formula
 // library, the credit self-assessments and the group compliance. Then S3 (docs/48): the dashboards, the inbox and the
 // bank form templates. Then S4 (docs/49): the register of proformas and the received letters of credit.
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { writeFileSync } from 'node:fs';
 import { Authenticator, base32Decode, linkSentTo } from './helpers';
 
@@ -14,6 +14,19 @@ const mailDir = process.env.E2E_MAIL_DIR ?? '';
 const setupLink = process.env.E2E_SETUP_LINK ?? '';
 const port = process.env.E2E_PORT ?? '8443';
 const operatorEmail = process.env.E2E_OPERATOR_EMAIL ?? 'e2e-operator@test.invalid';
+// The portal's menu is grouped by module (docs/31 row 59): a screen's link shows once its group is open.
+const groupOf: Record<string, string> = {'Companies': 'Companies and parties', 'Banks and lenders': 'Banks and accounts', 'Governance conflicts': 'Companies and parties', 'Compare terms': 'Credit facilities', 'Users': 'Employees and access', 'Financial statements': 'Credit and risk', 'Formula library': 'Credit and risk', 'Credit self-assessments': 'Credit and risk', 'Group compliance': 'Credit facilities', 'Bank form templates': 'Treasury requests'};
+async function openGroup(page: Page, group: string) {
+  const head = page.getByRole('button', { name: new RegExp(`^${group}`) });
+  if (await head.count() === 0) return;   // no screen of the group for this user
+  if (await head.getAttribute('aria-expanded') !== 'true') await head.click();
+}
+async function openMenu(page: Page, name: string) {
+  const link = page.getByRole('link', { name, exact: true });
+  if (!(await link.isVisible())) await openGroup(page, groupOf[name] ?? '');
+  await link.click();
+}
+
 const leaked = 'correct horse battery staple';   // on the throwaway leaked-password list of tools/ci/e2e.sh
 
 test('an operator onboards a tenant and its first administrator signs in', async ({ page, browser }) => {
@@ -119,7 +132,7 @@ test('an operator onboards a tenant and its first administrator signs in', async
   await page.getByRole('button', { name: 'English' }).click();
 
   // S1: a company, then a bank with the wizard (AC-INS-1).
-  await page.getByRole('link', { name: 'Companies', exact: true }).click();
+  await openMenu(page, 'Companies');
   await page.getByLabel(/^Company code/).fill('C1');
   await page.getByLabel(/^Name \(Arabic\)/).fill('الشركة الأولى');
   await page.getByLabel(/^Name \(English\)/).fill('First Company');
@@ -128,7 +141,7 @@ test('an operator onboards a tenant and its first administrator signs in', async
   await page.getByRole('button', { name: 'Create' }).click();
   await expect(page.getByRole('heading', { name: /First Company|الشركة الأولى/ })).toBeVisible();
 
-  await page.getByRole('link', { name: 'Banks and lenders' }).click();
+  await openMenu(page, 'Banks and lenders');
   await page.getByRole('link', { name: 'Bank set-up wizard' }).click();
   // The list page has a form with the same labels: type only once the wizard has replaced it.
   await expect(page.getByRole('heading', { name: 'Bank set-up wizard' })).toBeVisible();
@@ -152,22 +165,22 @@ test('an operator onboards a tenant and its first administrator signs in', async
   await expect(page.getByRole('link', { name: /First Company|الشركة الأولى/ })).toBeVisible();
 
   // S1-b: the ownership tab of the company and the governance conflicts report (R-ACC-04).
-  await page.getByRole('link', { name: 'Companies', exact: true }).click();
+  await openMenu(page, 'Companies');
   await page.getByRole('link', { name: 'C1' }).click();
   await page.getByRole('tab', { name: 'Ownership' }).click();
   await expect(page.getByText(/Direct holdings total/)).toBeVisible();
-  await page.getByRole('link', { name: 'Governance conflicts' }).click();
+  await openMenu(page, 'Governance conflicts');
   await expect(page.getByRole('heading', { name: 'Governance conflicts' })).toBeVisible();
 
   // S2: the comparison of a comparable term across facilities (SCR-CMP-01); the keys come from CMP.TERMS.
-  await page.getByRole('link', { name: 'Compare terms' }).click();
+  await openMenu(page, 'Compare terms');
   await expect(page.getByRole('heading', { name: 'Compare terms' })).toBeVisible();
   await page.getByLabel(/^Key/).selectOption({ value: 'PRC.ARRANGEMENT_FEE_PCT' });
   await expect(page.getByText('Lower is better')).toBeVisible();   // no facility yet: the direction, and nothing ranked
   await expect(page.getByText('Nothing here yet.')).toBeVisible();
   // S2-b: a financial analyst (FA enters statements and assessments; TM only approves them), given every company.
   const tmEmail = `fa@${code}.test.invalid`;
-  await page.getByRole('link', { name: 'Users', exact: true }).click();
+  await openMenu(page, 'Users');
   await page.getByLabel(/^E-mail/).fill(tmEmail);
   await page.getByLabel(/^Name \(English\)/).fill('Financial Analyst');
   await page.getByRole('checkbox', { name: /^FA · / }).check();
@@ -194,7 +207,7 @@ test('an operator onboards a tenant and its first administrator signs in', async
   await expect(tmPage.getByRole('heading', { name: /^Welcome, / })).toBeVisible();
 
   // A statement in its grid: the current assets add up as the cells are typed.
-  await tmPage.getByRole('link', { name: 'Financial statements' }).click();
+  await openMenu(tmPage, 'Financial statements');
   await expect(tmPage.getByRole('heading', { name: 'Financial statements' })).toBeVisible();
   const create = tmPage.locator('form', { hasText: 'New statement' });
   await create.getByLabel(/^Company/).selectOption({ label: 'First Company' });
@@ -209,11 +222,11 @@ test('an operator onboards a tenant and its first administrator signs in', async
   await expect(tmPage.getByText('Saved.')).toBeVisible();
 
   // The formula library with its templates, the self-assessments with their disclaimer, and the group compliance.
-  await tmPage.getByRole('link', { name: 'Formula library' }).click();
+  await openMenu(tmPage, 'Formula library');
   await expect(tmPage.getByText('CURRENT_RATIO').first()).toBeVisible();
-  await tmPage.getByRole('link', { name: 'Credit self-assessments' }).click();
+  await openMenu(tmPage, 'Credit self-assessments');
   await expect(tmPage.getByText("not an agency rating")).toBeVisible();
-  await tmPage.getByRole('link', { name: 'Group compliance' }).click();
+  await openMenu(tmPage, 'Group compliance');
   await expect(tmPage.getByRole('heading', { name: 'Group compliance' })).toBeVisible();
   await tmContext.close();
 
@@ -225,7 +238,7 @@ test('an operator onboards a tenant and its first administrator signs in', async
   await expect(page.getByText('No approval waits for you.')).toBeVisible();
   await page.getByRole('link', { name: 'Inbox', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Inbox' })).toBeVisible();
-  await page.getByRole('link', { name: 'Bank form templates', exact: true }).click();
+  await openMenu(page, 'Bank form templates');
   await expect(page.getByRole('heading', { name: 'Bank form templates' })).toBeVisible();
   await expect(page.getByText('No bank form template yet.')).toBeVisible();
 
@@ -233,6 +246,7 @@ test('an operator onboards a tenant and its first administrator signs in', async
   // sales permission, so the menu has no link to them and the server refuses their lists; the full sales path is in the
   // integration tests (ProformaTests, SalesLcTests, SalesFollowUpTests).
   const origin = new URL(page.url()).origin;
+  await openGroup(page, 'Treasury requests');
   await expect(page.getByRole('link', { name: 'Proformas', exact: true })).toHaveCount(0);
   await page.goto(`${origin}/sales/proformas`);
   await expect(page.getByRole('heading', { name: 'Proformas' })).toBeVisible();

@@ -1,5 +1,5 @@
 import { createContext, lazy, Suspense, useContext, useEffect, useState, type ComponentType } from 'react';
-import { Link, Navigate, NavLink, Route, Routes, useNavigate } from 'react-router-dom';
+import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { LangSwitch, useI18n } from '../i18n';
 import { IdleGuard, StepUpProvider } from '../ui';
@@ -126,59 +126,117 @@ const MeCtx = createContext<Me | null>(null);
 export const useMe = () => useContext(MeCtx)!;
 export const can = (me: Me, p: string) => me.permissions.includes(p);
 
-// The menu shows an item when the user holds its permission (DOC-B07 section 2); hiding it never replaces the API's 403.
-const menu: { to: string; label: string; permission?: string; anyOf?: string[] }[] = [
-  { to: '/', label: 'Home' },
-  { to: '/users', label: 'Users', permission: 'sec.user.manage' },
-  { to: '/roles', label: 'Roles', permission: 'sec.role.manage' },
-  { to: '/settings', label: 'Settings', permission: 'cfg.settings.manage' },
-  { to: '/support', label: 'Support access', permission: 'sec.support.grant' },
-  { to: '/numbering', label: 'Numbering', permission: 'cfg.numbering.manage' },
-  { to: '/calendar', label: 'Non-working days', permission: 'cfg.settings.manage' },
-  { to: '/audit', label: 'Audit log', anyOf: ['audit.view', 'audit.view.treasury'] },
-  { to: '/jobs', label: 'Background jobs', permission: 'cfg.jobs.view' },
-  { to: '/data-exports', label: 'Data export', permission: 'cfg.export.request' },
-  { to: '/companies', label: 'Companies', permission: 'org.company.view' },
-  { to: '/documents', label: 'Company documents', permission: 'org.document.view' },
-  { to: '/reports/ownership-mismatch', label: 'Ownership check', permission: 'org.ownership.manage' },
-  { to: '/reports/structure-integrity', label: 'Structure integrity', permission: 'org.body.manage' },
-  { to: '/authority-conflicts', label: 'Governance conflicts', permission: 'sig.view' },
-  { to: '/departments', label: 'Departments', permission: 'org.company.manage' },
-  { to: '/parties', label: 'Persons and entities', permission: 'party.view' },
-  { to: '/parties/duplicates', label: 'Possible duplicates', permission: 'party.merge' },
-  { to: '/custom-fields', label: 'Custom fields', permission: 'party.field.manage' },
-  { to: '/institutions', label: 'Banks and lenders', permission: 'ins.view' },
-  { to: '/accounts', label: 'Bank accounts', permission: 'acc.view' },
-  { to: '/base-rates', label: 'Base rates', permission: 'cat.view' },
-  { to: '/dashboards', label: 'Dashboards', anyOf: ['req.view.own', 'req.claim', 'req.execute', 'req.dashboard.manager'] },
-  { to: '/inbox', label: 'Inbox', anyOf: ['req.view.own', 'req.view.all', 'req.approve', 'req.claim'] },
-  { to: '/requests', label: 'Requests', anyOf: ['req.view.own', 'req.view.all'] },
-  { to: '/lcs', label: 'Letters of credit', anyOf: ['lc.view.all', 'lc.view.own'] },
-  { to: '/sales/proformas', label: 'Proformas', anyOf: ['lc.view.all', 'lc.view.own'] },
-  { to: '/sales/lcs', label: 'Received letters of credit', permission: 'lc.export.view' },
-  { to: '/reports', label: 'Reports', permission: 'lc.report.view' },
-  { to: '/lc-form-templates', label: 'Bank form templates', anyOf: ['lc.print', 'lc.template.manage'] },
-  { to: '/delegations', label: 'Delegations', anyOf: ['req.delegate.own', 'req.delegate.manage'] },
-  { to: '/facilities', label: 'Facilities', permission: 'fac.view' },
-  { to: '/tariff-schedules', label: 'Tariff schedules', permission: 'prc.view' },
-  { to: '/collaterals', label: 'Collateral', permission: 'col.view' },
-  { to: '/breaches', label: 'Breaches', permission: 'obl.view' },
-  { to: '/terms/compare', label: 'Compare terms', permission: 'cmp.view' },
-  { to: '/financial-statements', label: 'Financial statements', anyOf: ['fin.stmt.enter', 'fin.stmt.approve', 'fin.verify.run', 'fin.credit.assess'] },
-  { to: '/monthly-figures', label: 'Monthly balances', permission: 'fin.view' },
-  { to: '/formulas', label: 'Formula library', permission: 'fin.view' },
-  { to: '/assessments', label: 'Credit self-assessments', anyOf: ['fin.credit.assess', 'fin.credit.approve', 'fin.credit.endorse'] },
-  { to: '/product-lines', label: 'Product lines', anyOf: ['fin.credit.assess', 'fin.credit.approve', 'fin.credit.endorse'] },
-  { to: '/lender-ratings', label: 'Lender ratings', anyOf: ['fin.credit.assess', 'fin.credit.approve', 'fin.credit.endorse'] },
-  { to: '/provision', label: 'Provision matrix', anyOf: ['fin.formula.manage', 'fin.formula.approve', 'fin.credit.assess'] },
-  { to: '/presentation-versions', label: 'Presentation versions', anyOf: ['fin.stmt.enter', 'fin.stmt.approve'] },
-  { to: '/reports/compliance', label: 'Group compliance', permission: 'obl.view' },
-  { to: '/reports/statement-breaches', label: 'Breaches found on the statements', anyOf: ['fin.stmt.enter', 'fin.stmt.approve', 'fin.verify.run', 'fin.credit.assess'] },
-  { to: '/catalogs', label: 'Catalogues', anyOf: ['cat.manage.general', 'cat.manage.financial'] },
-  { to: '/notifications', label: 'Notifications', permission: 'ntf.prefs' },
-  { to: '/notification-settings', label: 'Notification settings', permission: 'ntf.manage' },
-  { to: '/profile', label: 'My profile' },
+// The menu by module (docs/31 row 59): the daily work first, then one group per module, each opened on a click. An item
+// shows when the user holds its permission (DOC-B07 section 2), and a group with no item is not shown; hiding an item
+// never replaces the API's 403.
+type MenuItem = { to: string; label: string; permission?: string; anyOf?: string[] };
+const menu: { group: string; items: MenuItem[] }[] = [
+  { group: '', items: [
+    { to: '/', label: 'Home' },
+    { to: '/inbox', label: 'Inbox', anyOf: ['req.view.own', 'req.view.all', 'req.approve', 'req.claim'] },
+    { to: '/dashboards', label: 'Dashboards', anyOf: ['req.view.own', 'req.claim', 'req.execute', 'req.dashboard.manager'] },
+    { to: '/notifications', label: 'Notifications', permission: 'ntf.prefs' },
+  ] },
+  { group: 'Credit facilities', items: [
+    { to: '/facilities', label: 'Facilities', permission: 'fac.view' },
+    { to: '/tariff-schedules', label: 'Tariff schedules', permission: 'prc.view' },
+    { to: '/collaterals', label: 'Collateral', permission: 'col.view' },
+    { to: '/breaches', label: 'Breaches', permission: 'obl.view' },
+    { to: '/terms/compare', label: 'Compare terms', permission: 'cmp.view' },
+    { to: '/reports/compliance', label: 'Group compliance', permission: 'obl.view' },
+  ] },
+  { group: 'Treasury requests', items: [
+    { to: '/requests', label: 'Requests', anyOf: ['req.view.own', 'req.view.all'] },
+    { to: '/lcs', label: 'Letters of credit', anyOf: ['lc.view.all', 'lc.view.own'] },
+    { to: '/sales/proformas', label: 'Proformas', anyOf: ['lc.view.all', 'lc.view.own'] },
+    { to: '/sales/lcs', label: 'Received letters of credit', permission: 'lc.export.view' },
+    { to: '/lc-form-templates', label: 'Bank form templates', anyOf: ['lc.print', 'lc.template.manage'] },
+    { to: '/delegations', label: 'Delegations', anyOf: ['req.delegate.own', 'req.delegate.manage'] },
+    { to: '/reports', label: 'Reports', permission: 'lc.report.view' },
+  ] },
+  { group: 'Credit and risk', items: [
+    { to: '/financial-statements', label: 'Financial statements', anyOf: ['fin.stmt.enter', 'fin.stmt.approve', 'fin.verify.run', 'fin.credit.assess'] },
+    { to: '/monthly-figures', label: 'Monthly balances', permission: 'fin.view' },
+    { to: '/assessments', label: 'Credit self-assessments', anyOf: ['fin.credit.assess', 'fin.credit.approve', 'fin.credit.endorse'] },
+    { to: '/product-lines', label: 'Product lines', anyOf: ['fin.credit.assess', 'fin.credit.approve', 'fin.credit.endorse'] },
+    { to: '/lender-ratings', label: 'Lender ratings', anyOf: ['fin.credit.assess', 'fin.credit.approve', 'fin.credit.endorse'] },
+    { to: '/provision', label: 'Provision matrix', anyOf: ['fin.formula.manage', 'fin.formula.approve', 'fin.credit.assess'] },
+    { to: '/reports/statement-breaches', label: 'Breaches found on the statements', anyOf: ['fin.stmt.enter', 'fin.stmt.approve', 'fin.verify.run', 'fin.credit.assess'] },
+    { to: '/formulas', label: 'Formula library', permission: 'fin.view' },
+    { to: '/presentation-versions', label: 'Presentation versions', anyOf: ['fin.stmt.enter', 'fin.stmt.approve'] },
+  ] },
+  { group: 'Companies and parties', items: [
+    { to: '/companies', label: 'Companies', permission: 'org.company.view' },
+    { to: '/documents', label: 'Company documents', permission: 'org.document.view' },
+    { to: '/departments', label: 'Departments', permission: 'org.company.manage' },
+    { to: '/reports/ownership-mismatch', label: 'Ownership check', permission: 'org.ownership.manage' },
+    { to: '/reports/structure-integrity', label: 'Structure integrity', permission: 'org.body.manage' },
+    { to: '/authority-conflicts', label: 'Governance conflicts', permission: 'sig.view' },
+    { to: '/parties', label: 'Persons and entities', permission: 'party.view' },
+    { to: '/parties/duplicates', label: 'Possible duplicates', permission: 'party.merge' },
+    { to: '/custom-fields', label: 'Custom fields', permission: 'party.field.manage' },
+  ] },
+  { group: 'Banks and accounts', items: [
+    { to: '/institutions', label: 'Banks and lenders', permission: 'ins.view' },
+    { to: '/accounts', label: 'Bank accounts', permission: 'acc.view' },
+    { to: '/base-rates', label: 'Base rates', permission: 'cat.view' },
+  ] },
+  { group: 'Employees and access', items: [
+    { to: '/users', label: 'Users', permission: 'sec.user.manage' },
+    { to: '/roles', label: 'Roles', permission: 'sec.role.manage' },
+    { to: '/support', label: 'Support access', permission: 'sec.support.grant' },
+  ] },
+  { group: 'Settings', items: [
+    { to: '/settings', label: 'General settings', permission: 'cfg.settings.manage' },
+    { to: '/numbering', label: 'Numbering', permission: 'cfg.numbering.manage' },
+    { to: '/calendar', label: 'Non-working days', permission: 'cfg.settings.manage' },
+    { to: '/catalogs', label: 'Catalogues', anyOf: ['cat.manage.general', 'cat.manage.financial'] },
+    { to: '/notification-settings', label: 'Notification settings', permission: 'ntf.manage' },
+    { to: '/audit', label: 'Audit log', anyOf: ['audit.view', 'audit.view.treasury'] },
+    { to: '/jobs', label: 'Background jobs', permission: 'cfg.jobs.view' },
+    { to: '/data-exports', label: 'Data export', permission: 'cfg.export.request' },
+  ] },
+  { group: 'end', items: [
+    { to: '/profile', label: 'My profile' },
+  ] },
 ];
+
+const allowed = (me: Me, m: MenuItem) => (!m.permission || can(me, m.permission)) && (!m.anyOf || m.anyOf.some(p => can(me, p)));
+const OPEN_KEY = 'bf.menu.open';
+
+/** The side menu: the groups the user has items in. A group opens on its page, or as the user last left it. */
+function SideMenu({ me }: { me: Me }) {
+  const { t } = useI18n();
+  const { pathname } = useLocation();
+  const [open, setOpen] = useState<Record<string, boolean>>(() => { try { return JSON.parse(localStorage.getItem(OPEN_KEY) ?? '{}') as Record<string, boolean>; } catch { return {}; } });
+  const toggle = (g: string, now: boolean) => setOpen(prev => {
+    const next = { ...prev, [g]: !now };
+    try { localStorage.setItem(OPEN_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+    return next;
+  });
+  const here = (to: string) => to === '/' ? pathname === '/' : pathname === to || pathname.startsWith(to + '/');
+  const link = (m: MenuItem) => <NavLink key={m.to} to={m.to} end>{t(m.label)}</NavLink>;
+  return (
+    <nav className="side">
+      <Link to="/" className="brand"><Logo inverse height={26} /></Link>
+      {menu.map(({ group, items }) => {
+        const shown = items.filter(m => allowed(me, m));
+        if (shown.length === 0) return null;
+        if (group === '' || group === 'end') return <div key={group || 'top'} className={group === 'end' ? 'side-end' : 'side-top'}>{shown.map(link)}</div>;
+        const expanded = open[group] ?? shown.some(m => here(m.to));
+        const id = `menu-${group.replace(/\W+/g, '-').toLowerCase()}`;
+        return (
+          <div key={group} className="side-group">
+            <button type="button" className="side-head" aria-expanded={expanded} aria-controls={id} onClick={() => toggle(group, expanded)}>
+              <span>{t(group)}</span><span className="side-count" aria-hidden="true">{shown.length}</span>
+            </button>
+            {expanded && <div id={id} className="side-items">{shown.map(link)}</div>}
+          </div>
+        );
+      })}
+    </nav>
+  );
+}
 
 function Shell() {
   const nav = useNavigate();
@@ -192,7 +250,6 @@ function Shell() {
   }, [nav, setLang]);
   if (!me) return null;
   const signOutIdle = () => { void api('POST', '/auth/logout', {}).catch(() => undefined).finally(() => nav('/login?ended=idle')); };
-  const items = menu.filter(m => (!m.permission || can(me, m.permission)) && (!m.anyOf || m.anyOf.some(p => can(me, p))));
   return (
     <MeCtx.Provider value={me}>
       <StepUpProvider password={!me.user.mfaEnabled}>
@@ -209,7 +266,7 @@ function Shell() {
           {me.user.tenantStatus !== 'ACTIVE' && me.user.tenantStatus !== 'TRIAL' && (
             <p className="banner">{t('The account is {s}: you can read and export, not change.', { s: t(me.user.tenantStatus) })}</p>
           )}
-          <nav className="side"><Link to="/" className="brand"><Logo inverse height={26} /></Link>{items.map(m => <NavLink key={m.to} to={m.to} end>{t(m.label)}</NavLink>)}</nav>
+          <SideMenu me={me} />
           <main className="content">
             <Suspense fallback={<p className="muted">{t('Loading…')}</p>}>
             <Routes>
