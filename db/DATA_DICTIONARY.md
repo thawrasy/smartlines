@@ -2,13 +2,13 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**574 tables, 6122 columns, in 26 schemas.**
+**576 tables, 6167 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
 ## Index
 
-- [`iam` — Identity, parties, users, permissions and API clients](#iam) (47 tables)
+- [`iam` — Identity, parties, users, permissions and API clients](#iam) (49 tables)
 - [`ref` — Reference data, locales and files](#ref) (18 tables)
 - [`sys` — Settings, outbox and webhooks](#sys) (27 tables)
 - [`net` — Network: stations, routes, lines, corridors and geofences](#net) (28 tables)
@@ -521,6 +521,36 @@ Verification adapters: KYC vendor, national registry, telecom, digital identity 
 | `config` | `jsonb` | ✱ | `'{}'::jsonb` |
 | `status` | `text` | ✱ | `'INACTIVE'::text` |
 
+### `iam.integration_request` 🛡️
+
+A company's request for a programmatic connection; platform security builds the client from it and another person approves (1155, N2)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `requested_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `purpose` | `text` | ✱ |  |
+| `connection_type` | `text` | ✱ |  |
+| `data_needed` | `text[]` | ✱ |  |
+| `system_name` | `text` | ✱ |  |
+| `system_vendor` | `text` |  |  |
+| `system_host` | `text` |  |  |
+| `ip_addresses` | `cidr[]` | ✱ | `'{}'::cidr[]` |
+| `contact_name` | `text` | ✱ |  |
+| `contact_email` | `text` | ✱ |  |
+| `contact_mobile` | `text` |  |  |
+| `expected_volume` | `text` | ✱ |  |
+| `environment` | `text` | ✱ | `'SANDBOX'::text` |
+| `status` | `text` | ✱ | `'SUBMITTED'::text` |
+| `api_client_id` | `bigint` | 🔗 `iam.api_client`  |  |
+| `handled_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `handled_at` | `timestamp with time zone` |  |  |
+| `decision_note` | `text` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+
 ### `iam.kyc_decision` 🛡️ 🔒
 
 Each review stage's decision on a KYC file: approved, returned with what to correct, or rejected; who decided and when; never changed (1118)
@@ -697,6 +727,29 @@ Permission catalog (section 33)
 | `description` | `text` | ✱ |  |
 | `is_sensitive` | `boolean` | ✱ | `false` |
 
+### `iam.permission_exception` 🛡️
+
+A permission granted or denied to one person beyond their role, with an end date and a reason, active once a second person approves (1154, N1)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `user_id` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `permission_code` | `text` | 🔗 `iam.permission` ✱ |  |
+| `effect` | `text` | ✱ |  |
+| `reason` | `text` | ✱ |  |
+| `valid_from` | `timestamp with time zone` | ✱ | `now()` |
+| `valid_to` | `timestamp with time zone` | ✱ |  |
+| `status` | `text` | ✱ | `'PENDING'::text` |
+| `requested_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `decided_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `decided_at` | `timestamp with time zone` |  |  |
+| `decision_note` | `text` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+
 ### `iam.photo_approval` 🛡️
 
 The approvals of a change of a photo on file or of the photo policy, one row per stage (1091)
@@ -824,6 +877,12 @@ Roles: platform roles, company role templates, and roles each company defines fo
 | `company_id` | `bigint` | 🔗 `iam.company`  |  |
 | `is_system` | `boolean` | ✱ | `false` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `company_kind` | `text` |  |  |
+| `description` | `text` |  |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `iam.role_permission` 🛡️
 

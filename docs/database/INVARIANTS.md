@@ -398,7 +398,7 @@ The application deletes only from the tables listed with a reason; business reco
 |---|---|
 | Database | `table sys.app_delete_grant`<br>`function sys.enforce_app_delete_grants` |
 | Application | `app.modular.engine:delete_row` |
-| Database tests (`db/tests/run_tests.sql`) | Narrower grants: DELETE for the application on exactly the 41 listed tables (36 in 1059, the approval matrix's two in 1074, the vehicles of a hire in 1128, the shield's samples and hits in 1142)<br>Narrower grants: the application cannot delete a business record, even one row-level security would show it |
+| Database tests (`db/tests/run_tests.sql`) | Narrower grants: DELETE for the application on exactly the 43 listed tables (36 in 1059, the approval matrix's two in 1074, the vehicles of a hire in 1128, the shield's samples and hits in 1142, role permissions and platform roles in 1154)<br>Narrower grants: the application cannot delete a business record, even one row-level security would show it |
 | API tests (`backend/`) | `tests/test_code_rules.py::test_every_delete_in_the_code_has_its_grant` |
 
 ## RELEASE-MATCHES

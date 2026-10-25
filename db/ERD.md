@@ -330,6 +330,15 @@ erDiagram
     character country_code FK
     text status
   }
+  iam_integration_request {
+    bigint id PK
+    uuid uid
+    bigint company_id FK
+    bigint requested_by FK
+    text status
+    bigint api_client_id FK
+    bigint handled_by FK
+  }
   iam_kyc_decision {
     bigint kyc_id PK
     smallint round PK
@@ -386,6 +395,16 @@ erDiagram
   iam_permission {
     text code PK
   }
+  iam_permission_exception {
+    bigint id PK
+    uuid uid
+    bigint user_id FK
+    bigint company_id FK
+    text permission_code FK
+    text status
+    bigint requested_by FK
+    bigint decided_by FK
+  }
   iam_photo_approval {
     text subject_type PK
     bigint subject_id PK
@@ -434,6 +453,9 @@ erDiagram
     bigint id PK
     text code
     bigint company_id FK
+    uuid uid
+    text status
+    bigint created_by FK
   }
   iam_role_permission {
     bigint role_id PK
@@ -543,6 +565,7 @@ erDiagram
   iam_family_member }o..o| gov_subject_request : "erasure_request_id"
   iam_api_usage_daily }o--|| iam_api_client : "api_client_id"
   iam_api_key }o--|| iam_api_client : "api_client_id"
+  iam_integration_request }o..o| iam_api_client : "api_client_id"
   iam_user_role }o--|| iam_app_user : "user_id"
   iam_company_member }o--|| iam_app_user : "user_id"
   iam_user_station_scope }o--|| iam_app_user : "user_id"
@@ -554,6 +577,7 @@ erDiagram
   iam_messenger_link }o--|| iam_app_user : "user_id"
   iam_mfa_challenge }o--|| iam_app_user : "user_id"
   iam_contact_code }o--|| iam_app_user : "user_id"
+  iam_permission_exception }o--|| iam_app_user : "user_id"
   iam_photo_change_request }o--|| iam_app_user : "requested_by_user_id"
   iam_data_requirement }o..o| iam_app_user : "changed_by_user_id"
   iam_photo_evidence_kind }o..o| iam_app_user : "changed_by_user_id"
@@ -578,6 +602,8 @@ erDiagram
   iam_company_member }o--|| iam_company : "company_id"
   iam_user_station_scope }o--|| iam_company : "company_id"
   iam_company_kyc }o--|| iam_company : "company_id"
+  iam_integration_request }o--|| iam_company : "company_id"
+  iam_permission_exception }o..o| iam_company : "company_id"
   iam_role }o..o| iam_company : "company_id"
   iam_user_session }o..o| iam_company : "company_id"
   iam_api_client }o..o| iam_company : "company_id"
@@ -618,6 +644,7 @@ erDiagram
   iam_verification }o..o| iam_party : "subject_party_id"
   iam_document }o..o| iam_party : "owner_party_id"
   iam_role_permission }o--|| iam_permission : "permission_code"
+  iam_permission_exception }o--|| iam_permission : "permission_code"
   iam_photo_policy_change }o..o| iam_photo_evidence_kind : "evidence_code"
   iam_photo_change_request }o--|| iam_photo_evidence_kind : "evidence_kind"
   iam_role_permission }o--|| iam_role : "role_id"

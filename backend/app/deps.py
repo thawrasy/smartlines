@@ -115,9 +115,21 @@ async def load_permissions(conn: asyncpg.Connection, pr: Principal) -> None:
     if pr.is_owner:
         # the owner of a station operating company holds the station permissions only, never a carrier's (1099)
         perms = await conn.fetch(
-            "SELECT code FROM iam.permission WHERE scope IN ('COMPANY','BOTH') AND ($1 <> 'STATION' OR module = 'station')",
+            """SELECT code FROM iam.permission WHERE scope IN ('COMPANY','BOTH')
+                 AND ($1 <> 'STATION' OR module = 'station' OR code IN ('company.staff', 'company.login_log'))""",
             pr.portal)
         pr.permissions |= {p["code"] for p in perms}
+    # per-user exceptions (1154, N1): approved by a second person, within their dates, for this portal's company
+    company = None if pr.portal in ("PLATFORM", "INSPECTOR") else pr.company_id
+    if pr.portal in ("PLATFORM", "INSPECTOR") or company:
+        for e in await conn.fetch(
+                """SELECT permission_code, effect FROM iam.permission_exception
+                    WHERE user_id = $1 AND company_id IS NOT DISTINCT FROM $2 AND status = 'ACTIVE'
+                      AND valid_from <= now() AND valid_to > now()""", pr.user_id, company):
+            if e["effect"] == "GRANT":
+                pr.permissions.add(e["permission_code"])
+            else:
+                pr.permissions.discard(e["permission_code"])
 
 
 def _presented_token(request: Request) -> Optional[str]:

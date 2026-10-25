@@ -249,20 +249,36 @@ async def credit_for_booking(conn: asyncpg.Connection, booking_id: int) -> list[
 
 
 async def issue_due(limit: int = 100) -> dict:
-    """The worker's pass: invoices for paid bookings and credit notes for refunded ones, within the look-back window."""
+    """The worker's pass: invoices for paid bookings and credit notes for refunded ones, within the look-back window.
+    Candidates are read in pages by booking id, so bookings that yield no document for a seller (nothing of theirs on it)
+    never hold back the newer ones behind them."""
     async with db.transaction(_ctx()) as conn:
         window = int(await conn.fetchval(
             "SELECT coalesce((SELECT (value #>> '{}')::int FROM sys.setting WHERE key = 'einvoice.issue_window_days'), 30)"))
         if not await conn.fetchval("SELECT EXISTS (SELECT 1 FROM acct.einvoice_unit WHERE status = 'ACTIVE')"):
             return {"invoices": 0, "credit_notes": 0}
-        to_invoice = [r["id"] for r in await conn.fetch(
-            f"""SELECT b.id FROM sales.booking b
-                 WHERE b.status IN ('CONFIRMED','COMPLETED','CANCELLED') AND b.confirmed_at > now() - make_interval(days => $1)
-                   AND EXISTS (SELECT 1 FROM acct.tax_profile p JOIN acct.einvoice_unit u ON u.profile_id = p.id AND u.status = 'ACTIVE'
-                                WHERE p.party_id IN (b.company_id, {PLATFORM_PARTY}) AND p.valid @> now()
-                                  AND NOT EXISTS (SELECT 1 FROM acct.einvoice_document d WHERE d.source_type = 'BOOKING'
-                                                     AND d.source_id = b.id AND d.doc_type = 'INVOICE' AND d.seller_profile_id = p.id))
-                 ORDER BY b.id LIMIT $2""", window, limit)]
+    invoices = credits = 0
+    after = 0
+    while True:
+        async with db.transaction(_ctx()) as conn:
+            to_invoice = [r["id"] for r in await conn.fetch(
+                f"""SELECT b.id FROM sales.booking b
+                     WHERE b.id > $3 AND b.status IN ('CONFIRMED','COMPLETED','CANCELLED') AND b.confirmed_at > now() - make_interval(days => $1)
+                       AND EXISTS (SELECT 1 FROM acct.tax_profile p JOIN acct.einvoice_unit u ON u.profile_id = p.id AND u.status = 'ACTIVE'
+                                    WHERE p.party_id IN (b.company_id, {PLATFORM_PARTY}) AND p.valid @> now()
+                                      AND NOT EXISTS (SELECT 1 FROM acct.einvoice_document d WHERE d.source_type = 'BOOKING'
+                                                         AND d.source_id = b.id AND d.doc_type = 'INVOICE' AND d.seller_profile_id = p.id))
+                     ORDER BY b.id LIMIT $2""", window, limit, after)]
+        for bid in to_invoice:
+            try:
+                async with db.transaction(_ctx()) as conn:
+                    invoices += len(await issue_for_booking(conn, bid))
+            except Exception:                                   # noqa: BLE001 - one booking never stops the others
+                log.exception("e-invoice for booking %s failed; tried again on the next pass", bid)
+        if len(to_invoice) < limit:
+            break
+        after = to_invoice[-1]
+    async with db.transaction(_ctx()) as conn:
         to_credit = [r["source_id"] for r in await conn.fetch(
             """SELECT DISTINCT d.source_id FROM acct.einvoice_document d JOIN sales.booking b ON b.id = d.source_id
                 WHERE d.source_type = 'BOOKING' AND d.doc_type = 'INVOICE' AND d.status NOT IN ('DRAFT','CANCELLED_DRAFT','REJECTED')
@@ -271,13 +287,6 @@ async def issue_due(limit: int = 100) -> dict:
                                     AND c.doc_type = 'CREDIT_NOTE' AND c.status NOT IN ('DRAFT','CANCELLED_DRAFT','REJECTED'))
                   AND EXISTS (SELECT 1 FROM fin.price_allocation_line l WHERE l.allocation_id = b.price_allocation_id AND l.refunded_amount > 0)
                 LIMIT $2""", window, limit)]
-    invoices = credits = 0
-    for bid in to_invoice:
-        try:
-            async with db.transaction(_ctx()) as conn:
-                invoices += len(await issue_for_booking(conn, bid))
-        except Exception:                                   # noqa: BLE001 - one booking never stops the others
-            log.exception("e-invoice for booking %s failed; tried again on the next pass", bid)
     for bid in to_credit:
         try:
             async with db.transaction(_ctx()) as conn:

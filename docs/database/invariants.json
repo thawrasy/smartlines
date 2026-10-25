@@ -541,7 +541,7 @@
       ],
       "tests": {
         "db": [
-          "Narrower grants: DELETE for the application on exactly the 41 listed tables (36 in 1059, the approval matrix's two in 1074, the vehicles of a hire in 1128, the shield's samples and hits in 1142)",
+          "Narrower grants: DELETE for the application on exactly the 43 listed tables (36 in 1059, the approval matrix's two in 1074, the vehicles of a hire in 1128, the shield's samples and hits in 1142, role permissions and platform roles in 1154)",
           "Narrower grants: the application cannot delete a business record, even one row-level security would show it"
         ],
         "api": [

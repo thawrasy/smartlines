@@ -136,8 +136,8 @@ async def update(conn: asyncpg.Connection, pr: Principal, uid: uuid.UUID, compan
     if c["status"] == "REVOKED":
         raise ApiError(409, "API_CLIENT_REVOKED", "a revoked client cannot be changed")
     scopes = _scopes(c["kind"], f["scopes"]) if f.get("scopes") is not None else list(c["scopes"])
-    if not platform and not set(scopes) <= set(c["scopes"]) and c["status"] == "ACTIVE":
-        # a company may narrow an approved client; widening it goes back through platform approval
+    if not set(scopes) <= set(c["scopes"]) and c["status"] == "ACTIVE":
+        # an approved client may be narrowed; widening it needs a new client approved by a second person (four eyes)
         raise ApiError(409, "SCOPE_WIDENING_NEEDS_APPROVAL", "adding scopes to an approved client needs platform approval")
     rate = f.get("rate_limit_per_min") if platform and f.get("rate_limit_per_min") else c["rate_limit_per_min"]
     mtls = f.get("require_mtls") if platform and f.get("require_mtls") is not None else c["require_mtls"]

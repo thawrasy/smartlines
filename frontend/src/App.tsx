@@ -77,6 +77,7 @@ const ReportsPage = lazyNamed(() => import("./pages/reports/Reports"), "ReportsP
 const AgencyTopup = lazyNamed(() => import("./pages/finance/Payments"), "AgencyTopup");
 const PaymentsDesk = lazyNamed(() => import("./pages/finance/Payments"), "PaymentsDesk");
 const IntegrationsPage = lazyNamed(() => import("./pages/integrations/Integrations"), "IntegrationsPage");
+const PeoplePage = lazyNamed(() => import("./pages/people/People"), "PeoplePage");
 const MfaPolicy = lazy(() => import("./pages/security/MfaPolicy"));
 const Statements = lazy(() => import("./pages/security/Statements"));
 const Shield = lazy(() => import("./pages/security/Shield"));
@@ -160,6 +161,7 @@ function PlatformShell() {
       { to: "/admin/reports", icon: "summarize", label: t("rpt.nav"), show: can("report.platform") },
       { to: "/admin/payments", icon: "account_balance", label: t("pay.nav"), show: can("ledger.reconcile", "payment.fee_policy", "compensation.pay", "payment.methods", "cash.remittance", "cash.credit_limit", "policy.matrix", "loyalty.manage") },
       { to: "/admin/integrations", icon: "api", label: t("api.nav"), show: can("security.api_clients") },
+      { to: "/admin/people", icon: "group", label: t("people.nav"), show: can("users.manage") },
       { to: "/admin/modules", icon: "apps", label: t("modules.title"), show: can("modules.manage") },
       ...mods,
     ]} />
@@ -189,6 +191,7 @@ function CarrierShell() {
       { to: "/carrier/agency-cash", icon: "handshake", label: t("acash.carrierNav"), show: can("company.billing", "report.company", "sale.cash") },
       { to: "/carrier/reports", icon: "summarize", label: t("rpt.nav"), show: can("report.company") },
       { to: "/carrier/integrations", icon: "api", label: t("api.nav"), show: can("company.api_keys") },
+      { to: "/carrier/people", icon: "group", label: t("people.nav"), show: can("company.staff") },
       ...mods,
     ]} />
   );
@@ -206,7 +209,7 @@ function AgencyShell() {
       { to: "/agency/bookings", icon: "confirmation_number", label: t("agency.bookings") },
       { to: "/agency/statement", icon: "receipt_long", label: t("agency.statement"), show: can("report.company", "company.billing", "booking.on_behalf") },
       { to: "/agency/cash-accounts", icon: "handshake", label: t("acash.agencyNav"), show: can("report.company", "company.billing", "booking.on_behalf") },
-      { to: "/agency/staff", icon: "badge", label: t("agency.staff"), show: can("company.staff") },
+      { to: "/agency/people", icon: "group", label: t("people.nav"), show: can("company.staff") },
       { to: "/agency/documents", icon: "fact_check", label: t("documents.title"), show: can("company.staff", "vehicle.manage", "company.billing") },
       { to: "/agency/finance", icon: "account_balance_wallet", label: t("finance.title"), show: can("company.payout_schedule", "company.billing") },
       { to: "/agency/topup", icon: "account_balance_wallet", label: t("pay.agencyNav"), show: can("booking.on_behalf", "sale.cash") },
@@ -231,6 +234,7 @@ function StationShell() {
       ...(can("station.bays") ? [{ to: "/station/bays", icon: "local_parking" as const, label: t("bays.nav") }] : []),
       // the display screens, for the station's administration (1120): its owner, or staff holding station.screens
       ...(can("station.screens") ? [{ to: "/station/screens", icon: "tv" as const, label: t("scr.nav") }] : []),
+      ...(can("company.staff") ? [{ to: "/station/people", icon: "group" as const, label: t("people.nav") }] : []),
     ]} />
   );
 }
@@ -294,6 +298,7 @@ export default function App() {
           <Route path="carrier/m/:module" element={<ModulePage />} />
           <Route path="carrier/reports" element={<ReportsPage />} />
           <Route path="carrier/integrations" element={<IntegrationsPage />} />
+          <Route path="carrier/people" element={<PeoplePage />} />
           <Route path="carrier/counter" element={<CounterDashboard />} />
           <Route path="carrier/counter/search" element={<CounterSell />} />
           <Route path="carrier/counter/trip/:uid" element={<Book />} />
@@ -318,6 +323,7 @@ export default function App() {
           <Route path="agency/reports" element={<ReportsPage />} />
           <Route path="agency/topup" element={<AgencyTopup />} />
           <Route path="agency/integrations" element={<IntegrationsPage />} />
+          <Route path="agency/people" element={<PeoplePage />} />
         </Route>
         <Route element={<RequirePortal portal="STATION"><StationShell /></RequirePortal>}>
           <Route path="station" element={<StationHome />} />
@@ -327,6 +333,7 @@ export default function App() {
           <Route path="station/sales" element={<StationSales />} />
           <Route path="station/bays" element={<StationBays />} />
           <Route path="station/screens" element={<StationScreens />} />
+          <Route path="station/people" element={<PeoplePage />} />
           <Route path="station/trip/:uid" element={<Book />} />
           <Route path="station/booking/:ref" element={<Booking />} />
         </Route>
@@ -356,6 +363,7 @@ export default function App() {
           <Route path="admin/reports" element={<ReportsPage />} />
           <Route path="admin/payments" element={<PaymentsDesk />} />
           <Route path="admin/integrations" element={<IntegrationsPage />} />
+          <Route path="admin/people" element={<PeoplePage />} />
           <Route path="security" element={<SecurityOverview />} />
           <Route path="security/rules" element={<SecurityRules />} />
           <Route path="security/auth" element={<SecurityAuthLog />} />

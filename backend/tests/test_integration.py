@@ -55,13 +55,33 @@ def agency():
     return login("agency@agency.test", "AGENCY")
 
 
-def make_client(creator, approver, **body) -> tuple[str, str]:
-    """Creates, approves and issues a key; returns (client uid, key)."""
-    r = creator.post("/api/integrations/clients", json={"environment": "SANDBOX", **body})
+def connection_request(company, scopes: list[str], **extra) -> str:
+    """A company's connection request (N2, 1155) with the details the platform asks for."""
+    r = company.post("/api/integrations/requests", json={
+        "purpose": "Keep our own dispatch system in step with the platform", "connection_type": "TWO_WAY", "data_needed": scopes,
+        "system_name": "Dispatch ERP", "system_vendor": "In-house", "system_host": "erp.example.com", "ip_addresses": [],
+        "contact_name": "Systems Lead", "contact_email": "systems@example.com", "expected_volume": "LOW", **extra})
     assert r.status_code == 201, r.text
-    uid = r.json()["uid"]
-    assert r.json()["status"] == "PENDING"
-    r = approver.post(f"/api/integrations/clients/{uid}/approve", json={})
+    return r.json()["uid"]
+
+
+def make_client(creator, approver, **body) -> tuple[str, str]:
+    """Creates, approves and issues a key; returns (client uid, key). A company asks (N2): platform security (the
+    approver) builds the client from the request, another officer approves it and the company takes its key."""
+    if not creator.get("/api/integrations/meta").json()["platform"]:
+        req = connection_request(creator, body["scopes"])
+        r = approver.post(f"/api/integrations/requests/{req}/client",
+                          json={"name": body["name"], "kind": body["kind"], "scopes": body["scopes"]})
+        assert r.status_code == 201, r.text
+        uid = r.json()["client"]["uid"]
+        second = login("security@masslak.test", "PLATFORM")
+    else:
+        r = creator.post("/api/integrations/clients", json={"environment": "SANDBOX", **body})
+        assert r.status_code == 201, r.text
+        uid = r.json()["uid"]
+        assert r.json()["status"] == "PENDING"
+        second = approver
+    r = second.post(f"/api/integrations/clients/{uid}/approve", json={})
     assert r.status_code == 200, r.text
     r = creator.post(f"/api/integrations/clients/{uid}/keys")
     assert r.status_code == 201, r.text
@@ -74,18 +94,24 @@ def carrier_client(owner, admin):
                        scopes=["trips:read", "manifests:read", "bookings:read", "reports:read", "webhooks:manage"])
 
 
-def test_company_client_needs_approval_and_key_is_hashed(owner, admin):
+def test_company_client_needs_approval_and_key_is_hashed(owner, admin, security):
+    # a company files a request; it no longer makes clients itself (N2, option B)
     r = owner.post("/api/integrations/clients", json={"name": "Timetable feed", "kind": "CARRIER", "scopes": ["trips:read"]})
+    assert r.status_code == 403
+    bad = owner.post("/api/integrations/requests", json={"purpose": "Credit wallets of our riders", "connection_type": "TWO_WAY",
+                                                        "data_needed": ["wallet:credit"], "system_name": "Greedy", "contact_name": "Systems Lead",
+                                                        "contact_email": "systems@example.com", "expected_volume": "LOW"})
+    assert bad.json()["error"]["code"] == "SCOPE_NOT_ALLOWED"                  # a carrier cannot ask for scopes of other kinds
+    req = connection_request(owner, ["trips:read"])
+    assert any(x["uid"] == req and x["status"] == "SUBMITTED" for x in admin.get("/api/integrations/requests").json()["requests"])
+    r = admin.post(f"/api/integrations/requests/{req}/client", json={"name": "Timetable feed", "kind": "CARRIER", "scopes": ["trips:read"]})
     assert r.status_code == 201, r.text
-    uid = r.json()["uid"]
+    uid = r.json()["client"]["uid"]
     assert owner.post(f"/api/integrations/clients/{uid}/keys").json()["error"]["code"] == "API_CLIENT_NOT_ACTIVE"
     assert owner.post(f"/api/integrations/clients/{uid}/approve", json={}).status_code == 403          # platform security only
-    # a carrier cannot take scopes of other kinds
-    bad = owner.post("/api/integrations/clients", json={"name": "Greedy", "kind": "CARRIER", "scopes": ["wallet:credit"]})
-    assert bad.json()["error"]["code"] == "SCOPE_NOT_ALLOWED"
-    assert owner.post("/api/integrations/clients", json={"name": "Bank", "kind": "PARTNER", "scopes": ["wallet:credit"]}
-                      ).json()["error"]["code"] == "KIND_NOT_ALLOWED"
-    assert admin.post(f"/api/integrations/clients/{uid}/approve", json={}).json()["status"] == "ACTIVE"
+    assert admin.post(f"/api/integrations/clients/{uid}/approve", json={}).json()["error"]["code"] == "FOUR_EYES"
+    assert security.post(f"/api/integrations/clients/{uid}/approve", json={}).json()["status"] == "ACTIVE"
+    assert next(x for x in owner.get("/api/integrations/requests").json()["requests"] if x["uid"] == req)["client_status"] == "ACTIVE"
     k = owner.post(f"/api/integrations/clients/{uid}/keys").json()
     assert k["key"].startswith("msk_test_") and len(k["key"]) > 40
     row = owner_sql("SELECT key_hash, key_prefix FROM iam.api_key WHERE id = $1", k["id"], fetch=True)
@@ -93,9 +119,10 @@ def test_company_client_needs_approval_and_key_is_hashed(owner, admin):
     detail = owner.get(f"/api/integrations/clients/{uid}").json()
     assert all("key" not in x for x in detail["keys"]) and k["key"] not in json.dumps(detail)
     assert api(k["key"]).get("/api/v1/me").json()["scopes"] == ["trips:read"]
-    # a third key is refused while two are active (rotation keeps at most two)
-    owner.post(f"/api/integrations/clients/{uid}/keys")
-    assert owner.post(f"/api/integrations/clients/{uid}/keys").json()["error"]["code"] == "API_KEY_LIMIT"
+    # the company takes its key once; a third key is refused while two are active (rotation keeps at most two)
+    assert owner.post(f"/api/integrations/clients/{uid}/keys").json()["error"]["code"] == "KEY_ALREADY_TAKEN"
+    admin.post(f"/api/integrations/clients/{uid}/keys")
+    assert admin.post(f"/api/integrations/clients/{uid}/keys").json()["error"]["code"] == "API_KEY_LIMIT"
     # revoking stops the key at once
     assert owner.post(f"/api/integrations/clients/{uid}/keys/{k['id']}/revoke", json={"reason": "rotated out"}).status_code == 200
     assert api(k["key"]).get("/api/v1/me").json()["error"]["code"] == "API_KEY_INVALID"
@@ -154,16 +181,17 @@ def test_suspension_and_ip_allowlist(carrier_client, owner, admin):
     assert admin.post(f"/api/integrations/clients/{uid}/suspend", json={"reason": "security review"}).json()["status"] == "SUSPENDED"
     assert c.get("/api/v1/me").json()["error"]["code"] == "API_CLIENT_INACTIVE"
     assert admin.post(f"/api/integrations/clients/{uid}/reactivate", json={}).json()["status"] == "ACTIVE"
-    assert owner.put(f"/api/integrations/clients/{uid}", json={"ip_allowlist": ["10.0.0.0/8"]}).status_code == 200
+    assert owner.put(f"/api/integrations/clients/{uid}", json={"ip_allowlist": []}).status_code == 403     # the platform's to set
+    assert admin.put(f"/api/integrations/clients/{uid}", json={"ip_allowlist": ["10.0.0.0/8"]}).status_code == 200
     assert c.get("/api/v1/me").json()["error"]["code"] == "API_IP_NOT_ALLOWED"
     run_net = str(ipaddress.ip_network(H["X-Forwarded-For"] + "/16", strict=False))
-    assert owner.put(f"/api/integrations/clients/{uid}", json={"ip_allowlist": [run_net]}).status_code == 200
+    assert admin.put(f"/api/integrations/clients/{uid}", json={"ip_allowlist": [run_net]}).status_code == 200
     assert c.get("/api/v1/me").status_code == 200
-    # an approved client cannot widen its own scopes
-    assert owner.put(f"/api/integrations/clients/{uid}", json={"scopes": ["trips:read", "manifests:read", "bookings:read", "reports:read",
+    # an approved client's scopes are not widened without a new approval
+    assert admin.put(f"/api/integrations/clients/{uid}", json={"scopes": ["trips:read", "manifests:read", "bookings:read", "reports:read",
                                                                        "webhooks:manage", "shipments:read"]}
                      ).json()["error"]["code"] == "SCOPE_WIDENING_NEEDS_APPROVAL"
-    assert owner.put(f"/api/integrations/clients/{uid}", json={"ip_allowlist": []}).status_code == 200
+    assert admin.put(f"/api/integrations/clients/{uid}", json={"ip_allowlist": []}).status_code == 200
 
 
 @pytest.fixture(scope="module")
@@ -303,16 +331,17 @@ def verify(secret: str, headers: dict, body: bytes) -> bool:
 def test_webhooks_are_signed_scoped_and_private(carrier_client, owner, agency, admin, trip, pax):
     uid, key = carrier_client
     rx = Receiver()
-    assert owner.post(f"/api/integrations/clients/{uid}/webhooks", json={"url": "https://10.1.2.3/hook", "events": ["booking.confirmed"]}
+    assert admin.post(f"/api/integrations/clients/{uid}/webhooks", json={"url": "https://10.1.2.3/hook", "events": ["booking.confirmed"]}
                       ).json()["error"]["code"] == "WEBHOOK_URL_NOT_PUBLIC"
-    assert owner.post(f"/api/integrations/clients/{uid}/webhooks", json={"url": rx.url, "events": ["wallet.credited"]}
+    assert admin.post(f"/api/integrations/clients/{uid}/webhooks", json={"url": rx.url, "events": ["wallet.credited"]}
                       ).json()["error"]["code"] == "WEBHOOK_EVENT_NOT_ALLOWED"
-    hook = owner.post(f"/api/integrations/clients/{uid}/webhooks", json={"url": rx.url, "events": ["booking.confirmed", "booking.cancelled"]})
+    hook = admin.post(f"/api/integrations/clients/{uid}/webhooks", json={"url": rx.url, "events": ["booking.confirmed", "booking.cancelled"]})
     assert hook.status_code == 201, hook.text
     secret, wuid = hook.json()["secret"], hook.json()["uid"]
     # an agency endpoint subscribed to the same event must not receive the carrier's direct sales
     ag_uid, _ = make_client(agency, admin, name="Agency listener", kind="CHANNEL", scopes=["bookings:read", "webhooks:manage"])
-    ag = agency.post(f"/api/integrations/clients/{ag_uid}/webhooks", json={"url": rx.url, "events": ["booking.confirmed"]})
+    assert agency.post(f"/api/integrations/clients/{ag_uid}/webhooks", json={"url": rx.url, "events": ["booking.confirmed"]}).status_code == 403
+    ag = admin.post(f"/api/integrations/clients/{ag_uid}/webhooks", json={"url": rx.url, "events": ["booking.confirmed"]})
     assert ag.status_code == 201, ag.text
     run_worker(rx)                                # drain whatever is already waiting
     rx.got.clear()
@@ -378,3 +407,18 @@ def test_delivery_falls_back_to_the_next_address(monkeypatch):
     monkeypatch.setenv("MASSLAK_WEBHOOK_CA_FILE", rx.cert)
     assert webhooks.post(rx.url, b"{}", {"Content-Type": "application/json"}) == 200
     assert tried == ["::1", "127.0.0.1"] and len(rx.got) == 1
+
+
+def test_a_request_is_withdrawn_or_refused_with_a_reason(owner, agency, admin):
+    req = connection_request(owner, ["trips:read"])
+    assert admin.post(f"/api/integrations/requests/{req}/withdraw").status_code == 403          # the company's own act
+    assert owner.post(f"/api/integrations/requests/{req}/withdraw").json()["status"] == "WITHDRAWN"
+    assert owner.post(f"/api/integrations/requests/{req}/withdraw").json()["error"]["code"] == "REQUEST_HANDLED"
+    req = connection_request(agency, ["bookings:read"], ip_addresses=["203.0.113.7", "198.51.100.0/24"])
+    seen = next(x for x in admin.get("/api/integrations/requests").json()["requests"] if x["uid"] == req)
+    assert seen["ip_addresses"] == ["203.0.113.7", "198.51.100.0/24"] and seen["company_name"]
+    assert req not in {x["uid"] for x in owner.get("/api/integrations/requests").json()["requests"]}   # another company's
+    assert owner.post("/api/integrations/requests/" + req + "/withdraw").status_code == 404
+    assert admin.post(f"/api/integrations/requests/{req}/reject", json={"note": "Use the sales channel instead"}).json()["status"] == "REJECTED"
+    assert admin.post(f"/api/integrations/requests/{req}/client", json={"name": "Late", "kind": "CHANNEL", "scopes": ["bookings:read"]}
+                      ).json()["error"]["code"] == "REQUEST_HANDLED"

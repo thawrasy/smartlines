@@ -1956,8 +1956,8 @@ SELECT pg_temp.ok(NOT EXISTS (
      WHERE c.relkind IN ('r', 'p') AND NOT c.relispartition AND n.nspname NOT IN ('pg_catalog', 'information_schema', 'public', 'gis')
        AND has_table_privilege('masslak_app', c.oid, 'DELETE') <> EXISTS (SELECT 1 FROM sys.app_delete_grant g
                                                                            WHERE g.table_name = n.nspname || '.' || c.relname))
-  AND (SELECT count(*) FROM sys.app_delete_grant) = 41,
-  'Narrower grants: DELETE for the application on exactly the 41 listed tables (36 in 1059, the approval matrix''s two in 1074, the vehicles of a hire in 1128, the shield''s samples and hits in 1142)');
+  AND (SELECT count(*) FROM sys.app_delete_grant) = 43,
+  'Narrower grants: DELETE for the application on exactly the 43 listed tables (36 in 1059, the approval matrix''s two in 1074, the vehicles of a hire in 1128, the shield''s samples and hits in 1142, role permissions and platform roles in 1154)');
 SET ROLE masslak_app;
 SELECT pg_temp.expect_error($$DELETE FROM sales.passenger WHERE id = -1$$, 'permission denied',
   'Narrower grants: the application cannot delete a business record, even one row-level security would show it');
@@ -3921,6 +3921,48 @@ SELECT pg_temp.expect_error(format($$INSERT INTO iam.saved_traveller (owner_user
 SELECT pg_temp.expect_error(format($$INSERT INTO iam.saved_traveller (owner_user_id, first_name, last_name, last_name_latin)
                                       VALUES (%s, 'Sami', 'Kurdi', 'Kurdi1')$$, :gu),
   'check constraint', 'Saved travellers (1153): a Latin name part is in Latin letters');
+ROLLBACK;
+SET ROLE masslak_app;
+
+-- Users and roles (1154): ready roles for every portal, exceptions with an end and a second person; integration requests (1155)
+SELECT pg_temp.ok((SELECT count(*) FROM iam.role WHERE company_id IS NULL AND code IN ('PLATFORM_OPERATIONS', 'PLATFORM_COMPLIANCE',
+                     'PLATFORM_READONLY', 'PLATFORM_USERS', 'CARRIER_ADMIN', 'CARRIER_SUPPORT', 'CARRIER_READONLY', 'AGENCY_ADMIN',
+                     'AGENCY_READONLY', 'STATION_ADMIN', 'STATION_READONLY')) = 11
+                  AND NOT EXISTS (SELECT 1 FROM iam.role WHERE scope = 'COMPANY' AND company_kind IS NULL),
+  'Users and roles (1154): ready roles for the platform, carriers, agencies and stations; every company role names its kind');
+SELECT pg_temp.ok(EXISTS (SELECT 1 FROM iam.role_permission rp JOIN iam.role r ON r.id = rp.role_id
+                           WHERE r.code = 'PLATFORM_ADMIN' AND r.company_id IS NULL AND rp.permission_code = 'users.manage'),
+  'Users and roles (1154): platform administrators manage users, not only the platform owner');
+SELECT pg_temp.ok((SELECT relforcerowsecurity FROM pg_class WHERE oid = 'iam.permission_exception'::regclass)
+                  AND (SELECT relforcerowsecurity FROM pg_class WHERE oid = 'iam.integration_request'::regclass),
+  'Users and roles (1154, 1155): exceptions and connection requests are row-secured to their company');
+BEGIN;
+RESET ROLE;
+INSERT INTO iam.party (party_type, legal_name) VALUES ('PERSON', 'Exception Target') RETURNING id AS exp1 \gset
+INSERT INTO iam.app_user (party_id, account_kind, email, password_hash, status) VALUES (:exp1, 'PLATFORM', 'exc-target@test.invalid', 'x', 'ACTIVE') RETURNING id AS exu \gset
+INSERT INTO iam.party (party_type, legal_name) VALUES ('PERSON', 'Exception Second') RETURNING id AS exp2 \gset
+INSERT INTO iam.app_user (party_id, account_kind, email, password_hash, status) VALUES (:exp2, 'PLATFORM', 'exc-second@test.invalid', 'x', 'ACTIVE') RETURNING id AS exs \gset
+SELECT :uadmin AS exa \gset
+SELECT pg_temp.expect_error(format($$INSERT INTO iam.permission_exception (user_id, permission_code, effect, reason, valid_to, requested_by)
+                                      VALUES (%s, 'report.platform', 'GRANT', 'covering a colleague', now() + interval '2 years', %s)$$, :exu, :exa),
+  'check constraint', 'Users and roles (1154): an exception lasts at most a year');
+INSERT INTO iam.permission_exception (user_id, permission_code, effect, reason, valid_to, requested_by)
+  VALUES (:exu, 'report.platform', 'DENY', 'review of report access', now() + interval '7 days', :exa) RETURNING id AS exid \gset
+SELECT pg_temp.expect_error(format($$UPDATE iam.permission_exception SET status = 'ACTIVE', decided_by = %s, decided_at = now() WHERE id = %s$$, :exa, :exid),
+  'check constraint', 'Users and roles (1154): the one who asked never approves');
+SELECT pg_temp.expect_error(format($$UPDATE iam.permission_exception SET status = 'ACTIVE', decided_by = %s, decided_at = now() WHERE id = %s$$, :exu, :exid),
+  'check constraint', 'Users and roles (1154): nobody approves their own exception');
+SELECT pg_temp.expect_error(format($$INSERT INTO iam.permission_exception (user_id, permission_code, effect, reason, valid_to, requested_by)
+                                      VALUES (%s, 'report.platform', 'GRANT', 'asked twice', now() + interval '3 days', %s)$$, :exu, :exa),
+  'unique', 'Users and roles (1154): one open exception per person and permission');
+UPDATE iam.permission_exception SET status = 'REJECTED', decided_by = :exs, decided_at = now() WHERE id = :exid;
+SELECT pg_temp.expect_error(format($$UPDATE iam.permission_exception SET status = 'ACTIVE' WHERE id = %s$$, :exid),
+  'IMMUTABLE_RECORD', 'Users and roles (1154): a decided exception is not changed');
+SELECT pg_temp.expect_error($$INSERT INTO iam.integration_request (company_id, requested_by, purpose, connection_type, data_needed, system_name,
+                                contact_name, contact_email, expected_volume)
+                              VALUES ((SELECT min(id) FROM iam.company), (SELECT min(id) FROM iam.app_user), 'Keep our ERP in step', 'READ',
+                                      '{}', 'ERP', 'Systems Lead', 'systems@example.com', 'LOW')$$,
+  'check constraint', 'Integration requests (1155): a request names the data it needs');
 ROLLBACK;
 SET ROLE masslak_app;
 
