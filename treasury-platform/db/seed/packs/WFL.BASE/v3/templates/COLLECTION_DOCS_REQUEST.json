@@ -1,0 +1,283 @@
+{
+ "templateKey": "COLLECTION_DOCS_REQUEST",
+ "requestType": "COLLECTION_DOCS_REQUEST",
+ "nameAr": "طلب مستندات التحصيل",
+ "nameEn": "Collection documents request",
+ "numberOnStageKey": "SALES_APPROVAL",
+ "stages": [
+  {
+   "key": "DRAFT",
+   "kind": "DRAFT",
+   "nameAr": "مسودة",
+   "nameEn": "Draft",
+   "phase": "DRAFT",
+   "seq": 1,
+   "assignee": {
+    "rule": "REQUESTER"
+   },
+   "allowRequesterCancel": true
+  },
+  {
+   "key": "SALES_APPROVAL",
+   "kind": "APPROVAL",
+   "nameAr": "موافقة مدير الطالب",
+   "nameEn": "Requester's manager approval",
+   "phase": "IN_APPROVAL",
+   "seq": 2,
+   "approvalMode": "ANY",
+   "slaHours": 8,
+   "allowReturn": true,
+   "allowRequesterCancel": true,
+   "slots": [
+    {
+     "key": "MANAGER",
+     "labelAr": "مدير الطالب",
+     "labelEn": "Requester's manager",
+     "workflowRole": "APPROVER",
+     "subject": "REQUESTER_MANAGER",
+     "fallbackRole": "TM"
+    }
+   ]
+  },
+  {
+   "key": "TREASURY_QUEUE",
+   "kind": "TREASURY_QUEUE",
+   "nameAr": "طابور الخزينة",
+   "nameEn": "Treasury queue",
+   "phase": "IN_PROGRESS",
+   "seq": 3,
+   "assignee": {
+    "rule": "ROLE",
+    "poolPermission": "lc.drawing.record"
+   },
+   "claimSlaHours": 4
+  },
+  {
+   "key": "EXECUTION",
+   "kind": "TASK",
+   "nameAr": "إعداد المستندات",
+   "nameEn": "Preparing the documents",
+   "phase": "IN_PROGRESS",
+   "seq": 4,
+   "assignee": {
+    "rule": "CLAIMER"
+   },
+   "slaHours": 24,
+   "allowReturn": true
+  },
+  {
+   "key": "DOCS_ISSUED",
+   "kind": "TASK",
+   "nameAr": "تسليم المستندات",
+   "nameEn": "Documents handed over",
+   "phase": "IN_PROGRESS",
+   "seq": 5,
+   "assignee": {
+    "rule": "CLAIMER"
+   },
+   "slaHours": 8,
+   "hooks": [
+    {
+     "trigger": "ON_ACTION",
+     "action": "COMPLETE",
+     "key": "lc.convert_earmark"
+    }
+   ]
+  },
+  {
+   "key": "RETURNED",
+   "kind": "TASK",
+   "nameAr": "معاد للطالب",
+   "nameEn": "Returned to the requester",
+   "phase": "RETURNED",
+   "seq": 6,
+   "assignee": {
+    "rule": "REQUESTER"
+   },
+   "allowRequesterCancel": true
+  },
+  {
+   "key": "COMPLETED",
+   "kind": "TERMINAL",
+   "nameAr": "مكتمل",
+   "nameEn": "Completed",
+   "phase": "COMPLETED",
+   "seq": 7,
+   "outcome": "COMPLETED"
+  },
+  {
+   "key": "REJECTED",
+   "kind": "TERMINAL",
+   "nameAr": "مرفوض",
+   "nameEn": "Rejected",
+   "phase": "REJECTED",
+   "seq": 8,
+   "outcome": "REJECTED"
+  },
+  {
+   "key": "CANCELLED",
+   "kind": "TERMINAL",
+   "nameAr": "ملغى",
+   "nameEn": "Cancelled",
+   "phase": "CANCELLED",
+   "seq": 9,
+   "outcome": "CANCELLED"
+  }
+ ],
+ "transitions": [
+  {
+   "from": "DRAFT",
+   "action": "SUBMIT",
+   "to": "SALES_APPROVAL",
+   "priority": 1
+  },
+  {
+   "from": "SALES_APPROVAL",
+   "action": "APPROVE",
+   "to": "TREASURY_QUEUE",
+   "priority": 1
+  },
+  {
+   "from": "SALES_APPROVAL",
+   "action": "RETURN",
+   "to": "RETURNED",
+   "priority": 1,
+   "resume": "SALES_APPROVAL",
+   "requiresComment": true
+  },
+  {
+   "from": "SALES_APPROVAL",
+   "action": "REJECT",
+   "to": "REJECTED",
+   "priority": 1,
+   "requiresComment": true
+  },
+  {
+   "from": "TREASURY_QUEUE",
+   "action": "COMPLETE",
+   "to": "EXECUTION",
+   "priority": 1
+  },
+  {
+   "from": "EXECUTION",
+   "action": "COMPLETE",
+   "to": "DOCS_ISSUED",
+   "priority": 1
+  },
+  {
+   "from": "EXECUTION",
+   "action": "RETURN",
+   "to": "RETURNED",
+   "priority": 1,
+   "resume": "SALES_APPROVAL",
+   "requiresComment": true
+  },
+  {
+   "from": "DOCS_ISSUED",
+   "action": "COMPLETE",
+   "to": "COMPLETED",
+   "priority": 1
+  },
+  {
+   "from": "RETURNED",
+   "action": "RESUBMIT",
+   "to": "SALES_APPROVAL",
+   "priority": 1
+  }
+ ],
+ "fields": [
+  {
+   "key": "title",
+   "labelAr": "عنوان الطلب",
+   "labelEn": "Title",
+   "type": "TEXT",
+   "required": true,
+   "indexRole": "TITLE",
+   "seq": 1,
+   "validation": {
+    "maxLength": 200
+   }
+  },
+  {
+   "key": "collection",
+   "labelAr": "المستندات: المبلغ والأوامر والتخصيص",
+   "labelEn": "Documents: amount, orders and allocation",
+   "type": "MODULE_FORM",
+   "required": true,
+   "seq": 2,
+   "config": {
+    "component": "lc.collection_docs"
+   },
+   "editableStages": [
+    "DRAFT",
+    "RETURNED"
+   ]
+  },
+  {
+   "key": "amount",
+   "labelAr": "مبلغ المستندات",
+   "labelEn": "Documents amount",
+   "type": "AMOUNT",
+   "required": true,
+   "indexRole": "AMOUNT",
+   "seq": 3
+  },
+  {
+   "key": "shipmentDate",
+   "labelAr": "تاريخ الشحن",
+   "labelEn": "Shipment date",
+   "type": "DATE",
+   "indexRole": "REQUIRED_BY_DATE",
+   "seq": 4
+  },
+  {
+   "key": "invoiceRefs",
+   "labelAr": "مراجع الفواتير وسندات التسليم",
+   "labelEn": "Invoice and delivery note references",
+   "type": "TEXT",
+   "seq": 5,
+   "validation": {
+    "maxLength": 1000
+   }
+  },
+  {
+   "key": "customerName",
+   "labelAr": "العميل",
+   "labelEn": "Customer",
+   "type": "TEXT",
+   "indexRole": "COUNTERPARTY_NAME",
+   "seq": 6
+  },
+  {
+   "key": "notes",
+   "labelAr": "ملاحظات",
+   "labelEn": "Notes",
+   "type": "LONGTEXT",
+   "seq": 7,
+   "validation": {
+    "maxLength": 4000
+   }
+  }
+ ],
+ "attachments": [
+  {
+   "slot": "SALES_DOCUMENTS",
+   "labelAr": "مستندات من المبيعات",
+   "labelEn": "Documents from the sales",
+   "documentType": "OTHER",
+   "min": 0,
+   "max": 10,
+   "visibleToRequester": true
+  },
+  {
+   "slot": "COLLECTION_DOCS_PACKAGE",
+   "labelAr": "حزمة مستندات التحصيل",
+   "labelEn": "Collection documents package",
+   "documentType": "COLLECTION_DOCS_PACKAGE",
+   "min": 1,
+   "max": 5,
+   "requiredBeforeStage": "DOCS_ISSUED",
+   "visibleToRequester": true
+  }
+ ]
+}

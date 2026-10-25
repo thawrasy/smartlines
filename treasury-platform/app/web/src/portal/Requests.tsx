@@ -35,6 +35,7 @@ export function RequestList() {
         <Select label="View" value={view} onChange={setView} options={views} />
         <Field label="Search" value={q} onChange={setQ} required={false} />
       </div>
+      <p><a href={`/api/v1/requests?view=${view}${q ? `&q=${encodeURIComponent(q)}` : ''}&format=csv`} download>{t('Export as CSV')}</a></p>
       <Table rows={rows} empty="No request here." columns={[
         { header: 'Number', cell: r => <Link to={`/requests/${str(r.id)}`} dir="ltr">{str(r.requestNo ?? r.draftRef)}</Link> },
         { header: 'Type', cell: r => pick(lang, r, 'typeName') },
@@ -114,6 +115,8 @@ const actionLabels: Record<string, string> = {
 export function RequestDetail() {
   const { id = '' } = useParams();
   const { t, lang } = useI18n();
+  const me = useMe();
+  const nav = useNavigate();
   const [detail, setDetail] = useState<Detail | null>(null);
   const [etag, setEtag] = useState('');
   const [form, setForm] = useState<Record<string, unknown>>({});
@@ -130,7 +133,9 @@ export function RequestDetail() {
   useEffect(() => { void load(); }, [load]);
   if (!detail) return null;
   const rq = detail.request;
-  const editable = rq.fields.some(f => f.editable);
+  // Module forms (the terms, the proforma and its issue) have their own screens, linked above.
+  const fields = rq.fields.filter(f => f.type !== 'MODULE_FORM');
+  const editable = fields.some(f => f.editable);
   const run = async (fn: () => Promise<unknown>, ok: string) => {
     setNotice({});
     try { await fn(); await load(); setNotice({ ok }); } catch (e) { setNotice({ error: message(e) }); }
@@ -140,6 +145,9 @@ export function RequestDetail() {
     <>
       <section className="card">
         <h1><span dir="ltr">{rq.requestNo ?? rq.draftRef}</span> {pick(lang, rq.head, 'typeName')}</h1>
+        {rq.fields.some(f => f.type === 'MODULE_FORM' && f.config?.component === 'lc.proforma') && (
+          <p><Link to={`/requests/${id}/proforma`}>{t('The proforma')}</Link></p>
+        )}
         {rq.fields.some(f => f.type === 'MODULE_FORM' && f.config?.component === 'lc.terms') && (
           <p><Link to={`/requests/${id}/terms`}>{t('Letter of credit terms')}</Link></p>
         )}
@@ -150,6 +158,12 @@ export function RequestDetail() {
           {rq.amount != null && <> · <span dir="ltr">{str(rq.amount)} {str(rq.currency)}</span></>}
         </p>
         {rq.head.outcomeReason ? <p>{t('Reason')}: {str(rq.head.outcomeReason)}</p> : null}
+        {can(me, 'req.create') && !rq.head.parentEntityType && (
+          <p><button type="button" className="secondary" onClick={() => run(async () => {
+            const r = await api<{ id: string }>('POST', `/requests/${id}/copy`);
+            nav(`/requests/${r.id}`);
+          }, 'Done.')}>{t('Copy into a new request')}</button></p>
+        )}
         {detail.staff && (
           <p className="muted">
             {t('Stage')}: {pick(lang, detail.staff, 'stageName')} {detail.staff.subStatus ? `· ${t(str(detail.staff.subStatus))}` : ''}
@@ -161,7 +175,7 @@ export function RequestDetail() {
       </section>
       <section className="card">
         <h2>{t('The request')}</h2>
-        {rq.fields.map(f => f.editable
+        {fields.map(f => f.editable
           ? <FieldInput key={f.key} f={f} value={form[f.key]} onChange={v => setForm({ ...form, [f.key]: v })} />
           : form[f.key] != null && <p key={f.key}><strong>{lang === 'ar' ? f.labelAr : f.labelEn}</strong>: <span>{
               typeof form[f.key] === 'object' ? `${str((form[f.key] as Row).value)} ${str((form[f.key] as Row).currency)}` : str(form[f.key])}</span></p>)}

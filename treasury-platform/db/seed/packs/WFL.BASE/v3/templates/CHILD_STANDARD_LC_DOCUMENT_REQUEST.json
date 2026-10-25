@@ -1,0 +1,260 @@
+{
+ "templateKey": "CHILD_STANDARD.LC_DOCUMENT_REQUEST",
+ "seedKey": "CHILD_STANDARD",
+ "requestType": "LC_DOCUMENT_REQUEST",
+ "nameAr": "طلب مستند لاعتماد",
+ "nameEn": "Letter of credit document request",
+ "numberOnStageKey": "TREASURY_QUEUE",
+ "stages": [
+  {
+   "key": "DRAFT",
+   "kind": "DRAFT",
+   "nameAr": "مسودة",
+   "nameEn": "Draft",
+   "phase": "DRAFT",
+   "seq": 1,
+   "assignee": {
+    "rule": "REQUESTER"
+   },
+   "allowRequesterCancel": true
+  },
+  {
+   "key": "APPROVAL",
+   "kind": "APPROVAL",
+   "nameAr": "موافقة المدير",
+   "nameEn": "Manager approval",
+   "phase": "IN_APPROVAL",
+   "seq": 2,
+   "approvalMode": "ANY",
+   "slaHours": 8,
+   "allowReturn": true,
+   "allowRequesterCancel": true,
+   "slots": [
+    {
+     "key": "MANAGER",
+     "labelAr": "مدير الطالب",
+     "labelEn": "Requester's manager",
+     "workflowRole": "APPROVER",
+     "subject": "REQUESTER_MANAGER",
+     "fallbackRole": "TM"
+    }
+   ]
+  },
+  {
+   "key": "RETURNED",
+   "kind": "TASK",
+   "nameAr": "معاد للطالب",
+   "nameEn": "Returned to the requester",
+   "phase": "RETURNED",
+   "seq": 5,
+   "assignee": {
+    "rule": "REQUESTER"
+   },
+   "allowRequesterCancel": true,
+   "hooks": []
+  },
+  {
+   "key": "TREASURY_QUEUE",
+   "kind": "TREASURY_QUEUE",
+   "nameAr": "طابور الخزينة",
+   "nameEn": "Treasury queue",
+   "phase": "IN_PROGRESS",
+   "seq": 3,
+   "assignee": {
+    "rule": "ROLE",
+    "poolPermission": "req.claim"
+   },
+   "claimSlaHours": 4
+  },
+  {
+   "key": "EXECUTION",
+   "kind": "TASK",
+   "nameAr": "التنفيذ",
+   "nameEn": "Execution",
+   "phase": "IN_PROGRESS",
+   "seq": 4,
+   "assignee": {
+    "rule": "CLAIMER"
+   },
+   "slaHours": 24,
+   "subStatuses": [
+    {
+     "key": "PREPARATION",
+     "nameAr": "إعداد",
+     "nameEn": "Preparation",
+     "pausesSla": false
+    },
+    {
+     "key": "SIGNING",
+     "nameAr": "توقيع",
+     "nameEn": "Signing",
+     "pausesSla": false
+    },
+    {
+     "key": "BANK_COMMUNICATION",
+     "nameAr": "تواصل مع البنك",
+     "nameEn": "Bank communication",
+     "pausesSla": false
+    },
+    {
+     "key": "AT_BANK",
+     "nameAr": "في البنك",
+     "nameEn": "At the bank",
+     "pausesSla": true
+    },
+    {
+     "key": "FOLLOW_UP",
+     "nameAr": "متابعة",
+     "nameEn": "Follow-up",
+     "pausesSla": false
+    }
+   ]
+  },
+  {
+   "key": "COMPLETED",
+   "kind": "TERMINAL",
+   "nameAr": "مكتمل",
+   "nameEn": "Completed",
+   "phase": "COMPLETED",
+   "seq": 6,
+   "outcome": "COMPLETED"
+  },
+  {
+   "key": "REJECTED",
+   "kind": "TERMINAL",
+   "nameAr": "مرفوض",
+   "nameEn": "Rejected",
+   "phase": "REJECTED",
+   "seq": 7,
+   "outcome": "REJECTED",
+   "hooks": [
+    {
+     "trigger": "ON_ENTER",
+     "key": "fac.release_reservation",
+     "params": {
+      "reason": "REJECTED"
+     }
+    }
+   ]
+  },
+  {
+   "key": "CANCELLED",
+   "kind": "TERMINAL",
+   "nameAr": "ملغى",
+   "nameEn": "Cancelled",
+   "phase": "CANCELLED",
+   "seq": 8,
+   "outcome": "CANCELLED",
+   "hooks": [
+    {
+     "trigger": "ON_ENTER",
+     "key": "fac.release_reservation",
+     "params": {
+      "reason": "CANCELLED"
+     }
+    }
+   ]
+  }
+ ],
+ "transitions": [
+  {
+   "from": "DRAFT",
+   "action": "SUBMIT",
+   "to": "APPROVAL",
+   "priority": 1
+  },
+  {
+   "from": "APPROVAL",
+   "action": "APPROVE",
+   "to": "TREASURY_QUEUE",
+   "priority": 1
+  },
+  {
+   "from": "APPROVAL",
+   "action": "RETURN",
+   "to": "RETURNED",
+   "priority": 1,
+   "resume": "APPROVAL",
+   "requiresComment": true
+  },
+  {
+   "from": "APPROVAL",
+   "action": "REJECT",
+   "to": "REJECTED",
+   "priority": 1,
+   "requiresComment": true
+  },
+  {
+   "from": "RETURNED",
+   "action": "RESUBMIT",
+   "to": "APPROVAL",
+   "priority": 1
+  },
+  {
+   "from": "TREASURY_QUEUE",
+   "action": "COMPLETE",
+   "to": "EXECUTION",
+   "priority": 1
+  },
+  {
+   "from": "EXECUTION",
+   "action": "COMPLETE",
+   "to": "COMPLETED",
+   "priority": 1
+  }
+ ],
+ "fields": [
+  {
+   "key": "title",
+   "labelAr": "عنوان الطلب",
+   "labelEn": "Title",
+   "type": "TEXT",
+   "required": true,
+   "indexRole": "TITLE",
+   "seq": 1,
+   "validation": {
+    "maxLength": 200
+   }
+  },
+  {
+   "key": "requiredByDate",
+   "labelAr": "مطلوب قبل",
+   "labelEn": "Required by",
+   "type": "DATE",
+   "indexRole": "REQUIRED_BY_DATE",
+   "seq": 3
+  },
+  {
+   "key": "notes",
+   "labelAr": "تفاصيل",
+   "labelEn": "Details",
+   "type": "LONGTEXT",
+   "seq": 9,
+   "validation": {
+    "maxLength": 4000
+   }
+  },
+  {
+   "key": "requestKind",
+   "labelAr": "المطلوب",
+   "labelEn": "What is asked",
+   "type": "LIST",
+   "required": true,
+   "seq": 4,
+   "config": {
+    "lookupList": "LC_DOCREQ_KIND"
+   }
+  }
+ ],
+ "attachments": [
+  {
+   "slot": "RESULT",
+   "labelAr": "المستند",
+   "labelEn": "Document",
+   "documentType": "LC_COPY",
+   "min": 0,
+   "max": 5,
+   "visibleToRequester": true
+  }
+ ]
+}

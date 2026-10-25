@@ -5,7 +5,7 @@
 // warns of the products without a default contact before anything is created. Then S2-b (docs/47 §4): the administrator
 // invites a financial analyst, who signs in, enters a statement in the grid and sees its totals live, and opens the formula
 // library, the credit self-assessments and the group compliance. Then S3 (docs/48): the dashboards, the inbox and the
-// bank form templates.
+// bank form templates. Then S4 (docs/49): the register of proformas and the received letters of credit.
 import { expect, test } from '@playwright/test';
 import { writeFileSync } from 'node:fs';
 import { Authenticator, base32Decode, linkSentTo } from './helpers';
@@ -228,4 +228,14 @@ test('an operator onboards a tenant and its first administrator signs in', async
   await page.getByRole('link', { name: 'Bank form templates', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Bank form templates' })).toBeVisible();
   await expect(page.getByText('No bank form template yet.')).toBeVisible();
+
+  // S4 (docs/49): the screens of the proformas and the received letters of credit open. The administrator holds no
+  // sales permission, so the menu has no link to them and the server refuses their lists; the full sales path is in the
+  // integration tests (ProformaTests, SalesLcTests, SalesFollowUpTests).
+  const origin = new URL(page.url()).origin;
+  await expect(page.getByRole('link', { name: 'Proformas', exact: true })).toHaveCount(0);
+  await page.goto(`${origin}/sales/proformas`);
+  await expect(page.getByRole('heading', { name: 'Proformas' })).toBeVisible();
+  await page.goto(`${origin}/sales/lcs`);
+  await expect(page.getByRole('heading', { name: /Received letters of credit/ })).toBeVisible();
 });

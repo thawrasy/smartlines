@@ -16,7 +16,8 @@ public sealed record NotificationTemplateRequest(string? Subject, string? Body);
 /// The user's notifications and the tenant's notification settings (FR-NTF-003, 005, 006, 010, 012, 019; spec 13
 /// section 6.3). Each user sees only their own notifications: the bell with its unread and action counters, read,
 /// read all, archive. Preferences are per event group and channel; a mandatory event stays in the application
-/// whatever the preference (BR-NTF-003), and the digests are a later slice, so S1 takes IMMEDIATE or OFF. The account
+/// whatever the preference (BR-NTF-003). The e-mail of a group may also come as a daily or weekly digest (S5, FR-NTF-014);
+/// the application channel is IMMEDIATE or OFF. The account
 /// administrator adds or stops recipients (a mandatory one stays, V-NTF-02) and overrides a text with placeholders
 /// from the event's list only (V-NTF-01); deleting the override brings back the default.
 /// </summary>
@@ -25,7 +26,7 @@ public static partial class NotificationEndpoints
     private const string Prefs = "ntf.prefs";
     private const string Manage = "ntf.manage";
     private const string Log = "ntf.log.view";
-    private static readonly string[] Modes = ["IMMEDIATE", "OFF"];
+    private static readonly string[] Modes = ["IMMEDIATE", "DIGEST_DAILY", "DIGEST_WEEKLY", "OFF"];
     private static readonly string[] Channels = ["IN_APP", "EMAIL"];
 
     [GeneratedRegex(@"\{(\w+)\}", RegexOptions.CultureInvariant)]
@@ -139,7 +140,9 @@ public static partial class NotificationEndpoints
             var channel = item.Channel?.Trim().ToUpperInvariant();
             var mode = item.Mode?.Trim().ToUpperInvariant();
             if (channel is null || !Channels.Contains(channel)) throw ApiProblemException.Invalid("VALIDATION_FAILED", "The channel is IN_APP or EMAIL.");
-            if (mode is null || !Modes.Contains(mode)) throw ApiProblemException.Invalid("VALIDATION_FAILED", "The mode is IMMEDIATE or OFF; digests come in a later version.");
+            if (mode is null || !Modes.Contains(mode)) throw ApiProblemException.Invalid("VALIDATION_FAILED", "The mode is IMMEDIATE, DIGEST_DAILY, DIGEST_WEEKLY or OFF.");
+            if (channel == "IN_APP" && mode.StartsWith("DIGEST", StringComparison.Ordinal))
+                throw ApiProblemException.Invalid("VALIDATION_FAILED", "A digest is by e-mail; the application shows each notification.");
             var mandatory = await u.Connection.ExecuteScalarAsync<int?>(new CommandDefinition(
                 "SELECT MAX(CAST(IsMandatory AS INT)) FROM ntf.NotificationEventType WHERE GroupKey = @g;", new { g = group }, tx, cancellationToken: ct))
                 ?? throw ApiProblemException.Invalid("VALIDATION_FAILED", "Choose a notification group.");

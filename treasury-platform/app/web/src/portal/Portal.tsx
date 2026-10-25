@@ -27,6 +27,8 @@ import { Delegations, Inbox } from './Inbox';
 import { LcCard, LcRegister } from './Lcs';
 import { Dashboards } from './Dashboards';
 import { FormTemplateDetail, FormTemplates } from './FormTemplates';
+import { Reports } from './Reports';
+import { ProformaCard, ProformaEditor, ProformaRegister, SalesLcCard, SalesLcNew, SalesLcRegister } from './Sales';
 import { TermsEditor } from './TermsEditor';
 import { Companies, CompanyDetail, Departments, DocumentRegister } from './Companies';
 import { OwnershipMismatch, StructureIntegrity } from './Structure';
@@ -76,6 +78,9 @@ const menu: { to: string; label: string; permission?: string; anyOf?: string[] }
   { to: '/inbox', label: 'Inbox', anyOf: ['req.view.own', 'req.view.all', 'req.approve', 'req.claim'] },
   { to: '/requests', label: 'Requests', anyOf: ['req.view.own', 'req.view.all'] },
   { to: '/lcs', label: 'Letters of credit', anyOf: ['lc.view.all', 'lc.view.own'] },
+  { to: '/sales/proformas', label: 'Proformas', anyOf: ['lc.view.all', 'lc.view.own'] },
+  { to: '/sales/lcs', label: 'Received letters of credit', permission: 'lc.export.view' },
+  { to: '/reports', label: 'Reports', permission: 'lc.report.view' },
   { to: '/lc-form-templates', label: 'Bank form templates', anyOf: ['lc.print', 'lc.template.manage'] },
   { to: '/delegations', label: 'Delegations', anyOf: ['req.delegate.own', 'req.delegate.manage'] },
   { to: '/facilities', label: 'Facilities', permission: 'fac.view' },
@@ -189,6 +194,13 @@ function Shell() {
               <Route path="/requests/new" element={<NewRequest />} />
               <Route path="/requests/:id" element={<RequestDetail />} />
               <Route path="/requests/:id/terms" element={<TermsEditor />} />
+              <Route path="/requests/:id/proforma" element={<ProformaEditor />} />
+              <Route path="/sales/proformas" element={<ProformaRegister />} />
+              <Route path="/sales/proformas/:id" element={<ProformaCard />} />
+              <Route path="/sales/lcs" element={<SalesLcRegister />} />
+              <Route path="/sales/lcs/new" element={<SalesLcNew />} />
+              <Route path="/sales/lcs/:id" element={<SalesLcCard />} />
+              <Route path="/reports" element={<Reports />} />
               <Route path="/product-lines" element={<ProductLines />} />
               <Route path="/provision" element={<Provision />} />
               <Route path="/notifications" element={<Notifications />} />

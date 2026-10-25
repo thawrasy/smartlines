@@ -43,6 +43,7 @@ public static class RequestEndpoints
         api.MapPost("/requests/{id:guid}/external-refs", ExternalRefAsync);
         api.MapGet("/requests/{id:guid}/availability", AvailabilityAsync);
         api.MapPut("/requests/{id:guid}/allocation", AllocateAsync);
+        api.MapPost("/requests/{id:guid}/copy", CopyAsync);
     }
 
     internal static async Task<BoundUser> OpenAsync(HttpContext http, SqlConnectionFactory db)
@@ -206,7 +207,8 @@ public static class RequestEndpoints
 
     private static async Task<IResult> ListAsync(HttpContext http, SqlConnectionFactory db)
     {
-        Query.Allow(http.Request, "view", "q", "status", "limit");
+        Query.Allow(http.Request, "view", "q", "status", "limit", "format");
+        var csv = http.Request.Query["format"].ToString() switch { "" => false, "csv" => true, _ => throw ApiProblemException.Invalid("VALIDATION_FAILED", "The format is csv.") };
         await using var u = await OpenAsync(http, db);
         var ct = http.RequestAborted;
         var actor = await ActorAsync(u, null, ct);
@@ -234,7 +236,7 @@ public static class RequestEndpoints
         };
         var rows = await u.Connection.QueryAsync(new CommandDefinition(
             $"""
-            SELECT TOP (200) r.PublicId AS id, r.DraftRef AS draftRef, r.RequestNo AS requestNo, rt.Code AS type, rt.NameAr AS typeNameAr, rt.NameEn AS typeNameEn,
+            SELECT TOP (@take) r.PublicId AS id, r.DraftRef AS draftRef, r.RequestNo AS requestNo, rt.Code AS type, rt.NameAr AS typeNameAr, rt.NameEn AS typeNameEn,
                    r.Title AS title, r.Amount AS amount, cur.Code AS currency, ph.Code AS phase, ph.NameAr AS phaseNameAr, ph.NameEn AS phaseNameEn, r.Status AS status,
                    r.Priority AS priority, r.CreatedAt AS createdAt, r.UpdatedAt AS updatedAt, co.NameAr AS companyNameAr, co.NameEn AS companyNameEn,
                    CASE WHEN @staff = 1 THEN s.StageKey END AS stage, CASE WHEN @staff = 1 THEN r.DueAt END AS dueAt, CASE WHEN @staff = 1 THEN r.SlaState END AS slaState
@@ -250,9 +252,59 @@ public static class RequestEndpoints
             new
             {
                 u = u.UserId, roles = actor.RoleIds.DefaultIfEmpty(-1).ToArray(), perms = actor.Permissions.DefaultIfEmpty("-").ToArray(), all = scope.All, scope = scope.SqlIds,
-                close = actor.Permissions.Contains("req.treasury.close"), staff, q, nq = Normalizer.Name(q),
+                close = actor.Permissions.Contains("req.treasury.close"), staff, q, nq = Normalizer.Name(q), take = csv ? 5000 : 200,
             }, cancellationToken: ct));
-        return Results.Ok(new { items = rows });
+        if (!csv) return Results.Ok(new { items = rows });
+        // FR-REQ-026: the same list as a CSV file, at most 5,000 rows, audited; the treasury's columns only for its staff.
+        string[] cols = staff
+            ? ["requestNo", "draftRef", "type", "title", "companyNameEn", "amount", "currency", "phase", "status", "stage", "slaState", "dueAt", "createdAt", "updatedAt"]
+            : ["requestNo", "draftRef", "type", "title", "companyNameEn", "amount", "currency", "phase", "createdAt", "updatedAt"];
+        var text = new System.Text.StringBuilder(string.Join(',', cols)).Append("\r\n");
+        var count = 0;
+        foreach (IDictionary<string, object?> row in rows)
+        {
+            count++;
+            text.AppendJoin(',', cols.Select(c => CsvField(row.TryGetValue(c, out var v) ? v : null))).Append("\r\n");
+        }
+        await AuditWriter.WriteAsync(u.Connection, null, new AuditEntry("REQUESTS_EXPORTED", "TREASURY", "wfl.Request", null,
+            AfterJson: JsonSerializer.Serialize(new { view, q, rows = count })), null, ct);
+        return Results.File(System.Text.Encoding.UTF8.GetPreamble().Concat(System.Text.Encoding.UTF8.GetBytes(text.ToString())).ToArray(), "text/csv; charset=utf-8",
+            $"requests-{view}.csv");
+    }
+
+    /// <summary>
+    /// FR-REQ-025: a visible request of a top-level type copied into a new draft of the user, with req.create and the
+    /// type's audience: the requester's fields and the terms, never the treasury's fields, the attachments or the references.
+    /// </summary>
+    private static async Task<IResult> CopyAsync(Guid id, HttpContext http, SqlConnectionFactory db)
+    {
+        await using var u = await OpenAsync(http, db);
+        var ct = http.RequestAborted;
+        await using var tx = (SqlTransaction)await u.Connection.BeginTransactionAsync(ct);
+        var actor = await ActorAsync(u, tx, ct);
+        if (!actor.Permissions.Contains("req.create")) throw ApiProblemException.Forbidden();
+        var r = await RequestEngine.FindAsync(u.Connection, tx, await IdOfAsync(u, tx, id, ct), false, ct) ?? throw ApiProblemException.NotFound();
+        if (!(await AccessAsync(u, tx, r, actor, ct)).Visible) throw ApiProblemException.NotFound();
+        var (requestId, publicId) = await BankFas.Data.Lc.ProformaStore.CopyRequestAsync(u.Connection, tx, actor, r.RequestId, Clock.GetUtcNow(), ct);
+        await AuditWriter.WriteAsync(u.Connection, tx, new AuditEntry("REQUEST_COPIED", "TREASURY", "wfl.Request", requestId,
+            AfterJson: JsonSerializer.Serialize(new { from = id, type = r.TypeCode })), r.CompanyId, ct);
+        await tx.CommitAsync(ct);
+        return Results.Created($"/api/v1/requests/{publicId}", new { id = publicId });
+    }
+
+    /// <summary>A CSV field; text that starts with =, +, - or @ is prefixed with ' so a spreadsheet never runs it as a formula.</summary>
+    private static string CsvField(object? v)
+    {
+        var s = v switch
+        {
+            null => "",
+            DateTime d => d.ToString("O", System.Globalization.CultureInfo.InvariantCulture),
+            IFormattable x => x.ToString(null, System.Globalization.CultureInfo.InvariantCulture),
+            _ => v.ToString() ?? "",
+        };
+        if (s.Length == 0) return "";
+        if (v is string && s[0] is '=' or '+' or '-' or '@') s = "'" + s;
+        return "\"" + s.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"";
     }
 
     private static async Task<IResult> GetAsync(Guid id, HttpContext http, SqlConnectionFactory db)
@@ -267,7 +319,7 @@ public static class RequestEndpoints
         var inst = await RequestEngine.CurrentInstanceAsync(u.Connection, null, requestId, ct);
         var head = await u.Connection.QuerySingleAsync(new CommandDefinition(
             """
-            SELECT rt.Code AS type, rt.NameAr AS typeNameAr, rt.NameEn AS typeNameEn, ph.Code AS phase, ph.NameAr AS phaseNameAr, ph.NameEn AS phaseNameEn,
+            SELECT rt.Code AS type, rt.NameAr AS typeNameAr, rt.NameEn AS typeNameEn, rt.ParentEntityType AS parentEntityType, ph.Code AS phase, ph.NameAr AS phaseNameAr, ph.NameEn AS phaseNameEn,
                    ph.RequiresRequesterAction AS awaitingYou, co.PublicId AS company, co.NameAr AS companyNameAr, co.NameEn AS companyNameEn, r.Priority AS priority,
                    r.SubmittedAt AS submittedAt, r.CompletedAt AS completedAt, r.OutcomeReason AS outcomeReason, r.CycleNo AS cycleNo, r.RequiredByDate AS requiredByDate,
                    r.CounterpartyName AS counterpartyName, r.CounterpartyCode AS counterpartyCode, req.PublicId AS requester, req.DisplayNameEn AS requesterNameEn,

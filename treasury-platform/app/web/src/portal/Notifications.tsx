@@ -75,7 +75,8 @@ export function Notifications() {
             </select>) },
           { header: 'E-mail', cell: p => p.emailAvailable ? (
             <select value={p.email} onChange={e => void setPref(p.groupKey, 'EMAIL', e.target.value)}>
-              <option value="IMMEDIATE">{t('IMMEDIATE')}</option><option value="OFF">{t('OFF')}</option>
+              <option value="IMMEDIATE">{t('IMMEDIATE')}</option><option value="DIGEST_DAILY">{t('DIGEST_DAILY')}</option>
+              <option value="DIGEST_WEEKLY">{t('DIGEST_WEEKLY')}</option><option value="OFF">{t('OFF')}</option>
             </select>) : '—' },
         ]} />
       </section>

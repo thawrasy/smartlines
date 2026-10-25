@@ -1,0 +1,418 @@
+{
+ "templateKey": "CHILD_AMENDMENT",
+ "requestType": "LC_AMENDMENT",
+ "nameAr": "تعديل اعتماد مستندي",
+ "nameEn": "Letter of credit amendment",
+ "numberOnStageKey": "APPROVAL",
+ "stages": [
+  {
+   "key": "DRAFT",
+   "kind": "DRAFT",
+   "nameAr": "مسودة",
+   "nameEn": "Draft",
+   "phase": "DRAFT",
+   "seq": 1,
+   "assignee": {
+    "rule": "REQUESTER"
+   },
+   "allowRequesterCancel": true,
+   "hooks": [
+    {
+     "trigger": "ON_ACTION",
+     "action": "SUBMIT",
+     "key": "lc.validate_terms"
+    }
+   ]
+  },
+  {
+   "key": "APPROVAL",
+   "kind": "APPROVAL",
+   "nameAr": "موافقة المدير",
+   "nameEn": "Manager approval",
+   "phase": "IN_APPROVAL",
+   "seq": 2,
+   "approvalMode": "ANY",
+   "slaHours": 8,
+   "allowReturn": true,
+   "allowRequesterCancel": true,
+   "slots": [
+    {
+     "key": "MANAGER",
+     "labelAr": "مدير الطالب",
+     "labelEn": "Requester's manager",
+     "workflowRole": "APPROVER",
+     "subject": "REQUESTER_MANAGER",
+     "fallbackRole": "TM"
+    }
+   ]
+  },
+  {
+   "key": "TM_APPROVAL",
+   "kind": "APPROVAL",
+   "nameAr": "موافقة مدير الخزينة",
+   "nameEn": "Treasury manager approval",
+   "phase": "IN_PROGRESS",
+   "seq": 3,
+   "approvalMode": "ANY",
+   "slaHours": 8,
+   "allowReturn": true,
+   "isReservationPoint": true,
+   "slots": [
+    {
+     "key": "TM",
+     "labelAr": "مدير الخزينة",
+     "labelEn": "Treasury manager",
+     "workflowRole": "APPROVER",
+     "subject": "ROLE",
+     "role": "TM"
+    }
+   ],
+   "hooks": [
+    {
+     "trigger": "ON_ACTION",
+     "action": "APPROVE",
+     "key": "fac.adjust_utilization"
+    }
+   ]
+  },
+  {
+   "key": "TREASURY_QUEUE",
+   "kind": "TREASURY_QUEUE",
+   "nameAr": "طابور الخزينة",
+   "nameEn": "Treasury queue",
+   "phase": "IN_PROGRESS",
+   "seq": 4,
+   "assignee": {
+    "rule": "ROLE",
+    "poolPermission": "req.claim"
+   },
+   "claimSlaHours": 4
+  },
+  {
+   "key": "EXECUTION",
+   "kind": "TASK",
+   "nameAr": "التنفيذ",
+   "nameEn": "Execution",
+   "phase": "IN_PROGRESS",
+   "seq": 5,
+   "assignee": {
+    "rule": "CLAIMER"
+   },
+   "slaHours": 40,
+   "subStatuses": [
+    {
+     "key": "PREPARATION",
+     "nameAr": "إعداد",
+     "nameEn": "Preparation",
+     "pausesSla": false
+    },
+    {
+     "key": "SIGNING",
+     "nameAr": "توقيع",
+     "nameEn": "Signing",
+     "pausesSla": false
+    },
+    {
+     "key": "BANK_COMMUNICATION",
+     "nameAr": "تواصل مع البنك",
+     "nameEn": "Bank communication",
+     "pausesSla": false
+    },
+    {
+     "key": "AT_BANK",
+     "nameAr": "في البنك",
+     "nameEn": "At the bank",
+     "pausesSla": true
+    },
+    {
+     "key": "FOLLOW_UP",
+     "nameAr": "متابعة",
+     "nameEn": "Follow-up",
+     "pausesSla": false
+    }
+   ]
+  },
+  {
+   "key": "AMENDMENT_RESULT",
+   "kind": "TASK",
+   "nameAr": "نتيجة التعديل",
+   "nameEn": "Amendment result",
+   "phase": "IN_PROGRESS",
+   "seq": 6,
+   "assignee": {
+    "rule": "CLAIMER"
+   },
+   "slaHours": 24,
+   "hooks": [
+    {
+     "trigger": "ON_EXIT",
+     "key": "lc.apply_amendment"
+    }
+   ]
+  },
+  {
+   "key": "RETURNED",
+   "kind": "TASK",
+   "nameAr": "معاد للطالب",
+   "nameEn": "Returned to the requester",
+   "phase": "RETURNED",
+   "seq": 7,
+   "assignee": {
+    "rule": "REQUESTER"
+   },
+   "allowRequesterCancel": true,
+   "hooks": [
+    {
+     "trigger": "ON_ACTION",
+     "action": "RESUBMIT",
+     "key": "lc.validate_terms"
+    }
+   ]
+  },
+  {
+   "key": "COMPLETED",
+   "kind": "TERMINAL",
+   "nameAr": "مكتمل",
+   "nameEn": "Completed",
+   "phase": "COMPLETED",
+   "seq": 8,
+   "outcome": "COMPLETED"
+  },
+  {
+   "key": "REJECTED",
+   "kind": "TERMINAL",
+   "nameAr": "مرفوض",
+   "nameEn": "Rejected",
+   "phase": "REJECTED",
+   "seq": 9,
+   "outcome": "REJECTED",
+   "hooks": [
+    {
+     "trigger": "ON_ENTER",
+     "key": "fac.release_reservation",
+     "params": {
+      "reason": "REJECTED"
+     }
+    }
+   ]
+  },
+  {
+   "key": "CANCELLED",
+   "kind": "TERMINAL",
+   "nameAr": "ملغى",
+   "nameEn": "Cancelled",
+   "phase": "CANCELLED",
+   "seq": 10,
+   "outcome": "CANCELLED",
+   "hooks": [
+    {
+     "trigger": "ON_ENTER",
+     "key": "fac.release_reservation",
+     "params": {
+      "reason": "CANCELLED"
+     }
+    }
+   ]
+  }
+ ],
+ "transitions": [
+  {
+   "from": "DRAFT",
+   "action": "SUBMIT",
+   "to": "APPROVAL",
+   "priority": 1
+  },
+  {
+   "from": "APPROVAL",
+   "action": "APPROVE",
+   "to": "TM_APPROVAL",
+   "priority": 1,
+   "condition": {
+    "any": [
+     {
+      "field": "amountDelta",
+      "op": "gt",
+      "value": 0
+     },
+     {
+      "field": "kind",
+      "op": "eq",
+      "value": "CANCEL"
+     }
+    ]
+   }
+  },
+  {
+   "from": "APPROVAL",
+   "action": "APPROVE",
+   "to": "TREASURY_QUEUE",
+   "priority": 2
+  },
+  {
+   "from": "APPROVAL",
+   "action": "RETURN",
+   "to": "RETURNED",
+   "priority": 1,
+   "resume": "APPROVAL",
+   "requiresComment": true
+  },
+  {
+   "from": "APPROVAL",
+   "action": "REJECT",
+   "to": "REJECTED",
+   "priority": 1,
+   "requiresComment": true
+  },
+  {
+   "from": "TM_APPROVAL",
+   "action": "APPROVE",
+   "to": "TREASURY_QUEUE",
+   "priority": 1
+  },
+  {
+   "from": "TM_APPROVAL",
+   "action": "RETURN",
+   "to": "RETURNED",
+   "priority": 1,
+   "resume": "APPROVAL",
+   "requiresComment": true
+  },
+  {
+   "from": "TM_APPROVAL",
+   "action": "REJECT",
+   "to": "REJECTED",
+   "priority": 1,
+   "requiresComment": true
+  },
+  {
+   "from": "TREASURY_QUEUE",
+   "action": "COMPLETE",
+   "to": "EXECUTION",
+   "priority": 1
+  },
+  {
+   "from": "EXECUTION",
+   "action": "COMPLETE",
+   "to": "AMENDMENT_RESULT",
+   "priority": 1
+  },
+  {
+   "from": "AMENDMENT_RESULT",
+   "action": "COMPLETE",
+   "to": "COMPLETED",
+   "priority": 1
+  },
+  {
+   "from": "RETURNED",
+   "action": "RESUBMIT",
+   "to": "APPROVAL",
+   "priority": 1
+  }
+ ],
+ "fields": [
+  {
+   "key": "title",
+   "labelAr": "عنوان الطلب",
+   "labelEn": "Title",
+   "type": "TEXT",
+   "required": true,
+   "indexRole": "TITLE",
+   "seq": 1,
+   "validation": {
+    "maxLength": 200
+   }
+  },
+  {
+   "key": "amount",
+   "labelAr": "المبلغ",
+   "labelEn": "Amount",
+   "type": "AMOUNT",
+   "required": false,
+   "indexRole": "AMOUNT",
+   "seq": 2
+  },
+  {
+   "key": "requiredByDate",
+   "labelAr": "مطلوب قبل",
+   "labelEn": "Required by",
+   "type": "DATE",
+   "indexRole": "REQUIRED_BY_DATE",
+   "seq": 3
+  },
+  {
+   "key": "notes",
+   "labelAr": "تفاصيل",
+   "labelEn": "Details",
+   "type": "LONGTEXT",
+   "seq": 9,
+   "validation": {
+    "maxLength": 4000
+   }
+  },
+  {
+   "key": "kind",
+   "labelAr": "نوع التعديل",
+   "labelEn": "Kind of amendment",
+   "type": "LIST",
+   "required": true,
+   "seq": 4,
+   "config": {
+    "options": [
+     "AMEND",
+     "CANCEL"
+    ]
+   }
+  },
+  {
+   "key": "amountDelta",
+   "labelAr": "فرق المبلغ",
+   "labelEn": "Amount difference",
+   "type": "DECIMAL",
+   "seq": 5
+  },
+  {
+   "key": "amendmentTerms",
+   "labelAr": "شروط التعديل",
+   "labelEn": "Amendment terms",
+   "type": "MODULE_FORM",
+   "required": true,
+   "seq": 6,
+   "config": {
+    "component": "lc.terms",
+    "purpose": "AMENDMENT"
+   },
+   "editableStages": [
+    "DRAFT",
+    "RETURNED"
+   ]
+  },
+  {
+   "key": "amendmentResult",
+   "labelAr": "نتيجة التعديل",
+   "labelEn": "Amendment result",
+   "type": "MODULE_FORM",
+   "seq": 10,
+   "config": {
+    "component": "lc.amendment_result"
+   },
+   "visibleStages": [
+    "AMENDMENT_RESULT"
+   ],
+   "editableStages": [
+    "AMENDMENT_RESULT"
+   ]
+  }
+ ],
+ "attachments": [
+  {
+   "slot": "AMENDMENT_ADVICE",
+   "labelAr": "إشعار التعديل",
+   "labelEn": "Amendment advice",
+   "documentType": "LC_AMENDMENT_ADVICE",
+   "min": 1,
+   "max": 3,
+   "requiredBeforeStage": "AMENDMENT_RESULT",
+   "visibleToRequester": true
+  }
+ ]
+}

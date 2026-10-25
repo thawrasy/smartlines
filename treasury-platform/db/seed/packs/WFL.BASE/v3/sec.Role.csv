@@ -1,0 +1,4 @@
+SeedKey,Code,NameAr,NameEn,Description,IsSystem
+WFL.ROLE.SLP,SLP,معدّ المبيعات,Sales preparer,"Prepares proforma requests, sales order approvals and collection document requests, and follows the received letters of credit of the sales (spec 14 section 2, column SL).",0
+WFL.ROLE.SLR,SLR,مدقّق المبيعات,Sales reviewer,Reviews a proforma request in the sales chain: returns it with a reason or passes it on; does not edit it (FR-LCE-004).,0
+WFL.ROLE.SLA,SLA,موافق المبيعات,Sales approver,Approves a proforma request after its review (FR-LCE-004).,0

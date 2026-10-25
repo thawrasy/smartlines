@@ -29,14 +29,17 @@ public sealed class WorkflowFoundationTests(PlatformFixture f)
             """
             SELECT (SELECT COUNT(*) FROM wfl.ExternalPhase WHERE IsSystem = 1),
                    (SELECT COUNT(*) FROM wfl.RequestType WHERE IsActive = 1 AND SeedKey LIKE 'WFL.TYPE.%'),
-                   (SELECT COUNT(*) FROM wfl.WorkflowTemplate WHERE Status = 'PUBLISHED' AND IsCurrent = 1 AND SourceSeedVersion = 1 AND PublishedBy IS NOT NULL),
+                   (SELECT COUNT(*) FROM wfl.WorkflowTemplate WHERE Status = 'PUBLISHED' AND IsCurrent = 1 AND SourceSeedVersion IS NOT NULL AND PublishedBy IS NOT NULL),
                    (SELECT COUNT(*) FROM wfl.RequestTypeAudience),
                    (SELECT COUNT(*) FROM cfg.NumberSequenceDefinition WHERE SequenceKey LIKE 'req:%' AND GapPolicy = 'GAP_FREE' AND IsActive = 1),
                    (SELECT COUNT(*) FROM cat.LookupList WHERE Code IN ('TRANSPORT_MODE', 'SWIFT_MESSAGE_KIND', 'LC_DOCREQ_KIND', 'GOODS_CATEGORY')),
                    (SELECT COUNT(*) FROM cfg.ExpiryAlertRule WHERE ItemType IN ('LC_EXPIRY', 'LC_LATEST_SHIPMENT', 'RESERVATION', 'LC_DRAWING_DUE')),
                    (SELECT COUNT(*) FROM ntf.NotificationEventType WHERE Code LIKE 'REQ.%' OR Code LIKE 'LC.%');
             """));
-        Assert.Equal((8, 6, 6, 24, 6, 4, 4, 33), counts);
+        // Nine types with a template (six of S3, three sales of S4) are active; the five example types of S5 are seeded inactive (FR-REQ-022).
+        Assert.Equal((8, 9, 9, 46, 9, 4, 4, 37), counts);
+        Assert.Equal(5, await InTenantAsync(f, tenantId, c => Dapper.SqlMapper.ExecuteScalarAsync<int>(c,
+            "SELECT COUNT(*) FROM wfl.RequestType WHERE IsActive = 0 AND Code IN ('BANK_GUARANTEE', 'FX_REQUEST', 'PAYMENT_APPROVAL', 'BANK_LETTER_REQUEST', 'FACILITY_DRAWDOWN');")));
         // LC.BASE: the field dictionary, the 13 document clauses and the fallback form template, with their UCP references.
         var lc = await InTenantAsync(f, tenantId, c => Dapper.SqlMapper.QuerySingleAsync<(int, int, int, int, int, string)>(c,
             """

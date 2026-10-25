@@ -39,5 +39,7 @@ builder.Services.AddSingleton<BankFas.Data.Workflow.WorkflowStaleJob>();
 builder.Services.AddSingleton<BankFas.Data.Workflow.LcExpiryJob>();
 builder.Services.AddSingleton<BankFas.Data.Workflow.LcReconcileJob>();
 builder.Services.AddSingleton<BankFas.Data.Workflow.ProformaNoLcJob>();
+builder.Services.AddSingleton<NotificationDigestJob>();
+builder.Services.AddSingleton<NotificationRetentionJob>();
 builder.Services.AddHostedService<JobLoop>();
 builder.Build().Run();

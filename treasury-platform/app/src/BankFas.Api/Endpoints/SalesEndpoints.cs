@@ -32,7 +32,6 @@ public static class SalesEndpoints
         api.MapGet("/sales/proceeds-accounts", ProceedsAccountsAsync);
         api.MapGet("/requests/{id:guid}/proforma-totals", TotalsAsync);
         api.MapPut("/requests/{id:guid}/proforma-issue", PutIssueAsync);
-        api.MapPost("/requests/{id:guid}/copy", CopyAsync);
     }
 
     internal static async Task<BoundUser> OpenAsync(HttpContext http, SqlConnectionFactory db, string? permission = null)
@@ -260,21 +259,6 @@ public static class SalesEndpoints
         var rv = await u.Connection.ExecuteScalarAsync<byte[]>(new CommandDefinition("SELECT RowVersion FROM wfl.Request WHERE PublicId = @id;", new { id }, cancellationToken: ct));
         ETags.Set(http.Response, rv ?? []);
         return Results.Ok(new { proceedsAccount = b.ProceedsAccount, printLanguage = lang });
-    }
-
-    /// <summary>FR-REQ-025 (S4: proforma requests only): a new draft copied from a visible request, for its requester to change and submit again.</summary>
-    private static async Task<IResult> CopyAsync(Guid id, HttpContext http, SqlConnectionFactory db, TimeProvider clock)
-    {
-        await using var u = await OpenAsync(http, db, "req.create");
-        var ct = http.RequestAborted;
-        await using var tx = (SqlTransaction)await u.Connection.BeginTransactionAsync(ct);
-        var actor = await RequestEndpoints.ActorAsync(u, tx, ct);
-        var r = await RequestAsync(u, tx, id, ct);
-        var (requestId, publicId) = await ProformaStore.CopyRequestAsync(u.Connection, tx, actor, r.RequestId, clock.GetUtcNow(), ct);
-        await AuditWriter.WriteAsync(u.Connection, tx, new AuditEntry("REQUEST_COPIED", "TREASURY", "wfl.Request", requestId,
-            AfterJson: JsonSerializer.Serialize(new { from = id, type = r.TypeCode })), r.CompanyId, ct);
-        await tx.CommitAsync(ct);
-        return Results.Created($"/api/v1/requests/{publicId}", new { id = publicId });
     }
 
     internal static string Money(decimal v, int decimals) => v.ToString("N" + decimals.ToString(CultureInfo.InvariantCulture), CultureInfo.InvariantCulture);

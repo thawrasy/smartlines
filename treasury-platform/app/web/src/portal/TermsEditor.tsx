@@ -83,6 +83,8 @@ export function TermsEditor() {
   if (!terms) return <section className="card"><Notice error={error} /></section>;
   if (terms.status == null) return <section className="card"><h1>{t('Letter of credit terms')}</h1><p>{t('This request has no terms.')}</p></section>;
   const editable = !!terms.editable && terms.status === 'DRAFT';
+  // Terms asked of a customer (scope SALES): the applicant is the proforma's customer and our company the beneficiary.
+  const sales = str(terms.fields?.scope) === 'SALES';
   const save = () => run(async () => {
     const before = terms.fields ?? {};
     const changed: Record<string, unknown> = {};
@@ -110,6 +112,7 @@ export function TermsEditor() {
       ]} />
       {editable ? (
         <>
+          {sales ? <p>{t('Applicant')}: {str(terms.fields?.applicantName)}</p> : <>
           <Form title="Beneficiary" submit="Choose" onSubmit={() => run(() => api('PUT', `/requests/${id}/terms`, { fields: { beneficiary: edit.beneficiary } }), 'The terms are saved.')}>
             <Field label="Find a supplier" value={q} onChange={setQ} required={false} />
             <Select label="Supplier" value={edit.beneficiary ?? ''} onChange={v => setEdit({ ...edit, beneficiary: v })}
@@ -118,6 +121,7 @@ export function TermsEditor() {
           <Form title="Beneficiary's IBAN" submit="Save" onSubmit={() => run(() => api('PUT', `/requests/${id}/terms/beneficiary-iban`, { iban }), 'The IBAN is saved.')}>
             <Field label="IBAN" value={iban} onChange={setIban} required={false} hint="It is stored encrypted and shown masked." />
           </Form>
+          </>}
           <Form title="Terms" submit="Save" onSubmit={save}>
             {FIELDS.map(d => d.options
               ? <Select key={d.key} label={d.label} value={edit[d.key] ?? ''} onChange={v => setEdit({ ...edit, [d.key]: v })}

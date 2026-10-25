@@ -286,28 +286,33 @@ public static class ProformaStore
     }
 
     /// <summary>
-    /// FR-REQ-025 for PROFORMA_REQUEST (BR-LCE-003): a new draft with the fields and terms of an earlier request, without its
-    /// number, attachments, references or the treasury's issue choices; it records the request it was copied from, and
-    /// its issue supersedes the earlier proforma.
+    /// FR-REQ-025: a new draft copied from a request of a top-level type: the fields the requester fills (those editable
+    /// in DRAFT), never the treasury's, the attachments or the references; the terms are copied as a new draft (their
+    /// amount in words cleared). A child request (an amendment, a sales order) is raised again from its parent.
     /// </summary>
     public static async Task<(long RequestId, Guid PublicId)> CopyRequestAsync(SqlConnection c, SqlTransaction tx, Actor actor, long fromRequestId, DateTimeOffset now,
         CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(actor);
         var from = await RequestEngine.FindAsync(c, tx, fromRequestId, false, ct).ConfigureAwait(false) ?? throw WorkflowRefusalException.NotFound();
-        if (from.TypeCode != "PROFORMA_REQUEST") throw WorkflowRefusalException.State("Only a proforma request is copied for now (FR-REQ-025).");
+        var parent = await c.ExecuteScalarAsync<string?>(new CommandDefinition("SELECT ParentEntityType FROM wfl.RequestType WHERE RequestTypeId = @t;",
+            new { t = from.RequestTypeId }, tx, cancellationToken: ct)).ConfigureAwait(false);
+        if (parent is not null) throw WorkflowRefusalException.State("A child request is raised again from its parent, not copied (FR-REQ-025).");
+        var fields = await RequestEngine.FieldsAsync(c, tx, from.TemplateId, ct).ConfigureAwait(false);
+        var mine = fields.Where(f => f.EditableStagesJson is null || f.EditableStagesJson.Contains("\"DRAFT\"", StringComparison.Ordinal))
+            .Select(f => f.FieldKey).ToHashSet(StringComparer.Ordinal);
         var form = from.FormDataJson ?? "{}";
         using (var doc = JsonDocument.Parse(form))
         {
-            var kept = doc.RootElement.EnumerateObject().Where(x => x.Name != "proformaIssue").ToDictionary(x => x.Name, x => x.Value.Clone());
+            var kept = doc.RootElement.EnumerateObject().Where(x => mine.Contains(x.Name)).ToDictionary(x => x.Name, x => x.Value.Clone());
             form = JsonSerializer.Serialize(kept);
         }
-        var (requestId, publicId, _) = await RequestEngine.CreateDraftAsync(c, tx, actor, new NewRequest("PROFORMA_REQUEST", from.CompanyId, null, form), now, ct).ConfigureAwait(false);
+        var (requestId, publicId, _) = await RequestEngine.CreateDraftAsync(c, tx, actor, new NewRequest(from.TypeCode, from.CompanyId, null, form), now, ct).ConfigureAwait(false);
         await c.ExecuteAsync(new CommandDefinition("UPDATE wfl.Request SET CopiedFromRequestId = @from WHERE RequestId = @r;", new { from = fromRequestId, r = requestId }, tx,
             cancellationToken: ct)).ConfigureAwait(false);
         if (await TermsStore.CurrentAsync(c, tx, fromRequestId, ct).ConfigureAwait(false) is { } t)
         {
-            var copy = await TermsStore.CopyAsync(c, tx, t.LcTermsId, "REQUEST", requestId, "PROFORMA", 1, "DRAFT", ct).ConfigureAwait(false);
+            var copy = await TermsStore.CopyAsync(c, tx, t.LcTermsId, "REQUEST", requestId, t.Purpose, 1, "DRAFT", ct).ConfigureAwait(false);
             await c.ExecuteAsync(new CommandDefinition("UPDATE lc.LcTerms SET AmountInWordsAr = NULL, AmountInWordsEn = NULL, CopiedFromTermsId = @t WHERE LcTermsId = @n;",
                 new { t = t.LcTermsId, n = copy }, tx, cancellationToken: ct)).ConfigureAwait(false);
         }

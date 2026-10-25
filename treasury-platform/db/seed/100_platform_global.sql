@@ -55,7 +55,10 @@ USING (VALUES
     ('lc.print.show_ucp',                    'BOOL', N'true', NULL, NULL, 0, N'Printed terms show the UCP 600 articles their fields and clauses refer to (FR-LCT-005). Read by the application.'),
     ('lc.print.ucp_disclaimer',              'BOOL', N'true', NULL, NULL, 0, N'Printed terms carry the footnote on unverified UCP texts; may be set to false only while every UCP article in use is VERIFIED (FR-LCT-006, BR-LCT-018). Enforced by the application.'),
     ('lc.earmark.cap_includes_tolerance',    'BOOL', N'false', NULL, NULL, 0, N'The sales orders of a received letter of credit may take its plus tolerance as well as its amount; off by default, so the earmarks stop at the amount (BR-LCE-010). Enforced by the application.'),
-    ('lc.proforma.no_lc_days',               'INT', N'30', N'1',  N'365', 0, N'Days after its issue that a proforma still without a received letter of credit reminds its requester once (FR-LCE-024, LC.PROFORMA_NO_LC). Read by JOB-LCE-NOLC.')
+    ('lc.proforma.no_lc_days',               'INT', N'30', N'1',  N'365', 0, N'Days after its issue that a proforma still without a received letter of credit reminds its requester once (FR-LCE-024, LC.PROFORMA_NO_LC). Read by JOB-LCE-NOLC.'),
+    ('ntf.digest.daily_at',                  'TIME', N'"07:30"', NULL, NULL, 0, N'Time of day, in the tenant time zone, at which the daily e-mail digests go and the weekly ones on their day (FR-NTF-014, Q-NTF-02). Read by JOB-NTF-DIGEST.'),
+    ('ntf.digest.weekly_day',                'INT', N'0',  N'0',  N'6', 0, N'Day of the weekly e-mail digest, 0 for Sunday to 6 for Saturday (FR-NTF-014). Read by JOB-NTF-DIGEST.'),
+    ('ntf.retention.archive_days',           'INT', N'180', N'30', N'3650', 0, N'Days after it was read that a notification is archived; nothing is deleted and an unread notification stays (FR-NTF-020, BR-NTF-011). Read by JOB-NTF-RETENTION.')
 ) AS s ([Key], ValueType, DefaultValueJson, MinValueJson, MaxValueJson, IsSecurity, Description)
    ON d.[Key] = s.[Key]
 WHEN MATCHED AND (d.ValueType <> s.ValueType OR d.DefaultValueJson <> s.DefaultValueJson

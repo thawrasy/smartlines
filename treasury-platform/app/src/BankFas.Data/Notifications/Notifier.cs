@@ -136,7 +136,10 @@ public static partial class Notifier
             var (subject, body) = Render(templates, "IN_APP", lang, values, ev);
             // In-app always for a mandatory event; otherwise unless the user switched the group off (BR-NTF-003).
             var inApp = ev.IsMandatory || prefs.GetValueOrDefault((r.AppUserId, "IN_APP")) != "OFF";
-            var email = emailChannel && prefs.GetValueOrDefault((r.AppUserId, "EMAIL")) != "OFF";
+            var emailMode = prefs.GetValueOrDefault((r.AppUserId, "EMAIL"));
+            var email = emailChannel && emailMode != "OFF";
+            // A digest holds the e-mail without a send time for JOB-NTF-DIGEST; a mandatory event is never held (FR-NTF-014).
+            var digest = email && !ev.IsMandatory && emailMode is "DIGEST_DAILY" or "DIGEST_WEEKLY";
             if (!inApp && !email) continue;
             var id = await c.ExecuteScalarAsync<long?>(new CommandDefinition(
                 """
@@ -162,8 +165,8 @@ public static partial class Notifier
                         CASE WHEN @inApp = 1 THEN SYSUTCDATETIME() END);
                 IF @email = 1
                     INSERT ntf.NotificationDelivery (TenantId, NotificationId, Channel, Status, NextAttemptAt)
-                    VALUES (CAST(SESSION_CONTEXT(N'TenantId') AS INT), @n, 'EMAIL', 'PENDING', SYSUTCDATETIME());
-                """, new { n = id, inApp, email }, cancellationToken: ct)).ConfigureAwait(false);
+                    VALUES (CAST(SESSION_CONTEXT(N'TenantId') AS INT), @n, 'EMAIL', 'PENDING', CASE WHEN @digest = 1 THEN NULL ELSE SYSUTCDATETIME() END);
+                """, new { n = id, inApp, email, digest }, cancellationToken: ct)).ConfigureAwait(false);
             created++;
         }
         return created;

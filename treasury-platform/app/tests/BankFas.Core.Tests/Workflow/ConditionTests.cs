@@ -60,7 +60,7 @@ public sealed class ConditionTests
     [Fact]
     public void The_seeded_templates_pass_the_publication_checks()
     {
-        var dir = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "..", "db", "seed", "packs", "WFL.BASE", "v2", "templates");
+        var dir = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "..", "db", "seed", "packs", "WFL.BASE", "v3", "templates");
         var phases = new HashSet<string> { "DRAFT", "IN_APPROVAL", "RETURNED", "AWAITING_REQUESTER", "IN_PROGRESS", "COMPLETED", "REJECTED", "CANCELLED" };
         var files = Directory.GetFiles(dir, "*.json");
         Assert.Equal(9, files.Length);
