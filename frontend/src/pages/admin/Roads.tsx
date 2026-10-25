@@ -39,7 +39,8 @@ function RoadsGuide({ portal }: { portal: "PLATFORM" | "OPERATOR" }) {
   const toast = useToast();
   const platform = portal === "PLATFORM";
   const [cls, setCls] = useState("");
-  const list = useLoad((signal) => api.get<{ roads: RoadRow[] }>(`/api/geo/roads${cls ? `?road_class=${cls}` : ""}`, undefined, { signal }), [cls]);
+  const list = useLoad((signal) => (cls ? api.get<{ roads: RoadRow[] }>(`/api/geo/roads?road_class=${cls}`, undefined, { signal })
+    : api.get<{ roads: RoadRow[] }>("/api/geo/roads", undefined, { signal })), [cls]);
   const map = useLoad((signal) => api.get<MapData>("/api/geo/roads/map", undefined, { signal }));
   const [open, setOpen] = useState<string | null>(null);
   const file = useRef<HTMLInputElement>(null);
@@ -179,12 +180,13 @@ function RoadModal({ code, portal, onClose, onChange }: { code: string; portal: 
   const [ver, setVer] = useState({ to_status: "CARRIER_CONFIRMED", document_ref: "", note: "" });
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
-  const base = portal === "PLATFORM" ? "/api/admin/roads" : "/api/carrier/roads";
   const propose = async () => {
     setBusy(true); setError(null);
     try {
-      await api.post(`${base}/${code}/corrections`, { kind: f.kind, remark: f.remark, seq: f.seq ? Number(f.seq) : undefined,
-        place: f.kind === "PLACE" ? f.place.trim().toUpperCase() : undefined, km: f.kind === "DISTANCE" ? Number(f.km) : undefined });
+      const body = { kind: f.kind, remark: f.remark, seq: f.seq ? Number(f.seq) : undefined,
+        place: f.kind === "PLACE" ? f.place.trim().toUpperCase() : undefined, km: f.kind === "DISTANCE" ? Number(f.km) : undefined };
+      if (portal === "PLATFORM") await api.post(`/api/admin/roads/${code}/corrections`, body);
+      else await api.post(`/api/carrier/roads/${code}/corrections`, body);
       toast(t("roads.proposed")); setF(blank); onChange();
     } catch (e) { setError(e); } finally { setBusy(false); }
   };
