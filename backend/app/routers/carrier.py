@@ -156,6 +156,155 @@ async def add_vehicle(body: VehicleIn, request: Request, pr: Principal = Depends
     return {"uid": str(uid)}
 
 
+class VehicleEdit(BaseModel):
+    """A vehicle's details, edited in place (1170): the plate, chassis, engine and serial numbers are regulated and change
+    only with a reason; the other fields change freely. Every edit is kept in the vehicle's history by the database."""
+    plate_no: Optional[str] = Field(default=None, min_length=3, max_length=20)
+    chassis_no: Optional[str] = Field(default=None, min_length=5, max_length=40)
+    machine_no: Optional[str] = Field(default=None, min_length=3, max_length=40)
+    vehicle_type: Optional[Literal["COACH", "MINIBUS", "CITY_BUS", "VAN"]] = None
+    make: Optional[str] = Field(default=None, max_length=60)
+    model: Optional[str] = Field(default=None, max_length=60)
+    model_uid: Optional[uuid.UUID] = None
+    manufacture_year: Optional[int] = Field(default=None, ge=1970, le=2100)
+    cargo_capacity_kg: Optional[int] = Field(default=None, ge=0, le=60000)
+    fuel_tank_l: Optional[int] = Field(default=None, ge=0, le=3000)
+    ownership_type: Optional[Literal["OWNED", "LEASED"]] = None
+    # the carrier takes a vehicle out of service and back; blocking and impounding are the platform's and the authorities'
+    status: Optional[Literal["ACTIVE", "OUT_OF_SERVICE", "RETIRED"]] = None
+    reason: Optional[str] = Field(default=None, max_length=500)
+
+
+_REGULATED = ("plate_no", "chassis_no", "machine_no")
+
+
+async def _own_vehicle(conn, pr: Principal, uid: uuid.UUID):
+    v = await conn.fetchrow("SELECT id, status FROM fleet.vehicle WHERE uid = $1 AND company_id = $2", uid, pr.company_id)
+    if v is None:
+        raise not_found("vehicle")
+    return v
+
+
+@router.get("/vehicles/{uid}")
+async def vehicle_detail(uid: uuid.UUID, request: Request, pr: Principal = Depends(operator)):
+    async with db.transaction(context_for(request, pr)) as conn:
+        v = await _own_vehicle(conn, pr, uid)
+        rec = await conn.fetchrow(
+            """SELECT v.uid, v.plate_no, v.chassis_no, v.machine_no, v.vehicle_type, v.make, v.model, m.uid AS model_uid,
+                      v.manufacture_year, v.passenger_seats, v.cargo_capacity_kg, v.fuel_tank_l, v.ownership_type, v.status,
+                      v.block_reason, l.uid AS seat_layout_uid, l.name AS seat_layout_name
+                 FROM fleet.vehicle v LEFT JOIN fleet.seat_layout l ON l.id = v.seat_layout_id
+                 LEFT JOIN ref.vehicle_model m ON m.id = v.model_id WHERE v.id = $1""", v["id"])
+        licences = await conn.fetch(
+            """SELECT l.uid, l.license_type, l.license_no, l.issuer, l.issue_date, l.expiry_date, l.status, l.locked
+                 FROM fleet.license_record l WHERE l.subject_type = 'VEHICLE' AND l.subject_id = $1
+                ORDER BY l.license_type, l.expiry_date DESC""", v["id"])
+        history = await conn.fetch(
+            """SELECT c.changed_at, c.field, c.old_value, c.new_value, c.reason, u.email AS changed_by
+                 FROM fleet.vehicle_change c LEFT JOIN iam.app_user u ON u.id = c.changed_by
+                WHERE c.vehicle_id = $1 ORDER BY c.changed_at DESC, c.id DESC LIMIT 200""", v["id"])
+    return {"vehicle": row_dict(rec), "licences": rows(licences), "history": rows(history)}
+
+
+@router.patch("/vehicles/{uid}")
+async def edit_vehicle(uid: uuid.UUID, body: VehicleEdit, request: Request, pr: Principal = Depends(operator)):
+    _need(pr, "vehicle.manage")
+    given = body.model_dump(exclude_unset=True)
+    reason = (given.pop("reason", None) or "").strip()
+    if not given:
+        raise ApiError(422, "NOTHING_TO_CHANGE", "give at least one field to change")
+    async with db.transaction(context_for(request, pr)) as conn:
+        v = await _own_vehicle(conn, pr, uid)
+        if v["status"] in ("BLOCKED", "IMPOUNDED") and "status" in given:
+            raise ApiError(409, "VEHICLE_HELD", "a blocked or impounded vehicle is released by the platform")
+        sets: dict = {}
+        for k, val in given.items():
+            if k == "model_uid":
+                if val is None:
+                    sets["model_id"] = None
+                    continue
+                mid = await conn.fetchval("SELECT id FROM ref.vehicle_model WHERE uid = $1 AND status = 'ACTIVE'", val)
+                if mid is None:
+                    raise ApiError(422, "MODEL_UNKNOWN", "choose a vehicle model from the list, or ask the platform to add it")
+                sets["model_id"] = mid
+            elif k in _REGULATED and isinstance(val, str):
+                sets[k] = val.strip().upper() if k != "plate_no" else val.strip()
+            else:
+                sets[k] = val
+        if any(k in sets for k in _REGULATED) and len(reason) < 3:
+            raise ApiError(422, "VEHICLE_CHANGE_REASON", "changing the plate, chassis or engine number needs its reason")
+        cols = list(sets)
+        assign = ", ".join(f"{c} = ${i + 2}" for i, c in enumerate(cols))
+        try:
+            await conn.execute(f"UPDATE fleet.vehicle SET {assign}, change_reason = ${len(cols) + 2} WHERE id = $1",
+                               v["id"], *[sets[c] for c in cols], reason or None)
+        except asyncpg.UniqueViolationError as exc:
+            raise ApiError(409, "VEHICLE_EXISTS", "another vehicle has this plate or chassis number") from exc
+    request.state.audit = {"action": "vehicle.edit", "object_type": "vehicle", "object_id": v["id"],
+                           "reason": (reason or ", ".join(cols))[:300]}
+    return {"uid": str(uid), "changed": cols}
+
+
+class VehicleLicenceIn(BaseModel):
+    """A new licence of a vehicle: a renewal or a document it lacked. A saved licence is locked: its number and dates
+    change only through a change request approved by two other people (030)."""
+    license_type: Literal["TRANSPORT", "INSPECTION", "INSURANCE", "OTHER"]
+    license_no: str = Field(min_length=3, max_length=40)
+    issuer: str = Field(min_length=2, max_length=120)
+    issue_date: date
+    expiry_date: date
+
+
+@router.post("/vehicles/{uid}/licences", status_code=201)
+async def add_vehicle_licence(uid: uuid.UUID, body: VehicleLicenceIn, request: Request, pr: Principal = Depends(operator)):
+    _need(pr, "vehicle.manage")
+    if body.expiry_date <= max(body.issue_date, date.today()):
+        raise ApiError(422, "LICENCE_EXPIRED", "the licence must be in force")
+    async with db.transaction(context_for(request, pr)) as conn:
+        v = await _own_vehicle(conn, pr, uid)
+        lid = await conn.fetchval(
+            """INSERT INTO fleet.license_record (company_id, subject_type, subject_id, license_type, license_no, issuer,
+                 issue_date, expiry_date, status)
+               VALUES ($1, 'VEHICLE', $2, $3, $4, $5, $6, $7, 'PENDING_REVIEW') RETURNING uid""",
+            pr.company_id, v["id"], body.license_type, body.license_no.strip(), body.issuer.strip(), body.issue_date, body.expiry_date)
+    request.state.audit = {"action": "vehicle.licence_add", "object_type": "vehicle", "object_id": v["id"]}
+    return {"uid": str(lid)}
+
+
+class LicenceChangeIn(BaseModel):
+    """A correction of a saved licence (a vehicle's or a crew member's): reviewed and then approved by two people of the
+    platform other than the one who asked, and applied to the licence on approval (030, 1054, 1170)."""
+    license_no: Optional[str] = Field(default=None, min_length=3, max_length=40)
+    issuer: Optional[str] = Field(default=None, min_length=2, max_length=120)
+    issue_date: Optional[date] = None
+    expiry_date: Optional[date] = None
+    reason: str = Field(min_length=3, max_length=500)
+
+
+@router.post("/licences/{uid}/change-request", status_code=201)
+async def licence_change_request(uid: uuid.UUID, body: LicenceChangeIn, request: Request, pr: Principal = Depends(operator)):
+    _need(pr, "vehicle.manage", "company.staff")
+    values = body.model_dump(exclude_unset=True, exclude={"reason"}, mode="json")
+    if not values:
+        raise ApiError(422, "NOTHING_TO_CHANGE", "give at least one field to correct")
+    async with db.transaction(context_for(request, pr)) as conn:
+        lic = await conn.fetchrow(
+            "SELECT id, issue_date, expiry_date FROM fleet.license_record WHERE uid = $1 AND company_id = $2", uid, pr.company_id)
+        if lic is None:
+            raise not_found("licence")
+        if (body.expiry_date or lic["expiry_date"]) <= (body.issue_date or lic["issue_date"]):
+            raise ApiError(422, "LICENCE_DATES", "the licence ends after it was issued")
+        if await conn.fetchval("SELECT 1 FROM fleet.license_change_request WHERE license_record_id = $1 AND status IN ('SUBMITTED', 'REVIEWED')",
+                               lic["id"]):
+            raise ApiError(409, "LICENCE_CHANGE_OPEN", "a correction of this licence is already waiting for the platform")
+        rid = await conn.fetchval(
+            """INSERT INTO fleet.license_change_request (license_record_id, requested_by, new_values)
+               VALUES ($1, $2, $3::jsonb) RETURNING id""", lic["id"], pr.user_id, json.dumps({**values, "reason": body.reason.strip()}))
+    request.state.audit = {"action": "licence.change_request", "object_type": "license_record", "object_id": lic["id"],
+                           "reason": body.reason.strip()[:300]}
+    return {"request": rid, "status": "SUBMITTED"}
+
+
 # ------------------------------------------------------------------ crew (names in parts, national number, licences: N3, 1158)
 @router.get("/crew")
 async def crew_list(request: Request, pr: Principal = Depends(operator)):
@@ -206,6 +355,21 @@ async def crew_detail(uid: uuid.UUID, request: Request, pr: Principal = Depends(
     company = crew.carrier_of(pr)
     async with db.transaction(context_for(request, pr)) as conn:
         return await crew.detail(conn, company, uid)
+
+
+@router.patch("/crew/{uid}")
+async def edit_crew(uid: uuid.UUID, body: crew.CrewEdit, request: Request, pr: Principal = Depends(operator)):
+    """A crew member's details, corrected in place (1170): names, birth date and national number with a reason; kind,
+    licence class, mobile and status freely. The profile's edits are kept by the database; the person's corrections are
+    in the activity log, which can be erased with the person."""
+    require_step_up(pr)                 # a sensitive operation: a recent second factor (1136)
+    _need(pr, "company.staff", "vehicle.manage")
+    company = crew.carrier_of(pr)
+    async with db.transaction(context_for(request, pr)) as conn:
+        changed = await crew.edit(conn, company, uid, body)
+    request.state.audit = {"action": "crew.edit", "object_type": "party", "object_id": None,
+                           "reason": ((body.reason or "").strip() or ", ".join(changed))[:300]}
+    return {"uid": str(uid), "changed": changed}
 
 
 @router.post("/crew/{uid}/licences", status_code=201)

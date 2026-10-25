@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**606 tables, 6619 columns, in 26 schemas.**
+**608 tables, 6637 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -12,7 +12,7 @@ Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant i
 - [`ref` — Reference data, locales and files](#ref) (24 tables)
 - [`sys` — Settings, outbox and webhooks](#sys) (27 tables)
 - [`net` — Network: stations, routes, lines, corridors and geofences](#net) (44 tables)
-- [`fleet` — Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance](#fleet) (23 tables)
+- [`fleet` — Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance](#fleet) (25 tables)
 - [`pricing` — Pricing, taxes, commissions, campaigns and loyalty](#pricing) (41 tables)
 - [`ops` — Trips, inventory, operations, shuttle rides, tracking and incidents](#ops) (40 tables)
 - [`sales` — Channels, bookings, passengers, tickets, subscriptions and travel documents](#sales) (35 tables)
@@ -2697,6 +2697,21 @@ Gate device on the vehicle that validates QR codes and NFC cards offline
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
+### `fleet.crew_change` 🛡️
+
+Every edit of a crew member's profile, field by field (1170); never updated or deleted
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `party_id` | `bigint` | 🔗 `fleet.crew_profile` ✱ |  |
+| `changed_at` | `timestamp with time zone` | ✱ | `now()` |
+| `changed_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `field` | `text` | ✱ |  |
+| `old_value` | `text` |  |  |
+| `new_value` | `text` |  |  |
+| `reason` | `text` |  |  |
+
 ### `fleet.crew_profile` 🛡️
 
 Drivers and hosts; their licenses and dates live in fleet.license_record
@@ -2714,6 +2729,7 @@ Drivers and hosts; their licenses and dates live in fleet.license_record
 | `heavy_class` | `boolean` | ✱ | `false` |
 | `cross_border` | `boolean` | ✱ | `false` |
 | `hazmat_certified` | `boolean` | ✱ | `false` |
+| `change_reason` | `text` |  |  |
 
 ### `fleet.driving_hours_log` 🛡️
 
@@ -3018,6 +3034,22 @@ Vehicle: type, seated and standing capacity, ownership and owner, and the status
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
 | `tracking_source` | `text` | ✱ | `'DRIVER_APP'::text` |
 | `model_id` | `bigint` | 🔗 `ref.vehicle_model`  |  |
+| `change_reason` | `text` |  |  |
+
+### `fleet.vehicle_change` 🛡️
+
+Every edit of a vehicle, field by field, with who, when and why (1170); never updated or deleted
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `vehicle_id` | `bigint` | 🔗 `fleet.vehicle` ✱ |  |
+| `changed_at` | `timestamp with time zone` | ✱ | `now()` |
+| `changed_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `field` | `text` | ✱ |  |
+| `old_value` | `text` |  |  |
+| `new_value` | `text` |  |  |
+| `reason` | `text` |  |  |
 
 ### `fleet.vehicle_fuel_profile` 🛡️
 

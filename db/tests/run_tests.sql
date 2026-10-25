@@ -5114,6 +5114,21 @@ SELECT pg_temp.expect_error(format('UPDATE fleet.field_check_log SET note = ''ch
   'FIELD_CHECK_CLOSED', 'Roadside (1169): a closed check is never changed');
 SELECT pg_temp.expect_error(format('DELETE FROM fleet.field_check_log WHERE id = %s', :fcl),
   'FIELD_CHECK_KEPT', 'Roadside (1169): a check is never deleted');
+-- Record edits (1170): a vehicle's regulated fields change with a reason, every edit is kept, the history never changes
+SELECT pg_temp.expect_error(format('UPDATE fleet.vehicle SET plate_no = ''EDIT-1170'' WHERE id = %s', :va),
+  'VEHICLE_CHANGE_REASON', 'Record edits (1170): a vehicle''s plate changes only with its reason');
+UPDATE fleet.vehicle SET plate_no = 'EDIT-1170', change_reason = 'new plates issued by the traffic police' WHERE id = :va;
+SELECT pg_temp.ok((SELECT change_reason IS NULL FROM fleet.vehicle WHERE id = :va)
+                  AND EXISTS (SELECT 1 FROM fleet.vehicle_change WHERE vehicle_id = :va AND field = 'plate_no'
+                                AND new_value = 'EDIT-1170' AND reason = 'new plates issued by the traffic police'),
+  'Record edits (1170): the plate''s change is kept with its old and new values and reason, and the reason is not left on the row');
+UPDATE fleet.vehicle SET manufacture_year = 2019 WHERE id = :va;
+SELECT pg_temp.ok(EXISTS (SELECT 1 FROM fleet.vehicle_change WHERE vehicle_id = :va AND field = 'manufacture_year' AND new_value = '2019' AND reason IS NULL),
+  'Record edits (1170): an ordinary field changes without a reason and is kept too');
+SELECT pg_temp.expect_error(format('UPDATE fleet.vehicle_change SET new_value = ''X'' WHERE vehicle_id = %s', :va),
+  'HISTORY_APPEND_ONLY', 'Record edits (1170): the history of a vehicle is never changed');
+SELECT pg_temp.expect_error(format('DELETE FROM fleet.vehicle_change WHERE vehicle_id = %s', :va),
+  'HISTORY_APPEND_ONLY', 'Record edits (1170): the history of a vehicle is never deleted');
 ROLLBACK;
 
 \echo '=== ALL TESTS PASSED ==='

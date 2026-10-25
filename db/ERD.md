@@ -1450,6 +1450,11 @@ erDiagram
     bigint vehicle_id FK
     text status
   }
+  fleet_crew_change {
+    bigint id PK
+    bigint party_id FK
+    bigint changed_by FK
+  }
   fleet_crew_profile {
     bigint party_id PK
     bigint company_id FK
@@ -1573,6 +1578,11 @@ erDiagram
     text status
     bigint model_id FK
   }
+  fleet_vehicle_change {
+    bigint id PK
+    bigint vehicle_id FK
+    bigint changed_by FK
+  }
   fleet_vehicle_fuel_profile {
     bigint id PK
     bigint company_id FK
@@ -1659,6 +1669,7 @@ erDiagram
   ref_vehicle_model {
     ref external
   }
+  fleet_crew_change }o--|| fleet_crew_profile : "party_id"
   fleet_driving_hours_log }o--|| fleet_crew_profile : "party_id"
   fleet_truck_combination }o..o| fleet_crew_profile : "driver_party_id"
   fleet_insurance_claim }o--|| fleet_insurance_policy : "policy_id"
@@ -1676,6 +1687,7 @@ erDiagram
   fleet_insurance_policy }o--|| fleet_vehicle : "vehicle_id"
   fleet_vehicle_qr_tag }o--|| fleet_vehicle : "vehicle_id"
   fleet_vehicle_status_history }o--|| fleet_vehicle : "vehicle_id"
+  fleet_vehicle_change }o--|| fleet_vehicle : "vehicle_id"
   fleet_seat_price_rule }o..o| fleet_vehicle : "vehicle_id"
   fleet_field_check_log }o..o| fleet_vehicle : "vehicle_id"
   fleet_vehicle_service_status }o--|| fleet_vehicle : "vehicle_id"

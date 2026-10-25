@@ -77,6 +77,62 @@ class LicenceIn(BaseModel):
         return self
 
 
+class CrewEdit(BaseModel):
+    crew_type: Optional[CrewType] = None
+    first_name: Optional[str] = Field(default=None, min_length=2, max_length=60)
+    father_name: Optional[str] = Field(default=None, min_length=2, max_length=60)
+    grandfather_name: Optional[str] = Field(default=None, min_length=2, max_length=60)
+    last_name: Optional[str] = Field(default=None, min_length=2, max_length=60)
+    mother_name: Optional[str] = Field(default=None, min_length=2, max_length=60)
+    national_id: Optional[str] = Field(default=None, pattern=r"^[0-9A-Za-z-]{5,20}$")
+    birth_date: Optional[date] = None
+    mobile: Optional[str] = Field(default=None, pattern=r"^\+?[0-9]{8,15}$")
+    license_class: Optional[str] = Field(default=None, pattern=r"^[A-Za-z0-9][A-Za-z0-9 +-]{0,15}$")
+    status: Optional[Literal["ACTIVE", "LEFT"]] = None       # blocking is the platform's
+    reason: Optional[str] = Field(default=None, max_length=500)
+
+    _names = field_validator("first_name", "father_name", "grandfather_name", "last_name", "mother_name",
+                             mode="before")(lambda cls, v: _tidy(v))
+
+
+_IDENTITY = ("first_name", "father_name", "grandfather_name", "last_name", "mother_name", "national_id", "birth_date")
+
+
+async def edit(conn: asyncpg.Connection, company: int, uid: uuid.UUID, body: CrewEdit) -> list[str]:
+    """Applies what is given; a correction of the person's identity needs its reason (1170)."""
+    m = await _member(conn, company, uid)
+    given = body.model_dump(exclude_unset=True)
+    reason = (given.pop("reason", None) or "").strip()
+    if not given:
+        raise ApiError(422, "NOTHING_TO_CHANGE", "give at least one field to change")
+    if any(k in given for k in _IDENTITY) and len(reason) < 3:
+        raise ApiError(422, "CREW_CHANGE_REASON", "a correction of a name, birth date or national number needs its reason")
+    if m["status"] == "BLOCKED" and "status" in given:
+        raise ApiError(409, "CREW_HELD", "a blocked crew member is released by the platform")
+    names = {k: given[k] for k in ("first_name", "father_name", "grandfather_name", "last_name", "mother_name") if k in given}
+    if names:
+        cur = await conn.fetchrow("SELECT first_name, father_name, grandfather_name, last_name FROM iam.party WHERE id = $1", m["id"])
+        merged = {**dict(cur), **names}
+        if not (merged["first_name"] and merged["last_name"]):
+            raise ApiError(422, "NAME_PARTS_REQUIRED", "the first and family names stay")
+        sets = ", ".join(f"{k} = ${i + 2}" for i, k in enumerate(names))
+        legal = " ".join(p for p in (merged["first_name"], merged["father_name"], merged["grandfather_name"], merged["last_name"]) if p)
+        await conn.execute(f"UPDATE iam.party SET {sets}, legal_name = ${len(names) + 2}, names_complete = true WHERE id = $1",
+                           m["id"], *names.values(), legal)
+    if "birth_date" in given or "national_id" in given:
+        await add_identity(conn, m["id"], CrewIn.model_construct(birth_date=given.get("birth_date"), national_id=given.get("national_id")))
+    if "mobile" in given:
+        await conn.execute("UPDATE iam.app_user SET mobile = $2 WHERE party_id = $1", m["id"], given["mobile"])
+    profile = {k: given[k] for k in ("crew_type", "license_class", "status") if k in given}
+    if "license_class" in profile and profile["license_class"]:
+        profile["license_class"] = profile["license_class"].upper()
+    if profile:
+        sets = ", ".join(f"{k} = ${i + 2}" for i, k in enumerate(profile))
+        await conn.execute(f"UPDATE fleet.crew_profile SET {sets}, change_reason = ${len(profile) + 2} WHERE party_id = $1",
+                           m["id"], *profile.values(), reason or None)
+    return list(given)
+
+
 def carrier_of(pr: Principal) -> int:
     if pr.portal != "OPERATOR" or not pr.company_id:
         raise forbidden("carrier portal only")
@@ -110,7 +166,7 @@ async def add_identity(conn: asyncpg.Connection, party_id: int, body: CrewIn) ->
 
 async def _member(conn: asyncpg.Connection, company: int, uid: uuid.UUID) -> asyncpg.Record:
     r = await conn.fetchrow(
-        """SELECT p.id, p.uid, cp.crew_type FROM iam.party p JOIN fleet.crew_profile cp ON cp.party_id = p.id
+        """SELECT p.id, p.uid, cp.crew_type, cp.status FROM iam.party p JOIN fleet.crew_profile cp ON cp.party_id = p.id
             WHERE p.uid = $1 AND cp.company_id = $2""", uid, company)
     if r is None:
         raise not_found("crew member")

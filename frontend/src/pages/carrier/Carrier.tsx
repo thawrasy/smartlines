@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { CrewEditor, LicenceCorrection, VehicleEditor } from "./Edits";
 import { api } from "../../api";
 import { useI18n } from "../../i18n";
 import type { VMake } from "../registry/VehicleModels";
@@ -425,6 +426,7 @@ export function CarrierVehicles() {
   const layouts = useLoad(() => api.get<{ layouts: LayoutRow[] }>("/api/carrier/seat-layouts"));
   const [open, setOpen] = useState(false);
   const [relayout, setRelayout] = useState<Vehicle | null>(null);
+  const [editing, setEditing] = useState<string | null>(null);
   const [newLayout, setNewLayout] = useState("");
   const blank = { plate_no: "", chassis_no: "", vehicle_type: "COACH", make: "", model: "", make_uid: "", model_uid: "", manufacture_year: "", seat_layout_uid: "",
                   insurance_no: "", insurer: "", insurer_uid: "", insurance_issue: "", insurance_expiry: "" };
@@ -466,7 +468,10 @@ export function CarrierVehicles() {
               <td>{v.manufacture_year}</td><td className="num">{v.passenger_seats}</td>
               <td>{v.seat_layout_name ?? <span className="chip" style={{ color: "var(--error)" }}>{t("layout.missing")}</span>}</td>
               <td className="mono small">{v.next_expiry}</td><td><Status value={v.status} /></td>
-              <td><button className="btn tonal small" onClick={() => { setRelayout(v); setNewLayout(v.seat_layout_uid ?? ""); setError(null); }}>{t("layout.change")}</button></td>
+              <td><div className="row nowrap" style={{ gap: 4 }}>
+                <button className="btn tonal small" onClick={() => setEditing(v.uid)}><Icon name="edit" size={18} />{t("edit.edit")}</button>
+                <button className="btn text small" onClick={() => { setRelayout(v); setNewLayout(v.seat_layout_uid ?? ""); setError(null); }}>{t("layout.change")}</button>
+              </div></td>
             </tr>
           ))}</tbody>
         </table></div>
@@ -525,6 +530,7 @@ export function CarrierVehicles() {
         </Modal>
       )}
       {asking && <ModelRequest makes={catalog.data ?? []} onClose={() => setAsking(false)} />}
+      {editing && <VehicleEditor uid={editing} onClose={() => { setEditing(null); state.reload(); }} />}
       {relayout && (
         <Modal title={`${t("layout.change")} · ${relayout.plate_no}`} onClose={() => setRelayout(null)} wide
                actions={<><button className="btn text" onClick={() => setRelayout(null)}>{t("common.cancel")}</button>
@@ -687,6 +693,7 @@ export function CarrierCrew() {
   const slip = useSignInSlip();
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<string | null>(null);
+  const [editing, setEditing] = useState<string | null>(null);
   const blank = { crew_type: "DRIVER", first_name: "", father_name: "", grandfather_name: "", last_name: "", mother_name: "", national_id: "",
                   birth_date: "", email: "", mobile: "", password: "", license_class: "D" };
   const [f, setF] = useState(blank);
@@ -720,7 +727,10 @@ export function CarrierCrew() {
                 ? <span className="chip green">{t("crew.complete")}{c.next_expiry ? ` · ${c.next_expiry}` : ""}</span>
                 : (c.problems ?? []).map((p) => <div key={p} className="chip wheat">{problemText(t, p)}</div>)}</td>
               <td><Status value={c.status} /></td>
-              <td><button className="btn tonal small" onClick={() => setView(c.uid)}>{t("crew.licences")}</button></td>
+              <td><div className="row nowrap" style={{ gap: 4 }}>
+                <button className="btn tonal small" onClick={() => setEditing(c.uid)}><Icon name="edit" size={18} />{t("edit.edit")}</button>
+                <button className="btn text small" onClick={() => setView(c.uid)}>{t("crew.licences")}</button>
+              </div></td>
             </tr>
           ))}</tbody>
         </table></div>
@@ -755,6 +765,7 @@ export function CarrierCrew() {
         </Modal>
       )}
       {view && <CrewLicences uid={view} onClose={() => { setView(null); state.reload(); }} />}
+      {editing && <CrewEditor uid={editing} onClose={() => { setEditing(null); state.reload(); }} />}
     </div>
   );
 }
@@ -764,6 +775,7 @@ function CrewLicences({ uid, onClose }: { uid: string; onClose: () => void }) {
   const toast = useToast();
   const state = useLoad(() => api.get<CrewDetail>(`/api/carrier/crew/${uid}`), [uid]);
   const blank = { license_type: "DRIVING", license_no: "", issuer: "", license_class: "", issue_date: "", expiry_date: "" };
+  const [fixing, setFixing] = useState<CrewDetail["licences"][number] | null>(null);
   const [f, setF] = useState(blank);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
@@ -786,7 +798,7 @@ function CrewLicences({ uid, onClose }: { uid: string; onClose: () => void }) {
           {d.problems.length > 0 && <div className="alert info"><Icon name="info" /><span>{d.problems.map((p) => problemText(t, p)).join(" · ")}</span></div>}
           {d.licences.length === 0 ? <Empty icon="badge" title={t("crew.noLicences")} /> : (
             <div className="table-wrap" tabIndex={0}><table className="table">
-              <thead><tr><th>{t("crew.licType")}</th><th>{t("crew.licNo")}</th><th>{t("crew.validity")}</th><th>{t("crew.pictures")}</th><th>{t("common.status")}</th></tr></thead>
+              <thead><tr><th>{t("crew.licType")}</th><th>{t("crew.licNo")}</th><th>{t("crew.validity")}</th><th>{t("crew.pictures")}</th><th>{t("common.status")}</th><th /></tr></thead>
               <tbody>{d.licences.map((l) => (
                 <tr key={l.uid}>
                   <td>{t(`crew.lic.${l.license_type}`)}{l.license_class && <div className="small muted">{t("carrier.licenseClass")} {l.license_class}</div>}</td>
@@ -800,11 +812,13 @@ function CrewLicences({ uid, onClose }: { uid: string; onClose: () => void }) {
                       </label>))}
                   </div></td>
                   <td><Status value={l.status} /></td>
+                  <td><button className="btn text small" onClick={() => setFixing(l)}>{t("edit.correct")}</button></td>
                 </tr>
               ))}</tbody>
             </table></div>
           )}
         </>)}</Loaded>
+        {fixing && <LicenceCorrection licence={fixing} onClose={() => setFixing(null)} />}
         <h4>{t("crew.addLicence")}</h4>
         <div className="grid cols-3">
           <Field label={t("crew.licType")}>
