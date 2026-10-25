@@ -3,7 +3,7 @@ import { Text, View } from "react-native";
 import { router } from "expo-router";
 import { useI18n } from "../i18n";
 import { useAuth } from "../platform/auth";
-import { ApiError, reactivate } from "../platform/api";
+import { ApiError, guestStart, reactivate } from "../platform/api";
 import { VARIANT } from "../platform/config";
 import { Button, ErrorText, Field, Screen, Title, s, PasswordField } from "../ui/kit";
 import { Lockup, TripLine } from "../ui/brand";
@@ -12,14 +12,19 @@ import { Lockup, TripLine } from "../ui/brand";
 const STAFF = VARIANT !== "passenger";
 
 export default function Login() {
-  const { t } = useI18n();
-  const { signIn, firstPassword } = useAuth();
+  const { t, locale } = useI18n();
+  const { signIn, firstPassword, guest } = useAuth();
   const [identifier, setIdentifier] = useState("");
   const [companyNo, setCompanyNo] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [fresh, setFresh] = useState({ next: "", confirm: "" });
   const [temporary, setTemporary] = useState(false);
+  // booking without an account (N18): the passenger app only; an e-mail, then the code sent to it
+  const [asGuest, setAsGuest] = useState(false);
+  const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
+  const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const ready = STAFF ? !!companyNo && !!username && !!password : !!identifier && !!password;
@@ -41,6 +46,14 @@ export default function Login() {
   const reopen = async () => {
     setBusy(true); setError(null);
     try { await reactivate(identifier, password); await finish(); } catch (e) { setError(e); } finally { setBusy(false); }
+  };
+  const sendCode = async () => {
+    setBusy(true); setError(null);
+    try { await guestStart(email, locale); setSent(true); setCode(""); } catch (e) { setError(e); } finally { setBusy(false); }
+  };
+  const guestIn = async () => {
+    setBusy(true); setError(null);
+    try { await guest(email, code); router.replace("/"); } catch (e) { setError(e); } finally { setBusy(false); }
   };
   const enrol = error instanceof ApiError && error.code === "MFA_ENROLL_ON_WEB";
   const closed = error instanceof ApiError && error.code === "ACCOUNT_DEACTIVATED";
@@ -64,6 +77,22 @@ export default function Login() {
           <Button label={t("auth.savePassword")} onPress={choose} busy={busy}
                   disabled={fresh.next.length < 12 || fresh.confirm !== fresh.next} />
         </>
+      ) : asGuest ? (
+        <>
+          <Text style={s.muted}>{t(sent ? "guest.codeSub" : "guest.sub", { email: email.trim() })}</Text>
+          {!sent ? (
+            <Field label={t("guest.email")} value={email} onChangeText={setEmail} autoCapitalize="none" autoCorrect={false}
+                   keyboardType="email-address" textContentType="emailAddress" autoComplete="email" onSubmitEditing={sendCode} />
+          ) : (
+            <Field label={t("guest.code")} value={code} onChangeText={(v) => setCode(v.replace(/\D/g, ""))} keyboardType="number-pad"
+                   maxLength={6} textContentType="oneTimeCode" autoComplete="one-time-code" onSubmitEditing={guestIn} />
+          )}
+          <Button label={t(sent ? "guest.continue" : "guest.send")} onPress={sent ? guestIn : sendCode} busy={busy}
+                  disabled={sent ? code.length !== 6 : !/^\S+@\S+\.\S+$/.test(email.trim())} />
+          {sent ? <Button kind="text" label={t("guest.resend")} onPress={sendCode} disabled={busy} /> : null}
+          <Text style={s.muted}>{t("guest.note")}</Text>
+          <Button kind="text" label={t("guest.haveAccount")} onPress={() => { setAsGuest(false); setError(null); }} />
+        </>
       ) : (
         <>
           {STAFF ? (
@@ -81,6 +110,7 @@ export default function Login() {
                  autoComplete="current-password" onSubmitEditing={submit} />
           <Button label={t("common.signIn")} onPress={submit} busy={busy} disabled={!ready} />
           {closed && !STAFF ? <Button kind="tonal" label={t("auth.reactivate")} onPress={reopen} busy={busy} disabled={!ready} /> : null}
+          {!STAFF ? <Button kind="text" label={t("guest.link")} onPress={() => { setAsGuest(true); setError(null); }} /> : null}
         </>
       )}
     </Screen>

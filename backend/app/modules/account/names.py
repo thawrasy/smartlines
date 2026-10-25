@@ -101,7 +101,8 @@ def new_code() -> str:
     return f"{secrets.randbelow(1_000_000):06d}"
 
 
-async def issue_email_code(conn: asyncpg.Connection, user_id: int) -> tuple[str, int]:
+async def issue_email_code(conn: asyncpg.Connection, user_id: int, purpose: str = "VERIFY_CONTACT",
+                           minutes: Optional[int] = None) -> tuple[str, int]:
     """A new six-digit code for the account's e-mail; any code still open is closed by it. At most one a minute and
     five an hour."""
     await conn.execute("SELECT pg_advisory_xact_lock(hashtext('contact-code'), hashtext($1::bigint::text))", user_id)
@@ -114,23 +115,24 @@ async def issue_email_code(conn: asyncpg.Connection, user_id: int) -> tuple[str,
             raise ApiError(429, "CODE_RESEND_TOO_SOON", "wait before asking for another code", retry_in=int(wait) + 1)
         if recent["n"] >= 5:
             raise ApiError(429, "CODE_TOO_MANY", "too many codes asked for in the last hour; try again later")
-    minutes = int((await rules(conn)).get("email_code_minutes", 30))
+    minutes = minutes or int((await rules(conn)).get("email_code_minutes", 30))
     code, fc = new_code(), await crypto.cipher(conn)
     await conn.execute("UPDATE iam.contact_code SET consumed_at = now() WHERE user_id = $1 AND channel = 'EMAIL' AND consumed_at IS NULL",
                        user_id)
     uid = uuid.uuid4()
     await conn.execute(
         """INSERT INTO iam.contact_code (uid, user_id, channel, purpose, code_hash, expires_at)
-           VALUES ($1, $2, 'EMAIL', 'VERIFY_CONTACT', $3, now() + make_interval(mins => $4))""",
-        uid, user_id, fc.blind_index(code, f"contact:{uid}"), minutes)
+           VALUES ($1, $2, 'EMAIL', $5, $3, now() + make_interval(mins => $4))""",
+        uid, user_id, fc.blind_index(code, f"contact:{uid}"), minutes, purpose)
     return code, minutes
 
 
-async def confirm_email(conn: asyncpg.Connection, user_id: int, code: str) -> bool:
+async def confirm_email(conn: asyncpg.Connection, user_id: int, code: str, purpose: str = "VERIFY_CONTACT") -> bool:
     """Checks the open code; every entry counts, a code is used once; a right code confirms the e-mail."""
     ch = await conn.fetchrow(
         """SELECT id, uid, attempts, expires_at, code_hash FROM iam.contact_code
-            WHERE user_id = $1 AND channel = 'EMAIL' AND consumed_at IS NULL ORDER BY id DESC LIMIT 1 FOR UPDATE""", user_id)
+            WHERE user_id = $1 AND channel = 'EMAIL' AND purpose = $2 AND consumed_at IS NULL
+            ORDER BY id DESC LIMIT 1 FOR UPDATE""", user_id, purpose)
     if ch is None:
         return False
     if ch["expires_at"] <= datetime.now(timezone.utc):

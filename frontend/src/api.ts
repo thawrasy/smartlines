@@ -81,6 +81,23 @@ export interface Me {
   idle_minutes?: number;
   /** The name parts still to give (N4), the e-mail still to confirm (N35), the account's verification (KYC). */
   names_complete?: boolean; email_verified?: boolean; verification_status?: string;
+  /** Booked without an account (N18): signed in by an e-mail code, offered to choose a password. */
+  is_guest?: boolean;
+}
+
+/** The traveller "Me" (N18): the account's names, date of birth, gender and the document's last four, never the number. */
+export interface MeTraveller {
+  nationality: string; first_name: string | null; father_name: string | null; grandfather_name: string | null; last_name: string | null;
+  first_name_latin: string | null; father_name_latin: string | null; grandfather_name_latin: string | null; last_name_latin: string | null;
+  birth_date: string | null; gender: "M" | "F" | null; id_type: string | null; id_no_last4: string | null; id_expiry: string | null;
+  has_document: boolean; names_complete: boolean; ready: boolean;
+}
+/** A companion kept with the passenger's consent to book for again (N18); the document number stays on the server. */
+export interface SavedTraveller {
+  uid: string; label: string | null; nationality: string; first_name: string; father_name: string | null; grandfather_name: string | null;
+  last_name: string; first_name_latin: string | null; father_name_latin: string | null; grandfather_name_latin: string | null;
+  last_name_latin: string | null; birth_date: string | null; gender: "M" | "F" | null; id_type: string | null; id_last4: string | null;
+  id_expiry: string | null;
 }
 
 export type MfaStep = "VERIFY" | "ENROLL";

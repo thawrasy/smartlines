@@ -443,6 +443,14 @@ erDiagram
     bigint id PK
     bigint role_id FK
   }
+  iam_saved_traveller {
+    bigint id PK
+    uuid uid
+    bigint owner_user_id FK
+    character nationality FK
+    integer enc_key_id FK
+    text status
+  }
   iam_user_role {
     bigint user_id PK
     bigint role_id PK

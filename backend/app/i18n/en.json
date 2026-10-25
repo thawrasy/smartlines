@@ -1365,5 +1365,9 @@
   "account.verify_email": {
     "subject": "Your Masslak confirmation code",
     "body": "Your code to confirm this e-mail on Masslak is {code}. It lasts {minutes} minutes. If you did not create an account, ignore this message."
+  },
+  "account.guest_code": {
+    "subject": "Your Masslak booking code",
+    "body": "Your code to book on Masslak without an account is {code}. It lasts {minutes} minutes. If you did not ask for it, ignore this message."
   }
 }

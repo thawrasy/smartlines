@@ -6,6 +6,7 @@ import { useAuth } from "../../auth";
 import { PageHead } from "../../components/layout";
 import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Status, useLoad, useToast, PasswordInput } from "../../components/ui";
 import { ProfileCard } from "./Profile";
+import { ClaimCard, MyDocumentCard, SavedTravellersCard } from "./Travellers";
 
 interface Security {
   sessions: { id: number; portal: string; ip: string; user_agent: string | null; issued_at: string; last_seen_at: string; current: boolean }[];
@@ -54,7 +55,7 @@ export function AccountPage() {
     <div className="page stack" style={{ maxWidth: 980 }}>
       <PageHead title={t("account.title")} sub={me?.email ?? undefined} />
       <ErrorBox error={!erase ? error : null} />
-      {me?.portal === "PASSENGER" && <ProfileCard />}
+      {me?.portal === "PASSENGER" && (me.is_guest ? <ClaimCard /> : <><ProfileCard /><MyDocumentCard /><SavedTravellersCard /></>)}
       <Loaded state={sec}>{(s) => (
         <>
           <div className="grid cols-2" style={{ alignItems: "start" }}>
@@ -64,7 +65,7 @@ export function AccountPage() {
               <p className="small muted">{t(s.mfa.enrolled ? "account.twoStepOn" : "account.twoStepOff")}</p>
               {!s.mfa.enrolled && <Link className="btn tonal" to="/mfa?mode=ENROLL&next=/account"><Icon name="key" />{t("account.enable")}</Link>}
             </div>
-            <div className="card stack">
+            {!me?.is_guest && <div className="card stack">
               <h3>{t("account.password")}</h3>
               {s.password_changed_at && <p className="small muted">{t("account.changedAt", { when: dateTime(s.password_changed_at) })}</p>}
               <Field label={t("account.current")}><PasswordInput autoComplete="current-password" value={pw.current_password} onChange={(e) => setPw({ ...pw, current_password: e.target.value })} /></Field>
@@ -75,7 +76,7 @@ export function AccountPage() {
                         t("account.passwordChanged"), () => setPw({ current_password: "", new_password: "", repeat: "" }))}>
                 {t("account.changePassword")}
               </button>
-            </div>
+            </div>}
           </div>
           <div className="card">
             <div className="card-title"><h3>{t("account.sessions")}</h3>

@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useI18n } from "../../i18n";
 import { Field, Icon } from "../../components/ui";
-import type { Category, CategoryFare, FamilyMember } from "../../api";
+import type { Category, CategoryFare, FamilyMember, MeTraveller, SavedTraveller } from "../../api";
 
 // Names exactly as on the identity document. Syrian citizens: the four parts of the national ID.
 // Other nationalities: given and family names as in the passport or ID; father's and grandfather's names
@@ -16,6 +16,9 @@ export interface PassengerDraft {
   stored_doc: boolean;                             // the register holds the document number (encrypted): no need to type it
   lap: boolean;                                    // an infant on an adult's lap, without a seat
   first_name_latin: string; last_name_latin: string; // as in the passport: required on international trips (N4)
+  self_traveller: boolean;                         // the account holder (N18): the server copies the account's identity
+  saved_traveller_uid: string;                     // a saved companion (N18): the server copies the stored identity
+  save: boolean;                                   // keep this traveller for next time, with the person's consent (N18)
 }
 
 /** Documents a nationality needs on the trip (GET /api/trips/{uid}/documents). */
@@ -30,7 +33,7 @@ export const minPassportExpiry = (req: TravelDocs) => addDays(req.departs, req.p
 export const blankPassenger = (lap = false): PassengerDraft => ({
   nationality: "SY", first_name: "", father_name: "", grandfather_name: "", last_name: "", more_names: false,
   id_type: "NATIONAL_ID", id_last4: "", id_no: "", passport_expiry: "", birth_date: "", family_member_uid: "", stored_doc: false, lap,
-  first_name_latin: "", last_name_latin: "",
+  first_name_latin: "", last_name_latin: "", self_traveller: false, saved_traveller_uid: "", save: false,
 });
 
 /** A traveller filled from the family register: names, nationality, date of birth and document type as registered. */
@@ -40,7 +43,36 @@ export function fromMember(m: FamilyMember, lap = false): PassengerDraft {
     last_name: m.last_name, more_names: !!(m.father_name || m.grandfather_name) && m.nationality !== "SY",
     id_type: m.id_type ?? (m.nationality === "SY" ? "NATIONAL_ID" : "PASSPORT"), id_last4: m.id_last4 ?? "", id_no: "",
     passport_expiry: m.passport_expiry ?? "", birth_date: m.birth_date, family_member_uid: m.uid, stored_doc: !!m.id_last4, lap,
-    first_name_latin: "", last_name_latin: "",
+    first_name_latin: "", last_name_latin: "", self_traveller: false, saved_traveller_uid: "", save: false,
+  };
+}
+
+type StoredPerson = Pick<SavedTraveller, "nationality" | "father_name" | "grandfather_name" | "first_name_latin" | "last_name_latin"
+  | "birth_date" | "id_type" | "id_expiry"> & { first_name: string | null; last_name: string | null };
+const fromStored = (s: StoredPerson, last4: string | null, lap: boolean): PassengerDraft => ({
+  ...blankPassenger(lap), nationality: s.nationality, first_name: s.first_name ?? "", father_name: s.father_name ?? "",
+  grandfather_name: s.grandfather_name ?? "", last_name: s.last_name ?? "",
+  more_names: !!(s.father_name || s.grandfather_name) && s.nationality !== "SY",
+  id_type: s.id_type ?? (s.nationality === "SY" ? "NATIONAL_ID" : "PASSPORT"), id_last4: last4 ?? "", stored_doc: !!last4,
+  passport_expiry: s.id_expiry ?? "", birth_date: s.birth_date ?? "",
+  first_name_latin: s.first_name_latin ?? "", last_name_latin: s.last_name_latin ?? "",
+});
+
+/** The account holder as the first traveller (N18): the server books the account's own identity. */
+export const fromMe = (m: MeTraveller): PassengerDraft => ({ ...fromStored(m, m.id_no_last4, false), self_traveller: true });
+
+/** A saved companion (N18): the server books the stored identity and document. */
+export const fromSaved = (s: SavedTraveller, lap = false): PassengerDraft => ({ ...fromStored(s, s.id_last4, lap), saved_traveller_uid: s.uid });
+
+/** The body that keeps a traveller typed on the booking as a saved traveller (POST /api/account/travellers). */
+export function savedBody(p: PassengerDraft) {
+  const n = namesFor(p);
+  const doc = p.id_no.trim();
+  return {
+    nationality: n.nationality, first_name: n.first_name, father_name: n.father_name, grandfather_name: n.grandfather_name,
+    last_name: n.last_name, first_name_latin: n.first_name_latin, last_name_latin: n.last_name_latin,
+    birth_date: p.birth_date || null, id_type: doc ? p.id_type : null, id_no: doc || null,
+    id_expiry: doc && p.id_type === "PASSPORT" ? p.passport_expiry || null : null, consent: true,
   };
 }
 
@@ -110,12 +142,14 @@ export function passengerValid(p: PassengerDraft, req?: TravelDocs) {
   return !p.id_last4 || /^[0-9A-Za-z]{3,4}$/.test(p.id_last4);
 }
 
-export function PassengerFields({ value, onChange, countries, docs, bands, travel }: {
+export function PassengerFields({ value, onChange, countries, docs, bands, travel, offerSave }: {
   value: PassengerDraft; onChange: (p: PassengerDraft) => void; countries: string[]; docs?: TravelDocs; bands?: CategoryFare[]; travel?: string;
+  offerSave?: boolean;
 }) {
   const { t, locale, date, money } = useI18n();
   const intl = !!docs?.international;
-  const locked = !!value.family_member_uid;
+  // a traveller from the family register, the account holder or a saved companion: the server uses the stored identity
+  const locked = !!(value.family_member_uid || value.self_traveller || value.saved_traveller_uid);
   const cat = bands && travel ? categoryOf(value, bands, travel) : null;
   const band = cat ? bands?.find((b) => b.category === cat) : undefined;
   const lapNotInfant = value.lap && cat !== null && cat !== "INFANT";
@@ -155,10 +189,11 @@ export function PassengerFields({ value, onChange, countries, docs, bands, trave
 
   return (
     <div className="stack">
-      {locked && <div className="alert ok small"><Icon name="diversity_3" size={20} /><span>{t("family.fromRegister")}</span></div>}
+      {locked && <div className="alert ok small"><Icon name={value.family_member_uid ? "diversity_3" : value.self_traveller ? "person" : "group"} size={20} />
+        <span>{t(value.family_member_uid ? "family.fromRegister" : value.self_traveller ? "trav.fromAccount" : "trav.fromSaved")}</span></div>}
       <div className="grid cols-3">
         <Field label={value.lap ? t("pax.birthDate") : `${t("pax.birthDate")} (${t("pax.birthHint")})`}>
-          <input className="input ltr" type="date" value={value.birth_date} max={travel} readOnly={locked} required={value.lap}
+          <input className="input ltr" type="date" value={value.birth_date} max={travel} readOnly={!!value.family_member_uid} required={value.lap}
                  aria-invalid={lapNotInfant} onChange={(e) => set({ birth_date: e.target.value })} />
         </Field>
         <Field label={t("pax.category")}>
@@ -244,6 +279,11 @@ export function PassengerFields({ value, onChange, countries, docs, bands, trave
       </div>
       {intl && <p className="small muted">{t("names.latinIntl")}</p>}
       {preview && <p className="small muted">{t("checkout.namePreview")}: <strong style={{ color: "var(--on-surface)" }}>{preview}</strong></p>}
+      {offerSave && !locked && (
+        <label className="check small">
+          <input type="checkbox" checked={value.save} onChange={(e) => set({ save: e.target.checked })} />{t("trav.saveConsent")}
+        </label>
+      )}
     </div>
   );
 }

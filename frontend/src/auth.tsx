@@ -10,6 +10,8 @@ interface Auth {
   login: (identifier: string, password: string, portal: Portal) => Promise<SignedIn>;
   /** The two sign-in doors (N16): individuals by e-mail or mobile, businesses by company number and username. */
   signIn: (door: Door) => Promise<SignedIn>;
+  /** Booking without an account (N18): the code sent to the e-mail opens a guest passenger session. */
+  guest: (email: string, code: string) => Promise<SignedIn>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
   can: (...perms: string[]) => boolean;
@@ -60,13 +62,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return finish(await api.post<LoginOut>(`/api/auth/login/${kind}`, body));
   }, [finish]);
 
+  const guest = useCallback(async (email: string, code: string) =>
+    finish(await api.post<LoginOut>("/api/auth/guest/verify", { email, code })), [finish]);
+
   const logout = useCallback(async () => {
     try { await api.post("/api/auth/logout"); } finally { setMe(null); }
   }, []);
 
   const can = useCallback((...perms: string[]) => !!me && perms.some((p) => me.permissions.includes(p)), [me]);
 
-  return <Ctx.Provider value={{ me, ready, login, signIn, logout, refresh, can }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ me, ready, login, signIn, guest, logout, refresh, can }}>{children}</Ctx.Provider>;
 }
 
 export function useAuth() {

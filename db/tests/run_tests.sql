@@ -3896,6 +3896,34 @@ SELECT pg_temp.expect_error(format($$INSERT INTO iam.messenger_link (user_id, fa
 ROLLBACK;
 SET ROLE masslak_app;
 
+-- Travellers and guests (1153): "Me" from the account, saved travellers with consent, guests without a password
+SELECT pg_temp.ok((SELECT (value ->> 'enabled')::boolean AND value ->> 'account_required_for' = 'NONE' FROM sys.setting WHERE key = 'booking.guest'),
+  'Guests (1153): booking without an account is open at launch and no nationality must hold an account');
+SELECT pg_temp.ok((SELECT relrowsecurity AND relforcerowsecurity FROM pg_class WHERE oid = 'iam.saved_traveller'::regclass)
+                  AND EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'iam' AND tablename = 'saved_traveller'),
+  'Saved travellers (1153): rows are secured to the passenger who saved them');
+BEGIN;
+RESET ROLE;
+INSERT INTO iam.party (party_type, legal_name) VALUES ('PERSON', 'Guest') RETURNING id AS gp \gset
+SELECT pg_temp.expect_error(format($$INSERT INTO iam.app_user (party_id, account_kind, email, password_hash, status, is_guest)
+                                      VALUES (%s, 'CUSTOMER', 'guest1@test.invalid', 'x', 'ACTIVE', true)$$, :gp),
+  'check constraint', 'Guests (1153): a guest account has no password');
+SELECT pg_temp.expect_error(format($$INSERT INTO iam.app_user (party_id, account_kind, email, status, is_guest)
+                                      VALUES (%s, 'COMPANY', 'guest1@test.invalid', 'ACTIVE', true)$$, :gp),
+  'check constraint', 'Guests (1153): only a passenger can be a guest');
+INSERT INTO iam.app_user (party_id, account_kind, email, status, is_guest) VALUES (:gp, 'CUSTOMER', 'guest1@test.invalid', 'ACTIVE', true) RETURNING id AS gu \gset
+SELECT pg_temp.expect_error(format($$INSERT INTO iam.contact_code (user_id, channel, purpose, code_hash, expires_at)
+                                      VALUES (%s, 'EMAIL', 'PIGEON', decode(repeat('ab', 32), 'hex'), now() + interval '10 minutes')$$, :gu),
+  'check constraint', 'Guests (1153): codes serve only the known purposes');
+SELECT pg_temp.expect_error(format($$INSERT INTO iam.saved_traveller (owner_user_id, first_name, last_name, id_type, id_no_enc)
+                                      VALUES (%s, 'Sami', 'Kurdi', 'NATIONAL_ID', '\x01')$$, :gu),
+  'check constraint', 'Saved travellers (1153): a document number is kept only encrypted with its blind index and key');
+SELECT pg_temp.expect_error(format($$INSERT INTO iam.saved_traveller (owner_user_id, first_name, last_name, last_name_latin)
+                                      VALUES (%s, 'Sami', 'Kurdi', 'Kurdi1')$$, :gu),
+  'check constraint', 'Saved travellers (1153): a Latin name part is in Latin letters');
+ROLLBACK;
+SET ROLE masslak_app;
+
 -- Charter (1123): carriers hire out vehicles and whole trips on their terms; requests are priced, paid and their seats held
 BEGIN;
 RESET ROLE;

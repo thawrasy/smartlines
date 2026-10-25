@@ -45,6 +45,10 @@ class PassengerIn(BaseModel):
     gender: Optional[Literal["M", "F"]] = None
     # A registered member of the booker's family (4.20): counts for family offers; their stored document is used if none is given
     family_member_uid: Optional[uuid.UUID] = None
+    # The account holder travelling (N18, 1153): their stored names, date of birth and document replace the form's
+    self_traveller: bool = False
+    # A companion the passenger saved before (N18, 1153): the saved details replace the form's
+    saved_traveller_uid: Optional[uuid.UUID] = None
     # A lap infant: the position (1-based) of the adult who carries them, on this booking (default the first adult) or,
     # in a journey (1121), among the journey's travellers, so up to a tourism group's size
     with_adult: Optional[int] = Field(default=None, ge=1, le=120)

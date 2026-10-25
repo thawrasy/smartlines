@@ -81,7 +81,13 @@ export function PublicLayout() {
           )}
         </div>
       </header>
-      {passenger && (me?.names_complete === false || me?.email_verified === false) && !location.pathname.startsWith("/account") && (
+      {passenger && me?.is_guest && !location.pathname.startsWith("/account") && (
+        <div className="alert info small" role="status" style={{ margin: "8px 16px 0" }}>
+          <Icon name="person" size={20} />
+          <span>{t("guest.banner")} <Link to="/account">{t("guest.bannerGo")}</Link></span>
+        </div>
+      )}
+      {passenger && !me?.is_guest && (me?.names_complete === false || me?.email_verified === false) && !location.pathname.startsWith("/account") && (
         <div className="alert warn small" role="status" style={{ margin: "8px 16px 0" }}>
           <Icon name="badge" size={20} />
           <span>{me.names_complete === false ? t("names.bannerName") : t("names.bannerEmail")} <Link to="/account">{t("names.bannerGo")}</Link></span>

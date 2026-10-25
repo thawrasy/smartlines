@@ -30,7 +30,7 @@ const MULTI = `kind=MULTI_CITY&legs=DAM_HMA_${tomorrow},HMA_ALP_${later}`;
 const STATION = process.env.MASSLAK_UI_STATION && existsSync(process.env.MASSLAK_UI_STATION)
   ? JSON.parse(readFileSync(process.env.MASSLAK_UI_STATION, "utf8")) : null;
 const PORTALS = [
-  { who: null, pages: ["/", `/search?origin=DAM&destination=ALP&on=${tomorrow}`, `/search?${ROUND}&pax=2`, "@trip", "/login", "/register", "/track", "/verify",
+  { who: null, pages: ["/", `/search?origin=DAM&destination=ALP&on=${tomorrow}`, `/search?${ROUND}&pax=2`, "@trip", "/login", "/register", "/guest", "/track", "/verify",
     "/screen/pair",         // a display asking to be paired with a station screen (1129)
     `/search?from=DRA&to=ALP&on=${later}`] },   // no trip runs direct: the connections through Damascus (1130)
   { who: ["passenger@masslak.test", "PASSENGER"], pages: ["/trips", "/wallet", "/family", "/account", "/services", "/support", "@journey", "@connection", "/charter"] },

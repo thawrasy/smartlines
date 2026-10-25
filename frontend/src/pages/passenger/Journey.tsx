@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { api, type BookingOption, type TripDetail } from "../../api";
+import { api, type BookingOption, type MeTraveller, type TripDetail } from "../../api";
 import { useI18n } from "../../i18n";
 import { useAuth } from "../../auth";
 import { useChannel } from "../../channel";
 import { CarrierName, ErrorBox, Field, Icon, Loaded, Spinner, useLoad } from "../../components/ui";
-import { PassengerFields, blankPassenger, documentFor, namesFor, passengerValid, type PassengerDraft, type TravelDocs } from "./PassengerFields";
+import { PassengerFields, blankPassenger, documentFor, fromMe, namesFor, passengerValid, type PassengerDraft, type TravelDocs } from "./PassengerFields";
 import { parseLegs, parsePicked, type JourneyKind } from "./journeyLinks";
 import { SeatMap } from "./Book";
 import { PolicyLine, RiskNotice } from "./Connections";
@@ -41,6 +41,13 @@ export default function Journey() {
   const options = useLoad<BookingOption[]>(() => (ch.agency || !me ? Promise.resolve([])
     : api.get<{ options: BookingOption[] }>("/api/payments/booking-options").then((r) => r.options)), [me, ch.agency]);
   const [people, setPeople] = useState<PassengerDraft[]>(() => Array.from({ length: pax }, () => blankPassenger()));
+  // the first traveller is the account holder unless the passenger picks someone else (N18)
+  const mine = useLoad<MeTraveller | null>(() => (ch.agency || me?.portal !== "PASSENGER" || me.is_guest ? Promise.resolve(null)
+    : api.get<MeTraveller>("/api/account/me-traveller").then((m) => (m.names_complete ? m : null)).catch(() => null)), [me, ch.agency]);
+  useEffect(() => {
+    const m = mine.data;
+    if (m) setPeople((all) => all.map((x, i) => (i === 0 && !x.first_name && !x.self_traveller ? fromMe(m) : x)));
+  }, [mine.data]);
   const laps = people.filter((p) => p.lap).length;
   const [docs, setDocs] = useState<Record<string, TravelDocs>>({});
   const [payWith, setPayWith] = useState<"WALLET" | "PAY_LATER">("WALLET");
@@ -93,6 +100,7 @@ export default function Journey() {
         ...(connection ? { accept_risks: accepted } : {}),
         // the k-th baby on a lap is carried by the k-th traveller with a seat
         passengers: people.map((p, i) => ({ ...namesFor(p), ...documentFor(p, docs[p.nationality]), birth_date: p.birth_date || undefined,
+                                            ...(p.self_traveller ? { self_traveller: true } : {}),
                                             with_adult: p.lap ? i - pax + 1 : undefined })),
         idempotency_key: key, ...(ch.agency ? { contact_mobile: contact.trim() } : { pay_with: payWith }),
       });
@@ -196,7 +204,13 @@ export default function Journey() {
               {people.map((p, i) => (
                 <fieldset key={i} className="stack" style={{ border: 0, padding: 0, margin: 0 }}>
                   <legend className="small row" style={{ gap: 8 }}><strong>{p.lap ? t("jrn.lapOf", { n: i - pax + 1 }) : `${t("common.passenger")} ${i + 1}`}</strong>
-                    {p.lap && i === people.length - 1 && <button className="btn text small" onClick={() => setPeople((all) => all.slice(0, -1))}>{t("common.remove")}</button>}</legend>
+                    {p.lap && i === people.length - 1 && <button className="btn text small" onClick={() => setPeople((all) => all.slice(0, -1))}>{t("common.remove")}</button>}
+                    {i === 0 && mine.data && (
+                      <select className="input" style={{ width: "auto" }} value={p.self_traveller ? "me" : ""} aria-label={t("trav.fillFrom")}
+                              onChange={(e) => setPeople((all) => all.map((x, j) => (j === 0 ? (e.target.value === "me" ? fromMe(mine.data!) : blankPassenger()) : x)))}>
+                        <option value="me">{t("trav.me")}</option><option value="">{t("trav.someoneElse")}</option>
+                      </select>
+                    )}</legend>
                   <PassengerFields value={p} countries={countries.data ?? ["SY"]} docs={docs[p.nationality]} bands={details[0].categories}
                                    travel={details[0].stops.find((s) => s.seq === details[0].from_seq)?.sched_dep.slice(0, 10)}
                                    onChange={(v) => setPeople((all) => all.map((x, j) => (j === i ? v : x)))} />

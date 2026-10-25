@@ -11,7 +11,7 @@ from ...config import get_settings
 from ...deps import Principal, context_for, require_portal, require_session, require_user, require_step_up
 from ...errors import ApiError
 from ..photo import service as photo
-from . import names, service
+from . import names, service, travellers
 
 router = APIRouter(prefix="/api/account", tags=["account"])
 platform = APIRouter(prefix="/api/admin/privacy", tags=["account"])
@@ -28,6 +28,92 @@ async def profile(request: Request, pr: Principal = Depends(require_user)):
                                                      "grandfather_name_latin", "last_name_latin")},
                 "names_complete": person.get("names_complete"), "verification_status": person.get("verification_status"),
                 "email": pr.email, "email_verified": verified, "rules": await names.rules(conn)}
+
+
+def _passenger(pr: Principal) -> None:
+    if pr.portal != "PASSENGER":
+        raise ApiError(403, "PASSENGER_ONLY", "for a passenger's own account")
+
+
+@router.get("/me-traveller")
+async def me_traveller(request: Request, pr: Principal = Depends(require_user)):
+    """The traveller "Me" for the booking form (N18): names, date of birth, gender and the document's last four."""
+    _passenger(pr)
+    async with db.transaction(context_for(request, pr)) as conn:
+        return await travellers.me(conn, pr.party_id)
+
+
+@router.put("/document")
+async def set_document(body: travellers.DocumentIn, request: Request, pr: Principal = Depends(require_user)):
+    """The account holder's date of birth, gender and identity document, used when they book as themselves (N18)."""
+    _passenger(pr)
+    async with db.transaction(context_for(request, pr)) as conn:
+        await travellers.set_document(conn, pr.party_id, body)
+        out = await travellers.me(conn, pr.party_id)
+    request.state.audit = {"action": "account.document", "object_type": "party", "object_id": pr.party_id}
+    return out
+
+
+@router.get("/travellers")
+async def saved_travellers(request: Request, pr: Principal = Depends(require_user)):
+    _passenger(pr)
+    async with db.transaction(context_for(request, pr)) as conn:
+        return {"travellers": await travellers.saved(conn, pr.user_id), "limit": travellers.MAX_SAVED}
+
+
+@router.post("/travellers", status_code=201)
+async def add_saved_traveller(body: travellers.SavedTravellerIn, request: Request, pr: Principal = Depends(require_user)):
+    """Keeps a companion to book for again, with the passenger's confirmation that the person agrees (N18)."""
+    _passenger(pr)
+    async with db.transaction(context_for(request, pr)) as conn:
+        out = await travellers.save(conn, pr.user_id, body)
+    request.state.audit = {"action": "account.traveller_save", "object_type": "saved_traveller", "object_id": None}
+    return out
+
+
+@router.put("/travellers/{uid}")
+async def update_saved_traveller(uid: uuid.UUID, body: travellers.SavedTravellerIn, request: Request,
+                                 pr: Principal = Depends(require_user)):
+    _passenger(pr)
+    async with db.transaction(context_for(request, pr)) as conn:
+        return await travellers.save(conn, pr.user_id, body, uid)
+
+
+@router.delete("/travellers/{uid}")
+async def remove_saved_traveller(uid: uuid.UUID, request: Request, pr: Principal = Depends(require_user)):
+    _passenger(pr)
+    async with db.transaction(context_for(request, pr)) as conn:
+        await travellers.remove(conn, pr.user_id, uid)
+    request.state.audit = {"action": "account.traveller_remove", "object_type": "saved_traveller", "object_id": None}
+    return {"ok": True}
+
+
+class ClaimIn(BaseModel):
+    """A guest turns the guest account into a full account (N18): the name in parts and a password, typed twice."""
+    name: names.NameIn
+    password: str = Field(min_length=12, max_length=200)
+    password_confirm: str = Field(min_length=12, max_length=200)
+
+
+@router.post("/claim")
+async def claim(body: ClaimIn, request: Request, pr: Principal = Depends(require_user)):
+    """After booking without an account, the guest keeps the bookings and gets a wallet, points and the loyalty
+    programme by choosing a password (the e-mail was already proved by the code)."""
+    from ...security import hash_password, password_problem
+    if body.password != body.password_confirm:
+        raise ApiError(422, "PASSWORD_MISMATCH", "the two passwords differ")
+    problem = password_problem(body.password, pr.email, names.full_of(body.name))
+    if problem:
+        raise ApiError(422, problem, "password does not meet the policy")
+    async with db.transaction(context_for(request, pr)) as conn:
+        if not await conn.fetchval("SELECT is_guest FROM iam.app_user WHERE id = $1", pr.user_id):
+            raise ApiError(409, "NOT_A_GUEST", "this account already has a password")
+        names.check(await names.rules(conn), body.name)
+        await names.save(conn, pr.party_id, body.name)
+        await conn.execute("""UPDATE iam.app_user SET password_hash = $2, password_changed_at = now(), is_guest = false
+                               WHERE id = $1""", pr.user_id, hash_password(body.password))
+    request.state.audit = {"action": "account.claim", "object_type": "app_user", "object_id": pr.user_id}
+    return {"ok": True}
 
 
 @router.put("/names")

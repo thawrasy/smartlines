@@ -18,6 +18,7 @@
 - `TRIP_CHANGES.md`: changes to a scheduled trip that keep its number: another vehicle before or during the trip, a moved departure, passengers moved to another trip before cancelling it, each with a reason from the platform's list; every passenger told, those unreachable listed for a call (owner's request N42, 1148).
 - `SIGNIN_DOORS.md`: two sign-in doors, individuals by e-mail or mobile and businesses by company number and username, with temporary passwords changed at the first sign-in (owner's request N16, 1150).
 - `SECOND_FACTOR.md`: second-factor codes by e-mail, Telegram (linked by a one-time bot link) and WhatsApp besides the authenticator app and recovery codes; text messages closed until a provider is contracted (owner's request N36, 1151).
+- `TRAVELLERS_AND_GUESTS.md`: the traveller "Me" filled from the account, saved travellers kept with consent and an encrypted document, and booking without an account by an e-mail code with a later claim (owner's request N18, 1153).
 - `COMPANY_KYC.md`: the know-your-customer file of each company on the platform: the form and the standards it follows, its review stages, risk rules, encrypted values, settings and screens (owner's request, 1118).
 
 The web frontend (`frontend/src/theme.css`) uses the same colour roles and radii as `system/tokens.json`.

@@ -169,6 +169,89 @@ async def send_email_code(to: str, code: str, minutes: int, locale: str) -> bool
         return False
 
 
+class GuestStartIn(BaseModel):
+    email: EmailStr
+    locale: Optional[str] = Field(default=None, pattern=r"^(ar|en)$")
+
+
+class GuestVerifyIn(BaseModel):
+    email: EmailStr
+    code: str = Field(min_length=6, max_length=6, pattern=r"^[0-9]{6}$")
+    device_id: Optional[str] = Field(default=None, min_length=16, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
+    app_version: Optional[str] = Field(default=None, max_length=20)
+
+
+async def guest_setting(conn) -> dict:
+    v = await conn.fetchval("SELECT value FROM sys.setting WHERE key = 'booking.guest'")
+    return json.loads(v) if isinstance(v, str) else dict(v or {"enabled": False})
+
+
+@router.post("/guest/start")
+async def guest_start(body: GuestStartIn, request: Request):
+    """Booking without an account (N18, 1153): a code goes to the e-mail; with it the guest signs in to book. An e-mail
+    that belongs to an account is told to sign in instead."""
+    email = str(body.email).strip().lower()
+    ctx = base_context(request)
+    ctx.scope = "AUTH"
+    async with db.transaction(ctx) as conn:
+        await ratelimit.check_identifier(conn, email)
+    async with db.transaction(ctx) as conn:
+        setting = await guest_setting(conn)
+        if not setting.get("enabled"):
+            raise ApiError(403, "GUEST_BOOKING_OFF", "booking needs an account; sign up or sign in")
+        user = await conn.fetchrow("SELECT id, is_guest, status FROM iam.app_user WHERE email = $1", email)
+        if user is not None and not user["is_guest"]:
+            raise ApiError(409, "ACCOUNT_EXISTS", "this e-mail has an account: sign in to book")
+        if user is None:
+            locale = body.locale or await conn.fetchval("SELECT value #>> '{}' FROM sys.setting WHERE key = 'ui.default_locale'")
+            party = await conn.fetchval(
+                "INSERT INTO iam.party (party_type, legal_name) VALUES ('PERSON', 'Guest') RETURNING id")
+            await conn.execute("INSERT INTO iam.party_role (party_id, role_code) VALUES ($1, 'PASSENGER') ON CONFLICT DO NOTHING",
+                               party)
+            uid = await conn.fetchval(
+                """INSERT INTO iam.app_user (party_id, account_kind, email, status, preferred_locale, is_guest)
+                   VALUES ($1, 'CUSTOMER', $2, 'ACTIVE', $3, true) RETURNING id""", party, email, locale or "ar")
+        else:
+            uid = user["id"]
+        locale = await conn.fetchval("SELECT preferred_locale FROM iam.app_user WHERE id = $1", uid)
+        code, minutes = await names.issue_email_code(conn, uid, "GUEST_SIGN_IN", int(setting.get("code_minutes", 15)))
+    sent = await send_guest_code(email, code, minutes, locale)
+    return {"ok": True, "sent": sent, "expires_in": minutes * 60}
+
+
+async def send_guest_code(to: str, code: str, minutes: int, locale: str) -> bool:
+    from ..modules.notify import providers
+    from ..modules.notify.render import render
+    subject, text = render("account.guest_code", "EMAIL", locale, {"code": code, "minutes": minutes})
+    try:
+        await asyncio.to_thread(providers.send_email, to, subject, text)
+        return True
+    except Exception:                                                  # noqa: BLE001 - the guest asks for another code
+        logging.getLogger("masslak.auth").warning("the guest sign-in code could not be sent")
+        return False
+
+
+@router.post("/guest/verify")
+async def guest_verify(body: GuestVerifyIn, request: Request, response: Response):
+    """The code from the e-mail opens a passenger session for the guest; the booking goes on as for any passenger."""
+    email = str(body.email).strip().lower()
+    ctx = base_context(request)
+    ctx.scope = "AUTH"
+    async with db.transaction(ctx) as conn:
+        await ratelimit.check_identifier(conn, email)
+    async with db.transaction(ctx) as conn:
+        uid = await conn.fetchval("SELECT id FROM iam.app_user WHERE email = $1 AND is_guest", email)
+        ok = bool(uid) and await names.confirm_email(conn, uid, body.code, "GUEST_SIGN_IN")
+        if not ok:
+            await _auth_event(conn, request, "LOGIN_FAILED", "FAILURE", user_id=uid, portal="PASSENGER", identifier=email,
+                              reason="guest_code")
+    if not ok:
+        raise ApiError(422, "CODE_WRONG", "the code is not right or has expired; ask for a new one")
+    return await _sign_in(LoginIn(identifier=email, password="guest-code", portal="PASSENGER", device_id=body.device_id,
+                                  app_version=body.app_version),
+                          request, response, ident=email, where="id = $1 AND is_guest", args=(uid,), proven=True)
+
+
 class IndividualIn(BaseModel):
     """The individuals' door (N16): a passenger's e-mail or mobile number and password."""
     identifier: str = Field(min_length=3, max_length=200)
@@ -246,7 +329,7 @@ async def login_business(body: BusinessIn, request: Request, response: Response)
 
 
 async def _sign_in(body: LoginIn, request: Request, response: Response, *, ident: str, where: str, args: tuple,
-                   block: bool = True, company_id: Optional[int] = None, auto_driver: bool = False):
+                   block: bool = True, company_id: Optional[int] = None, auto_driver: bool = False, proven: bool = False):
     """One sign-in for the three entries: the account found by the door's own rule, then the same checks, session and
     second factor for all."""
     s = get_settings()
@@ -281,7 +364,8 @@ async def _sign_in(body: LoginIn, request: Request, response: Response, *, ident
                 await _auth_event(conn, request, "LOGIN_FAILED", "BLOCKED", user_id=user["id"], portal=body.portal,
                                   reason="account_locked")
                 raise ApiError(423, "ACCOUNT_LOCKED", "account temporarily locked after failed attempts")
-            password_ok = verify_password(user["password_hash"], body.password)
+            # a guest proved the e-mail with a code (N18, 1153); everyone else gives the password
+            password_ok = proven or verify_password(user["password_hash"], body.password)
             if password_ok and user["status"] == "DEACTIVATED":
                 # closed by its owner (1085): the right password is told so, and nothing is counted against the account
                 deactivated = True
@@ -492,7 +576,7 @@ async def me(request: Request, principal: Principal = Depends(require_user)):
         market = (await markets.of_party(conn, principal.company_id or principal.party_id)).public()
         idle = await conn.fetchval("SELECT iam.idle_minutes($1)", principal.portal)
         person = await conn.fetchrow(
-            """SELECT p.names_complete, p.verification_status, u.email_verified_at IS NOT NULL AS email_verified
+            """SELECT p.names_complete, p.verification_status, u.email_verified_at IS NOT NULL AS email_verified, u.is_guest
                  FROM iam.app_user u JOIN iam.party p ON p.id = u.party_id WHERE u.id = $1""", principal.user_id)
     return {
         "uid": principal.user_uid, "name": principal.display_name, "email": principal.email,
@@ -503,6 +587,7 @@ async def me(request: Request, principal: Principal = Depends(require_user)):
         # the name parts still to give (N4), the e-mail still to confirm (N35), and the account's verification (KYC)
         "names_complete": person["names_complete"], "email_verified": person["email_verified"],
         "verification_status": person["verification_status"],
+        "is_guest": person["is_guest"],     # booked without an account (N18): offered to turn it into a full account
     }
 
 

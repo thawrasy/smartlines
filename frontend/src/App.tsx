@@ -16,6 +16,7 @@ import Family from "./pages/passenger/Family";
 import Support from "./pages/passenger/Support";
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
+import Guest from "./pages/auth/Guest";
 import Mfa from "./pages/auth/Mfa";
 import FirstPassword from "./pages/auth/FirstPassword";
 import Verify from "./pages/Verify";
@@ -271,6 +272,7 @@ export default function App() {
           <Route path="services" element={<RequirePortal portal="PASSENGER"><ServicesPage /></RequirePortal>} />
           <Route path="login" element={<Login />} />
           <Route path="register" element={<Register />} />
+          <Route path="guest" element={<Guest />} />
           <Route path="mfa" element={<Mfa />} />
           <Route path="first-password" element={<FirstPassword />} />
           <Route path="*" element={<NotFound />} />

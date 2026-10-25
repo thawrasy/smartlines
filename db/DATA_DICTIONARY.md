@@ -2,13 +2,13 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**573 tables, 6095 columns, in 26 schemas.**
+**574 tables, 6122 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
 ## Index
 
-- [`iam` — Identity, parties, users, permissions and API clients](#iam) (46 tables)
+- [`iam` — Identity, parties, users, permissions and API clients](#iam) (47 tables)
 - [`ref` — Reference data, locales and files](#ref) (18 tables)
 - [`sys` — Settings, outbox and webhooks](#sys) (27 tables)
 - [`net` — Network: stations, routes, lines, corridors and geofences](#net) (28 tables)
@@ -128,6 +128,7 @@ Login account; the account kind determines the portal: platform, company, agency
 | `home_company_id` | `bigint` | 🔗 `iam.company`  |  |
 | `password_must_change` | `boolean` | ✱ | `false` |
 | `temp_password_expires_at` | `timestamp with time zone` |  |  |
+| `is_guest` | `boolean` | ✱ | `false` |
 
 ### `iam.auth_token` 🛡️
 
@@ -655,6 +656,7 @@ Unified party: person, company or entity; registered once and holds multiple rol
 | `grandfather_name_latin` | `text` |  |  |
 | `last_name_latin` | `text` |  |  |
 | `names_complete` | `boolean` | ✱ | `false` |
+| `id_expiry` | `date` |  |  |
 
 ### `iam.party_photo` 🛡️
 
@@ -842,6 +844,38 @@ Limits a role to some stations, routes, lines, cities, countries or trip types
 | `role_id` | `bigint` | 🔗 `iam.role` ✱ |  |
 | `scope_type` | `text` | ✱ |  |
 | `scope_value` | `text` | ✱ |  |
+
+### `iam.saved_traveller` 🛡️
+
+Companions a passenger books for again, kept with the passenger's consent; the document number encrypted with a blind index and the last four shown (1153, N18)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `owner_user_id` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `label` | `text` |  |  |
+| `nationality` | `character(2)` | 🔗 `ref.country` ✱ | `'SY'::bpchar` |
+| `first_name` | `text` | ✱ |  |
+| `father_name` | `text` |  |  |
+| `grandfather_name` | `text` |  |  |
+| `last_name` | `text` | ✱ |  |
+| `first_name_latin` | `text` |  |  |
+| `father_name_latin` | `text` |  |  |
+| `grandfather_name_latin` | `text` |  |  |
+| `last_name_latin` | `text` |  |  |
+| `birth_date` | `date` |  |  |
+| `gender` | `text` |  |  |
+| `id_type` | `text` |  |  |
+| `id_no_enc` | `bytea` |  |  |
+| `id_no_bidx` | `bytea` |  |  |
+| `id_no_last4` | `text` |  |  |
+| `id_expiry` | `date` |  |  |
+| `enc_key_id` | `integer` | 🔗 `sec.key_registry`  |  |
+| `consent_at` | `timestamp with time zone` | ✱ | `now()` |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `iam.user_role` 🛡️
 

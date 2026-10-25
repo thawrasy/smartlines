@@ -6,7 +6,7 @@ import { useI18n, type Locale } from "../../i18n";
 import { api, authHeaders } from "../../platform/api";
 import { API_URL } from "../../platform/config";
 import { useAuth } from "../../platform/auth";
-import { Button, Card, Chip, ErrorText, Field, Loading, Screen, Tabs, s, PasswordField } from "../../ui/kit";
+import { Button, Card, Chip, ErrorText, Field, Loading, Notice, Screen, Tabs, s, PasswordField } from "../../ui/kit";
 import { color, font } from "../../ui/theme";
 
 const initials = (name?: string | null) => (name ?? "").trim().split(/\s+/).slice(0, 2).map((w) => w[0] ?? "").join("").toUpperCase() || "·";
@@ -122,6 +122,7 @@ export function AccountBody() {
         </View>
       </View>
       <ErrorText error={error ?? devices.error} />
+      {me?.is_guest ? <Notice text={t("guest.banner")} /> : null}
       <Card>
         <Text style={s.h2}>{t("account.language")}</Text>
         <Tabs items={[{ key: "ar", label: t("account.arabic") }, { key: "en", label: t("account.english") }]} value={locale}
@@ -140,7 +141,7 @@ export function AccountBody() {
           </View>
         ))}
       </Card>
-      {me?.portal === "PASSENGER" ? (
+      {me?.portal === "PASSENGER" && !me.is_guest ? (
         <Card>
           <Text style={s.h2}>{t("account.close")}</Text>
           <Text style={s.small}>{t("account.closeText")}</Text>

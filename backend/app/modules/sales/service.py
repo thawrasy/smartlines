@@ -21,6 +21,7 @@ from ..family import service as fam
 from ..fares import categories as cat
 from ..notify.outbox import emit
 from ..photo import service as photo
+from ..account import travellers as own_tr
 from ..account.names import rules as names_rules
 from ..trips import changes as trip_changes
 from . import charter, documents, options, penalties, repository as repo
@@ -171,9 +172,18 @@ class Traveller:
         return " ".join(p for p in (self.first_name, self.father_name, self.grandfather_name, self.last_name) if p)
 
 
-async def travellers(conn: asyncpg.Connection, ctx: db.Context, body: BookingIn, membership: Optional[fam.Membership]) -> list[Traveller]:
-    """The passengers as booked; a family member's stored identity replaces whatever the form sent for them."""
+async def travellers(conn: asyncpg.Connection, ctx: db.Context, body: BookingIn, membership: Optional[fam.Membership],
+                     buyer: Optional["Buyer"] = None) -> list[Traveller]:
+    """The passengers as booked; a family member's, the account holder's or a saved traveller's stored identity replaces
+    whatever the form sent for them."""
     out, seen = [], set()
+    own = buyer is not None and not (buyer.agency_id or buyer.cash_company_id)
+    if sum(p.self_traveller for p in body.passengers) > 1:
+        raise ApiError(422, "SELF_TWICE", "the account holder is booked twice")
+    if any(p.self_traveller or p.saved_traveller_uid for p in body.passengers) and not own:
+        raise ApiError(422, "OWN_TRAVELLERS_ONLY", "the account holder and saved travellers are booked from the passenger's own account")
+    if own:
+        await _account_required(conn, buyer, body)
     for i, p in enumerate(body.passengers, start=1):
         t = Traveller(i, p.nationality, p.first_name, p.father_name, p.grandfather_name, p.last_name, p.seat_no, p.id_type, p.id_no,
                       p.id_last4, p.passport_expiry, p.birth_date, p.gender, p.mobile, p.category, p.with_adult,
@@ -201,8 +211,33 @@ async def travellers(conn: asyncpg.Connection, ctx: db.Context, body: BookingIn,
             t.mobile = p.mobile or await fam.member_mobile(conn, m)
             if doc:
                 t.id_type, t.id_no, t.passport_expiry = m["id_type"], doc, m["passport_expiry"]
+        elif p.self_traveller or p.saved_traveller_uid:
+            if p.saved_traveller_uid in seen:
+                raise ApiError(422, "DUPLICATE_TRAVELLER", "a saved traveller is booked twice")
+            seen.add(p.saved_traveller_uid)
+            src = await (own_tr.me_for_booking(conn, buyer.party_id) if p.self_traveller
+                         else own_tr.saved_for_booking(conn, buyer.user_id, p.saved_traveller_uid))
+            t.nationality, t.first_name, t.last_name = src["nationality"], src["first_name"], src["last_name"]
+            t.father_name = src["father_name"] or p.father_name
+            t.grandfather_name = src["grandfather_name"] or p.grandfather_name
+            t.latin = tuple(a or b for a, b in zip(src["latin"], t.latin))
+            t.birth_date, t.gender = src["birth_date"] or p.birth_date, src["gender"] or p.gender
+            if src["id_no"] and not p.id_no:
+                t.id_type, t.id_no, t.passport_expiry = src["id_type"], src["id_no"], src["id_expiry"] or p.passport_expiry
         out.append(t)
     return out
+
+
+async def _account_required(conn: asyncpg.Connection, buyer: "Buyer", body: BookingIn) -> None:
+    """A guest books for travellers of any nationality unless the platform asks citizens to hold an account (N18)."""
+    if not await conn.fetchval("SELECT is_guest FROM iam.app_user WHERE id = $1", buyer.user_id):
+        return
+    v = await conn.fetchval("SELECT value FROM sys.setting WHERE key = 'booking.guest'")
+    rule = json.loads(v) if isinstance(v, str) else dict(v or {})
+    if rule.get("account_required_for") == "CITIZENS":
+        country = rule.get("citizen_country", "SY")
+        if any(p.nationality == country for p in body.passengers):
+            raise ApiError(403, "ACCOUNT_REQUIRED", "citizens book from their own account: sign up to continue")
 
 
 async def price(conn: asyncpg.Connection, trip: asyncpg.Record, body: BookingIn, buyer: Buyer, people: list[Traveller],
@@ -292,7 +327,7 @@ async def quote(conn: asyncpg.Connection, ctx: db.Context, body: BookingIn, buye
     if trip is None:
         raise not_found("trip")
     m = await fam.membership(conn, buyer.party_id) if not buyer.agency_id else None
-    people = await travellers(conn, ctx, body, m)
+    people = await travellers(conn, ctx, body, m, buyer)
     travel = await _travel_date(conn, trip["id"], body.from_seq)
     return (await price(conn, trip, body, buyer, people, travel))["breakdown"]
 
@@ -338,7 +373,7 @@ async def create_booking(conn: asyncpg.Connection, ctx: db.Context, buyer: Buyer
             buyer.station_id and await conn.fetchval("SELECT brd.station_may_sell($1, $2, $3)", trip["id"], body.from_seq, buyer.station_id)):
         raise not_found("trip")     # a counter sells its own company's trips; a station counter, those of carriers that let it (1110)
     membership = await fam.membership(conn, buyer.party_id) if not (buyer.agency_id or buyer.cash_company_id) else None
-    people = await travellers(conn, ctx, body, membership)
+    people = await travellers(conn, ctx, body, membership, buyer)
     departs = await _travel_date(conn, trip["id"], body.from_seq)
     q = await price(conn, trip, body, buyer, people, departs)
     seated = [t.seat_no for t in people if t.seat_no is not None]

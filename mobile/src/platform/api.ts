@@ -98,6 +98,19 @@ export async function signIn(who: Credentials, password: string): Promise<LoginR
   return { mfa: data.mfa, passwordChange: !!data.password_change_required };
 }
 
+/** Booking without an account (N18): a code goes to the e-mail. */
+export async function guestStart(email: string, locale: string): Promise<void> {
+  await parse<{ ok: boolean }>(await raw("POST", "/api/auth/guest/start", { email: email.trim(), locale }));
+}
+
+/** The code from the e-mail opens a guest passenger session (N18). */
+export async function guestSignIn(email: string, code: string): Promise<LoginResult> {
+  const r = await raw("POST", "/api/auth/guest/verify", { email: email.trim(), code, device_id: await deviceId(), app_version: "1.0.0" });
+  const data = await parse<{ mfa: LoginResult["mfa"] } & Tokens>(r);
+  await tokenStore.save({ access_token: data.access_token, refresh_token: data.refresh_token, access_expires_at: data.access_expires_at });
+  return { mfa: data.mfa, passwordChange: false };
+}
+
 /** A closed account comes back with the same details (1085); the caller signs in afterwards. */
 export async function reactivate(identifier: string, password: string): Promise<void> {
   await parse<{ ok: boolean }>(await raw("POST", "/api/auth/reactivate", { identifier: identifier.trim(), password }));

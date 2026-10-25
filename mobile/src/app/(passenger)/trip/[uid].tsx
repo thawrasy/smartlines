@@ -5,6 +5,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { randomUUID } from "expo-crypto";
 import { useI18n } from "../../../i18n";
 import { api } from "../../../platform/api";
+import { useAuth } from "../../../platform/auth";
 import { bookingOptions, openPayment, usable as offered, type BookingOption, type PayWith } from "../../../platform/payments";
 import { saveBooking } from "../../../platform/tickets";
 import { BottomBar, Button, Card, CarrierName, Chip, Choice, ErrorText, Field, Loading, Notice, Pill, Screen, Steps, s } from "../../../ui/kit";
@@ -28,11 +29,12 @@ interface Quote { total: number; lines: { passenger: number; category: Category;
                   family_offer?: { name: string; discount: number } }
 interface Names {
   birth_date: string; member_uid: string | null;
+  self: boolean;                                                      // the account holder (N18): the server copies the account's identity
   syrian: boolean; country: string; first_name: string; father_name: string; grandfather_name: string; last_name: string;
   id_type: string; id_no: string; passport_expiry: string;           // international trips
   first_name_latin: string; last_name_latin: string;                  // as in the passport: international trips (N4)
 }
-const blank: Names = { birth_date: "", member_uid: null, syrian: true, country: "", first_name: "", father_name: "", grandfather_name: "", last_name: "",
+const blank: Names = { birth_date: "", member_uid: null, self: false, syrian: true, country: "", first_name: "", father_name: "", grandfather_name: "", last_name: "",
                        id_type: "PASSPORT", id_no: "", passport_expiry: "", first_name_latin: "", last_name_latin: "" };
 // What a nationality needs on this segment: a passport on international trips unless an approved exception applies
 interface Docs { international: boolean; docs: string[]; passport_min_days: number; exception: boolean; notes: string[]; departs: string }
@@ -60,6 +62,15 @@ const fromMember = (m: Member): Names => ({
   first_name: m.first_name, father_name: m.father_name ?? "", grandfather_name: m.grandfather_name ?? "", last_name: m.last_name,
 });
 
+interface MeTraveller { nationality: string; first_name: string | null; father_name: string | null; grandfather_name: string | null;
+                        last_name: string | null; first_name_latin: string | null; last_name_latin: string | null; birth_date: string | null;
+                        names_complete: boolean; has_document: boolean }
+const fromMe = (m: MeTraveller): Names => ({
+  ...blank, self: true, birth_date: m.birth_date ?? "", syrian: m.nationality === "SY", country: m.nationality === "SY" ? "" : m.nationality,
+  first_name: m.first_name ?? "", father_name: m.father_name ?? "", grandfather_name: m.grandfather_name ?? "", last_name: m.last_name ?? "",
+  first_name_latin: m.first_name_latin ?? "", last_name_latin: m.last_name_latin ?? "",
+});
+
 export default function Trip() {
   const { t, money, time } = useI18n();
   const p = useLocalSearchParams<{ uid: string; from_seq: string; to_seq: string; passengers: string; laps?: string; brand?: string; points?: string }>();
@@ -78,6 +89,10 @@ export default function Trip() {
   const [quote, setQuote] = useState<Quote | null>(null);
   const [quoteError, setQuoteError] = useState<unknown>(null);
   const fam = useLoad(() => api.get<Fam>("/api/family").catch(() => ({ role: null }) as Fam));
+  // the traveller "Me" (N18): a full account's own details; a guest types the traveller
+  const { me } = useAuth();
+  const mine = useLoad(() => (me?.is_guest ? Promise.resolve(null)
+    : api.get<MeTraveller>("/api/account/me-traveller").then((m) => (m.names_complete ? m : null)).catch(() => null)), [me?.is_guest]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const idem = useRef(randomUUID());
@@ -109,7 +124,7 @@ export default function Trip() {
   const countries = new Set(ref.data?.countries ?? []);
   const complete = (x?: Names) => !!x && !!x.first_name.trim() && !!x.last_name.trim()
     && (x.syrian ? !!x.father_name.trim() && !!x.grandfather_name.trim() : countries.has(x.country) && x.country !== "SY")
-    && (!!x.member_uid || docOk(x, docs[nat(x)])) && latinOk(x, docs[nat(x)]);   // a family member's stored document is used when none is typed
+    && (!!x.member_uid || (x.self && !!mine.data?.has_document) || docOk(x, docs[nat(x)])) && latinOk(x, docs[nat(x)]);   // a family member's stored document is used when none is typed
 
   const bands = detail.data?.categories ?? [];
   const lapAllowed = bands.some((b) => b.category === "INFANT" && !b.seat_required);
@@ -120,17 +135,18 @@ export default function Trip() {
     const d = docs[nat(x)];
     return { seat_no: seat, nationality: x.syrian ? "SY" : x.country, first_name: x.first_name.trim(), last_name: x.last_name.trim(),
              father_name: x.father_name.trim() || null, grandfather_name: x.grandfather_name.trim() || null,
-             birth_date: x.birth_date || null, family_member_uid: x.member_uid,
+             birth_date: x.birth_date || null, family_member_uid: x.member_uid, ...(x.self ? { self_traveller: true } : {}),
              first_name_latin: x.first_name_latin.trim() || null, last_name_latin: x.last_name_latin.trim() || null,
              ...(d?.international && x.id_no.trim() ? { id_type: x.id_type, id_no: x.id_no.trim(), passport_expiry: x.id_type === "PASSPORT" ? x.passport_expiry : null } : {}) };
   };
   const travellers = () => keys.map((k) => body(names[k] ?? blank, k.startsWith("s") ? Number(k.slice(1)) : null));
-  const quoteKey = hold ? JSON.stringify([keys.map((k) => [k, names[k]?.birth_date, names[k]?.member_uid]), payFrom]) : "";
+  const quoteKey = hold ? JSON.stringify([keys.map((k) => [k, names[k]?.birth_date, names[k]?.member_uid, names[k]?.self]), payFrom]) : "";
   useEffect(() => {
     if (!hold) return;
     const id = setTimeout(() => {
       const ps = keys.map((k) => { const x = names[k] ?? blank;
-        return { seat_no: k.startsWith("s") ? Number(k.slice(1)) : null, nationality: x.syrian ? "SY" : x.country || "SY", birth_date: x.birth_date || null, family_member_uid: x.member_uid }; });
+        return { seat_no: k.startsWith("s") ? Number(k.slice(1)) : null, nationality: x.syrian ? "SY" : x.country || "SY", birth_date: x.birth_date || null, family_member_uid: x.member_uid,
+                 ...(x.self ? { self_traveller: true } : {}) }; });
       api.post<Quote>("/api/bookings/quote", { trip_uid: p.uid, from_seq: Number(p.from_seq), to_seq: Number(p.to_seq), fare_brand: brand, passengers: ps, pay_from: payFrom })
         .then((q) => { setQuote(q); setQuoteError(null); }).catch((e) => { setQuote(null); setQuoteError(e); });
     }, 400);
@@ -142,7 +158,8 @@ export default function Trip() {
     setBusy(true); setError(null);
     try {
       setHold(await api.post("/api/holds", { trip_uid: p.uid, from_seq: Number(p.from_seq), to_seq: Number(p.to_seq), seat_nos: selected }));
-      setNames(Object.fromEntries(selected.map((n) => [`s${n}`, names[`s${n}`] ?? blank])));
+      // the first traveller is the account holder unless the passenger picks someone else
+      setNames(Object.fromEntries(selected.map((n, i) => [`s${n}`, names[`s${n}`] ?? (i === 0 && mine.data ? fromMe(mine.data) : blank)])));
     } catch (e) { setError(e); detail.reload(); } finally { setBusy(false); }
   };
   const pay = async () => {
@@ -248,7 +265,8 @@ export default function Trip() {
               const lap = k.startsWith("l");
               const cat = categoryOf(bands, x.birth_date, travel);
               const taken = new Set(keys.filter((o) => o !== k).map((o) => names[o]?.member_uid).filter(Boolean));
-              const locked = !!x.member_uid;
+              const locked = !!x.member_uid || x.self;
+              const selfTaken = keys.some((o) => o !== k && names[o]?.self);
               const done = complete(x);
               return (
                 <Card key={k}>
@@ -264,12 +282,15 @@ export default function Trip() {
                     )}
                   </View>
                   {lap && i === keys.length - 1 ? <Button kind="text" label={t("common.remove")} onPress={() => setLaps(laps - 1)} /> : null}
-                  {register.length ? (
-                    <Choice label={t("family.pickMember")} value={x.member_uid ?? ""}
-                            options={[{ value: "", label: "—" }, ...register.filter((m) => !taken.has(m.uid)).map((m) => ({ value: m.uid, label: m.full_name }))]}
-                            onChange={(uid) => { const m = register.find((r) => r.uid === uid); set(m ? fromMember(m) : { ...blank }); }} />
+                  {register.length || (mine.data && !lap) ? (
+                    <Choice label={t("trav.fillFrom")} value={x.self ? "me" : x.member_uid ?? ""}
+                            options={[{ value: "", label: mine.data && i === 0 ? t("trav.someoneElse") : "—" },
+                                      ...(mine.data && !lap && !selfTaken ? [{ value: "me", label: t("trav.me") }] : []),
+                                      ...register.filter((m) => !taken.has(m.uid)).map((m) => ({ value: m.uid, label: m.full_name }))]}
+                            onChange={(v) => { const m = register.find((r) => r.uid === v);
+                              setNames({ ...names, [k]: v === "me" && mine.data ? fromMe(mine.data) : m ? fromMember(m) : { ...blank } }); }} />
                   ) : null}
-                  {locked ? <Notice text={t("family.fromRegister")} /> : null}
+                  {locked ? <Notice text={t(x.self ? "trav.fromAccount" : "family.fromRegister")} /> : null}
                   <Field label={`${t("pax.birthDate")} (${t("pax.birthHint")})`} value={x.birth_date} placeholder="YYYY-MM-DD" maxLength={10} editable={!locked}
                          onChangeText={(v) => set({ birth_date: v.trim() })} />
                   <Text style={s.small}>{t("pax.category")}: {cat ? t(`pax.cat.${cat}`) : t("pax.categoryUnknown")}{quote?.lines[i] ? ` · ${money(quote.lines[i].fare)}` : ""}</Text>

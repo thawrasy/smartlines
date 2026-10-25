@@ -1,11 +1,11 @@
 // Signed-in state for the app. The keystore holds the tokens; this context holds only who is signed in.
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { api, ApiError, session, signIn as apiSignIn, signOut as apiSignOut, type Credentials } from "./api";
+import { api, ApiError, guestSignIn, session, signIn as apiSignIn, signOut as apiSignOut, type Credentials } from "./api";
 import { getJSON, putJSON, wipe } from "./secure";
 import { useI18n, type Market } from "../i18n";
 
 export interface Me { uid: string; name: string; email: string | null; portal: string; mfa: { enrolled: boolean; required: boolean };
-                     market?: Market }
+                     market?: Market; is_guest?: boolean }
 type Status = "loading" | "signedOut" | "mfa" | "signedIn";
 export type MfaMethod = "TOTP" | "EMAIL" | "TELEGRAM" | "SMS" | "WHATSAPP";
 
@@ -16,6 +16,8 @@ interface Auth {
   /** Resolves true when the password was a temporary one: the caller asks for the person's own (firstPassword). */
   signIn: (who: Credentials, password: string) => Promise<boolean>;
   firstPassword: (current: string, next: string) => Promise<void>;
+  /** Booking without an account (N18): the e-mailed code signs the guest in. */
+  guest: (email: string, code: string) => Promise<void>;
   verifyMfa: (code: string, method?: MfaMethod | null) => Promise<void>;
   signOut: () => Promise<void>;
   refresh: () => Promise<void>;
@@ -70,6 +72,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (r.mfa) { setMfaStep(r.mfa); setStatus("mfa"); return false; }
       await refresh();
       return false;
+    },
+    guest: async (email, code) => {
+      const r = await guestSignIn(email, code);
+      if (r.mfa) { setMfaStep(r.mfa); setStatus("mfa"); return; }
+      await refresh();
     },
     firstPassword: async (current, next) => {
       await api.post("/api/account/password/first", { current_password: current, new_password: next });

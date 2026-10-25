@@ -105,7 +105,10 @@ export default function Login() {
           </Field>
           <button className="btn large block" disabled={busy}>{t("auth.loginTitle")}</button>
           {door === "individual"
-            ? <p className="center small">{t("auth.noAccount")} <Link to="/register">{t("nav.register")}</Link></p>
+            ? <>
+                <p className="center small">{t("auth.noAccount")} <Link to="/register">{t("nav.register")}</Link></p>
+                <p className="center small"><Link to={`/guest${params.get("next") ? `?next=${encodeURIComponent(params.get("next")!)}` : ""}`}>{t("guest.link")}</Link></p>
+              </>
             : <p className="center small muted">{t("auth.businessHelp")}</p>}
           {SHOW_DEMO && (
             <div className="alert info small" style={{ flexDirection: "column", gap: 6 }}>
