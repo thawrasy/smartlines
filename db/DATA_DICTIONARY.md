@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**585 tables, 6363 columns, in 26 schemas.**
+**589 tables, 6414 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -11,7 +11,7 @@ Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant i
 - [`iam` — Identity, parties, users, permissions and API clients](#iam) (50 tables)
 - [`ref` — Reference data, locales and files](#ref) (23 tables)
 - [`sys` — Settings, outbox and webhooks](#sys) (27 tables)
-- [`net` — Network: stations, routes, lines, corridors and geofences](#net) (30 tables)
+- [`net` — Network: stations, routes, lines, corridors and geofences](#net) (34 tables)
 - [`fleet` — Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance](#fleet) (23 tables)
 - [`pricing` — Pricing, taxes, commissions, campaigns and loyalty](#pricing) (38 tables)
 - [`ops` — Trips, inventory, operations, shuttle rides, tracking and incidents](#ops) (40 tables)
@@ -2153,6 +2153,85 @@ Agreement and licence reference numbers of a carrier (1097); optional until the 
 | `created_by_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `retired_at` | `timestamp with time zone` |  |  |
+
+### `net.road` 🛡️
+
+A numbered road of the roads guide: class, names, regional number, length, how far it is verified (1162, N38)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `code` | `text` | ✱ |  |
+| `road_class` | `text` | ✱ |  |
+| `name_ar` | `text` | ✱ |  |
+| `name_en` | `text` | ✱ |  |
+| `regional_number` | `text` |  |  |
+| `length_km` | `numeric(8,1)` |  |  |
+| `note` | `text` |  |  |
+| `verification_status` | `text` | ✱ | `'OWNER_FILE'::text` |
+| `source_id` | `bigint` | 🔗 `ref.geo_source`  |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `net.road_correction` 🛡️
+
+A correction of the roads guide proposed by a carrier or the platform, reviewed by another person (1162, N38)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `road_id` | `bigint` | 🔗 `net.road` ✱ |  |
+| `point_id` | `bigint` | 🔗 `net.road_point`  |  |
+| `kind` | `text` | ✱ |  |
+| `place_id` | `bigint` | 🔗 `ref.place`  |  |
+| `km_from_previous` | `numeric(7,1)` |  |  |
+| `remark` | `text` | ✱ |  |
+| `company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `status` | `text` | ✱ | `'PENDING'::text` |
+| `proposed_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `proposed_at` | `timestamp with time zone` | ✱ | `now()` |
+| `reviewed_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `reviewed_at` | `timestamp with time zone` |  |  |
+| `review_note` | `text` |  |  |
+
+### `net.road_point` 🛡️
+
+The places along a road in order, with the distance from the point before and from the start (1162, N38)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `road_id` | `bigint` | 🔗 `net.road` ✱ |  |
+| `seq` | `smallint` | ✱ |  |
+| `place_id` | `bigint` | 🔗 `ref.place` ✱ |  |
+| `lat` | `numeric(9,6)` | ✱ |  |
+| `lng` | `numeric(9,6)` | ✱ |  |
+| `km_from_previous` | `numeric(7,1)` | ✱ | `0` |
+| `km_cumulative` | `numeric(8,1)` | ✱ | `0` |
+| `is_border` | `boolean` | ✱ | `false` |
+| `note` | `text` |  |  |
+
+### `net.road_verification` 🛡️
+
+Each step of a road's verification, on a document, asked by one person of the platform and decided by another (1162, N38)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `road_id` | `bigint` | 🔗 `net.road` ✱ |  |
+| `from_status` | `text` | ✱ |  |
+| `to_status` | `text` | ✱ |  |
+| `document_ref` | `text` | ✱ |  |
+| `note` | `text` |  |  |
+| `status` | `text` | ✱ | `'PENDING'::text` |
+| `requested_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `requested_at` | `timestamp with time zone` | ✱ | `now()` |
+| `decided_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `decided_at` | `timestamp with time zone` |  |  |
+| `decision_note` | `text` |  |  |
 
 ### `net.route` 🛡️
 

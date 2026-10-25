@@ -88,8 +88,8 @@ flowchart LR
   iam -->|1| ops
   iam -->|7| ref
   iam -->|2| sec
-  net -->|21| iam
-  net -->|10| ref
+  net -->|23| iam
+  net -->|13| ref
   ops -->|2| fin
   ops -->|10| fleet
   ops -->|26| iam
@@ -1097,6 +1097,37 @@ erDiagram
     text status
     bigint created_by_user_id FK
   }
+  net_road {
+    bigint id PK
+    uuid uid
+    text code
+    bigint source_id FK
+    text status
+  }
+  net_road_correction {
+    bigint id PK
+    uuid uid
+    bigint road_id FK
+    bigint point_id FK
+    bigint place_id FK
+    bigint company_id FK
+    text status
+    bigint proposed_by FK
+    bigint reviewed_by FK
+  }
+  net_road_point {
+    bigint id PK
+    bigint road_id FK
+    bigint place_id FK
+  }
+  net_road_verification {
+    bigint id PK
+    uuid uid
+    bigint road_id FK
+    text status
+    bigint requested_by FK
+    bigint decided_by FK
+  }
   net_route {
     bigint id PK
     uuid uid
@@ -1200,6 +1231,9 @@ erDiagram
   ref_city {
     ref external
   }
+  ref_geo_source {
+    ref external
+  }
   ref_place {
     ref external
   }
@@ -1215,6 +1249,7 @@ erDiagram
   net_station_operator_grant }o..o| iam_app_user : "revoked_by_user_id"
   net_station_screen }o..o| iam_app_user : "updated_by_user_id"
   net_operation_reference }o..o| iam_app_user : "created_by_user_id"
+  net_road_correction }o--|| iam_app_user : "proposed_by"
   net_carrier_code }o--|| iam_company : "company_id"
   net_service_number }o--|| iam_company : "company_id"
   net_station_carrier_bay }o--|| iam_company : "carrier_company_id"
@@ -1227,6 +1262,7 @@ erDiagram
   net_station_gate }o..o| iam_company : "operator_company_id"
   net_station }o..o| iam_company : "owner_company_id"
   net_station_boarding }o..o| iam_company : "manager_company_id"
+  net_road_correction }o..o| iam_company : "company_id"
   net_code_history }o--|| net_code_change : "change_id"
   net_station }o..o| net_compliance_profile : "compliance_profile_id"
   net_approved_rest_stop }o--|| net_corridor : "corridor_id"
@@ -1239,6 +1275,10 @@ erDiagram
   net_line_fare }o--|| net_line_tariff : "tariff_id"
   net_line_version_approval }o--|| net_line_version : "line_version_id"
   net_line_stop }o--|| net_line_version : "line_version_id"
+  net_road_point }o--|| net_road : "road_id"
+  net_road_verification }o--|| net_road : "road_id"
+  net_road_correction }o--|| net_road : "road_id"
+  net_road_correction }o..o| net_road_point : "point_id"
   net_route_stop }o--|| net_route : "route_id"
   net_service_number }o..o| net_route : "route_id"
   net_service_number }o..o| net_service_number : "follows_id"
@@ -1268,8 +1308,11 @@ erDiagram
   net_code_history }o..o| ref_city : "city_id"
   net_code_change }o..o| ref_city : "city_id"
   net_line }o..o| ref_city : "city_id"
+  net_road }o..o| ref_geo_source : "source_id"
   net_code_history }o..o| ref_place : "place_id"
+  net_road_point }o--|| ref_place : "place_id"
   net_code_change }o..o| ref_place : "place_id"
+  net_road_correction }o..o| ref_place : "place_id"
   net_station }o..o| ref_place : "place_id"
   net_station }o--|| ref_station_subtype : "subtype"
 ```

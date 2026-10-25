@@ -189,7 +189,7 @@ async def summary(request: Request, pr: Principal = Depends(require_portal("PLAT
         loads = await conn.fetch(
             """SELECT s.uid, s.publisher, s.content, s.dataset, s.file_name, s.valid_on, s.counts::text AS counts, s.imported_at,
                       u.email AS imported_by
-                 FROM ref.geo_source s LEFT JOIN iam.app_user u ON u.id = s.imported_by ORDER BY s.imported_at DESC LIMIT 20""")
+                 FROM ref.geo_source s LEFT JOIN iam.app_user u ON u.id = s.imported_by WHERE s.content <> 'ROADS' ORDER BY s.imported_at DESC LIMIT 20""")
         cities = await conn.fetch(
             """SELECT c.code, c.name, c.is_active, p.pcode, p.name_ar, c.city_class, ref.city_governorate(c.id) AS governorate,
                       (SELECT count(*) FROM net.station s WHERE s.city_id = c.id) AS stations

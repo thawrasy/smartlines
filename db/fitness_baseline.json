@@ -26,11 +26,8 @@
   "net.station.station_country_code_fkey",
   "net.station.station_verified_by_fkey",
   "net.carrier_code.carrier_code_approved_by_fkey",
-  "acct.cash_box.cash_box_currency_fkey",
+  "fin.payment_provider.payment_provider_updated_by_fkey",
   "fleet.license_record.license_record_verified_by_fkey",
-  "acct.cash_session.cash_session_opened_by_fkey",
-  "acct.cash_payment.cash_payment_currency_fkey",
-  "acct.cash_payment.cash_payment_approved_by_fkey",
   "fleet.license_change_request.license_change_request_requested_by_fkey",
   "fleet.license_change_request.license_change_request_reviewed_by_fkey",
   "fleet.license_change_request.license_change_request_approved_by_fkey",
@@ -52,6 +49,8 @@
   "sales.refund_request.refund_request_requested_by_fkey",
   "ops.trip.trip_currency_fkey",
   "ops.trip_stop_event.trip_stop_event_by_user_id_fkey",
+  "sales.channel_agreement.channel_agreement_created_by_fkey",
+  "sales.channel_agreement.channel_agreement_approved_by_fkey",
   "ops.incident.incident_reported_by_fkey",
   "ops.incident_evidence.incident_evidence_uploaded_by_fkey",
   "ops.trip_disruption.trip_disruption_decided_by_fkey",
@@ -60,7 +59,6 @@
   "sales.passenger.passenger_nationality_fkey",
   "sales.ticket.ticket_trip_id_from_seq_fkey",
   "sales.ticket.ticket_trip_id_to_seq_fkey",
-  "sales.channel_agreement.channel_agreement_created_by_fkey",
   "fin.wallet.wallet_currency_fkey",
   "fin.ledger_txn.ledger_txn_currency_fkey",
   "fin.ledger_txn.ledger_txn_created_by_fkey",
@@ -113,7 +111,6 @@
   "iam.bank_account.bank_account_verified_by_fkey",
   "fin.settlement_batch.settlement_batch_created_by_fkey",
   "iam.document.document_uploaded_by_fkey",
-  "sales.channel_agreement.channel_agreement_approved_by_fkey",
   "iam.party_role.party_role_role_code_fk",
   "ops.trip.trip_trip_type_fk",
   "fleet.vehicle.vehicle_vehicle_class_fk",
@@ -197,17 +194,20 @@
   "brd.manifest_cargo.manifest_cargo_cargo_category_fkey",
   "brd.manifest_discrepancy.manifest_discrepancy_resolved_by_fkey",
   "acct.sales_invoice.sales_invoice_currency_fkey",
-  "taxi.meter_tariff.meter_tariff_currency_fkey",
+  "acct.cash_box.cash_box_currency_fkey",
+  "acct.cash_session.cash_session_opened_by_fkey",
   "acct.cash_receipt.cash_receipt_currency_fkey",
+  "acct.cash_payment.cash_payment_currency_fkey",
+  "acct.cash_payment.cash_payment_approved_by_fkey",
   "acct.sync_conflict.sync_conflict_resolved_by_fkey",
   "acct.export_batch.export_batch_created_by_fkey",
   "sales.channel_inventory_rule.channel_inventory_rule_trip_type_fkey",
-  "taxi.meter_tariff.meter_tariff_approved_by_fkey",
   "sales.channel_statement.channel_statement_currency_fkey",
   "sales.channel_memo.channel_memo_currency_fkey",
   "crm.call_qa.call_qa_scorer_user_id_fkey",
+  "taxi.meter_tariff.meter_tariff_currency_fkey",
   "taxi.taxi_office.taxi_office_city_id_fkey",
-  "rent.rental_booking.rental_booking_currency_fkey",
+  "taxi.meter_tariff.meter_tariff_approved_by_fkey",
   "taxi.taxi_permit.taxi_permit_city_id_fkey",
   "taxi.ride_request.ride_request_city_id_fkey",
   "taxi.ride_request.ride_request_currency_fkey",
@@ -215,12 +215,12 @@
   "rent.rental_rate.rental_rate_currency_fkey",
   "rent.rental_addon.rental_addon_currency_fkey",
   "rent.renter_rule.renter_rule_approved_by_fkey",
+  "rent.rental_booking.rental_booking_currency_fkey",
   "rent.deposit_hold.deposit_hold_currency_fkey",
-  "fin.payment_provider.payment_provider_updated_by_fkey",
   "rpt.report_schedule.report_schedule_locale_fkey",
   "fin.bank_statement_line.bank_statement_line_currency_fkey",
-  "sales.ticket.ticket_passenger_booking_fk",
   "ops.seat_segment.seat_segment_ticket_trip_fk",
+  "sales.ticket.ticket_passenger_booking_fk",
   "fin.payment_method.payment_method_updated_by_fkey",
   "fin.cash_credit_limit.cash_credit_limit_set_by_fkey",
   "fin.cash_remittance.cash_remittance_confirmed_by_fkey",
@@ -796,7 +796,15 @@
    "masslak_api",
    "masslak_app"
   ],
+  "net.decide_road_verification(uuid,boolean,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
   "net.open_station_gate(bigint,text,bigint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "net.propose_road_correction(text,integer,text,text,numeric,text)": [
    "masslak_api",
    "masslak_app"
   ],
@@ -805,6 +813,18 @@
    "masslak_app"
   ],
   "net.remove_station_screen(uuid)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "net.request_road_verification(text,text,text,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "net.review_road_correction(uuid,boolean,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "net.road_recount(bigint)": [
    "masslak_api",
    "masslak_app"
   ],
@@ -855,6 +875,10 @@
   "net.tg_line_permit_active()": [],
   "net.tg_service_number_follows()": [],
   "net.tg_station_manager()": [],
+  "net.trim_road(bigint,integer)": [
+   "masslak_api",
+   "masslak_app"
+  ],
   "net.vehicle_bound_to_line(bigint,bigint,bigint,date)": [
    "masslak_api",
    "masslak_app",

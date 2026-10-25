@@ -102,6 +102,8 @@ const CustomerCharter = lazyNamed(() => import("./pages/charter/Charter"), "Cust
 const CarrierCharter = lazyNamed(() => import("./pages/charter/Charter"), "CarrierCharter");
 const AdminBookingRules = lazyNamed(() => import("./pages/charter/Charter"), "AdminBookingRules");
 const AdminGeography = lazyNamed(() => import("./pages/admin/Geography"), "AdminGeography");
+const AdminRoads = lazyNamed(() => import("./pages/admin/Roads"), "AdminRoads");
+const CarrierRoads = lazyNamed(() => import("./pages/admin/Roads"), "CarrierRoads");
 const AdminPhotoPolicy = lazyNamed(() => import("./pages/admin/PhotoPolicy"), "AdminPhotoPolicy");
 const StationOps = lazy(() => import("./pages/carrier/StationOps"));
 const AdminBoarding = lazy(() => import("./pages/admin/Boarding"));
@@ -152,6 +154,7 @@ function PlatformShell() {
       { to: "/admin/booking", icon: "airport_shuttle", label: t("rules.nav"), show: can("policy.matrix", "report.platform") },
       // governorates to neighbourhoods from the United Nations P-codes, and places opened for routes (1124)
       { to: "/admin/geography", icon: "map", label: t("geo.nav"), show: can("geo.manage") },
+      { to: "/admin/roads", icon: "route", label: t("roads.nav"), show: can("geo.manage") },
       { to: "/security", end: true, icon: "shield", label: t("security.title"), show: can("audit.view", "security.ip_rules") },
       { to: "/security/rules", icon: "block", label: t("security.rules"), show: can("security.ip_rules") },
       { to: "/security/auth", icon: "lock", label: t("security.authEvents"), show: can("audit.view", "security.ip_rules") },
@@ -184,6 +187,7 @@ function CarrierShell() {
       { to: "/carrier/trips", icon: "directions_bus", label: t("carrier.trips") },
       { to: "/carrier/schedules", icon: "event_repeat", label: t("sched.nav"), show: can("trip.publish") },
       { to: "/carrier/routes", icon: "route", label: t("carrier.routes") },
+      { to: "/carrier/roads", icon: "map", label: t("roads.carrierNav") },
       { to: "/carrier/vehicles", icon: "directions_car", label: t("carrier.vehicles") },
       { to: "/carrier/layouts", icon: "event_seat", label: t("layout.title") },
       { to: "/carrier/crew", icon: "badge", label: t("carrier.crew") },
@@ -297,6 +301,7 @@ export default function App() {
           <Route path="carrier/schedules" element={<CarrierSchedules />} />
           <Route path="carrier/kyc" element={<CarrierKyc />} />
           <Route path="carrier/routes" element={<CarrierRoutes />} />
+          <Route path="carrier/roads" element={<CarrierRoads />} />
           <Route path="carrier/vehicles" element={<CarrierVehicles />} />
           <Route path="carrier/layouts" element={<CarrierLayouts />} />
           <Route path="carrier/finance" element={<CompanyFinance />} />
@@ -370,6 +375,7 @@ export default function App() {
           <Route path="admin/schedules" element={<AdminSchedules />} />
           <Route path="admin/booking" element={<AdminBookingRules />} />
           <Route path="admin/geography" element={<AdminGeography />} />
+          <Route path="admin/roads" element={<AdminRoads />} />
           <Route path="admin/photo" element={<AdminPhotoPolicy />} />
           <Route path="admin/kyc" element={<AdminKyc />} />
           <Route path="admin/modules" element={<AdminModules />} />

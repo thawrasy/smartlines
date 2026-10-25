@@ -4074,6 +4074,41 @@ SELECT pg_temp.ok(jsonb_array_length(ref.geo_cascade(NULL, NULL, NULL) -> 'citie
 ROLLBACK;
 SET ROLE masslak_app;
 
+-- Roads guide (1162): roads of places in order, junctions worked out, verification and corrections by another person
+BEGIN;
+RESET ROLE;
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+INSERT INTO ref.admin_area (pcode, country_code, level, name_en, name_ar) VALUES ('SY95', 'SY', 1, 'Road test', 'x') RETURNING id AS rg \gset
+INSERT INTO ref.admin_area (pcode, country_code, level, parent_id, name_en, name_ar) VALUES ('SY9501', 'SY', 2, :rg, 'Road test', 'x') RETURNING id AS rd \gset
+INSERT INTO ref.admin_area (pcode, country_code, level, parent_id, name_en, name_ar) VALUES ('SY950101', 'SY', 3, :rd, 'Road test', 'x') RETURNING id AS rs \gset
+INSERT INTO ref.place (pcode, kind, area_id, name_en, name_ar, lat, lng)
+SELECT 'C9990' || n, 'COMMUNITY', :rs, 'Road place ' || n, 'x', 33 + n * 0.1, 36 + n * 0.1 FROM generate_series(1, 3) n;
+INSERT INTO net.road (code, road_class, name_ar, name_en) VALUES ('S990', 'SECONDARY', 'x road', 'Test road'), ('S991', 'SECONDARY', 'y road', 'Test road 2');
+INSERT INTO net.road_point (road_id, seq, place_id, lat, lng, km_from_previous)
+SELECT r.id, x.seq, p.id, p.lat, p.lng, x.km FROM (VALUES ('S990', 1, 'C99901', 0), ('S990', 2, 'C99902', 12), ('S991', 1, 'C99902', 0), ('S991', 2, 'C99903', 9))
+  AS x(road, seq, place, km) JOIN net.road r ON r.code = x.road JOIN ref.place p ON p.pcode = x.place;
+SELECT net.road_recount(id) FROM net.road WHERE code IN ('S990', 'S991');
+SELECT pg_temp.ok((SELECT road_codes FROM net.road_junction WHERE pcode = 'C99902') = ARRAY['S990', 'S991']
+                  AND (SELECT length_km FROM net.road WHERE code = 'S990') = 12,
+  'Roads guide (1162): a place on two roads is a junction; a road''s length adds up its distances');
+SELECT pg_temp.expect_error($$INSERT INTO net.road_point (road_id, seq, place_id, lat, lng, km_from_previous)
+    SELECT id, 1, (SELECT id FROM ref.place WHERE pcode = 'C99903'), 33, 36, 0 FROM net.road WHERE code = 'S990'$$, 'duplicate key',
+  'Roads guide (1162): one point for each place in a road''s order');
+SELECT net.request_road_verification('S990', 'AUTHORITY_APPROVED', 'Ministry letter 1', NULL) AS rv \gset
+SELECT pg_temp.expect_error(format($$SELECT net.decide_road_verification(%L, true, NULL)$$, :'rv'), 'FOUR_EYES',
+  'Roads guide (1162): who asked to verify a road does not approve it');
+SELECT sys.set_context(:ufin, NULL, 'SYSTEM');
+SELECT net.decide_road_verification(:'rv', true, NULL) AS rvd \gset
+SELECT pg_temp.ok(:'rvd' = 'APPROVED' AND (SELECT verification_status FROM net.road WHERE code = 'S990') = 'AUTHORITY_APPROVED',
+  'Roads guide (1162): another person approves and the road takes the step');
+SELECT net.propose_road_correction('S991', 2, 'DISTANCE', NULL, 11, 'measured again') AS rc \gset
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+SELECT net.review_road_correction(:'rc', true, NULL) AS rcd \gset
+SELECT pg_temp.ok(:'rcd' = 'ACCEPTED' AND (SELECT length_km FROM net.road WHERE code = 'S991') = 11,
+  'Roads guide (1162): an accepted distance correction is applied and the road recounted');
+ROLLBACK;
+SET ROLE masslak_app;
+
 -- Code changes (1161): previewed, approved by another person, cascading, old codes kept; nobody writes a code directly
 BEGIN;
 RESET ROLE;
