@@ -1,0 +1,14 @@
+# Secret scan (wave 7): gitleaks' default rules, with the two places that only look like secrets.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Values that look like keys but are not secrets"
+paths = [
+  # the field keys of the KYC form definition ("key": "expected_trips_week_6m")
+  '''db/schema/1118_company_kyc\.sql''',
+]
+regexes = [
+  # a made-up token in the test that the activity log keeps routes, not paths
+  '''q7Hk2Jx9Lw-ZpVt4rYs8aBcDeFgHiJkL''',
+]
