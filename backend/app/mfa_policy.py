@@ -23,7 +23,7 @@ MESSAGE_METHODS = ("EMAIL", "TELEGRAM", "SMS", "WHATSAPP")    # codes sent to th
 PORTALS = ("PLATFORM", "INSPECTOR", "OPERATOR", "DRIVER", "AGENCY", "STATION", "PASSENGER")
 ALWAYS = ("PLATFORM",)                 # outside the sandbox, whatever the setting says
 CACHE_SECONDS = 30
-DEFAULT = {"methods": ["TOTP", "EMAIL", "TELEGRAM"], "required_portals": ["PLATFORM", "INSPECTOR", "OPERATOR", "DRIVER", "AGENCY", "STATION"],
+DEFAULT = {"methods": ["TOTP", "EMAIL", "TELEGRAM", "WHATSAPP"], "required_portals": ["PLATFORM", "INSPECTOR", "OPERATOR", "DRIVER", "AGENCY", "STATION"],
            "enforce_in_sandbox": False, "code_minutes": 5, "resend_seconds": 60, "sends_per_hour": 5, "step_up_minutes": 10}
 
 

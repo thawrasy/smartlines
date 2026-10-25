@@ -17,7 +17,7 @@
 - `FREIGHT_TRANSPORT.md`: trucks carrying goods and containers inside Syria, to and from the port, in transit and across borders: bills of lading, house bills and containers, consignments, the truck owner's prices, trucks and trailers, transport invoices per bill or container, and consignment notes and TCNs issued by the platform (owner's request, 1131).
 - `TRIP_CHANGES.md`: changes to a scheduled trip that keep its number: another vehicle before or during the trip, a moved departure, passengers moved to another trip before cancelling it, each with a reason from the platform's list; every passenger told, those unreachable listed for a call (owner's request N42, 1148).
 - `SIGNIN_DOORS.md`: two sign-in doors, individuals by e-mail or mobile and businesses by company number and username, with temporary passwords changed at the first sign-in (owner's request N16, 1150).
-- `SECOND_FACTOR.md`: second-factor codes by e-mail and Telegram (linked by a one-time bot link) besides the authenticator app and recovery codes; text and WhatsApp closed until a provider is contracted (owner's request N36, 1151).
+- `SECOND_FACTOR.md`: second-factor codes by e-mail, Telegram (linked by a one-time bot link) and WhatsApp besides the authenticator app and recovery codes; text messages closed until a provider is contracted (owner's request N36, 1151).
 - `COMPANY_KYC.md`: the know-your-customer file of each company on the platform: the form and the standards it follows, its review stages, risk rules, encrypted values, settings and screens (owner's request, 1118).
 
 The web frontend (`frontend/src/theme.css`) uses the same colour roles and radii as `system/tokens.json`.

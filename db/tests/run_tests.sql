@@ -2286,11 +2286,11 @@ ROLLBACK;
 -- 1075: sign-in by several methods, boarding stops, offline packs, late partitions, positions waiting (package C)
 BEGIN;
 SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
-SELECT pg_temp.ok((SELECT value -> 'methods' FROM sys.setting WHERE key = 'auth.mfa') = '["TOTP", "EMAIL", "TELEGRAM"]'::jsonb
+SELECT pg_temp.ok((SELECT value -> 'methods' FROM sys.setting WHERE key = 'auth.mfa') = '["TOTP", "EMAIL", "TELEGRAM", "WHATSAPP"]'::jsonb
   AND (SELECT value -> 'required_portals' FROM sys.setting WHERE key = 'auth.mfa') ? 'DRIVER'
   AND (SELECT bool_and(rls) AND count(*) = 3 FROM sys.v_security_inventory WHERE table_name IN ('iam.mfa_challenge','ops.offline_pack_download','ops.position_backlog'))
   AND (SELECT rls_forced AND NOT reporting_select FROM sys.v_security_inventory WHERE table_name = 'iam.mfa_challenge'),
-  'Sign-in (1075, 1151): the policy opens the app, e-mail and Telegram methods and requires drivers too; codes, packs and waiting positions are row-secured');
+  'Sign-in (1075, 1151, 1152): the policy opens the app, e-mail, Telegram and WhatsApp methods and requires drivers too; codes, packs and waiting positions are row-secured');
 INSERT INTO iam.mfa_factor (user_id, factor_type, label, verified_at) VALUES (:uadmin, 'WHATSAPP', '0111', now()) RETURNING id AS f_wa \gset
 SELECT pg_temp.expect_error(format($$INSERT INTO iam.mfa_factor (user_id, factor_type, label, verified_at) VALUES (%s, 'WHATSAPP', '0222', now())$$, :uadmin),
   'mfa_factor_one_verified', 'Sign-in (1075): one verified factor of each kind per person');
@@ -3879,9 +3879,9 @@ ROLLBACK;
 SET ROLE masslak_app;
 
 -- Second-factor channels (1151): e-mail and Telegram open, text and WhatsApp closed; a Telegram link is kept as a hash
-SELECT pg_temp.ok((SELECT value -> 'methods' ?& ARRAY['TOTP', 'EMAIL', 'TELEGRAM'] AND NOT (value -> 'methods' ?| ARRAY['SMS', 'WHATSAPP'])
+SELECT pg_temp.ok((SELECT value -> 'methods' ?& ARRAY['TOTP', 'EMAIL', 'TELEGRAM', 'WHATSAPP'] AND NOT (value -> 'methods' ? 'SMS')
                      FROM sys.setting WHERE key = 'auth.mfa'),
-  'Second factor (1151): codes by e-mail and Telegram are open; text and WhatsApp wait for a provider');
+  'Second factor (1151, 1152): codes by e-mail, Telegram and WhatsApp are open at launch; text messages wait for a provider');
 BEGIN;
 RESET ROLE;
 SELECT pg_temp.expect_error($$INSERT INTO iam.mfa_factor (user_id, factor_type) VALUES ((SELECT min(id) FROM iam.app_user), 'PIGEON')$$,

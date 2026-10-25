@@ -7,7 +7,8 @@ The second step of sign-in accepts a code from any method the platform opens in 
 | `TOTP` | An authenticator app (Google Authenticator and similar) | yes |
 | `EMAIL` | An e-mail to the account's address, or another address the person gives | yes |
 | `TELEGRAM` | A message from the platform's bot to a chat the person linked | yes |
-| `SMS`, `WHATSAPP` | A text or WhatsApp message | no: opened when a provider is contracted |
+| `WHATSAPP` | A WhatsApp message through the platform's WhatsApp Business account | yes, from the launch (1152) |
+| `SMS` | A text message | no: opened when an SMS provider is contracted |
 | recovery codes | Ten single-use codes given at the first enrolment | always |
 
 A method open in the policy is offered only when the server can deliver on it (`MASSLAK_NOTIFY_EMAIL`,

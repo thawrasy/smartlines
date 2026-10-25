@@ -1,5 +1,5 @@
 """Second-factor channels (owner's request N36, migration 1151): codes by e-mail or by Telegram besides the authenticator
-app and the recovery codes; text and WhatsApp messages stay closed until a provider is contracted."""
+app and the recovery codes. WhatsApp is open at launch (1152); text messages stay closed until a provider is contracted."""
 import re
 import uuid
 
@@ -32,12 +32,12 @@ def age_codes(email: str) -> None:
                   WHERE user_id = (SELECT id FROM iam.app_user WHERE email = $1)""", email)
 
 
-def test_the_policy_opens_email_and_telegram_and_keeps_messages_closed():
+def test_the_policy_opens_email_telegram_and_whatsapp_and_keeps_text_messages_closed():
     email, password = register()
     c, _ = sign_in(email, password)
     methods = c.get("/api/auth/mfa/methods").json()
-    assert {"TOTP", "EMAIL", "TELEGRAM"} <= set(methods["available"])
-    assert not {"SMS", "WHATSAPP"} & set(methods["available"])
+    assert {"TOTP", "EMAIL", "TELEGRAM", "WHATSAPP"} <= set(methods["available"])
+    assert "SMS" not in methods["available"]
     assert methods["telegram_bot"] and methods["account_email"].endswith("@example.com")
     closed = c.post("/api/auth/mfa/enroll", json={"method": "SMS", "mobile": "+963912345678"})
     assert closed.status_code == 409 and closed.json()["error"]["code"] == "MFA_METHOD_OFF"
