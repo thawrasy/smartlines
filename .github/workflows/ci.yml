@@ -270,15 +270,21 @@ jobs:
           else:
               raise SystemExit("the file did not come back with the store")
           EOF
-      # a passive scan of the running site (wave 7): the report is kept with the run; a rule at FAIL stops the build
+      # a passive scan of the running site (wave 7): the report is kept with the run; a rule at FAIL stops the build,
+      # warnings are listed in the report (-I). The image is pinned by digest like every other image.
       - name: Passive security scan of the site (OWASP ZAP baseline)
-        uses: zaproxy/action-baseline@41aee98ebc7cf2802c3beae4e7d4336413a21e43 # v0.9.0
+        run: |
+          mkdir -p zap && chmod 0777 zap
+          docker run --rm --network=host -v "$PWD/zap:/zap/wrk:rw" \
+            ghcr.io/zaproxy/zaproxy:2.16.1@sha256:7840969c7c9fead565bf9734b12f49f6886db90b1d35b1f74d79710bbd081dab \
+            zap-baseline.py -t http://localhost:8077/ -I -r zap-baseline.html -J zap-baseline.json
+      - name: Keep the passive scan's report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          target: http://localhost:8077/
-          cmd_options: -I
-          allow_issue_writing: false
-          fail_action: false
-          artifact_name: zap-baseline
+          name: zap-baseline-report
+          path: zap/zap-baseline.*
+          if-no-files-found: ignore
       - name: Test coverage of the API and the tests, held to its minimums (R-52)
         working-directory: backend
         run: |
