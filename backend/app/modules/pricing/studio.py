@@ -28,7 +28,7 @@ import asyncpg
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field, model_validator
 
-from ... import db, money_mode
+from ... import db, markets, money_mode
 from ...config import get_settings
 from ...deps import Principal, context_for, require_permission
 from ...errors import ApiError, not_found
@@ -327,7 +327,7 @@ class PreviewIn(BaseModel):
     method: Optional[str] = Field(default=None, max_length=40)
     agency_commission_bp: int = Field(default=0, ge=0, le=5000)
     try_ids: list[int] = Field(default_factory=list, max_length=10)     # waiting schemes tried as if in force
-    currency: str = Field(default="SYP", pattern=r"^[A-Z]{3}$")
+    currency: Optional[str] = Field(default=None, pattern=r"^[A-Z]{3}$")   # the country's market currency when not given
 
 
 def _kind(sc: Optional[taxes.Scheme]) -> str:
@@ -348,6 +348,7 @@ async def preview(body: PreviewIn, request: Request, pr: Principal = Depends(_of
     at = datetime.combine(body.at, time(12), tzinfo=timezone.utc) if body.at else None
     async with db.transaction(context_for(request, pr)) as conn:
         no_funds = await money_mode.no_funds(conn)
+        currency = body.currency or (await markets.of_country(conn, body.country)).currency
         tried = await taxes.schemes_by_id(conn, body.try_ids) if body.try_ids else []
         tried_codes = {s.code for s in tried}
 
@@ -380,7 +381,7 @@ async def preview(body: PreviewIn, request: Request, pr: Principal = Depends(_of
             p = await conn.fetchrow("SELECT id, code, adapter, min_amount, max_amount FROM fin.payment_provider WHERE code = $1", body.method)
             if p is None:
                 raise not_found("payment method")
-            pay = await fees.fee_for(conn, dict(p), body.currency, fares_total + fee, None)
+            pay = await fees.fee_for(conn, dict(p), currency, fares_total + fee, None)
         authorities = {r["id"]: r["legal_name"] for r in await conn.fetch(
             "SELECT id, legal_name FROM iam.party WHERE id = ANY($1::bigint[])",
             [t["payable_to_party_id"] for t in ticket_taxes.values() if t["payable_to_party_id"]]
@@ -401,7 +402,7 @@ async def preview(body: PreviewIn, request: Request, pr: Principal = Depends(_of
         {"who": "PAYMENT", "amount": pay["fee"] + pay.get("absorbed", 0)},
     ]
     return {
-        "currency": body.currency, "passengers": n, "fare": body.fare, "fares_total": fares_total,
+        "currency": currency, "passengers": n, "fare": body.fare, "fares_total": fares_total,
         "ticket_net": ticket_net, "ticket_taxes": tax_lines,
         "platform_fee": fee, "platform_fee_net": fee_net, "platform_fee_taxes": fee_tax_lines,
         "payment_fee": pay["fee"], "payment_fee_absorbed": pay.get("absorbed", 0), "payment_fee_label": pay.get("label"),
