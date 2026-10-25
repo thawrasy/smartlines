@@ -18,8 +18,15 @@ ALTER TABLE pricing.loyalty_program ADD COLUMN IF NOT EXISTS unit_en text NOT NU
 ALTER TABLE pricing.loyalty_program ADD COLUMN IF NOT EXISTS unit_ar text CHECK (length(btrim(unit_ar)) BETWEEN 1 AND 30);
 COMMENT ON COLUMN pricing.loyalty_program.unit_en IS 'The unit members see, in English (miles by default; a setting of the platform, 1166)';
 -- Arabic defaults written as escapes: the programme's name and its unit
-UPDATE pricing.loyalty_program SET name_ar = U&'\0623\0645\064A\0627\0644 \0645\0633\0644\0643' WHERE name_ar IS NULL;
-UPDATE pricing.loyalty_program SET unit_ar = U&'\0645\064A\0644' WHERE unit_ar IS NULL;
+-- the defaults sit in functions so the data dictionary stays in English
+CREATE OR REPLACE FUNCTION pricing.default_programme_name_ar() RETURNS text
+LANGUAGE sql IMMUTABLE SET search_path = pg_catalog, pg_temp AS $$ SELECT U&'\0623\0645\064A\0627\0644 \0645\0633\0644\0643' $$;
+CREATE OR REPLACE FUNCTION pricing.default_unit_ar() RETURNS text
+LANGUAGE sql IMMUTABLE SET search_path = pg_catalog, pg_temp AS $$ SELECT U&'\0645\064A\0644' $$;
+ALTER TABLE pricing.loyalty_program ALTER COLUMN name_ar SET DEFAULT pricing.default_programme_name_ar();
+ALTER TABLE pricing.loyalty_program ALTER COLUMN unit_ar SET DEFAULT pricing.default_unit_ar();
+UPDATE pricing.loyalty_program SET name_ar = pricing.default_programme_name_ar() WHERE name_ar IS NULL;
+UPDATE pricing.loyalty_program SET unit_ar = pricing.default_unit_ar() WHERE unit_ar IS NULL;
 
 -- a tier's multiplier on chart miles (benefits.multiplier, 1 when absent)
 CREATE OR REPLACE FUNCTION pricing.tier_multiplier(p_tier bigint) RETURNS numeric

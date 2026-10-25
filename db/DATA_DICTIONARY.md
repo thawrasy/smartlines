@@ -3394,9 +3394,9 @@ Earn and burn partner of the loyalty program (5.13 f); extends the partner regis
 | `expiry_months` | `smallint` | ✱ | `24` |
 | `tax_treatment` | `jsonb` | ✱ | `'{}'::jsonb` |
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
-| `name_ar` | `text` |  |  |
+| `name_ar` | `text` |  | `pricing.default_programme_name_ar()` |
 | `unit_en` | `text` | ✱ | `'miles'::text` |
-| `unit_ar` | `text` |  |  |
+| `unit_ar` | `text` |  | `pricing.default_unit_ar()` |
 
 ### `pricing.loyalty_rule` 🛡️
 
