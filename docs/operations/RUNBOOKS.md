@@ -425,7 +425,9 @@ section.
   2. Run `docker compose exec egress squid -k reconfigure`.
   3. Run the self-test.
 - **Partner webhooks:** the worker writes the domains of active endpoints into the shared list every minute, and Squid
-  rereads it every minute. A newly registered endpoint may miss its first attempt and receive it on the retry.
+  rereads it within a minute of a change. A newly registered endpoint may miss its first attempt and receive it on the
+  retry. Squid is reconfigured only when the list changes: a reconfigure closes and reopens its port for a moment, and
+  a call made then is refused.
 - **Self-test** (after every change and in CI):
   `docker compose exec worker bash /app/deploy/egress/selftest.sh egress:3128 <an allowlisted domain>`.
   Metadata, private, loopback, a name resolving to loopback, IPv6 loopback, IPv4-mapped IPv6, an unlisted name and plain

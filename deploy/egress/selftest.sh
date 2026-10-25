@@ -8,9 +8,16 @@ fail=0
 probe() {   # method target expected
   local code
   code=$(python3 - "$PROXY" "$1" "$2" <<'PY'
-import socket, sys
+import socket, sys, time
 host, port = sys.argv[1].rsplit(":", 1)
-s = socket.create_connection((host, int(port)), timeout=15)
+for attempt in range(5):        # a reconfigure (the lists changed) closes the port for a moment; the answer is not retried
+    try:
+        s = socket.create_connection((host, int(port)), timeout=15)
+        break
+    except ConnectionRefusedError:
+        if attempt == 4:
+            raise
+        time.sleep(2)
 s.sendall(f"{sys.argv[2]} {sys.argv[3]} HTTP/1.1\r\nHost: probe\r\n\r\n".encode())
 print((s.recv(200).split(b"\r\n", 1)[0].split() + [b"", b"000"])[1].decode())
 PY
