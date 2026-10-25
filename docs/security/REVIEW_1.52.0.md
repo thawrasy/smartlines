@@ -21,7 +21,7 @@ the owner's approval. This note records what was checked, what was found and fix
 | Foreign keys without an index | `db/tools/fitness.py` | 251 of 1822 on a clean build, all in the accepted baseline, which only shrinks; no new one |
 | Browser code | `dangerouslySetInnerHTML`, `eval`, `console.log` in web and mobile | One use, for the built-in icon set (no outside text) |
 | Server-side calls | `subprocess`, `shell=True`, disabled certificate checks | None |
-| Full suite on a fresh database | 951 backend tests, 1132 database checks | **Finding 3** |
+| Full suite on a fresh database | The backend tests and the database checks | **Finding 3** |
 | Production installation | The CI job that installs the production profile | **Finding 4** |
 | Screens | Accessibility, direction and language, sideways scrolling, in both languages and both screen sizes (292 page views) | No critical or serious finding |
 
@@ -59,6 +59,12 @@ the owner's approval. This note records what was checked, what was found and fix
   (`MASSLAK_UI_STATION`). CI gives one, so they are checked there.
 * N46 (station screens over the network) is deferred by the owner until the waves are finished.
 * Server hardening of SSH is planned for wave 9, with the owner present.
+
+## Result
+
+After the four fixes, on a fresh database: 963 backend tests pass (18 skipped by design), 1132 database checks pass, and
+the screen checks report no critical or serious finding. CI is green on the same code, the production installation job
+included.
 
 ## Release
 
