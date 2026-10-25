@@ -65,10 +65,11 @@ def test_the_owner_file_is_checked_whole_and_loaded(guide):
     assert _load(admin, b"not a workbook").json()["error"]["code"] == "ROADS_FILE_FORMAT"
     assert login("owner@carrier.test", "OPERATOR").post("/api/admin/roads/import", files={"file": ("r.xlsx", b"x", "application/octet-stream")}).status_code == 403
 
-    r = _load(admin, roads_workbook(roads, "first"))
+    first = roads_workbook(roads, "first")   # built once: a workbook records when it was saved, so a rebuild is another file
+    r = _load(admin, first)
     assert r.status_code == 200, r.text
     assert r.json()["counts"]["roads"] == 2 and r.json()["counts"]["points"] == 5
-    assert _load(admin, roads_workbook(roads, "first")).json()["already_loaded"] is True
+    assert _load(admin, first).json()["already_loaded"] is True
     listed = {x["code"]: x for x in admin.get("/api/geo/roads").json()["roads"]}
     assert listed[a]["road_class"] == "SECONDARY" and listed[a]["points"] == 3 and float(listed[a]["length_km"]) == 350
     assert listed[a]["verification_status"] == "OWNER_FILE" and listed[a]["governorates"] == ["SY01", "SY02"]

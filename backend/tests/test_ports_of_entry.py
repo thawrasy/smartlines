@@ -81,10 +81,11 @@ def test_the_owner_file_is_checked_whole_and_loaded(ports):
     assert "no active place C0001" in _load(admin, ports_workbook(unknown)).json()["error"]["message"]
     assert not owner_sql("SELECT count(*) FROM net.port_of_entry WHERE code = ANY($1::text[])", [land, remote, air])
 
-    r = _load(admin, ports_workbook(rows))
+    data = ports_workbook(rows)          # built once: a workbook records when it was saved, so a rebuild is another file
+    r = _load(admin, data)
     assert r.status_code == 200, r.text
     assert r.json()["counts"]["added"] == 3 and r.json()["counts"]["by_kind"]["LAND_BORDER"] == 2
-    assert _load(admin, ports_workbook(rows)).json()["already_loaded"] is True       # the same file twice changes nothing
+    assert _load(admin, data).json()["already_loaded"] is True       # the same file twice changes nothing
     public = {p["code"]: p for p in client().get("/api/geo/ports").json()["ports"]}
     assert public[land]["counterpart_country"] == "LB" and public[land]["governorate"] == "SY01"
     assert public[remote]["lat"] is None and public[air]["kind"] == "INTL_AIRPORT"
