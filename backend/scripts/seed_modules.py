@@ -584,17 +584,27 @@ async def main():
     s.passenger = await conn.fetchval("SELECT party_id FROM iam.app_user WHERE email = 'passenger@masslak.test'")
     if s.company is None or s.passenger is None:
         sys.exit("run seed_demo.py first")
-    if await conn.fetchval("SELECT count(*) FROM ship.shipment") > 0:
-        print("module demo data already present")
-        return
-    city = await conn.fetchval("SELECT id FROM ref.city WHERE code = 'DAM'")
+    # the border crossings, each in its own city: Jdeidet Yabous lies in Rif Dimashq; Nasib is named after the border
+    # village of Nasib in Daraa governorate, and takes the village as its place once the geography holds it. Placed on
+    # every run, so a demo database seeded with the crossings under Damascus is corrected.
     s.named["border"] = []
-    for code, name, lat, lng in (("SY-DAM-X901", "Jdeidet Yabous crossing", 33.6330, 36.0750),
-                                  ("SY-DRA-X902", "Nasib crossing", 32.5450, 36.2050)):
+    for code, city_code, village, name, lat, lng in (
+            ("SY-DAM-X901", "RDM", None, "Jdeidet Yabous crossing", 33.6330, 36.0750),
+            ("SY-DRA-X902", "DRA", "Nasib", "Nasib crossing", 32.5450, 36.2050)):
+        city = await conn.fetchval("SELECT id FROM ref.city WHERE code = $1", city_code)
+        place = village and await conn.fetchval(
+            """SELECT p.id FROM ref.place p JOIN ref.admin_area a ON a.id = p.area_id
+                WHERE p.name_en = $1 AND p.status = 'ACTIVE' AND left(a.pcode, 4) = ref.city_governorate($2) LIMIT 1""",
+            village, city)
         sid = await conn.fetchval("SELECT id FROM net.station WHERE code = $1", code) or await conn.fetchval(
             """INSERT INTO net.station (code, city_id, country_code, station_class, subtype, name, lat, lng, status)
                VALUES ($1, $2, 'SY', 'CENTRAL', 'BORDER', $3, $4, $5, 'ACTIVE') RETURNING id""", code, city, name, lat, lng)
+        await conn.execute("UPDATE net.station SET city_id = $2, place_id = coalesce($3, place_id) WHERE id = $1",
+                           sid, city, place or None)
         s.named["border"].append(sid)
+    if await conn.fetchval("SELECT count(*) FROM ship.shipment") > 0:
+        print("module demo data already present")
+        return
     s.named["border2"] = list(reversed(s.named["border"]))
     admin = await conn.fetchval("SELECT id FROM iam.app_user WHERE email = 'admin@masslak.test'")
     s.named["companies"] = [s.company]
