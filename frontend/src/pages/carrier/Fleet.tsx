@@ -38,6 +38,8 @@ export function CarrierFleet() {
   const [addingTrailer, setAddingTrailer] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
   const [tab, setTab] = useState<"fleet" | "rentals">("fleet");
+  const [q, setQ] = useState("");
+  const [limit, setLimit] = useState(50);
   const lines = opts.data?.lines ?? [];
   return (
     <div className="stack">
@@ -56,11 +58,16 @@ export function CarrierFleet() {
       {tab === "rentals" ? <RentalDesk /> : <Loaded state={units}>{({ vehicles, trailers }) => {
         const counts: Record<string, number> = {};
         vehicles.forEach((v) => { counts[v.fleet_use] = (counts[v.fleet_use] ?? 0) + 1; });
-        const shown = filter === "ALL" ? vehicles : filter === "TRAILERS" ? [] : vehicles.filter((v) => v.fleet_use === filter);
+        const term = q.trim().toLowerCase();
+        const matching = (filter === "ALL" ? vehicles : filter === "TRAILERS" ? [] : vehicles.filter((v) => v.fleet_use === filter))
+          .filter((v) => !term || `${v.plate_no} ${v.make ?? ""} ${v.model ?? ""}`.toLowerCase().includes(term));
+        const shown = matching.slice(0, limit);
         return (<>
           <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
-            <button className={`btn small ${filter === "ALL" ? "" : "tonal"}`} onClick={() => setFilter("ALL")}>{t("fl.all")} ({vehicles.length})</button>
-            {Object.keys(counts).map((u) => <button key={u} className={`btn small ${filter === u ? "" : "tonal"}`} onClick={() => setFilter(u)}>
+            <input className="input" style={{ width: 220, maxWidth: "100%" }} aria-label={t("common.search")} placeholder={t("fl.searchPlate")}
+                   value={q} onChange={(e) => { setQ(e.target.value); setLimit(50); }} />
+            <button className={`btn small ${filter === "ALL" ? "" : "tonal"}`} onClick={() => { setFilter("ALL"); setLimit(50); }}>{t("fl.all")} ({vehicles.length})</button>
+            {Object.keys(counts).map((u) => <button key={u} className={`btn small ${filter === u ? "" : "tonal"}`} onClick={() => { setFilter(u); setLimit(50); }}>
               <Icon name={USE_ICON[u] ?? "directions_car"} />{t(`fl.use.${u}`)} ({counts[u]})</button>)}
             {trailers.length > 0 && <button className={`btn small ${filter === "TRAILERS" ? "" : "tonal"}`} onClick={() => setFilter("TRAILERS")}>
               <Icon name="rv_hookup" />{t("fl.trailers")} ({trailers.length})</button>}
@@ -75,13 +82,16 @@ export function CarrierFleet() {
                   <td className="small"><Icon name={USE_ICON[v.fleet_use] ?? "directions_car"} /> {t(`fl.use.${v.fleet_use}`)}</td>
                   <td className="small">{[v.make, v.model, v.manufacture_year].filter(Boolean).join(" ") || "—"}
                     {v.colour && <span className="muted"> · {v.colour}</span>}</td>
-                  <td className="num">{v.odometer_km != null ? v.odometer_km.toLocaleString() : "—"}</td>
+                  <td className="num">{v.odometer_km != null ? v.odometer_km.toLocaleString("en-US") : "—"}</td>
                   <td className="small">{v.insured_until ? <>{v.insurer ?? ""}<div className="muted">{date(v.insured_until)}</div></> : <span className="chip red">{t("fl.noInsurance")}</span>}</td>
                   <td className="small">{v.next_expiry ? date(v.next_expiry) : "—"}</td>
                   <td><Status value={v.status} />{v.service_due && <div><span className="chip red small">{t("fl.serviceDue")}</span></div>}</td>
                   <td><button className="btn text small" onClick={() => setOpen(v.uid)}><Icon name="open_in_new" />{t("fl.details")}</button></td>
                 </tr>))}</tbody>
-            </table></div>)}</div>}
+            </table></div>)}
+            {matching.length > shown.length && <div className="row" style={{ justifyContent: "center", marginTop: 12 }}>
+              <button className="btn tonal" onClick={() => setLimit(limit + 50)}>{t("fl.more", { shown: shown.length, total: matching.length })}</button></div>}
+          </div>}
           {(filter === "ALL" || filter === "TRAILERS") && trailers.length > 0 && <TrailerTable trailers={trailers} onChanged={units.reload} />}
         </>);
       }}</Loaded>}
@@ -253,7 +263,7 @@ function TrailerTable({ trailers, onChanged }: { trailers: Trailer[]; onChanged:
           <th>{t("fl.insurance")}</th><th>{t("fl.nextExpiry")}</th><th>{t("common.status")}</th><th>{t("common.actions")}</th></tr></thead>
         <tbody>{trailers.map((x) => (
           <tr key={x.uid}><td className="ltr"><b>{x.plate_no}</b></td><td className="small">{t(`fl.tt.${x.trailer_type}`)} · {x.axles} {t("fl.axleShort")}</td>
-            <td className="num">{x.payload_kg.toLocaleString()}</td><td className="ltr small">{x.head_plate ?? "—"}</td>
+            <td className="num">{x.payload_kg.toLocaleString("en-US")}</td><td className="ltr small">{x.head_plate ?? "—"}</td>
             <td className="small">{x.insured_until ? date(x.insured_until) : "—"}</td><td className="small">{x.next_expiry ? date(x.next_expiry) : "—"}</td>
             <td><Status value={x.status} /></td>
             <td><button className="btn text small" onClick={() => { setError(null); setEdit(x); setF({ plate_no: x.plate_no, reason: "" }); }}><Icon name="edit" />{t("edit.edit")}</button></td></tr>))}</tbody>
@@ -321,7 +331,7 @@ function VehicleFile({ uid, trailers, onClose }: { uid: string; trailers: Traile
               <Fact label={t("common.status")}><Status value={d.vehicle.status} /></Fact>
               <Fact label={t("fl.vehicle")}>{[d.vehicle.make, d.vehicle.model, d.vehicle.manufacture_year].filter(Boolean).join(" ") || "—"}</Fact>
               <Fact label={t("fl.chassis")}><span className="ltr">{d.vehicle.chassis_no}</span></Fact>
-              <Fact label={t("fl.odometer")}>{d.vehicle.odometer_km?.toLocaleString() ?? "—"}</Fact>
+              <Fact label={t("fl.odometer")}>{d.vehicle.odometer_km?.toLocaleString("en-US") ?? "—"}</Fact>
               <Fact label={t("vm.fuel")}>{d.vehicle.fuel_type ? t(`vm.fuels.${d.vehicle.fuel_type}`) : "—"}</Fact>
               <Fact label={t("fl.colour")}>{d.vehicle.colour ?? "—"}</Fact>
             </div>
@@ -349,9 +359,9 @@ function VehicleFile({ uid, trailers, onClose }: { uid: string; trailers: Traile
               <div className="table-wrap" tabIndex={0}><table className="table"><thead><tr><th>{t("fl.planKind")}</th><th>{t("fl.every")}</th><th>{t("fl.last")}</th><th>{t("fl.next")}</th><th>{t("common.status")}</th></tr></thead>
                 <tbody>{d.service_plans.map((p) => <tr key={p.uid}>
                   <td>{t(`fl.plan.${p.kind}`)}{p.provider && <div className="small muted">{p.provider} · {p.contract_no}</div>}</td>
-                  <td className="small">{[p.every_km ? `${p.every_km.toLocaleString()} ${t("fl.km")}` : null, p.every_months ? t("fl.months", { n: p.every_months }) : null].filter(Boolean).join(" / ") || "—"}</td>
-                  <td className="small">{p.last_km?.toLocaleString() ?? "—"} · {p.last_date ? date(p.last_date) : "—"}</td>
-                  <td className="small">{p.next_km?.toLocaleString() ?? ""} {p.next_date ? date(p.next_date) : ""}{p.due && <div><span className="chip red small">{t("fl.serviceDue")}</span></div>}</td>
+                  <td className="small">{[p.every_km ? `${p.every_km.toLocaleString("en-US")} ${t("fl.km")}` : null, p.every_months ? t("fl.months", { n: p.every_months }) : null].filter(Boolean).join(" / ") || "—"}</td>
+                  <td className="small">{p.last_km?.toLocaleString("en-US") ?? "—"} · {p.last_date ? date(p.last_date) : "—"}</td>
+                  <td className="small">{p.next_km?.toLocaleString("en-US") ?? ""} {p.next_date ? date(p.next_date) : ""}{p.due && <div><span className="chip red small">{t("fl.serviceDue")}</span></div>}</td>
                   <td>{p.status === "ACTIVE" ? <button className="btn text small" disabled={busy} onClick={() => run(() => api.patch(`/api/fleet/service-plans/${p.uid}`, { status: "ENDED" }))}>{t("fl.endPlan")}</button>
                     : <Status value={p.status} />}</td></tr>)}</tbody></table></div>)}
             <h4>{t("fl.addPlan")}</h4>
@@ -396,7 +406,7 @@ function VehicleFile({ uid, trailers, onClose }: { uid: string; trailers: Traile
               <div className="table-wrap" tabIndex={0}><table className="table"><thead><tr><th>{t("fl.visitKind")}</th><th>{t("fl.workshop")}</th><th>{t("fl.sentAt")}</th><th>{t("fl.backAt")}</th><th>{t("fl.odometer")}</th><th>{t("fl.cost")}</th></tr></thead>
                 <tbody>{d.maintenance.map((m) => <tr key={m.uid}><td>{t(`fl.plan.${m.kind}`)}</td><td className="small">{m.workshop ?? "—"}</td><td className="small">{dateTime(m.sent_at)}</td>
                   <td className="small">{m.returned_at ? dateTime(m.returned_at) : <span className="chip red small">{t("fl.inside")}</span>}</td>
-                  <td className="num small">{m.odometer_out ?? "—"} → {m.odometer_in ?? "—"}</td><td className="num small">{m.cost?.toLocaleString() ?? "—"}</td></tr>)}</tbody></table></div>)}
+                  <td className="num small">{m.odometer_out ?? "—"} → {m.odometer_in ?? "—"}</td><td className="num small">{m.cost?.toLocaleString("en-US") ?? "—"}</td></tr>)}</tbody></table></div>)}
           </>}
           {tab === "trailer" && <>
             {d.coupling ? <div className="card flat"><b><Icon name="rv_hookup" /> {t("fl.pulling", { plate: d.coupling.trailer_plate })}</b>
@@ -459,7 +469,7 @@ function RentalDesk() {
               <td className="small">{dateTime(r.starts_at)}<div className="muted">{dateTime(r.ends_at)}</div></td>
               <td className="ltr small">{r.plate_no ?? "—"}<div className="muted">{r.rental_class}</div></td>
               <td className="small">{r.unlimited_km ? t("fl.unlimited") : r.km_included_per_day ? t("fl.perDay", { km: r.km_included_per_day, price: money(r.extra_km_price ?? 0, true, r.currency) }) : "—"}</td>
-              <td className="small">{r.km_out != null ? `${r.km_out.toLocaleString()} → ${r.km_in?.toLocaleString() ?? "…"}` : "—"}
+              <td className="small">{r.km_out != null ? `${r.km_out.toLocaleString("en-US")} → ${r.km_in?.toLocaleString("en-US") ?? "…"}` : "—"}
                 {r.extra ? <div className="chip red small">+{r.extra} {t("fl.km")}</div> : null}</td>
               <td className="num">{money(r.final_amount ?? r.quoted_total, true, r.currency)}</td>
               <td><Status value={r.status} /></td>

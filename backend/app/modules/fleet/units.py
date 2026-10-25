@@ -108,9 +108,14 @@ async def units(request: Request, pr: Principal = Depends(operator)):
                       v.passenger_seats, v.cargo_capacity_kg, v.odometer_km, v.status, v.block_reason,
                       (SELECT min(l.expiry_date) FROM fleet.license_record l
                         WHERE l.subject_type = 'VEHICLE' AND l.subject_id = v.id AND l.status <> 'SUSPENDED') AS next_expiry,
-                      (SELECT max(upper(p.period)) FROM fleet.insurance_policy p WHERE p.vehicle_id = v.id AND p.status = 'VALID') AS insured_until,
-                      (SELECT i.name_en FROM fleet.insurance_policy p JOIN ref.insurer i ON i.id = p.insurer_id
-                        WHERE p.vehicle_id = v.id AND p.status = 'VALID' ORDER BY upper(p.period) DESC LIMIT 1) AS insurer,
+                      -- a policy, or for vehicles entered before 1173 the insurance licence they were registered with
+                      coalesce((SELECT max(upper(p.period)) FROM fleet.insurance_policy p WHERE p.vehicle_id = v.id AND p.status = 'VALID'),
+                               (SELECT max(l.expiry_date) FROM fleet.license_record l WHERE l.subject_type = 'VEHICLE'
+                                   AND l.subject_id = v.id AND l.license_type = 'INSURANCE' AND l.status <> 'SUSPENDED')) AS insured_until,
+                      coalesce((SELECT i.name_en FROM fleet.insurance_policy p JOIN ref.insurer i ON i.id = p.insurer_id
+                                 WHERE p.vehicle_id = v.id AND p.status = 'VALID' ORDER BY upper(p.period) DESC LIMIT 1),
+                               (SELECT l.issuer FROM fleet.license_record l WHERE l.subject_type = 'VEHICLE' AND l.subject_id = v.id
+                                   AND l.license_type = 'INSURANCE' ORDER BY l.expiry_date DESC LIMIT 1)) AS insurer,
                       (SELECT bool_or(d.due) FROM fleet.service_plan p, fleet.service_due(p, v.odometer_km) d
                         WHERE p.vehicle_id = v.id AND p.status = 'ACTIVE') AS service_due,
                       (SELECT t.plate_no FROM fleet.truck_combination c JOIN fleet.trailer t ON t.id = c.trailer_id

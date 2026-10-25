@@ -1223,6 +1223,7 @@ const en = {
            OTHER: "Other licence" },
   },
   fl: {
+    searchPlate: "Search by plate or model", more: "Show more ({shown} of {total})",
     nav: "Fleet", title: "Fleet", sub: "Every vehicle of the company in one place: buses, trucks and their trailers, rental cars and taxis, as the contract allows.",
     add: "Add a vehicle", addTrailer: "Add a trailer", contract: "The contract covers", all: "All", trailers: "Trailers", details: "File",
     plate: "Plate", plateCountry: "Plate country", kind: "Kind", vehicle: "Vehicle", odometer: "Odometer (km)", insurance: "Insurance",

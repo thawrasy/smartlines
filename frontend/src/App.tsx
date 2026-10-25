@@ -214,7 +214,7 @@ function CarrierShell() {
       { to: "/carrier/routes", group: "network", icon: "route", label: t("carrier.routes") },
       { to: "/carrier/roads", group: "network", icon: "map", label: t("roads.carrierNav") },
       { to: "/carrier/fleet", group: "fleet", icon: "garage", label: t("fl.nav"), show: can("vehicle.manage") },
-      { to: "/carrier/vehicles", group: "fleet", icon: "directions_car", label: t("carrier.vehicles") },
+      { to: "/carrier/vehicles", group: "fleet", icon: "directions_car", label: t("carrier.vehicles"), show: !can("vehicle.manage") },
       { to: "/carrier/layouts", group: "fleet", icon: "event_seat", label: t("layout.title") },
       { to: "/carrier/placards", group: "fleet", icon: "qr_code_2", label: t("plc.nav"), show: can("vehicle.placard") },
       { to: "/carrier/crew", group: "fleet", icon: "badge", label: t("carrier.crew") },
