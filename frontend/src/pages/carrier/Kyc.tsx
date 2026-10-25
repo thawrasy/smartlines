@@ -45,11 +45,16 @@ export function KycDocuments({ docs, link }: { docs: KycDocument[]; link?: strin
   );
 }
 
-export function CarrierKyc() {
+// The same page for carriers, agencies and station operating companies (1159, N14): each fills the form of its kind
+export const CarrierKyc = () => <CompanyKyc base="/api/carrier" docs="/carrier/documents" />;
+export const AgencyKyc = () => <CompanyKyc base="/api/agency" docs="/agency/documents" />;
+export const StationKyc = () => <CompanyKyc base="/api/station" docs="/station/documents" />;
+
+function CompanyKyc({ base, docs }: { base: string; docs: string }) {
   const { t, date, dateTime } = useI18n();
   const text = useKycText();
   const toast = useToast();
-  const state = useLoad(() => api.get<View>("/api/carrier/kyc"));
+  const state = useLoad(() => api.get<View>(`${base}/kyc`));
   const [answers, setAnswers] = useState<Answers>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [missing, setMissing] = useState<string[] | null>(null);
@@ -63,13 +68,13 @@ export function CarrierKyc() {
     setBusy(true); setError(null);
     try { await fn(); if (ok) toast(ok); return true; } catch (e) { setError(e); return false; } finally { setBusy(false); }
   };
-  const open = () => run(async () => { await api.post("/api/carrier/kyc/open"); state.reload(); });
+  const open = () => run(async () => { await api.post(`${base}/kyc/open`); state.reload(); });
   const save = async (quiet = false) => {
     const file = state.data!.file!;
     let ok = false;
     await run(async () => {
       try {
-        const out = await api.put<{ completeness: number; missing: string[]; answers: Answers }>(`/api/carrier/kyc/${file.uid}`, { answers });
+        const out = await api.put<{ completeness: number; missing: string[]; answers: Answers }>(`${base}/kyc/${file.uid}`, { answers });
         setAnswers(out.answers); setErrors({}); setDirty(false); setMissing(out.missing); ok = true;
         if (!quiet) toast(t("kyc.saved", { n: out.completeness }));
       } catch (e) {
@@ -83,7 +88,7 @@ export function CarrierKyc() {
     if (dirty && !(await save(true))) return;
     await run(async () => {
       try {
-        await api.post(`/api/carrier/kyc/${state.data!.file!.uid}/submit`);
+        await api.post(`${base}/kyc/${state.data!.file!.uid}/submit`);
         toast(t("kyc.submitted")); setMissing(null); state.reload();
       } catch (e) {
         if (e instanceof ApiError && e.code === "KYC_INCOMPLETE") setMissing((e.details?.missing as string[]) ?? []);
@@ -160,7 +165,7 @@ export function CarrierKyc() {
             {def.sections.map((s) => (
               <section key={s.key} id={`kyc-s-${s.key}`} className="card stack" aria-labelledby={`kyc-h-${s.key}`}>
                 <h2 id={`kyc-h-${s.key}`} style={{ margin: 0, fontSize: 18 }}>{text.section(s)}</h2>
-                {s.key === "ownership" && <p className="small muted" style={{ margin: 0 }}>{t("kyc.uboThreshold", { n: v.ubo_threshold_pct })}</p>}
+                {s.key === "ownership" && s.fields.some((x) => x.key === "ubos") && <p className="small muted" style={{ margin: 0 }}>{t("kyc.uboThreshold", { n: v.ubo_threshold_pct })}</p>}
                 <KycSectionView section={s} def={def} answers={editable ? answers : f.answers} readOnly={!editable}
                                 onChange={(a) => { setAnswers(a); setDirty(true); }} errors={errors} missing={shownMissing}
                                 highlight={f.status === "RETURNED" ? f.return_fields : []} />
@@ -171,7 +176,7 @@ export function CarrierKyc() {
               <h2 id="kyc-h-docs" style={{ margin: 0, fontSize: 18 }}>{t("kyc.documents")}</h2>
               <p className="small muted" style={{ margin: 0 }}>{t("kyc.documentsHint")}</p>
               {docsMissing.length > 0 && <div className="alert warn"><Icon name="warning" /><span>{t("kyc.docsMissing", { n: docsMissing.length })}</span></div>}
-              <KycDocuments docs={v.documents} link="/carrier/documents" />
+              <KycDocuments docs={v.documents} link={docs} />
             </section>
 
             {editable && (

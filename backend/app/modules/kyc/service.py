@@ -44,9 +44,10 @@ def option_values(definition: dict, name: str) -> set[str]:
     return {o["value"] if isinstance(o, dict) else o for o in definition.get("option_sets", {}).get(name, [])}
 
 
-def aad(company_id: int, field: str, column: str | None = None) -> str:
-    """The associated data of a sensitive value: copied to another company or field, it no longer decrypts."""
-    return f"iam.company_kyc:{company_id}:{field}" + (f".{column}" if column else "")
+def aad(company_id: int, field: str, column: str | None = None, table: str = "iam.company_kyc") -> str:
+    """The associated data of a sensitive value: copied to another company (or person) or field, it no longer decrypts.
+    A person's file (1159) binds its values to the person in iam.person_kyc."""
+    return f"{table}:{company_id}:{field}" + (f".{column}" if column else "")
 
 
 def _empty(v: Any) -> bool:
@@ -132,7 +133,7 @@ def _seal(fc: crypto.FieldCipher, v: Any, where: str) -> dict:
     return {"$enc": base64.b64encode(sealed.ciphertext).decode(), "$k": sealed.key_id, "$last4": crypto.last4(v)}
 
 
-def clean(definition: dict, answers: dict, company_id: int, fc: crypto.FieldCipher) -> dict:
+def clean(definition: dict, answers: dict, company_id: int, fc: crypto.FieldCipher, table: str = "iam.company_kyc") -> dict:
     """The answers that fit the form, with sensitive values encrypted; Invalid lists what does not fit. Keys the form
     does not have, empty values and empty rows are left out."""
     if not isinstance(answers, dict):
@@ -159,7 +160,7 @@ def clean(definition: dict, answers: dict, company_id: int, fc: crypto.FieldCiph
                     if _empty(cv):
                         continue
                     try:
-                        r[col["key"]] = (_seal(fc, cv, aad(company_id, key, col["key"])) if col.get("sensitive")
+                        r[col["key"]] = (_seal(fc, cv, aad(company_id, key, col["key"], table)) if col.get("sensitive")
                                          else check(col, cv, definition))
                     except ValueError as exc:
                         errors[f"{key}.{i}.{col['key']}"] = str(exc)
@@ -169,7 +170,7 @@ def clean(definition: dict, answers: dict, company_id: int, fc: crypto.FieldCiph
                 out[key] = rows
             continue
         try:
-            out[key] = _seal(fc, v, aad(company_id, key)) if f.get("sensitive") else check(f, v, definition)
+            out[key] = _seal(fc, v, aad(company_id, key, table=table)) if f.get("sensitive") else check(f, v, definition)
         except ValueError as exc:
             errors[key] = str(exc)
     if errors:
@@ -177,7 +178,7 @@ def clean(definition: dict, answers: dict, company_id: int, fc: crypto.FieldCiph
     return out
 
 
-def reveal(definition: dict, answers: dict, company_id: int, path: str, fc: crypto.FieldCipher) -> str:
+def reveal(definition: dict, answers: dict, company_id: int, path: str, fc: crypto.FieldCipher, table: str = "iam.company_kyc") -> str:
     """One sensitive value in clear, by its path: "field" or "table.row.column"."""
     parts = path.split(".")
     spec = next((f for f in fields(definition) if f["key"] == parts[0]), None)
@@ -188,9 +189,9 @@ def reveal(definition: dict, answers: dict, company_id: int, path: str, fc: cryp
         rows = answers.get(parts[0]) or []
         if col is None or not col.get("sensitive") or int(parts[1]) >= len(rows):
             raise LookupError(path)
-        v, where = rows[int(parts[1])].get(parts[2]), aad(company_id, parts[0], parts[2])
+        v, where = rows[int(parts[1])].get(parts[2]), aad(company_id, parts[0], parts[2], table)
     elif len(parts) == 1 and spec.get("sensitive"):
-        v, where = answers.get(parts[0]), aad(company_id, parts[0])
+        v, where = answers.get(parts[0]), aad(company_id, parts[0], table=table)
     else:
         raise LookupError(path)
     if not isinstance(v, dict) or "$enc" not in v:

@@ -116,7 +116,7 @@ async def load_permissions(conn: asyncpg.Connection, pr: Principal) -> None:
         # the owner of a station operating company holds the station permissions only, never a carrier's (1099)
         perms = await conn.fetch(
             """SELECT code FROM iam.permission WHERE scope IN ('COMPANY','BOTH')
-                 AND ($1 <> 'STATION' OR module = 'station' OR code IN ('company.staff', 'company.login_log'))""",
+                 AND ($1 <> 'STATION' OR module = 'station' OR code IN ('company.staff', 'company.login_log', 'company.kyc'))""",
             pr.portal)
         pr.permissions |= {p["code"] for p in perms}
     # per-user exceptions (1154, N1): approved by a second person, within their dates, for this portal's company

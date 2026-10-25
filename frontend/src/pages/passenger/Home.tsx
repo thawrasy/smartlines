@@ -9,15 +9,35 @@ import { useChannel } from "../../channel";
 import { useAuth } from "../../auth";
 import { MAX_LEGS, legsParam, type JourneyKind, type JourneyLeg } from "./journeyLinks";
 
-interface Ref { cities: { code: string; country_code: string }[] }
+interface GeoCity {
+  code: string; country_code: string; city_class: "MAIN" | "SECONDARY";
+  governorate: string | null; governorate_en: string | null; governorate_ar: string | null;
+}
 
+// The cities of the network with their governorate and class (1160, N37): the lists show them by governorate, the main
+// cities of each first, so a long list is read from the governorate down
 export function useCities() {
   const { city, locale } = useI18n();
-  const ref = useLoad(() => api.get<Ref>("/api/ref"));
+  const ref = useLoad(() => api.get<{ cities: GeoCity[] }>("/api/geo/cities"));
   return useMemo(() => (ref.data?.cities ?? [])
     .filter((c) => c.country_code === "SY")
-    .map((c) => ({ code: c.code, name: city(c.code) }))
-    .sort((a, b) => a.name.localeCompare(b.name, locale)), [ref.data, city, locale]);
+    .map((c) => ({ code: c.code, name: city(c.code), main: c.city_class === "MAIN", governorate: c.governorate ?? "",
+                   governorateName: (locale === "ar" ? c.governorate_ar : c.governorate_en) ?? "" }))
+    .sort((a, b) => (a.governorate || "~").localeCompare(b.governorate || "~") || Number(b.main) - Number(a.main) || a.name.localeCompare(b.name, locale)),
+  [ref.data, city, locale]);
+}
+
+/** The options of a city list, grouped by governorate (cities without one last, ungrouped). */
+export function CityOptions({ cities }: { cities: ReturnType<typeof useCities> }) {
+  const groups = cities.reduce<{ key: string; label: string; items: typeof cities }[]>((acc, c) => {
+    const last = acc[acc.length - 1];
+    if (last && last.key === c.governorate) last.items.push(c);
+    else acc.push({ key: c.governorate, label: c.governorateName, items: [c] });
+    return acc;
+  }, []);
+  return <>{groups.map((g) => g.key
+    ? <optgroup key={g.key} label={g.label}>{g.items.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}</optgroup>
+    : g.items.map((c) => <option key={c.code} value={c.code}>{c.name}</option>))}</>;
 }
 
 // The seats one booking holds and the travellers the form takes (1122): the platform's number (four unless it decides
@@ -141,7 +161,7 @@ export function SearchForm({ initial }: { initial?: SearchInitial }) {
   const select = (value: string, set: (v: string) => void, label?: string) => (
     <select className="input" value={value} onChange={(e) => set(e.target.value)} required aria-label={label}>
       <option value="" disabled>{t("home.selectCity")}</option>
-      {cities.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
+      <CityOptions cities={cities} />
     </select>
   );
   const setLeg = (i: number, patch: Partial<JourneyLeg>) => setLegs((all) => all.map((l, j) => {

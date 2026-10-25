@@ -55,7 +55,7 @@ export function AccountPage() {
     <div className="page stack" style={{ maxWidth: 980 }}>
       <PageHead title={t("account.title")} sub={me?.email ?? undefined} />
       <ErrorBox error={!erase ? error : null} />
-      {me?.portal === "PASSENGER" && (me.is_guest ? <ClaimCard /> : <><ProfileCard /><MyDocumentCard /><SavedTravellersCard /></>)}
+      {me?.portal === "PASSENGER" && (me.is_guest ? <ClaimCard /> : <><ProfileCard /><MyDocumentCard /><SavedTravellersCard /><KycCard /></>)}
       <Loaded state={sec}>{(s) => (
         <>
           <div className="grid cols-2" style={{ alignItems: "start" }}>
@@ -166,6 +166,23 @@ export function AdminPrivacy() {
           ))}</tbody>
         </table></div>
       )}</Loaded>
+    </div>
+  );
+}
+
+// the passenger's own KYC file (1159, N14): verified by the platform, it unlocks what the platform's setting names
+function KycCard() {
+  const { t } = useI18n();
+  const { me } = useAuth();
+  const verified = me?.verification_status === "VERIFIED";
+  return (
+    <div className="card row between" style={{ gap: 12, flexWrap: "wrap" }}>
+      <div className="stack tight"><h3 style={{ margin: 0 }}>{t("pkyc.title")}</h3>
+        <span className="small muted">{t("pkyc.cardHint")}</span></div>
+      <span className="row" style={{ gap: 8 }}>
+        <span className={`chip ${verified ? "green" : "outline"}`}>{t(`pkyc.verification.${me?.verification_status ?? "UNVERIFIED"}`)}</span>
+        <Link className="btn tonal" to="/account/kyc"><Icon name="badge" />{t("pkyc.open")}</Link>
+      </span>
     </div>
   );
 }

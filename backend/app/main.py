@@ -40,6 +40,7 @@ from .modules.geo import api as geo_api
 from .modules.sales import charter_api, connections_api, journeys_api
 from .modules.schedules import api as schedules_api
 from .modules.kyc import api as kyc_api
+from .modules.kyc import persons as kyc_persons
 from .modules.support import api as support_api
 from .modules.manifests import api as manifests_api
 from .modules.boarding import screens as boarding_screens
@@ -156,7 +157,7 @@ for r in (metrics.router, auth.router, public.router, bookings.router, wallet.ro
           loyalty_api.router, loyalty_admin.router, station_sales.router, boarding_screens.platform, boarding_screens.carrier,
           boarding_screens.public, boarding_bays.station, boarding_bays.platform,
           boarding_displays.station, boarding_displays.platform, boarding_displays.public, schedules_api.carrier, schedules_api.platform,
-          kyc_api.carrier, kyc_api.platform, journeys_api.passenger, journeys_api.agency,
+          kyc_api.carrier, kyc_api.agency, kyc_api.station, kyc_api.platform, kyc_persons.person, kyc_persons.platform, journeys_api.passenger, journeys_api.agency,
           charter_api.carrier, charter_api.agency, charter_api.passenger, charter_api.platform,
           geo_api.public, geo_api.platform, connections_api.carrier, connections_api.platform,
           freight_api.carrier, freight_api.public, trip_changes.carrier, trip_changes.platform):

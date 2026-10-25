@@ -407,6 +407,17 @@ erDiagram
     bigint requested_by FK
     bigint decided_by FK
   }
+  iam_person_kyc {
+    bigint id PK
+    uuid uid
+    bigint party_id FK
+    bigint form_id FK
+    text status
+    bigint submitted_by FK
+    bigint decided_by FK
+    bigint created_by FK
+    bigint updated_by FK
+  }
   iam_photo_approval {
     text subject_type PK
     bigint subject_id PK
@@ -598,6 +609,7 @@ erDiagram
   iam_photo_change_request }o..o| iam_app_user : "decided_by_user_id"
   iam_photo_policy_change }o..o| iam_app_user : "decided_by_user_id"
   iam_photo_rule }o--|| iam_app_user : "proposed_by_user_id"
+  iam_person_kyc }o..o| iam_app_user : "submitted_by"
   iam_photo_rule }o..o| iam_app_user : "approved_by_user_id"
   iam_photo_rule }o..o| iam_app_user : "retired_by_user_id"
   iam_company_kyc }o..o| iam_app_user : "submitted_by"
@@ -634,6 +646,7 @@ erDiagram
   iam_gov_identity_link }o--|| iam_identity_provider : "provider_id"
   iam_verification }o..o| iam_identity_provider : "provider_id"
   iam_company_kyc }o--|| iam_kyc_form : "form_id"
+  iam_person_kyc }o--|| iam_kyc_form : "form_id"
   iam_messenger_link }o--|| iam_mfa_factor : "factor_id"
   iam_mfa_challenge }o--|| iam_mfa_factor : "factor_id"
   iam_party_role }o--|| iam_party : "party_id"
@@ -646,6 +659,7 @@ erDiagram
   iam_family }o--|| iam_party : "head_party_id"
   iam_party_photo }o--|| iam_party : "party_id"
   iam_photo_change_request }o--|| iam_party : "party_id"
+  iam_person_kyc }o--|| iam_party : "party_id"
   iam_family_member }o--|| iam_party : "party_id"
   iam_api_client }o--|| iam_party : "owner_party_id"
   iam_family_link_request }o..o| iam_party : "requester_party_id"

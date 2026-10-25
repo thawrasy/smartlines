@@ -1,6 +1,8 @@
 """Know your customer for the companies on the platform (owner's request, October 2026; migration 1118).
 
-    Company (the OPERATOR portal; company.kyc, which the owner holds)
+    Company (the OPERATOR portal; company.kyc, which the owner holds). Agencies and station operating companies have the
+    same routes under /api/agency and /api/station and fill the form of their kind (1159, N14); drivers and passengers
+    fill theirs through persons.py.
     GET  /api/carrier/kyc                       its file (or none yet), the form it follows, the documents asked for
     POST /api/carrier/kyc/open                  the open file, or a new version starting from the approved answers
     PUT  /api/carrier/kyc/{uid}                 {answers}: checked against the form, sensitive values encrypted
@@ -16,8 +18,8 @@
     POST /api/admin/kyc/{uid}/submit
     POST /api/admin/kyc/{uid}/decide            {decision: APPROVE|RETURN|REJECT, note, fields, risk_level}
     POST /api/admin/kyc/{uid}/reveal            {path, reason}: one encrypted value in clear, recorded
-    GET  /api/admin/kyc/form                    the version in force, the draft and the history
-    PUT  /api/admin/kyc/form                    {definition, note}: the draft of the next version, checked
+    GET  /api/admin/kyc/form?kind=              the version in force, the draft and the history of one kind's form
+    PUT  /api/admin/kyc/form?kind=              {definition, note}: the draft of the next version, checked
     POST /api/admin/kyc/form/{version}/activate
     GET  /api/admin/kyc/settings
     PUT  /api/admin/kyc/settings/{key}          {value}
@@ -38,12 +40,15 @@ from ...util import row_dict
 from . import service
 
 carrier = APIRouter(prefix="/api/carrier", tags=["kyc"])
+agency = APIRouter(prefix="/api/agency", tags=["kyc"])
+station = APIRouter(prefix="/api/station", tags=["kyc"])
 platform = APIRouter(prefix="/api/admin", tags=["kyc"])
 operator = require_portal("OPERATOR")
 staff = require_portal("PLATFORM")
 
 SETTINGS = ("review_stages", "risk_rules", "risk_levels", "review_months", "ubo_threshold_pct", "documents_on_submit",
-            "required_before", "distinct_reviewers")
+            "required_before", "distinct_reviewers", "persons")
+Kind = Literal["CARRIER", "AGENCY", "STATION", "DRIVER", "PASSENGER"]
 STATUS = {"NOT_FOUND": 404, "FORBIDDEN": 403, "NOT_YOUR_STAGE": 403, "KYC_INCOMPLETE": 422, "KYC_INVALID": 422,
           "KYC_FORM_INVALID": 422, "INVALID_SETTING": 422, "REASON_REQUIRED": 422, "KYC_LOCKED": 409, "KYC_NOT_IN_REVIEW": 409,
           "KYC_PROHIBITED": 409, "SECOND_PERSON_REQUIRED": 409, "KYC_NO_FORM": 409, "KYC_FORM_FROZEN": 409}
@@ -186,7 +191,8 @@ async def _carrier_view(conn, pr: Principal) -> dict:
     rows = await conn.fetch(
         """SELECT uid, status FROM iam.company_kyc WHERE company_id = $1
             ORDER BY (status IN ('DRAFT', 'SUBMITTED', 'RETURNED')) DESC, version DESC""", pr.company_id)
-    form = await conn.fetchrow("SELECT version, definition FROM iam.kyc_form WHERE status = 'ACTIVE'")
+    form = await conn.fetchrow("SELECT version, definition FROM iam.kyc_form WHERE status = 'ACTIVE' AND subject_kind = iam.kyc_kind_of_company($1)",
+                               pr.company_id)
     current = await _file(conn, rows[0]["uid"]) if rows else None
     definition = current["definition"] if current else _json(form["definition"]) if form else None
     history = [row_dict(r) for r in await conn.fetch(
@@ -203,38 +209,44 @@ async def _carrier_view(conn, pr: Principal) -> dict:
     }
 
 
-@carrier.get("/kyc")
-async def carrier_kyc(request: Request, pr: Principal = Depends(operator)):
-    _need(pr, "company.kyc")
-    async with db.transaction(context_for(request, pr)) as conn:
-        return await _carrier_view(conn, pr)
+def _company_routes(router: APIRouter, portal) -> None:
+    """The same four routes for every kind of company: carriers, agencies and station operating companies (1159). Each
+    fills the form of its kind."""
+
+    @router.get("/kyc")
+    async def company_kyc(request: Request, pr: Principal = Depends(portal)):
+        _need(pr, "company.kyc")
+        async with db.transaction(context_for(request, pr)) as conn:
+            return await _carrier_view(conn, pr)
+
+    @router.post("/kyc/open")
+    async def company_open(request: Request, pr: Principal = Depends(portal)):
+        """The open file, or a new version: an update starts from the approved answers, which stay in force until the
+        new version is approved."""
+        _need(pr, "company.kyc")
+        async with db.transaction(context_for(request, pr)) as conn:
+            uid = await _db(conn.fetchval("SELECT iam.open_company_kyc($1)", pr.company_id))
+            kid = await conn.fetchval("SELECT id FROM iam.company_kyc WHERE uid = $1", uid)
+            out = await _carrier_view(conn, pr)
+        request.state.audit = {"action": "kyc.open", "object_type": "company_kyc", "object_id": kid}
+        return out
+
+    @router.put("/kyc/{kyc_uid}")
+    async def company_save(kyc_uid: uuid.UUID, body: AnswersIn, request: Request, pr: Principal = Depends(portal)):
+        _need(pr, "company.kyc")
+        async with db.transaction(context_for(request, pr)) as conn:
+            return await _save(conn, request, pr, await _company_file(conn, pr, kyc_uid), body.answers)
+
+    @router.post("/kyc/{kyc_uid}/submit")
+    async def company_submit(kyc_uid: uuid.UUID, request: Request, pr: Principal = Depends(portal)):
+        _need(pr, "company.kyc")
+        async with db.transaction(context_for(request, pr)) as conn:
+            return await _submit(conn, request, await _company_file(conn, pr, kyc_uid))
 
 
-@carrier.post("/kyc/open")
-async def carrier_open(request: Request, pr: Principal = Depends(operator)):
-    """The open file, or a new version: an update starts from the approved answers, which stay in force until the new
-    version is approved."""
-    _need(pr, "company.kyc")
-    async with db.transaction(context_for(request, pr)) as conn:
-        uid = await _db(conn.fetchval("SELECT iam.open_company_kyc($1)", pr.company_id))
-        kid = await conn.fetchval("SELECT id FROM iam.company_kyc WHERE uid = $1", uid)
-        out = await _carrier_view(conn, pr)
-    request.state.audit = {"action": "kyc.open", "object_type": "company_kyc", "object_id": kid}
-    return out
-
-
-@carrier.put("/kyc/{kyc_uid}")
-async def carrier_save(kyc_uid: uuid.UUID, body: AnswersIn, request: Request, pr: Principal = Depends(operator)):
-    _need(pr, "company.kyc")
-    async with db.transaction(context_for(request, pr)) as conn:
-        return await _save(conn, request, pr, await _company_file(conn, pr, kyc_uid), body.answers)
-
-
-@carrier.post("/kyc/{kyc_uid}/submit")
-async def carrier_submit(kyc_uid: uuid.UUID, request: Request, pr: Principal = Depends(operator)):
-    _need(pr, "company.kyc")
-    async with db.transaction(context_for(request, pr)) as conn:
-        return await _submit(conn, request, await _company_file(conn, pr, kyc_uid))
+_company_routes(carrier, operator)
+_company_routes(agency, require_portal("AGENCY"))
+_company_routes(station, require_portal("STATION"))
 
 
 # ------------------------------------------------------------------ the platform and the authorities
@@ -289,13 +301,15 @@ async def kyc_list(request: Request, status: Literal["WAITING", "ALL", "DUE", "O
 
 # ------------------------------------------------------------------ the form and the settings
 @platform.get("/kyc/form")
-async def form(request: Request, pr: Principal = Depends(staff)):
+async def form(request: Request, kind: Kind = "CARRIER", pr: Principal = Depends(staff)):
+    """The versions of one kind's form: carriers', agencies', station operating companies', drivers' or passengers' (1159)."""
     _need(pr, "kyc.view", "kyc.settings")
     async with db.transaction(context_for(request, pr)) as conn:
         versions = [row_dict(r) for r in await conn.fetch(
             """SELECT f.version, f.status, f.note, f.created_at, f.activated_at, f.definition,
-                      (SELECT count(*) FROM iam.company_kyc k WHERE k.form_id = f.id) AS files
-                 FROM iam.kyc_form f ORDER BY f.version DESC""")]
+                      (SELECT count(*) FROM iam.company_kyc k WHERE k.form_id = f.id)
+                      + (SELECT count(*) FROM iam.person_kyc k WHERE k.form_id = f.id) AS files
+                 FROM iam.kyc_form f WHERE f.subject_kind = $1 ORDER BY f.version DESC""", kind)]
     for v in versions:
         v["definition"] = _json(v["definition"])
     active = next((v for v in versions if v["status"] == "ACTIVE"), None)
@@ -303,14 +317,14 @@ async def form(request: Request, pr: Principal = Depends(staff)):
     for v in versions:
         if v is not active and v is not draft:
             v.pop("definition")
-    return {"active": active, "draft": draft, "versions": versions}
+    return {"kind": kind, "active": active, "draft": draft, "versions": versions}
 
 
 @platform.put("/kyc/form")
-async def form_save(body: FormIn, request: Request, pr: Principal = Depends(staff)):
+async def form_save(body: FormIn, request: Request, kind: Kind = "CARRIER", pr: Principal = Depends(staff)):
     _need(pr, "kyc.settings")
     async with db.transaction(context_for(request, pr)) as conn:
-        version = await _db(conn.fetchval("SELECT iam.save_kyc_form($1::jsonb, $2)", json.dumps(body.definition), body.note))
+        version = await _db(conn.fetchval("SELECT iam.save_kyc_form($1::jsonb, $2, $3)", json.dumps(body.definition), body.note, kind))
     request.state.audit = {"action": "kyc.form_save", "object_type": "kyc_form", "object_id": version, "reason": body.note or "-"}
     return {"version": version}
 

@@ -4,6 +4,7 @@ import { useI18n } from "../../i18n";
 import { useAuth } from "../../auth";
 import { PageHead } from "../../components/layout";
 import { PlacePicker, type PickedPlace } from "../../components/PlacePicker";
+import { GeoCascade, NO_GEO, type GeoChoice } from "../../components/GeoCascade";
 import { useSignInSlip, type SignIn } from "../../components/SignInSlip";
 import { CarrierName, Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, useToast, PasswordInput } from "../../components/ui";
 
@@ -186,22 +187,21 @@ export function AdminStations() {
   const { can } = useAuth();
   const toast = useToast();
   const state = useLoad(() => api.get<{ stations: AdminStation[] }>("/api/admin/stations"));
-  // the cities of the network as the server knows them, including those opened from the geography (1125)
-  const cities = useLoad(() => api.get<{ cities: { code: string }[] }>("/api/geo/cities"));
   const [open, setOpen] = useState(false);
   const blank = { city_code: "", number: "2", name: "", address: "", lat: "", lng: "" };
   const [f, setF] = useState(blank);
   const [place, setPlace] = useState<PickedPlace | null>(null);
+  const [geo, setGeo] = useState<GeoChoice>(NO_GEO);
   const [placing, setPlacing] = useState<AdminStation | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const set = (k: keyof typeof blank) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value });
-  const close = () => { setOpen(false); setPlacing(null); setPlace(null); setError(null); };
+  const close = () => { setOpen(false); setPlacing(null); setPlace(null); setGeo(NO_GEO); setError(null); };
   const submit = async () => {
     setBusy(true); setError(null);
     try {
       await api.post("/api/admin/stations", {
-        city_code: f.city_code || undefined, place: place?.pcode, number: Number(f.number), name: f.name, address: f.address || null,
+        city_code: f.city_code || geo.city || undefined, place: place?.pcode ?? (geo.area || undefined), number: Number(f.number), name: f.name, address: f.address || null,
         lat: f.lat ? Number(f.lat) : undefined, lng: f.lng ? Number(f.lng) : undefined });
       close(); setF(blank); toast(t("common.saved")); state.reload();
     } catch (e) { setError(e); } finally { setBusy(false); }
@@ -237,15 +237,11 @@ export function AdminStations() {
                actions={<><button className="btn text" onClick={close}>{t("common.cancel")}</button><button className="btn" disabled={busy} onClick={submit}>{t("common.save")}</button></>}>
           <div className="stack">
             <ErrorBox error={error} />
+            {/* the governorate, its city and the neighbourhood, one level at a time (1160, N37); or a place found by name */}
+            <GeoCascade value={geo} onChange={setGeo} depth="area" />
             <PlacePicker label={t("geo.stationPlace")} value={place} onPick={setPlace} />
             <p className="small muted" style={{ margin: 0 }}>{t("geo.stationPlaceHint")}</p>
             <div className="grid cols-2">
-              <Field label={`${t("common.city")} (${t("common.optional")})`}>
-                <select className="input" value={f.city_code} onChange={set("city_code")}>
-                  <option value="">{place?.served ? city(place.served) : t("geo.cityOfPlace")}</option>
-                  {(cities.data?.cities ?? []).map((c) => <option key={c.code} value={c.code}>{city(c.code)}</option>)}
-                </select>
-              </Field>
               <Field label={t("admin.number")}><input className="input ltr" type="number" min={1} max={999} value={f.number} onChange={set("number")} /></Field>
             </div>
             <Field label={`${t("common.name")} (English)`}><input className="input ltr" value={f.name} onChange={set("name")} /></Field>
@@ -262,6 +258,8 @@ export function AdminStations() {
                actions={<><button className="btn text" onClick={close}>{t("common.cancel")}</button><button className="btn" disabled={busy || !place} onClick={savePlace}>{t("common.save")}</button></>}>
           <div className="stack">
             <ErrorBox error={error} />
+            {/* the governorate, its city and the neighbourhood, one level at a time (1160, N37); or a place found by name */}
+            <GeoCascade value={geo} onChange={setGeo} depth="area" />
             <PlacePicker label={t("geo.stationPlace")} value={place} onPick={setPlace} />
             <p className="small muted" style={{ margin: 0 }}>{t("geo.pickNear", { lat: placing.lat.toFixed(4), lng: placing.lng.toFixed(4) })}</p>
           </div>

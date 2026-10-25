@@ -3533,7 +3533,7 @@ SET ROLE masslak_app;
 BEGIN;
 RESET ROLE;
 SELECT pg_temp.ok((SELECT iam.kyc_form_problem(definition) IS NULL AND jsonb_array_length(definition -> 'sections') = 13
-                     FROM iam.kyc_form WHERE status = 'ACTIVE')
+                     FROM iam.kyc_form WHERE status = 'ACTIVE' AND subject_kind = 'CARRIER')
   AND iam.kyc_form_problem('{"sections":[{"key":"a1","fields":[{"key":"x1","type":"text"},{"key":"x1","type":"text"}]}]}') LIKE '%appears twice%'
   AND iam.kyc_form_problem('{"sections":[{"key":"a1","fields":[{"key":"x1","type":"number","sensitive":true}]}]}') IS NOT NULL
   AND iam.kyc_form_problem('{"sections":[{"key":"a1","fields":[{"key":"x1","type":"select","options":"nope"}]}]}') IS NOT NULL
@@ -4059,6 +4059,55 @@ ROLLBACK TO SAVEPOINT crew_off;
 UPDATE sys.setting SET value = jsonb_set(value, '{refuse_expired}', 'true') WHERE key = 'crew.licences';
 SELECT pg_temp.expect_error(format($$INSERT INTO ops.crew_assignment (trip_id, party_id, crew_role) VALUES (%s, %s, 'CO_DRIVER')$$, :cdt, :cdp),
   'CREW_LICENCE', 'Crew details (1158): with refuse_expired on, an expired required licence keeps the crew member off the trip');
+ROLLBACK;
+SET ROLE masslak_app;
+
+-- City classes (1160): main cities and secondary destinations; the pickers' levels
+BEGIN;
+RESET ROLE;
+SELECT pg_temp.ok(EXISTS (SELECT 1 FROM ref.city WHERE city_class = 'MAIN'), 'City classes (1160): the cities in the network are main cities');
+SELECT pg_temp.expect_error($$UPDATE ref.city SET city_class = 'CAPITAL' WHERE code = 'DAM'$$, 'check constraint',
+  'City classes (1160): a city is a main city or a secondary destination');
+SELECT pg_temp.ok(jsonb_array_length(ref.geo_cascade(NULL, NULL, NULL) -> 'cities') > 0
+                  AND jsonb_array_length(ref.geo_cascade(NULL, NULL, NULL) -> 'stations') = 0,
+  'City classes (1160): the cities are listed, and stations only once a city is chosen');
+ROLLBACK;
+SET ROLE masslak_app;
+
+-- Party KYC (1159): one form in force for each kind; persons' files decided by another person; the unlocks are switches
+BEGIN;
+RESET ROLE;
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+SELECT pg_temp.ok((SELECT count(*) FROM iam.kyc_form WHERE status = 'ACTIVE') = 5
+                  AND (SELECT count(DISTINCT subject_kind) FROM iam.kyc_form WHERE status = 'ACTIVE') = 5,
+  'Party KYC (1159): carriers, agencies, station companies, drivers and passengers each have one form in force');
+SELECT pg_temp.expect_error($$INSERT INTO iam.kyc_form (version, subject_kind, definition, status, activated_at)
+    SELECT 900, 'AGENCY', definition, 'ACTIVE', now() FROM iam.kyc_form WHERE subject_kind = 'AGENCY' AND status = 'ACTIVE'$$,
+  'duplicate key', 'Party KYC (1159): a kind has one form in force');
+SELECT pg_temp.expect_error($$INSERT INTO iam.kyc_form (version, subject_kind, definition)
+    SELECT 901, 'PASSENGER', jsonb_set(definition, '{documents}', '[{"type": "CR", "required": true}]') FROM iam.kyc_form
+     WHERE subject_kind = 'PASSENGER' AND status = 'ACTIVE'$$,
+  'check constraint', 'Party KYC (1159): a person''s form asks for no company documents');
+SELECT pg_temp.ok(iam.kyc_kind_of_company(c.id) = 'AGENCY', 'Party KYC (1159): an agency fills the agency form')
+  FROM iam.company c WHERE c.company_type = 'AGENCY' LIMIT 1;
+INSERT INTO iam.party (party_type, legal_name) VALUES ('PERSON', 'Kyc Test Passenger') RETURNING id AS kp \gset
+SELECT u.id AS kreviewer FROM iam.app_user u WHERE u.id = :uadmin \gset
+INSERT INTO iam.person_kyc (party_id, subject_kind, version, form_id, status, submitted_at, submitted_by)
+SELECT :kp, 'PASSENGER', 1, id, 'SUBMITTED', now(), :uadmin FROM iam.kyc_form WHERE subject_kind = 'PASSENGER' AND status = 'ACTIVE'
+RETURNING id AS kf \gset
+SELECT pg_temp.expect_error(format($$UPDATE iam.person_kyc SET status = 'REJECTED', decided_by = %s, decided_at = now() WHERE id = %s$$, :uadmin, :kf),
+  'check constraint', 'Party KYC (1159): the person who entered a file does not decide it');
+SELECT pg_temp.ok(NOT iam.person_verified(:kp, 'PASSENGER'), 'Party KYC (1159): a person without an approved file is not verified');
+SELECT pg_temp.ok((SELECT value -> 'required_before' FROM sys.setting WHERE key = 'kyc.persons') = '{"PASSENGER": [], "DRIVER": []}'::jsonb,
+  'Party KYC (1159): nothing waits for a verified file at launch');
+SELECT iam.person_kyc_gate(:kp, 'PASSENGER', 'LOYALTY_REDEEM');
+SELECT pg_temp.ok(true, 'Party KYC (1159): with the setting off, an unverified passenger redeems points');
+UPDATE sys.setting SET value = jsonb_set(value, '{required_before,PASSENGER}', '["LOYALTY_REDEEM"]') WHERE key = 'kyc.persons';
+SELECT pg_temp.expect_error(format($$SELECT iam.person_kyc_gate(%s, 'PASSENGER', 'LOYALTY_REDEEM')$$, :kp),
+  'KYC_REQUIRED', 'Party KYC (1159): once switched on, redeeming points waits for a verified file');
+SELECT pg_temp.ok(EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'b_points_kyc_gate')
+                  AND EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'crew_kyc_gate'),
+  'Party KYC (1159): points redemption and crew assignment pass through the gate');
 ROLLBACK;
 SET ROLE masslak_app;
 

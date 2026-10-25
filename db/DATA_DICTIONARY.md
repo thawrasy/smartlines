@@ -2,13 +2,13 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**582 tables, 6308 columns, in 26 schemas.**
+**583 tables, 6332 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
 ## Index
 
-- [`iam` — Identity, parties, users, permissions and API clients](#iam) (49 tables)
+- [`iam` — Identity, parties, users, permissions and API clients](#iam) (50 tables)
 - [`ref` — Reference data, locales and files](#ref) (23 tables)
 - [`sys` — Settings, outbox and webhooks](#sys) (27 tables)
 - [`net` — Network: stations, routes, lines, corridors and geofences](#net) (28 tables)
@@ -593,6 +593,7 @@ The KYC form in versions: its sections, fields, option sets and documents; one v
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `activated_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `activated_at` | `timestamp with time zone` |  |  |
+| `subject_kind` | `text` | ✱ | `'CARRIER'::text` |
 
 ### `iam.messenger_link` 🛡️
 
@@ -757,6 +758,35 @@ A permission granted or denied to one person beyond their role, with an end date
 | `decided_at` | `timestamp with time zone` |  |  |
 | `decision_note` | `text` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `iam.person_kyc` 🛡️
+
+A driver's or passenger's KYC file in versions: the answers to the form of their kind, one reviewer's decision and when it is reviewed again; one open and one approved at a time (1159, N14)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `party_id` | `bigint` | 🔗 `iam.party` ✱ |  |
+| `subject_kind` | `text` | ✱ |  |
+| `version` | `smallint` | ✱ |  |
+| `form_id` | `bigint` | 🔗 `iam.kyc_form` ✱ |  |
+| `answers` | `jsonb` | ✱ | `'{}'::jsonb` |
+| `completeness` | `smallint` | ✱ | `0` |
+| `status` | `text` | ✱ | `'DRAFT'::text` |
+| `return_note` | `text` |  |  |
+| `return_fields` | `text[]` | ✱ | `'{}'::text[]` |
+| `decision_note` | `text` |  |  |
+| `submitted_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `submitted_at` | `timestamp with time zone` |  |  |
+| `decided_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `decided_at` | `timestamp with time zone` |  |  |
+| `approved_at` | `timestamp with time zone` |  |  |
+| `review_due` | `date` |  |  |
+| `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `updated_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `iam.photo_approval` 🛡️
@@ -1145,6 +1175,7 @@ Cities (domestic and international)
 | `timezone` | `text` | ✱ |  |
 | `is_active` | `boolean` | ✱ | `true` |
 | `place_id` | `bigint` | 🔗 `ref.place`  |  |
+| `city_class` | `text` | ✱ | `'SECONDARY'::text` |
 
 ### `ref.country` 🛡️
 

@@ -7,7 +7,7 @@ import { useAuth } from "../../auth";
 import { PageHead } from "../../components/layout";
 import { CarrierName, Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, useToast } from "../../components/ui";
 import { localDate } from "../../dates";
-import { useCities } from "../passenger/Home";
+import { CityOptions, useCities } from "../passenger/Home";
 import { ConnectionSettings } from "../passenger/Connections";
 
 // Charter (owner's request, October 2026; migration 1123). A carrier hires out a vehicle apart from its trips (a coach,
@@ -246,7 +246,7 @@ function AskModal({ calls, offer, onClose, onDone }: { calls: CustomerCalls; off
     <Field label={label}>
       <select className="input" value={value} onChange={(e) => onChange(e.target.value)}>
         <option value="" disabled>{t("home.selectCity")}</option>
-        {cities.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
+        <CityOptions cities={cities} />
       </select>
     </Field>
   );
@@ -594,7 +594,7 @@ function CarrierOffers() {
                 <Field label={t("chr.baseCity")}>
                   <select className="input" value={f.base_city} onChange={(e) => set({ base_city: e.target.value })}>
                     <option value="">—</option>
-                    {cities.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
+                    <CityOptions cities={cities} />
                   </select>
                 </Field>
               )}

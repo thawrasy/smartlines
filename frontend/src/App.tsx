@@ -46,6 +46,9 @@ const CarrierLayouts = lazyNamed(() => import("./pages/carrier/Layouts"), "Carri
 const CarrierSchedules = lazyNamed(() => import("./pages/carrier/Schedules"), "CarrierSchedules");
 const AdminSchedules = lazyNamed(() => import("./pages/admin/Schedules"), "AdminSchedules");
 const CarrierKyc = lazyNamed(() => import("./pages/carrier/Kyc"), "CarrierKyc");
+const AgencyKyc = lazyNamed(() => import("./pages/carrier/Kyc"), "AgencyKyc");
+const StationKyc = lazyNamed(() => import("./pages/carrier/Kyc"), "StationKyc");
+const PersonKyc = lazyNamed(() => import("./pages/account/PersonKyc"), "PersonKyc");
 const AdminKyc = lazyNamed(() => import("./pages/admin/Kyc"), "AdminKyc");
 const CounterDashboard = lazyNamed(() => import("./pages/carrier/Counter"), "CounterDashboard");
 const CounterReport = lazyNamed(() => import("./pages/carrier/Counter"), "CounterReport");
@@ -212,7 +215,8 @@ function AgencyShell() {
       { to: "/agency/statement", icon: "receipt_long", label: t("agency.statement"), show: can("report.company", "company.billing", "booking.on_behalf") },
       { to: "/agency/cash-accounts", icon: "handshake", label: t("acash.agencyNav"), show: can("report.company", "company.billing", "booking.on_behalf") },
       { to: "/agency/people", icon: "group", label: t("people.nav"), show: can("company.staff") },
-      { to: "/agency/documents", icon: "fact_check", label: t("documents.title"), show: can("company.staff", "vehicle.manage", "company.billing") },
+      { to: "/agency/documents", icon: "fact_check", label: t("documents.title"), show: can("company.staff", "vehicle.manage", "company.billing", "company.kyc") },
+      { to: "/agency/kyc", icon: "policy", label: t("kyc.nav"), show: can("company.kyc") },
       { to: "/agency/finance", icon: "account_balance_wallet", label: t("finance.title"), show: can("company.payout_schedule", "company.billing") },
       { to: "/agency/topup", icon: "account_balance_wallet", label: t("pay.agencyNav"), show: can("booking.on_behalf", "sale.cash") },
       { to: "/agency/reports", icon: "summarize", label: t("rpt.nav"), show: can("report.company") },
@@ -237,6 +241,9 @@ function StationShell() {
       // the display screens, for the station's administration (1120): its owner, or staff holding station.screens
       ...(can("station.screens") ? [{ to: "/station/screens", icon: "tv" as const, label: t("scr.nav") }] : []),
       ...(can("company.staff") ? [{ to: "/station/people", icon: "group" as const, label: t("people.nav") }] : []),
+      // the station operating company's own KYC file and the documents it asks for (1159, N14)
+      ...(can("company.kyc") ? [{ to: "/station/kyc", icon: "policy" as const, label: t("kyc.nav") },
+                                { to: "/station/documents", icon: "fact_check" as const, label: t("documents.title") }] : []),
     ]} />
   );
 }
@@ -274,6 +281,7 @@ export default function App() {
           <Route path="pay/test/:uid" element={<RequirePortal portal="PASSENGER"><TestGatewayRoute /></RequirePortal>} />
           <Route path="track/:no" element={<Track />} />
           <Route path="account" element={<RequireUser><AccountPage /></RequireUser>} />
+          <Route path="account/kyc" element={<RequireUser><div className="page" style={{ maxWidth: 980 }}><PersonKyc /></div></RequireUser>} />
           <Route path="m/:module" element={<RequirePortal portal="PASSENGER"><div className="page"><ModulePage /></div></RequirePortal>} />
           <Route path="services" element={<RequirePortal portal="PASSENGER"><ServicesPage /></RequirePortal>} />
           <Route path="login" element={<Login />} />
@@ -326,6 +334,7 @@ export default function App() {
           <Route path="agency/topup" element={<AgencyTopup />} />
           <Route path="agency/integrations" element={<IntegrationsPage />} />
           <Route path="agency/people" element={<PeoplePage />} />
+          <Route path="agency/kyc" element={<AgencyKyc />} />
         </Route>
         <Route element={<RequirePortal portal="STATION"><StationShell /></RequirePortal>}>
           <Route path="station" element={<StationHome />} />
@@ -336,6 +345,8 @@ export default function App() {
           <Route path="station/bays" element={<StationBays />} />
           <Route path="station/screens" element={<StationScreens />} />
           <Route path="station/people" element={<PeoplePage />} />
+          <Route path="station/kyc" element={<StationKyc />} />
+          <Route path="station/documents" element={<CompanyDocuments />} />
           <Route path="station/trip/:uid" element={<Book />} />
           <Route path="station/booking/:ref" element={<Booking />} />
         </Route>
@@ -345,6 +356,7 @@ export default function App() {
         <Route element={<RequirePortal portal="DRIVER"><DriverLayout /></RequirePortal>}>
           <Route path="driver" element={<DriverTrips />} />
           <Route path="driver/trip/:uid" element={<DriverTrip />} />
+          <Route path="driver/kyc" element={<div className="app-body"><PersonKyc /></div>} />
         </Route>
         <Route element={<RequirePortal portal="PLATFORM"><PlatformShell /></RequirePortal>}>
           <Route path="admin" element={<AdminOverview />} />

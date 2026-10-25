@@ -14,7 +14,8 @@ import { NameCorrections } from "./NameCorrections";
 
 interface Gov { pcode: string; name_en: string; name_ar: string; districts: number; sub_districts: number; communities: number; neighbourhoods: number; served: number }
 interface Load { uid: string; publisher: string; content: string; file_name: string | null; valid_on: string | null; imported_at: string; imported_by: string | null; counts: Record<string, number> }
-interface City { code: string; name: string; is_active: boolean; pcode: string | null; name_ar: string | null; stations: number }
+interface City { code: string; name: string; is_active: boolean; pcode: string | null; name_ar: string | null; stations: number;
+  city_class: "MAIN" | "SECONDARY"; governorate: string | null }
 interface Summary { governorates: Gov[]; loads: Load[]; cities: City[]; proposed: number }
 interface Area { pcode: string; name_en: string; name_ar: string; level: number; areas: number; communities: number | null }
 interface Place { pcode: string; name_en: string; name_ar: string; lat: number; lng: number; city_code: string | null; neighbourhoods: number }
@@ -92,6 +93,7 @@ export function AdminGeography() {
               <Stat icon="storefront" label={t("geo.communities")} value={num(total("communities"))} tone="wheat" />
               <Stat icon="directions_bus" label={t("geo.servedCities")} value={num(d.cities.filter((c) => c.pcode).length)} />
             </div>
+            <CityClasses cities={d.cities} governorates={d.governorates} onDone={state.reload} />
             <div className="card stack">
               <h3 style={{ margin: 0 }}>{t("geo.load")}</h3>
               <p className="small muted" style={{ margin: 0 }}>{t("geo.loadHint")}</p>
@@ -182,6 +184,39 @@ export function AdminGeography() {
           </div>
         </Modal>
       )}
+    </div>
+  );
+}
+
+// the cities of the network as main cities or secondary destinations (1160, N37): main cities are listed first
+function CityClasses({ cities, governorates, onDone }: { cities: City[]; governorates: Gov[]; onDone: () => void }) {
+  const { t, city, locale } = useI18n();
+  const toast = useToast();
+  const [error, setError] = useState<unknown>(null);
+  const govName = (pcode: string | null) => {
+    const g = governorates.find((x) => x.pcode === pcode);
+    return g ? (locale === "ar" ? g.name_ar : g.name_en) : t("geoc.noGovernorate");
+  };
+  const set = async (c: City, city_class: string) => {
+    setError(null);
+    try { await api.put(`/api/admin/geo/cities/${c.code}`, { city_class }); toast(t("common.saved")); onDone(); } catch (e) { setError(e); }
+  };
+  const active = cities.filter((c) => c.is_active);
+  if (active.length === 0) return null;
+  return (
+    <div className="card stack">
+      <h3 style={{ margin: 0 }}>{t("geoc.classesTitle")}</h3>
+      <p className="small muted" style={{ margin: 0 }}>{t("geoc.classesHint")}</p>
+      <ErrorBox error={error} />
+      <div className="table-wrap" tabIndex={0}><table className="table">
+        <thead><tr><th>{t("geoc.city")}</th><th>{t("geoc.governorate")}</th><th className="num">{t("geoc.stations")}</th><th>{t("geoc.class")}</th></tr></thead>
+        <tbody>{active.map((c) => (
+          <tr key={c.code}><td>{city(c.code)} <span className="mono small muted">{c.code}</span></td><td className="small">{govName(c.governorate)}</td>
+            <td className="num">{c.stations}</td>
+            <td><select className="input" aria-label={`${t("geoc.class")} ${city(c.code)}`} value={c.city_class} onChange={(e) => set(c, e.target.value)}>
+              <option value="MAIN">{t("geoc.main")}</option><option value="SECONDARY">{t("geoc.secondary")}</option></select></td></tr>
+        ))}</tbody>
+      </table></div>
     </div>
   );
 }

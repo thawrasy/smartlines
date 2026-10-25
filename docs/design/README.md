@@ -24,6 +24,8 @@
 - `BANKS_AND_INSURERS.md`: registries of banks, branches and insurers kept by the platform with a second-person review; company bank accounts picked from them with a verification status; insurance policies pick their insurer (owner's requests N6 and N9, 1156).
 - `VEHICLE_MODELS.md`: vehicle makes and models kept by the platform with a second-person review; carriers request a missing model; vehicles pick their model (owner's request N8, 1157).
 - `CREW_DETAILS.md`: drivers, hosts and assistants with names in parts, an encrypted national number and licences with class, dates and pictures; required licences and refusal on expiry as platform switches (owner's request N3, 1158).
+- `CITY_CLASSES_AND_PICKERS.md`: cities of the network as main cities or secondary destinations, and pickers that go down from the governorate to the city, the neighbourhood and the station (owner's request N37, 1160).
+- `PARTY_KYC.md`: know your customer for every party: agencies and station operating companies fill forms of their kind, drivers and passengers verify themselves with one reviewer, and what verification unlocks is a setting, off at launch (owner's request N14, 1159).
 - `COMPANY_KYC.md`: the know-your-customer file of each company on the platform: the form and the standards it follows, its review stages, risk rules, encrypted values, settings and screens (owner's request, 1118).
 
 The web frontend (`frontend/src/theme.css`) uses the same colour roles and radii as `system/tokens.json`.

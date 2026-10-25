@@ -4,7 +4,10 @@
     GET  /api/geo/areas?parent=SY02          the governorates, or the districts, sub-districts or communities under one
     GET  /api/geo/places?q=...               places by name (Arabic or English) or code, with the way up to the governorate
     GET  /api/geo/places/{pcode}             one place, its neighbourhoods when it is a city
-    GET  /api/geo/cities                     the cities of the network with their names in Arabic and English (1125)
+    GET  /api/geo/cities                     the cities of the network with their names in Arabic and English (1125), their
+                                             class and governorate (1160)
+    GET  /api/geo/cascade?governorate=&city=&area=   each level of a picker for what is chosen: governorates, cities
+                                             (main first), a city's areas and neighbourhoods, its stations (1160, N37)
     GET  /api/geo/locate?lat=&lng=           the sub-district a point lies in and the nearest places (1125)
     GET  /api/geo/areas/{pcode}/boundary     an area's boundary as GeoJSON, simplified for a map (1125)
     Platform (geo.manage)
@@ -12,6 +15,7 @@
     POST /api/admin/geo/import               the United Nations workbook (.xlsx), checked and loaded
     POST /api/admin/geo/boundaries           the same publisher's boundaries (GeoJSON), checked and loaded (1125)
     POST /api/admin/geo/places/{pcode}/serve {code}: open a community for routes as a city of the network
+    PUT  /api/admin/geo/cities/{code}        {city_class}: a main city or a secondary destination (1160)
     GET  /api/admin/geo/proposed             places surveyed in the field waiting for review, and the last reviewed (1125)
     POST /api/admin/geo/places               propose a place surveyed in the field (1125)
     POST /api/admin/geo/places/{pcode}/review {accept, note}: another person accepts or rejects it (1125)
@@ -112,9 +116,23 @@ async def cities(request: Request):
     routes is named in every language at once (1125)."""
     async with db.transaction(_ctx(request)) as conn:
         rows = await conn.fetch(
-            """SELECT c.code, c.name AS name_en, coalesce(p.name_ar, c.name) AS name_ar, p.pcode
-                 FROM ref.city c LEFT JOIN ref.place p ON p.id = c.place_id WHERE c.is_active ORDER BY c.code""")
+            """SELECT c.code, c.name AS name_en, coalesce(p.name_ar, c.name) AS name_ar, p.pcode, c.city_class, c.country_code,
+                      g.pcode AS governorate, g.name_en AS governorate_en, g.name_ar AS governorate_ar
+                 FROM ref.city c LEFT JOIN ref.place p ON p.id = c.place_id
+                 LEFT JOIN ref.admin_area g ON g.pcode = ref.city_governorate(c.id)
+                WHERE c.is_active ORDER BY c.code""")
     return {"cities": [dict(r) for r in rows]}
+
+
+@public.get("/cascade")
+async def cascade(request: Request, governorate: Optional[str] = Query(default=None, pattern=r"^[A-Z]{2}[0-9]{2}$"),
+                  city: Optional[str] = Query(default=None, pattern=r"^[A-Z]{3}$"),
+                  area: Optional[str] = Query(default=None, pattern=r"^[A-Z][0-9]{3,7}$")):
+    """The levels of a picker that goes down from a governorate to a station (1160, N37): the governorates with
+    cities of the network, the cities of the chosen governorate (all of them when none is chosen), the areas and
+    neighbourhoods of the chosen city, and its stations (of the chosen neighbourhood only, when one is chosen)."""
+    async with db.transaction(_ctx(request)) as conn:
+        return json.loads(await conn.fetchval("SELECT ref.geo_cascade($1, $2, $3)::text", governorate, city, area))
 
 
 @public.get("/locate")
@@ -173,7 +191,7 @@ async def summary(request: Request, pr: Principal = Depends(require_portal("PLAT
                       u.email AS imported_by
                  FROM ref.geo_source s LEFT JOIN iam.app_user u ON u.id = s.imported_by ORDER BY s.imported_at DESC LIMIT 20""")
         cities = await conn.fetch(
-            """SELECT c.code, c.name, c.is_active, p.pcode, p.name_ar,
+            """SELECT c.code, c.name, c.is_active, p.pcode, p.name_ar, c.city_class, ref.city_governorate(c.id) AS governorate,
                       (SELECT count(*) FROM net.station s WHERE s.city_id = c.id) AS stations
                  FROM ref.city c LEFT JOIN ref.place p ON p.id = c.place_id
                 WHERE c.country_code = 'SY' ORDER BY c.code""")
@@ -273,6 +291,24 @@ async def serve(pcode: str, body: ServeIn, request: Request, pr: Principal = Dep
         code = await conn.fetchval("SELECT ref.serve_place($1, $2)", pcode, body.code)
     request.state.audit = {"action": "geo.serve", "object_type": "city", "reason": f"{pcode} as {code}"}
     return {"pcode": pcode, "city_code": code}
+
+
+class CityClassIn(BaseModel):
+    city_class: str = Field(pattern="^(MAIN|SECONDARY)$")
+
+
+@platform.put("/cities/{code}")
+async def city_class(code: str, body: CityClassIn, request: Request, pr: Principal = Depends(require_portal("PLATFORM"))):
+    """A city of the network as a main city or a secondary destination (1160, N37)."""
+    _need(pr)
+    if not re.fullmatch(r"[A-Z]{3}", code):
+        raise not_found("city")
+    async with db.transaction(context_for(request, pr)) as conn:
+        cid = await conn.fetchval("UPDATE ref.city SET city_class = $2 WHERE code = $1 RETURNING id", code, body.city_class)
+    if cid is None:
+        raise not_found("city")
+    request.state.audit = {"action": "geo.city_class", "object_type": "city", "object_id": cid, "reason": f"{code}: {body.city_class}"}
+    return {"code": code, "city_class": body.city_class}
 
 
 @platform.post("/boundaries")

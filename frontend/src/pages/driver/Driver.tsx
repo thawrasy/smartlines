@@ -28,6 +28,7 @@ export function DriverLayout() {
       <Outlet />
       <nav className="navbar">
         <NavLink to="/driver" end><span className="pill"><Icon name="directions_bus" /></span>{t("driver.myTrips")}</NavLink>
+        <NavLink to="/driver/kyc"><span className="pill"><Icon name="badge" /></span>{t("pkyc.nav")}</NavLink>
       </nav>
     </div>
   );

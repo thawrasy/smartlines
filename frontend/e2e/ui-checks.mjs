@@ -33,12 +33,12 @@ const PORTALS = [
   { who: null, pages: ["/", `/search?origin=DAM&destination=ALP&on=${tomorrow}`, `/search?${ROUND}&pax=2`, "@trip", "/login", "/register", "/guest", "/track", "/verify",
     "/screen/pair",         // a display asking to be paired with a station screen (1129)
     `/search?from=DRA&to=ALP&on=${later}`] },   // no trip runs direct: the connections through Damascus (1130)
-  { who: ["passenger@masslak.test", "PASSENGER"], pages: ["/trips", "/wallet", "/family", "/account", "/services", "/support", "@journey", "@connection", "/charter"] },
+  { who: ["passenger@masslak.test", "PASSENGER"], pages: ["/trips", "/wallet", "/family", "/account", "/account/kyc", "/services", "/support", "@journey", "@connection", "/charter"] },
   { who: ["owner@carrier.test", "OPERATOR"],
     pages: ["/carrier", "/carrier/people", "/carrier/integrations", "/carrier/trips", "/carrier/routes", "/carrier/vehicles", "/carrier/finance", "/carrier/documents", "/carrier/reports", "/carrier/stations", "/carrier/schedules", "/carrier/kyc", "/carrier/charter", "/carrier/agency-cash", "/carrier/parcels"] },
   { who: ["counter@carrier.test", "OPERATOR"], pages: ["/carrier/counter", "/carrier/counter/report"] },
-  { who: ["agency@agency.test", "AGENCY"], pages: ["/agency", "/agency/bookings", "/agency/statement", "/agency/cash-accounts", "/agency/people", "/agency/integrations", `/agency/search?${MULTI}&pax=6`, "/agency/charter"] },
-  { who: ["driver@carrier.test", "DRIVER"], pages: ["/driver"] },
+  { who: ["agency@agency.test", "AGENCY"], pages: ["/agency", "/agency/bookings", "/agency/statement", "/agency/cash-accounts", "/agency/people", "/agency/integrations", "/agency/kyc", `/agency/search?${MULTI}&pax=6`, "/agency/charter"] },
+  { who: ["driver@carrier.test", "DRIVER"], pages: ["/driver", "/driver/kyc"] },
   { who: ["admin@masslak.test", "PLATFORM"],
     pages: ["/admin", "/admin/people", "/admin/registries", "/admin/integrations", "/admin/companies", "/admin/finance", "/admin/documents", "/admin/stations", "/admin/boarding", "/admin/schedules", "/admin/kyc", "/admin/modules", "/admin/payments", "/admin/booking", "/admin/booking?tab=connections", "/admin/booking?tab=parcels", "/admin/booking?tab=tripChanges", "/admin/geography", "/admin/photo"] },
   ...(STATION ? [{
@@ -47,7 +47,7 @@ const PORTALS = [
     pages: ["/station", "/station/trips", "/station/checkin", `/station/boarding?trip=${STATION.trip_uid}`, "/station/sales",
             `/station/booking/${STATION.booking_ref}`, "/station/bays", `/board/${STATION.station_uid}`,
             // the screens the station's administration registers, and one screen of each kind (1120)
-            "/station/screens", "/station/people", ...(STATION.departures_screen ? [`/screen/${STATION.departures_screen}`, `/screen/${STATION.arrivals_screen}`] : [])],
+            "/station/screens", "/station/people", "/station/kyc", "/station/documents", ...(STATION.departures_screen ? [`/screen/${STATION.departures_screen}`, `/screen/${STATION.arrivals_screen}`] : [])],
   }] : []),
 ];
 

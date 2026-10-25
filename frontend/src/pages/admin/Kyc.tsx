@@ -7,6 +7,7 @@ import { PageHead } from "../../components/layout";
 import { CarrierName, Empty, ErrorBox, Field, Icon, Loaded, Modal, useLoad, useToast } from "../../components/ui";
 import { KycSectionView, sectionMissing, usePathLabel, useKycText, type Answers, type KycDefinition } from "../../components/KycForm";
 import { KYC_TONE, KycDocuments, type KycDocument, type KycStatus } from "../carrier/Kyc";
+import { PersonFileView, PersonFiles } from "./PersonKyc";
 
 // Companies' KYC files for the platform (owner's request, October 2026; migration 1118). Compliance, finance and tax
 // review a submitted file in the order the settings give, one person per stage; a government authority's members
@@ -18,7 +19,7 @@ import { KYC_TONE, KycDocuments, type KycDocument, type KycStatus } from "../car
 type Stage = { by: "COMPLIANCE" | "FINANCE" | "TAX" | "AUTHORITY"; authority?: string };
 type Risk = "LOW" | "MEDIUM" | "HIGH" | "PROHIBITED";
 interface Row {
-  company_uid: string; company_name: string; company_logo: string | null; uid: string | null; version: number | null; status: KycStatus | null;
+  company_uid: string; company_name: string; company_logo: string | null; company_type: string; uid: string | null; version: number | null; status: KycStatus | null;
   completeness: number | null; risk_level: Risk | null; risk_score: number | null; waiting_for: Stage | null; may_decide: boolean;
   submitted_at: string | null; approved_at: string | null; review_due: string | null; form_version: number | null;
 }
@@ -301,6 +302,7 @@ function Files({ onOpen }: { onOpen: (uid: string) => void }) {
             <tbody>{files.map((r) => (
               <tr key={r.company_uid}>
                 <td style={{ minWidth: 200 }}><CarrierName name={r.company_name} uid={r.company_uid} logo={r.company_logo} />
+                  <div className="small muted">{t(`pkyc.formOf.${r.company_type === "AGENCY" ? "AGENCY" : r.company_type === "STATION_OPERATOR" ? "STATION" : "CARRIER"}`)}</div>
                   {r.version && <div className="small muted">{t("kyc.versionOf", { v: r.version, form: r.form_version ?? 1 })}{r.completeness !== null && r.status && ["DRAFT", "RETURNED"].includes(r.status) ? ` · ${r.completeness}%` : ""}</div>}</td>
                 <td>{r.status ? <span className={`chip ${KYC_TONE[r.status]}`}>{t(`kyc.status.${r.status}`)}</span> : <span className="muted">{t("kycadm.noFile")}</span>}</td>
                 <td><RiskChip level={r.risk_level} /></td>
@@ -321,11 +323,15 @@ function Files({ onOpen }: { onOpen: (uid: string) => void }) {
 // ------------------------------------------------------------------ the form and the settings
 interface FormVersion { version: number; status: "DRAFT" | "ACTIVE" | "RETIRED"; note: string | null; created_at: string; activated_at: string | null; files: number; definition?: KycDefinition }
 
+const FORM_KINDS = ["CARRIER", "AGENCY", "STATION", "DRIVER", "PASSENGER"] as const;
+
 function FormTab() {
   const { t, dateTime } = useI18n();
   const { can } = useAuth();
   const toast = useToast();
-  const state = useLoad(() => api.get<{ active: FormVersion | null; draft: FormVersion | null; versions: FormVersion[] }>("/api/admin/kyc/form"));
+  // each kind of party has its own form and versions (1159, N14)
+  const [kind, setKind] = useState<(typeof FORM_KINDS)[number]>("CARRIER");
+  const state = useLoad(() => api.get<{ active: FormVersion | null; draft: FormVersion | null; versions: FormVersion[] }>(`/api/admin/kyc/form?kind=${kind}`), [kind]);
   const [json, setJson] = useState("");
   const [note, setNote] = useState("");
   const [error, setError] = useState<unknown>(null);
@@ -337,7 +343,7 @@ function FormTab() {
     try {
       let definition: unknown;
       try { definition = JSON.parse(json); } catch { setProblem(t("kycadm.badJson")); return; }
-      const out = await api.put<{ version: number }>("/api/admin/kyc/form", { definition, note: note || null });
+      const out = await api.put<{ version: number }>(`/api/admin/kyc/form?kind=${kind}`, { definition, note: note || null });
       toast(t("kycadm.draftSaved", { v: out.version })); state.reload();
     } catch (e) { setError(e); if (e instanceof ApiError && e.code === "KYC_FORM_INVALID") setProblem(e.message); } finally { setBusy(false); }
   };
@@ -346,6 +352,12 @@ function FormTab() {
     try { await api.post(`/api/admin/kyc/form/${v}/activate`); toast(t("kycadm.activated", { v })); state.reload(); } catch (e) { setError(e); } finally { setBusy(false); }
   };
   return (
+    <div className="stack">
+    <div className="segmented" role="tablist" aria-label={t("pkyc.formKind")} style={{ alignSelf: "flex-start", flexWrap: "wrap" }}>
+      {FORM_KINDS.map((k) => (
+        <button key={k} role="tab" aria-selected={kind === k} className={kind === k ? "on" : ""} onClick={() => { setKind(k); setJson(""); setProblem(null); }}>{t(`pkyc.formOf.${k}`)}</button>
+      ))}
+    </div>
     <Loaded state={state}>{(d) => (
       <div className="stack">
         <div className="card stack tight">
@@ -381,13 +393,16 @@ function FormTab() {
         )}
       </div>
     )}</Loaded>
+    </div>
   );
 }
 
 interface Settings {
   review_stages: Stage[]; risk_rules: unknown[]; risk_levels: { MEDIUM: number; HIGH: number }; review_months: { LOW: number; MEDIUM: number; HIGH: number };
   ubo_threshold_pct: number; documents_on_submit: boolean; required_before: string[]; distinct_reviewers: boolean; authorities: { code: string; name: string }[];
+  persons: { required_before: { PASSENGER: string[]; DRIVER: string[] }; review_months: { PASSENGER: number; DRIVER: number } };
 }
+const PERSON_GATES = { PASSENGER: ["LOYALTY_REDEEM"], DRIVER: ["DRIVE"] } as const;
 
 function SettingsTab() {
   const { t } = useI18n();
@@ -470,6 +485,25 @@ function SettingsTab() {
             ))}
           </fieldset>
         </div>
+        <div className="card stack tight">
+          <h2 style={{ margin: 0, fontSize: 18 }}>{t("pkyc.settingsTitle")}</h2>
+          <p className="small muted" style={{ margin: 0 }}>{t("pkyc.settingsHint")}</p>
+          {(["PASSENGER", "DRIVER"] as const).map((k) => (
+            <fieldset key={k} className="kyc-yesno"><legend>{t(`pkyc.kind.${k}`)}</legend>
+              {PERSON_GATES[k].map((g) => (
+                <label key={g} className="row" style={{ gap: 8 }}><input type="checkbox" disabled={!editable || busy} checked={s.persons.required_before[k].includes(g)}
+                  onChange={(e) => put("persons", { ...s.persons, required_before: { ...s.persons.required_before,
+                    [k]: e.target.checked ? [...s.persons.required_before[k], g] : s.persons.required_before[k].filter((x) => x !== g) } })} />
+                  {t(`pkyc.gate.${g}`)}</label>
+              ))}
+              <div className="row" style={{ gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
+                <Field label={t("pkyc.reviewMonths")}><input className="input" type="number" min={6} max={120} disabled={!editable} value={s.persons.review_months[k]}
+                  onChange={(e) => setS({ ...s, persons: { ...s.persons, review_months: { ...s.persons.review_months, [k]: Number(e.target.value) } } })} /></Field>
+                {editable && <button className="btn small" disabled={busy} onClick={() => put("persons", s.persons)}><Icon name="save" />{t("common.save")}</button>}
+              </div>
+            </fieldset>
+          ))}
+        </div>
       </div>
     )}</Loaded>
   );
@@ -480,20 +514,23 @@ export function AdminKyc() {
   const { can } = useAuth();
   const [params, setParams] = useSearchParams();
   const file = params.get("file");
-  const [tab, setTab] = useState<"files" | "form" | "settings">("files");
+  const person = params.get("person");
+  const [tab, setTab] = useState<"files" | "persons" | "form" | "settings">(person ? "persons" : "files");
   const open = (uid: string | null) => setParams(uid ? { file: uid } : {});
+  const openPerson = (uid: string | null) => setParams(uid ? { person: uid } : {});
   if (file) return <div className="stack"><PageHead title={t("kycadm.title")} /><FileView uid={file} onBack={() => open(null)} /></div>;
+  if (person) return <div className="stack"><PageHead title={t("kycadm.title")} /><PersonFileView uid={person} onBack={() => openPerson(null)} /></div>;
   return (
     <div className="stack">
       <PageHead title={t("kycadm.title")} sub={t("kycadm.sub")} />
       {can("kyc.view", "kyc.settings") && (
         <div className="segmented" role="tablist" aria-label={t("kycadm.title")} style={{ alignSelf: "flex-start", flexWrap: "wrap" }}>
-          {(["files", "form", "settings"] as const).map((k) => (
+          {(["files", "persons", "form", "settings"] as const).map((k) => (
             <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}>{t(`kycadm.tab.${k}`)}</button>
           ))}
         </div>
       )}
-      {tab === "files" ? <Files onOpen={open} /> : tab === "form" ? <FormTab /> : <SettingsTab />}
+      {tab === "files" ? <Files onOpen={open} /> : tab === "persons" ? <PersonFiles onOpen={openPerson} /> : tab === "form" ? <FormTab /> : <SettingsTab />}
     </div>
   );
 }
