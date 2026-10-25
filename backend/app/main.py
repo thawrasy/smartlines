@@ -20,6 +20,7 @@ from .modules.cash import activation as payment_activation
 from .modules.cash import api as cash_api
 from .modules.fleet import api as fleet_api
 from .modules.fleet import units as fleet_units
+from .modules.pricing import studio as pricing_studio
 from .modules.freight import api as freight_api
 from .modules.payouts import api as payouts_api
 from .modules.documents import api as documents_api
@@ -169,7 +170,7 @@ for r in (metrics.router, auth.router, public.router, bookings.router, wallet.ro
           kyc_api.carrier, kyc_api.agency, kyc_api.station, kyc_api.platform, kyc_persons.person, kyc_persons.platform, journeys_api.passenger, journeys_api.agency,
           charter_api.carrier, charter_api.agency, charter_api.passenger, charter_api.platform,
           geo_api.public, geo_api.platform, geo_codes.router, geo_roads.public, geo_roads.platform, geo_roads.carrier, geo_ports.public, geo_ports.platform, roadside_api.platform, roadside_api.carrier, roadside_api.inspector, network_routes.public, network_routes.platform, network_routes.carrier, fare_matrix.carrier, fare_matrix.platform, connections_api.carrier, connections_api.platform,
-          freight_api.carrier, freight_api.public, trip_changes.carrier, trip_changes.platform, fleet_units.carrier, fleet_units.platform):
+          freight_api.carrier, freight_api.public, trip_changes.carrier, trip_changes.platform, fleet_units.carrier, fleet_units.platform, pricing_studio.router):
     app.include_router(r)
 
 app.add_middleware(metrics.MetricsMiddleware)   # request counts and latency per route (T3-16)

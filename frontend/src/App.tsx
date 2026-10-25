@@ -108,6 +108,7 @@ const AdminNetworkRoutes = lazyNamed(() => import("./pages/admin/NetworkRoutes")
 const AdminMiles = lazyNamed(() => import("./pages/admin/Miles"), "AdminMiles");
 const AdminNumberRanges = lazyNamed(() => import("./pages/admin/NumberRanges"), "AdminNumberRanges");
 const AdminCarrierClasses = lazyNamed(() => import("./pages/admin/CarrierClasses"), "AdminCarrierClasses");
+const PricingStudio = lazyNamed(() => import("./pages/finance/PricingStudio"), "PricingStudio");
 const CarrierRoads = lazyNamed(() => import("./pages/admin/Roads"), "CarrierRoads");
 const AdminPhotoPolicy = lazyNamed(() => import("./pages/admin/PhotoPolicy"), "AdminPhotoPolicy");
 const StationOps = lazy(() => import("./pages/carrier/StationOps"));
@@ -175,6 +176,7 @@ function PlatformShell() {
       { to: "/admin/ports", group: "network", icon: "flag", label: t("ports.nav"), show: can("geo.manage") },
       { to: "/admin/network", group: "network", icon: "hub", label: t("nroute.nav"), show: can("geo.manage") },
       // carrier classes and the state's price bands (1164, N10)
+      { to: "/admin/taxes", group: "finance", icon: "request_quote", label: t("ps.nav"), show: can("pricing.tax_commission") },
       { to: "/admin/pricing", group: "finance", icon: "payments", label: t("fares.nav"), show: can("pricing.tax_commission") },
       // the miles programme (1166)
       { to: "/admin/miles", group: "loyalty", icon: "loyalty", label: t("miles.nav"), show: can("loyalty.manage") },
@@ -408,6 +410,7 @@ export default function App() {
           <Route path="admin/ports" element={<AdminPorts />} />
           <Route path="admin/network" element={<AdminNetworkRoutes />} />
           <Route path="admin/pricing" element={<AdminCarrierClasses />} />
+          <Route path="admin/taxes" element={<PricingStudio />} />
           <Route path="admin/numbers" element={<AdminNumberRanges />} />
           <Route path="admin/miles" element={<AdminMiles />} />
           <Route path="admin/photo" element={<AdminPhotoPolicy />} />

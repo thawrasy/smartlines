@@ -105,14 +105,27 @@ async def schemes_for(conn: asyncpg.Connection, sale: Sale) -> list[Scheme]:
              FROM pricing.tax_scheme s JOIN pricing.jurisdiction j ON j.id = s.jurisdiction_id
             WHERE s.status = 'ACTIVE' AND s.valid @> coalesce($2::timestamptz, now()) AND j.country_code = $1
             ORDER BY s.code""", sale.country, sale.at)
-    schemes = []
-    for r in rows:
-        scope = r["scope"] if isinstance(r["scope"], dict) else json.loads(r["scope"] or "{}")
-        sc = Scheme(r["id"], r["code"], r["tax_type"], r["treatment"], r["payable_to_party_id"], scope)
-        if _applies(sc, sale):
-            schemes.append(sc)
+    schemes = [sc for sc in (_scheme(r) for r in rows) if _applies(sc, sale)]
+    await _attach_rules(conn, schemes)
+    return _ordered(schemes)
+
+
+def _scheme(r) -> Scheme:
+    scope = r["scope"] if isinstance(r["scope"], dict) else json.loads(r["scope"] or "{}")
+    return Scheme(r["id"], r["code"], r["tax_type"], r["treatment"], r["payable_to_party_id"], scope)
+
+
+async def schemes_by_id(conn: asyncpg.Connection, ids: list[int]) -> list[Scheme]:
+    """Given schemes whatever their status, with their rules: a draft tried in the price preview before it is approved."""
+    rows = await conn.fetch("SELECT id, code, tax_type, treatment, payable_to_party_id, scope FROM pricing.tax_scheme WHERE id = ANY($1::bigint[])", ids)
+    schemes = [_scheme(r) for r in rows]
+    await _attach_rules(conn, schemes)
+    return schemes
+
+
+async def _attach_rules(conn: asyncpg.Connection, schemes: list[Scheme]) -> None:
     if not schemes:
-        return []
+        return
     rules = await conn.fetch(
         """SELECT id, scheme_id, seq, calc_method, rate, amount, base_type, base_include, compound_mode, min_amount, max_amount,
                   rounding_rule, applies_per, priority FROM pricing.tax_rule WHERE scheme_id = ANY($1::bigint[]) ORDER BY priority, seq""",
@@ -130,7 +143,6 @@ async def schemes_for(conn: asyncpg.Connection, sale: Sale) -> list[Scheme]:
         by_scheme[r["scheme_id"]].rules.append(rule)
     for b in bands:
         by_rule[b["tax_rule_id"]].bands.append(Band(b["dimension"], b["from_value"], b["to_value"], b["rate"], b["amount"], b["mode"]))
-    return _ordered(schemes)
 
 
 def _ordered(schemes: list[Scheme]) -> list[Scheme]:
