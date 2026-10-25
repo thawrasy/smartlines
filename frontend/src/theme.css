@@ -298,9 +298,10 @@ table.table { width: 100%; border-collapse: collapse; font-size: 14px; }
 
 /* ---------- Portal shell (navigation drawer + content) ---------- */
 .shell { display: grid; grid-template-columns: 272px 1fr; min-height: 100vh; }
-/* the portals' menu is darker than the page (owner's request): navy, light text, the active item in the primary colour */
-.drawer { --drawer-bg: #16202E; --drawer-text: #C9D3E0; --drawer-muted: #97A6BA;
-  background: var(--drawer-bg); color: var(--drawer-text); border-inline-end: 1px solid #0F1722; padding: 16px 12px; position: sticky; top: 0; height: 100vh; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+/* the portals' menu is darker than the page (owner's request), in the identity navy of the logo square and the ticket
+   band: light text, the active item in the primary colour */
+.drawer { --drawer-bg: var(--brand-navy); --drawer-text: #D3DCEA; --drawer-muted: #9FB0C8;
+  background: var(--drawer-bg); color: var(--drawer-text); border-inline-end: 1px solid #071530; padding: 16px 12px; position: sticky; top: 0; height: 100vh; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
 .drawer .brand { padding: 8px 12px 20px; color: #fff; }
 .drawer .brand-name, .drawer .brand-latin { filter: brightness(0) invert(1); }
 .drawer .brand-sub, .drawer .muted { color: var(--drawer-muted); }
@@ -310,7 +311,8 @@ table.table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .nav-item.active { background: var(--primary-container); color: var(--on-primary-container); }
 .drawer .nav-item { color: var(--drawer-text); }
 .drawer .nav-item:hover { background: rgba(255, 255, 255, .08); color: #fff; }
-.drawer .nav-item.active { background: var(--primary); color: #fff; }
+.drawer .nav-item.active { background: var(--primary); color: #fff; font-weight: 600; box-shadow: inset 3px 0 0 var(--brand-blue-soft); }
+[dir="rtl"] .drawer .nav-item.active { box-shadow: inset -3px 0 0 var(--brand-blue-soft); }
 .drawer .nav-item:focus-visible { outline: 2px solid #8AB4FF; outline-offset: 2px; }
 .org-card { margin-top: auto; background: var(--surface-tint); border-radius: var(--radius-s); padding: 12px 14px; font-size: 13px; }
 .drawer .org-card { background: rgba(255, 255, 255, .06); color: #E6ECF4; }
