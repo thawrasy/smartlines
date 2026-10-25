@@ -98,8 +98,8 @@ flowchart LR
   ops -->|4| sales
   ops -->|1| sec
   pricing -->|2| fin
-  pricing -->|24| iam
-  pricing -->|7| net
+  pricing -->|25| iam
+  pricing -->|12| net
   pricing -->|2| ptn
   pricing -->|1| ref
   pricing -->|1| sales
@@ -1713,6 +1713,17 @@ erDiagram
     bigint template_id PK
     text code PK
   }
+  pricing_award_fare {
+    bigint id PK
+    uuid uid
+    bigint program_id FK
+    bigint company_id FK
+    bigint from_station_id FK
+    bigint to_station_id FK
+    character currency FK
+    text status
+    bigint created_by FK
+  }
   pricing_award_seat_rule {
     bigint id PK
     bigint company_id FK
@@ -1842,6 +1853,15 @@ erDiagram
     bigint id PK
     bigint program_id FK
     text code
+  }
+  pricing_miles_chart {
+    bigint id PK
+    bigint program_id FK
+    bigint network_route_id FK
+    bigint from_station_id FK
+    bigint to_station_id FK
+    text status
+    bigint created_by FK
   }
   pricing_override_policy {
     bigint id PK
@@ -1984,6 +2004,9 @@ erDiagram
   net_line {
     ref external
   }
+  net_network_route {
+    ref external
+  }
   net_route {
     ref external
   }
@@ -2020,6 +2043,7 @@ erDiagram
   pricing_fare_table }o..o| iam_company : "company_id"
   pricing_family_offer }o--|| iam_company : "company_id"
   pricing_override_policy }o..o| iam_company : "company_id"
+  pricing_award_fare }o..o| iam_company : "company_id"
   pricing_campaign }o..o| iam_company : "company_id"
   pricing_bin_range }o--|| iam_party : "bank_party_id"
   pricing_points_account }o--|| iam_party : "party_id"
@@ -2029,12 +2053,17 @@ erDiagram
   pricing_promo_code }o..o| iam_party : "owner_party_id"
   pricing_tax_scheme }o..o| iam_party : "payable_to_party_id"
   pricing_award_seat_rule }o..o| net_line : "line_id"
+  pricing_miles_chart }o..o| net_network_route : "network_route_id"
   pricing_fare_table }o..o| net_route : "route_id"
   pricing_award_seat_rule }o..o| net_route : "route_id"
   pricing_category_fare_rule }o..o| net_route : "route_id"
   pricing_family_offer }o..o| net_route : "route_id"
   pricing_fare_table_item }o--|| net_station : "from_station_id"
   pricing_fare_table_item }o--|| net_station : "to_station_id"
+  pricing_miles_chart }o--|| net_station : "from_station_id"
+  pricing_miles_chart }o--|| net_station : "to_station_id"
+  pricing_award_fare }o--|| net_station : "from_station_id"
+  pricing_award_fare }o--|| net_station : "to_station_id"
   pricing_allocation_template_line }o--|| pricing_allocation_template : "template_id"
   pricing_promo_code }o--|| pricing_campaign : "campaign_id"
   pricing_rate_band }o..o| pricing_commission_rule : "commission_rule_id"
@@ -2056,6 +2085,8 @@ erDiagram
   pricing_loyalty_partner }o--|| pricing_loyalty_program : "program_id"
   pricing_reward_catalog }o--|| pricing_loyalty_program : "program_id"
   pricing_points_liability }o--|| pricing_loyalty_program : "program_id"
+  pricing_miles_chart }o--|| pricing_loyalty_program : "program_id"
+  pricing_award_fare }o--|| pricing_loyalty_program : "program_id"
   pricing_points_ledger }o..o| pricing_loyalty_rule : "rule_id"
   pricing_loyalty_settlement_line }o--|| pricing_loyalty_settlement : "settlement_id"
   pricing_points_account }o..o| pricing_loyalty_tier : "tier_id"

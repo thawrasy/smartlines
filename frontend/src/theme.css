@@ -298,13 +298,24 @@ table.table { width: 100%; border-collapse: collapse; font-size: 14px; }
 
 /* ---------- Portal shell (navigation drawer + content) ---------- */
 .shell { display: grid; grid-template-columns: 272px 1fr; min-height: 100vh; }
-.drawer { background: var(--surface); border-inline-end: 1px solid var(--divider); padding: 16px 12px; position: sticky; top: 0; height: 100vh; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
-.drawer .brand { padding: 8px 12px 20px; }
-.drawer-section { font-size: 12px; color: var(--on-surface-variant); padding: 16px 16px 6px; font-weight: 600; }
+/* the portals' menu is darker than the page (owner's request): navy, light text, the active item in the primary colour */
+.drawer { --drawer-bg: #16202E; --drawer-text: #C9D3E0; --drawer-muted: #97A6BA;
+  background: var(--drawer-bg); color: var(--drawer-text); border-inline-end: 1px solid #0F1722; padding: 16px 12px; position: sticky; top: 0; height: 100vh; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+.drawer .brand { padding: 8px 12px 20px; color: #fff; }
+.drawer .brand-name, .drawer .brand-latin { filter: brightness(0) invert(1); }
+.drawer .brand-sub, .drawer .muted { color: var(--drawer-muted); }
+.drawer-section { font-size: 12px; color: var(--drawer-muted); padding: 16px 16px 6px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
 .nav-item { display: flex; align-items: center; gap: 12px; height: 44px; padding: 0 14px; border-radius: 12px; color: var(--on-surface-variant); font-weight: 500; font-size: 14px; }
 .nav-item:hover { background: var(--surface-container); text-decoration: none; }
 .nav-item.active { background: var(--primary-container); color: var(--on-primary-container); }
+.drawer .nav-item { color: var(--drawer-text); }
+.drawer .nav-item:hover { background: rgba(255, 255, 255, .08); color: #fff; }
+.drawer .nav-item.active { background: var(--primary); color: #fff; }
+.drawer .nav-item:focus-visible { outline: 2px solid #8AB4FF; outline-offset: 2px; }
 .org-card { margin-top: auto; background: var(--surface-tint); border-radius: var(--radius-s); padding: 12px 14px; font-size: 13px; }
+.drawer .org-card { background: rgba(255, 255, 255, .06); color: #E6ECF4; }
+.drawer .org-card a, .drawer .org-card button, .drawer .icon-btn { color: #E6ECF4; }
+.drawer .icon-btn:hover { background: rgba(255, 255, 255, .1); }
 .main { min-width: 0; }
 .main-bar { height: 64px; display: flex; align-items: center; gap: 12px; padding: 0 32px; background: rgba(247, 248, 245, .9); backdrop-filter: blur(12px); position: sticky; top: 0; z-index: 10; }
 .main-content { padding: 8px 32px 64px; max-width: 1360px; }

@@ -3074,7 +3074,7 @@ INSERT INTO pricing.loyalty_agreement (loyalty_partner_id, currency, points, amo
 VALUES (:lpn, 'SYP', 100, 10000, 80, 100, 100, 'RS-2026-01', :uadmin) RETURNING id AS lag \gset
 SELECT pg_temp.expect_error(format($$UPDATE pricing.loyalty_agreement SET status = 'ACTIVE', approved_by = %s WHERE id = %s$$, :lpo, :lag),
   'PARTNER_NOT_ACTIVE', 'Partner redemption (1107): an agreement waits for its partner to be active');
-UPDATE pricing.loyalty_partner SET status = 'ACTIVE' WHERE id = :lpn;
+UPDATE pricing.loyalty_partner SET status = 'ACTIVE', contract_ref = 'RS-2026-01' WHERE id = :lpn;
 SELECT pg_temp.expect_error(format($$UPDATE pricing.loyalty_agreement SET status = 'ACTIVE', approved_by = %s WHERE id = %s$$, :uadmin, :lag),
   'loyalty_agreement_check', 'Partner redemption (1107): whoever wrote an agreement does not activate it');
 UPDATE pricing.loyalty_agreement SET status = 'ACTIVE', approved_by = :lpo WHERE id = :lag;
@@ -4153,6 +4153,36 @@ SELECT pg_temp.ok((SELECT count(*) FROM net.number_range WHERE company_id = :nrc
 SELECT sys.set_context(NULL, NULL, 'PASSENGER');
 SELECT pg_temp.expect_error(format($$SELECT net.set_number_range(%s, 'CARGO', 7001, 7002, NULL)$$, :nrc), 'FORBIDDEN',
   'Number ranges (1165): only the platform sets a range');
+RESET ROLE;
+ROLLBACK;
+SET ROLE masslak_app;
+
+-- Miles (1166): a chart per pair in either direction, tier multipliers, award tickets off, partners need a contract
+BEGIN;
+RESET ROLE;
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+INSERT INTO pricing.loyalty_program (code, name, point_value, currency, name_ar, unit_ar)
+VALUES ('MILES-CHECK', 'Check Miles', 1000, 'SYP', 'check', 'check') RETURNING id AS mlp \gset
+SELECT id AS mla FROM net.station ORDER BY id LIMIT 1 \gset
+SELECT id AS mlb FROM net.station WHERE id <> :mla ORDER BY id LIMIT 1 \gset
+INSERT INTO pricing.miles_chart (program_id, from_station_id, to_station_id, miles) VALUES (:mlp, :mla, :mlb, 250);
+SELECT pricing.chart_miles(:mlp, :mlb, :mla, current_date) AS mlback \gset
+SELECT pg_temp.ok(:mlback = 250, 'Miles (1166): a pair of the chart earns its miles in either direction');
+SELECT pg_temp.expect_error(format($$INSERT INTO pricing.miles_chart (program_id, from_station_id, to_station_id, miles) VALUES (%s, %s, %s, 300)$$, :mlp, :mlb, :mla),
+  'duplicate key', 'Miles (1166): one active row per pair, whatever the direction');
+SELECT pg_temp.ok(pricing.tier_multiplier(NULL) = 1, 'Miles (1166): without a tier multiplier a member earns the chart''s miles');
+SELECT pg_temp.ok((SELECT value FROM sys.setting WHERE key = 'loyalty.award_redemption') = 'false'::jsonb
+                  AND (SELECT value FROM sys.setting WHERE key = 'loyalty.promoted_display') = 'false'::jsonb,
+  'Miles (1166): award redemption and promoted display are off in the first phase');
+SELECT pg_temp.ok((SELECT unit_ar IS NOT NULL AND name_ar IS NOT NULL FROM pricing.loyalty_program WHERE id = :mlp),
+  'Miles (1166): the programme has its name and unit in Arabic');
+SELECT p.id AS mlparty FROM iam.party p WHERE p.party_type = 'COMPANY'
+   AND NOT EXISTS (SELECT 1 FROM pricing.loyalty_partner lp WHERE lp.program_id = :mlp AND lp.party_id = p.id) ORDER BY p.id LIMIT 1 \gset
+SELECT pg_temp.expect_error(format($$INSERT INTO pricing.loyalty_partner (program_id, party_id, partner_type, status) VALUES (%s, %s, 'BANK', 'ACTIVE')$$, :mlp, :mlparty),
+  'PARTNER_CONTRACT_REQUIRED', 'Miles (1166): a partner is active only with its contract number');
+INSERT INTO pricing.loyalty_partner (program_id, party_id, partner_type, status, contract_ref) VALUES (:mlp, :mlparty, 'BANK', 'ACTIVE', 'LP-1166');
+SELECT pg_temp.ok(EXISTS (SELECT 1 FROM pricing.loyalty_partner WHERE party_id = :mlparty AND partner_type = 'BANK' AND status = 'ACTIVE'),
+  'Miles (1166): banks, restaurants, shops and carriers are partner types');
 RESET ROLE;
 ROLLBACK;
 SET ROLE masslak_app;

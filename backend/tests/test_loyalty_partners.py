@@ -30,8 +30,8 @@ def test_points_redeemed_at_a_partner_under_its_agreement():
     try:
         program = owner_sql("SELECT id FROM pricing.loyalty_program WHERE status = 'ACTIVE' AND currency = 'SYP' ORDER BY id LIMIT 1")
         party = owner_sql("INSERT INTO iam.party (party_type, legal_name) VALUES ('COMPANY', $1) RETURNING id", f"Rest Stop {uuid.uuid4().hex[:6]}")
-        partner = owner_sql("""INSERT INTO pricing.loyalty_partner (program_id, party_id, partner_type, status)
-                               VALUES ($1, $2, 'REST_STOP', 'ACTIVE') RETURNING id""", program, party)
+        partner = owner_sql("""INSERT INTO pricing.loyalty_partner (program_id, party_id, partner_type, status, contract_ref)
+                               VALUES ($1, $2, 'REST_STOP', 'ACTIVE', 'RS-2026-02') RETURNING id""", program, party)
         pax = login("passenger@masslak.test", "PASSENGER")
         pax_party = owner_sql("SELECT party_id FROM iam.app_user WHERE email = 'passenger@masslak.test'")
         owner_sql("INSERT INTO pricing.points_account (program_id, party_id) VALUES ($1, $2) ON CONFLICT DO NOTHING", program, pax_party)

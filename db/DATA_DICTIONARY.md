@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**600 tables, 6518 columns, in 26 schemas.**
+**602 tables, 6549 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -13,7 +13,7 @@ Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant i
 - [`sys` — Settings, outbox and webhooks](#sys) (27 tables)
 - [`net` — Network: stations, routes, lines, corridors and geofences](#net) (42 tables)
 - [`fleet` — Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance](#fleet) (23 tables)
-- [`pricing` — Pricing, taxes, commissions, campaigns and loyalty](#pricing) (39 tables)
+- [`pricing` — Pricing, taxes, commissions, campaigns and loyalty](#pricing) (41 tables)
 - [`ops` — Trips, inventory, operations, shuttle rides, tracking and incidents](#ops) (40 tables)
 - [`sales` — Channels, bookings, passengers, tickets, subscriptions and travel documents](#sales) (35 tables)
 - [`fin` — Wallets, ledger, payments, allocation, settlement and float](#fin) (37 tables)
@@ -3097,6 +3097,28 @@ Template of the price allocation tree across beneficiaries (carrier, platform, t
 | `release_event` | `text` | ✱ | `'TRIP_COMPLETED'::text` |
 | `refundable` | `boolean` | ✱ | `true` |
 
+### `pricing.award_fare` 🛡️
+
+An award ticket between two stations: miles plus a fee and a reduced amount; redeemed only while loyalty.award_redemption is on (1166)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `program_id` | `bigint` | 🔗 `pricing.loyalty_program` ✱ |  |
+| `company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `from_station_id` | `bigint` | 🔗 `net.station` ✱ |  |
+| `to_station_id` | `bigint` | 🔗 `net.station` ✱ |  |
+| `miles` | `bigint` | ✱ |  |
+| `fee` | `bigint` | ✱ | `0` |
+| `reduced_amount` | `bigint` | ✱ | `0` |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `seats_per_trip` | `integer` |  |  |
+| `valid` | `daterange` | ✱ | `daterange(CURRENT_DATE, NULL::date)` |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
 ### `pricing.award_seat_rule` 🛡️
 
 Seats a carrier releases for points on a line or route, with blackout dates
@@ -3354,6 +3376,9 @@ Earn and burn partner of the loyalty program (5.13 f); extends the partner regis
 | `contract_ref` | `text` |  |  |
 | `status` | `text` | ✱ | `'PENDING'::text` |
 | `api_client_id` | `bigint` | 🔗 `iam.api_client`  |  |
+| `corner_note` | `text` |  |  |
+| `promoted` | `boolean` | ✱ | `false` |
+| `promoted_until` | `date` |  |  |
 
 ### `pricing.loyalty_program` 🛡️
 
@@ -3369,6 +3394,9 @@ Earn and burn partner of the loyalty program (5.13 f); extends the partner regis
 | `expiry_months` | `smallint` | ✱ | `24` |
 | `tax_treatment` | `jsonb` | ✱ | `'{}'::jsonb` |
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `name_ar` | `text` |  |  |
+| `unit_en` | `text` | ✱ | `'miles'::text` |
+| `unit_ar` | `text` |  |  |
 
 ### `pricing.loyalty_rule` 🛡️
 
@@ -3434,6 +3462,23 @@ An honoured voucher covered by a partner statement; each redemption is settled o
 | `name` | `text` | ✱ |  |
 | `min_points` | `bigint` | ✱ | `0` |
 | `benefits` | `jsonb` | ✱ | `'{}'::jsonb` |
+
+### `pricing.miles_chart` 🛡️
+
+Miles a boarded ticket earns between two stations, in either direction, optionally on a route of the network (1166)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `program_id` | `bigint` | 🔗 `pricing.loyalty_program` ✱ |  |
+| `network_route_id` | `bigint` | 🔗 `net.network_route`  |  |
+| `from_station_id` | `bigint` | 🔗 `net.station` ✱ |  |
+| `to_station_id` | `bigint` | 🔗 `net.station` ✱ |  |
+| `miles` | `bigint` | ✱ |  |
+| `valid` | `daterange` | ✱ | `daterange(CURRENT_DATE, NULL::date)` |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `pricing.override_policy` 🛡️
 

@@ -1,3 +1,4 @@
+import { MilesCorner } from "./Miles";
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api, newKey } from "../../api";
@@ -117,6 +118,7 @@ export default function Wallet() {
             </div>
           )}
           <Points onRedeemed={state.reload} />
+          <MilesCorner />
           <div className="card">
             <div className="card-title"><h3>{t("wallet.statement")}</h3></div>
             {w.entries.length === 0 ? <Empty icon="receipt_long" title={t("common.noData")} /> : (
