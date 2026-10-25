@@ -25,6 +25,8 @@ on:
       # the release images and the host templates (the images job)
       - 'treasury-platform/tools/host/**'
       - 'treasury-platform/.dockerignore'
+      - 'treasury-platform/RELEASE'
+      - 'treasury-platform/tools/release/**'
       - '.github/workflows/treasury-db-ci.yml'
   pull_request:
     paths:
@@ -43,6 +45,8 @@ on:
       # the release images and the host templates (the images job)
       - 'treasury-platform/tools/host/**'
       - 'treasury-platform/.dockerignore'
+      - 'treasury-platform/RELEASE'
+      - 'treasury-platform/tools/release/**'
       - '.github/workflows/treasury-db-ci.yml'
   workflow_dispatch:
 
@@ -126,7 +130,10 @@ jobs:
   # own database logins (tools/ci/image_pilot.sh), on a fresh database deployed the way production does.
   images:
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 90
+    # contents: write for the release step only, which runs on a pushed commit whose message says [release] (docs/57).
+    permissions:
+      contents: write
     services:
       sqlserver:
         image: mcr.microsoft.com/mssql/server:2025-CU9-GDR1-ubuntu-24.04@sha256:742481d1b1186cccc81220a1eaacef244ca8d0f7d19c8e5c70df8ae541ffbab2
@@ -170,7 +177,7 @@ jobs:
               -e "s#/opt/bankfas/api.env#$PWD/tools/host/api.env.example#; s#/opt/bankfas/worker.env#$PWD/tools/host/worker.env.example#" \
               tools/host/compose.yml > "$RUNNER_TEMP/compose.yml"
           docker compose -f "$RUNNER_TEMP/compose.yml" config --quiet
-          bash -n tools/host/*.sh tools/deploy/*.sh tools/ci/*.sh
+          bash -n tools/host/*.sh tools/deploy/*.sh tools/ci/*.sh tools/release/*.sh
 
       - name: Set up Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -185,3 +192,17 @@ jobs:
 
       - name: The pilot run against the containers
         run: sudo -E env "PATH=$PATH" API_IMAGE=bankfas-api:ci WORKER_IMAGE=bankfas-worker:ci HOME="$HOME" bash tools/ci/image_pilot.sh
+
+      # The release package (docs/57): made from the images the pilot run just passed, and published as a pre-release
+      # named after treasury-platform/RELEASE. A version already released is never replaced.
+      - name: The release package
+        if: github.event_name == 'push' && contains(github.event.head_commit.message, '[release]')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          V="$(cat RELEASE)"
+          if gh release view "bankfas-v$V" >/dev/null 2>&1; then echo "bankfas-v$V is already released; raise RELEASE" >&2; exit 1; fi
+          bash tools/release/make_release.sh "$V" bankfas-api:ci bankfas-worker:ci "$RUNNER_TEMP/release"
+          gh release create "bankfas-v$V" "$RUNNER_TEMP"/release/* --target "$GITHUB_SHA" --prerelease \
+            --title "BankFas $V (pilot)" --notes "The pilot release $V. Install: INSTALL-AR.md (docs/57). Check the files first: sha256sum -c SHA256SUMS."

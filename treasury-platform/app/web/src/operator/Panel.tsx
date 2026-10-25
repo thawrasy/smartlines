@@ -316,14 +316,21 @@ function Shell() {
           <LangSwitch />
           <button className="link" onClick={async () => { await api('POST', '/operator/auth/logout', {}); nav('/login'); }}>{t('Sign out')}</button>
         </header>
+        {/* The panel's menu by task, like the portal's (docs/31 row 59); short enough to keep every group open. */}
         <nav className="side">
           <Link to="/" className="brand"><Logo inverse height={26} /></Link>
-          <NavLink to="/" end>{t('Tenants')}</NavLink>
-          {me.role === 'OPERATOR_ADMIN' && <NavLink to="/operators">{t('Operators')}</NavLink>}
-          <NavLink to="/support">{t('Support access')}</NavLink>
-          <NavLink to="/holidays">{t('Platform holidays')}</NavLink>
-          <NavLink to="/security">{t('Security')}</NavLink>
-          <NavLink to="/incidents">{t('Security incidents')}</NavLink>
+          <div className="side-group"><span className="side-head">{t('Tenants')}</span><div className="side-items">
+            <NavLink to="/" end>{t('Tenants')}</NavLink>
+            <NavLink to="/support">{t('Support access')}</NavLink>
+          </div></div>
+          <div className="side-group"><span className="side-head">{t('Security')}</span><div className="side-items">
+            <NavLink to="/security">{t('Security')}</NavLink>
+            <NavLink to="/incidents">{t('Security incidents')}</NavLink>
+          </div></div>
+          <div className="side-group"><span className="side-head">{t('Platform')}</span><div className="side-items">
+            {me.role === 'OPERATOR_ADMIN' && <NavLink to="/operators">{t('Operators')}</NavLink>}
+            <NavLink to="/holidays">{t('Platform holidays')}</NavLink>
+          </div></div>
         </nav>
         <main className="content">
           <Routes>
