@@ -43,6 +43,7 @@ from .modules.network import routes as network_routes
 from .modules.fares import matrix as fare_matrix
 from .modules.sales import charter_api, connections_api, journeys_api
 from .modules.schedules import api as schedules_api
+from .modules.schedules import numbers as schedule_numbers
 from .modules.kyc import api as kyc_api
 from .modules.kyc import persons as kyc_persons
 from .modules.support import api as support_api
@@ -160,7 +161,7 @@ for r in (metrics.router, auth.router, public.router, bookings.router, wallet.ro
           support_api.router, support_api.admin, cash_api.router, payment_activation.router, seo_pages.router, parcels_api.customer, parcels_api.carrier, trip_parcels.customer, trip_parcels.carrier, trip_parcels.platform,
           loyalty_api.router, loyalty_admin.router, station_sales.router, boarding_screens.platform, boarding_screens.carrier,
           boarding_screens.public, boarding_bays.station, boarding_bays.platform,
-          boarding_displays.station, boarding_displays.platform, boarding_displays.public, schedules_api.carrier, schedules_api.platform,
+          boarding_displays.station, boarding_displays.platform, boarding_displays.public, schedules_api.carrier, schedules_api.platform, schedule_numbers.carrier, schedule_numbers.platform,
           kyc_api.carrier, kyc_api.agency, kyc_api.station, kyc_api.platform, kyc_persons.person, kyc_persons.platform, journeys_api.passenger, journeys_api.agency,
           charter_api.carrier, charter_api.agency, charter_api.passenger, charter_api.platform,
           geo_api.public, geo_api.platform, geo_codes.router, geo_roads.public, geo_roads.platform, geo_roads.carrier, network_routes.public, network_routes.platform, network_routes.carrier, fare_matrix.carrier, fare_matrix.platform, connections_api.carrier, connections_api.platform,

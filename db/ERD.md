@@ -88,7 +88,7 @@ flowchart LR
   iam -->|1| ops
   iam -->|8| ref
   iam -->|2| sec
-  net -->|26| iam
+  net -->|30| iam
   net -->|13| ref
   ops -->|2| fin
   ops -->|10| fleet
@@ -1137,6 +1137,19 @@ erDiagram
     bigint proposed_by FK
     bigint decided_by FK
   }
+  net_number_range {
+    bigint id PK
+    bigint company_id FK
+    bigint set_by FK
+  }
+  net_number_range_request {
+    bigint id PK
+    uuid uid
+    bigint company_id FK
+    text status
+    bigint requested_by FK
+    bigint answered_by FK
+  }
   net_operation_reference {
     bigint id PK
     uuid uid
@@ -1311,22 +1324,26 @@ erDiagram
   net_station_boarding }o..o| iam_app_user : "updated_by_user_id"
   net_station_operator_grant }o..o| iam_app_user : "granted_by_user_id"
   net_screen_pairing }o..o| iam_app_user : "paired_by"
+  net_number_range }o--|| iam_app_user : "set_by"
   net_station_screen }o..o| iam_app_user : "created_by_user_id"
   net_station_operator_grant }o..o| iam_app_user : "revoked_by_user_id"
   net_network_route_version }o--|| iam_app_user : "proposed_by"
   net_station_screen }o..o| iam_app_user : "updated_by_user_id"
+  net_number_range_request }o..o| iam_app_user : "answered_by"
   net_operation_reference }o..o| iam_app_user : "created_by_user_id"
   net_road_correction }o--|| iam_app_user : "proposed_by"
   net_route_request }o..o| iam_app_user : "answered_by"
   net_carrier_code }o--|| iam_company : "company_id"
   net_service_number }o--|| iam_company : "company_id"
   net_station_carrier_bay }o--|| iam_company : "carrier_company_id"
+  net_number_range }o--|| iam_company : "company_id"
   net_route }o--|| iam_company : "company_id"
   net_line_permit }o--|| iam_company : "company_id"
   net_timetable_template }o--|| iam_company : "company_id"
   net_operation_reference }o--|| iam_company : "company_id"
   net_station_operator_grant }o..o| iam_company : "carrier_company_id"
   net_route_request }o--|| iam_company : "company_id"
+  net_number_range_request }o--|| iam_company : "company_id"
   net_station_operator_grant }o--|| iam_company : "operator_company_id"
   net_station_gate }o..o| iam_company : "operator_company_id"
   net_station }o..o| iam_company : "owner_company_id"

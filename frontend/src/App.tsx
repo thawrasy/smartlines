@@ -104,6 +104,7 @@ const AdminBookingRules = lazyNamed(() => import("./pages/charter/Charter"), "Ad
 const AdminGeography = lazyNamed(() => import("./pages/admin/Geography"), "AdminGeography");
 const AdminRoads = lazyNamed(() => import("./pages/admin/Roads"), "AdminRoads");
 const AdminNetworkRoutes = lazyNamed(() => import("./pages/admin/NetworkRoutes"), "AdminNetworkRoutes");
+const AdminNumberRanges = lazyNamed(() => import("./pages/admin/NumberRanges"), "AdminNumberRanges");
 const AdminCarrierClasses = lazyNamed(() => import("./pages/admin/CarrierClasses"), "AdminCarrierClasses");
 const CarrierRoads = lazyNamed(() => import("./pages/admin/Roads"), "CarrierRoads");
 const AdminPhotoPolicy = lazyNamed(() => import("./pages/admin/PhotoPolicy"), "AdminPhotoPolicy");
@@ -152,6 +153,8 @@ function PlatformShell() {
       { to: "/admin/boarding", icon: "departure_board", label: t("brdadm.nav"), show: can("boarding.manage", "payout.run") },
       // regular trips: the platform's stages (schedule.approve), and the members of government authorities (regulators)
       { to: "/admin/schedules", icon: "event_repeat", label: t("schedadm.nav"), show: can("schedule.approve", "schedule.settings", "regulator.dashboard") },
+      // carriers' ranges of trip numbers (1165, N7)
+      { to: "/admin/numbers", icon: "tune", label: t("numbers.nav"), show: can("schedule.approve") },
       // seats booked at once (1122) and charter (1123)
       { to: "/admin/booking", icon: "airport_shuttle", label: t("rules.nav"), show: can("policy.matrix", "report.platform") },
       // governorates to neighbourhoods from the United Nations P-codes, and places opened for routes (1124)
@@ -383,6 +386,7 @@ export default function App() {
           <Route path="admin/roads" element={<AdminRoads />} />
           <Route path="admin/network" element={<AdminNetworkRoutes />} />
           <Route path="admin/pricing" element={<AdminCarrierClasses />} />
+          <Route path="admin/numbers" element={<AdminNumberRanges />} />
           <Route path="admin/photo" element={<AdminPhotoPolicy />} />
           <Route path="admin/kyc" element={<AdminKyc />} />
           <Route path="admin/modules" element={<AdminModules />} />

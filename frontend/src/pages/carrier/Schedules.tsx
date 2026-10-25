@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../../api";
 import { useI18n } from "../../i18n";
 import { PageHead } from "../../components/layout";
+import { CarrierNumberRanges } from "./NumberRanges";
 import { Empty, ErrorBox, Field, Icon, Loaded, Modal, useLoad, useToast } from "../../components/ui";
 
 // Regular trips (owner's decision, October 2026; migration 1117). The carrier defines a trip that repeats at the same
@@ -116,6 +117,17 @@ function NewSchedule({ data, onClose, onDone }: { data: Overview; onClose: () =>
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
   const needs = data.rules.approval_kinds.includes("NEW");
+  // the number from the carrier's range (1165, N7): its free numbers that fit the type and direction, the default first
+  const [numbers, setNumbers] = useState<{ range: { from: number; to: number }; suggested: number | null; free: number[] } | null>(null);
+  useEffect(() => {
+    if (after || !f.route_uid) { setNumbers(null); return; }
+    let live = true;
+    api.get<{ range: { from: number; to: number }; suggested: number | null; free: number[] }>("/api/carrier/numbers", {
+      trip_type: f.trip_type, direction: f.direction, from_date: f.from_date, until_date: f.no_end ? undefined : f.until_date || undefined, route_uid: f.route_uid,
+    }).then((n) => { if (live) { setNumbers(n); setF((x) => ({ ...x, proposed_number: n.suggested != null ? String(n.suggested) : "" })); } })
+      .catch(() => live && setNumbers(null));
+    return () => { live = false; };
+  }, [after, f.route_uid, f.trip_type, f.direction, f.from_date, f.until_date, f.no_end]);
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => { setF({ ...f, [k]: v }); setPreview(null); };
   const pattern = () => ({ departure_time: f.departure_time, recurrence: f.recurrence, days_of_week: f.days_of_week, days_of_month: f.days_of_month,
                            skip_dates: f.skip_dates, from_date: f.from_date, until_date: f.no_end ? null : f.until_date || null });
@@ -133,7 +145,7 @@ function NewSchedule({ data, onClose, onDone }: { data: Overview; onClose: () =>
   return (
     <Modal title={t("sched.new")} onClose={onClose} wide
            actions={<><button className="btn text" onClick={onClose}>{t("common.cancel")}</button>
-             <button className="btn" disabled={busy || !f.route_uid} onClick={submit}><Icon name="send" />{needs ? t("sched.ask") : t("sched.askNow")}</button></>}>
+             <button className="btn" disabled={busy || !f.route_uid || (!after && !f.proposed_number)} onClick={submit}><Icon name="send" />{needs ? t("sched.ask") : t("sched.askNow")}</button></>}>
       <div className="stack">
         <Field label={t("sched.follows")} hint={after ? t("sched.followsHint", { code: after.trip_code ?? "", n: data.rules.min_turnaround_min,
                                                                                  next: (after.service_no ?? 0) + 1 }) : t("sched.followsNone")}>
@@ -192,9 +204,14 @@ function NewSchedule({ data, onClose, onDone }: { data: Overview; onClose: () =>
               {["OUTBOUND", "INBOUND"].map((x) => <option key={x} value={x}>{t(`sched.dir.${x}`)}</option>)}
             </select>
           </Field>
-          <Field label={t("sched.number")} hint={after ? t("sched.numberAfter", { n: (after.service_no ?? 0) + 1 }) : t("sched.numberHint")}>
-            <input className="input ltr" inputMode="numeric" disabled={!!after} value={after ? String((after.service_no ?? 0) + 1) : f.proposed_number}
-                   onChange={(e) => set("proposed_number", e.target.value.replace(/\D/g, "").slice(0, 4))} />
+          <Field label={t("sched.number")} hint={after ? t("sched.numberAfter", { n: (after.service_no ?? 0) + 1 })
+                                                       : numbers ? t("numbers.rangeHint", { from: numbers.range.from, to: numbers.range.to }) : t("sched.numberHint")}>
+            {after ? <input className="input ltr" disabled value={String((after.service_no ?? 0) + 1)} /> : (
+              <select className="input ltr mono" value={f.proposed_number} disabled={!numbers} onChange={(e) => set("proposed_number", e.target.value)}>
+                {(!numbers || numbers.free.length === 0) && <option value="">{numbers ? t("numbers.full") : "—"}</option>}
+                {numbers?.free.map((n) => <option key={n} value={n}>{n}{n === numbers.suggested ? ` · ${t("numbers.default")}` : ""}</option>)}
+              </select>
+            )}
           </Field>
         </div>
         <label className="row" style={{ gap: 8 }}><input type="checkbox" checked={f.auto_publish} onChange={(e) => set("auto_publish", e.target.checked)} />{t("sched.publish")}</label>
@@ -399,6 +416,7 @@ export function CarrierSchedules() {
               </table></div>
             )}
           </div>
+          <CarrierNumberRanges />
           {modal?.kind === "new" && <NewSchedule data={d} onClose={() => setModal(null)} onDone={done} />}
           {modal?.kind === "change" && <ChangeSchedule s={modal.s} data={d} onClose={() => setModal(null)} onDone={done} />}
           {modal?.kind === "stop" && <StopSchedule s={modal.s} onClose={() => setModal(null)} onDone={done} />}

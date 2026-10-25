@@ -28,7 +28,8 @@ SOONEST = timedelta(minutes=30)          # a trip is made at least this long bef
 
 async def insert_trip(conn: asyncpg.Connection, company_id: int, route, vehicle, dep: datetime, publish: bool,
                       driver_party: Optional[int] = None, template_id: Optional[int] = None,
-                      trip_type: str = "SCHEDULED", service_number_id: Optional[int] = None) -> tuple[int, str]:
+                      trip_type: str = "SCHEDULED", service_number_id: Optional[int] = None,
+                      service_no: Optional[int] = None) -> tuple[int, str]:
     """Writes one trip with its stops, seat segments and driver: the same trip whether made by hand or by a regular trip."""
     stops = await conn.fetch("SELECT * FROM net.route_stop WHERE route_id = $1 ORDER BY seq", route["id"])
     n = len(stops)
@@ -40,13 +41,13 @@ async def insert_trip(conn: asyncpg.Connection, company_id: int, route, vehicle,
     trip_id, trip_no = await conn.fetchrow(
         """INSERT INTO ops.trip (trip_no, company_id, route_id, service_type, vehicle_id, departure_at, arrival_at,
              status, seats_total, segments_count, currency, base_price, published_at, seat_map, template_id, trip_type,
-             service_number_id)
+             service_number_id, service_no)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NULL, $11, CASE WHEN $8 = 'PUBLISHED' THEN now() END,
-                   $12::jsonb, $13, $14, $15)
+                   $12::jsonb, $13, $14, $15, $16)
            RETURNING id, trip_no""",
         None, company_id, route["id"], "INDIRECT" if n > 2 else "DIRECT", vehicle["id"], dep, arrival, status,
         vehicle["passenger_seats"], n - 1, stops[-1]["fare_from_origin"], json.dumps(seat_map) if seat_map else None,
-        template_id, trip_type, service_number_id)
+        template_id, trip_type, service_number_id, service_no)
     await conn.executemany(
         """INSERT INTO ops.trip_stop (trip_id, seq, station_id, kind, sched_arr, sched_dep, fare_from_origin, rest_min)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)""",

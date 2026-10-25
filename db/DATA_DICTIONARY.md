@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**598 tables, 6498 columns, in 26 schemas.**
+**600 tables, 6518 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -11,7 +11,7 @@ Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant i
 - [`iam` — Identity, parties, users, permissions and API clients](#iam) (51 tables)
 - [`ref` — Reference data, locales and files](#ref) (24 tables)
 - [`sys` — Settings, outbox and webhooks](#sys) (27 tables)
-- [`net` — Network: stations, routes, lines, corridors and geofences](#net) (40 tables)
+- [`net` — Network: stations, routes, lines, corridors and geofences](#net) (42 tables)
 - [`fleet` — Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance](#fleet) (23 tables)
 - [`pricing` — Pricing, taxes, commissions, campaigns and loyalty](#pricing) (39 tables)
 - [`ops` — Trips, inventory, operations, shuttle rides, tracking and incidents](#ops) (40 tables)
@@ -2226,6 +2226,40 @@ A version of a network route: its stations and road segments, proposed by one pe
 | `decided_at` | `timestamp with time zone` |  |  |
 | `decision_note` | `text` |  |  |
 | `activated_at` | `timestamp with time zone` |  |  |
+
+### `net.number_range` 🛡️
+
+A carrier's range of trip numbers in a block, set by the platform; none means the whole block; a new range ends the one before, which stays as history (1165, N7)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `block` | `text` | ✱ |  |
+| `from_no` | `integer` | ✱ |  |
+| `to_no` | `integer` | ✱ |  |
+| `note` | `text` |  |  |
+| `set_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `set_at` | `timestamp with time zone` | ✱ | `now()` |
+| `ended_at` | `timestamp with time zone` |  |  |
+
+### `net.number_range_request` 🛡️
+
+A carrier asks the platform to widen its range of trip numbers in a block; one open request per block (1165, N7)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `block` | `text` | ✱ |  |
+| `note` | `text` | ✱ |  |
+| `status` | `text` | ✱ | `'OPEN'::text` |
+| `requested_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `requested_at` | `timestamp with time zone` | ✱ | `now()` |
+| `answer` | `text` |  |  |
+| `answered_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `answered_at` | `timestamp with time zone` |  |  |
 
 ### `net.operation_reference` 🛡️
 

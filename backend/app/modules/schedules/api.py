@@ -36,7 +36,7 @@ from ... import db
 from ...deps import Principal, context_for, require_portal, require_step_up
 from ...errors import ApiError, forbidden, not_found
 from ...util import row_dict
-from . import service
+from . import numbers, service
 
 carrier = APIRouter(prefix="/api/carrier", tags=["schedules"])
 platform = APIRouter(prefix="/api/admin", tags=["schedules"])
@@ -98,6 +98,7 @@ class ScheduleIn(Pattern):
     trip_type: Literal["SCHEDULED", "SHUTTLE", "INTERNATIONAL", "CARGO", "EXTRA"] = "SCHEDULED"
     direction: Literal["OUTBOUND", "INBOUND"] = "OUTBOUND"
     auto_publish: bool = True
+    # picked from the carrier's free numbers (GET /api/carrier/numbers); left out, the default number (1165)
     proposed_number: Optional[int] = Field(default=None, ge=1000, le=9999)
     # the carrier's regular trip whose vehicle runs this one next (1119): this one takes the number after it
     follows_uid: Optional[uuid.UUID] = None
@@ -291,9 +292,18 @@ async def ask_new(body: ScheduleIn, request: Request, pr: Principal = Depends(op
                     "days_of_month": body.days_of_month, "skip_dates": [d.isoformat() for d in body.skip_dates],
                     "from": body.from_date.isoformat(), "until": _iso(body.until_date), "base_price": body.base_price,
                     "currency": currency, "trip_type": body.trip_type, "direction": body.direction, "auto_publish": body.auto_publish}
+        number = None
         if follows is not None:
             proposal["follows"] = follows
-        out = await _ask(conn, "NEW", proposal=proposal, number=None if follows else body.proposed_number, note=body.note)
+        else:
+            # every regular trip asks with a number of the carrier's range (1165, N7): the one picked, else the default
+            period = asyncpg.Range(body.from_date, (body.until_date + timedelta(days=1)) if body.until_date else None)
+            number = body.proposed_number or await conn.fetchval("SELECT ops.suggest_schedule_number($1, $2, $3, $4, $5)",
+                                                                 pr.company_id, body.trip_type, body.direction, period, route_id)
+            if number is None:
+                raise ApiError(409, "NUMBER_RANGE_FULL", "no number of your range is free for this trip; ask the platform for a wider range")
+            await numbers.number_problem(conn, pr.company_id, body.trip_type, body.direction, number)
+        out = await _ask(conn, "NEW", proposal=proposal, number=number, note=body.note)
     request.state.audit = {"action": "schedule.request", "object_type": "schedule_request", "object_id": out.pop("_id")}
     return out
 

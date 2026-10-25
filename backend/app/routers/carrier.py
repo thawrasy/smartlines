@@ -396,17 +396,21 @@ async def create_trip(body: TripIn, request: Request, pr: Principal = Depends(op
         # while the settings ask for it, a trip made by hand is published once its approval stages are passed (1117)
         approval = body.publish and await conn.fetchval("SELECT ops.schedule_needs_approval('TRIP')")
         publish = body.publish and not approval
-        number_id = None
+        number_id = service_no = None
         if body.service_number is not None:      # one of the carrier's service numbers on the day the trip runs (1114)
             number_id = await conn.fetchval(
                 """SELECT id FROM net.service_number WHERE company_id = $1 AND number = $2
                     AND valid @> (($3::timestamptz) AT TIME ZONE $4)::date""", pr.company_id, body.service_number, dep, str(zone))
             if number_id is None:
-                raise ApiError(422, "SERVICE_NUMBER_UNKNOWN", "define the service number first, or leave it out")
+                # a free extra number of the carrier's range runs the trip on its own (1165, N7)
+                extra = await conn.fetchval("SELECT ops.carrier_number_range($1, 'EXTRA') @> $2::integer", pr.company_id, body.service_number)
+                if not extra:
+                    raise ApiError(422, "SERVICE_NUMBER_UNKNOWN", "pick one of your numbers on this route, or a free extra number of your range")
+                service_no = body.service_number
         try:
             async with conn.transaction():
                 trip_id, trip_no = await schedules.insert_trip(conn, pr.company_id, route, vehicle, dep, publish, driver,
-                                                               trip_type=body.trip_type, service_number_id=number_id)
+                                                               trip_type=body.trip_type, service_number_id=number_id, service_no=service_no)
         except asyncpg.UniqueViolationError as exc:
             if "trip_number_day_uq" not in str(exc):
                 raise

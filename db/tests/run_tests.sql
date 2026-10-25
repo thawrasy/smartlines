@@ -4132,6 +4132,31 @@ RESET ROLE;
 ROLLBACK;
 SET ROLE masslak_app;
 
+-- Trip number ranges (1165): the whole block by default, a range set by the platform, free numbers inside it
+BEGIN;
+RESET ROLE;
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+SELECT id AS nrc FROM iam.company WHERE company_type = 'CARRIER' ORDER BY id LIMIT 1 \gset
+SELECT ops.carrier_number_range(:nrc, 'SCHEDULED') = int4range(1000, 5000) AS nrwhole \gset
+SELECT pg_temp.ok(:'nrwhole' = 't', 'Number ranges (1165): a carrier has the whole block by default');
+SELECT pg_temp.expect_error(format($$SELECT net.set_number_range(%s, 'SCHEDULED', 4900, 5100, NULL)$$, :nrc), 'NUMBER_RANGE_INVALID',
+  'Number ranges (1165): a range stays inside its block');
+SELECT net.set_number_range(:nrc, 'SCHEDULED', 2001, 2010, 'check') AS nrset \gset
+SELECT ops.carrier_number_problem(:nrc, 'SCHEDULED', 'OUTBOUND', 1001) AS nrout, coalesce(ops.carrier_number_problem(:nrc, 'SCHEDULED', 'OUTBOUND', 2003), 'none') AS nrin \gset
+SELECT pg_temp.ok(:'nrout' LIKE 'NUMBER_OUT_OF_RANGE%' AND :'nrin' = 'none', 'Number ranges (1165): a number outside the carrier''s range is refused, one inside accepted');
+SELECT array_agg(n ORDER BY n) AS nrfree FROM ops.free_schedule_numbers(:nrc, 'SCHEDULED', 'INBOUND', daterange(current_date, NULL), NULL) n \gset
+SELECT pg_temp.ok(:'nrfree'::int[] <@ ARRAY[2002, 2004, 2006, 2008, 2010], 'Number ranges (1165): the free numbers are in the range, with the direction''s parity');
+SELECT net.set_number_range(:nrc, 'SCHEDULED', NULL, NULL, 'back') AS nrback \gset
+SELECT pg_temp.ok((SELECT count(*) FROM net.number_range WHERE company_id = :nrc AND block = 'SCHEDULED') = 1
+                  AND ops.carrier_number_range(:nrc, 'SCHEDULED') = int4range(1000, 5000),
+  'Number ranges (1165): the whole block comes back; the range set before stays as history');
+SELECT sys.set_context(NULL, NULL, 'PASSENGER');
+SELECT pg_temp.expect_error(format($$SELECT net.set_number_range(%s, 'CARGO', 7001, 7002, NULL)$$, :nrc), 'FORBIDDEN',
+  'Number ranges (1165): only the platform sets a range');
+RESET ROLE;
+ROLLBACK;
+SET ROLE masslak_app;
+
 -- Roads guide (1162): roads of places in order, junctions worked out, verification and corrections by another person
 BEGIN;
 RESET ROLE;

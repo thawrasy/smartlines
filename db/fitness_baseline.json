@@ -1594,6 +1594,26 @@
   "pricing.band_for(bigint,text,date)": [
    "masslak_api",
    "masslak_app"
+  ],
+  "net.set_number_range(bigint,text,integer,integer,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ops.carrier_number_problem(bigint,text,text,integer)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ops.carrier_number_range(bigint,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ops.default_trip_number(bigint,bigint,date)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ops.free_schedule_numbers(bigint,text,text,daterange,bigint,integer)": [
+   "masslak_api",
+   "masslak_app"
   ]
  }
 }

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../api";
 import { useI18n } from "../../i18n";
@@ -98,6 +98,8 @@ export function CarrierDashboard() {
 }
 
 // ------------------------------------------------------------------ trips
+interface TripNumbers { service_numbers: { number: number; block: string; direction: string | null }[]; suggested_extra: number | null; extra_range: { from: number; to: number } }
+
 function NewTrip({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
   const { t, station } = useI18n();
   const arrow = useArrow();
@@ -107,6 +109,19 @@ function NewTrip({ onClose, onDone }: { onClose: () => void; onDone: () => void 
   const [form, setForm] = useState({ route_uid: "", vehicle_uid: "", driver_uid: "", departure_local: "", publish: true, trip_type: "SCHEDULED", service_number: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
+  // the trip number is required (1165, N7): one of the carrier's numbers on the route that day, or a free extra number
+  const day = form.departure_local.slice(0, 10);
+  const [offer, setOffer] = useState<TripNumbers | null>(null);
+  useEffect(() => {
+    if (!form.route_uid || !day) { setOffer(null); return; }
+    let live = true;
+    api.get<TripNumbers>("/api/carrier/numbers/for-trip", { route_uid: form.route_uid, day }).then((o) => {
+      if (!live) return;
+      setOffer(o);
+      setForm((f) => ({ ...f, service_number: String(o.service_numbers[0]?.number ?? o.suggested_extra ?? "") }));
+    }).catch(() => live && setOffer(null));
+    return () => { live = false; };
+  }, [form.route_uid, day]);
   const submit = async () => {
     setBusy(true); setError(null);
     try {
@@ -119,7 +134,7 @@ function NewTrip({ onClose, onDone }: { onClose: () => void; onDone: () => void 
   return (
     <Modal title={t("carrier.newTrip")} onClose={onClose}
            actions={<><button className="btn text" onClick={onClose}>{t("common.cancel")}</button>
-             <button className="btn" disabled={busy || !form.route_uid || !form.vehicle_uid || !form.departure_local} onClick={submit}>{t("common.create")}</button></>}>
+             <button className="btn" disabled={busy || !form.route_uid || !form.vehicle_uid || !form.departure_local || !form.service_number} onClick={submit}>{t("common.create")}</button></>}>
       <div className="stack">
         <ErrorBox error={error} />
         <Field label={t("carrier.route")}>
@@ -152,9 +167,12 @@ function NewTrip({ onClose, onDone }: { onClose: () => void; onDone: () => void 
             </select>
           </Field>
         </div>
-        <Field label={`${t("trip.serviceNumber")} (${t("common.optional")})`} hint={t("trip.serviceNumberHint")}>
-          <input className="input ltr mono" inputMode="numeric" maxLength={4} value={form.service_number}
-                 onChange={(e) => setForm({ ...form, service_number: e.target.value.replace(/\D/g, "") })} />
+        <Field label={t("trip.serviceNumber")} hint={offer ? t("numbers.tripHint", { from: offer.extra_range.from, to: offer.extra_range.to }) : t("numbers.pickRouteDay")}>
+          <select className="input ltr mono" value={form.service_number} disabled={!offer} onChange={(e) => setForm({ ...form, service_number: e.target.value })}>
+            {!offer && <option value="">—</option>}
+            {offer?.service_numbers.map((n) => <option key={n.number} value={n.number}>{n.number} · {t(`numbers.block.${n.block}`)}</option>)}
+            {offer?.suggested_extra != null && <option value={offer.suggested_extra}>{offer.suggested_extra} · {t("numbers.block.EXTRA")}</option>}
+          </select>
         </Field>
         <label className="check"><input type="checkbox" checked={form.publish} onChange={(e) => setForm({ ...form, publish: e.target.checked })} />{t("carrier.publishNow")}</label>
       </div>
