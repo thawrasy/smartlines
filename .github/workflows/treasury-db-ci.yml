@@ -22,6 +22,9 @@ on:
       - 'treasury-platform/docs/35-credit-assessment-methodology.md'
       # the application (phase 2, ADR 0040), whose integration tests run against the deployed database
       - 'treasury-platform/app/**'
+      # the release images and the host templates (the images job)
+      - 'treasury-platform/tools/host/**'
+      - 'treasury-platform/.dockerignore'
       - '.github/workflows/treasury-db-ci.yml'
   pull_request:
     paths:
@@ -37,6 +40,9 @@ on:
       - 'treasury-platform/docs/35-credit-assessment-methodology.md'
       # the application (phase 2, ADR 0040), whose integration tests run against the deployed database
       - 'treasury-platform/app/**'
+      # the release images and the host templates (the images job)
+      - 'treasury-platform/tools/host/**'
+      - 'treasury-platform/.dockerignore'
       - '.github/workflows/treasury-db-ci.yml'
   workflow_dispatch:
 
@@ -113,3 +119,69 @@ jobs:
 
       - name: Application build, unit tests and integration tests
         run: bash tools/ci/app_ci.sh
+
+  # The release images (app/deploy/Dockerfile, ADR 0053), built as a host builds them, with Playwright's Chromium
+  # downloaded (the path the sandbox of the pilot run could not reach), then the pilot run of docs/53: the browser
+  # test against the two containers, read-only, no capabilities, user 10001, file master keys, each process with its
+  # own database logins (tools/ci/image_pilot.sh), on a fresh database deployed the way production does.
+  images:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2025-CU9-GDR1-ubuntu-24.04@sha256:742481d1b1186cccc81220a1eaacef244ca8d0f7d19c8e5c70df8ae541ffbab2
+        env:
+          ACCEPT_EULA: 'Y'
+          MSSQL_PID: Developer
+          # Throwaway password for an ephemeral container that only this job can reach.
+          MSSQL_SA_PASSWORD: 'CiOnly-Ephemeral-Passw0rd!'
+        ports:
+          - 1433:1433
+    env:
+      SA_PASSWORD: 'CiOnly-Ephemeral-Passw0rd!'
+      SQL_SERVER: 'localhost,1433'
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Make sure sqlcmd is installed
+        run: |
+          if command -v sqlcmd >/dev/null 2>&1; then
+            sqlcmd -? | head -1
+            exit 0
+          fi
+          curl -sSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor | sudo tee /usr/share/keyrings/microsoft-prod.gpg >/dev/null
+          echo "deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft-prod.gpg] https://packages.microsoft.com/ubuntu/24.04/prod noble main" | sudo tee /etc/apt/sources.list.d/mssql-release.list >/dev/null
+          sudo apt-get update -qq
+          sudo ACCEPT_EULA=Y DEBIAN_FRONTEND=noninteractive apt-get install -y -qq mssql-tools18 unixodbc-dev
+          echo "/opt/mssql-tools18/bin" >> "$GITHUB_PATH"
+
+      - name: Build the API and worker images
+        run: |
+          docker build -f app/deploy/Dockerfile --target api -t bankfas-api:ci .
+          docker build -f app/deploy/Dockerfile --target worker -t bankfas-worker:ci .
+          docker image ls --format '{{.Repository}}:{{.Tag}} {{.Size}}' | grep bankfas
+
+      - name: Check the host templates
+        run: |
+          sed -e 's#<REGISTRY>/bankfas-api:<VERSION>#bankfas-api:ci#; s#<REGISTRY>/bankfas-worker:<VERSION>#bankfas-worker:ci#; s#<CLAMAV_VERSION>#stable#' \
+              -e "s#/opt/bankfas/api.env#$PWD/tools/host/api.env.example#; s#/opt/bankfas/worker.env#$PWD/tools/host/worker.env.example#" \
+              tools/host/compose.yml > "$RUNNER_TEMP/compose.yml"
+          docker compose -f "$RUNNER_TEMP/compose.yml" config --quiet
+          bash -n tools/host/*.sh tools/deploy/*.sh tools/ci/*.sh
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22.22.0'
+
+      - name: The browser test's own Chromium
+        run: cd app/web && npm ci --no-audit --no-fund --loglevel=error && npx playwright install --with-deps chromium
+
+      - name: A fresh database, deployed the way production does
+        run: bash tools/ci/fresh_deploy.sh
+
+      - name: The pilot run against the containers
+        run: sudo -E env "PATH=$PATH" API_IMAGE=bankfas-api:ci WORKER_IMAGE=bankfas-worker:ci HOME="$HOME" bash tools/ci/image_pilot.sh
