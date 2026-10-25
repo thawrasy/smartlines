@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**582 tables, 6305 columns, in 26 schemas.**
+**582 tables, 6308 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -2470,6 +2470,9 @@ Every expiry date that governs operating eligibility (license, inspection, insur
 | `subject_trailer_id` | `bigint` | 🔗 `fleet.trailer`  |  |
 | `subject_vehicle_id` | `bigint` | 🔗 `fleet.vehicle`  |  |
 | `subject_person_id` | `bigint` | 🔗 `iam.party`  |  |
+| `license_class` | `text` |  |  |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `back_document_id` | `bigint` | 🔗 `iam.document`  |  |
 
 ### `fleet.line_permit_vehicle` 🛡️
 

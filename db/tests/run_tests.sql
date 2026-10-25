@@ -4035,6 +4035,33 @@ RESET ROLE;
 ROLLBACK;
 SET ROLE masslak_app;
 
+-- Crew details (1158): licences with a class; missing or expired required licences refuse a crew member only when switched on
+BEGIN;
+RESET ROLE;
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+INSERT INTO iam.party (party_type, legal_name) VALUES ('PERSON', 'Crew Test Driver') RETURNING id AS cdp \gset
+INSERT INTO fleet.crew_profile (party_id, company_id, crew_type) VALUES (:cdp, :ca, 'DRIVER');
+SELECT pg_temp.ok(fleet.crew_licence_problems(:cdp, current_date) = '{MISSING:DRIVING}',
+  'Crew details (1158): a driver without a driving licence lacks one');
+SELECT pg_temp.expect_error(format($$INSERT INTO fleet.license_record (company_id, subject_type, subject_id, license_type, license_no, issuer,
+    issue_date, expiry_date, license_class) VALUES (%s, 'DRIVER', %s, 'DRIVING', 'DL-1', 'Traffic', current_date - 400, current_date - 5, 'd!')$$, :ca, :cdp),
+  'check constraint', 'Crew details (1158): a licence class is letters and digits');
+SELECT t.id AS cdt, (t.departure_at AT TIME ZONE 'UTC')::date AS cdday FROM ops.trip t WHERE t.company_id = :ca
+ ORDER BY t.departure_at DESC LIMIT 1 \gset
+INSERT INTO fleet.license_record (company_id, subject_type, subject_id, license_type, license_no, issuer, issue_date, expiry_date, license_class)
+VALUES (:ca, 'DRIVER', :cdp, 'DRIVING', 'DL-1', 'Traffic', :'cdday'::date - 400, :'cdday'::date - 1, 'D');
+SELECT pg_temp.ok(fleet.crew_licence_problems(:cdp, :'cdday'::date) = '{EXPIRED:DRIVING}',
+  'Crew details (1158): a licence past its date counts as expired');
+SAVEPOINT crew_off;
+INSERT INTO ops.crew_assignment (trip_id, party_id, crew_role) VALUES (:cdt, :cdp, 'CO_DRIVER');
+SELECT pg_temp.ok(true, 'Crew details (1158): with the switches off, an expired licence only warns');
+ROLLBACK TO SAVEPOINT crew_off;
+UPDATE sys.setting SET value = jsonb_set(value, '{refuse_expired}', 'true') WHERE key = 'crew.licences';
+SELECT pg_temp.expect_error(format($$INSERT INTO ops.crew_assignment (trip_id, party_id, crew_role) VALUES (%s, %s, 'CO_DRIVER')$$, :cdt, :cdp),
+  'CREW_LICENCE', 'Crew details (1158): with refuse_expired on, an expired required licence keeps the crew member off the trip');
+ROLLBACK;
+SET ROLE masslak_app;
+
 -- Charter (1123): carriers hire out vehicles and whole trips on their terms; requests are priced, paid and their seats held
 BEGIN;
 RESET ROLE;

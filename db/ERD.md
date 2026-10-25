@@ -67,7 +67,7 @@ flowchart LR
   fin -->|6| pricing
   fin -->|5| sales
   fin -->|2| ship
-  fleet -->|29| iam
+  fleet -->|30| iam
   fleet -->|2| net
   fleet -->|4| ops
   fleet -->|1| ptn
@@ -1294,6 +1294,8 @@ erDiagram
     bigint subject_trailer_id FK
     bigint subject_vehicle_id FK
     bigint subject_person_id FK
+    uuid uid
+    bigint back_document_id FK
   }
   fleet_line_permit_vehicle {
     bigint id PK
@@ -1483,6 +1485,7 @@ erDiagram
   fleet_vehicle_status_history }o..o| iam_document : "release_document_id"
   fleet_license_record }o..o| iam_document : "document_id"
   fleet_insurance_policy }o..o| iam_document : "document_id"
+  fleet_license_record }o..o| iam_document : "back_document_id"
   fleet_crew_profile }o--|| iam_party : "party_id"
   fleet_vehicle_lease }o--|| iam_party : "owner_party_id"
   fleet_insurance_policy }o..o| iam_party : "insurer_party_id"

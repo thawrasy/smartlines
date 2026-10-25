@@ -593,52 +593,161 @@ export function CarrierRoutes() {
   );
 }
 
-// ------------------------------------------------------------------ crew
+// ------------------------------------------------------------------ crew (names in parts, national number, licences: N3, 1158)
+interface CrewLicence { uid: string; license_type: string; license_no: string; issuer: string; license_class: string | null; issue_date: string;
+                        expiry_date: string; status: string; front_uid: string | null; back_uid: string | null; expired: boolean }
+interface CrewDetail { uid: string; full_name: string; crew_type: string; id_no_last4: string | null; problems: string[]; licences: CrewLicence[] }
+interface CrewRow extends Crew { id_no_last4?: string | null; problems?: string[]; next_expiry?: string | null }
+const LICENCE_TYPES = ["DRIVING", "HEAVY_DRIVING", "TRANSPORT", "TRAFFIC", "CROSS_BORDER", "MEDICAL", "FIRST_AID", "CRIMINAL_RECORD", "OTHER"];
+
+function problemText(t: (k: string, v?: Record<string, string | number>) => string, p: string) {
+  const [kind, type] = p.split(":");
+  return t(kind === "MISSING" ? "crew.missing" : "crew.expired", { type: t(`crew.lic.${type}`) });
+}
+
 export function CarrierCrew() {
   const { t } = useI18n();
   const toast = useToast();
-  const state = useLoad(() => api.get<{ crew: Crew[] }>("/api/carrier/crew"));
+  const state = useLoad(() => api.get<{ crew: CrewRow[] }>("/api/carrier/crew"));
   const slip = useSignInSlip();
   const [open, setOpen] = useState(false);
-  const blank = { full_name: "", email: "", mobile: "", password: "", license_class: "D" };
+  const [view, setView] = useState<string | null>(null);
+  const blank = { crew_type: "DRIVER", first_name: "", father_name: "", grandfather_name: "", last_name: "", mother_name: "", national_id: "",
+                  birth_date: "", email: "", mobile: "", password: "", license_class: "D" };
   const [f, setF] = useState(blank);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
-  const set = (k: keyof typeof blank) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
+  const set = (k: keyof typeof blank) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value });
   const submit = async () => {
     setBusy(true); setError(null);
+    const opt = (v: string) => v.trim() || null;
     try {
-      const r = await api.post<{ sign_in?: SignIn }>("/api/carrier/crew", { ...f, mobile: f.mobile || null });
+      const r = await api.post<{ sign_in?: SignIn }>("/api/carrier/crew", { crew_type: f.crew_type, first_name: opt(f.first_name), father_name: opt(f.father_name),
+        grandfather_name: opt(f.grandfather_name), last_name: opt(f.last_name), mother_name: opt(f.mother_name), national_id: opt(f.national_id),
+        birth_date: opt(f.birth_date), email: opt(f.email), mobile: opt(f.mobile), password: opt(f.password),
+        license_class: f.crew_type === "DRIVER" ? opt(f.license_class) : null });
       setOpen(false); setF(blank); toast(t("common.saved")); state.reload(); slip.show(r.sign_in);
     } catch (e) { setError(e); } finally { setBusy(false); }
   };
   return (
     <div className="stack">
-      <PageHead title={t("carrier.crew")}><button className="btn" onClick={() => setOpen(true)}><Icon name="person_add" />{t("carrier.newDriver")}</button></PageHead>
+      <PageHead title={t("carrier.crew")}><button className="btn" onClick={() => setOpen(true)}><Icon name="person_add" />{t("crew.add")}</button></PageHead>
       {slip.element}
       <Loaded state={state}>{({ crew }) => crew.length === 0 ? <div className="card"><Empty icon="badge" title={t("common.noData")} /></div> : (
         <div className="table-wrap" tabIndex={0}><table className="table">
-          <thead><tr><th>{t("common.name")}</th><th>{t("common.email")}</th><th>{t("carrier.licenseClass")}</th><th>{t("common.status")}</th></tr></thead>
+          <thead><tr><th>{t("common.name")}</th><th>{t("crew.kind")}</th><th>{t("carrier.licenseClass")}</th><th>{t("crew.licences")}</th><th>{t("common.status")}</th><th>{t("common.actions")}</th></tr></thead>
           <tbody>{crew.map((c) => (
-            <tr key={c.uid}><td>{c.full_name}</td><td className="ltr small">{c.email}</td><td>{c.license_class}</td><td><Status value={c.status} /></td></tr>
+            <tr key={c.uid}>
+              <td>{c.full_name}{c.id_no_last4 && <div className="small muted">{t("crew.nationalId")} ···· <span className="ltr mono">{c.id_no_last4}</span></div>}
+                {c.email && <div className="ltr small muted">{c.email}</div>}</td>
+              <td>{t(`crew.kinds.${c.crew_type}`)}</td><td>{c.license_class ?? "—"}</td>
+              <td className="small">{(c.problems ?? []).length === 0
+                ? <span className="chip green">{t("crew.complete")}{c.next_expiry ? ` · ${c.next_expiry}` : ""}</span>
+                : (c.problems ?? []).map((p) => <div key={p} className="chip wheat">{problemText(t, p)}</div>)}</td>
+              <td><Status value={c.status} /></td>
+              <td><button className="btn tonal small" onClick={() => setView(c.uid)}>{t("crew.licences")}</button></td>
+            </tr>
           ))}</tbody>
         </table></div>
       )}</Loaded>
       {open && (
-        <Modal title={t("carrier.newDriver")} onClose={() => setOpen(false)}
+        <Modal title={t("crew.add")} onClose={() => setOpen(false)} wide
                actions={<><button className="btn text" onClick={() => setOpen(false)}>{t("common.cancel")}</button><button className="btn" disabled={busy} onClick={submit}>{t("common.save")}</button></>}>
           <div className="stack">
             <ErrorBox error={error} />
-            <Field label={t("common.name")}><input className="input" value={f.full_name} onChange={set("full_name")} /></Field>
-            <div className="grid cols-2">
-              <Field label={t("common.email")}><input className="input ltr" type="email" value={f.email} onChange={set("email")} /></Field>
+            <Field label={t("crew.kind")}>
+              <select className="input" value={f.crew_type} onChange={set("crew_type")}>
+                {["DRIVER", "HOST", "ASSISTANT"].map((k) => <option key={k} value={k}>{t(`crew.kinds.${k}`)}</option>)}
+              </select>
+            </Field>
+            <div className="grid cols-3">
+              <Field label={t("crew.first")}><input className="input" value={f.first_name} onChange={set("first_name")} /></Field>
+              <Field label={t("crew.father")}><input className="input" value={f.father_name} onChange={set("father_name")} /></Field>
+              <Field label={`${t("crew.grandfather")} (${t("common.optional")})`}><input className="input" value={f.grandfather_name} onChange={set("grandfather_name")} /></Field>
+              <Field label={t("crew.last")}><input className="input" value={f.last_name} onChange={set("last_name")} /></Field>
+              <Field label={`${t("crew.mother")} (${t("common.optional")})`}><input className="input" value={f.mother_name} onChange={set("mother_name")} /></Field>
+              <Field label={t("crew.nationalId")} hint={t("crew.nationalIdHint")}><input className="input ltr" autoComplete="off" value={f.national_id} onChange={set("national_id")} /></Field>
+              <Field label={`${t("crew.birthDate")} (${t("common.optional")})`}><input className="input ltr" type="date" value={f.birth_date} onChange={set("birth_date")} /></Field>
+              {f.crew_type === "DRIVER" && <Field label={t("carrier.licenseClass")}><input className="input ltr" value={f.license_class} onChange={set("license_class")} /></Field>}
+            </div>
+            <p className="small muted">{f.crew_type === "DRIVER" ? t("crew.driverSignIn") : t("crew.otherSignIn")}</p>
+            <div className="grid cols-3">
+              <Field label={f.crew_type === "DRIVER" ? t("common.email") : `${t("common.email")} (${t("common.optional")})`}><input className="input ltr" type="email" value={f.email} onChange={set("email")} /></Field>
               <Field label={`${t("common.mobile")} (${t("common.optional")})`}><input className="input ltr" value={f.mobile} onChange={set("mobile")} /></Field>
               <Field label={t("common.password")} hint={t("auth.passwordHint")}><PasswordInput value={f.password} onChange={set("password")} /></Field>
-              <Field label={t("carrier.licenseClass")}><input className="input ltr" value={f.license_class} onChange={set("license_class")} /></Field>
             </div>
           </div>
         </Modal>
       )}
+      {view && <CrewLicences uid={view} onClose={() => { setView(null); state.reload(); }} />}
     </div>
+  );
+}
+
+function CrewLicences({ uid, onClose }: { uid: string; onClose: () => void }) {
+  const { t } = useI18n();
+  const toast = useToast();
+  const state = useLoad(() => api.get<CrewDetail>(`/api/carrier/crew/${uid}`), [uid]);
+  const blank = { license_type: "DRIVING", license_no: "", issuer: "", license_class: "", issue_date: "", expiry_date: "" };
+  const [f, setF] = useState(blank);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const set = (k: keyof typeof blank) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value });
+  const act = async (fn: () => Promise<unknown>) => {
+    setBusy(true); setError(null);
+    try { await fn(); toast(t("common.saved")); state.reload(); } catch (e) { setError(e); } finally { setBusy(false); }
+  };
+  const upload = (licence: string, side: "front" | "back", file: File) => act(() => {
+    const form = new FormData();
+    form.append("file", file);
+    return api.upload(`/api/carrier/crew/${uid}/licences/${licence}/images/${side}`, form);
+  });
+  return (
+    <Modal title={t("crew.licences")} onClose={onClose} wide actions={<button className="btn" onClick={onClose}>{t("common.close")}</button>}>
+      <div className="stack">
+        <ErrorBox error={error} />
+        <Loaded state={state}>{(d) => (<>
+          <div className="row between" style={{ flexWrap: "wrap" }}><b>{d.full_name}</b><span className="small muted">{t(`crew.kinds.${d.crew_type}`)}</span></div>
+          {d.problems.length > 0 && <div className="alert info"><Icon name="info" /><span>{d.problems.map((p) => problemText(t, p)).join(" · ")}</span></div>}
+          {d.licences.length === 0 ? <Empty icon="badge" title={t("crew.noLicences")} /> : (
+            <div className="table-wrap" tabIndex={0}><table className="table">
+              <thead><tr><th>{t("crew.licType")}</th><th>{t("crew.licNo")}</th><th>{t("crew.validity")}</th><th>{t("crew.pictures")}</th><th>{t("common.status")}</th></tr></thead>
+              <tbody>{d.licences.map((l) => (
+                <tr key={l.uid}>
+                  <td>{t(`crew.lic.${l.license_type}`)}{l.license_class && <div className="small muted">{t("carrier.licenseClass")} {l.license_class}</div>}</td>
+                  <td className="mono ltr small">{l.license_no}<div className="muted">{l.issuer}</div></td>
+                  <td className="small ltr">{l.issue_date} → {l.expiry_date}{l.expired && <div className="chip red">{t("crew.expiredChip")}</div>}</td>
+                  <td><div className="row" style={{ gap: 4, flexWrap: "wrap" }}>
+                    {(["front", "back"] as const).map((side) => (
+                      <label key={side} className="btn text small">
+                        <Icon name={(side === "front" ? l.front_uid : l.back_uid) ? "check_circle" : "upload_file"} />{t(`crew.${side}`)}
+                        <input type="file" accept="image/*,application/pdf" hidden disabled={busy} onChange={(e) => e.target.files?.[0] && upload(l.uid, side, e.target.files[0])} />
+                      </label>))}
+                  </div></td>
+                  <td><Status value={l.status} /></td>
+                </tr>
+              ))}</tbody>
+            </table></div>
+          )}
+        </>)}</Loaded>
+        <h4>{t("crew.addLicence")}</h4>
+        <div className="grid cols-3">
+          <Field label={t("crew.licType")}>
+            <select className="input" value={f.license_type} onChange={set("license_type")}>
+              {LICENCE_TYPES.map((k) => <option key={k} value={k}>{t(`crew.lic.${k}`)}</option>)}
+            </select>
+          </Field>
+          <Field label={t("crew.licNo")}><input className="input ltr" value={f.license_no} onChange={set("license_no")} /></Field>
+          <Field label={t("crew.issuer")}><input className="input" value={f.issuer} onChange={set("issuer")} /></Field>
+          {(f.license_type === "DRIVING" || f.license_type === "HEAVY_DRIVING") &&
+            <Field label={t("carrier.licenseClass")}><input className="input ltr" value={f.license_class} onChange={set("license_class")} /></Field>}
+          <Field label={t("crew.issueDate")}><input className="input ltr" type="date" value={f.issue_date} onChange={set("issue_date")} /></Field>
+          <Field label={t("crew.expiryDate")}><input className="input ltr" type="date" value={f.expiry_date} onChange={set("expiry_date")} /></Field>
+        </div>
+        <div><button className="btn tonal" disabled={busy || !f.license_no || !f.issuer || !f.issue_date || !f.expiry_date}
+          onClick={() => act(async () => { await api.post(`/api/carrier/crew/${uid}/licences`, { ...f, license_class: f.license_class || null }); setF(blank); })}>
+          <Icon name="add" />{t("crew.addLicence")}</button></div>
+      </div>
+    </Modal>
   );
 }

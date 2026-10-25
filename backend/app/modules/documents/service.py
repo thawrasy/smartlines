@@ -66,6 +66,16 @@ async def upload(conn: asyncpg.Connection, ctx: db.Context, pr: Principal, doc_t
         if owner_id is None:
             raise not_found("vehicle")
         owner_type = "VEHICLE"
+    file_id = await store_file(conn, ctx, pr, company, data, file_name)
+    row = await conn.fetchrow(
+        """INSERT INTO iam.document (owner_type, owner_id, doc_type, issuer, issue_date, expiry_date, file_id, company_id, uploaded_by)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, uid""",
+        owner_type, owner_id, doc_type, issuer, issue_date, expiry_date, file_id, company, pr.user_id)
+    return row["id"], str(row["uid"])
+
+
+async def store_file(conn: asyncpg.Connection, ctx: db.Context, pr: Principal, company: int, data: bytes, file_name: str) -> int:
+    """An uploaded file, encrypted in storage and scanned before anyone can download or approve it (audit T3-15)."""
     async with db.system_scope(conn, ctx):
         fc = await crypto.cipher(conn)
     try:
@@ -77,14 +87,9 @@ async def upload(conn: asyncpg.Connection, ctx: db.Context, pr: Principal, doc_t
         """INSERT INTO ref.file_object (storage_key, file_name, mime_type, size_bytes, sha256, data_class, enc_key_id,
              uploaded_by, company_id) VALUES ($1, $2, $3, $4, $5, 'CONFIDENTIAL', $6, $7, $8) RETURNING id""",
         stored.storage_key, safe_name, stored.mime_type, stored.size, stored.sha256, stored.key_id, pr.user_id, company)
-    # quarantine: the file is scanned before anyone can download or approve it (audit T3-15)
     if await scanner.scan_file(conn, ctx, file_id) in ("REJECTED", "QUARANTINED"):
         raise ApiError(422, "FILE_REJECTED", "the file did not pass the security scan")
-    row = await conn.fetchrow(
-        """INSERT INTO iam.document (owner_type, owner_id, doc_type, issuer, issue_date, expiry_date, file_id, company_id, uploaded_by)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, uid""",
-        owner_type, owner_id, doc_type, issuer, issue_date, expiry_date, file_id, company, pr.user_id)
-    return row["id"], str(row["uid"])
+    return file_id
 
 
 async def company_documents(conn: asyncpg.Connection, pr: Principal) -> list[dict]:

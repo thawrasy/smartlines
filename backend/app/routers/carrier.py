@@ -6,8 +6,8 @@ from typing import Literal, Optional
 from zoneinfo import ZoneInfo
 
 import asyncpg
-from fastapi import APIRouter, Depends, Request, Response
-from pydantic import BaseModel, EmailStr, Field
+from fastapi import APIRouter, Depends, File, Request, Response, UploadFile
+from pydantic import BaseModel, Field
 
 from .. import db, markets
 from ..deps import Principal, context_for, require_portal, require_step_up
@@ -15,6 +15,7 @@ from ..errors import ApiError, forbidden, not_found
 from ..ledger import platform_wallet, post_txn
 from ..modules.account.doors import temporary_password
 from ..modules.cash import service as cash
+from ..modules.fleet import crew
 from ..modules.fleet import service as fleet
 from ..modules.photo import service as photo
 from ..modules.registry import service as registry
@@ -155,52 +156,77 @@ async def add_vehicle(body: VehicleIn, request: Request, pr: Principal = Depends
     return {"uid": str(uid)}
 
 
-# ------------------------------------------------------------------ crew
-class DriverIn(BaseModel):
-    full_name: str = Field(min_length=3, max_length=120)
-    email: EmailStr
-    mobile: Optional[str] = Field(default=None, pattern=r"^\+?[0-9]{8,15}$")
-    password: str
-    license_class: Optional[str] = None
-
-
+# ------------------------------------------------------------------ crew (names in parts, national number, licences: N3, 1158)
 @router.get("/crew")
-async def crew(request: Request, pr: Principal = Depends(operator)):
+async def crew_list(request: Request, pr: Principal = Depends(operator)):
     async with db.transaction(context_for(request, pr)) as conn:
-        recs = await conn.fetch(
-            """SELECT p.uid, p.legal_name AS full_name, cp.crew_type, cp.license_class, cp.status, u.email
-                 FROM fleet.crew_profile cp JOIN iam.party p ON p.id = cp.party_id
-                 LEFT JOIN iam.app_user u ON u.party_id = p.id
-                WHERE cp.company_id = $1 ORDER BY p.legal_name""", pr.company_id)
-    return {"crew": rows(recs)}
+        return {"crew": await crew.listing(conn, pr.company_id)}
 
 
 @router.post("/crew", status_code=201)
-async def add_driver(body: DriverIn, request: Request, pr: Principal = Depends(operator)):
+async def add_crew(body: crew.CrewIn, request: Request, pr: Principal = Depends(operator)):
+    """A driver (with a sign-in for the driver app), host or assistant; a host or assistant signs in only when given one."""
     require_step_up(pr)                 # a sensitive operation: a recent second factor (1136)
-    _need(pr, "company.staff", "trip.assign_crew")
-    problem = password_problem(body.password, body.email, body.full_name, body.mobile)
-    if problem:
-        raise ApiError(422, problem, "password does not meet the policy")
+    company = crew.carrier_of(pr)
+    if body.password:
+        problem = password_problem(body.password, str(body.email or ""), body.display_name, body.mobile)
+        if problem:
+            raise ApiError(422, problem, "password does not meet the policy")
+    door = None
     async with db.transaction(context_for(request, pr)) as conn:
-        role_id = await conn.fetchval("SELECT id FROM iam.role WHERE code = 'CARRIER_DRIVER' AND company_id IS NULL")
         party_id = await conn.fetchval(
             "INSERT INTO iam.party (party_type, legal_name) VALUES ('PERSON', $1) RETURNING id",   # contact lives on the account
-            body.full_name.strip())
-        await conn.execute("INSERT INTO iam.party_role (party_id, role_code) VALUES ($1, 'DRIVER')", party_id)
-        user_id = await conn.fetchval(
-            """INSERT INTO iam.app_user (party_id, account_kind, email, mobile, password_hash, password_changed_at, status,
-                 preferred_locale) VALUES ($1, 'COMPANY', $2, $3, $4, now(), 'ACTIVE', (SELECT value #>> '{}' FROM sys.setting WHERE key = 'ui.default_locale')) RETURNING id""",
-            party_id, body.email, body.mobile, hash_password(body.password))
-        await conn.execute("INSERT INTO iam.company_member (user_id, company_id, role_id) VALUES ($1, $2, $3)",
-                           user_id, pr.company_id, role_id)
-        door = await temporary_password(conn, user_id)
+            body.display_name)
+        await crew.add_identity(conn, party_id, body)
+        await conn.execute("INSERT INTO iam.party_role (party_id, role_code) VALUES ($1, 'DRIVER') ON CONFLICT DO NOTHING", party_id)
+        if body.email:
+            role = {"DRIVER": "CARRIER_DRIVER"}.get(body.crew_type, "CARRIER_DRIVER")
+            role_id = await conn.fetchval("SELECT id FROM iam.role WHERE code = $1 AND company_id IS NULL", role)
+            try:
+                user_id = await conn.fetchval(
+                    """INSERT INTO iam.app_user (party_id, account_kind, email, mobile, password_hash, password_changed_at, status,
+                         preferred_locale) VALUES ($1, 'COMPANY', $2, $3, $4, now(), 'ACTIVE',
+                         (SELECT value #>> '{}' FROM sys.setting WHERE key = 'ui.default_locale')) RETURNING id""",
+                    party_id, body.email, body.mobile, hash_password(body.password))
+            except asyncpg.UniqueViolationError as exc:
+                raise ApiError(409, "EMAIL_TAKEN", "this e-mail already has an account") from exc
+            await conn.execute("INSERT INTO iam.company_member (user_id, company_id, role_id) VALUES ($1, $2, $3)",
+                               user_id, company, role_id)
+            door = await temporary_password(conn, user_id)
         await conn.execute(
-            "INSERT INTO fleet.crew_profile (party_id, company_id, crew_type, license_class) VALUES ($1, $2, 'DRIVER', $3)",
-            party_id, pr.company_id, body.license_class)
+            "INSERT INTO fleet.crew_profile (party_id, company_id, crew_type, license_class) VALUES ($1, $2, $3, $4)",
+            party_id, company, body.crew_type, body.license_class.upper() if body.license_class else None)
         uid = await conn.fetchval("SELECT uid FROM iam.party WHERE id = $1", party_id)
     request.state.audit = {"action": "crew.create", "object_type": "party", "object_id": party_id}
     return {"uid": str(uid), "sign_in": door}
+
+
+@router.get("/crew/{uid}")
+async def crew_detail(uid: uuid.UUID, request: Request, pr: Principal = Depends(operator)):
+    company = crew.carrier_of(pr)
+    async with db.transaction(context_for(request, pr)) as conn:
+        return await crew.detail(conn, company, uid)
+
+
+@router.post("/crew/{uid}/licences", status_code=201)
+async def add_crew_licence(uid: uuid.UUID, body: crew.LicenceIn, request: Request, pr: Principal = Depends(operator)):
+    company = crew.carrier_of(pr)
+    async with db.transaction(context_for(request, pr)) as conn:
+        licence = await crew.add_licence(conn, company, uid, body)
+    request.state.audit = {"action": "crew.licence_add", "object_type": "license_record", "object_id": None}
+    return {"uid": licence}
+
+
+@router.post("/crew/{uid}/licences/{licence_uid}/images/{side}", status_code=201)
+async def add_crew_licence_image(uid: uuid.UUID, licence_uid: uuid.UUID, side: Literal["front", "back"], request: Request,
+                                 file: UploadFile = File(...), pr: Principal = Depends(operator)):
+    company = crew.carrier_of(pr)
+    data = await file.read(crew.MAX_IMAGE + 1)
+    ctx = context_for(request, pr)
+    async with db.transaction(ctx) as conn:
+        doc = await crew.add_image(conn, ctx, pr, company, uid, licence_uid, side, data, file.filename or "licence")
+    request.state.audit = {"action": "crew.licence_image", "object_type": "document", "object_id": None}
+    return {"uid": doc}
 
 
 # ------------------------------------------------------------------ routes
