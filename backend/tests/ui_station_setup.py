@@ -16,7 +16,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path[:0] = [HERE, os.path.dirname(HERE)]          # the test helpers and the application, as pytest finds them
 
 from test_boarding_stations import set_setting, station_session, stations_module  # noqa: E402
-from test_e2e import free_seats, login, owner_sql, syrian  # noqa: E402
+from test_e2e import free_seats, login, owner_sql, settle_password, syrian  # noqa: E402
 from test_use_case_gaps import fresh_trip  # noqa: E402
 
 
@@ -32,6 +32,7 @@ def main(out: str) -> None:
         "owner_email": company["email"], "owner_password": company["password"]})
     assert r.status_code == 201, r.text
     company["uid"] = r.json()["uid"]
+    settle_password(company["email"])        # the owner's temporary password (1150) stays the one this script uses
 
     trip = fresh_trip()                      # leaves within the hour, so its check-in window is open
     owner_sql("""WITH d AS (SELECT now() + interval '60 minutes' - sched_dep AS delta FROM ops.trip_stop WHERE trip_id = $1 AND seq = 0)
