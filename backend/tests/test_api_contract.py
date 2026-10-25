@@ -18,10 +18,12 @@ CALL = re.compile(r"\bapi\.(get|post|put|patch|del|upload)\s*(?:<(?:[^<>]|<[^<>]
 LITERAL = re.compile(r"(['\"`])(/api/[^'\"`\s]*)\1")
 METHOD = {"get": "GET", "post": "POST", "put": "PUT", "patch": "PATCH", "del": "DELETE", "upload": "POST"}
 # Addresses joined to a base chosen at run time: the selling channel's API (frontend/src/channel.ts: passenger, agency,
-# counter) and the settlement view's (company or platform finance). Each joined address is checked with every base,
+# counter), the settlement view's (company or platform finance) and the company KYC page's (carrier, agency, station;
+# 1159). Each joined address is checked with every base,
 # except the few a screen offers on one channel only, listed here with that channel.
-BASES = {"ch.api": re.compile(r'\bapi: "(/api[^"]*)"'), "base": re.compile(r'\bbase="(/api[^"]*)"')}
-JOINED = re.compile(r"\bapi\.(get|post|put|patch|del|upload)\s*(?:<(?:[^<>]|<[^<>]*>)*>)?\(\s*`\$\{(ch\.api|base)\}(/[^`]*)`")
+BASES = {"ch.api": re.compile(r'\bapi: "(/api[^"]*)"'), "base": re.compile(r'\bbase="(/api[^"]*)"'),
+         "root": re.compile(r'\broot="(/api[^"]*)"')}
+JOINED = re.compile(r"\bapi\.(get|post|put|patch|del|upload)\s*(?:<(?:[^<>]|<[^<>]*>)*>)?\(\s*`\$\{(ch\.api|base|root)\}(/[^`]*)`")
 ONE_CHANNEL = {"/bookings/${b.booking_ref}/collect": {"/api/carrier/counter"}}     # cash collected at the counter
 
 

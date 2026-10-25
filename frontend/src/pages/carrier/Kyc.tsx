@@ -46,15 +46,15 @@ export function KycDocuments({ docs, link }: { docs: KycDocument[]; link?: strin
 }
 
 // The same page for carriers, agencies and station operating companies (1159, N14): each fills the form of its kind
-export const CarrierKyc = () => <CompanyKyc base="/api/carrier" docs="/carrier/documents" />;
-export const AgencyKyc = () => <CompanyKyc base="/api/agency" docs="/agency/documents" />;
-export const StationKyc = () => <CompanyKyc base="/api/station" docs="/station/documents" />;
+export const CarrierKyc = () => <CompanyKyc root="/api/carrier" docs="/carrier/documents" />;
+export const AgencyKyc = () => <CompanyKyc root="/api/agency" docs="/agency/documents" />;
+export const StationKyc = () => <CompanyKyc root="/api/station" docs="/station/documents" />;
 
-function CompanyKyc({ base, docs }: { base: string; docs: string }) {
+function CompanyKyc({ root, docs }: { root: string; docs: string }) {
   const { t, date, dateTime } = useI18n();
   const text = useKycText();
   const toast = useToast();
-  const state = useLoad(() => api.get<View>(`${base}/kyc`));
+  const state = useLoad(() => api.get<View>(`${root}/kyc`));
   const [answers, setAnswers] = useState<Answers>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [missing, setMissing] = useState<string[] | null>(null);
@@ -68,13 +68,13 @@ function CompanyKyc({ base, docs }: { base: string; docs: string }) {
     setBusy(true); setError(null);
     try { await fn(); if (ok) toast(ok); return true; } catch (e) { setError(e); return false; } finally { setBusy(false); }
   };
-  const open = () => run(async () => { await api.post(`${base}/kyc/open`); state.reload(); });
+  const open = () => run(async () => { await api.post(`${root}/kyc/open`); state.reload(); });
   const save = async (quiet = false) => {
     const file = state.data!.file!;
     let ok = false;
     await run(async () => {
       try {
-        const out = await api.put<{ completeness: number; missing: string[]; answers: Answers }>(`${base}/kyc/${file.uid}`, { answers });
+        const out = await api.put<{ completeness: number; missing: string[]; answers: Answers }>(`${root}/kyc/${file.uid}`, { answers });
         setAnswers(out.answers); setErrors({}); setDirty(false); setMissing(out.missing); ok = true;
         if (!quiet) toast(t("kyc.saved", { n: out.completeness }));
       } catch (e) {
@@ -88,7 +88,7 @@ function CompanyKyc({ base, docs }: { base: string; docs: string }) {
     if (dirty && !(await save(true))) return;
     await run(async () => {
       try {
-        await api.post(`${base}/kyc/${state.data!.file!.uid}/submit`);
+        await api.post(`${root}/kyc/${state.data!.file!.uid}/submit`);
         toast(t("kyc.submitted")); setMissing(null); state.reload();
       } catch (e) {
         if (e instanceof ApiError && e.code === "KYC_INCOMPLETE") setMissing((e.details?.missing as string[]) ?? []);
