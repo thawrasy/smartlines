@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using BankFas.Core.Mail;
+using BankFas.Data.Notifications;
 using BankFas.Data.Workflow;
 using Dapper;
 using Microsoft.Data.SqlClient;
@@ -25,16 +26,18 @@ public sealed class NotificationDigestJob(SqlConnectionFactory db, IMailSender m
 
     protected override async Task<string?> RunForTenantAsync(SqlConnection c, JobTenant tenant, Guid correlation, CancellationToken ct)
     {
-        // A delivery held for a digest whose user no longer wants one goes out now.
+        // A delivery held for a digest whose user no longer wants one goes out now; the account's default stands in for a
+        // user without their own choice (FR-NTF-011).
+        var defaults = await NotificationDefaults.JsonAsync(c, null, ct).ConfigureAwait(false) ?? "{}";
         var released = await c.ExecuteAsync(new CommandDefinition(
             """
             UPDATE d SET NextAttemptAt = SYSUTCDATETIME(), UpdatedAt = SYSUTCDATETIME()
               FROM ntf.NotificationDelivery AS d JOIN ntf.Notification AS n ON n.NotificationId = d.NotificationId
               JOIN ntf.NotificationEventType AS e ON e.NotificationEventTypeId = n.EventTypeId
              WHERE d.Channel = 'EMAIL' AND d.Status = 'PENDING' AND d.NextAttemptAt IS NULL
-               AND NOT EXISTS (SELECT 1 FROM ntf.NotificationPreference AS p WHERE p.UserId = n.UserId AND p.GroupKey = e.GroupKey AND p.Channel = 'EMAIL'
-                                  AND p.Mode IN ('DIGEST_DAILY', 'DIGEST_WEEKLY'));
-            """, cancellationToken: ct)).ConfigureAwait(false);
+               AND COALESCE((SELECT p.Mode FROM ntf.NotificationPreference AS p WHERE p.UserId = n.UserId AND p.GroupKey = e.GroupKey AND p.Channel = 'EMAIL'),
+                            JSON_VALUE(@defaults, CONCAT('$."', e.GroupKey, '".EMAIL')), 'IMMEDIATE') NOT IN ('DIGEST_DAILY', 'DIGEST_WEEKLY');
+            """, new { defaults }, cancellationToken: ct)).ConfigureAwait(false);
         var s = await FacilityHooks.SettingsAsync(c, null, ct, "ntf.digest.daily_at", "ntf.digest.weekly_day").ConfigureAwait(false);
         var at = TimeOnly.TryParse(s.GetValueOrDefault("ntf.digest.daily_at")?.Trim('"'), CultureInfo.InvariantCulture, out var t) ? t : new TimeOnly(7, 30);
         var weekday = int.TryParse(s.GetValueOrDefault("ntf.digest.weekly_day"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var w) && w is >= 0 and <= 6 ? w : 0;
@@ -47,12 +50,12 @@ public sealed class NotificationDigestJob(SqlConnectionFactory db, IMailSender m
         if (daily > local) daily = daily.AddDays(-1);
         var weekly = daily.AddDays(-(((int)daily.DayOfWeek - weekday + 7) % 7));
         var sent = 0;
-        sent += await DigestAsync(c, "DIGEST_DAILY", "DAILY", TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(daily, DateTimeKind.Unspecified), zone), 1, ct).ConfigureAwait(false);
-        sent += await DigestAsync(c, "DIGEST_WEEKLY", "WEEKLY", TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(weekly, DateTimeKind.Unspecified), zone), 7, ct).ConfigureAwait(false);
+        sent += await DigestAsync(c, "DIGEST_DAILY", "DAILY", TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(daily, DateTimeKind.Unspecified), zone), 1, defaults, ct).ConfigureAwait(false);
+        sent += await DigestAsync(c, "DIGEST_WEEKLY", "WEEKLY", TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(weekly, DateTimeKind.Unspecified), zone), 7, defaults, ct).ConfigureAwait(false);
         return sent + released == 0 ? null : $"{sent} digest(s), {released} released";
     }
 
-    private async Task<int> DigestAsync(SqlConnection c, string mode, string kind, DateTime cut, int days, CancellationToken ct)
+    private async Task<int> DigestAsync(SqlConnection c, string mode, string kind, DateTime cut, int days, string defaults, CancellationToken ct)
     {
         var held = (await c.QueryAsync<Held>(new CommandDefinition(
             """
@@ -60,11 +63,12 @@ public sealed class NotificationDigestJob(SqlConnectionFactory db, IMailSender m
                    e.GroupKey, e.NameAr AS GroupNameAr, e.NameEn AS GroupNameEn, n.Title, n.CreatedAt
               FROM ntf.NotificationDelivery AS d JOIN ntf.Notification AS n ON n.NotificationId = d.NotificationId
               JOIN ntf.NotificationEventType AS e ON e.NotificationEventTypeId = n.EventTypeId JOIN sec.AppUser AS u ON u.AppUserId = n.UserId
-              JOIN ntf.NotificationPreference AS p ON p.UserId = n.UserId AND p.GroupKey = e.GroupKey AND p.Channel = 'EMAIL' AND p.Mode = @mode
              WHERE d.Channel = 'EMAIL' AND d.Status = 'PENDING' AND d.NextAttemptAt IS NULL AND n.CreatedAt < @cut
+               AND ISNULL((SELECT p.Mode FROM ntf.NotificationPreference AS p WHERE p.UserId = n.UserId AND p.GroupKey = e.GroupKey AND p.Channel = 'EMAIL'),
+                          JSON_VALUE(@defaults, CONCAT('$."', e.GroupKey, '".EMAIL'))) = @mode
                AND NOT EXISTS (SELECT 1 FROM ntf.DigestBatch AS b WHERE b.UserId = n.UserId AND b.Channel = 'EMAIL' AND b.Kind = @kind AND b.PeriodEnd = @cut)
              ORDER BY n.UserId, n.CreatedAt DESC;
-            """, new { mode, kind, cut }, cancellationToken: ct)).ConfigureAwait(false)).ToList();
+            """, new { mode, kind, cut, defaults }, cancellationToken: ct)).ConfigureAwait(false)).ToList();
         var sent = 0;
         foreach (var user in held.GroupBy(h => h.UserId))
         {

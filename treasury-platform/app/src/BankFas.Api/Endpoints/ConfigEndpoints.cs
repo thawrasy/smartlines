@@ -146,6 +146,8 @@ public static partial class ConfigEndpoints
                 // The sign-in lists (ADR 0048): known words only, at least one.
                 SignInIdentity.CheckList(d.Key, v.GetString()!);
                 break;
+            case "JSON" when d.Key == BankFas.Data.Notifications.NotificationDefaults.Key:
+                throw ApiProblemException.Invalid("V-PLT-08", "The notification defaults are set on the notification settings screen.");
             default:
                 if (v.ValueKind is JsonValueKind.Object or JsonValueKind.Array) throw bad;
                 break;

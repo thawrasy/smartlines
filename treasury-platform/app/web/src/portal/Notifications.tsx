@@ -98,7 +98,12 @@ export function NotificationSettings() {
   const [draft, setDraft] = useState({ channel: 'IN_APP', lang: 'ar', subject: '', body: '' });
   const [deliveries, setDeliveries] = useState<{ eventCode: string; channel: string; status: string; attempts: number; user: string; lastError?: string }[]>([]);
   const [notice, setNotice] = useState<{ ok?: string; error?: string }>({});
-  const load = useCallback(async () => setEvents((await api<{ items: EventDef[] }>('GET', '/notification-events')).items), []);
+  const [defaults, setDefaults] = useState<{ groupKey: string; mandatoryInApp: boolean; emailAvailable: boolean; inApp: string; email: string }[]>([]);
+  const [preview, setPreview] = useState<{ subject: string; body: string } | null>(null);
+  const load = useCallback(async () => {
+    setEvents((await api<{ items: EventDef[] }>('GET', '/notification-events')).items);
+    setDefaults((await api<{ items: typeof defaults }>('GET', '/notification-preferences/defaults')).items);
+  }, []);
   useEffect(() => {
     void load();
     if (can(me, 'ntf.log.view')) void api<{ items: typeof deliveries }>('GET', '/notification-deliveries').then(r => setDeliveries(r.items));
@@ -118,6 +123,22 @@ export function NotificationSettings() {
           { header: 'Severity', cell: e => t(e.severity) },
           { header: 'Mandatory', cell: e => e.isMandatory ? t('Yes') : t('No') },
           { header: 'Recipients', cell: e => e.rules.filter(r => r.isActive).map(r => r.role ?? r.permission).join(', ') },
+        ]} />
+      </section>
+      <section className="card">
+        <h2>{t('Default preferences of the account')}</h2>
+        <p className="muted">{t('A user who has not chosen follows these; a mandatory group stays in the application.')}</p>
+        <Table rows={defaults} columns={[
+          { header: 'Group', cell: p => t(p.groupKey) },
+          { header: 'In the application', cell: p => p.mandatoryInApp ? t('Always (mandatory)') : (
+            <select value={p.inApp} onChange={e => void act(() => api('PUT', '/notification-preferences/defaults', { items: [{ groupKey: p.groupKey, channel: 'IN_APP', mode: e.target.value }] }))}>
+              <option value="IMMEDIATE">{t('IMMEDIATE')}</option><option value="OFF">{t('OFF')}</option>
+            </select>) },
+          { header: 'E-mail', cell: p => p.emailAvailable ? (
+            <select value={p.email} onChange={e => void act(() => api('PUT', '/notification-preferences/defaults', { items: [{ groupKey: p.groupKey, channel: 'EMAIL', mode: e.target.value }] }))}>
+              <option value="IMMEDIATE">{t('IMMEDIATE')}</option><option value="DIGEST_DAILY">{t('DIGEST_DAILY')}</option>
+              <option value="DIGEST_WEEKLY">{t('DIGEST_WEEKLY')}</option><option value="OFF">{t('OFF')}</option>
+            </select>) : '—' },
         ]} />
       </section>
       {ev && (
@@ -147,8 +168,21 @@ export function NotificationSettings() {
             </div>
             <input placeholder={t('Subject')} value={draft.subject} onChange={e => setDraft({ ...draft, subject: e.target.value })} required />
             <textarea placeholder={t('Text')} value={draft.body} onChange={e => setDraft({ ...draft, body: e.target.value })} required rows={4} />
-            <button type="submit">{t('Save the text for this account')}</button>
+            <div className="actions">
+              <button type="submit">{t('Save the text for this account')}</button>
+              <button type="button" className="secondary" onClick={async () => {
+                try { setPreview(await api<{ subject: string; body: string }>('POST', `/notification-events/${ev.code}/templates/${draft.channel}/${draft.lang}/preview`, { subject: draft.subject, body: draft.body })); setNotice({}); }
+                catch (e) { setNotice({ error: message(e) }); }
+              }}>{t('Preview')}</button>
+              {draft.channel === 'EMAIL' && <button type="button" className="secondary" onClick={async () => {
+                try {
+                  const r = await api<{ sentTo: string }>('POST', `/notification-events/${ev.code}/templates/${draft.channel}/${draft.lang}/test`, { subject: draft.subject, body: draft.body });
+                  setNotice({ ok: t('A test e-mail was sent to {to}.', { to: r.sentTo }) });
+                } catch (e) { setNotice({ error: message(e) }); }
+              }}>{t('Send me a test')}</button>}
+            </div>
           </form>
+          {preview && <div className="card"><strong>{preview.subject}</strong><p style={{ whiteSpace: 'pre-wrap' }}>{preview.body}</p></div>}
         </section>
       )}
       {deliveries.length > 0 && (

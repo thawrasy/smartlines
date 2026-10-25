@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { api, message } from '../api';
+import { api, downloadGet, message } from '../api';
 import { useI18n } from '../i18n';
 import { Field, Form, Notice, Select, Table } from '../ui';
 
@@ -178,6 +178,7 @@ export function Catalogs() {
   const [lookups, setLookups] = useState(false);
   const [lists, setLists] = useState<Item[]>([]);
   const [current, setCurrent] = useState('products');
+  const [version, setVersion] = useState(0);
   useEffect(() => {
     api<{ items: Kind[]; lookups: boolean }>('GET', '/catalogs').then(r => { setKinds(r.items); setLookups(r.lookups); }).catch(() => setKinds([]));
   }, []);
@@ -198,10 +199,57 @@ export function Catalogs() {
         ]} />
       </section>
       {current === 'currencies' && <Currencies />}
-      {kind && <CatalogList key={kind.kind} path={`/catalogs/${kind.kind}`} kind={kind.kind} canManage={kind.canManage} />}
+      {kind && <CatalogList key={kind.kind + version} path={`/catalogs/${kind.kind}`} kind={kind.kind} canManage={kind.canManage} />}
+      {kind?.canManage && <CatalogTransfer key={'csv' + kind.kind} kind={kind.kind} onSaved={() => setVersion(v => v + 1)} />}
       {list && <CatalogList key={list.code} path={`/lookups/${list.code}`} kind="lookup-items" canManage={lookups}
         allowAdd={!list.isSystem || list.fields.allowTenantItems === true} />}
     </>
+  );
+}
+
+interface ImportRow { line: number; code?: string; action: string; error?: string; message?: string }
+interface ImportResult { applied: boolean; errors: number; creates: number; updates: number; rows: ImportRow[] }
+
+/** FR-CAT-024: the catalogue as CSV, and its import previewed row by row before it saves; the code is the key and never changes. */
+function CatalogTransfer({ kind, onSaved }: { kind: string; onSaved: () => void }) {
+  const { t } = useI18n();
+  const [csv, setCsv] = useState<string | null>(null);
+  const [result, setResult] = useState<ImportResult | null>(null);
+  const [notice, setNotice] = useState<{ ok?: string; error?: string }>({});
+  const run = async (apply: boolean) => {
+    if (!csv) return;
+    try {
+      const r = await api<ImportResult>('POST', `/catalogs/${kind}/import`, { csv, apply });
+      setResult(r);
+      setNotice(r.applied ? { ok: 'Saved.' } : {});
+      if (r.applied) { setCsv(null); onSaved(); }
+    } catch (e) { setNotice({ error: message(e) }); }
+  };
+  return (
+    <section className="card">
+      <h2>{t('Export and import')}</h2>
+      <p className="muted">{t('The import reads the columns of the export. A known code changes its item and a new code adds one; codes never change. Nothing is saved until the preview has no error.')}</p>
+      <div className="actions">
+        <button className="secondary" onClick={() => void downloadGet(`/catalogs/${kind}/export`, `catalog-${kind}.csv`).catch(e => setNotice({ error: message(e) }))}>{t('Export CSV')}</button>
+        <input type="file" accept=".csv,text/csv" onChange={async e => {
+          const file = e.target.files?.[0];
+          setResult(null);
+          setCsv(file ? await file.text() : null);
+        }} />
+        <button className="secondary" disabled={!csv} onClick={() => void run(false)}>{t('Preview')}</button>
+        <button disabled={!csv || !result || result.errors > 0} onClick={() => void run(true)}>{t('Save the import')}</button>
+      </div>
+      <Notice ok={notice.ok} error={notice.error} />
+      {result && <>
+        <p>{t('Added')}: {result.creates} · {t('Changed')}: {result.updates} · {t('Errors')}: {result.errors}</p>
+        <Table rows={result.rows.filter(r => r.action !== 'UNCHANGED')} columns={[
+          { header: 'Line', cell: r => r.line },
+          { header: 'Code', cell: r => <span dir="ltr">{r.code}</span> },
+          { header: 'Action', cell: r => t(r.action) },
+          { header: 'Details', cell: r => r.message ? t(r.message) : '' },
+        ]} />
+      </>}
+    </section>
   );
 }
 

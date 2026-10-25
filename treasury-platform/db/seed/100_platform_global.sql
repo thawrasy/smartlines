@@ -58,7 +58,8 @@ USING (VALUES
     ('lc.proforma.no_lc_days',               'INT', N'30', N'1',  N'365', 0, N'Days after its issue that a proforma still without a received letter of credit reminds its requester once (FR-LCE-024, LC.PROFORMA_NO_LC). Read by JOB-LCE-NOLC.'),
     ('ntf.digest.daily_at',                  'TIME', N'"07:30"', NULL, NULL, 0, N'Time of day, in the tenant time zone, at which the daily e-mail digests go and the weekly ones on their day (FR-NTF-014, Q-NTF-02). Read by JOB-NTF-DIGEST.'),
     ('ntf.digest.weekly_day',                'INT', N'0',  N'0',  N'6', 0, N'Day of the weekly e-mail digest, 0 for Sunday to 6 for Saturday (FR-NTF-014). Read by JOB-NTF-DIGEST.'),
-    ('ntf.retention.archive_days',           'INT', N'180', N'30', N'3650', 0, N'Days after it was read that a notification is archived; nothing is deleted and an unread notification stays (FR-NTF-020, BR-NTF-011). Read by JOB-NTF-RETENTION.')
+    ('ntf.retention.archive_days',           'INT', N'180', N'30', N'3650', 0, N'Days after it was read that a notification is archived; nothing is deleted and an unread notification stays (FR-NTF-020, BR-NTF-011). Read by JOB-NTF-RETENTION.'),
+    ('ntf.prefs.defaults',                   'JSON', N'{}', NULL, NULL, 0, N'The account''s default notification preferences per event group and channel, {"GROUP": {"IN_APP": mode, "EMAIL": mode}}; a user''s own choice wins and a mandatory group stays in the application (FR-NTF-011). Set on the notification settings screen.')
 ) AS s ([Key], ValueType, DefaultValueJson, MinValueJson, MaxValueJson, IsSecurity, Description)
    ON d.[Key] = s.[Key]
 WHEN MATCHED AND (d.ValueType <> s.ValueType OR d.DefaultValueJson <> s.DefaultValueJson

@@ -127,6 +127,9 @@ public static partial class Notifier
             "SELECT UserId, Channel, Mode FROM ntf.NotificationPreference WHERE GroupKey = @g AND UserId IN @ids;",
             new { g = ev.GroupKey, ids = recipients.Select(r => r.AppUserId).ToArray() }, cancellationToken: ct)).ConfigureAwait(false))
             .ToDictionary(x => (x.UserId, x.Channel), x => x.Mode);
+        // Without a user's own choice, the account's default for the group (FR-NTF-011).
+        var defaults = await NotificationDefaults.LoadAsync(c, null, ct).ConfigureAwait(false);
+        string? Mode(long user, string channel) => prefs.GetValueOrDefault((user, channel)) ?? defaults.GetValueOrDefault((ev.GroupKey, channel));
         var severity = p.TryGetProperty("severity", out var sv) && sv.GetString() is { } s && s is "INFO" or "WARNING" or "HIGH" ? s : ev.DefaultSeverity;
         var deepLink = p.TryGetProperty("deepLink", out var dl) && dl.ValueKind == JsonValueKind.String ? dl.GetString() : values.GetValueOrDefault("deepLink")?.Invoke("en");
         var created = 0;
@@ -135,8 +138,8 @@ public static partial class Notifier
             var lang = r.PreferredLanguage == "en" ? "en" : "ar";
             var (subject, body) = Render(templates, "IN_APP", lang, values, ev);
             // In-app always for a mandatory event; otherwise unless the user switched the group off (BR-NTF-003).
-            var inApp = ev.IsMandatory || prefs.GetValueOrDefault((r.AppUserId, "IN_APP")) != "OFF";
-            var emailMode = prefs.GetValueOrDefault((r.AppUserId, "EMAIL"));
+            var inApp = ev.IsMandatory || Mode(r.AppUserId, "IN_APP") != "OFF";
+            var emailMode = Mode(r.AppUserId, "EMAIL");
             var email = emailChannel && emailMode != "OFF";
             // A digest holds the e-mail without a send time for JOB-NTF-DIGEST; a mandatory event is never held (FR-NTF-014).
             var digest = email && !ev.IsMandatory && emailMode is "DIGEST_DAILY" or "DIGEST_WEEKLY";

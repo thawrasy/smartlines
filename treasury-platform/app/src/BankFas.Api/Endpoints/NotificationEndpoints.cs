@@ -1,7 +1,9 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using BankFas.Api.Infrastructure;
+using BankFas.Core.Mail;
 using BankFas.Data;
+using BankFas.Data.Notifications;
 using Dapper;
 using Microsoft.Data.SqlClient;
 
@@ -11,6 +13,8 @@ public sealed record NotificationPreferenceRequest(List<NotificationPreferenceIt
 public sealed record NotificationPreferenceItem(string? GroupKey, string? Channel, string? Mode);
 public sealed record NotificationRuleRequest(string? RecipientKind, string? Role, string? Permission, bool? RequireCompanyScope, bool? IsActive);
 public sealed record NotificationTemplateRequest(string? Subject, string? Body);
+public sealed record NotificationDefaultItem(string? GroupKey, string? Channel, string? Mode);
+public sealed record NotificationDefaultsRequest(List<NotificationDefaultItem>? Items);
 
 /// <summary>
 /// The user's notifications and the tenant's notification settings (FR-NTF-003, 005, 006, 010, 012, 019; spec 13
@@ -40,6 +44,10 @@ public static partial class NotificationEndpoints
         api.MapPost("/notifications/{id:guid}/actions/archive", (Guid id, HttpContext h, SqlConnectionFactory d) => MarkAsync(id, "archive", h, d));
         api.MapGet("/notification-preferences", PreferencesAsync);
         api.MapPut("/notification-preferences", SetPreferencesAsync);
+        api.MapGet("/notification-preferences/defaults", DefaultsAsync);
+        api.MapPut("/notification-preferences/defaults", SetDefaultsAsync);
+        api.MapPost("/notification-events/{code}/templates/{channel}/{lang}/preview", PreviewAsync);
+        api.MapPost("/notification-events/{code}/templates/{channel}/{lang}/test", TestSendAsync);
         api.MapGet("/notification-events", EventsAsync);
         api.MapPost("/notification-events/{code}/rules", AddRuleAsync);
         api.MapPatch("/notification-events/{code}/rules/{reference}", PatchRuleAsync);
@@ -118,13 +126,16 @@ public static partial class NotificationEndpoints
         var mine = (await u.Connection.QueryAsync<(string GroupKey, string Channel, string Mode)>(new CommandDefinition(
             "SELECT GroupKey, Channel, Mode FROM ntf.NotificationPreference WHERE UserId = @u;", new { u = u.UserId }, cancellationToken: http.RequestAborted)))
             .ToDictionary(x => (x.GroupKey, x.Channel), x => x.Mode);
+        // Without the user's own choice, the account's default (FR-NTF-011).
+        var defaults = await NotificationDefaults.LoadAsync(u.Connection, null, http.RequestAborted);
+        string Mode(string g, string ch) => mine.GetValueOrDefault((g, ch)) ?? defaults.GetValueOrDefault((g, ch)) ?? "IMMEDIATE";
         return Results.Ok(new
         {
             items = groups.Select(g => new
             {
                 groupKey = g.GroupKey, mandatoryInApp = g.Mandatory, emailAvailable = g.Email,
-                inApp = g.Mandatory ? "IMMEDIATE" : mine.GetValueOrDefault((g.GroupKey, "IN_APP"), "IMMEDIATE"),
-                email = mine.GetValueOrDefault((g.GroupKey, "EMAIL"), "IMMEDIATE"),
+                inApp = g.Mandatory ? "IMMEDIATE" : Mode(g.GroupKey, "IN_APP"),
+                email = Mode(g.GroupKey, "EMAIL"),
             }),
         });
     }
@@ -326,5 +337,119 @@ public static partial class NotificationEndpoints
                 eventCode = r.Event, channel = r.Channel, status = r.Status, attempts = r.Attempts, createdAt = r.CreatedAt, sentAt = r.SentAt, lastError = r.LastError, user = r.User,
             }),
         });
+    }
+
+    // ---------- the account's default preferences (FR-NTF-011) ----------
+
+    private static async Task<IResult> DefaultsAsync(HttpContext http, SqlConnectionFactory db)
+    {
+        await using var u = await BoundUser.OpenAsync(http, db, Manage);
+        var groups = await u.Connection.QueryAsync<(string GroupKey, bool Mandatory, bool Email)>(new CommandDefinition(
+            """
+            SELECT GroupKey, CAST(MAX(CAST(IsMandatory AS INT)) AS BIT), CAST(MAX(CASE WHEN DefaultChannels LIKE '%EMAIL%' THEN 1 ELSE 0 END) AS BIT)
+              FROM ntf.NotificationEventType GROUP BY GroupKey ORDER BY GroupKey;
+            """, cancellationToken: http.RequestAborted));
+        var defaults = await NotificationDefaults.LoadAsync(u.Connection, null, http.RequestAborted);
+        return Results.Ok(new
+        {
+            items = groups.Select(g => new
+            {
+                groupKey = g.GroupKey, mandatoryInApp = g.Mandatory, emailAvailable = g.Email,
+                inApp = g.Mandatory ? "IMMEDIATE" : defaults.GetValueOrDefault((g.GroupKey, "IN_APP"), "IMMEDIATE"),
+                email = defaults.GetValueOrDefault((g.GroupKey, "EMAIL"), "IMMEDIATE"),
+            }),
+        });
+    }
+
+    /// <summary>Sets the account's defaults; a mode of IMMEDIATE clears the group's default for the channel. Audited as SETTING_CHANGED.</summary>
+    private static async Task<IResult> SetDefaultsAsync(NotificationDefaultsRequest b, HttpContext http, SqlConnectionFactory db)
+    {
+        await using var u = await BoundUser.OpenAsync(http, db, Manage);
+        var ct = http.RequestAborted;
+        await using var tx = (SqlTransaction)await u.Connection.BeginTransactionAsync(ct);
+        var before = await NotificationDefaults.JsonAsync(u.Connection, tx, ct) ?? "{}";
+        var map = NotificationDefaults.Parse(before);
+        var groups = (await u.Connection.QueryAsync<(string GroupKey, bool Mandatory)>(new CommandDefinition(
+            "SELECT GroupKey, CAST(MAX(CAST(IsMandatory AS INT)) AS BIT) FROM ntf.NotificationEventType GROUP BY GroupKey;", transaction: tx, cancellationToken: ct)))
+            .ToDictionary(g => g.GroupKey, g => g.Mandatory, StringComparer.Ordinal);
+        foreach (var item in b.Items ?? [])
+        {
+            var group = item.GroupKey?.Trim().ToUpperInvariant() ?? "";
+            var channel = item.Channel?.Trim().ToUpperInvariant();
+            var mode = item.Mode?.Trim().ToUpperInvariant();
+            if (!groups.TryGetValue(group, out var mandatory)) throw ApiProblemException.Invalid("VALIDATION_FAILED", "Choose a notification group.");
+            if (channel is null || !Channels.Contains(channel)) throw ApiProblemException.Invalid("VALIDATION_FAILED", "The channel is IN_APP or EMAIL.");
+            if (mode is null || !Modes.Contains(mode)) throw ApiProblemException.Invalid("VALIDATION_FAILED", "The mode is IMMEDIATE, DIGEST_DAILY, DIGEST_WEEKLY or OFF.");
+            if (channel == "IN_APP" && mode.StartsWith("DIGEST", StringComparison.Ordinal))
+                throw ApiProblemException.Invalid("VALIDATION_FAILED", "A digest is by e-mail; the application shows each notification.");
+            if (mandatory && channel == "IN_APP" && mode == "OFF")
+                throw ApiProblemException.Invalid("V-NTF-MANDATORY", "This group has mandatory notifications: they stay in the application.");
+            if (mode == "IMMEDIATE") map.Remove((group, channel));
+            else map[(group, channel)] = mode;
+        }
+        var after = NotificationDefaults.Serialize(map);
+        if (after != before)
+        {
+            await u.Connection.ExecuteAsync(new CommandDefinition(
+                """
+                UPDATE cfg.TenantSetting SET ValueJson = @v WHERE [Key] = @k;
+                IF @@ROWCOUNT = 0 INSERT cfg.TenantSetting (TenantId, [Key], ValueJson) VALUES (CAST(SESSION_CONTEXT(N'TenantId') AS INT), @k, @v);
+                """, new { k = NotificationDefaults.Key, v = after }, tx, cancellationToken: ct));
+            await AuditWriter.WriteAsync(u.Connection, tx, new AuditEntry("SETTING_CHANGED", "CONFIG", "cfg.TenantSetting", null,
+                BeforeJson: JsonSerializer.Serialize(new { key = NotificationDefaults.Key, value = JsonDocument.Parse(before).RootElement }),
+                AfterJson: JsonSerializer.Serialize(new { key = NotificationDefaults.Key, value = JsonDocument.Parse(after).RootElement })), null, ct);
+        }
+        await tx.CommitAsync(ct);
+        return Results.NoContent();
+    }
+
+    // ---------- template preview and test send (FR-NTF-025) ----------
+
+    /// <summary>The text to show: the one sent in the body, else the account's override, else the seed; each placeholder is shown as its name in brackets.</summary>
+    private static async Task<(string Subject, string Body)> SampleAsync(BoundUser u, string code, string channel, string lang, NotificationTemplateRequest? b, CancellationToken ct)
+    {
+        var e = await EventAsync(u.Connection, null, code, ct);
+        channel = channel.ToUpperInvariant();
+        lang = lang.ToLowerInvariant();
+        if (!Channels.Contains(channel) || lang is not ("ar" or "en")) throw ApiProblemException.NotFound();
+        var t = await u.Connection.QueryFirstOrDefaultAsync<(string Subject, string Body)>(new CommandDefinition(
+            """
+            SELECT TOP (1) SubjectTemplate, BodyTemplate FROM ntf.NotificationTemplate WHERE EventTypeId = @e AND Channel = @c AND Lang = @l
+             ORDER BY IsTenantOverride DESC;
+            """, new { e = e.NotificationEventTypeId, c = channel, l = lang }, cancellationToken: ct));
+        var subject = b?.Subject?.Trim() is { Length: > 0 } s ? s : t.Subject ?? (lang == "ar" ? e.NameAr ?? e.NameEn : e.NameEn ?? e.NameAr) ?? e.Code;
+        var body = b?.Body?.Trim() is { Length: > 0 } x ? x : t.Body ?? subject;
+        if (subject.Length > 300 || body.Length > 4000) throw ApiProblemException.Invalid("VALIDATION_FAILED", "The subject is up to 300 characters and the text up to 4000.");
+        var allowed = e.AllowedPlaceholdersJson is null ? [] : JsonSerializer.Deserialize<string[]>(e.AllowedPlaceholdersJson) ?? [];
+        var unknown = Placeholder().Matches(subject + body).Select(m => m.Groups[1].Value).Where(p => !allowed.Contains(p)).Distinct().ToList();
+        if (unknown.Count > 0) throw ApiProblemException.Invalid("V-NTF-01", "Only these placeholders may be used: " + string.Join(", ", allowed.Select(a => "{" + a + "}")) + ".");
+        string Fill(string text) => Placeholder().Replace(text, m => "[" + m.Groups[1].Value + "]");
+        return (Fill(subject), Fill(body));
+    }
+
+    private static async Task<IResult> PreviewAsync(string code, string channel, string lang, NotificationTemplateRequest? b, HttpContext http, SqlConnectionFactory db)
+    {
+        await using var u = await BoundUser.OpenAsync(http, db, Manage);
+        var (subject, body) = await SampleAsync(u, code, channel, lang, b, http.RequestAborted);
+        return Results.Ok(new { subject, body });
+    }
+
+    /// <summary>
+    /// Sends the sample to the administrator's own e-mail, marked as a test; it is no notification, so the event reports
+    /// and the delivery log do not count it (FR-NTF-025). Audited as NOTIFICATION_TEST_SENT.
+    /// </summary>
+    private static async Task<IResult> TestSendAsync(string code, string channel, string lang, NotificationTemplateRequest? b, HttpContext http, SqlConnectionFactory db,
+        IMailSender mail)
+    {
+        await using var u = await BoundUser.OpenAsync(http, db, Manage);
+        var ct = http.RequestAborted;
+        var (subject, body) = await SampleAsync(u, code, channel, lang, b, ct);
+        var email = await u.Connection.ExecuteScalarAsync<string?>(new CommandDefinition("SELECT Email FROM sec.AppUser WHERE AppUserId = @u;", new { u = u.UserId },
+            cancellationToken: ct)) ?? throw ApiProblemException.Invalid("VALIDATION_FAILED", "Your account has no e-mail.");
+        var prefix = lang.Equals("ar", StringComparison.OrdinalIgnoreCase) ? "[تجربة] " : "[Test] ";
+        await mail.SendAsync(new OutgoingMail(email, prefix + subject, body.Replace("\n", "\r\n", StringComparison.Ordinal) + "\r\n"), ct);
+        await AuditWriter.WriteAsync(u.Connection, null, new AuditEntry("NOTIFICATION_TEST_SENT", "CONFIG", "ntf.NotificationEventType", null,
+            AfterJson: JsonSerializer.Serialize(new { code = code.ToUpperInvariant(), channel = channel.ToUpperInvariant(), lang = lang.ToLowerInvariant() })), null, ct);
+        return Results.Accepted(value: new { sentTo = email });
     }
 }
