@@ -6,6 +6,10 @@
 DOMAIN=treasury.example.com
 # The database server's name, as in its TLS certificate (docs/54 B-08).
 DB_HOST=db.treasury.example.com
+# One server for the trial (docs/58): SQL Server runs on this host too. Then DB_ADDRESS=172.30.0.1, the gateway of the
+# containers' network: compose.yml maps DB_HOST to it in both containers, and /etc/hosts maps it to 127.0.0.1 here.
+# Left empty with two servers (docs/54), where DB_HOST resolves through DNS.
+DB_ADDRESS=
 # The mail relay (docs/54 A-04).
 SMTP_HOST=smtp.example.com
 SMTP_PORT=587

@@ -41,6 +41,8 @@ done
 [[ "${V[DOMAIN]}" != *example.com* ]] || fail "DOMAIN is still the example"
 [[ "${V[SMTP_PORT]}" =~ ^[0-9]{2,5}$ ]] || fail "SMTP_PORT is a port number"
 [[ "${V[KEY_NAME]}" =~ ^[A-Za-z0-9._-]+$ ]] || fail "KEY_NAME is a file name"
+DB_ADDRESS="${V[DB_ADDRESS]:-}"
+[ -z "$DB_ADDRESS" ] || [[ "$DB_ADDRESS" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] || fail "DB_ADDRESS is an IPv4 address, or empty"
 
 render() {   # render <template> <target> <mode>: every <NAME> of the values replaced, the old target kept as .bak
     local src="$1" dst="$2" mode="$3" text k
@@ -84,6 +86,28 @@ step "settings"
 render "$HERE/api.env.example" "$R/opt/bankfas/api.env" 600
 render "$HERE/worker.env.example" "$R/opt/bankfas/worker.env" 600
 render "$HERE/compose.yml" "$R/opt/bankfas/compose.yml" 644
+if [ -n "$DB_ADDRESS" ]; then
+    # One server (docs/58): both containers reach SQL Server on this host through the network's gateway, under the
+    # name of its certificate; the host's own tools reach it on the loopback under the same name.
+    python3 - "$R/opt/bankfas/compose.yml" "${V[DB_HOST]}" "$DB_ADDRESS" <<'PY'
+import sys
+p, host, addr = sys.argv[1:]
+out, service = [], None
+for line in open(p).read().split("\n"):
+    out.append(line)
+    if line.startswith("  ") and not line.startswith("    ") and line.strip().endswith(":"):
+        service = line.strip()[:-1]
+    if service in ("api", "worker") and line == "    restart: unless-stopped":
+        out.append(f'    extra_hosts: ["{host}:{addr}"]   # the database on this host (docs/58)')
+open(p, "w").write("\n".join(out))
+PY
+    echo "   compose.yml: ${V[DB_HOST]} is $DB_ADDRESS in the api and worker containers"
+    hosts="$R/etc/hosts"
+    if ! grep -qE "^127\.0\.0\.1[[:space:]]+${V[DB_HOST]//./\\.}([[:space:]]|$)" "$hosts" 2>/dev/null; then
+        printf '127.0.0.1 %s   # the database on this host (docs/58)\n' "${V[DB_HOST]}" >> "$hosts"
+        echo "   /etc/hosts: ${V[DB_HOST]} is 127.0.0.1 on this host"
+    fi
+fi
 install -d -m 755 "$R/etc/caddy"
 render "$HERE/Caddyfile" "$R/etc/caddy/Caddyfile" 644
 

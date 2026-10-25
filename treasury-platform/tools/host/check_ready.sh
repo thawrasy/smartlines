@@ -69,6 +69,15 @@ if command -v caddy >/dev/null; then
 else fail "Caddy is not installed"; fi
 if command -v ufw >/dev/null && ufw status 2>/dev/null | grep -q '^Status: active'; then pass "the firewall is active"; else fail "the firewall is not active (tools/host/ufw.sh)"; fi
 [ "$(timedatectl show -p NTPSynchronized --value 2>/dev/null)" = yes ] && pass "the clock is synchronised" || warn "the clock is not reported synchronised"
+if [ -n "${V[DB_ADDRESS]:-}" ]; then
+    echo "== the database on this host (docs/58)"
+    [ "$(grep -c "extra_hosts: \[\"${V[DB_HOST]:-}:${V[DB_ADDRESS]}\"\]" "$R/opt/bankfas/compose.yml" 2>/dev/null)" = 2 ] \
+        && pass "both containers reach ${V[DB_HOST]:-?} at ${V[DB_ADDRESS]}" || fail "compose.yml does not map ${V[DB_HOST]:-?} to ${V[DB_ADDRESS]} in api and worker (provision_app_host.sh)"
+    if command -v ufw >/dev/null && ufw status 2>/dev/null | grep -E '^1433' | grep -q '172\.30\.0\.0/24'; then pass "the containers' network may reach 1433"
+    else fail "the firewall does not let 172.30.0.0/24 reach 1433 (docs/58 step 3)"; fi
+    mem="$(awk '/^(MemTotal|SwapTotal):/ {s += $2} END {print int(s/1048576)}' /proc/meminfo 2>/dev/null)"
+    [ "${mem:-0}" -ge 11 ] && pass "memory and swap: ${mem} GB" || warn "memory and swap are ${mem:-?} GB: SQL Server, ClamAV and Chromium together need about 11 (docs/58 step 2)"
+fi
 avail="$(df -Pk "$R/srv" 2>/dev/null | awk 'NR==2 {print int($4/1048576)}')"
 [ "${avail:-0}" -ge 20 ] && pass "${avail} GB free under /srv" || warn "only ${avail:-?} GB free under /srv"
 
