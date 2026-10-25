@@ -10,7 +10,8 @@ FROM node:22-bookworm-slim AS web
 WORKDIR /src/app/web
 COPY app/web/package.json app/web/package-lock.json ./
 RUN --mount=type=secret,id=extra_ca,required=false \
-    NODE_EXTRA_CA_CERTS=$([ -f /run/secrets/extra_ca ] && echo /run/secrets/extra_ca) npm ci --no-audit --no-fund
+    if [ -f /run/secrets/extra_ca ]; then export NODE_EXTRA_CA_CERTS=/run/secrets/extra_ca; fi \
+ && npm ci --no-audit --no-fund
 COPY app/web/ ./
 RUN npm run build
 
@@ -33,8 +34,8 @@ ENV DOTNET_EnableDiagnostics=0 TMPDIR=/tmp
 #   docker build --build-context chromium=<path>/chrome-linux ...
 FROM node:22-bookworm-slim AS chromium-download
 RUN --mount=type=secret,id=extra_ca,required=false \
-    NODE_EXTRA_CA_CERTS=$([ -f /run/secrets/extra_ca ] && echo /run/secrets/extra_ca) PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
-    npx -y playwright@1.56.1 install chromium \
+    if [ -f /run/secrets/extra_ca ]; then export NODE_EXTRA_CA_CERTS=/run/secrets/extra_ca; fi \
+ && PLAYWRIGHT_BROWSERS_PATH=/ms-playwright npx -y playwright@1.56.1 install chromium \
  && mv /ms-playwright/chromium-*/chrome-linux /out
 FROM scratch AS chromium
 COPY --from=chromium-download /out /
@@ -44,7 +45,7 @@ COPY --from=chromium-download /out /
 FROM base AS api
 RUN --mount=type=secret,id=extra_ca,required=false \
     sed -i 's|http://\(archive\|security\).ubuntu.com|https://\1.ubuntu.com|g' /etc/apt/sources.list.d/ubuntu.sources \
- && CA=$([ -f /run/secrets/extra_ca ] && echo "-o Acquire::https::CAInfo=/run/secrets/extra_ca") \
+ && CA=$( { [ -f /run/secrets/extra_ca ] && echo "-o Acquire::https::CAInfo=/run/secrets/extra_ca"; } || true) \
  && apt-get $CA update \
  && apt-get $CA install -y --no-install-recommends libnss3 libnspr4 libatk1.0-0t64 libatk-bridge2.0-0t64 libcups2t64 libdrm2 \
       libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libpango-1.0-0 libcairo2 libasound2t64 \

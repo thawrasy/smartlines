@@ -139,8 +139,9 @@ db_host = json.load(open('versions.json', encoding='utf-8'))['database_host']
 want = f"{db_host['ci_image']}@{db_host['ci_image_digest']}"
 flow = open('../.github/workflows/treasury-db-ci.yml', encoding='utf-8').read()
 got = re.findall(r'^\s*image:\s*(mcr\.microsoft\.com/mssql/\S+)', flow, re.M)
-if got != [want]:
-    sys.exit(f'the CI image {got} is not the one of versions.json ({want})')
+# Every job that runs SQL Server (the database job and the images job) runs this one image.
+if not got or any(g != want for g in got):
+    sys.exit(f'the CI images {got} are not all the one of versions.json ({want})')
 print(f'CI runs the SQL Server image of the release register: {want}')
 PY
 

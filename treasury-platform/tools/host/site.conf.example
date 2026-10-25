@@ -1,0 +1,25 @@
+# /opt/bankfas/site.conf (docs/54, docs/55): every value of this host in one place; provision_app_host.sh writes
+# api.env, worker.env, compose.yml and the Caddyfile from it, and check_ready.sh checks the host against it.
+# Root-only (chmod 600). No secret goes here: passwords and tokens are asked for, or read from files, by the script.
+
+# The platform domain: the portals are <code>.DOMAIN, the operator panel admin.DOMAIN.
+DOMAIN=treasury.example.com
+# The database server's name, as in its TLS certificate (docs/54 B-08).
+DB_HOST=db.treasury.example.com
+# The mail relay (docs/54 A-04).
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_FROM=no-reply@treasury.example.com
+SMTP_USER=no-reply@treasury.example.com
+# Where the certificate notices (Caddy) and the security alerts go.
+OPS_MAILBOX=ops@example.com
+SECURITY_MAILBOX=security@example.com
+# The DNS provider of the wildcard certificate (a caddy-dns module) and the variable its token is read from.
+DNS_PROVIDER=cloudflare
+DNS_TOKEN_VAR=CF_API_TOKEN
+# The images (docs/54 R-01) and the ClamAV release.
+API_IMAGE=bankfas-api:1.0.0
+WORKER_IMAGE=bankfas-worker:1.0.0
+CLAMAV_VERSION=1.4
+# The name of the master key file the script creates once (master-keys/KEY_NAME.key).
+KEY_NAME=2026-10
