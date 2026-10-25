@@ -39,6 +39,17 @@ public sealed record TermsFacts
     public decimal? MarginPct { get; init; }
     public decimal? PrevLcAmount { get; init; }
     public decimal? PrevLcUtilizedAmount { get; init; }
+    // The UCP 600 checks of docs/60: insurance (article 28), instalments (32), the expiry day (29) and transhipment (19 to 24).
+    public string? IncotermCode { get; init; }
+    public string? InsuranceResponsibility { get; init; }
+    public decimal? InsuranceMinPct { get; init; }
+    public bool HasInsuranceDocument { get; init; }
+    public string? PartialShipments { get; init; }
+    public string? InstallmentShipments { get; init; }
+    public string? Transhipment { get; init; }
+    public string? TransportMode { get; init; }
+    /// <summary>The expiry date is a non-working day in the calendar of the applicant's country (article 29 a).</summary>
+    public bool ExpiryOnNonWorkingDay { get; init; }
     /// <summary>The field keys that hold a value (beside the ones above), for the required fields of BR-LCT-002.</summary>
     public IReadOnlySet<string> Filled { get; init; } = new HashSet<string>();
 }
@@ -49,7 +60,7 @@ public sealed record TermsFacts
 /// dictionary for the class, scope and purpose (BR-LCT-002), the dates (V-LCT-01, BR-LCT-005 to 007), the drawee
 /// (V-LCT-03), the tenor (V-LCT-06, BR-LCT-009), the tolerance (V-LCT-07, BR-LCT-004), the Incoterm's named place
 /// (V-LCT-09), the charges matrix (V-LCT-12), the previous credit (V-LCT-14), the presentation period (V-LCT-16), the
-/// BICs (V-LCT-20) and the margin (BR-LCT-015).
+/// BICs (V-LCT-20), the margin (BR-LCT-015), and the UCP 600 checks of docs/60 (V-LCT-UCP28, 29, 32 and 20).
 /// </summary>
 public static class TermsRules
 {
@@ -131,6 +142,25 @@ public static class TermsRules
         // V-LCT-20: BIC of 8 or 11 capital letters and digits.
         if (!Bic(f.AdvisingBankBic)) E("V-LCT-20", "advisingBankBic", "A BIC is 8 or 11 capital letters and digits.");
         if (!Bic(f.ConfirmingBankBic)) E("V-LCT-20", "confirmingBankBic", "A BIC is 8 or 11 capital letters and digits.");
+        // UCP 600 article 28 (f) (ii): the cover is at least 110 percent of the CIF or CIP value unless the credit states otherwise.
+        if (f.InsuranceResponsibility != "NOT_REQUIRED_BY_TERMS" && f.InsuranceMinPct is { } ins && ins < 110)
+            W("V-LCT-UCP28", "insuranceMinPct", "An insurance cover below 110 percent of the CIF or CIP value departs from UCP 600 article 28 (f) (ii); state it in the credit.");
+        // Under CIF and CIP the seller insures: the beneficiary, with an insurance document among those required (article 28, BR-LCT-010).
+        if (f.IncotermCode is "CIF" or "CIP")
+        {
+            if (!f.HasInsuranceDocument) W("V-LCT-UCP28", "documents", "A CIF or CIP credit asks for an insurance document (UCP 600 article 28).");
+            if (f.InsuranceResponsibility is not null and not "BENEFICIARY") W("V-LCT-UCP28", "insuranceResponsibility", "Under CIF or CIP the beneficiary insures the goods.");
+        }
+        // UCP 600 articles 31 and 32: shipment by instalments is shipment in parts, so it needs partial shipments allowed.
+        if (!string.IsNullOrWhiteSpace(f.InstallmentShipments) && f.PartialShipments == "NOT_ALLOWED")
+            E("V-LCT-UCP32", "partialShipments", "Instalment shipments need partial shipments allowed (UCP 600 articles 31 and 32).");
+        // UCP 600 article 29 (a) and (c): an expiry on a day the bank is closed moves to the next banking day; the latest shipment does not.
+        if (f.ExpiryOnNonWorkingDay)
+            W("V-LCT-UCP29", "expiryDate", "The expiry falls on a non-working day: under UCP 600 article 29 (a) it moves to the next banking day, but the latest shipment date does not (29 c).");
+        // UCP 600 articles 19 (c), 20 (c), 23 (c) and 24 (e): a transport document may show transhipment even when the credit forbids it.
+        if (f.Transhipment == "NOT_ALLOWED" && f.TransportMode is "SEA" or "AIR" or "MULTIMODAL" or "ROAD" or "RAIL")
+            W("V-LCT-UCP20", "transhipment", "Under UCP 600 articles 19 to 24 a transport document showing transhipment is still acceptable in the cases they list (one document covering the whole carriage, or goods in containers), even when the credit forbids it.");
+
         // BR-LCT-015: a debit of the full value means a margin of 100 percent.
         if (f.DebitAuthorization == "FULL_LC_VALUE" && f.MarginPct is not 100) E("BR-LCT-015", "marginPct", "A debit of the full value takes a margin of 100 percent.");
         return x;

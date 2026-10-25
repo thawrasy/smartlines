@@ -181,6 +181,25 @@ namespace BankFas.IntegrationTests
             });
             var ready = await rq.GetJsonAsync($"/api/v1/requests/{id}/terms");
             Assert.DoesNotContain(ready.GetProperty("findings").EnumerateArray(), x => x.GetProperty("severity").GetString() == "E");
+
+            // UCP 600 on the terms screen (docs/60): the articles of each field and document, and the checks of articles 31 and 32
+            // (instalments need partial shipments, an error) and 19 to 24 (transhipment forbidden by sea, a warning).
+            var ucp = await rq.GetJsonAsync("/api/v1/lc/ucp-references");
+            Assert.Contains(ucp.GetProperty("fields").GetProperty("toleranceMode").EnumerateArray(), x => x.GetProperty("article").GetString() == "30");
+            Assert.Contains(ucp.GetProperty("clauses").GetProperty("BL_SEA").EnumerateArray(), x => x.GetProperty("article").GetString() == "20");
+            await rq.OkAsync(HttpMethod.Put, $"/api/v1/requests/{id}/terms", new
+            {
+                fields = new Dictionary<string, object?> { ["installmentShipments"] = "Two monthly lots", ["partialShipments"] = "NOT_ALLOWED", ["transhipment"] = "NOT_ALLOWED" },
+            });
+            var ucpFindings = (await rq.GetJsonAsync($"/api/v1/requests/{id}/terms")).GetProperty("findings").EnumerateArray()
+                .Select(x => $"{x.GetProperty("code").GetString()}:{x.GetProperty("severity").GetString()}").ToList();
+            Assert.Contains("V-LCT-UCP32:E", ucpFindings);
+            Assert.Contains("V-LCT-UCP20:W", ucpFindings);
+            Assert.Equal(422, (await RefusedAsync(rq, id, "submit")).Item1);
+            await rq.OkAsync(HttpMethod.Put, $"/api/v1/requests/{id}/terms", new
+            {
+                fields = new Dictionary<string, object?> { ["installmentShipments"] = null, ["partialShipments"] = "ALLOWED", ["transhipment"] = "ALLOWED" },
+            });
             await ActAsync(rq, id, "submit");
             var locked = await rq.GetJsonAsync($"/api/v1/requests/{id}/terms");
             Assert.Equal(("LOCKED", "SAUDI RIYAL THREE MILLION ONLY"), (locked.GetProperty("status").GetString(), locked.GetProperty("fields").GetProperty("amountInWordsEn").GetString()));

@@ -457,7 +457,19 @@ public static class TermsStore
             cancellationToken: ct)).ConfigureAwait(false);
         var cats = (await c.QueryAsync<string>(new CommandDefinition("SELECT ChargeCategory FROM lc.LcChargesMatrix WHERE LcTermsId = @t;", new { t = t.LcTermsId }, tx,
             cancellationToken: ct)).ConfigureAwait(false)).ToHashSet(StringComparer.Ordinal);
+        var insurance = await c.ExecuteScalarAsync<int>(new CommandDefinition(
+            "SELECT COUNT(*) FROM lc.LcTermsDocument AS d JOIN lc.LcDocumentClause AS k ON k.LcDocumentClauseId = d.ClauseId WHERE d.LcTermsId = @t AND k.Category = 'INSURANCE';",
+            new { t = t.LcTermsId }, tx, cancellationToken: ct)).ConfigureAwait(false) > 0;
         static DateOnly? D(object? o) => o is string s && DateOnly.TryParse(s, CultureInfo.InvariantCulture, out var d) ? d : null;
+        // UCP 600 article 29 (a): the expiry in the calendar of the applicant's country (our company in a purchase, the beneficiary in a sale).
+        var expiryOff = false;
+        if (D(v["expiryDate"]) is { } expiry)
+        {
+            var country = await c.ExecuteScalarAsync<int?>(new CommandDefinition(
+                "SELECT co.CountryId FROM lc.LcTerms AS t JOIN org.Company AS co ON co.CompanyId = ISNULL(t.ApplicantCompanyId, t.BeneficiaryCompanyId) WHERE t.LcTermsId = @t;",
+                new { t = t.LcTermsId }, tx, cancellationToken: ct)).ConfigureAwait(false);
+            if (country is { } cid) expiryOff = !(await Calendar.WorkingCalendar.LoadAsync(c, tx, cid, expiry, expiry, ct).ConfigureAwait(false)).IsWorkingDay(expiry);
+        }
         static string? S(object? o) => o as string;
         static int? I(object? o) => o is int i ? i : null;
         static decimal? M(object? o) => o is decimal m ? m : null;
@@ -470,6 +482,9 @@ public static class TermsStore
             ExpiryDaysAfterIssue = I(v["expiryDaysAfterIssue"]), EarliestShipmentDate = D(v["earliestShipmentDate"]), LatestShipmentRule = S(v["latestShipmentRule"]),
             LatestShipmentDate = D(v["latestShipmentDate"]), LatestShipmentDaysAfterIssue = I(v["latestShipmentDaysAfterIssue"]), PresentationDays = I(v["presentationDays"]),
             HasIncoterm = v["incotermId"] is not null, IncotermPlace = S(v["incotermPlace"]), DocumentCount = docs, ChargeCategories = cats,
+            IncotermCode = S(v["incotermId"]), InsuranceResponsibility = S(v["insuranceResponsibility"]), InsuranceMinPct = M(v["insuranceMinPct"]),
+            HasInsuranceDocument = insurance, PartialShipments = S(v["partialShipments"]), InstallmentShipments = S(v["installmentShipments"]),
+            Transhipment = S(v["transhipment"]), TransportMode = S(v["transportMode"]), ExpiryOnNonWorkingDay = expiryOff,
             DebitAuthorization = S(v["debitAuthorization"]), MarginPct = M(v["marginPct"]), PrevLcAmount = M(v["prevLcAmount"]), PrevLcUtilizedAmount = M(v["prevLcUtilizedAmount"]),
             Filled = v.Where(kv => kv.Value is not null && !(kv.Value is string s && s.Length == 0)).Select(kv => kv.Key).ToHashSet(StringComparer.Ordinal),
         };

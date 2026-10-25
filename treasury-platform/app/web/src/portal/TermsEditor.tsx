@@ -52,12 +52,30 @@ const FIELDS: Def[] = [
   { key: 'lcTextLanguage', label: 'Language of the credit', options: ['EN', 'AR', 'BOTH'] },
 ];
 
+type UcpRef = { article: string; paragraph: string | null; titleAr: string; titleEn: string; verified: boolean };
+type UcpMap = { fields: Record<string, UcpRef[]>; clauses: Record<string, UcpRef[]> };
+
+/** The UCP 600 articles a field or a document refers to (FR-LCT-005, docs/60), each with its title on hover. */
+function Ucp({ refs }: { refs?: UcpRef[] }) {
+  const { t, lang } = useI18n();
+  if (!refs || refs.length === 0) return null;
+  return (
+    <small className="ucp-ref">
+      UCP 600:{' '}
+      {refs.map((r, i) => <span key={i} title={(lang === 'ar' ? r.titleAr : r.titleEn) + (r.verified ? '' : ` · ${t('Not verified against the ICC text')}`)}>
+        {i > 0 && ' · '}{t('Art.')} {r.article}{r.paragraph ? ` (${r.paragraph})` : ''}{r.verified ? '' : '*'}
+      </span>)}
+    </small>
+  );
+}
+
 export function TermsEditor() {
   const { id } = useParams();
   const { t, lang } = useI18n();
   const [terms, setTerms] = useState<Terms | null>(null);
   const [edit, setEdit] = useState<Record<string, string>>({});
   const [clauses, setClauses] = useState<Row[]>([]);
+  const [ucp, setUcp] = useState<UcpMap>({ fields: {}, clauses: {} });
   const [docs, setDocs] = useState<{ clause: string; originals: string; copies: string }[]>([]);
   const [suppliers, setSuppliers] = useState<Row[]>([]);
   const [q, setQ] = useState('');
@@ -74,6 +92,7 @@ export function TermsEditor() {
   }, [id]);
   useEffect(() => { void load().catch(e => setError(message(e))); }, [load]);
   useEffect(() => { api<{ items: Row[] }>('GET', '/document-clauses').then(r => setClauses(r.items)).catch(() => setClauses([])); }, []);
+  useEffect(() => { api<UcpMap>('GET', '/lc/ucp-references').then(setUcp).catch(() => setUcp({ fields: {}, clauses: {} })); }, []);
   useEffect(() => {
     api<{ items: Row[] }>('GET', `/counterparties?kind=SUPPLIER${q ? `&q=${encodeURIComponent(q)}` : ''}`).then(r => setSuppliers(r.items)).catch(() => setSuppliers([]));
   }, [q]);
@@ -107,6 +126,7 @@ export function TermsEditor() {
       {terms.beneficiaryIban && <p>{t("Beneficiary's IBAN")}: <span dir="ltr">{terms.beneficiaryIban}</span></p>}
       <Notice error={error} ok={ok} />
       {terms.exposureAmount != null && <p>{t('Exposure')}: <span dir="ltr">{terms.exposureAmount.toLocaleString('en-US')}</span></p>}
+      <p className="muted"><small>{t('Beside each field and document: the UCP 600 articles it refers to. An article marked * is not yet verified against the ICC text.')}</small></p>
       <h2>{t('Checks')}</h2>
       <Table rows={(terms.findings ?? []) as unknown as Row[]} empty="No finding." columns={[
         { header: 'Severity', cell: r => r.severity === 'E' ? <strong>{t('Error')}</strong> : t('Warning') },
@@ -125,10 +145,13 @@ export function TermsEditor() {
           </Form>
           </>}
           <Form title="Terms" submit="Save" onSubmit={save}>
-            {FIELDS.map(d => d.options
-              ? <Select key={d.key} label={d.label} value={edit[d.key] ?? ''} onChange={v => setEdit({ ...edit, [d.key]: v })}
-                  options={[{ value: '', label: '—' }, ...d.options.map(o => ({ value: o, label: t(o) }))]} />
-              : <Field key={d.key} label={d.label} type={d.type ?? 'text'} value={edit[d.key] ?? ''} onChange={v => setEdit({ ...edit, [d.key]: v })} required={false} />)}
+            {FIELDS.map(d => <div key={d.key} className="with-ucp">
+              {d.options
+                ? <Select label={d.label} value={edit[d.key] ?? ''} onChange={v => setEdit({ ...edit, [d.key]: v })}
+                    options={[{ value: '', label: '—' }, ...d.options.map(o => ({ value: o, label: t(o) }))]} />
+                : <Field label={d.label} type={d.type ?? 'text'} value={edit[d.key] ?? ''} onChange={v => setEdit({ ...edit, [d.key]: v })} required={false} />}
+              <Ucp refs={ucp.fields[d.key]} />
+            </div>)}
           </Form>
           <Form title="Documents required" submit="Save the documents" onSubmit={() => run(() => api('PUT', `/requests/${id}/terms/documents`,
             docs.filter(d => d.clause).map(d => ({ clause: d.clause, originals: Number(d.originals || 0), copies: Number(d.copies || 0) }))), 'The documents are saved.')}>
@@ -138,6 +161,7 @@ export function TermsEditor() {
                   options={[{ value: '', label: t('Choose') }, ...clauses.map(c => ({ value: str(c.code), label: lang === 'ar' ? str(c.nameAr ?? c.nameEn) : str(c.nameEn) }))]} />
                 <Field label="Originals" type="number" value={d.originals} onChange={v => setDocs(docs.map((x, j) => j === i ? { ...x, originals: v } : x))} />
                 <Field label="Copies" type="number" value={d.copies} onChange={v => setDocs(docs.map((x, j) => j === i ? { ...x, copies: v } : x))} />
+                <Ucp refs={ucp.clauses[d.clause]} />
               </div>
             ))}
             <button type="button" onClick={() => setDocs([...docs, { clause: '', originals: '1', copies: '1' }])}>{t('Add a document')}</button>
@@ -147,8 +171,9 @@ export function TermsEditor() {
           </Form>
         </>
       ) : (
-        <Table rows={FIELDS.filter(d => terms.fields?.[d.key] != null).map(d => ({ label: d.label, value: terms.fields?.[d.key] }))} empty="No field." columns={[
+        <Table rows={FIELDS.filter(d => terms.fields?.[d.key] != null).map(d => ({ key: d.key, label: d.label, value: terms.fields?.[d.key] }))} empty="No field." columns={[
           { header: 'Field', cell: r => t(str(r.label)) }, { header: 'Value', cell: r => <span dir="auto">{t(str(r.value))}</span> },
+          { header: 'UCP 600', cell: r => <Ucp refs={ucp.fields[str(r.key)]} /> },
         ]} />
       )}
       <h2>{t('Charges')}</h2>

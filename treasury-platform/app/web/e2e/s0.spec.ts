@@ -27,6 +27,15 @@ async function openMenu(page: Page, name: string) {
   await link.click();
 }
 
+// Screenshots of the screens along the way (docs/59), only when E2E_SHOTS names a folder; the test is the same without.
+const shots = process.env.E2E_SHOTS ?? '';
+async function shot(page: Page, name: string) {
+  if (!shots) return;
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.waitForLoadState('networkidle').catch(() => undefined);
+  await page.screenshot({ path: `${shots}/${name}.png` });
+}
+
 const leaked = 'correct horse battery staple';   // on the throwaway leaked-password list of tools/ci/e2e.sh
 
 test('an operator onboards a tenant and its first administrator signs in', async ({ page, browser }) => {
@@ -66,6 +75,7 @@ test('an operator onboards a tenant and its first administrator signs in', async
   await dialog.getByLabel('6-digit code').fill(await op.next());
   await dialog.getByRole('button', { name: 'Confirm' }).click();
   await expect(page.getByRole('link', { name: code })).toBeVisible();
+  await shot(page, '01-operator-tenants');
 
   // Two-step verification is a platform choice, off for the trial (ADR 0048); this tenant's users are required to use it.
   await page.getByRole('link', { name: code }).click();
@@ -74,6 +84,7 @@ test('an operator onboards a tenant and its first administrator signs in', async
   await dialog.getByLabel('6-digit code').fill(await op.next());
   await dialog.getByRole('button', { name: 'Confirm' }).click();
   await expect(page.getByText('Two-step verification: Required')).toBeVisible();
+  await shot(page, '02-operator-tenant');
   await page.getByRole('link', { name: 'Tenants' }).click();
 
   // Hands an operator administrator to the integration tests, which run next on the same database.
@@ -160,6 +171,7 @@ test('an operator onboards a tenant and its first administrator signs in', async
   await page.getByRole('checkbox', { name: /^Purchase letter of credit \(conventional\) · First Company$/ }).check();
   await page.getByRole('button', { name: 'Review' }).click();
   await expect(page.getByText('Products without a default contact (1)')).toBeVisible();
+  await shot(page, '06-bank-wizard-review');
   await page.getByRole('button', { name: 'Create' }).click();
   await expect(page.getByRole('heading', { name: /BNK1/ })).toBeVisible();
   await expect(page.getByRole('link', { name: /First Company|الشركة الأولى/ })).toBeVisible();
@@ -220,12 +232,14 @@ test('an operator onboards a tenant and its first administrator signs in', async
   await expect(tmPage.getByRole('row', { name: /TOTAL_CA/ })).toContainText('200');
   await tmPage.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(tmPage.getByText('Saved.')).toBeVisible();
+  await shot(tmPage, '10-statement-grid');
 
   // The formula library with its templates, the self-assessments with their disclaimer, and the group compliance.
   await openMenu(tmPage, 'Formula library');
   await expect(tmPage.getByText('CURRENT_RATIO').first()).toBeVisible();
   await openMenu(tmPage, 'Credit self-assessments');
   await expect(tmPage.getByText("not an agency rating")).toBeVisible();
+  await shot(tmPage, '11-credit-assessments');
   await openMenu(tmPage, 'Group compliance');
   await expect(tmPage.getByRole('heading', { name: 'Group compliance' })).toBeVisible();
   await tmContext.close();
@@ -252,4 +266,18 @@ test('an operator onboards a tenant and its first administrator signs in', async
   await expect(page.getByRole('heading', { name: 'Proformas' })).toBeVisible();
   await page.goto(`${origin}/sales/lcs`);
   await expect(page.getByRole('heading', { name: /Received letters of credit/ })).toBeVisible();
+
+  // The screens in Arabic, for docs/59: each page as the administrator sees it after the steps above.
+  if (shots) {
+    for (const [name, path] of [['20-home', '/'], ['21-companies', '/companies'], ['22-banks', '/institutions'], ['23-users', '/users'],
+      ['24-roles', '/roles'], ['25-settings', '/settings'], ['26-catalogues', '/catalogs'], ['27-requests', '/requests'],
+      ['28-letters-of-credit', '/lcs'], ['29-facilities', '/facilities'], ['30-dashboards', '/dashboards'], ['31-audit', '/audit'],
+      ['32-compare-terms', '/terms/compare']] as const) {
+      await page.goto(`${origin}${path}`);
+      await page.getByRole('heading').first().waitFor();
+      if (await page.locator('html').getAttribute('lang') !== 'ar') await page.getByRole('button', { name: 'العربية' }).click();
+      await shot(page, name);
+    }
+    await page.getByRole('button', { name: 'English' }).click();
+  }
 });

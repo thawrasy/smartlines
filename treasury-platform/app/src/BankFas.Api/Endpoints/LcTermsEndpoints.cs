@@ -33,6 +33,7 @@ public static class LcTermsEndpoints
         api.MapGet("/counterparties", CounterpartiesAsync);
         api.MapPost("/counterparties", CreateCounterpartyAsync);
         api.MapGet("/document-clauses", ClausesAsync);
+        api.MapGet("/lc/ucp-references", UcpReferencesAsync);
         api.MapGet("/requests/{id:guid}/terms", GetTermsAsync);
         api.MapPut("/requests/{id:guid}/terms", PutTermsAsync);
         api.MapPut("/requests/{id:guid}/terms/documents", PutDocumentsAsync);
@@ -282,6 +283,35 @@ public static class LcTermsEndpoints
              ORDER BY c.Code;
             """, cancellationToken: http.RequestAborted));
         return Results.Ok(new { items = rows });
+    }
+
+    /// <summary>
+    /// The UCP 600 articles each field and each document clause refers to (FR-LCT-005, docs/60), for the terms screen to
+    /// show beside them, with the article's title and whether a specialist verified it against ICC Publication 600.
+    /// </summary>
+    private static async Task<IResult> UcpReferencesAsync(HttpContext http, SqlConnectionFactory db)
+    {
+        await using var u = await OpenAsync(http, db);
+        var fields = await u.Connection.QueryAsync<(string Owner, string Article, string? Paragraph, string TitleAr, string TitleEn, string Status)>(new CommandDefinition(
+            """
+            SELECT f.FieldKey, a.ArticleNo, r.Paragraph, a.TitleAr, a.TitleEn, a.VerificationStatus
+              FROM lc.LcFieldUcpRef AS r JOIN lc.LcFieldDefinition AS f ON f.LcFieldDefinitionId = r.LcFieldDefinitionId
+              JOIN ref.UcpArticle AS a ON a.UcpArticleId = r.UcpArticleId
+             WHERE f.IsActive = 1;
+            """, cancellationToken: http.RequestAborted));
+        var clauses = await u.Connection.QueryAsync<(string Owner, string Article, string? Paragraph, string TitleAr, string TitleEn, string Status)>(new CommandDefinition(
+            """
+            SELECT DISTINCT c.Code, a.ArticleNo, r.Paragraph, a.TitleAr, a.TitleEn, a.VerificationStatus
+              FROM lc.LcDocumentClauseUcpRef AS r JOIN lc.LcDocumentClause AS c ON c.LcDocumentClauseId = r.LcDocumentClauseId
+              JOIN ref.UcpArticle AS a ON a.UcpArticleId = r.UcpArticleId
+             WHERE c.Status = 'ACTIVE';
+            """, cancellationToken: http.RequestAborted));
+        static Dictionary<string, object[]> Group(IEnumerable<(string Owner, string Article, string? Paragraph, string TitleAr, string TitleEn, string Status)> rows) =>
+            rows.GroupBy(x => x.Owner, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g
+                .OrderBy(x => int.TryParse(x.Article, out var n) ? n : 99).ThenBy(x => x.Paragraph, StringComparer.Ordinal)
+                .Select(x => (object)new { article = x.Article, paragraph = x.Paragraph, titleAr = x.TitleAr, titleEn = x.TitleEn, verified = x.Status == "VERIFIED" })
+                .ToArray(), StringComparer.Ordinal);
+        return Results.Ok(new { version = "UCP 600", fields = Group(fields), clauses = Group(clauses) });
     }
 
     // ---------- the terms of a request ----------
