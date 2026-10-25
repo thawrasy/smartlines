@@ -24,7 +24,7 @@ from datetime import date
 from typing import Literal, Optional
 
 import asyncpg
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 
 from ... import db

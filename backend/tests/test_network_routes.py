@@ -39,10 +39,15 @@ def test_the_platform_defines_a_route_and_carriers_serve_it(people):
     listed = {x["uid"]: x for x in carrier.get("/api/network/routes").json()["routes"]}
     assert [s["station_uid"] for s in listed[route]["stops"]] == [a, b, c] and listed[route]["stops"][1]["mandatory"] is True
 
-    stop = lambda uid, m, fare: {"station_uid": uid, "arr_offset_min": m, "dep_offset_min": m, "fare_from_origin": fare}
+    def stop(uid, m, fare):
+        return {"station_uid": uid, "arr_offset_min": m, "dep_offset_min": m, "fare_from_origin": fare}
+
     assert carrier.post("/api/carrier/routes", json={"code": "FREE-1", "stops": [stop(a, 0, 0), stop(c, 300, 900000)]}
                         ).json()["error"]["code"] == "ROUTE_FROM_NETWORK"
-    on = lambda stops: carrier.post("/api/carrier/routes", json={"network_route_uid": route, "stops": stops})
+
+    def on(stops):
+        return carrier.post("/api/carrier/routes", json={"network_route_uid": route, "stops": stops})
+
     assert on([stop(a, 0, 0), stop(c, 300, 900000)]).json()["error"]["code"] == "MANDATORY_STOP"
     assert on([stop(c, 0, 0), stop(b, 120, 400000)]).json()["error"]["code"] == "STATION_ORDER"
     assert on([stop(a, 0, 0), stop(_central(admin, "LTK"), 200, 400000)]).json()["error"]["code"] == "STATION_NOT_ON_ROUTE"
