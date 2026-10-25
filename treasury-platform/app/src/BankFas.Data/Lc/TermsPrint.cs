@@ -31,9 +31,8 @@ public static class TermsPrint
 
     /// <summary>The page's only style, allowed by its hash in the response's Content-Security-Policy (no inline style otherwise).</summary>
     public const string Style =
-        "body{font-family:system-ui,sans-serif;font-size:11pt;margin:2cm}h1{font-size:15pt}h2{font-size:12pt;margin-top:1.2em;border-bottom:1px solid #999}" +
-        "table{border-collapse:collapse;width:100%}td,th{border:1px solid #bbb;padding:3px 6px;vertical-align:top;text-align:start}th.label{width:35%}.ucp{color:#555;font-size:9pt}" +
-        ".banner{color:#a00;font-weight:bold}.foot{font-size:9pt;color:#444;margin-top:2em}";
+        PrintStyle.Base + "body{font-size:11pt;margin:2cm}h1{font-size:15pt}h2{font-size:12pt;margin-top:1.2em}" +
+        "td,th{padding:3px 6px}th.label{width:35%}.ucp{color:#4E6660;font-size:9pt}.foot{font-size:9pt;margin-top:2em}";
 
     private sealed record Ucp(long OwnerId, string ArticleNo, string? Paragraph, string Status);
 

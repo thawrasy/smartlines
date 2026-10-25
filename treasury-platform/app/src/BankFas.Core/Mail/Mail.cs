@@ -37,7 +37,7 @@ public sealed class SmtpOptions
     public string? PasswordFile { get; set; }
 }
 
-/// <summary>Sends through an SMTP relay with STARTTLS required; no message is sent in clear text.</summary>
+/// <summary>Sends through an SMTP relay with STARTTLS required; no message is sent in clear text. Each message has the text and its HTML form.</summary>
 public sealed class SmtpMailSender(SmtpOptions options) : IMailSender
 {
     public async Task SendAsync(OutgoingMail mail, CancellationToken cancellationToken)
@@ -51,6 +51,9 @@ public sealed class SmtpMailSender(SmtpOptions options) : IMailSender
         {
             BodyEncoding = Encoding.UTF8, SubjectEncoding = Encoding.UTF8,
         };
+        // The branded HTML part beside the text (ADR 0055); a client that shows only text keeps the text part.
+        using var html = System.Net.Mail.AlternateView.CreateAlternateViewFromString(MailHtml.Render(mail.Subject, mail.TextBody), Encoding.UTF8, "text/html");
+        message.AlternateViews.Add(html);
         await client.SendMailAsync(message, cancellationToken).ConfigureAwait(false);
     }
 }

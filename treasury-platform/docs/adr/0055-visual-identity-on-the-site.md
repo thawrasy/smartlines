@@ -35,4 +35,15 @@ the identity guide (27 pages) and asked for the whole site in it before the pilo
   page fetches the Arabic subset, and Latin text fetches the Latin one.
 - A status code that a new screen adds gets a tone from its name. A new state that reads wrongly is fixed in
   `toneOf` (brand.tsx), with its test.
-- The printouts (terms, proforma, request print) keep their own styles. Taking them to the identity is a separate step.
+
+## Second step: printouts and e-mail
+
+8. **Printouts** (terms, proforma, request print, reports, in HTML and PDF): one shared style, `PrintStyle` in
+   BankFas.Data, with the Plex fonts, vault headings over an emerald rule, the platform's greys and mono figures. The
+   API image installs the same font files (`/usr/local/share/fonts/bankfas`) for Chromium; the browser gets them from
+   `/fonts` (`font-src 'self'` added to the print pages' CSP). The web build copies them there (`copy-fonts.mjs`).
+   The proforma is the tenant's document to its customer, so it takes the type and colours but no BankFas mark.
+9. **E-mail**: the SMTP sender adds an HTML alternative (`MailHtml`) built from the text alone. It has a vault band
+   with the name as text (not an image), the text, the first link as a button, and the brand footer. Everything is
+   encoded, only http and https become links, and the direction follows the first letter. The drop directory used in
+   development and tests keeps writing the text alone.

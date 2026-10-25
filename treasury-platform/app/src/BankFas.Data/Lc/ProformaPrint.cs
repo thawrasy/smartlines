@@ -22,9 +22,9 @@ public static class ProformaPrint
         string BankNameEn, string BankNameAr, string? BankBic, string? Iban, string AccountMask, string Language, DateTime? ValidUntil);
 
     private const string Style =
-        "body{font-family:system-ui,sans-serif;font-size:10.5pt;margin:1.5cm}h1{font-size:16pt;margin:0}h2{font-size:12pt;margin-top:1.2em;border-bottom:1px solid #999}" +
-        "table{border-collapse:collapse;width:100%}td,th{border:1px solid #bbb;padding:3px 6px;vertical-align:top;text-align:start}.num{text-align:end;white-space:nowrap}" +
-        ".head{display:flex;justify-content:space-between;border-bottom:2px solid #333;padding-bottom:6px}.muted{color:#555}.banner{color:#a00;font-weight:bold}.foot{font-size:8.5pt;color:#444;margin-top:2em}";
+        PrintStyle.Base + "body{font-size:10.5pt;margin:1.5cm}h1{font-size:16pt;margin:0}h2{font-size:12pt;margin-top:1.2em}" +
+        "td,th{padding:3px 6px}.num{text-align:end;white-space:nowrap}" +
+        ".head{display:flex;justify-content:space-between;border-bottom:2px solid #062A22;padding-bottom:6px}.foot{font-size:8.5pt;margin-top:2em}";
 
     private static string H(object? v) => WebUtility.HtmlEncode(v switch
     {

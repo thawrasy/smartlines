@@ -338,8 +338,8 @@ public static class ReportEndpoints
         });
         var sb = new StringBuilder();
         sb.Append(CultureInfo.InvariantCulture, $"<!doctype html><html lang=\"{(arabic ? "ar" : "en")}\" dir=\"{(arabic ? "rtl" : "ltr")}\"><head><meta charset=\"utf-8\"><style>")
-          .Append("@page{size:A4 landscape;margin:1cm}body{font-family:system-ui,'Noto Naskh Arabic',sans-serif;font-size:8.5pt}h1{font-size:13pt}")
-          .Append("table{border-collapse:collapse;width:100%}td,th{border:1px solid #bbb;padding:2px 4px;text-align:start}th{background:#eee}td.n{direction:ltr;text-align:end}</style></head><body>")
+          .Append(BankFas.Data.PrintStyle.Base).Append("@page{size:A4 landscape;margin:1cm}body{font-size:8.5pt}h1{font-size:13pt;border-bottom:2px solid #00A97F;padding-bottom:4px}")
+          .Append("td,th{padding:2px 4px}td.n{direction:ltr;text-align:end}</style></head><body>")
           .Append(CultureInfo.InvariantCulture, $"<h1>{E(report.Code)} · {E(arabic ? report.TitleAr : report.TitleEn)}</h1><p>{E(f.Today)} · {rows.Count}</p><table><tr>");
         foreach (var c in report.Columns) sb.Append("<th>").Append(E(c)).Append("</th>");
         sb.Append("</tr>");

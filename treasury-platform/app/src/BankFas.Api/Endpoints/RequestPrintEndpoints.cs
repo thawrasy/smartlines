@@ -35,10 +35,10 @@ public static class RequestPrintEndpoints
     });
 
     private const string Style =
-        "body{font-family:system-ui,'Noto Naskh Arabic','Noto Sans Arabic',sans-serif;font-size:11pt;margin:1.6cm}h1{font-size:15pt}h2{font-size:12pt;margin-top:1.2em;border-bottom:1px solid #999}" +
-        "table{border-collapse:collapse;width:100%}td,th{border:1px solid #bbb;padding:3px 6px;vertical-align:top;text-align:start}th.label{width:32%}" +
+        BankFas.Data.PrintStyle.Base + "body{font-size:11pt;margin:1.6cm}h1{font-size:15pt}h2{font-size:12pt;margin-top:1.2em}" +
+        "td,th{padding:3px 6px}th.label{width:32%}" +
         ".mark{position:fixed;top:45%;left:0;right:0;text-align:center;font-size:28pt;color:rgba(160,0,0,.12);transform:rotate(-24deg);pointer-events:none}" +
-        ".foot{font-size:9pt;color:#444;margin-top:2em}";
+        ".foot{font-size:9pt;margin-top:2em}";
 
     private static string FieldText(JsonElement v) => v.ValueKind switch
     {
@@ -131,7 +131,7 @@ public static class RequestPrintEndpoints
             AfterJson: JsonSerializer.Serialize(new { format = asPdf ? "pdf" : "html", view = staff ? "STAFF" : "REQUESTER", lang = ar ? "ar" : "en" })), r.CompanyId, ct);
         http.Response.Headers.CacheControl = "no-store";
         if (asPdf) return await Pdf.FileAsync(pdf, html, $"request-{r.RequestNo ?? r.DraftRef}.pdf", ct);
-        http.Response.Headers.ContentSecurityPolicy = "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'";
+        http.Response.Headers.ContentSecurityPolicy = "default-src 'none'; style-src 'unsafe-inline'; " + BankFas.Data.PrintStyle.FontSource + "; frame-ancestors 'none'; base-uri 'none'; form-action 'none'";
         return Results.Content(html, "text/html; charset=utf-8");
     }
 

@@ -63,7 +63,7 @@ public static class LcTermsEndpoints
         if (asPdf) return await Pdf.FileAsync(pdf, html, $"terms-v{t.VersionNo}.pdf", ct);
         var styleHash = Convert.ToBase64String(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(TermsPrint.Style)));
         http.Response.Headers.ContentSecurityPolicy =
-            $"default-src 'none'; style-src 'sha256-{styleHash}'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'none'";
+            $"default-src 'none'; style-src 'sha256-{styleHash}'; {BankFas.Data.PrintStyle.FontSource}; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'none'";
         return Results.Content(html, "text/html; charset=utf-8");
     }
 

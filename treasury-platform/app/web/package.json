@@ -9,7 +9,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "node copy-fonts.mjs && tsc -b && vite build",
     "typecheck": "tsc -b",
     "test": "vitest run",
     "e2e": "playwright test"

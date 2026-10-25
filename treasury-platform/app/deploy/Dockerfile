@@ -53,6 +53,8 @@ RUN --mount=type=secret,id=extra_ca,required=false \
       fonts-dejavu-core \
  && rm -rf /var/lib/apt/lists/*
 COPY --from=chromium / /opt/chromium/
+# The identity's fonts for the PDF prints (ADR 0055): the files the site serves at /fonts, installed for fontconfig.
+COPY --from=web /src/app/web/public/fonts/ /usr/local/share/fonts/bankfas/
 WORKDIR /app
 COPY --from=build /out/api ./
 COPY --from=web /src/app/web/dist ./wwwroot
