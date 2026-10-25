@@ -26,7 +26,7 @@ public sealed class CatalogTests(PlatformFixture f)
         var p = t.Portal;
         foreach (var (kind, count) in new[]
         {
-            ("products", 22), ("fee-types", 19), ("collateral-types", 9), ("obligation-types", 30), ("document-types", 43), ("legal-entity-types", 7),
+            ("products", 22), ("fee-types", 19), ("collateral-types", 9), ("obligation-types", 30), ("document-types", 46), ("legal-entity-types", 7),
             ("positions", 12), ("power-types", 10), ("operation-types", 11), ("institution-types", 5), ("account-types", 8), ("financing-types", 6),
             ("facility-types", 6), ("limit-types", 9), ("product-categories", 8),
         })
