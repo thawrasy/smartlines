@@ -9,6 +9,7 @@ import stat
 import pytest
 
 from app.tools import bulk_import
+from network_helper import network_route
 from test_e2e import BASE, OWNER_URL, PASSWORD, day, login
 
 
@@ -73,11 +74,19 @@ def test_initial_load_through_the_api(tmp_path):
     login(f"imp{tag}@example.com", "DRIVER", generated["password"])                       # the driver can sign in
 
     # a route, one stop per row, then a trip on it with the imported vehicle and driver
-    code = f"IMP-{tag}"
+    # on a route of the network (1163): the platform's route, the carrier's stations on it; the system sets the code
+    admin = login("admin@masslak.test", "PLATFORM")
+    uid_of = {s["code"]: s["uid"] for c in ("DAM", "HMS", "ALP") for s in admin.get("/api/stations", params={"city": c}).json()["stations"]}
+    net = network_route([uid_of["SY-DAM-C001"], uid_of["SY-HMS-C001"], uid_of["SY-ALP-C001"]], [0, 160, 350], "Import route")
+    net_code = next(r["code"] for r in owner.get("/api/network/routes").json()["routes"] if r["uid"] == net)
     routes = write(tmp_path / "routes.csv", bulk_import.template("routes").split(","), [
-        [code, 0, "SY-DAM-C001", 0, 0, 0], [code, 2, "SY-ALP-C001", 300, 300, 4000000], [code, 1, "SY-HMS-C001", 120, 135, 1800000]])
+        [f"IMP-{tag}", 0, "SY-DAM-C001", 0, 0, 0, net_code], [f"IMP-{tag}", 2, "SY-ALP-C001", 300, 300, 4000000, net_code],
+        [f"IMP-{tag}", 1, "SY-HMS-C001", 120, 135, 1800000, net_code]])
     assert run("routes", routes) == 0, report(routes)
-    assert [r["status"] for r in report(routes)] == ["CREATED"]
+    made = report(routes)
+    assert [r["status"] for r in made] == ["CREATED"]
+    code = next(r["code"] for r in owner.get("/api/carrier/routes").json()["routes"] if r["uid"] == made[0]["uid"])
+    assert run("routes", routes) == 0 and [r["status"] for r in report(routes)] == ["EXISTS"]       # sent again: already there
     trips = write(tmp_path / "trips.csv", bulk_import.template("trips").split(","),
                   [[code, f"IMP{tag}1", f"imp{tag}@example.com", f"{day(3)}T08:17"], ["NO-SUCH", f"IMP{tag}1", f"imp{tag}@example.com", f"{day(3)}T09:00"]])
     assert run("trips", trips) == 2

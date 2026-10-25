@@ -11,7 +11,8 @@ review (October 2026).
    generic screens hold, with `resource:<key>` (for example `resource:station-contact`). Central stations are created
    and approved by the platform before carriers use them.
 2. For each carrier, signed in as its owner or operations staff (`--portal OPERATOR`):
-   1. `routes`: one row per stop, the station by its code;
+   1. `routes`: one row per stop, the station by its code, on a route of the network named by its code (the platform
+      defines those routes first, 1163; the system then sets each route's code and the report gives it);
    2. `vehicles`: with their insurance and seat layout (by name); a vehicle without valid insurance is refused;
    3. `drivers`: each gets an account and the driver role;
    4. `trips`: by route code, plate number and driver e-mail, at the market's local time.
@@ -33,7 +34,7 @@ python -m app.tools.bulk_import --base https://masslak.example --email ops@carri
 - Every run writes `<file>.report.csv`: the row number, its key, `CREATED`, `EXISTS`, `WOULD_CREATE`, `INVALID` (refused
   before sending, with the reason) or `FAILED` (refused by the server, with its error code and message), and the new
   record's id. Fix the rows that did not pass and send the same file again: rows already present are reported as
-  `EXISTS` and not created twice (vehicles by plate, drivers by e-mail, routes by code; generic records by the
+  `EXISTS` and not created twice (vehicles by plate, drivers by e-mail, routes by code, or on a route of the network by the same stations; generic records by the
   server's own uniqueness rules).
 - Drivers without a password get a generated one, written only to `<file>.credentials.csv` with mode 0600 and never to
   the report. Give each driver theirs, then delete the file; the driver changes it at first sign-in.
@@ -46,7 +47,7 @@ python -m app.tools.bulk_import --base https://masslak.example --email ops@carri
 
 | Kind | Required | Optional |
 |---|---|---|
-| `routes` | `code`, `seq`, `station_code`, `arr_offset_min`, `dep_offset_min`, `fare_from_origin` | |
+| `routes` | `code`, `seq`, `station_code`, `arr_offset_min`, `dep_offset_min`, `fare_from_origin` | `network_route` |
 | `vehicles` | `plate_no`, `chassis_no`, `insurance_no`, `insurer`, `insurance_issue`, `insurance_expiry` | `vehicle_type`, `make`, `model`, `manufacture_year`, `passenger_seats`, `seat_layout` |
 | `drivers` | `full_name`, `email` | `password`, `mobile`, `license_class` |
 | `trips` | `route_code`, `plate_no`, `driver_email`, `departure_local` (`YYYY-MM-DDTHH:MM`) | |

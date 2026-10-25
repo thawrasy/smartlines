@@ -9,7 +9,9 @@ reported as EXISTS rather than created twice, so a file can be sent again after 
     python -m app.tools.bulk_import --template KIND        # the CSV header of a kind, required columns first
 
 Kinds (load them in this order; the platform's stations and reference data come first, see docs/operations/INITIAL_DATA_LOAD.md):
-    routes      one row per stop: code, seq, station_code, arr_offset_min, dep_offset_min, fare_from_origin
+    routes      one row per stop: code, seq, station_code, arr_offset_min, dep_offset_min, fare_from_origin [, network_route];
+                the code groups the rows of one route; on a route of the network (its code in network_route, required
+                while the platform keeps carriers to its routes) the system sets the route's code, given in the report
     vehicles    plate_no, chassis_no, insurance_no, insurer, insurance_issue, insurance_expiry [, vehicle_type, make,
                 model, manufacture_year, passenger_seats, seat_layout (its name)]
     drivers     full_name, email [, password, mobile, license_class]; a driver without a password gets a generated one,
@@ -59,7 +61,7 @@ KINDS = {
                      "/api/carrier/vehicles", "vehicles", "plate_no", ints=("manufacture_year", "passenger_seats"),
                      dates=("insurance_issue", "insurance_expiry")),
     "drivers": Kind("/api/carrier/crew", ("full_name", "email"), ("password", "mobile", "license_class"), "/api/carrier/crew", "crew", "email"),
-    "routes": Kind("/api/carrier/routes", ("code", "seq", "station_code", "arr_offset_min", "dep_offset_min", "fare_from_origin"), (),
+    "routes": Kind("/api/carrier/routes", ("code", "seq", "station_code", "arr_offset_min", "dep_offset_min", "fare_from_origin"), ("network_route",),
                    "/api/carrier/routes", "routes", "code", ints=("seq", "arr_offset_min", "dep_offset_min", "fare_from_origin")),
     "trips": Kind("/api/carrier/trips", ("route_code", "plate_no", "driver_email", "departure_local")),
 }
@@ -209,10 +211,15 @@ def run_rows(s: Session, kind_name: str, rows: list[dict], dry_run: bool, genera
 
 
 def run_routes(s: Session, rows: list[dict], dry_run: bool) -> list[Outcome]:
-    """Routes come one stop per row; the rows of a code make one route, in the order of seq."""
+    """Routes come one stop per row; the rows of a code make one route, in the order of seq. On a route of the network
+    (1163) the system sets the code; a route already defined on the same network route with the same stations is
+    reported as EXISTS."""
     kind = KINDS["routes"]
-    present = {str(x["code"]).casefold() for x in s.listing(kind.list_path, kind.list_key)}
+    listed = s.listing(kind.list_path, kind.list_key)
+    present = {str(x["code"]).casefold() for x in listed}
+    served = {(x.get("network_route_code"), tuple(st["station_code"] for st in x.get("stops", []))) for x in listed if x.get("network_route_code")}
     stations = s.listing("/api/carrier/stations", "stations")
+    network = None
     groups: dict[str, list[tuple[int, dict]]] = {}
     out = []
     for i, row in enumerate(rows, start=2):
@@ -223,11 +230,21 @@ def run_routes(s: Session, rows: list[dict], dry_run: bool) -> list[Outcome]:
         groups.setdefault(values["code"], []).append((i, values))
     for code, stops in groups.items():
         first = stops[0][0]
-        if code.casefold() in present:
+        ordered = [v for _, v in sorted(stops, key=lambda x: x[1]["seq"])]
+        net_code = (ordered[0].get("network_route") or "").strip().upper()
+        if (net_code and (net_code, tuple(v["station_code"] for v in ordered)) in served) or (not net_code and code.casefold() in present):
             out.append(Outcome(first, code, "EXISTS"))
             continue
         body, problem = {"code": code, "stops": []}, None
-        for _, v in sorted(stops, key=lambda x: x[1]["seq"]):
+        if net_code:
+            if network is None:
+                network = s.listing("/api/network/routes", "routes")
+            body = {"network_route_uid": _find(network, "code", net_code), "stops": []}
+            if not body["network_route_uid"]:
+                problem = f"route of the network {net_code!r} not found or not in effect"
+        for v in ordered:
+            if problem:
+                break
             uid = _find(stations, "code", v["station_code"])
             if not uid:
                 problem = f"station {v['station_code']!r} not found or not usable by this carrier"
@@ -241,7 +258,9 @@ def run_routes(s: Session, rows: list[dict], dry_run: bool) -> list[Outcome]:
         else:
             r = s.call("POST", kind.path, json=body)
             if r.status_code in (200, 201):
-                out.append(Outcome(first, code, "CREATED", uid=str(r.json().get("uid", ""))))
+                made = r.json()
+                out.append(Outcome(first, code, "CREATED", uid=str(made.get("uid", "")),
+                                   message=f"route code {made['code']}" if made.get("code") and made["code"] != code else ""))
             else:
                 c, m = _error(r)
                 out.append(Outcome(first, code, "EXISTS" if c == "ALREADY_EXISTS" else "FAILED", code=c, message=m))

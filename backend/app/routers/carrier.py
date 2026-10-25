@@ -249,8 +249,9 @@ class RouteIn(BaseModel):
 async def routes(request: Request, pr: Principal = Depends(operator)):
     async with db.transaction(context_for(request, pr)) as conn:
         recs = await conn.fetch(
-            """SELECT r.id, r.uid, r.code, r.service_type, r.status, r.std_duration_min
-                 FROM net.route r WHERE r.company_id = $1 ORDER BY r.code""", pr.company_id)
+            """SELECT r.id, r.uid, r.code, r.service_type, r.status, r.std_duration_min, n.code AS network_route_code, r.distance_km
+                 FROM net.route r LEFT JOIN net.network_route n ON n.id = r.network_route_id
+                WHERE r.company_id = $1 ORDER BY r.code""", pr.company_id)
         stops = await conn.fetch(
             """SELECT rs.route_id, rs.seq, rs.kind, rs.arr_offset_min, rs.dep_offset_min, rs.fare_from_origin,
                       s.uid AS station_uid, s.name AS station_name, s.code AS station_code, c.code AS city_code
