@@ -26,7 +26,7 @@ def test_the_pickers_go_down_from_the_governorate_to_the_station(admin):
     assert "DAM" in {x["code"] for x in damascus["cities"]} and all(x["governorate"] == "SY01" for x in damascus["cities"])
     city = c.get("/api/geo/cascade", params={"governorate": "SY01", "city": "DAM"}).json()
     assert "N0001" in {a["pcode"] for a in city["areas"]}
-    assert city["stations"] and all(s["code"].startswith("SY-DAM-") for s in city["stations"])
+    assert city["stations"] and "SY-DAM-C001" in {s["code"] for s in city["stations"]}
     area = c.get("/api/geo/cascade", params={"governorate": "SY01", "city": "DAM", "area": "N0001"}).json()
     assert all(s["place"] == "N0001" for s in area["stations"])
     assert c.get("/api/geo/cascade", params={"governorate": "Damascus"}).status_code == 422
