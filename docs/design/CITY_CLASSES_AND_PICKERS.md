@@ -37,7 +37,20 @@ The web component `GeoCascade` draws these levels as linked lists, down to the c
 
 ## The United Nations file in full
 
-The complete workbook kept for the trial loads with the existing importer (`POST /api/admin/geo/import`). The result
-of a full load on a fresh database is recorded below.
+The complete workbook kept for the trial loads with the existing importer (`POST /api/admin/geo/import`). A full load
+on the demo database (25 October 2026) took 3.5 seconds and held:
+
+| Level | Count |
+|---|---|
+| Governorates | 14 |
+| Districts | 62 |
+| Sub-districts | 272 |
+| Communities | 7,593 |
+| Neighbourhoods | 414 |
+
+It added 8,340 rows, updated 15 and retired 1, and linked 10 cities of the network to their communities. After it, the
+pickers list 12 governorates holding cities of the network, and 19 of the 21 domestic cities have a governorate. The two
+left without one, Rif Dimashq (RDM) and Quneitra (QNT), are named after their governorates rather than a community: the
+platform links each to its community (Serve on the Geography page) for it to take its place in the pickers.
 
 Tests: `backend/tests/test_geo_cascade.py`; database checks under "City classes (1160)".
