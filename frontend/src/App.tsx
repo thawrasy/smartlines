@@ -104,6 +104,7 @@ const AdminBookingRules = lazyNamed(() => import("./pages/charter/Charter"), "Ad
 const AdminGeography = lazyNamed(() => import("./pages/admin/Geography"), "AdminGeography");
 const AdminRoads = lazyNamed(() => import("./pages/admin/Roads"), "AdminRoads");
 const AdminNetworkRoutes = lazyNamed(() => import("./pages/admin/NetworkRoutes"), "AdminNetworkRoutes");
+const AdminCarrierClasses = lazyNamed(() => import("./pages/admin/CarrierClasses"), "AdminCarrierClasses");
 const CarrierRoads = lazyNamed(() => import("./pages/admin/Roads"), "CarrierRoads");
 const AdminPhotoPolicy = lazyNamed(() => import("./pages/admin/PhotoPolicy"), "AdminPhotoPolicy");
 const StationOps = lazy(() => import("./pages/carrier/StationOps"));
@@ -157,6 +158,8 @@ function PlatformShell() {
       { to: "/admin/geography", icon: "map", label: t("geo.nav"), show: can("geo.manage") },
       { to: "/admin/roads", icon: "route", label: t("roads.nav"), show: can("geo.manage") },
       { to: "/admin/network", icon: "hub", label: t("nroute.nav"), show: can("geo.manage") },
+      // carrier classes and the state's price bands (1164, N10)
+      { to: "/admin/pricing", icon: "payments", label: t("fares.nav"), show: can("pricing.tax_commission") },
       { to: "/security", end: true, icon: "shield", label: t("security.title"), show: can("audit.view", "security.ip_rules") },
       { to: "/security/rules", icon: "block", label: t("security.rules"), show: can("security.ip_rules") },
       { to: "/security/auth", icon: "lock", label: t("security.authEvents"), show: can("audit.view", "security.ip_rules") },
@@ -379,6 +382,7 @@ export default function App() {
           <Route path="admin/geography" element={<AdminGeography />} />
           <Route path="admin/roads" element={<AdminRoads />} />
           <Route path="admin/network" element={<AdminNetworkRoutes />} />
+          <Route path="admin/pricing" element={<AdminCarrierClasses />} />
           <Route path="admin/photo" element={<AdminPhotoPolicy />} />
           <Route path="admin/kyc" element={<AdminKyc />} />
           <Route path="admin/modules" element={<AdminModules />} />

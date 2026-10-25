@@ -1590,6 +1590,10 @@
    "masslak_audit",
    "masslak_auditor",
    "masslak_readonly"
+  ],
+  "pricing.band_for(bigint,text,date)": [
+   "masslak_api",
+   "masslak_app"
   ]
  }
 }

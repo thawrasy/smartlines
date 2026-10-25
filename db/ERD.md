@@ -86,7 +86,7 @@ flowchart LR
   iam -->|6| gov
   iam -->|3| net
   iam -->|1| ops
-  iam -->|7| ref
+  iam -->|8| ref
   iam -->|2| sec
   net -->|26| iam
   net -->|13| ref
@@ -101,6 +101,7 @@ flowchart LR
   pricing -->|24| iam
   pricing -->|7| net
   pricing -->|2| ptn
+  pricing -->|1| ref
   pricing -->|1| sales
   ptn -->|2| fin
   ptn -->|6| fleet
@@ -214,6 +215,12 @@ erDiagram
   iam_biometric_template {
     bigint party_id PK
     integer enc_key_id FK
+  }
+  iam_carrier_class_assignment {
+    bigint id PK
+    bigint company_id FK
+    bigint class_id FK
+    bigint assigned_by FK
   }
   iam_company {
     bigint id PK
@@ -553,6 +560,9 @@ erDiagram
   ref_bank_branch {
     ref external
   }
+  ref_carrier_class {
+    ref external
+  }
   ref_city {
     ref external
   }
@@ -603,6 +613,7 @@ erDiagram
   iam_photo_approval }o--|| iam_app_user : "approver_user_id"
   iam_family_link_request }o..o| iam_app_user : "requester_user_id"
   iam_party_photo }o--|| iam_app_user : "taken_by_user_id"
+  iam_carrier_class_assignment }o--|| iam_app_user : "assigned_by"
   iam_photo_policy_change }o--|| iam_app_user : "requested_by_user_id"
   iam_kyc_form }o..o| iam_app_user : "activated_by"
   iam_family_spend }o..o| iam_app_user : "initiated_by"
@@ -620,6 +631,7 @@ erDiagram
   iam_beneficial_owner }o--|| iam_company : "company_id"
   iam_company_logo }o--|| iam_company : "company_id"
   iam_company_member }o--|| iam_company : "company_id"
+  iam_carrier_class_assignment }o--|| iam_company : "company_id"
   iam_user_station_scope }o--|| iam_company : "company_id"
   iam_company_kyc }o--|| iam_company : "company_id"
   iam_integration_request }o--|| iam_company : "company_id"
@@ -680,6 +692,7 @@ erDiagram
   iam_document }o..o| ops_incident : "owner_incident_id"
   iam_bank_account }o..o| ref_bank : "bank_id"
   iam_bank_account }o..o| ref_bank_branch : "branch_id"
+  iam_carrier_class_assignment }o--|| ref_carrier_class : "class_id"
   iam_family_travel_rule }o..o| ref_city : "from_city_id"
   iam_family_travel_rule }o..o| ref_city : "to_city_id"
   iam_app_user }o--|| ref_locale : "preferred_locale"
@@ -721,6 +734,11 @@ erDiagram
   }
   ref_cargo_category {
     text code PK
+  }
+  ref_carrier_class {
+    bigint id PK
+    text code
+    text status
   }
   ref_city {
     bigint id PK
@@ -1169,6 +1187,12 @@ erDiagram
     bigint network_route_id FK
     bigint network_version_id FK
   }
+  net_route_pair_fare {
+    bigint route_id PK
+    smallint from_seq PK
+    smallint to_seq PK
+    bigint updated_by FK
+  }
   net_route_request {
     bigint id PK
     uuid uid
@@ -1334,6 +1358,7 @@ erDiagram
   net_network_route_segment }o--|| net_road_point : "from_point_id"
   net_network_route_segment }o--|| net_road_point : "to_point_id"
   net_route_stop }o--|| net_route : "route_id"
+  net_route_pair_fare }o--|| net_route : "route_id"
   net_service_number }o..o| net_route : "route_id"
   net_service_number }o..o| net_service_number : "follows_id"
   net_station_boarding }o--|| net_station : "station_id"
@@ -1901,6 +1926,13 @@ erDiagram
     character currency FK
     text status
   }
+  pricing_state_price_band {
+    bigint id PK
+    bigint class_id FK
+    character currency FK
+    text status
+    bigint created_by FK
+  }
   pricing_tax_rule {
     bigint id PK
     bigint scheme_id FK
@@ -1945,6 +1977,9 @@ erDiagram
     ref external
   }
   ptn_partner_sale {
+    ref external
+  }
+  ref_carrier_class {
     ref external
   }
   sales_booking {
@@ -2023,6 +2058,7 @@ erDiagram
   pricing_tax_rule }o--|| pricing_tax_scheme : "scheme_id"
   pricing_loyalty_partner }o..o| ptn_partner : "service_partner_id"
   pricing_partner_redemption }o..o| ptn_partner_sale : "partner_sale_id"
+  pricing_state_price_band }o--|| ref_carrier_class : "class_id"
   pricing_points_ledger }o..o| sales_booking : "booking_id"
 ```
 

@@ -2,18 +2,18 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**594 tables, 6465 columns, in 26 schemas.**
+**598 tables, 6498 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
 ## Index
 
-- [`iam` — Identity, parties, users, permissions and API clients](#iam) (50 tables)
-- [`ref` — Reference data, locales and files](#ref) (23 tables)
+- [`iam` — Identity, parties, users, permissions and API clients](#iam) (51 tables)
+- [`ref` — Reference data, locales and files](#ref) (24 tables)
 - [`sys` — Settings, outbox and webhooks](#sys) (27 tables)
-- [`net` — Network: stations, routes, lines, corridors and geofences](#net) (39 tables)
+- [`net` — Network: stations, routes, lines, corridors and geofences](#net) (40 tables)
 - [`fleet` — Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance](#fleet) (23 tables)
-- [`pricing` — Pricing, taxes, commissions, campaigns and loyalty](#pricing) (38 tables)
+- [`pricing` — Pricing, taxes, commissions, campaigns and loyalty](#pricing) (39 tables)
 - [`ops` — Trips, inventory, operations, shuttle rides, tracking and incidents](#ops) (40 tables)
 - [`sales` — Channels, bookings, passengers, tickets, subscriptions and travel documents](#sales) (35 tables)
 - [`fin` — Wallets, ledger, payments, allocation, settlement and float](#fin) (37 tables)
@@ -199,6 +199,22 @@ Facial biometric template, encrypted with a separate key and stored in isolation
 | `algorithm` | `text` | ✱ |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `retain_until` | `timestamp with time zone` | ✱ |  |
+
+### `iam.carrier_class_assignment` 🛡️
+
+The class of a carrier, on the state's document, with its dates; a new class ends the one before, which stays as history (1164, N10)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `class_id` | `bigint` | 🔗 `ref.carrier_class` ✱ |  |
+| `source_document` | `text` | ✱ |  |
+| `assigned_on` | `date` | ✱ |  |
+| `valid_until` | `date` |  |  |
+| `assigned_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `assigned_at` | `timestamp with time zone` | ✱ | `now()` |
+| `ended_at` | `timestamp with time zone` |  |  |
 
 ### `iam.company` 🛡️
 
@@ -1158,6 +1174,20 @@ Cargo categories as additional information for transit and freight (annex D.3)
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `dangerous` | `boolean` | ✱ | `false` |
 | `needs_temperature` | `boolean` | ✱ | `false` |
+
+### `ref.carrier_class` 🛡️
+
+The classes the state gives carriers (A, B, C or another scheme), with their criteria (1164, N10)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `code` | `text` | ✱ |  |
+| `name_en` | `text` | ✱ |  |
+| `name_ar` | `text` | ✱ |  |
+| `criteria` | `text` |  |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `ref.city` 🛡️
 
@@ -2317,6 +2347,19 @@ Carrier route template between two stations; its stops are copied to the trip wh
 | `line_id` | `bigint` | 🔗 `net.line`  |  |
 | `network_route_id` | `bigint` | 🔗 `net.network_route`  |  |
 | `network_version_id` | `bigint` | 🔗 `net.network_route_version`  |  |
+
+### `net.route_pair_fare` 🛡️
+
+The carrier's price for every pair of stations of its route, copied to each trip made from it (1164, N10)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `route_id` | `bigint` | 🔑 🔗 `net.route` ✱ |  |
+| `from_seq` | `smallint` | 🔑 ✱ |  |
+| `to_seq` | `smallint` | 🔑 ✱ |  |
+| `price` | `bigint` | ✱ |  |
+| `updated_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `net.route_request` 🛡️
 
@@ -3613,6 +3656,24 @@ Who funds a discount, and what they owe the platform for it
 | `receivable_balance` | `bigint` | ✱ | `0` |
 | `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
+
+### `pricing.state_price_band` 🛡️
+
+The state's price band per km for a carrier class, for every vehicle or one type, from a date (1164, N10)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `class_id` | `bigint` | 🔗 `ref.carrier_class` ✱ |  |
+| `vehicle_type` | `text` |  |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `min_per_km` | `bigint` |  |  |
+| `max_per_km` | `bigint` |  |  |
+| `valid_from` | `date` | ✱ |  |
+| `source_document` | `text` |  |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `pricing.tax_rule` 🛡️
 

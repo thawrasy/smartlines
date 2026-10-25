@@ -10,6 +10,7 @@ import { LayoutPreview, type LayoutRow } from "./Layouts";
 import { CarrierConnectionPolicy } from "../passenger/Connections";
 import { RequestTable } from "../admin/NetworkRoutes";
 import { TripChanges } from "./TripChanges";
+import { FareMatrix } from "./FareMatrix";
 import { useSignInSlip, type SignIn } from "../../components/SignInSlip";
 
 export interface CarrierTrip {
@@ -536,6 +537,7 @@ export function CarrierRoutes() {
   const requests = useLoad(() => api.get<{ requests: RouteRequest[] }>("/api/carrier/route-requests"));
   const [open, setOpen] = useState(false);
   const [asking, setAsking] = useState(false);
+  const [pricing, setPricing] = useState<string | null>(null);
   // a service on a route of the network (1163, N11): the stations served on it, with times and the fare ladder
   type Row = { station_uid: string; name: string; code: string; mandatory: boolean; serve: boolean; arr: string; dep: string; fare: string };
   const [netUid, setNetUid] = useState("");
@@ -577,7 +579,8 @@ export function CarrierRoutes() {
         <div className="grid cols-2">{routes.map((r) => (
           <div key={r.uid} className="card stack">
             <div className="row between"><div className="row"><span className="chip outline mono">{r.code}</span><span className="chip">{t(`service.${r.service_type}`)}</span></div>
-              <span className="small muted"><Icon name="schedule" size={16} /> {duration(r.std_duration_min)}</span></div>
+              <span className="row"><span className="small muted"><Icon name="schedule" size={16} /> {duration(r.std_duration_min)}</span>
+                <button className="btn text" onClick={() => setPricing(r.uid)}><Icon name="payments" />{t("fares.open")}</button></span></div>
             <div className="stops">{r.stops.map((s, i) => (
               <div key={s.seq} className={`stop${i === 0 ? " done" : ""}`}>
                 <span className="dot" /><span>{station(s.station_code, s.station_name)}<span className="small muted"> · +{s.arr_offset_min}′</span></span>
@@ -591,6 +594,7 @@ export function CarrierRoutes() {
         <div className="card stack"><h3 style={{ margin: 0 }}>{t("nroute.myRequests")}</h3><RequestTable rows={list} /></div>
       )}</Loaded>
       <CarrierConnectionPolicy />
+      {pricing && <FareMatrix uid={pricing} onClose={() => { setPricing(null); state.reload(); }} />}
       {open && (
         <Modal title={t("carrier.newRoute")} onClose={() => setOpen(false)} wide
                actions={<><button className="btn text" onClick={() => setOpen(false)}>{t("common.cancel")}</button>

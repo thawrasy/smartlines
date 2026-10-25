@@ -301,6 +301,13 @@ async def add_route(body: RouteIn, request: Request, pr: Principal = Depends(ope
                VALUES ($1, $2, $3, $4, $5, $6, $7)""",
             [(rid, i, ids[i], "ORIGIN" if i == 0 else ("DEST" if i == n - 1 else "STOP"),
               s.arr_offset_min, s.dep_offset_min, s.fare_from_origin) for i, s in enumerate(body.stops)])
+        if version_id is not None:
+            # the distance of each stop from the first, from the network route, prices the matrix per km (1164)
+            await conn.execute(
+                """UPDATE net.route_stop rs SET dist_from_origin_km = ns.km_from_start - o.km_from_start
+                     FROM net.network_route_stop ns, net.network_route_stop o
+                    WHERE rs.route_id = $1 AND ns.version_id = $2 AND ns.station_id = rs.station_id
+                      AND o.version_id = $2 AND o.station_id = $3""", rid, version_id, ids[0])
         uid = await conn.fetchval("SELECT uid FROM net.route WHERE id = $1", rid)
     request.state.audit = {"action": "route.create", "object_type": "route", "object_id": rid}
     return {"uid": str(uid), "code": code}

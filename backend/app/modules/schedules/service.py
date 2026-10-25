@@ -18,6 +18,7 @@ from zoneinfo import ZoneInfo
 import asyncpg
 
 from ... import db, markets
+from ..fares import matrix as fare_matrix
 from ..fleet import service as fleet
 
 log = logging.getLogger("masslak.schedules")
@@ -56,6 +57,7 @@ async def insert_trip(conn: asyncpg.Connection, company_id: int, route, vehicle,
         """INSERT INTO ops.seat_segment (trip_id, seat_no, seg)
            SELECT $1, seat, seg FROM generate_series(1, $2) seat, generate_series(0, $3) seg""",
         trip_id, vehicle["passenger_seats"], n - 2)
+    await fare_matrix.copy_to_trip(conn, route["id"], trip_id, company_id, vehicle["id"], dep.date())
     if driver_party:
         await conn.execute("INSERT INTO ops.crew_assignment (trip_id, party_id, crew_role) VALUES ($1, $2, 'DRIVER')",
                            trip_id, driver_party)

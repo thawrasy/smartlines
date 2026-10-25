@@ -4102,6 +4102,36 @@ SELECT pg_temp.ok((SELECT value FROM sys.setting WHERE key = 'network.platform_r
 ROLLBACK;
 SET ROLE masslak_app;
 
+-- Fare matrix and state bands (1164): a price for every pair of a route; bands per carrier class only while switched on
+BEGIN;
+RESET ROLE;
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+SELECT id AS fmc FROM iam.company WHERE company_type = 'CARRIER' ORDER BY id LIMIT 1 \gset
+INSERT INTO ref.carrier_class (code, name_en, name_ar) VALUES ('ZZ1', 'Check class', 'Check class ar') RETURNING id AS fmk \gset
+INSERT INTO iam.carrier_class_assignment (company_id, class_id, source_document, assigned_on, assigned_by)
+VALUES (:fmc, :fmk, 'Decision 1/2026', current_date - 1, :uadmin);
+SELECT pg_temp.expect_error(format($$INSERT INTO iam.carrier_class_assignment (company_id, class_id, source_document, assigned_on, assigned_by)
+    VALUES (%s, %s, 'Decision 2/2026', current_date, %s)$$, :fmc, :fmk, :uadmin), 'duplicate key',
+  'Fare matrix (1164): a carrier has one current class; a new one ends the one before');
+INSERT INTO pricing.state_price_band (class_id, min_per_km, max_per_km, valid_from) VALUES (:fmk, 1000, 4000, current_date - 1);
+INSERT INTO pricing.state_price_band (class_id, vehicle_type, max_per_km, valid_from) VALUES (:fmk, 'COACH', 2000, current_date - 1);
+SELECT pg_temp.expect_error(format($$INSERT INTO pricing.state_price_band (class_id, min_per_km, max_per_km, valid_from) VALUES (%s, 5000, 1000, current_date)$$, :fmk),
+  'check constraint', 'Fare matrix (1164): the lowest price per km is not above the highest');
+SELECT (pricing.band_for(:fmc, 'COACH', current_date)).id IS NULL AS fmoff \gset
+SELECT pg_temp.ok(:'fmoff' = 't', 'Fare matrix (1164): no band holds while the state''s bands are off (the launch setting)');
+UPDATE sys.setting SET value = 'true'::jsonb WHERE key = 'pricing.state_bands';
+SELECT (pricing.band_for(:fmc, 'COACH', current_date)).max_per_km AS fmcoach, (pricing.band_for(:fmc, 'MINIBUS', current_date)).max_per_km AS fmany \gset
+SELECT pg_temp.ok(:fmcoach = 2000 AND :fmany = 4000, 'Fare matrix (1164): a vehicle type''s own band first, else the class''s general band');
+SELECT id AS fmr FROM net.route WHERE company_id = :fmc ORDER BY id LIMIT 1 \gset
+SELECT pg_temp.expect_error(format($$INSERT INTO net.route_pair_fare (route_id, from_seq, to_seq, price) VALUES (%s, 2, 1, 100)$$, :fmr),
+  'check constraint', 'Fare matrix (1164): a pair runs from a station to a later one');
+SET LOCAL ROLE masslak_app;
+SELECT pg_temp.expect_error($$DELETE FROM net.route_pair_fare$$, 'permission denied', 'Fare matrix (1164): the application does not delete prices');
+SELECT pg_temp.expect_error($$DELETE FROM iam.carrier_class_assignment$$, 'permission denied', 'Fare matrix (1164): a carrier''s class history is kept');
+RESET ROLE;
+ROLLBACK;
+SET ROLE masslak_app;
+
 -- Roads guide (1162): roads of places in order, junctions worked out, verification and corrections by another person
 BEGIN;
 RESET ROLE;
