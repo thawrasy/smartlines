@@ -58,6 +58,7 @@ export function AdminCompanies() {
   const [f, setF] = useState(blank);
   const [identity, setIdentity] = useState<Company | null>(null);
   const [editing, setEditing] = useState<Company | null>(null);
+  const [linesOf, setLinesOf] = useState<Company | null>(null);
   const slip = useSignInSlip();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
@@ -101,6 +102,7 @@ export function AdminCompanies() {
                 {c.approval_status === "APPROVED" && <button className="btn danger small" onClick={() => setStatusFor({ uid: c.uid, status: "SUSPENDED" })}>{t("admin.suspend")}</button>}
                 <button className="btn text small" onClick={() => setEditing(c)}><Icon name="edit" />{t("edit.edit")}</button>
                 <button className="btn text small" onClick={() => setIdentity(c)}><Icon name="image" />{t("company.identity")}</button>
+                <button className="btn text small" onClick={() => setLinesOf(c)}><Icon name="garage" />{t("fl.lines")}</button>
               </div>}</td>
             </tr>
           ))}</tbody>
@@ -108,6 +110,7 @@ export function AdminCompanies() {
       )}</Loaded>
       {editing && <RecordEditor title={t("edit.companyTitle", { name: editing.legal_name })} url={`/api/admin/companies/${editing.uid}`} record="company"
                                 fields={companyFields(t)} regulated={COMPANY_REGULATED} onClose={() => { setEditing(null); state.reload(); }} />}
+      {linesOf && <FleetLines company={linesOf} onClose={() => setLinesOf(null)} />}
       {open && (
         <Modal title={t("admin.onboard")} onClose={() => setOpen(false)}
                actions={<><button className="btn text" onClick={() => setOpen(false)}>{t("common.cancel")}</button><button className="btn" disabled={busy} onClick={onboard}>{t("common.create")}</button></>}>
@@ -142,6 +145,51 @@ export function AdminCompanies() {
 
 /** A company's identity on the platform's screens: its logo, to a specification, and the designator of its trip numbers
  * ("DC 1201"). The logo is shown next to the name on the station's departure board and in search results (1114, 1115). */
+interface FleetLine { id: number; line: string; contract_ref: string | null; valid_from: string; valid_to: string | null; open: boolean; granted_by: string | null }
+
+// The lines of business a company's contract covers (1173): its staff define only the vehicles of the open lines.
+function FleetLines({ company, onClose }: { company: Company; onClose: () => void }) {
+  const { t, date } = useI18n();
+  const toast = useToast();
+  const state = useLoad(() => api.get<{ lines: FleetLine[]; vehicles: Record<string, number> }>(`/api/admin/companies/${company.uid}/fleet-lines`), [company.uid]);
+  const [f, setF] = useState({ line: "TRUCK", contract_ref: "", valid_from: "", valid_to: "" });
+  const [error, setError] = useState<unknown>(null);
+  const run = async (fn: () => Promise<unknown>) => {
+    setError(null);
+    try { await fn(); toast(t("common.saved")); state.reload(); } catch (e) { setError(e); }
+  };
+  return (
+    <Modal title={`${t("fl.lines")} · ${company.legal_name}`} onClose={onClose} wide actions={<button className="btn text" onClick={onClose}>{t("common.close")}</button>}>
+      <div className="stack">
+        <p className="small muted">{t("fl.linesHint")}</p>
+        <ErrorBox error={error} />
+        <Loaded state={state}>{(d) => (<>
+          {Object.keys(d.vehicles).length > 0 && <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
+            {Object.entries(d.vehicles).map(([u, n]) => <span key={u} className="chip">{t(`fl.use.${u}`)}: {n}</span>)}</div>}
+          {d.lines.length === 0 ? <Empty icon="garage" title={t("common.noData")} /> : (
+            <div className="table-wrap" tabIndex={0}><table className="table">
+              <thead><tr><th>{t("fl.lines")}</th><th>{t("fl.contractRef")}</th><th>{t("fl.validFrom")}</th><th>{t("common.status")}</th><th>{t("common.actions")}</th></tr></thead>
+              <tbody>{d.lines.map((l) => <tr key={l.id}><td>{t(`fl.line.${l.line}`)}</td><td className="ltr small">{l.contract_ref ?? "—"}</td>
+                <td className="small">{date(l.valid_from)}{l.valid_to ? ` → ${date(l.valid_to)}` : ""}</td>
+                <td>{l.open ? <span className="chip green">{t("fl.open")}</span> : <span className="chip outline">{t("fl.closed")}</span>}</td>
+                <td>{l.open && <button className="btn text small" onClick={() => run(() => api.post(`/api/admin/fleet-lines/${l.id}/end`))}>{t("fl.endLine")}</button>}</td></tr>)}</tbody>
+            </table></div>)}
+        </>)}</Loaded>
+        <h4>{t("fl.openLine")}</h4>
+        <div className="grid cols-3">
+          <Field label={t("fl.lines")}><select className="input" value={f.line} onChange={(e) => setF({ ...f, line: e.target.value })}>
+            {["BUS", "TRUCK", "RENTAL", "TAXI"].map((x) => <option key={x} value={x}>{t(`fl.line.${x}`)}</option>)}</select></Field>
+          <Field label={t("fl.contractRef")}><input className="input ltr" value={f.contract_ref} onChange={(e) => setF({ ...f, contract_ref: e.target.value })} /></Field>
+          <Field label={t("fl.validFrom")}><input className="input ltr" type="date" value={f.valid_from} onChange={(e) => setF({ ...f, valid_from: e.target.value })} /></Field>
+          <Field label={t("fl.validTo")}><input className="input ltr" type="date" value={f.valid_to} onChange={(e) => setF({ ...f, valid_to: e.target.value })} /></Field>
+        </div>
+        <button className="btn" style={{ alignSelf: "flex-start" }} onClick={() => run(() => api.post(`/api/admin/companies/${company.uid}/fleet-lines`, {
+          line: f.line, contract_ref: f.contract_ref || null, valid_from: f.valid_from || null, valid_to: f.valid_to || null }))}><Icon name="add" />{t("fl.openLine")}</button>
+      </div>
+    </Modal>
+  );
+}
+
 function CompanyIdentity({ company, onClose }: { company: Company; onClose: () => void }) {
   const { t } = useI18n();
   const toast = useToast();

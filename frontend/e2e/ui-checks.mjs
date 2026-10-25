@@ -35,7 +35,7 @@ const PORTALS = [
     `/search?from=DRA&to=ALP&on=${later}`] },   // no trip runs direct: the connections through Damascus (1130)
   { who: ["passenger@masslak.test", "PASSENGER"], pages: ["/trips", "/wallet", "/family", "/account", "/account/kyc", "/services", "/support", "@journey", "@connection", "/charter"] },
   { who: ["owner@carrier.test", "OPERATOR"],
-    pages: ["/carrier", "/carrier/people", "/carrier/integrations", "/carrier/trips", "/carrier/routes", "/carrier/roads", "/carrier/vehicles", "/carrier/finance", "/carrier/documents", "/carrier/reports", "/carrier/stations", "/carrier/schedules", "/carrier/kyc", "/carrier/charter", "/carrier/agency-cash", "/carrier/parcels", "/carrier/placards"] },
+    pages: ["/carrier", "/carrier/people", "/carrier/integrations", "/carrier/trips", "/carrier/routes", "/carrier/roads", "/carrier/vehicles", "/carrier/finance", "/carrier/documents", "/carrier/reports", "/carrier/stations", "/carrier/schedules", "/carrier/kyc", "/carrier/charter", "/carrier/agency-cash", "/carrier/parcels", "/carrier/placards", "/carrier/fleet"] },
   { who: ["counter@carrier.test", "OPERATOR"], pages: ["/carrier/counter", "/carrier/counter/report"] },
   { who: ["agency@agency.test", "AGENCY"], pages: ["/agency", "/agency/bookings", "/agency/statement", "/agency/cash-accounts", "/agency/people", "/agency/integrations", "/agency/kyc", `/agency/search?${MULTI}&pax=6`, "/agency/charter"] },
   { who: ["driver@carrier.test", "DRIVER"], pages: ["/driver", "/driver/kyc"] },

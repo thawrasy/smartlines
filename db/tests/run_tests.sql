@@ -1956,8 +1956,8 @@ SELECT pg_temp.ok(NOT EXISTS (
      WHERE c.relkind IN ('r', 'p') AND NOT c.relispartition AND n.nspname NOT IN ('pg_catalog', 'information_schema', 'public', 'gis')
        AND has_table_privilege('masslak_app', c.oid, 'DELETE') <> EXISTS (SELECT 1 FROM sys.app_delete_grant g
                                                                            WHERE g.table_name = n.nspname || '.' || c.relname))
-  AND (SELECT count(*) FROM sys.app_delete_grant) = 43,
-  'Narrower grants: DELETE for the application on exactly the 43 listed tables (36 in 1059, the approval matrix''s two in 1074, the vehicles of a hire in 1128, the shield''s samples and hits in 1142, role permissions and platform roles in 1154)');
+  AND (SELECT count(*) FROM sys.app_delete_grant) = 46,
+  'Narrower grants: DELETE for the application on exactly the 46 listed tables (36 in 1059, the approval matrix''s two in 1074, the vehicles of a hire in 1128, the shield''s samples and hits in 1142, role permissions and platform roles in 1154, unused vehicle makes, models and trims in 1172)');
 SET ROLE masslak_app;
 SELECT pg_temp.expect_error($$DELETE FROM sales.passenger WHERE id = -1$$, 'permission denied',
   'Narrower grants: the application cannot delete a business record, even one row-level security would show it');
@@ -5142,6 +5142,118 @@ SELECT pg_temp.expect_error(format('UPDATE iam.party SET legal_name = ''Renamed 
 UPDATE iam.party SET legal_name = 'Renamed Co 1171', change_reason = 'name from the commercial register' WHERE id = :co1171;
 SELECT pg_temp.ok(EXISTS (SELECT 1 FROM iam.company_change WHERE company_id = :co1171 AND field = 'legal_name' AND new_value = 'Renamed Co 1171'),
   'Company edits (1171): the company''s new name is kept in its history');
+-- Vehicle list edits (1172): a model's name changes with a reason, trims are kept, nothing used is deleted
+INSERT INTO ref.vehicle_make (code, name_en, name_ar, entered_by) VALUES ('ZZ1172', 'Zz 1172', U&'\0632\0632', :ua) RETURNING id AS mk1172 \gset
+INSERT INTO ref.vehicle_model (make_id, name, vehicle_class, vehicle_type, body_type, year_from, entered_by)
+  VALUES (:mk1172, 'Edit 1172', 'CAR', 'OTHER', 'SEDAN', 2020, :ua) RETURNING id AS vm1172 \gset
+SELECT pg_temp.expect_error(format('UPDATE ref.vehicle_model SET year_to = 2019 WHERE id = %s', :vm1172),
+  'vehicle_model_years_ck', 'Vehicle list (1172): a model is not made until before it was first made');
+SELECT pg_temp.expect_error(format('UPDATE ref.vehicle_model SET name = ''Edit 1172 B'' WHERE id = %s', :vm1172),
+  'MODEL_CHANGE_REASON', 'Vehicle list (1172): a model''s name changes only with its reason');
+UPDATE ref.vehicle_model SET name = 'Edit 1172 B', name_ar = U&'\0625\064A\062F\064A\062A', change_reason = 'spelt as the maker writes it'
+ WHERE id = :vm1172;
+SELECT pg_temp.ok(EXISTS (SELECT 1 FROM ref.vehicle_model_change WHERE model_id = :vm1172 AND field = 'name'
+                            AND new_value = 'Edit 1172 B' AND reason = 'spelt as the maker writes it')
+  AND EXISTS (SELECT 1 FROM ref.vehicle_model_change WHERE model_id = :vm1172 AND field = 'name_ar'),
+  'Vehicle list (1172): the model''s new names are kept in its history with the reason');
+INSERT INTO ref.vehicle_trim (model_id, name, fuel, entered_by) VALUES (:vm1172, 'Hybrid', 'HYBRID', :ua) RETURNING id AS tr1172 \gset
+SELECT pg_temp.expect_error(format('INSERT INTO ref.vehicle_trim (model_id, name, fuel, entered_by) VALUES (%s, ''hybrid'', ''HYBRID'', %s)', :vm1172, :ua),
+  'vehicle_trim_name_uq', 'Vehicle list (1172): a model has each trim once for each fuel');
+UPDATE ref.vehicle_trim SET fuel = 'PLUG_IN_HYBRID' WHERE id = :tr1172;
+SELECT pg_temp.expect_error(format('DELETE FROM ref.vehicle_model_change WHERE model_id = %s', :vm1172),
+  'HISTORY_APPEND_ONLY', 'Vehicle list (1172): the history of a model in the list is never deleted');
+SELECT pg_temp.expect_error(format('DELETE FROM ref.vehicle_make WHERE id = %s', :mk1172),
+  'MAKE_HAS_MODELS', 'Vehicle list (1172): a make with models is not deleted');
+INSERT INTO fleet.vehicle_model_request (company_id, requested_by, make_id, model_name, vehicle_type, status, model_id, handled_by, handled_at)
+  VALUES (:co1171, :ua, :mk1172, 'Edit 1172', 'COACH', 'MATCHED', :vm1172, :uadmin, now());
+SELECT pg_temp.expect_error(format('DELETE FROM ref.vehicle_model WHERE id = %s', :vm1172),
+  'MODEL_IN_USE', 'Vehicle list (1172): a model a vehicle or a request uses is not deleted (it is retired)');
+DELETE FROM fleet.vehicle_model_request WHERE model_id = :vm1172;
+DELETE FROM ref.vehicle_model WHERE id = :vm1172;
+SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM ref.vehicle_model WHERE id = :vm1172)
+  AND NOT EXISTS (SELECT 1 FROM ref.vehicle_trim WHERE id = :tr1172)
+  AND NOT EXISTS (SELECT 1 FROM ref.vehicle_model_change WHERE model_id = :vm1172)
+  AND NOT EXISTS (SELECT 1 FROM ref.vehicle_trim_change WHERE trim_id = :tr1172),
+  'Vehicle list (1172): an unused model is deleted with its trims and its history');
+-- Unified fleet (1173): lines by contract, the vehicle's use, maintenance blocks trips and rentals, a hire's kilometres
+SELECT pg_temp.ok(iam.fleet_line_open(:ca, 'BUS') AND NOT iam.fleet_line_open(:ca, 'TRUCK'),
+  'Unified fleet (1173): a carrier starts with buses; other lines are opened by its contract');
+SELECT pg_temp.expect_error(format($$INSERT INTO fleet.vehicle (company_id, vehicle_class, vehicle_type, fleet_use, plate_no, chassis_no, owner_party_id, status, passenger_seats)
+  VALUES (%s, 'TRUCK', 'OTHER', 'TRACTOR', 'TR-1173', 'CHS-TR-1173', %s, 'ACTIVE', 0)$$, :ca, :ca),
+  'FLEET_LINE_CLOSED', 'Unified fleet (1173): a tractor head needs the trucks line in the company''s contract');
+INSERT INTO iam.company_fleet_line (company_id, line, contract_ref, granted_by) VALUES (:ca, 'TRUCK', 'CT-1173', :uadmin);
+SELECT pg_temp.expect_error(format($$INSERT INTO iam.company_fleet_line (company_id, line) VALUES (%s, 'TRUCK')$$, :ca),
+  'company_fleet_line_once', 'Unified fleet (1173): a line is held once for a period');
+INSERT INTO fleet.vehicle (company_id, vehicle_class, vehicle_type, fleet_use, plate_no, chassis_no, owner_party_id, status, passenger_seats)
+  VALUES (:ca, 'TRUCK', 'OTHER', 'TRACTOR', 'TR-1173', 'CHS-TR-1173', :ca, 'ACTIVE', 0) RETURNING id AS tr1173 \gset
+INSERT INTO fleet.trailer (company_id, plate_no, plate_country, trailer_type, payload_kg, axles, status)
+  VALUES (:ca, 'TL-1173', 'SY', 'CURTAIN', 26000, 3, 'ACTIVE') RETURNING id AS tl1173 \gset
+INSERT INTO fleet.license_record (company_id, subject_type, subject_id, subject_trailer_id, license_type, license_no, issuer, issue_date, expiry_date, status)
+  VALUES (:ca, 'TRAILER', :tl1173, :tl1173, 'TRANSPORT', 'TL-LIC-1173', 'Transport authority', '2026-01-01', '2027-01-01', 'VALID');
+SELECT pg_temp.expect_error(format('UPDATE fleet.trailer SET plate_no = ''TL-1173B'' WHERE id = %s', :tl1173),
+  'TRAILER_CHANGE_REASON', 'Unified fleet (1173): a trailer''s plate changes only with a reason, and is kept');
+SELECT pg_temp.expect_error(format($$INSERT INTO fleet.insurance_policy (vehicle_id, trailer_id, insurer_name, policy_no, coverage_type, period, status)
+  VALUES (%s, %s, 'X', 'P-1173', 'THIRD_PARTY', daterange('2026-01-01', '2027-01-01'), 'VALID')$$, :tr1173, :tl1173),
+  'insurance_policy_subject_ck', 'Unified fleet (1173): a policy covers a vehicle or a trailer, not both');
+INSERT INTO fleet.insurance_policy (trailer_id, insurer_name, policy_no, coverage_type, period, status)
+  VALUES (:tl1173, 'Trailer Insurer', 'P-TL-1173', 'THIRD_PARTY', daterange('2026-01-01', '2027-01-01'), 'VALID');
+SELECT pg_temp.ok(true, 'Unified fleet (1173): a trailer carries its own insurance policy');
+INSERT INTO fleet.service_plan (company_id, vehicle_id, kind, every_km, every_months, last_km, last_date)
+  VALUES (:ca, :va, 'OIL_CHANGE', 10000, 6, 40000, CURRENT_DATE - 30) RETURNING id AS sp1173 \gset
+SELECT pg_temp.ok((SELECT next_km = 50000 AND NOT due FROM fleet.service_plan p, fleet.service_due(p, 45000) WHERE p.id = :sp1173)
+  AND (SELECT due FROM fleet.service_plan p, fleet.service_due(p, 50100) WHERE p.id = :sp1173),
+  'Unified fleet (1173): an oil change is due by distance or months, whichever comes first');
+SELECT pg_temp.expect_error(format($$INSERT INTO fleet.service_plan (company_id, vehicle_id, kind) VALUES (%s, %s, 'CONTRACT')$$, :ca, :va),
+  'service_plan_contract_ck', 'Unified fleet (1173): a maintenance contract names its provider and number');
+INSERT INTO fleet.maintenance_visit (company_id, vehicle_id, plan_id, kind, workshop, sent_at, odometer_out)
+  VALUES (:ca, :va, :sp1173, 'OIL_CHANGE', 'Main workshop', '2026-11-20 08:00+00', 50200) RETURNING id AS mv1173 \gset
+SELECT pg_temp.ok((SELECT status = 'IN_MAINTENANCE' AND odometer_km = 50200 FROM fleet.vehicle WHERE id = :va),
+  'Unified fleet (1173): a vehicle sent to the workshop is in maintenance, with its odometer');
+SELECT pg_temp.expect_error(format($$INSERT INTO ops.trip (trip_no, company_id, route_id, vehicle_id, departure_at, arrival_at, status, seats_total, segments_count, currency, base_price)
+  VALUES ('QDS1173/21NOV26', %s, %s, %s, '2026-11-21 06:00+00', '2026-11-21 11:00+00', 'PUBLISHED', 48, 1, 'SYP', 1000000)$$, :ca, :route, :va),
+  'VEHICLE_OUT_OF_SERVICE', 'Unified fleet (1173): no trip is opened on a vehicle in the workshop');
+SELECT pg_temp.expect_error(format($$INSERT INTO fleet.maintenance_visit (company_id, vehicle_id, kind) VALUES (%s, %s, 'REPAIR')$$, :ca, :va),
+  'VEHICLE_NOT_AVAILABLE', 'Unified fleet (1173): a vehicle already in the workshop is not sent again');
+UPDATE fleet.maintenance_visit SET returned_at = '2026-11-22 10:00+00', odometer_in = 50210 WHERE id = :mv1173;
+SELECT pg_temp.ok((SELECT status = 'ACTIVE' FROM fleet.vehicle WHERE id = :va)
+  AND (SELECT last_km = 50210 AND last_date = '2026-11-22' FROM fleet.service_plan WHERE id = :sp1173)
+  AND (SELECT upper(period) = '2026-11-22 10:00+00' FROM fleet.vehicle_service_status s JOIN fleet.maintenance_visit m ON m.service_status_id = s.id WHERE m.id = :mv1173),
+  'Unified fleet (1173): its return closes the period, makes it active and moves its plan on');
+INSERT INTO ops.trip (trip_no, company_id, route_id, vehicle_id, departure_at, arrival_at, status, seats_total, segments_count, currency, base_price)
+  VALUES ('QDS1173/23NOV26', :ca, :route, :va, '2026-11-23 06:00+00', '2026-11-23 11:00+00', 'PUBLISHED', 48, 1, 'SYP', 1000000);
+SELECT pg_temp.ok(true, 'Unified fleet (1173): back from the workshop, the vehicle takes trips again');
+-- car rental: a car in the workshop is not hired; a hire's extra kilometres
+INSERT INTO rent.rental_company (company_id, brand) VALUES (:cb, 'Sham Rent 1173') ON CONFLICT DO NOTHING;
+SELECT pg_temp.ok(iam.fleet_line_open(:cb, 'RENTAL'), 'Unified fleet (1173): a rental company the platform registers holds car rental');
+INSERT INTO fleet.vehicle (company_id, vehicle_class, vehicle_type, fleet_use, plate_no, chassis_no, owner_party_id, status, passenger_seats)
+  VALUES (:cb, 'CAR', 'OTHER', 'RENTAL_CAR', 'RC-1173', 'CHS-RC-1173', :cb, 'ACTIVE', 4) RETURNING id AS rc1173 \gset
+INSERT INTO rent.rental_fleet (vehicle_id, company_id, rental_class, status) VALUES (:rc1173, :cb, 'ECONOMY', 'AVAILABLE');
+INSERT INTO rent.rental_branch (company_id, station_id, branch_type, hours, status)
+  VALUES (:cb, (SELECT min(id) FROM net.station), 'BRANCH', '{}', 'ACTIVE') RETURNING id AS br1173 \gset
+INSERT INTO rent.rental_rate (company_id, rental_class, unit, price, km_included_per_day, extra_km_price, currency, status, valid)
+  VALUES (:cb, 'ECONOMY', 'DAY', 2500000, 200, 15000, 'SYP', 'ACTIVE', daterange('2026-01-01', NULL)) RETURNING id AS rr1173 \gset
+SELECT pg_temp.expect_error(format($$INSERT INTO rent.rental_rate (company_id, rental_class, unit, price, currency, status, valid) VALUES (%s, 'ECONOMY', 'DAY', 100, 'SYP', 'ACTIVE', daterange('2026-01-01', NULL))$$, :cb),
+  'rental_rate_km_ck', 'Unified fleet (1173): a rate gives kilometres a day and the extra price, or unlimited kilometres');
+INSERT INTO fleet.maintenance_visit (company_id, vehicle_id, kind, sent_at) VALUES (:cb, :rc1173, 'TYRES', '2026-12-01 08:00+00')
+  RETURNING id AS mv1173b \gset
+SELECT pg_temp.expect_error(format($$INSERT INTO rent.rental_booking (company_id, renter_party_id, rental_class, vehicle_id, rate_id, period, quoted_total, currency, status, pickup_branch_id, return_branch_id)
+  VALUES (%s, %s, 'ECONOMY', %s, %s, tstzrange('2026-12-02 08:00+00', '2026-12-05 08:00+00'), 0, 'SYP', 'CONFIRMED', %s, %s)$$, :cb, :pax, :rc1173, :rr1173, :br1173, :br1173),
+  'VEHICLE_IN_MAINTENANCE', 'Unified fleet (1173): a car in the workshop is not hired');
+UPDATE fleet.maintenance_visit SET returned_at = '2026-12-01 18:00+00' WHERE id = :mv1173b;
+SELECT pg_temp.expect_error(format($$INSERT INTO rent.rental_booking (company_id, renter_party_id, rental_class, vehicle_id, rate_id, period, quoted_total, currency, status, driver_party_id, pickup_branch_id, return_branch_id)
+  VALUES (%s, %s, 'ECONOMY', %s, %s, tstzrange('2026-12-02 08:00+00', '2026-12-05 08:00+00'), 0, 'SYP', 'CONFIRMED', %s, %s, %s)$$, :cb, :pax, :rc1173, :rr1173, :driver, :br1173, :br1173),
+  'rental_booking_driver_ck', 'Unified fleet (1173): a driver is named only on a hire with a driver');
+INSERT INTO rent.rental_booking (company_id, renter_party_id, rental_class, vehicle_id, rate_id, period, quoted_total, currency, status, pickup_branch_id, return_branch_id)
+  VALUES (:cb, :pax, 'ECONOMY', :rc1173, :rr1173, tstzrange('2026-12-02 08:00+00', '2026-12-05 08:00+00'), 7500000, 'SYP', 'CONFIRMED', :br1173, :br1173)
+  RETURNING id AS rb1173 \gset
+INSERT INTO rent.rental_contract (contract_no, booking_id, vehicle_id, status, terms) VALUES ('RC-1173', :rb1173, :rc1173, 'OPEN', '{}') RETURNING id AS ct1173 \gset
+INSERT INTO rent.rental_inspection (contract_id, stage, odometer_km, fuel_level_pct) VALUES (:ct1173, 'PICKUP', 12000, 100);
+SELECT pg_temp.expect_error(format($$INSERT INTO rent.rental_inspection (contract_id, stage, odometer_km, fuel_level_pct) VALUES (%s, 'RETURN', 11000, 90)$$, :ct1173),
+  'ODOMETER_BACKWARDS', 'Unified fleet (1173): the odometer at return is never below the one at pickup');
+INSERT INTO rent.rental_inspection (contract_id, stage, odometer_km, fuel_level_pct) VALUES (:ct1173, 'RETURN', 12750, 80);
+SELECT pg_temp.ok((SELECT driven = 750 AND days = 3 AND allowed = 600 AND extra = 150 AND extra_charge = 2250000 FROM rent.hire_distance(:ct1173))
+  AND (SELECT odometer_km = 12750 FROM fleet.vehicle WHERE id = :rc1173),
+  'Unified fleet (1173): three days at 200 km allow 600; 150 extra km are charged, and the car''s odometer moves on');
 ROLLBACK;
 
 \echo '=== ALL TESTS PASSED ==='

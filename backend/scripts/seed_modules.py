@@ -619,10 +619,15 @@ async def main():
                                pid, admin)
         s.named["companies"].append(pid)
     s.named["partners"] = s.named["companies"][1:]
+    # the demo company's contract covers every line, so its trucks, rental cars and taxis sit in the one fleet (1173)
+    for line in ("BUS", "TRUCK", "RENTAL", "TAXI"):
+        await conn.execute("""INSERT INTO iam.company_fleet_line (company_id, line, contract_ref, granted_by)
+                              SELECT $1, $2, 'DEMO-CONTRACT', $3 WHERE NOT iam.fleet_line_open($1, $2)""", s.company, line, admin)
+    uses = {"trucks": ("TRUCK", "TRACTOR"), "cars": ("CAR", "RENTAL_CAR"), "taxis": ("CAR", "TAXI"), "buses": ("BUS", "COACH")}
     for pool, n, vtype, prefix in (("trucks", 6, "OTHER", "TRK"), ("cars", 16, "OTHER", "RNT"), ("taxis", 10, "OTHER", "TAX"),
                                    ("buses", 6, "COACH", "BUS")):
         s.named[pool] = await s.make("fleet.vehicle", n, {
-            "vehicle_type": vtype, "plate_no": lambda i, p=prefix: f"{p} {120400 + i * 17}", "chassis_no": lambda i, p=prefix: f"{p}CH{880000 + i}",
+            "vehicle_class": uses[pool][0], "fleet_use": uses[pool][1], "vehicle_type": vtype, "plate_no": lambda i, p=prefix: f"{p} {120400 + i * 17}", "chassis_no": lambda i, p=prefix: f"{p}CH{880000 + i}",
             "passenger_seats": 44 if vtype == "COACH" else 4, "seat_layout_id": None, "status": "ACTIVE",
             "make": cycle("Hyundai", "Kia", "Toyota", "Mercedes", "MAN") if pool != "buses" else "Mercedes",
             "manufacture_year": cycle(2018, 2020, 2021, 2023), "owner_party_id": s.company})

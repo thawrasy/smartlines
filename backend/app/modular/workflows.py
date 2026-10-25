@@ -431,6 +431,7 @@ class RentalBooking(BaseModel):
     return_branch_id: Optional[int] = None
     starts_at: datetime
     ends_at: datetime
+    with_driver: bool = False                       # the car comes with one of the company's drivers (1173)
 
 
 def _days(a: datetime, b: datetime) -> int:
@@ -471,6 +472,8 @@ async def rental_offers(request: Request, branch_id: Optional[int] = None, start
                 offers.append({"rate_id": r["id"], "rental_class": r["rental_class"], "class_name": r["class_name"], "unit": r["unit"],
                                "price": r["price"], "total": _rate_total(r, days), "days": days, "deposit": r["deposit_amount"] or 0,
                                "km_per_day": r["km_included_per_day"], "available": r["available"],
+                               "unlimited_km": r["unlimited_km"], "extra_km_price": r["extra_km_price"],
+                               "driver_per_day": r["driver_price_per_day"],
                                "currency": r["currency"] or (await markets.of_party(conn, branch["company_id"])).currency})
     return {"branches": [dict(b) for b in branches], "offers": offers}
 
@@ -493,14 +496,20 @@ async def book_rental(body: RentalBooking, request: Request, pr: Principal = Dep
         if not await conn.fetchval("SELECT 1 FROM rent.rental_branch WHERE id = $1 AND company_id = $2 AND status = 'ACTIVE'",
                                    back, rate["company_id"]):
             raise not_found("return branch")
-        total = _rate_total(rate, _days(body.starts_at, body.ends_at))
+        days = _days(body.starts_at, body.ends_at)
+        total = _rate_total(rate, days)
+        if body.with_driver:
+            if rate["driver_price_per_day"] is None:
+                raise ApiError(422, "DRIVER_NOT_OFFERED", "this rate is for the car alone")
+            total += days * rate["driver_price_per_day"]
         async with db.system_scope(conn, ctx):
             b = await conn.fetchrow(
                 """INSERT INTO rent.rental_booking (company_id, renter_party_id, rental_class, rate_id, pickup_branch_id,
-                     return_branch_id, period, quoted_total, currency, status)
-                   VALUES ($1, $2, $3, $4, $5, $6, tstzrange($7, $8), $9, $10, 'PENDING') RETURNING id, uid""",
+                     return_branch_id, period, quoted_total, currency, status, with_driver)
+                   VALUES ($1, $2, $3, $4, $5, $6, tstzrange($7, $8), $9, $10, 'PENDING', $11) RETURNING id, uid""",
                 rate["company_id"], pr.party_id, rate["rental_class"], rate["id"], body.pickup_branch_id, back,
-                body.starts_at, body.ends_at, total, rate["currency"] or (await markets.of_party(conn, rate["company_id"])).currency)
+                body.starts_at, body.ends_at, total, rate["currency"] or (await markets.of_party(conn, rate["company_id"])).currency,
+                body.with_driver)
             await emit(conn, "rental.requested", "rental_booking", b["id"], {"class": rate["rental_class"], "total": total},
                        company_id=rate["company_id"])
     return {"uid": str(b["uid"]), "status": "PENDING", "quoted_total": total, "deposit": rate["deposit_amount"] or 0}

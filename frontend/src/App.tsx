@@ -114,6 +114,7 @@ const StationOps = lazy(() => import("./pages/carrier/StationOps"));
 const AdminBoarding = lazy(() => import("./pages/admin/Boarding"));
 const AdminAuthorities = lazyNamed(() => import("./pages/admin/Authorities"), "AdminAuthorities");
 const CarrierPlacards = lazyNamed(() => import("./pages/carrier/Placards"), "CarrierPlacards");
+const CarrierFleet = lazyNamed(() => import("./pages/carrier/Fleet"), "CarrierFleet");
 
 /** Menu entries for the switched-on modules the signed-in user can open. */
 // A module switched on joins the menu group of its domain (sent with it by /api/modules), so a new module needs no change
@@ -212,6 +213,7 @@ function CarrierShell() {
       { to: "/carrier/schedules", group: "operations", icon: "event_repeat", label: t("sched.nav"), show: can("trip.publish") },
       { to: "/carrier/routes", group: "network", icon: "route", label: t("carrier.routes") },
       { to: "/carrier/roads", group: "network", icon: "map", label: t("roads.carrierNav") },
+      { to: "/carrier/fleet", group: "fleet", icon: "garage", label: t("fl.nav"), show: can("vehicle.manage") },
       { to: "/carrier/vehicles", group: "fleet", icon: "directions_car", label: t("carrier.vehicles") },
       { to: "/carrier/layouts", group: "fleet", icon: "event_seat", label: t("layout.title") },
       { to: "/carrier/placards", group: "fleet", icon: "qr_code_2", label: t("plc.nav"), show: can("vehicle.placard") },
@@ -333,6 +335,7 @@ export default function App() {
           <Route path="carrier/documents" element={<CompanyDocuments />} />
           <Route path="carrier/crew" element={<CarrierCrew />} />
           <Route path="carrier/placards" element={<CarrierPlacards />} />
+          <Route path="carrier/fleet" element={<CarrierFleet />} />
           <Route path="carrier/stations" element={<StationOps />} />
           <Route path="carrier/parcels" element={<CarrierParcels />} />
           <Route path="carrier/charter" element={<CarrierCharter />} />

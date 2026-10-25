@@ -2,17 +2,17 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**610 tables, 6656 columns, in 26 schemas.**
+**618 tables, 6768 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
 ## Index
 
-- [`iam` — Identity, parties, users, permissions and API clients](#iam) (52 tables)
-- [`ref` — Reference data, locales and files](#ref) (24 tables)
+- [`iam` — Identity, parties, users, permissions and API clients](#iam) (53 tables)
+- [`ref` — Reference data, locales and files](#ref) (28 tables)
 - [`sys` — Settings, outbox and webhooks](#sys) (27 tables)
 - [`net` — Network: stations, routes, lines, corridors and geofences](#net) (45 tables)
-- [`fleet` — Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance](#fleet) (25 tables)
+- [`fleet` — Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance](#fleet) (28 tables)
 - [`pricing` — Pricing, taxes, commissions, campaigns and loyalty](#pricing) (41 tables)
 - [`ops` — Trips, inventory, operations, shuttle rides, tracking and incidents](#ops) (40 tables)
 - [`sales` — Channels, bookings, passengers, tickets, subscriptions and travel documents](#sales) (35 tables)
@@ -252,6 +252,23 @@ Every edit of a company and of its legal name, field by field, with who, when an
 | `old_value` | `text` |  |  |
 | `new_value` | `text` |  |  |
 | `reason` | `text` |  |  |
+
+### `iam.company_fleet_line` 🛡️
+
+Lines of business the platform opened for a company under its contract (buses, trucks, car rental, taxis), each for a period (1173)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `line` | `text` | ✱ |  |
+| `contract_ref` | `text` |  |  |
+| `valid` | `daterange` | ✱ | `daterange(CURRENT_DATE, NULL::date)` |
+| `granted_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `ended_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `ended_at` | `timestamp with time zone` |  |  |
+| `note` | `text` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `iam.company_kyc` 🛡️
 
@@ -1521,6 +1538,22 @@ Vehicle makes kept by the platform and reviewed by a second person (1157, N8)
 | `reviewed_at` | `timestamp with time zone` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+| `change_reason` | `text` |  |  |
+
+### `ref.vehicle_make_change` 🛡️
+
+Every edit of a vehicle make, field by field, with who, when and why (1172); goes only with its make
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `make_id` | `bigint` | 🔗 `ref.vehicle_make` ✱ |  |
+| `changed_at` | `timestamp with time zone` | ✱ | `now()` |
+| `changed_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `field` | `text` | ✱ |  |
+| `old_value` | `text` |  |  |
+| `new_value` | `text` |  |  |
+| `reason` | `text` |  |  |
 
 ### `ref.vehicle_model` 🛡️
 
@@ -1547,6 +1580,62 @@ Vehicle models of a make: kind, approximate seats or truck weight class, whether
 | `reviewed_at` | `timestamp with time zone` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+| `name_ar` | `text` |  |  |
+| `body_type` | `text` |  |  |
+| `year_from` | `smallint` |  |  |
+| `year_to` | `smallint` |  |  |
+| `change_reason` | `text` |  |  |
+
+### `ref.vehicle_model_change` 🛡️
+
+Every edit of a vehicle model, field by field, with who, when and why (1172); goes only with its model
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `model_id` | `bigint` | 🔗 `ref.vehicle_model` ✱ |  |
+| `changed_at` | `timestamp with time zone` | ✱ | `now()` |
+| `changed_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `field` | `text` | ✱ |  |
+| `old_value` | `text` |  |  |
+| `new_value` | `text` |  |  |
+| `reason` | `text` |  |  |
+
+### `ref.vehicle_trim` 🛡️
+
+Trims of a vehicle model with their fuel and years (1172): part of the model, which a second person reviewed
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `model_id` | `bigint` | 🔗 `ref.vehicle_model` ✱ |  |
+| `name` | `text` | ✱ |  |
+| `name_ar` | `text` |  |  |
+| `fuel` | `text` | ✱ | `'PETROL'::text` |
+| `year_from` | `smallint` |  |  |
+| `year_to` | `smallint` |  |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `source` | `text` | ✱ | `'MANUAL'::text` |
+| `entered_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `change_reason` | `text` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ref.vehicle_trim_change` 🛡️
+
+Every edit of a vehicle trim, field by field, with who, when and why (1172); goes only with its trim
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `trim_id` | `bigint` | 🔗 `ref.vehicle_trim` ✱ |  |
+| `changed_at` | `timestamp with time zone` | ✱ | `now()` |
+| `changed_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `field` | `text` | ✱ |  |
+| `old_value` | `text` |  |  |
+| `new_value` | `text` |  |  |
+| `reason` | `text` |  |  |
 
 <a id="sys"></a>
 ## `sys` — Settings, outbox and webhooks
@@ -2831,7 +2920,7 @@ Insurance contract, required to activate the vehicle; later verified with the tr
 | Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
-| `vehicle_id` | `bigint` | 🔗 `fleet.vehicle` ✱ |  |
+| `vehicle_id` | `bigint` | 🔗 `fleet.vehicle`  |  |
 | `insurer_party_id` | `bigint` | 🔗 `iam.party`  |  |
 | `insurer_name` | `text` |  |  |
 | `policy_no` | `text` | ✱ |  |
@@ -2847,6 +2936,8 @@ Insurance contract, required to activate the vehicle; later verified with the tr
 | `status` | `text` | ✱ | `'PENDING'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `insurer_id` | `bigint` | 🔗 `ref.insurer`  |  |
+| `trailer_id` | `bigint` | 🔗 `fleet.trailer`  |  |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
 
 ### `fleet.license_change_request` 🛡️
 
@@ -2915,6 +3006,31 @@ The vehicles a permit binds to its approved line; a vehicle serves one line at a
 | `approved_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
+### `fleet.maintenance_visit` 🛡️
+
+A vehicle sent to the workshop and its return; while open the vehicle is in maintenance and takes no trip or rental (1173)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `vehicle_id` | `bigint` | 🔗 `fleet.vehicle` ✱ |  |
+| `plan_id` | `bigint` | 🔗 `fleet.service_plan`  |  |
+| `kind` | `text` | ✱ |  |
+| `workshop` | `text` |  |  |
+| `sent_at` | `timestamp with time zone` | ✱ | `now()` |
+| `odometer_out` | `integer` |  |  |
+| `expected_back` | `date` |  |  |
+| `returned_at` | `timestamp with time zone` |  |  |
+| `odometer_in` | `integer` |  |  |
+| `cost` | `bigint` |  |  |
+| `currency` | `character(3)` |  |  |
+| `notes` | `text` |  |  |
+| `service_status_id` | `bigint` | 🔗 `fleet.vehicle_service_status`  |  |
+| `opened_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `closed_by` | `bigint` | 🔗 `iam.app_user`  |  |
+
 ### `fleet.seat_layout` 🛡️
 
 Reusable seat layouts
@@ -2961,6 +3077,30 @@ Premium or discounted seat prices set by the carrier (4.14 a)
 | `label` | `text` | ✱ |  |
 | `active` | `boolean` | ✱ | `true` |
 
+### `fleet.service_plan` 🛡️
+
+When a vehicle is serviced: oil change, periodic service, tyres, inspection, by distance and months, or a maintenance contract (1173)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `vehicle_id` | `bigint` | 🔗 `fleet.vehicle` ✱ |  |
+| `kind` | `text` | ✱ |  |
+| `every_km` | `integer` |  |  |
+| `every_months` | `smallint` |  |  |
+| `last_km` | `integer` |  |  |
+| `last_date` | `date` |  |  |
+| `provider` | `text` |  |  |
+| `contract_no` | `text` |  |  |
+| `contract_until` | `date` |  |  |
+| `notes` | `text` |  |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+
 ### `fleet.tracking_device` 🛡️
 
 A contracted tracking device installed in a vehicle; one active device per vehicle at a time
@@ -3002,6 +3142,24 @@ Trailers with their own plate and licence documents (10.4)
 | `temp_max_c` | `numeric(4,1)` |  |  |
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `change_reason` | `text` |  |  |
+| `make` | `text` |  |  |
+| `manufacture_year` | `smallint` |  |  |
+
+### `fleet.trailer_change` 🛡️
+
+Every edit of a trailer, field by field, with who, when and why (1173); never updated or deleted
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `trailer_id` | `bigint` | 🔗 `fleet.trailer` ✱ |  |
+| `changed_at` | `timestamp with time zone` | ✱ | `now()` |
+| `changed_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `field` | `text` | ✱ |  |
+| `old_value` | `text` |  |  |
+| `new_value` | `text` |  |  |
+| `reason` | `text` |  |  |
 
 ### `fleet.truck_combination` 🛡️
 
@@ -3068,6 +3226,12 @@ Vehicle: type, seated and standing capacity, ownership and owner, and the status
 | `tracking_source` | `text` | ✱ | `'DRIVER_APP'::text` |
 | `model_id` | `bigint` | 🔗 `ref.vehicle_model`  |  |
 | `change_reason` | `text` |  |  |
+| `fleet_use` | `text` | ✱ |  |
+| `odometer_km` | `integer` |  |  |
+| `odometer_at` | `timestamp with time zone` |  |  |
+| `colour` | `text` |  |  |
+| `fuel_type` | `text` |  |  |
+| `trim_id` | `bigint` | 🔗 `ref.vehicle_trim`  |  |
 
 ### `fleet.vehicle_change` 🛡️
 
@@ -10641,6 +10805,8 @@ A rental across any company from unified search; a car cannot be double-booked
 | `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
 | `status` | `text` | ✱ | `'CONFIRMED'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `with_driver` | `boolean` | ✱ | `false` |
+| `driver_party_id` | `bigint` | 🔗 `fleet.crew_profile`  |  |
 
 ### `rent.rental_booking_addon` 🛡️
 
@@ -10740,6 +10906,8 @@ Rental extension of fleet.vehicle: its class and home branch
 | `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
 | `valid` | `daterange` | ✱ |  |
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `unlimited_km` | `boolean` | ✱ | `false` |
+| `driver_price_per_day` | `bigint` |  |  |
 
 ### `rent.rental_vehicle_class` 🛡️
 

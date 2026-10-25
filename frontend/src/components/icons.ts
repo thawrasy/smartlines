@@ -1,5 +1,8 @@
 // Material Symbols (rounded, Apache-2.0), bundled at build time. Generated list: add a name here to use it.
 
+import i_garage from "@material-symbols/svg-400/rounded/garage.svg?raw";
+import i_rv_hookup from "@material-symbols/svg-400/rounded/rv_hookup.svg?raw";
+import i_build from "@material-symbols/svg-400/rounded/build.svg?raw";
 import i_health_and_safety from "@material-symbols/svg-400/rounded/health_and_safety.svg?raw";
 import i_add_location from "@material-symbols/svg-400/rounded/add_location.svg?raw";
 import i_my_location from "@material-symbols/svg-400/rounded/my_location.svg?raw";
@@ -336,6 +339,9 @@ export const ICONS = {
   policy: i_policy,
   upload_file: i_upload_file,
   airport_shuttle: i_airport_shuttle,
+  garage: i_garage,
+  rv_hookup: i_rv_hookup,
+  build: i_build,
   request_quote: i_request_quote,
   tour: i_tour,
   swap_calls: i_swap_calls,

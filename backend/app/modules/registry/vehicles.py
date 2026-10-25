@@ -17,8 +17,12 @@ from ...errors import ApiError, forbidden, not_found
 from .service import ReviewIn, need
 
 VehicleType = Literal["COACH", "MINIBUS", "CITY_BUS", "VAN", "TRAIN_SET", "OTHER"]
+BodyType = Literal["SEDAN", "HATCH", "SUV", "PICKUP", "MPV", "COUPE", "VAN", "COACH", "MINIBUS", "CITY_BUS", "TRUCK", "OTHER"]
+Fuel = Literal["PETROL", "DIESEL", "HYBRID", "PLUG_IN_HYBRID", "ELECTRIC", "RANGE_EXTENDER", "GAS"]
+Year = Field(default=None, ge=1950, le=2100)
 MAX_FILE = 5 * 1024 * 1024
 MAX_ROWS = 3000
+MAX_TRIMS = 12000
 
 
 class MakeIn(BaseModel):
@@ -39,6 +43,54 @@ class ModelIn(BaseModel):
     production: Literal["CURRENT", "OLDER"] = "CURRENT"
     confidence: Literal["HIGH", "MEDIUM", "VERIFY"] = "VERIFY"
     notes: Optional[str] = Field(default=None, max_length=500)
+    name_ar: Optional[str] = Field(default=None, min_length=1, max_length=80)
+    body_type: Optional[BodyType] = None
+    year_from: Optional[int] = Year
+    year_to: Optional[int] = Year
+
+
+class TrimIn(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    name_ar: Optional[str] = Field(default=None, min_length=1, max_length=80)
+    fuel: Fuel = "PETROL"
+    year_from: Optional[int] = Year
+    year_to: Optional[int] = Year
+
+
+class MakeEdit(BaseModel):
+    """A correction of a make (1172); a name changes only with a reason, kept in the make's history."""
+    name_en: Optional[str] = Field(default=None, min_length=2, max_length=80)
+    name_ar: Optional[str] = Field(default=None, min_length=2, max_length=80)
+    country_code: Optional[str] = Field(default=None, pattern=r"^[A-Z]{2}$")
+    reason: Optional[str] = Field(default=None, max_length=500)
+
+
+class ModelEdit(BaseModel):
+    """A correction of a model (1172); its name changes only with a reason, kept in the model's history."""
+    name: Optional[str] = Field(default=None, min_length=1, max_length=80)
+    name_ar: Optional[str] = Field(default=None, min_length=1, max_length=80)
+    vehicle_class: Optional[Literal["BUS", "TRUCK", "TRAIN", "CAR", "OTHER"]] = None
+    vehicle_type: Optional[VehicleType] = None
+    body_type: Optional[BodyType] = None
+    seats_from: Optional[int] = Field(default=None, ge=1, le=120)
+    seats_to: Optional[int] = Field(default=None, ge=1, le=120)
+    weight_class: Optional[Literal["LIGHT", "MEDIUM", "HEAVY"]] = None
+    year_from: Optional[int] = Year
+    year_to: Optional[int] = Year
+    production: Optional[Literal["CURRENT", "OLDER"]] = None
+    confidence: Optional[Literal["HIGH", "MEDIUM", "VERIFY"]] = None
+    notes: Optional[str] = Field(default=None, max_length=500)
+    reason: Optional[str] = Field(default=None, max_length=500)
+
+
+class TrimEdit(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=80)
+    name_ar: Optional[str] = Field(default=None, min_length=1, max_length=80)
+    fuel: Optional[Fuel] = None
+    year_from: Optional[int] = Year
+    year_to: Optional[int] = Year
+    status: Optional[Literal["ACTIVE", "RETIRED"]] = None
+    reason: Optional[str] = Field(default=None, max_length=500)
 
 
 class RequestIn(BaseModel):
@@ -89,9 +141,18 @@ async def catalog(conn: asyncpg.Connection, pr: Principal) -> dict:
               LEFT JOIN iam.app_user vu ON vu.id = m.reviewed_by LEFT JOIN iam.party vp ON vp.id = vu.party_id
              WHERE {where.format(a='m')} {'' if platform else "AND k.status = 'ACTIVE'"} ORDER BY m.name""")
     drop = () if platform else ("entered_name", "reviewed_name", "source", "notes", "reviewed_at", "created_at", "updated_at")
+    trims = await conn.fetch(
+        f"""SELECT t.uid, t.name, t.name_ar, t.fuel, t.year_from, t.year_to, t.status, m.uid AS model_uid
+              FROM ref.vehicle_trim t JOIN ref.vehicle_model m ON m.id = t.model_id
+             {'' if platform else "WHERE t.status = 'ACTIVE'"} ORDER BY t.name""")
+    by_model: dict[str, list] = {}
+    for t in trims:
+        by_model.setdefault(str(t["model_uid"]), []).append(_row(t, ("model_uid",)))
     by_make: dict[str, list] = {}
     for m in models:
-        by_make.setdefault(str(m["make_uid"]), []).append(_row(m, drop))
+        v = _row(m, drop)
+        v["trims"] = by_model.get(v["uid"], [])
+        by_make.setdefault(str(m["make_uid"]), []).append(v)
     out = []
     for k in makes:
         v = _row(k, drop)
@@ -127,15 +188,16 @@ async def add_model(conn: asyncpg.Connection, pr: Principal, body: ModelIn, sour
         raise ApiError(409, "ENTRY_NOT_ACTIVE", "models are added to a make in the list")
     if body.seats_from and body.seats_to and body.seats_to < body.seats_from:
         raise ApiError(422, "SEATS_RANGE", "the seats range ends before it starts")
+    _years(body.year_from, body.year_to)
     vehicle_type = "OTHER" if body.vehicle_class == "TRUCK" else body.vehicle_type
     try:
         uid = await conn.fetchval(
             """INSERT INTO ref.vehicle_model (make_id, name, vehicle_class, vehicle_type, seats_from, seats_to, weight_class,
-                 production, confidence, notes, source, entered_by)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING uid""",
+                 production, confidence, notes, source, entered_by, name_ar, body_type, year_from, year_to)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING uid""",
             make["id"], body.name.strip(), body.vehicle_class, vehicle_type, body.seats_from, body.seats_to,
             body.weight_class if body.vehicle_class == "TRUCK" else None, body.production, body.confidence, body.notes,
-            source, pr.user_id)
+            source, pr.user_id, body.name_ar.strip() if body.name_ar else None, body.body_type, body.year_from, body.year_to)
     except asyncpg.UniqueViolationError as e:
         raise ApiError(409, "MODEL_EXISTS", "this make already has this model of this kind") from e
     return {"uid": str(uid), "status": "PENDING_REVIEW"}
@@ -173,6 +235,111 @@ async def retire(conn: asyncpg.Connection, pr: Principal, kind: Literal["makes",
         raise ApiError(409, "ENTRY_NOT_ACTIVE", "only an active entry is retired")
     await conn.execute(f"UPDATE {table} SET status = 'RETIRED' WHERE id = $1", r["id"])
     return {"uid": str(uid), "status": "RETIRED"}
+
+
+# ------------------------------------------------------------------ edits, trims and deletes (1172)
+def _years(a: Optional[int], b: Optional[int]) -> None:
+    if a and b and b < a:
+        raise ApiError(422, "YEARS_RANGE", "the last year comes before the first")
+
+
+HISTORY = {"makes": ("ref.vehicle_make_change", "make_id"), "models": ("ref.vehicle_model_change", "model_id"),
+           "trims": ("ref.vehicle_trim_change", "trim_id")}
+TABLES_ALL = TABLES | {"trims": "ref.vehicle_trim"}
+NAMES = {"makes": ("name_en", "name_ar"), "models": ("name",), "trims": ()}
+
+
+async def _entry(conn: asyncpg.Connection, kind: str, uid: uuid.UUID, lock: bool = False) -> asyncpg.Record:
+    r = await conn.fetchrow(f"SELECT * FROM {TABLES_ALL[kind]} WHERE uid = $1{' FOR UPDATE' if lock else ''}", uid)
+    if r is None:
+        raise not_found("vehicle " + kind[:-1])
+    return r
+
+
+async def detail(conn: asyncpg.Connection, pr: Principal, kind: Literal["makes", "models", "trims"], uid: uuid.UUID) -> dict:
+    """An entry with its history of edits, for the editor."""
+    need(pr)
+    r = await _entry(conn, kind, uid)
+    table, col = HISTORY[kind]
+    history = await conn.fetch(
+        f"""SELECT c.changed_at, c.field, c.old_value, c.new_value, c.reason, u.email AS changed_by
+              FROM {table} c LEFT JOIN iam.app_user u ON u.id = c.changed_by
+             WHERE c.{col} = $1 ORDER BY c.changed_at DESC, c.id DESC LIMIT 200""", r["id"])
+    out = {kind[:-1]: _row(r), "history": [_row(h) | {"changed_by": h["changed_by"]} for h in history]}
+    if kind == "models":
+        out["used_by"] = await conn.fetchval("SELECT count(*) FROM fleet.vehicle WHERE model_id = $1", r["id"])
+    return out
+
+
+async def edit(conn: asyncpg.Connection, pr: Principal, kind: Literal["makes", "models", "trims"], uid: uuid.UUID,
+               body: BaseModel) -> dict:
+    """Corrects a make, model or trim in place; the database keeps every change with who, when and why (1172)."""
+    need(pr)
+    given = body.model_dump(exclude_unset=True)
+    reason = (given.pop("reason", None) or "").strip()
+    if not given:
+        raise ApiError(422, "NOTHING_TO_CHANGE", "give at least one field to change")
+    r = await _entry(conn, kind, uid, lock=True)
+    if r["status"] == "REJECTED":
+        raise ApiError(409, "ENTRY_NOT_ACTIVE", "a rejected entry is not corrected; enter it again")
+    sets = {k: (v.strip() if isinstance(v, str) else v) for k, v in given.items() if r[k] != v}
+    if not sets:
+        raise ApiError(422, "NOTHING_TO_CHANGE", "nothing differs from what is saved")
+    if any(k in sets for k in NAMES[kind]) and len(reason) < 3:
+        raise ApiError(422, f"{kind[:-1].upper()}_CHANGE_REASON", "changing the name needs its reason")
+    merged = dict(r) | sets
+    _years(merged.get("year_from"), merged.get("year_to"))
+    if kind == "models":
+        if merged["seats_from"] and merged["seats_to"] and merged["seats_to"] < merged["seats_from"]:
+            raise ApiError(422, "SEATS_RANGE", "the seats range ends before it starts")
+        if merged["vehicle_class"] == "TRUCK":
+            sets["vehicle_type"] = "OTHER"
+        elif merged["weight_class"] is not None:
+            sets["weight_class"] = None
+    cols = list(sets)
+    assign = ", ".join(f"{c} = ${i + 2}" for i, c in enumerate(cols))
+    try:
+        await conn.execute(f"UPDATE {TABLES_ALL[kind]} SET {assign}, change_reason = ${len(cols) + 2} WHERE id = $1",
+                           r["id"], *[sets[c] for c in cols], reason or None)
+    except asyncpg.UniqueViolationError as e:
+        raise ApiError(409, "ENTRY_EXISTS", "another entry already has this name") from e
+    return {"uid": str(uid), "changed": cols}
+
+
+async def add_trim(conn: asyncpg.Connection, pr: Principal, model_uid: uuid.UUID, body: TrimIn, source: str = "MANUAL") -> dict:
+    need(pr)
+    m = await _entry(conn, "models", model_uid)
+    if m["status"] in ("REJECTED", "RETIRED"):
+        raise ApiError(409, "ENTRY_NOT_ACTIVE", "trims are added to a model in the list")
+    _years(body.year_from, body.year_to)
+    try:
+        uid = await conn.fetchval(
+            """INSERT INTO ref.vehicle_trim (model_id, name, name_ar, fuel, year_from, year_to, source, entered_by)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING uid""",
+            m["id"], body.name.strip(), body.name_ar.strip() if body.name_ar else None, body.fuel, body.year_from,
+            body.year_to, source, pr.user_id)
+    except asyncpg.UniqueViolationError as e:
+        raise ApiError(409, "TRIM_EXISTS", "this model already has this trim with this fuel") from e
+    return {"uid": str(uid)}
+
+
+async def delete(conn: asyncpg.Connection, pr: Principal, kind: Literal["makes", "models", "trims"], uid: uuid.UUID) -> dict:
+    """Deletes an entry nothing uses (1172): a model chosen by a vehicle or a request, and a make with models or
+    requests, are retired instead. The database refuses it too (ref.tg_catalog_delete)."""
+    need(pr)
+    r = await _entry(conn, kind, uid, lock=True)
+    if kind == "models":
+        used = await conn.fetchval("""SELECT (SELECT count(*) FROM fleet.vehicle WHERE model_id = $1)
+                                           + (SELECT count(*) FROM fleet.vehicle_model_request WHERE model_id = $1)""", r["id"])
+        if used:
+            raise ApiError(409, "MODEL_IN_USE", f"{used} vehicles or requests use this model; retire it instead")
+    elif kind == "makes":
+        if await conn.fetchval("SELECT EXISTS (SELECT 1 FROM ref.vehicle_model WHERE make_id = $1)", r["id"]):
+            raise ApiError(409, "MAKE_HAS_MODELS", "delete its models first, or retire the make")
+        if await conn.fetchval("SELECT EXISTS (SELECT 1 FROM fleet.vehicle_model_request WHERE make_id = $1)", r["id"]):
+            raise ApiError(409, "MAKE_IN_USE", "carriers' requests name this make; retire it instead")
+    await conn.execute(f"DELETE FROM {TABLES_ALL[kind]} WHERE id = $1", r["id"])
+    return {"uid": str(uid), "deleted": True}
 
 
 # ------------------------------------------------------------------ carriers' requests
@@ -325,7 +492,10 @@ def read(data: bytes) -> tuple[list[dict], list[str]]:
                                 weight_class=weight if klass == "TRUCK" else None,
                                 production="OLDER" if _text(r.get("status")).lower() == "older" else "CURRENT",
                                 confidence={"high": "HIGH", "medium": "MEDIUM"}.get(_text(r.get("confidence")).lower(), "VERIFY"),
-                                notes=_text(r.get("notes"))[:500] or None)
+                                notes=_text(r.get("notes"))[:500] or None,
+                                name_ar=_text(r.get("model_ar")) or None,
+                                body_type=_text(r.get("body_type")).upper() or None,
+                                year_from=_int(r.get("year_from")), year_to=_int(r.get("year_to")))
                 make = MakeIn(name_en=_text(r.get("make_en")), name_ar=_text(r.get("make_ar")),
                               country_code=COUNTRIES.get(_text(r.get("country")).lower()))
             except ValidationError as e:
@@ -336,16 +506,50 @@ def read(data: bytes) -> tuple[list[dict], list[str]]:
                 raise ApiError(422, "REGISTRY_FILE_ROWS", f"more than {MAX_ROWS} rows")
     if not rows and not problems:
         raise ApiError(422, "REGISTRY_FILE_COLUMNS", "no sheet has the make_en, make_ar and model columns")
-    return rows, problems
+    trims = _trims(wb, problems)
+    return rows, problems, trims
+
+
+FUELS = {"petrol": "PETROL", "gasoline": "PETROL", "diesel": "DIESEL", "hybrid": "HYBRID", "plug-in hybrid": "PLUG_IN_HYBRID",
+         "phev": "PLUG_IN_HYBRID", "electric": "ELECTRIC", "range-extender electric": "RANGE_EXTENDER",
+         "gas (cng/lpg)": "GAS", "gas": "GAS", "cng": "GAS", "lpg": "GAS"}
+
+
+def _trims(wb, problems: list[str]) -> list[dict]:
+    """Rows of a sheet with make_en, model and trim columns (the trims of the models above, 1172)."""
+    out: list[dict] = []
+    for sheet in wb.worksheets:
+        it = sheet.iter_rows(values_only=True)
+        head = [_text(h).lower() for h in next(it, ())]
+        if not {"make_en", "model", "trim"} <= set(head):
+            continue
+        for i, raw in enumerate(it, start=2):
+            r = {h: v for h, v in zip(head, raw) if h}
+            if not _text(r.get("trim")):
+                continue
+            fuel = FUELS.get(_text(r.get("fuel")).lower() or "petrol")
+            if fuel is None:
+                problems.append(f"{sheet.title} row {i}: fuel {_text(r.get('fuel'))} not known")
+                continue
+            try:
+                t = TrimIn(name=_text(r.get("trim")), name_ar=_text(r.get("trim_ar")) or None, fuel=fuel,
+                           year_from=_int(r.get("year_from")), year_to=_int(r.get("year_to")))
+            except ValidationError as e:
+                problems.append(f"{sheet.title} row {i}: " + "; ".join(f"{'.'.join(map(str, x['loc']))} {x['msg']}" for x in e.errors()))
+                continue
+            out.append({"make": _text(r.get("make_en")).lower(), "model": _text(r.get("model")).lower(), "trim": t})
+            if len(out) > MAX_TRIMS:
+                raise ApiError(422, "REGISTRY_FILE_ROWS", f"more than {MAX_TRIMS} trims")
+    return out
 
 
 async def load(conn: asyncpg.Connection, pr: Principal, data: bytes) -> dict:
     """Every make and model comes in as PENDING_REVIEW with the source IMPORT; entries already in the list are skipped."""
     need(pr)
-    rows, problems = read(data)
+    rows, problems, trim_rows = read(data)
     if problems:
         raise ApiError(422, "REGISTRY_FILE_ROWS", "; ".join(problems[:30]))
-    makes = models = skipped = 0
+    makes = models = skipped = trims = 0
     for item in rows:
         mk: MakeIn = item["make"]
         code = make_code(mk.name_en)
@@ -364,4 +568,20 @@ async def load(conn: asyncpg.Connection, pr: Principal, data: bytes) -> dict:
             continue
         await add_model(conn, pr, md, source="IMPORT")
         models += 1
-    return {"makes": makes, "models": models, "skipped": skipped}
+    # trims go under the model of the same make and name (one model per name is expected; the first is taken)
+    ids = {(k, m): i for i, k, m in await conn.fetch(
+        """SELECT DISTINCT ON (lower(k.name_en), lower(m.name)) m.id, lower(k.name_en), lower(m.name)
+             FROM ref.vehicle_model m JOIN ref.vehicle_make k ON k.id = m.make_id
+            WHERE m.status NOT IN ('REJECTED', 'RETIRED') ORDER BY lower(k.name_en), lower(m.name), m.id""")}
+    for t in trim_rows:
+        mid = ids.get((t["make"], t["model"]))
+        tr: TrimIn = t["trim"]
+        if mid is None:
+            skipped += 1
+            continue
+        done = await conn.fetchval(
+            """INSERT INTO ref.vehicle_trim (model_id, name, name_ar, fuel, year_from, year_to, source, entered_by)
+               VALUES ($1, $2, $3, $4, $5, $6, 'IMPORT', $7) ON CONFLICT DO NOTHING RETURNING id""",
+            mid, tr.name, tr.name_ar, tr.fuel, tr.year_from, tr.year_to, pr.user_id)
+        trims += 1 if done else 0
+    return {"makes": makes, "models": models, "trims": trims, "skipped": skipped}

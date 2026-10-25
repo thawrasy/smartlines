@@ -67,11 +67,11 @@ flowchart LR
   fin -->|6| pricing
   fin -->|5| sales
   fin -->|2| ship
-  fleet -->|31| iam
+  fleet -->|33| iam
   fleet -->|2| net
   fleet -->|5| ops
   fleet -->|1| ptn
-  fleet -->|6| ref
+  fleet -->|7| ref
   frt -->|2| brd
   frt -->|1| crm
   frt -->|6| fleet
@@ -113,10 +113,10 @@ flowchart LR
   rail -->|2| net
   rail -->|2| ops
   rail -->|1| sales
-  ref -->|11| iam
+  ref -->|12| iam
   rent -->|1| crm
   rent -->|1| fin
-  rent -->|3| fleet
+  rent -->|4| fleet
   rent -->|3| iam
   rent -->|1| net
   rpt -->|7| iam
@@ -231,6 +231,12 @@ erDiagram
     bigint id PK
     bigint company_id FK
     bigint changed_by FK
+  }
+  iam_company_fleet_line {
+    bigint id PK
+    bigint company_id FK
+    bigint granted_by FK
+    bigint ended_by FK
   }
   iam_company_kyc {
     bigint id PK
@@ -619,6 +625,7 @@ erDiagram
   iam_family_link_request }o..o| iam_app_user : "requester_user_id"
   iam_party_photo }o--|| iam_app_user : "taken_by_user_id"
   iam_carrier_class_assignment }o--|| iam_app_user : "assigned_by"
+  iam_company_fleet_line }o..o| iam_app_user : "ended_by"
   iam_photo_policy_change }o--|| iam_app_user : "requested_by_user_id"
   iam_kyc_form }o..o| iam_app_user : "activated_by"
   iam_family_spend }o..o| iam_app_user : "initiated_by"
@@ -638,6 +645,7 @@ erDiagram
   iam_company_member }o--|| iam_company : "company_id"
   iam_carrier_class_assignment }o--|| iam_company : "company_id"
   iam_company_change }o--|| iam_company : "company_id"
+  iam_company_fleet_line }o--|| iam_company : "company_id"
   iam_user_station_scope }o--|| iam_company : "company_id"
   iam_company_kyc }o--|| iam_company : "company_id"
   iam_integration_request }o--|| iam_company : "company_id"
@@ -836,6 +844,11 @@ erDiagram
     bigint entered_by FK
     bigint reviewed_by FK
   }
+  ref_vehicle_make_change {
+    bigint id PK
+    bigint make_id FK
+    bigint changed_by FK
+  }
   ref_vehicle_model {
     bigint id PK
     uuid uid
@@ -843,6 +856,23 @@ erDiagram
     text status
     bigint entered_by FK
     bigint reviewed_by FK
+  }
+  ref_vehicle_model_change {
+    bigint id PK
+    bigint model_id FK
+    bigint changed_by FK
+  }
+  ref_vehicle_trim {
+    bigint id PK
+    uuid uid
+    bigint model_id FK
+    text status
+    bigint entered_by FK
+  }
+  ref_vehicle_trim_change {
+    bigint id PK
+    bigint trim_id FK
+    bigint changed_by FK
   }
   iam_app_user {
     ref external
@@ -853,6 +883,7 @@ erDiagram
   ref_name_correction }o..o| iam_app_user : "set_by"
   ref_geo_source }o..o| iam_app_user : "imported_by"
   ref_vehicle_make }o--|| iam_app_user : "entered_by"
+  ref_vehicle_trim }o--|| iam_app_user : "entered_by"
   ref_vehicle_model }o--|| iam_app_user : "entered_by"
   ref_bank_branch }o--|| iam_app_user : "entered_by"
   ref_place }o..o| iam_app_user : "proposed_by"
@@ -872,7 +903,11 @@ erDiagram
   ref_translation }o--|| ref_locale : "locale"
   ref_place }o..o| ref_place : "parent_place_id"
   ref_city }o..o| ref_place : "place_id"
+  ref_vehicle_make_change }o--|| ref_vehicle_make : "make_id"
   ref_vehicle_model }o--|| ref_vehicle_make : "make_id"
+  ref_vehicle_model_change }o--|| ref_vehicle_model : "model_id"
+  ref_vehicle_trim }o--|| ref_vehicle_model : "model_id"
+  ref_vehicle_trim_change }o--|| ref_vehicle_trim : "trim_id"
 ```
 
 ## `sys` — Settings, outbox and webhooks
@@ -1503,6 +1538,8 @@ erDiagram
     bigint document_id FK
     text status
     bigint insurer_id FK
+    bigint trailer_id FK
+    uuid uid
   }
   fleet_license_change_request {
     bigint id PK
@@ -1538,6 +1575,16 @@ erDiagram
     text status
     bigint approved_by FK
   }
+  fleet_maintenance_visit {
+    bigint id PK
+    uuid uid
+    bigint company_id FK
+    bigint vehicle_id FK
+    bigint plan_id FK
+    bigint service_status_id FK
+    bigint opened_by FK
+    bigint closed_by FK
+  }
   fleet_seat_layout {
     bigint id PK
     bigint company_id FK
@@ -1555,6 +1602,14 @@ erDiagram
     bigint vehicle_id FK
     bigint seat_layout_id FK
   }
+  fleet_service_plan {
+    bigint id PK
+    uuid uid
+    bigint company_id FK
+    bigint vehicle_id FK
+    text status
+    bigint created_by FK
+  }
   fleet_tracking_device {
     bigint id PK
     bigint company_id FK
@@ -1568,6 +1623,11 @@ erDiagram
     bigint owner_party_id FK
     character plate_country FK
     text status
+  }
+  fleet_trailer_change {
+    bigint id PK
+    bigint trailer_id FK
+    bigint changed_by FK
   }
   fleet_truck_combination {
     bigint id PK
@@ -1589,6 +1649,7 @@ erDiagram
     bigint owner_party_id FK
     text status
     bigint model_id FK
+    bigint trim_id FK
   }
   fleet_vehicle_change {
     bigint id PK
@@ -1681,6 +1742,9 @@ erDiagram
   ref_vehicle_model {
     ref external
   }
+  ref_vehicle_trim {
+    ref external
+  }
   fleet_crew_change }o--|| fleet_crew_profile : "party_id"
   fleet_driving_hours_log }o--|| fleet_crew_profile : "party_id"
   fleet_truck_combination }o..o| fleet_crew_profile : "driver_party_id"
@@ -1691,12 +1755,15 @@ erDiagram
   fleet_seat_layout_seat }o--|| fleet_seat_layout : "layout_id"
   fleet_seat_price_rule }o..o| fleet_seat_layout : "seat_layout_id"
   fleet_vehicle }o..o| fleet_seat_layout : "seat_layout_id"
+  fleet_maintenance_visit }o..o| fleet_service_plan : "plan_id"
+  fleet_trailer_change }o--|| fleet_trailer : "trailer_id"
   fleet_truck_combination }o..o| fleet_trailer : "trailer_id"
+  fleet_insurance_policy }o..o| fleet_trailer : "trailer_id"
   fleet_license_record }o..o| fleet_trailer : "subject_trailer_id"
   fleet_truck_combination }o--|| fleet_truck_unit : "truck_vehicle_id"
   fleet_truck_unit }o--|| fleet_vehicle : "vehicle_id"
   fleet_vehicle_lease }o--|| fleet_vehicle : "vehicle_id"
-  fleet_insurance_policy }o--|| fleet_vehicle : "vehicle_id"
+  fleet_insurance_policy }o..o| fleet_vehicle : "vehicle_id"
   fleet_vehicle_qr_tag }o--|| fleet_vehicle : "vehicle_id"
   fleet_vehicle_status_history }o--|| fleet_vehicle : "vehicle_id"
   fleet_vehicle_change }o--|| fleet_vehicle : "vehicle_id"
@@ -1707,8 +1774,11 @@ erDiagram
   fleet_tracking_device }o--|| fleet_vehicle : "vehicle_id"
   fleet_boarding_validator }o..o| fleet_vehicle : "vehicle_id"
   fleet_line_permit_vehicle }o--|| fleet_vehicle : "vehicle_id"
+  fleet_service_plan }o--|| fleet_vehicle : "vehicle_id"
+  fleet_maintenance_visit }o--|| fleet_vehicle : "vehicle_id"
   fleet_license_record }o..o| fleet_vehicle : "subject_vehicle_id"
   fleet_field_check_log }o..o| fleet_vehicle_qr_tag : "tag_id"
+  fleet_maintenance_visit }o..o| fleet_vehicle_service_status : "service_status_id"
   fleet_vehicle_qr_tag }o..o| iam_app_user : "issued_by"
   fleet_seat_layout }o..o| iam_company : "company_id"
   fleet_seat_price_rule }o--|| iam_company : "company_id"
@@ -1725,6 +1795,8 @@ erDiagram
   fleet_trailer }o--|| iam_company : "company_id"
   fleet_line_permit_vehicle }o--|| iam_company : "company_id"
   fleet_vehicle_model_request }o--|| iam_company : "company_id"
+  fleet_service_plan }o--|| iam_company : "company_id"
+  fleet_maintenance_visit }o--|| iam_company : "company_id"
   fleet_vehicle_lease }o--|| iam_company : "lessee_company_id"
   fleet_license_record }o..o| iam_company : "subject_company_id"
   fleet_license_change_request }o..o| iam_document : "document_id"
@@ -1754,6 +1826,7 @@ erDiagram
   fleet_vehicle_model_request }o..o| ref_vehicle_make : "make_id"
   fleet_vehicle_model_request }o..o| ref_vehicle_model : "model_id"
   fleet_vehicle }o..o| ref_vehicle_model : "model_id"
+  fleet_vehicle }o..o| ref_vehicle_trim : "trim_id"
 ```
 
 ## `pricing` — Pricing, taxes, commissions, campaigns and loyalty
@@ -6470,6 +6543,7 @@ erDiagram
     bigint return_branch_id FK
     character currency FK
     text status
+    bigint driver_party_id FK
   }
   rent_rental_booking_addon {
     bigint booking_id PK
@@ -6539,6 +6613,9 @@ erDiagram
   fin_wallet {
     ref external
   }
+  fleet_crew_profile {
+    ref external
+  }
   fleet_vehicle {
     ref external
   }
@@ -6553,6 +6630,7 @@ erDiagram
   }
   rent_deposit_hold }o..o| crm_case : "case_id"
   rent_deposit_hold }o..o| fin_wallet : "wallet_id"
+  rent_rental_booking }o..o| fleet_crew_profile : "driver_party_id"
   rent_rental_fleet }o--|| fleet_vehicle : "vehicle_id"
   rent_telematics_device }o..o| fleet_vehicle : "vehicle_id"
   rent_vehicle_trip_log }o--|| fleet_vehicle : "vehicle_id"

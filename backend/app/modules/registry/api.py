@@ -10,6 +10,9 @@
     POST /api/admin/registry/branches/{uid}/review
     GET  /api/vehicle-models                               reviewed makes and models (N8, 1157); carriers' requests below it
     GET  /api/admin/vehicle-models                         every make and model with its review; makes, models, import, requests
+    GET|PATCH|DELETE /api/admin/vehicle-models/{makes|models|trims}/{uid}   an entry with its history, corrected, or
+                                                           deleted while nothing uses it (1172)
+    POST /api/admin/vehicle-models/models/{uid}/trims      a trim of a model with its fuel and years (1172)
 """
 import uuid
 from typing import Literal
@@ -194,7 +197,7 @@ async def load_models(request: Request, file: UploadFile = File(...), pr: Princi
     async with db.transaction(context_for(request, pr)) as conn:
         out = await vehicles.load(conn, pr, data)
     request.state.audit = {"action": "vehicle_model.import", "object_type": "vehicle_model", "object_id": None,
-                           "reason": f"{out['makes']} makes, {out['models']} models, {out['skipped']} skipped"}
+                           "reason": f"{out['makes']} makes, {out['models']} models, {out['trims']} trims, {out['skipped']} skipped"}
     return out
 
 
@@ -225,3 +228,55 @@ async def review_vehicle_entry(kind: Literal["makes", "models"], uid: uuid.UUID,
 async def retire_vehicle_entry(kind: Literal["makes", "models"], uid: uuid.UUID, request: Request, pr: Principal = Depends(staff)):
     async with db.transaction(context_for(request, pr)) as conn:
         return await vehicles.retire(conn, pr, kind, uid)
+
+
+EntryKind = Literal["makes", "models", "trims"]
+
+
+@vehicle_platform.post("/models/{uid}/trims", status_code=201)
+async def add_trim(uid: uuid.UUID, body: vehicles.TrimIn, request: Request, pr: Principal = Depends(staff)):
+    async with db.transaction(context_for(request, pr)) as conn:
+        out = await vehicles.add_trim(conn, pr, uid, body)
+    request.state.audit = {"action": "vehicle_trim.create", "object_type": "vehicle_trim", "object_id": None}
+    return out
+
+
+@vehicle_platform.get("/{kind}/{uid}")
+async def vehicle_entry(kind: EntryKind, uid: uuid.UUID, request: Request, pr: Principal = Depends(staff)):
+    async with db.transaction(context_for(request, pr)) as conn:
+        return await vehicles.detail(conn, pr, kind, uid)
+
+
+@vehicle_platform.patch("/makes/{uid}")
+async def edit_make(uid: uuid.UUID, body: vehicles.MakeEdit, request: Request, pr: Principal = Depends(staff)):
+    async with db.transaction(context_for(request, pr)) as conn:
+        out = await vehicles.edit(conn, pr, "makes", uid, body)
+    request.state.audit = {"action": "vehicle_make.edit", "object_type": "vehicle_make", "object_id": None,
+                           "reason": (body.reason or ", ".join(out["changed"]))[:300]}
+    return out
+
+
+@vehicle_platform.patch("/models/{uid}")
+async def edit_model(uid: uuid.UUID, body: vehicles.ModelEdit, request: Request, pr: Principal = Depends(staff)):
+    async with db.transaction(context_for(request, pr)) as conn:
+        out = await vehicles.edit(conn, pr, "models", uid, body)
+    request.state.audit = {"action": "vehicle_model.edit", "object_type": "vehicle_model", "object_id": None,
+                           "reason": (body.reason or ", ".join(out["changed"]))[:300]}
+    return out
+
+
+@vehicle_platform.patch("/trims/{uid}")
+async def edit_trim(uid: uuid.UUID, body: vehicles.TrimEdit, request: Request, pr: Principal = Depends(staff)):
+    async with db.transaction(context_for(request, pr)) as conn:
+        out = await vehicles.edit(conn, pr, "trims", uid, body)
+    request.state.audit = {"action": "vehicle_trim.edit", "object_type": "vehicle_trim", "object_id": None,
+                           "reason": (body.reason or ", ".join(out["changed"]))[:300]}
+    return out
+
+
+@vehicle_platform.delete("/{kind}/{uid}")
+async def delete_vehicle_entry(kind: EntryKind, uid: uuid.UUID, request: Request, pr: Principal = Depends(staff)):
+    async with db.transaction(context_for(request, pr)) as conn:
+        out = await vehicles.delete(conn, pr, kind, uid)
+    request.state.audit = {"action": f"vehicle_{kind[:-1]}.delete", "object_type": f"vehicle_{kind[:-1]}", "object_id": None}
+    return out

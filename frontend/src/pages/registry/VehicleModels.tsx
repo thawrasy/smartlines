@@ -2,16 +2,24 @@ import { useRef, useState } from "react";
 import { api } from "../../api";
 import { useI18n } from "../../i18n";
 import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Status, useLoad, useToast } from "../../components/ui";
+import { EditField, RecordEditor } from "../../components/RecordEditor";
 
 export interface VModel { uid: string; make_uid: string; name: string; vehicle_class: string; vehicle_type: string; seats_from: number | null;
                           seats_to: number | null; weight_class: string | null; production: string; confidence: string; status: string;
-                          source?: string; notes?: string | null; entered_name?: string | null; reviewed_name?: string | null }
+                          source?: string; notes?: string | null; entered_name?: string | null; reviewed_name?: string | null;
+                          name_ar?: string | null; body_type?: string | null; year_from?: number | null; year_to?: number | null; trims?: VTrim[] }
+export interface VTrim { uid: string; name: string; name_ar: string | null; fuel: string; year_from: number | null; year_to: number | null; status: string }
 export interface VMake { uid: string; code: string; name_en: string; name_ar: string; country_code: string | null; status: string;
                          source?: string; entered_name?: string | null; reviewed_name?: string | null; models: VModel[] }
 interface VRequest { uid: string; company_name: string; make: string; model_name: string; vehicle_type: string; seats: number | null;
                      note: string | null; status: string; decision_note: string | null; model: string | null; created_at: string; make_id?: never }
 
 const TYPES = ["COACH", "MINIBUS", "CITY_BUS", "VAN", "TRAIN_SET", "OTHER"];
+const BODIES = ["SEDAN", "HATCH", "SUV", "PICKUP", "MPV", "COUPE", "VAN", "COACH", "MINIBUS", "CITY_BUS", "TRUCK", "OTHER"];
+const FUELS = ["PETROL", "DIESEL", "HYBRID", "PLUG_IN_HYBRID", "ELECTRIC", "RANGE_EXTENDER", "GAS"];
+type Editing = { kind: "makes" | "models" | "trims"; uid: string; title: string };
+
+const years = (a?: number | null, b?: number | null) => a ? `${a}–${b ?? ""}` : "—";
 
 /** The platform's list of vehicle makes and models (owner's request N8, 1157): entries reviewed by a second person,
  *  the owner's table imported for review, and carriers' requests for a missing model. */
@@ -24,6 +32,8 @@ export function VehicleModels() {
   const [addMake, setAddMake] = useState(false);
   const [addModel, setAddModel] = useState<VMake | null>(null);
   const [decide, setDecide] = useState<VRequest | null>(null);
+  const [editing, setEditing] = useState<Editing | null>(null);
+  const [trimsOf, setTrimsOf] = useState<VModel | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const file = useRef<HTMLInputElement>(null);
@@ -35,13 +45,16 @@ export function VehicleModels() {
     const form = new FormData();
     form.append("file", f);
     await act(async () => {
-      const out = await api.upload<{ makes: number; models: number; skipped: number }>("/api/admin/vehicle-models/import", form);
-      toast(t("vm.imported", { m: out.makes, n: out.models, s: out.skipped }));
+      const out = await api.upload<{ makes: number; models: number; trims: number; skipped: number }>("/api/admin/vehicle-models/import", form);
+      toast(t("vm.importedTrims", { m: out.makes, n: out.models, t: out.trims, s: out.skipped }));
     });
     if (file.current) file.current.value = "";
   };
   const review = (kind: "makes" | "models", uid: string, decision: "ACCEPT" | "REJECT") =>
     act(() => api.post(`/api/admin/vehicle-models/${kind}/${uid}/review`, { decision }), decision === "ACCEPT" ? t("reg.accepted") : t("reg.rejected"));
+  const remove = (kind: "makes" | "models", uid: string, label: string) => {
+    if (window.confirm(t("vm.deleteConfirm", { name: label }))) act(() => api.del(`/api/admin/vehicle-models/${kind}/${uid}`), t("vm.deleted"));
+  };
   const seats = (m: VModel) => m.vehicle_class === "TRUCK" ? (m.weight_class ? t(`vm.weight.${m.weight_class}`) : "—")
     : m.seats_from ? (m.seats_to && m.seats_to !== m.seats_from ? `${m.seats_from}–${m.seats_to}` : `${m.seats_from}`) : "—";
   return (
@@ -73,17 +86,23 @@ export function VehicleModels() {
                       <button className="btn text small" disabled={busy} onClick={() => review("makes", k.uid, "REJECT")}>{t("admin.reject")}</button></>}
                     {(k.status === "ACTIVE" || k.status === "PENDING_REVIEW") &&
                       <button className="btn text small" onClick={() => { setError(null); setAddModel(k); }}><Icon name="add" />{t("vm.addModel")}</button>}
+                    {k.status !== "REJECTED" && <button className="btn text small" aria-label={`${t("edit.edit")} ${k.name_en}`}
+                      onClick={() => setEditing({ kind: "makes", uid: k.uid, title: k.name_en })}><Icon name="edit" />{t("edit.edit")}</button>}
+                    {k.models.length === 0 && <button className="btn text small" disabled={busy} onClick={() => remove("makes", k.uid, k.name_en)}>
+                      <Icon name="delete" />{t("common.delete")}</button>}
                   </span>
                 </summary>
                 {k.models.length > 0 && <div className="table-wrap" tabIndex={0}><table className="table">
-                  <thead><tr><th>{t("vm.model")}</th><th>{t("vm.kind")}</th><th>{t("vm.seats")}</th><th>{t("vm.confidence")}</th><th>{t("common.status")}</th><th>{t("common.actions")}</th></tr></thead>
+                  <thead><tr><th>{t("vm.model")}</th><th>{t("vm.kind")}</th><th>{t("vm.seats")}</th><th>{t("vm.years")}</th><th>{t("vm.trims")}</th><th>{t("vm.confidence")}</th><th>{t("common.status")}</th><th>{t("common.actions")}</th></tr></thead>
                   <tbody>{k.models.map((m) => (
                     <tr key={m.uid}>
-                      <td>{m.name}{m.source === "IMPORT" && <span className="chip small">{t("reg.fromFile")}</span>}
+                      <td>{m.name}{m.name_ar && <span className="muted small"> · {m.name_ar}</span>}{m.source === "IMPORT" && <span className="chip small">{t("reg.fromFile")}</span>}
                         {m.notes && <div className="small muted">{m.notes}</div>}</td>
                       <td className="small">{t(`vm.class.${m.vehicle_class}`)}{m.vehicle_class !== "TRUCK" && <> · {t(`carrier.vtypes.${m.vehicle_type}`)}</>}
                         {m.production === "OLDER" && <div className="muted">{t("vm.older")}</div>}</td>
                       <td className="num">{seats(m)}</td>
+                      <td className="num small">{years(m.year_from, m.year_to)}</td>
+                      <td><button className="btn text small" onClick={() => setTrimsOf(m)}>{t("vm.trimsCount", { n: (m.trims ?? []).length })}</button></td>
                       <td className="small">{t(`vm.conf.${m.confidence}`)}</td>
                       <td><Status value={m.status} /></td>
                       <td><div className="row" style={{ gap: 4, flexWrap: "wrap" }}>
@@ -92,6 +111,10 @@ export function VehicleModels() {
                           <button className="btn text small" disabled={busy} onClick={() => review("models", m.uid, "REJECT")}>{t("admin.reject")}</button></>}
                         {m.status === "ACTIVE" && <button className="btn text small" disabled={busy}
                           onClick={() => act(() => api.post(`/api/admin/vehicle-models/models/${m.uid}/retire`), t("common.saved"))}>{t("reg.retire")}</button>}
+                        {m.status !== "REJECTED" && <button className="btn text small" aria-label={`${t("edit.edit")} ${m.name}`}
+                          onClick={() => setEditing({ kind: "models", uid: m.uid, title: `${k.name_en} ${m.name}` })}><Icon name="edit" /></button>}
+                        <button className="btn text small" disabled={busy} aria-label={`${t("common.delete")} ${m.name}`}
+                          onClick={() => remove("models", m.uid, `${k.name_en} ${m.name}`)}><Icon name="delete" /></button>
                       </div></td>
                     </tr>
                   ))}</tbody>
@@ -121,6 +144,11 @@ export function VehicleModels() {
       </div>
       {addMake && <MakeForm onClose={() => setAddMake(false)} onDone={() => { setAddMake(false); state.reload(); }} />}
       {addModel && <ModelForm make={addModel} onClose={() => setAddModel(null)} onDone={() => { setAddModel(null); state.reload(); }} />}
+      {editing && <RecordEditor title={t("edit.companyTitle", { name: editing.title })} url={`/api/admin/vehicle-models/${editing.kind}/${editing.uid}`}
+        record={editing.kind.slice(0, -1)} fields={editFields(editing.kind, t)} regulated={editing.kind === "makes" ? ["name_en", "name_ar"] : editing.kind === "models" ? ["name"] : []}
+        onClose={() => { setEditing(null); state.reload(); }} />}
+      {trimsOf && <TrimsForm model={trimsOf} onEdit={(tr) => setEditing({ kind: "trims", uid: tr.uid, title: `${trimsOf.name} ${tr.name}` })}
+        onClose={() => setTrimsOf(null)} onChanged={() => state.reload()} />}
       {decide && <DecideForm req={decide} makes={state.data ?? []} onClose={() => setDecide(null)} onDone={() => { setDecide(null); state.reload(); reqs.reload(); }} />}
     </div>
   );
@@ -227,6 +255,79 @@ function DecideForm({ req, makes, onClose, onDone }: { req: VRequest; makes: VMa
               <option key={m.uid} value={m.uid}>{locale === "ar" ? k.name_ar : k.name_en} {m.name}</option>))}
           </select></Field>}
         <Field label={decision === "REJECT" ? t("common.reason") : t("reg.f.notes")}><textarea className="input" value={note} onChange={(e) => setNote(e.target.value)} /></Field>
+      </div>
+    </Modal>
+  );
+}
+
+function editFields(kind: Editing["kind"], t: (k: string, v?: Record<string, string | number>) => string): EditField[] {
+  const opts = (list: string[], key: string) => list.map((o) => ({ value: o, label: t(`${key}.${o}`) }));
+  const year = (key: string, label: string): EditField => ({ key, label, kind: "number" });
+  if (kind === "makes") return [
+    { key: "name_en", label: t("reg.f.name_en"), ltr: true }, { key: "name_ar", label: t("reg.f.name_ar") },
+    { key: "country_code", label: t("vm.country"), ltr: true }];
+  if (kind === "trims") return [
+    { key: "name", label: t("vm.trim"), ltr: true }, { key: "name_ar", label: t("reg.f.name_ar") },
+    { key: "fuel", label: t("vm.fuel"), kind: "select", options: opts(FUELS, "vm.fuels") },
+    year("year_from", t("vm.yearFrom")), year("year_to", t("vm.yearTo")),
+    { key: "status", label: t("common.status"), kind: "select", options: [{ value: "ACTIVE", label: t("vm.trimActive") }, { value: "RETIRED", label: t("reg.retire") }] }];
+  return [
+    { key: "name", label: t("vm.model"), ltr: true }, { key: "name_ar", label: t("reg.f.name_ar") },
+    { key: "vehicle_class", label: t("vm.kind"), kind: "select", options: opts(["BUS", "TRUCK", "TRAIN", "CAR", "OTHER"], "vm.class") },
+    { key: "vehicle_type", label: t("carrier.vtype"), kind: "select", options: opts(TYPES, "carrier.vtypes") },
+    { key: "body_type", label: t("vm.body"), kind: "select", options: [{ value: "", label: "—" }, ...opts(BODIES, "vm.bodies")] },
+    { key: "seats_from", label: t("vm.seatsFrom"), kind: "number" }, { key: "seats_to", label: t("vm.seatsTo"), kind: "number" },
+    year("year_from", t("vm.yearFrom")), year("year_to", t("vm.yearTo")),
+    { key: "production", label: t("vm.production"), kind: "select", options: opts(["CURRENT", "OLDER"], "vm.prod") },
+    { key: "confidence", label: t("vm.confidence"), kind: "select", options: opts(["VERIFY", "MEDIUM", "HIGH"], "vm.conf") },
+    { key: "notes", label: t("reg.f.notes") }];
+}
+
+function TrimsForm({ model, onEdit, onClose, onChanged }: { model: VModel; onEdit: (t: VTrim) => void; onClose: () => void; onChanged: () => void }) {
+  const { t } = useI18n();
+  const toast = useToast();
+  const [list, setList] = useState<VTrim[]>(model.trims ?? []);
+  const [f, setF] = useState({ name: "", name_ar: "", fuel: "PETROL", year_from: "", year_to: "" });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const reload = async () => {
+    const d = await api.get<{ makes: VMake[] }>("/api/admin/vehicle-models");
+    setList(d.makes.flatMap((k) => k.models).find((m) => m.uid === model.uid)?.trims ?? []);
+    onChanged();
+  };
+  const run = async (fn: () => Promise<unknown>, done: string) => {
+    setBusy(true); setError(null);
+    try { await fn(); toast(done); await reload(); } catch (e) { setError(e); } finally { setBusy(false); }
+  };
+  const add = () => run(() => api.post(`/api/admin/vehicle-models/models/${model.uid}/trims`, { name: f.name.trim(), name_ar: f.name_ar.trim() || null,
+    fuel: f.fuel, year_from: f.year_from ? Number(f.year_from) : null, year_to: f.year_to ? Number(f.year_to) : null })
+    .then(() => setF({ ...f, name: "", name_ar: "" })), t("common.saved"));
+  return (
+    <Modal title={`${t("vm.trims")} · ${model.name}`} onClose={onClose} wide actions={<button className="btn text" onClick={onClose}>{t("common.close")}</button>}>
+      <div className="stack">
+        <ErrorBox error={error} />
+        {list.length === 0 ? <Empty icon="tune" title={t("vm.noTrims")} /> : (
+          <div className="table-wrap" tabIndex={0}><table className="table">
+            <thead><tr><th>{t("vm.trim")}</th><th>{t("vm.fuel")}</th><th>{t("vm.years")}</th><th>{t("common.status")}</th><th>{t("common.actions")}</th></tr></thead>
+            <tbody>{list.map((tr) => (
+              <tr key={tr.uid}><td>{tr.name}{tr.name_ar && <div className="small muted">{tr.name_ar}</div>}</td>
+                <td className="small">{t(`vm.fuels.${tr.fuel}`)}</td><td className="num small">{years(tr.year_from, tr.year_to)}</td>
+                <td>{tr.status === "ACTIVE" ? t("vm.trimActive") : t("reg.retire")}</td>
+                <td><div className="row" style={{ gap: 4 }}>
+                  <button className="btn text small" aria-label={`${t("edit.edit")} ${tr.name}`} onClick={() => onEdit(tr)}><Icon name="edit" /></button>
+                  <button className="btn text small" disabled={busy} aria-label={`${t("common.delete")} ${tr.name}`}
+                    onClick={() => window.confirm(t("vm.deleteConfirm", { name: tr.name })) && run(() => api.del(`/api/admin/vehicle-models/trims/${tr.uid}`), t("vm.deleted"))}><Icon name="delete" /></button>
+                </div></td></tr>))}</tbody>
+          </table></div>)}
+        <div className="grid cols-3">
+          <Field label={t("vm.trim")}><input className="input ltr" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
+          <Field label={t("reg.f.name_ar")}><input className="input" dir="rtl" value={f.name_ar} onChange={(e) => setF({ ...f, name_ar: e.target.value })} /></Field>
+          <Field label={t("vm.fuel")}><select className="input" value={f.fuel} onChange={(e) => setF({ ...f, fuel: e.target.value })}>
+            {FUELS.map((o) => <option key={o} value={o}>{t(`vm.fuels.${o}`)}</option>)}</select></Field>
+          <Field label={t("vm.yearFrom")}><input className="input ltr" inputMode="numeric" value={f.year_from} onChange={(e) => setF({ ...f, year_from: e.target.value })} /></Field>
+          <Field label={t("vm.yearTo")}><input className="input ltr" inputMode="numeric" value={f.year_to} onChange={(e) => setF({ ...f, year_to: e.target.value })} /></Field>
+        </div>
+        <button className="btn" style={{ alignSelf: "flex-start" }} disabled={busy || !f.name.trim()} onClick={add}><Icon name="add" />{t("vm.addTrim")}</button>
       </div>
     </Modal>
   );
