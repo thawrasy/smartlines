@@ -26,16 +26,28 @@ public static partial class CatalogEndpoints
 
     private static void MapCsv(RouteGroupBuilder api)
     {
-        api.MapGet("/catalogs/{kind}/export", ExportCsvAsync);
-        api.MapPost("/catalogs/{kind}/import", ImportCsvAsync);
+        api.MapGet("/catalogs/{kind}/export", (string kind, HttpContext h, SqlConnectionFactory d) => ExportKindCsvAsync(CsvKind(kind), null, h, d));
+        api.MapPost("/catalogs/{kind}/import", (string kind, CatalogImportRequest b, HttpContext h, SqlConnectionFactory d) => ImportKindCsvAsync(CsvKind(kind), null, b, h, d));
+        // The items of one lookup list; a closed system list takes changes but no new item (LIST_CLOSED, FR-CAT-020).
+        api.MapGet("/lookups/{list}/export", (string list, HttpContext h, SqlConnectionFactory d) =>
+            ExportKindCsvAsync(LookupItems(0), async u => LookupItems((await ListOfAsync(u, null, list, h.RequestAborted)).Id), h, d));
+        api.MapPost("/lookups/{list}/import", (string list, CatalogImportRequest b, HttpContext h, SqlConnectionFactory d) =>
+            ImportKindCsvAsync(LookupItems(0), async (u, tx) =>
+            {
+                var l = await ListOfAsync(u, tx, list, h.RequestAborted);
+                return (LookupItems(l.Id), "LookupListId", l.Id, l.IsSystem && !l.AllowTenantItems);
+            }, b, h, d));
     }
+
+    /// <summary>The kind of a lookup list's items, with the column that ties a new item to its list, and whether the list is closed.</summary>
+    private delegate Task<(Kind Kind, string Column, int Id, bool Closed)> ImportScope(BoundUser u, SqlTransaction tx);
 
     private static Kind CsvKind(string kind) => kind == "lookup-lists" ? throw ApiProblemException.NotFound() : KindOf(kind);
 
-    private static async Task<IResult> ExportCsvAsync(string kind, HttpContext http, SqlConnectionFactory db)
+    private static async Task<IResult> ExportKindCsvAsync(Kind k, Func<BoundUser, Task<Kind>>? resolve, HttpContext http, SqlConnectionFactory db)
     {
-        var k = CsvKind(kind);
         await using var u = await BoundUser.OpenAsync(http, db, View);
+        if (resolve is not null) k = await resolve(u);
         await u.RequireAsync(k.Manage, http.RequestAborted);
         var rows = await RowsAsync(u.Connection, null, k, true, null, http.RequestAborted);
         var codes = await RefCodesAsync(u.Connection, null, k, rows, http.RequestAborted);
@@ -136,9 +148,8 @@ public static partial class CatalogEndpoints
     private static bool Same(object? a, object? b) =>
         string.Equals(Convert.ToString(a, CultureInfo.InvariantCulture), Convert.ToString(b, CultureInfo.InvariantCulture), StringComparison.Ordinal);
 
-    private static async Task<IResult> ImportCsvAsync(string kind, CatalogImportRequest body, HttpContext http, SqlConnectionFactory db)
+    private static async Task<IResult> ImportKindCsvAsync(Kind k, ImportScope? scope, CatalogImportRequest body, HttpContext http, SqlConnectionFactory db)
     {
-        var k = CsvKind(kind);
         var ct = http.RequestAborted;
         if (body.Csv is not { Length: > 0 } text || text.Length > 2_000_000) throw ApiProblemException.Invalid("VALIDATION_FAILED", "Send the CSV file, up to 2 MB.");
         var records = ParseCsv(text);
@@ -154,6 +165,13 @@ public static partial class CatalogEndpoints
         await using var u = await BoundUser.OpenAsync(http, db, View);
         await u.RequireAsync(k.Manage, ct);
         await using var tx = (SqlTransaction)await u.Connection.BeginTransactionAsync(ct);
+        (string Column, int Id)? owner = null;
+        var closed = false;
+        if (scope is not null)
+        {
+            var sc = await scope(u, tx);
+            (k, owner, closed) = (sc.Kind, (sc.Column, sc.Id), sc.Closed);
+        }
         var existing = (await RowsAsync(u.Connection, tx, k, true, null, ct)).ToDictionary(r => (string)r["Code"]!, StringComparer.Ordinal);
         var seen = new HashSet<string>(StringComparer.Ordinal);
         var results = new List<CatalogImportRow>();
@@ -218,10 +236,12 @@ public static partial class CatalogEndpoints
                     }
                     else
                     {
+                        if (closed) throw new ApiProblemException(409, "LIST_CLOSED", "Items of this list come from the defaults only.");
                         var nameAr = Cell("nameAr")?.Trim();
                         var nameEn = Cell("nameEn")?.Trim();
                         if (Names(nameAr, nameEn, true) is { } nameError) throw ApiProblemException.Invalid("VALIDATION_FAILED", nameError);
                         await CheckVariantGroupAsync(u, tx, k, values, null, ct);
+                        if (owner is { } o) values[o.Column] = o.Id;
                         var cols = new List<string> { "TenantId", "Code", "NameAr", "NameEn", "Description", "SortOrder", "IsActive", "ExternalCode", "CreatedBy" };
                         var p = new DynamicParameters(new { code, ar = nameAr, en = nameEn, d = Cell("description"), sort = sort ?? 0, act = active ?? true, ext = Cell("externalCode")?.Trim() });
                         var vals = new List<string> { "CAST(SESSION_CONTEXT(N'TenantId') AS INT)", "@code", "@ar", "@en", "@d", "@sort", "@act", "@ext", "CAST(SESSION_CONTEXT(N'UserId') AS BIGINT)" };

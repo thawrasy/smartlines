@@ -89,4 +89,32 @@ public sealed class S5RestTests(PlatformFixture f)
         Assert.Equal("Renamed, by import", items.Single(i => i.GetProperty("code").GetString() == firstCode).GetProperty("nameEn").GetString());
         Assert.Equal("Escrow", items.Single(i => i.GetProperty("code").GetString() == "ESCROW_IMPORT").GetProperty("nameEn").GetString());
     }
+
+    [Fact]
+    public async Task A_lookup_list_is_exported_and_imported_and_a_closed_list_takes_no_new_item()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var t = await f.CreateTenantAsync();
+        var p = t.Portal;
+        var res = await p.GetAsync("/api/v1/lookups/CONTACT_ROLE/export", ct);
+        Assert.Equal(HttpStatusCode.OK, res.StatusCode);
+        var lines = (await res.Content.ReadAsStringAsync(ct)).TrimStart('\uFEFF').Split("\r\n", StringSplitOptions.RemoveEmptyEntries);
+        Assert.Equal("code,nameAr,nameEn,description,sortOrder,isActive,externalCode,status,attributes", lines[0]);
+
+        var added = await p.PostOkAsync("/api/v1/lookups/CONTACT_ROLE/import", new { csv = "code,nameAr,nameEn\r\nLEGAL_ADVISOR,مستشار قانوني,Legal advisor\r\n", apply = true });
+        Assert.True(added.GetProperty("applied").GetBoolean(), added.ToString());
+        Assert.Contains((await p.GetJsonAsync("/api/v1/lookups/CONTACT_ROLE")).GetProperty("items").EnumerateArray(), i => i.GetProperty("code").GetString() == "LEGAL_ADVISOR");
+        // The item belongs to its own list only.
+        Assert.DoesNotContain((await p.GetJsonAsync("/api/v1/lookups/UNIT_TYPE")).GetProperty("items").EnumerateArray(), i => i.GetProperty("code").GetString() == "LEGAL_ADVISOR");
+
+        // A closed list: a new code is refused, a known one may be renamed.
+        var closed = await p.PostOkAsync("/api/v1/lookups/UNIT_TYPE/import", new { csv = "code,nameAr\r\nMY_UNIT,وحدتي\r\n", apply = true });
+        Assert.False(closed.GetProperty("applied").GetBoolean());
+        Assert.Equal("LIST_CLOSED", closed.GetProperty("rows").EnumerateArray().Single().GetProperty("error").GetString());
+        var unit = (await p.GetJsonAsync("/api/v1/lookups/UNIT_TYPE")).GetProperty("items").EnumerateArray().First();
+        var renamed = await p.PostOkAsync("/api/v1/lookups/UNIT_TYPE/import",
+            new { csv = $"code,nameAr,nameEn\r\n{unit.GetProperty("code").GetString()},اسم جديد,New name\r\n", apply = true });
+        Assert.True(renamed.GetProperty("applied").GetBoolean(), renamed.ToString());
+        Assert.Equal(1, renamed.GetProperty("updates").GetInt32());
+    }
 }
