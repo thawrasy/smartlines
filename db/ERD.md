@@ -67,9 +67,9 @@ flowchart LR
   fin -->|6| pricing
   fin -->|5| sales
   fin -->|2| ship
-  fleet -->|30| iam
+  fleet -->|31| iam
   fleet -->|2| net
-  fleet -->|4| ops
+  fleet -->|5| ops
   fleet -->|1| ptn
   fleet -->|6| ref
   frt -->|2| brd
@@ -136,7 +136,7 @@ flowchart LR
   sch -->|1| ops
   sch -->|1| ref
   sec -->|6| fin
-  sec -->|5| fleet
+  sec -->|6| fleet
   sec -->|1| gov
   sec -->|32| iam
   sec -->|6| ops
@@ -1465,6 +1465,10 @@ erDiagram
     bigint id PK
     bigint inspector_user_id FK
     bigint vehicle_id FK
+    uuid uid
+    bigint tag_id FK
+    bigint trip_id FK
+    text status
   }
   fleet_insurance_claim {
     bigint id PK
@@ -1596,6 +1600,8 @@ erDiagram
   fleet_vehicle_qr_tag {
     bigint id PK
     bigint vehicle_id FK
+    bigint issued_by FK
+    bigint revoked_by FK
   }
   fleet_vehicle_service_status {
     bigint id PK
@@ -1613,6 +1619,9 @@ erDiagram
     bigint incident_id FK
     bigint changed_by FK
     bigint release_document_id FK
+  }
+  iam_app_user {
+    ref external
   }
   iam_company {
     ref external
@@ -1675,6 +1684,8 @@ erDiagram
   fleet_boarding_validator }o..o| fleet_vehicle : "vehicle_id"
   fleet_line_permit_vehicle }o--|| fleet_vehicle : "vehicle_id"
   fleet_license_record }o..o| fleet_vehicle : "subject_vehicle_id"
+  fleet_field_check_log }o..o| fleet_vehicle_qr_tag : "tag_id"
+  fleet_vehicle_qr_tag }o..o| iam_app_user : "issued_by"
   fleet_seat_layout }o..o| iam_company : "company_id"
   fleet_seat_price_rule }o--|| iam_company : "company_id"
   fleet_crew_profile }o--|| iam_company : "company_id"
@@ -1711,6 +1722,7 @@ erDiagram
   fleet_vehicle_status_history }o..o| ops_incident : "incident_id"
   fleet_vehicle_service_status }o..o| ops_incident : "incident_id"
   fleet_driving_hours_log }o..o| ops_trip : "trip_id"
+  fleet_field_check_log }o..o| ops_trip : "trip_id"
   fleet_license_record }o..o| ptn_partner : "subject_partner_id"
   fleet_insurance_policy }o..o| ref_insurer : "insurer_id"
   fleet_vehicle }o--|| ref_vehicle_class : "vehicle_class"
@@ -4316,6 +4328,10 @@ erDiagram
     bigint granted_by FK
     bigint revoked_by FK
   }
+  sec_field_check_body {
+    bigint check_id PK
+    bigint authority_id FK
+  }
   sec_fraud_case {
     bigint id PK
     text status
@@ -4459,6 +4475,9 @@ erDiagram
   fin_withdrawal_request {
     ref external
   }
+  fleet_field_check_log {
+    ref external
+  }
   fleet_license_record {
     ref external
   }
@@ -4510,6 +4529,7 @@ erDiagram
   sec_authority_order }o..o| fin_wallet : "target_wallet_id"
   sec_risk_assessment }o..o| fin_withdrawal_request : "subject_withdrawal_id"
   sec_fraud_case }o..o| fin_withdrawal_request : "subject_withdrawal_id"
+  sec_field_check_body }o--|| fleet_field_check_log : "check_id"
   sec_verification_job }o..o| fleet_license_record : "subject_license_id"
   sec_authority_alert }o..o| fleet_vehicle : "vehicle_id"
   sec_screening_request }o..o| fleet_vehicle : "subject_vehicle_id"
@@ -4567,6 +4587,7 @@ erDiagram
   sec_authority_data_request }o--|| sec_authority_profile : "authority_id"
   sec_gov_adapter_config }o--|| sec_authority_profile : "authority_id"
   sec_authority_scope }o--|| sec_authority_profile : "authority_id"
+  sec_field_check_body }o--|| sec_authority_profile : "authority_id"
   sec_manifest_submission }o..o| sec_authority_profile : "authority_id"
   sec_authority_alert }o..o| sec_authority_profile : "authority_id"
   sec_verification_job }o--|| sec_gov_adapter_config : "adapter_id"
