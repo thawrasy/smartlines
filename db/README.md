@@ -16,7 +16,7 @@ supporting index, except references to lookup lists and to the staff member who 
 | Schemas | 26 separate schemas, each with its own privileges |
 | Tables | 583 tables (8 partitioned), 6,332 columns, 1,743 foreign keys |
 | Security | row-level security on 583 of 583 tables, 1,053 policies; 514 triggers, 547 functions |
-| Tests | 1,047 automated checks against a freshly built database (`db/tests/run.sh`) |
+| Tests | 1,050 automated checks against a freshly built database (`db/tests/run.sh`) |
 | Design | [Database design and ERD document](../docs/database/) with diagrams in the study's colors |
 | Docs | [Data dictionary](DATA_DICTIONARY.md) · [ERD diagrams](ERD.md) (both generated from the database) |
 <!-- stats:end -->
