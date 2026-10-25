@@ -4,6 +4,7 @@ import { useI18n } from "../../i18n";
 import { PageHead } from "../../components/layout";
 import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Status, useLoad, useToast } from "../../components/ui";
 import { VehicleEditor } from "./Edits";
+import { AxleSelect, type Colour, ColourName, ColourPicker, type RefLists, useRefLists } from "../../components/RefLists";
 import type { IconName } from "../../components/icons";
 
 // One fleet for every vehicle (owner's notes, 1173): coaches, buses, minibuses, vans, trucks, tractor heads with their
@@ -15,9 +16,9 @@ type Use = "COACH" | "CITY_BUS" | "MINIBUS" | "VAN" | "TRUCK" | "TRACTOR" | "REN
 interface Options { lines: string[]; uses: Use[]; trailer_types: string[]; rental_classes: { code: string; name: string }[];
   rental_branches: { id: number; name: string }[] }
 interface Unit { uid: string; fleet_use: string; plate_no: string; make: string | null; model: string | null; manufacture_year: number | null;
-  colour: string | null; fuel_type: string | null; passenger_seats: number | null; odometer_km: number | null; status: string;
+  colour_code: string | null; fuel_type: string | null; passenger_seats: number | null; odometer_km: number | null; status: string;
   next_expiry: string | null; insured_until: string | null; insurer: string | null; service_due: boolean | null; trailer_plate: string | null }
-interface Trailer { uid: string; plate_no: string; trailer_type: string; payload_kg: number; axles: number; status: string;
+interface Trailer { uid: string; plate_no: string; trailer_type: string; payload_kg: number; axles: number; axle_config: string | null; colour_code: string | null; status: string;
   next_expiry: string | null; insured_until: string | null; head_plate: string | null }
 interface Insurer { uid: string; name_en: string; name_ar: string }
 interface Model { uid: string; name: string; name_ar?: string | null; vehicle_class: string; trims?: { uid: string; name: string; fuel: string }[] }
@@ -33,6 +34,8 @@ export function CarrierFleet() {
   const { t, date } = useI18n();
   const opts = useLoad((signal) => api.get<Options>("/api/fleet/options", undefined, { signal }));
   const units = useLoad((signal) => api.get<{ vehicles: Unit[]; trailers: Trailer[] }>("/api/fleet/units", undefined, { signal }));
+  const lists = useRefLists();
+  const colours = lists.data?.colours ?? [];
   const [filter, setFilter] = useState<string>("ALL");
   const [adding, setAdding] = useState(false);
   const [addingTrailer, setAddingTrailer] = useState(false);
@@ -81,7 +84,7 @@ export function CarrierFleet() {
                   <td className="ltr"><b>{v.plate_no}</b>{v.trailer_plate && <div className="small muted"><Icon name="rv_hookup" /> {v.trailer_plate}</div>}</td>
                   <td className="small"><Icon name={USE_ICON[v.fleet_use] ?? "directions_car"} /> {t(`fl.use.${v.fleet_use}`)}</td>
                   <td className="small">{[v.make, v.model, v.manufacture_year].filter(Boolean).join(" ") || "—"}
-                    {v.colour && <span className="muted"> · {v.colour}</span>}</td>
+                    {v.colour_code && <span className="muted"> · <ColourName code={v.colour_code} colours={colours} /></span>}</td>
                   <td className="num">{v.odometer_km != null ? v.odometer_km.toLocaleString("en-US") : "—"}</td>
                   <td className="small">{v.insured_until ? <>{v.insurer ?? ""}<div className="muted">{date(v.insured_until)}</div></> : <span className="chip red">{t("fl.noInsurance")}</span>}</td>
                   <td className="small">{v.next_expiry ? date(v.next_expiry) : "—"}</td>
@@ -92,12 +95,12 @@ export function CarrierFleet() {
             {matching.length > shown.length && <div className="row" style={{ justifyContent: "center", marginTop: 12 }}>
               <button className="btn tonal" onClick={() => setLimit(limit + 50)}>{t("fl.more", { shown: shown.length, total: matching.length })}</button></div>}
           </div>}
-          {(filter === "ALL" || filter === "TRAILERS") && trailers.length > 0 && <TrailerTable trailers={trailers} onChanged={units.reload} />}
+          {(filter === "ALL" || filter === "TRAILERS") && trailers.length > 0 && <TrailerTable trailers={trailers} lists={lists.data} onChanged={units.reload} />}
         </>);
       }}</Loaded>}
-      {adding && opts.data && <AddVehicle options={opts.data} onClose={() => setAdding(false)} onDone={() => { setAdding(false); units.reload(); }} />}
-      {addingTrailer && <AddTrailer onClose={() => setAddingTrailer(false)} onDone={() => { setAddingTrailer(false); units.reload(); }} />}
-      {open && <VehicleFile uid={open} trailers={units.data?.trailers ?? []} onClose={() => { setOpen(null); units.reload(); }} />}
+      {adding && opts.data && lists.data && <AddVehicle options={opts.data} lists={lists.data} onClose={() => setAdding(false)} onDone={() => { setAdding(false); units.reload(); }} />}
+      {addingTrailer && lists.data && <AddTrailer lists={lists.data} onClose={() => setAddingTrailer(false)} onDone={() => { setAddingTrailer(false); units.reload(); }} />}
+      {open && <VehicleFile uid={open} colours={colours} trailers={units.data?.trailers ?? []} onClose={() => { setOpen(null); units.reload(); }} />}
     </div>
   );
 }
@@ -124,7 +127,7 @@ const emptyCover = { insurer_uid: "", policy_no: "", coverage_type: "THIRD_PARTY
 const coverOk = (f: Record<string, string>) => f.insurer_uid && f.policy_no.length >= 3 && f.issue_date && f.expiry_date;
 const num = (v: string) => (v.trim() ? Number(v) : null);
 
-function AddVehicle({ options, onClose, onDone }: { options: Options; onClose: () => void; onDone: () => void }) {
+function AddVehicle({ options, lists, onClose, onDone }: { options: Options; lists: RefLists; onClose: () => void; onDone: () => void }) {
   const { t, locale } = useI18n();
   const toast = useToast();
   const insurers = useInsurers();
@@ -132,7 +135,7 @@ function AddVehicle({ options, onClose, onDone }: { options: Options; onClose: (
   const layouts = useLoad((signal) => api.get<{ layouts: { uid: string; name: string; total_seats: number }[] }>("/api/carrier/seat-layouts", undefined, { signal }).then((r) => r.layouts));
   const [use, setUse] = useState<Use | null>(options.uses.length === 1 ? options.uses[0] : null);
   const [f, setF] = useState<Record<string, string>>({ plate_no: "", plate_country: "SY", chassis_no: "", machine_no: "", make_uid: "", model_uid: "",
-    trim_uid: "", manufacture_year: "", colour: "", fuel_type: "", odometer_km: "", seat_layout_uid: "", passenger_seats: "", cargo_capacity_kg: "",
+    trim_uid: "", manufacture_year: "", colour_code: "", fuel_type: "", odometer_km: "", seat_layout_uid: "", passenger_seats: "", cargo_capacity_kg: "",
     gvw_kg: "", tare_kg: "", axle_config: "", rental_class: "", home_branch_id: "", taxi_licence_no: "", taxi_licence_expiry: "" });
   const [cover, setCover] = useState<Record<string, string>>(emptyCover);
   const [busy, setBusy] = useState(false);
@@ -148,7 +151,7 @@ function AddVehicle({ options, onClose, onDone }: { options: Options; onClose: (
     try {
       await api.post("/api/fleet/vehicles", {
         fleet_use: use, plate_no: f.plate_no, plate_country: f.plate_country || "SY", chassis_no: f.chassis_no, machine_no: f.machine_no || null,
-        model_uid: f.model_uid || null, trim_uid: f.trim_uid || null, manufacture_year: num(f.manufacture_year), colour: f.colour || null,
+        model_uid: f.model_uid || null, trim_uid: f.trim_uid || null, manufacture_year: num(f.manufacture_year), colour_code: f.colour_code || null,
         fuel_type: f.fuel_type || null, odometer_km: num(f.odometer_km), seat_layout_uid: f.seat_layout_uid || null, passenger_seats: num(f.passenger_seats),
         cargo_capacity_kg: num(f.cargo_capacity_kg), gvw_kg: num(f.gvw_kg), tare_kg: num(f.tare_kg), axle_config: f.axle_config || null,
         rental_class: f.rental_class || null, home_branch_id: num(f.home_branch_id), taxi_licence_no: f.taxi_licence_no || null,
@@ -161,7 +164,8 @@ function AddVehicle({ options, onClose, onDone }: { options: Options; onClose: (
   return (
     <Modal title={use ? `${t("fl.add")} · ${t(`fl.use.${use}`)}` : t("fl.add")} onClose={onClose} wide
            actions={<><button className="btn text" onClick={onClose}>{t("common.cancel")}</button>
-             {use && <button className="btn" disabled={busy || f.plate_no.length < 3 || f.chassis_no.length < 5 || !coverOk(cover)} onClick={save}>{t("common.save")}</button>}</>}>
+             {use && <button className="btn" disabled={busy || f.plate_no.length < 3 || f.chassis_no.length < 5 || !coverOk(cover)
+               || (CLASS_OF(use) === "TRUCK" && (!f.axle_config || !f.gvw_kg || !f.tare_kg))} onClick={save}>{t("common.save")}</button>}</>}>
       <div className="stack">
         <ErrorBox error={error} />
         <div><div className="small muted" style={{ marginBottom: 6 }}>{t("fl.pickKind")}</div>
@@ -180,18 +184,20 @@ function AddVehicle({ options, onClose, onDone }: { options: Options; onClose: (
               <option value="">{t("finance.choose")}</option>{(make?.models ?? []).map((m) => <option key={m.uid} value={m.uid}>{m.name}{m.name_ar ? ` · ${m.name_ar}` : ""}</option>)}</select></Field>
             <Field label={t("fl.trim")}><select className="input" value={f.trim_uid} disabled={!model?.trims?.length} onChange={(e) => set("trim_uid", e.target.value)}>
               <option value="">—</option>{(model?.trims ?? []).map((x) => <option key={x.uid} value={x.uid}>{x.name} · {t(`vm.fuels.${x.fuel}`)}</option>)}</select></Field>
-            {input("manufacture_year", t("fl.year"))}{input("colour", t("fl.colour"), false)}
+            {input("manufacture_year", t("fl.year"))}
             <Field label={t("vm.fuel")}><select className="input" value={f.fuel_type} onChange={(e) => set("fuel_type", e.target.value)}>
               <option value="">—</option>{FUELS.map((x) => <option key={x} value={x}>{t(`vm.fuels.${x}`)}</option>)}</select></Field>
             {input("odometer_km", t("fl.odometer"))}
           </div>
+          <div className="field"><span>{t("fl.colour")}</span>
+            <ColourPicker value={f.colour_code} onChange={(c) => set("colour_code", c)} colours={lists.colours} label={t("fl.colour")} /></div>
           <h4>{t("fl.capacity")}</h4>
           <div className="grid cols-3">
             {BUS.includes(use) && <Field label={t("layout.title")}><select className="input" value={f.seat_layout_uid} onChange={(e) => set("seat_layout_uid", e.target.value)}>
               <option value="">{t("finance.choose")}</option>{(layouts.data ?? []).map((l) => <option key={l.uid} value={l.uid}>{l.name} ({l.total_seats})</option>)}</select></Field>}
             {CLASS_OF(use) === "CAR" && input("passenger_seats", t("fl.seats"))}
             {CLASS_OF(use) === "TRUCK" && <>{input("cargo_capacity_kg", t("fl.payload"))}{input("gvw_kg", t("fl.gvw"))}{input("tare_kg", t("fl.tare"))}
-              {input("axle_config", t("fl.axles"))}</>}
+              <Field label={t("fl.axles")}><AxleSelect value={f.axle_config} onChange={(c) => set("axle_config", c)} axles={lists.axle_configs} label={t("fl.axles")} /></Field></>}
             {use === "RENTAL_CAR" && <>
               <Field label={t("fl.rentalClass")}><select className="input" value={f.rental_class} onChange={(e) => set("rental_class", e.target.value)}>
                 <option value="">{t("finance.choose")}</option>{options.rental_classes.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}</select></Field>
@@ -208,11 +214,11 @@ function AddVehicle({ options, onClose, onDone }: { options: Options; onClose: (
   );
 }
 
-function AddTrailer({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+function AddTrailer({ lists, onClose, onDone }: { lists: RefLists; onClose: () => void; onDone: () => void }) {
   const { t } = useI18n();
   const insurers = useInsurers();
   const [f, setF] = useState<Record<string, string>>({ plate_no: "", plate_country: "SY", chassis_no: "", trailer_type: "CURTAIN", payload_kg: "",
-    axles: "3", make: "", manufacture_year: "", licence_no: "", licence_issue: "", licence_expiry: "" });
+    axle_config: "T3", colour_code: "", make: "", manufacture_year: "", licence_no: "", licence_issue: "", licence_expiry: "" });
   const [cover, setCover] = useState<Record<string, string>>(emptyCover);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
@@ -221,7 +227,7 @@ function AddTrailer({ onClose, onDone }: { onClose: () => void; onDone: () => vo
     setBusy(true); setError(null);
     try {
       await api.post("/api/fleet/trailers", { ...f, chassis_no: f.chassis_no || null, make: f.make || null, payload_kg: Number(f.payload_kg),
-        axles: Number(f.axles), manufacture_year: num(f.manufacture_year), insurance: coverOk(cover) ? cover : null });
+        colour_code: f.colour_code || null, manufacture_year: num(f.manufacture_year), insurance: coverOk(cover) ? cover : null });
       onDone();
     } catch (e) { setError(e); } finally { setBusy(false); }
   };
@@ -230,7 +236,7 @@ function AddTrailer({ onClose, onDone }: { onClose: () => void; onDone: () => vo
   return (
     <Modal title={t("fl.addTrailer")} onClose={onClose} wide
            actions={<><button className="btn text" onClick={onClose}>{t("common.cancel")}</button>
-             <button className="btn" disabled={busy || f.plate_no.length < 3 || !f.payload_kg || !f.licence_no || !f.licence_issue || !f.licence_expiry} onClick={save}>{t("common.save")}</button></>}>
+             <button className="btn" disabled={busy || f.plate_no.length < 3 || !f.payload_kg || !f.axle_config || !f.licence_no || !f.licence_issue || !f.licence_expiry} onClick={save}>{t("common.save")}</button></>}>
       <div className="stack">
         <ErrorBox error={error} />
         <p className="small muted">{t("fl.trailerHint")}</p>
@@ -238,8 +244,12 @@ function AddTrailer({ onClose, onDone }: { onClose: () => void; onDone: () => vo
           {input("plate_no", t("fl.trailerPlate"))}{input("plate_country", t("fl.plateCountry"))}{input("chassis_no", t("fl.chassis"))}
           <Field label={t("fl.trailerType")}><select className="input" value={f.trailer_type} onChange={(e) => set("trailer_type", e.target.value)}>
             {["FLATBED", "CURTAIN", "REEFER", "TANKER", "CONTAINER_CHASSIS", "LOWBED", "TIPPER", "BOX"].map((x) => <option key={x} value={x}>{t(`fl.tt.${x}`)}</option>)}</select></Field>
-          {input("payload_kg", t("fl.payload"))}{input("axles", t("fl.axleCount"))}{input("make", t("fl.make"))}{input("manufacture_year", t("fl.year"))}
+          {input("payload_kg", t("fl.payload"))}
+          <Field label={t("fl.axleCount")}><AxleSelect value={f.axle_config} onChange={(c) => set("axle_config", c)} axles={lists.trailer_axles} label={t("fl.axleCount")} /></Field>
+          {input("make", t("fl.make"))}{input("manufacture_year", t("fl.year"))}
         </div>
+        <div className="field"><span>{t("fl.colour")}</span>
+          <ColourPicker value={f.colour_code} onChange={(c) => set("colour_code", c)} colours={lists.colours} label={t("fl.colour")} /></div>
         <h4>{t("fl.trailerLicence")}</h4>
         <div className="grid cols-3">{input("licence_no", t("fl.licenceNo"))}{input("licence_issue", t("fl.issue"), "date")}{input("licence_expiry", t("fl.expiry"), "date")}</div>
         <h4>{t("fl.insurance")} ({t("common.optional")})</h4>
@@ -249,11 +259,13 @@ function AddTrailer({ onClose, onDone }: { onClose: () => void; onDone: () => vo
   );
 }
 
-function TrailerTable({ trailers, onChanged }: { trailers: Trailer[]; onChanged: () => void }) {
+function TrailerTable({ trailers, lists, onChanged }: { trailers: Trailer[]; lists: RefLists | null; onChanged: () => void }) {
   const { t, date } = useI18n();
   const toast = useToast();
   const [edit, setEdit] = useState<Trailer | null>(null);
-  const [f, setF] = useState({ plate_no: "", reason: "" });
+  const [f, setF] = useState({ plate_no: "", axle_config: "", colour_code: "", reason: "" });
+  const body = (x: Trailer) => Object.fromEntries(Object.entries(f).filter(([k, v]) => k === "reason" ? v.trim() : v !== ((x as unknown as Record<string, unknown>)[k] ?? "")));
+  const plateChanged = edit != null && f.plate_no !== edit.plate_no;
   const [error, setError] = useState<unknown>(null);
   return (
     <div className="card">
@@ -262,20 +274,24 @@ function TrailerTable({ trailers, onChanged }: { trailers: Trailer[]; onChanged:
         <thead><tr><th>{t("fl.trailerPlate")}</th><th>{t("fl.trailerType")}</th><th>{t("fl.payload")}</th><th>{t("fl.pulledBy")}</th>
           <th>{t("fl.insurance")}</th><th>{t("fl.nextExpiry")}</th><th>{t("common.status")}</th><th>{t("common.actions")}</th></tr></thead>
         <tbody>{trailers.map((x) => (
-          <tr key={x.uid}><td className="ltr"><b>{x.plate_no}</b></td><td className="small">{t(`fl.tt.${x.trailer_type}`)} · {x.axles} {t("fl.axleShort")}</td>
+          <tr key={x.uid}><td className="ltr"><b>{x.plate_no}</b></td><td className="small">{t(`fl.tt.${x.trailer_type}`)} · {x.axles} {t("fl.axleShort")}
+            {x.colour_code && <> · <ColourName code={x.colour_code} colours={lists?.colours ?? []} /></>}</td>
             <td className="num">{x.payload_kg.toLocaleString("en-US")}</td><td className="ltr small">{x.head_plate ?? "—"}</td>
             <td className="small">{x.insured_until ? date(x.insured_until) : "—"}</td><td className="small">{x.next_expiry ? date(x.next_expiry) : "—"}</td>
             <td><Status value={x.status} /></td>
-            <td><button className="btn text small" onClick={() => { setError(null); setEdit(x); setF({ plate_no: x.plate_no, reason: "" }); }}><Icon name="edit" />{t("edit.edit")}</button></td></tr>))}</tbody>
+            <td><button className="btn text small" onClick={() => { setError(null); setEdit(x); setF({ plate_no: x.plate_no, axle_config: x.axle_config ?? "", colour_code: x.colour_code ?? "", reason: "" }); }}><Icon name="edit" />{t("edit.edit")}</button></td></tr>))}</tbody>
       </table></div>
       {edit && <Modal title={`${t("edit.edit")} · ${edit.plate_no}`} onClose={() => setEdit(null)}
                       actions={<><button className="btn text" onClick={() => setEdit(null)}>{t("common.cancel")}</button>
-                        <button className="btn" disabled={f.plate_no === edit.plate_no || f.reason.trim().length < 3} onClick={async () => {
-                          try { await api.patch(`/api/fleet/trailers/${edit.uid}`, f); toast(t("common.saved")); setEdit(null); onChanged(); } catch (e) { setError(e); }
+                        <button className="btn" disabled={Object.keys(body(edit)).filter((k) => k !== "reason").length === 0 || (plateChanged && f.reason.trim().length < 3)} onClick={async () => {
+                          try { await api.patch(`/api/fleet/trailers/${edit.uid}`, body(edit)); toast(t("common.saved")); setEdit(null); onChanged(); } catch (e) { setError(e); }
                         }}>{t("common.save")}</button></>}>
         <div className="stack"><ErrorBox error={error} />
           <Field label={`${t("fl.trailerPlate")} *`}><input className="input ltr" value={f.plate_no} onChange={(e) => setF({ ...f, plate_no: e.target.value })} /></Field>
-          <Field label={t("edit.reasonRequired")} hint={t("edit.regulatedHint")}><input className="input" value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })} /></Field>
+          <Field label={t("fl.axleCount")}><AxleSelect value={f.axle_config} onChange={(c) => setF({ ...f, axle_config: c })} axles={lists?.trailer_axles ?? []} label={t("fl.axleCount")} /></Field>
+          <div className="field"><span>{t("fl.colour")}</span>
+            <ColourPicker value={f.colour_code} onChange={(c) => setF({ ...f, colour_code: c })} colours={lists?.colours ?? []} label={t("fl.colour")} /></div>
+          <Field label={plateChanged ? t("edit.reasonRequired") : t("edit.reason")} hint={t("edit.regulatedHint")}><input className="input" value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })} /></Field>
         </div>
       </Modal>}
     </div>
@@ -294,7 +310,7 @@ interface FileData {
   history: { changed_at: string; field: string; old_value: string | null; new_value: string | null; reason: string | null }[];
 }
 
-function VehicleFile({ uid, trailers, onClose }: { uid: string; trailers: Trailer[]; onClose: () => void }) {
+function VehicleFile({ uid, colours, trailers, onClose }: { uid: string; colours: Colour[]; trailers: Trailer[]; onClose: () => void }) {
   const { t, date, dateTime } = useI18n();
   const toast = useToast();
   const insurers = useInsurers();
@@ -333,7 +349,7 @@ function VehicleFile({ uid, trailers, onClose }: { uid: string; trailers: Traile
               <Fact label={t("fl.chassis")}><span className="ltr">{d.vehicle.chassis_no}</span></Fact>
               <Fact label={t("fl.odometer")}>{d.vehicle.odometer_km?.toLocaleString("en-US") ?? "—"}</Fact>
               <Fact label={t("vm.fuel")}>{d.vehicle.fuel_type ? t(`vm.fuels.${d.vehicle.fuel_type}`) : "—"}</Fact>
-              <Fact label={t("fl.colour")}>{d.vehicle.colour ?? "—"}</Fact>
+              <Fact label={t("fl.colour")}><ColourName code={d.vehicle.colour_code} colours={colours} /></Fact>
             </div>
             <h4>{t("fl.licences")}</h4>
             <div className="table-wrap" tabIndex={0}><table className="table"><thead><tr><th>{t("fl.licenceKind")}</th><th>{t("fl.licenceNo")}</th><th>{t("fl.issuer")}</th><th>{t("fl.expiry")}</th><th>{t("common.status")}</th></tr></thead>

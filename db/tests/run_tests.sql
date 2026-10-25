@@ -5254,6 +5254,35 @@ INSERT INTO rent.rental_inspection (contract_id, stage, odometer_km, fuel_level_
 SELECT pg_temp.ok((SELECT driven = 750 AND days = 3 AND allowed = 600 AND extra = 150 AND extra_charge = 2250000 FROM rent.hire_distance(:ct1173))
   AND (SELECT odometer_km = 12750 FROM fleet.vehicle WHERE id = :rc1173),
   'Unified fleet (1173): three days at 200 km allow 600; 150 extra km are charged, and the car''s odometer moves on');
+-- Colour and axle lists (1174): chosen, never typed; a trailer's axles follow its arrangement
+SELECT pg_temp.ok((SELECT count(*) >= 20 FROM ref.vehicle_colour WHERE status = 'ACTIVE')
+  AND (SELECT count(*) = 6 FROM ref.vehicle_colour WHERE code IN ('WHITE', 'BLACK', 'BROWN', 'BEIGE', 'SILVER', 'GREY')),
+  'Lists (1174): the basic car colours are in the list');
+SELECT pg_temp.expect_error($$INSERT INTO ref.vehicle_colour (code, name_en, name_ar) VALUES ('WHITE_2', 'WHITE', 'xy')$$,
+  'vehicle_colour_name_en_uq', 'Lists (1174): one colour is not entered twice under another spelling of its name');
+SELECT pg_temp.expect_error($$INSERT INTO ref.axle_config (code, kind, axles, driven_axles, name_en, name_ar) VALUES ('6x4', 'VEHICLE', 3, 2, 'Again', 'Again')$$,
+  'axle_config_pkey', 'Lists (1174): an axle arrangement is added once');
+SELECT pg_temp.expect_error($$INSERT INTO ref.axle_config (code, kind, axles, driven_axles, name_en, name_ar) VALUES ('6x8', 'VEHICLE', 3, 4, 'Bad', 'Bad')$$,
+  'axle_config_shape_ck', 'Lists (1174): a wheel formula agrees with its axles and driven axles');
+SELECT pg_temp.expect_error($$UPDATE ref.vehicle_colour SET code = 'OFF_WHITE' WHERE code = 'WHITE'$$,
+  'CODE_FIXED', 'Lists (1174): the code a vehicle points at never changes');
+SELECT pg_temp.expect_error($$UPDATE ref.vehicle_colour SET name_en = 'Snow' WHERE code = 'WHITE'$$,
+  'COLOUR_CHANGE_REASON', 'Lists (1174): a colour''s name changes only with a reason, and is kept');
+SELECT pg_temp.expect_error(format('UPDATE fleet.vehicle SET colour_code = ''PURPLISH'' WHERE id = %s', :tr1173),
+  'colour_code_fkey', 'Lists (1174): a vehicle''s colour is one from the list');
+UPDATE fleet.vehicle SET colour_code = 'SILVER' WHERE id = :tr1173;
+SELECT pg_temp.ok((SELECT new_value = 'SILVER' FROM fleet.vehicle_change WHERE vehicle_id = :tr1173 AND field = 'colour_code' ORDER BY id DESC LIMIT 1),
+  'Lists (1174): a change of colour is kept in the vehicle''s history');
+UPDATE ref.vehicle_colour SET status = 'RETIRED' WHERE code = 'PINK';
+SELECT pg_temp.expect_error(format('UPDATE fleet.vehicle SET colour_code = ''PINK'' WHERE id = %s', :tr1173),
+  'COLOUR_RETIRED', 'Lists (1174): a retired colour is not chosen again');
+SELECT pg_temp.expect_error(format('UPDATE fleet.trailer SET axle_config = ''6x4'' WHERE id = %s', :tl1173),
+  'AXLE_KIND', 'Lists (1174): a trailer takes a trailer axle group, not a wheel formula');
+UPDATE fleet.trailer SET axle_config = 'T2' WHERE id = :tl1173;
+SELECT pg_temp.ok((SELECT axles = 2 FROM fleet.trailer WHERE id = :tl1173),
+  'Lists (1174): the trailer''s number of axles follows its arrangement');
+SELECT pg_temp.expect_error(format($$INSERT INTO fleet.truck_unit (vehicle_id, axle_config, gvw_kg, tare_kg) VALUES (%s, 'T3', 40000, 9000)$$, :tr1173),
+  'AXLE_KIND', 'Lists (1174): a truck takes a wheel formula, not a trailer group');
 ROLLBACK;
 
 \echo '=== ALL TESTS PASSED ==='

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api } from "../../api";
 import { useI18n } from "../../i18n";
+import { ColourPicker, useRefLists } from "../../components/RefLists";
 import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Status, useLoad, useToast } from "../../components/ui";
 
 // Records are edited, and every edit is kept (owner's note, 1170). A vehicle's plate, chassis and engine numbers, and
@@ -10,7 +11,7 @@ import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Status, useLoad, useToast 
 interface VehicleDetail {
   vehicle: { uid: string; plate_no: string; chassis_no: string; machine_no: string | null; vehicle_type: string; make: string | null; model: string | null;
     manufacture_year: number | null; passenger_seats: number; cargo_capacity_kg: number | null; fuel_tank_l: number | null; ownership_type: string;
-    status: string; block_reason: string | null };
+    colour_code: string | null; status: string; block_reason: string | null };
   licences: Licence[];
   history: { changed_at: string; field: string; old_value: string | null; new_value: string | null; reason: string | null; changed_by: string | null }[];
 }
@@ -23,6 +24,7 @@ export function VehicleEditor({ uid, onClose }: { uid: string; onClose: () => vo
   const { t, date } = useI18n();
   const toast = useToast();
   const state = useLoad(() => api.get<VehicleDetail>(`/api/carrier/vehicles/${uid}`), [uid]);
+  const lists = useRefLists();
   const [tab, setTab] = useState<"details" | "licences" | "history">("details");
   const [f, setF] = useState<Record<string, string> | null>(null);
   const [reason, setReason] = useState("");
@@ -34,7 +36,7 @@ export function VehicleEditor({ uid, onClose }: { uid: string; onClose: () => vo
   const form = f ?? (v ? {
     plate_no: v.plate_no, chassis_no: v.chassis_no, machine_no: v.machine_no ?? "", vehicle_type: v.vehicle_type, make: v.make ?? "", model: v.model ?? "",
     manufacture_year: v.manufacture_year ? String(v.manufacture_year) : "", cargo_capacity_kg: v.cargo_capacity_kg != null ? String(v.cargo_capacity_kg) : "",
-    fuel_tank_l: v.fuel_tank_l != null ? String(v.fuel_tank_l) : "", ownership_type: v.ownership_type, status: v.status } : null);
+    fuel_tank_l: v.fuel_tank_l != null ? String(v.fuel_tank_l) : "", colour_code: v.colour_code ?? "", ownership_type: v.ownership_type, status: v.status } : null);
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => form && setF({ ...form, [k]: e.target.value });
   const original = (k: string) => {
     if (!v) return "";
@@ -93,6 +95,8 @@ export function VehicleEditor({ uid, onClose }: { uid: string; onClose: () => vo
                   {(HELD.includes(d.vehicle.status) ? [d.vehicle.status] : ["ACTIVE", "OUT_OF_SERVICE", "RETIRED"]).map((k) => <option key={k} value={k}>{t(`edit.vstatus.${k}`)}</option>)}
                 </select></Field>
             </div>
+            <div className="field"><span>{t("fl.colour")}</span>
+              <ColourPicker value={form.colour_code} onChange={(c) => setF({ ...form, colour_code: c })} colours={lists.data?.colours ?? []} label={t("fl.colour")} /></div>
             <Field label={needsReason ? t("edit.reasonRequired") : `${t("edit.reason")} (${t("common.optional")})`} hint={t("edit.reasonHint")}>
               <input className="input" maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
           </>)}

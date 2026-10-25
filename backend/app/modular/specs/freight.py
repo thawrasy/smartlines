@@ -11,8 +11,8 @@ RESOURCES = [
              c("vehicle_id axle_config gvw_kg tare_kg fuel_type gps_device_ref hazmat_certified cross_border_permit_no cross_border_permit_expiry"),
              OPS, order="vehicle_id DESC", group="fleet"),
     Resource("trailer", M, "fleet.trailer",
-             c("plate_no plate_country trailer_type payload_kg volume_m3 axles container_capacity ownership_type status"),
-             c("plate_no plate_country chassis_no trailer_type payload_kg volume_m3 length_m axles container_capacity "
+             c("plate_no plate_country trailer_type payload_kg volume_m3 axle_config axles colour_code container_capacity ownership_type status"),
+             c("plate_no plate_country chassis_no trailer_type payload_kg volume_m3 length_m axle_config colour_code container_capacity "
                "temp_min_c temp_max_c ownership_type owner_party_id"), OPS, company_col="company_id", group="fleet",
              actions=(Action("block", {"status": "BLOCKED"}, {"status": ["ACTIVE", "PENDING"]}),
                       Action("activate", {"status": "ACTIVE"}, {"status": ["PENDING", "BLOCKED"]}),

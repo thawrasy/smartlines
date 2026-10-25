@@ -169,6 +169,7 @@ class VehicleEdit(BaseModel):
     manufacture_year: Optional[int] = Field(default=None, ge=1970, le=2100)
     cargo_capacity_kg: Optional[int] = Field(default=None, ge=0, le=60000)
     fuel_tank_l: Optional[int] = Field(default=None, ge=0, le=3000)
+    colour_code: Optional[str] = Field(default=None, pattern=r"^[A-Z][A-Z0-9_]{1,29}$")   # from the colour list (1174)
     ownership_type: Optional[Literal["OWNED", "LEASED"]] = None
     # the carrier takes a vehicle out of service and back; blocking and impounding are the platform's and the authorities'
     status: Optional[Literal["ACTIVE", "OUT_OF_SERVICE", "RETIRED"]] = None
@@ -191,7 +192,7 @@ async def vehicle_detail(uid: uuid.UUID, request: Request, pr: Principal = Depen
         v = await _own_vehicle(conn, pr, uid)
         rec = await conn.fetchrow(
             """SELECT v.uid, v.plate_no, v.chassis_no, v.machine_no, v.vehicle_type, v.make, v.model, m.uid AS model_uid,
-                      v.manufacture_year, v.passenger_seats, v.cargo_capacity_kg, v.fuel_tank_l, v.ownership_type, v.status,
+                      v.manufacture_year, v.passenger_seats, v.cargo_capacity_kg, v.fuel_tank_l, v.colour_code, v.ownership_type, v.status,
                       v.block_reason, l.uid AS seat_layout_uid, l.name AS seat_layout_name
                  FROM fleet.vehicle v LEFT JOIN fleet.seat_layout l ON l.id = v.seat_layout_id
                  LEFT JOIN ref.vehicle_model m ON m.id = v.model_id WHERE v.id = $1""", v["id"])
@@ -227,6 +228,9 @@ async def edit_vehicle(uid: uuid.UUID, body: VehicleEdit, request: Request, pr: 
                 if mid is None:
                     raise ApiError(422, "MODEL_UNKNOWN", "choose a vehicle model from the list, or ask the platform to add it")
                 sets["model_id"] = mid
+            elif k == "colour_code" and val is not None and not await conn.fetchval(
+                    "SELECT EXISTS (SELECT 1 FROM ref.vehicle_colour WHERE code = $1 AND status = 'ACTIVE')", val):
+                raise ApiError(422, "COLOUR_UNKNOWN", "choose the colour from the list")
             elif k in _REGULATED and isinstance(val, str):
                 sets[k] = val.strip().upper() if k != "plate_no" else val.strip()
             else:

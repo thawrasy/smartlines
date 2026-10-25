@@ -71,7 +71,7 @@ flowchart LR
   fleet -->|2| net
   fleet -->|5| ops
   fleet -->|1| ptn
-  fleet -->|7| ref
+  fleet -->|11| ref
   frt -->|2| brd
   frt -->|1| crm
   frt -->|6| fleet
@@ -728,6 +728,15 @@ erDiagram
     text status
     bigint boundary_source_id FK
   }
+  ref_axle_config {
+    text code PK
+    text status
+  }
+  ref_axle_config_change {
+    bigint id PK
+    bigint axle_id FK
+    bigint changed_by FK
+  }
   ref_bank {
     bigint id PK
     uuid uid
@@ -835,6 +844,15 @@ erDiagram
   ref_vehicle_class {
     text code PK
   }
+  ref_vehicle_colour {
+    text code PK
+    text status
+  }
+  ref_vehicle_colour_change {
+    bigint id PK
+    bigint colour_id FK
+    bigint changed_by FK
+  }
   ref_vehicle_make {
     bigint id PK
     uuid uid
@@ -895,6 +913,7 @@ erDiagram
   ref_place }o--|| ref_admin_area : "area_id"
   ref_admin_area }o..o| ref_admin_area : "parent_id"
   ref_bank_branch }o..o| ref_admin_area : "area_id"
+  ref_axle_config_change }o--|| ref_axle_config : "axle_id"
   ref_bank_branch }o--|| ref_bank : "bank_id"
   ref_admin_area }o..o| ref_geo_source : "source_id"
   ref_admin_area }o..o| ref_geo_source : "boundary_source_id"
@@ -903,6 +922,7 @@ erDiagram
   ref_translation }o--|| ref_locale : "locale"
   ref_place }o..o| ref_place : "parent_place_id"
   ref_city }o..o| ref_place : "place_id"
+  ref_vehicle_colour_change }o--|| ref_vehicle_colour : "colour_id"
   ref_vehicle_make_change }o--|| ref_vehicle_make : "make_id"
   ref_vehicle_model }o--|| ref_vehicle_make : "make_id"
   ref_vehicle_model_change }o--|| ref_vehicle_model : "model_id"
@@ -1623,6 +1643,8 @@ erDiagram
     bigint owner_party_id FK
     character plate_country FK
     text status
+    text colour_code FK
+    text axle_config FK
   }
   fleet_trailer_change {
     bigint id PK
@@ -1638,6 +1660,7 @@ erDiagram
   }
   fleet_truck_unit {
     bigint vehicle_id PK
+    text axle_config FK
   }
   fleet_vehicle {
     bigint id PK
@@ -1650,6 +1673,7 @@ erDiagram
     text status
     bigint model_id FK
     bigint trim_id FK
+    text colour_code FK
   }
   fleet_vehicle_change {
     bigint id PK
@@ -1730,10 +1754,16 @@ erDiagram
   ptn_partner {
     ref external
   }
+  ref_axle_config {
+    ref external
+  }
   ref_insurer {
     ref external
   }
   ref_vehicle_class {
+    ref external
+  }
+  ref_vehicle_colour {
     ref external
   }
   ref_vehicle_make {
@@ -1820,9 +1850,13 @@ erDiagram
   fleet_driving_hours_log }o..o| ops_trip : "trip_id"
   fleet_field_check_log }o..o| ops_trip : "trip_id"
   fleet_license_record }o..o| ptn_partner : "subject_partner_id"
+  fleet_truck_unit }o--|| ref_axle_config : "axle_config"
+  fleet_trailer }o..o| ref_axle_config : "axle_config"
   fleet_insurance_policy }o..o| ref_insurer : "insurer_id"
   fleet_vehicle }o--|| ref_vehicle_class : "vehicle_class"
   fleet_vehicle_fuel_profile }o..o| ref_vehicle_class : "vehicle_class"
+  fleet_trailer }o..o| ref_vehicle_colour : "colour_code"
+  fleet_vehicle }o..o| ref_vehicle_colour : "colour_code"
   fleet_vehicle_model_request }o..o| ref_vehicle_make : "make_id"
   fleet_vehicle_model_request }o..o| ref_vehicle_model : "model_id"
   fleet_vehicle }o..o| ref_vehicle_model : "model_id"

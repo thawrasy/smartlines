@@ -81,11 +81,11 @@ def test_the_contract_decides_what_the_company_defines(admin, carrier, company_u
     opts = carrier.get("/api/fleet/options").json()
     assert "TAXI" in opts["lines"] and "TAXI" in opts["uses"]
     r = carrier.post("/api/fleet/vehicles", json={"fleet_use": "TAXI", "plate_no": plate(), "chassis_no": "CHS" + plate(),
-                                                   "passenger_seats": 4, "colour": "Yellow", "fuel_type": "GAS", "odometer_km": 120000,
+                                                   "passenger_seats": 4, "colour_code": "YELLOW", "fuel_type": "GAS", "odometer_km": 120000,
                                                    "insurance": cover(insurer)})
     assert r.status_code == 422 and r.json()["error"]["code"] == "TAXI_LICENCE_REQUIRED"
     r = carrier.post("/api/fleet/vehicles", json={"fleet_use": "TAXI", "plate_no": plate(), "chassis_no": "CHS" + plate(),
-                                                   "passenger_seats": 4, "colour": "Yellow", "fuel_type": "GAS", "odometer_km": 120000,
+                                                   "passenger_seats": 4, "colour_code": "YELLOW", "fuel_type": "GAS", "odometer_km": 120000,
                                                    "taxi_licence_no": "TX-" + plate(), "taxi_licence_expiry": "2028-01-01",
                                                    "insurance": cover(insurer)})
     assert r.status_code == 201, r.text
@@ -99,19 +99,34 @@ def test_the_contract_decides_what_the_company_defines(admin, carrier, company_u
 
 def test_a_tractor_head_pulls_a_trailer_each_with_plate_licence_and_insurance(admin, carrier, company_uid, insurer):
     open_line(admin, company_uid, "TRUCK")
-    r = carrier.post("/api/fleet/vehicles", json={"fleet_use": "TRACTOR", "plate_no": plate(), "chassis_no": "CHS" + plate(),
-                                                   "gvw_kg": 40000, "tare_kg": 8500, "axle_config": "6x4", "fuel_type": "DIESEL",
-                                                   "insurance": cover(insurer)})
+    opts = carrier.get("/api/fleet/options").json()
+    assert {"4x2", "6x4", "8x4"} <= {a["code"] for a in opts["axle_configs"]} and {"T1", "T2", "T3"} <= {a["code"] for a in opts["trailer_axles"]}
+    assert {"WHITE", "BLACK", "SILVER", "GREY", "BEIGE", "BROWN"} <= {c["code"] for c in opts["colours"]}
+    head = {"fleet_use": "TRACTOR", "chassis_no": "CHS" + plate(), "gvw_kg": 40000, "tare_kg": 8500, "fuel_type": "DIESEL", "insurance": cover(insurer)}
+    for bad, code in (({"axle_config": "7x4"}, "AXLE_UNKNOWN"), ({"axle_config": "6x4", "colour_code": "WHYTE"}, "COLOUR_UNKNOWN"), ({}, "TRUCK_DETAILS_REQUIRED")):
+        r = carrier.post("/api/fleet/vehicles", json={**head, "plate_no": plate(), **bad})
+        assert r.status_code == 422 and r.json()["error"]["code"] == code, r.text
+    r = carrier.post("/api/fleet/vehicles", json={**head, "plate_no": plate(), "axle_config": "6x4", "colour_code": "WHITE"})
     assert r.status_code == 201, r.text
     head = r.json()["uid"]
     tp = plate()
-    r = carrier.post("/api/fleet/trailers", json={"plate_no": tp, "trailer_type": "CURTAIN", "payload_kg": 26000, "axles": 3,
+    r = carrier.post("/api/fleet/trailers", json={"plate_no": tp, "trailer_type": "CURTAIN", "payload_kg": 26000, "axle_config": "6x4",
+                                                   "licence_no": "TL-" + tp, "licence_issue": "2026-01-01", "licence_expiry": "2027-06-01"})
+    assert r.status_code == 422, r.text      # a powered vehicle's wheel formula is not a trailer's axle group
+    r = carrier.post("/api/fleet/trailers", json={"plate_no": tp, "trailer_type": "CURTAIN", "payload_kg": 26000, "axle_config": "T9",
+                                                   "licence_no": "TL-" + tp, "licence_issue": "2026-01-01", "licence_expiry": "2027-06-01"})
+    assert r.status_code == 422, r.text
+    r = carrier.post("/api/fleet/trailers", json={"plate_no": tp, "trailer_type": "CURTAIN", "payload_kg": 26000, "axle_config": "T3",
+                                                   "colour_code": "WHITE",
                                                    "licence_no": "TL-" + tp, "licence_issue": "2026-01-01", "licence_expiry": "2027-06-01",
                                                    "insurance": cover(insurer)})
     assert r.status_code == 201, r.text
     trailer = r.json()["uid"]
     t = carrier.get(f"/api/fleet/trailers/{trailer}").json()
     assert {x["license_type"] for x in t["licences"]} == {"TRANSPORT", "INSURANCE"} and len(t["insurance"]) == 1
+    assert t["trailer"]["axles"] == 3 and t["trailer"]["axle_config"] == "T3" and t["trailer"]["colour_code"] == "WHITE"
+    assert carrier.patch(f"/api/fleet/trailers/{trailer}", json={"axle_config": "T2"}).status_code == 200
+    assert carrier.get(f"/api/fleet/trailers/{trailer}").json()["trailer"]["axles"] == 2      # the axles follow the arrangement
     r = carrier.patch(f"/api/fleet/trailers/{trailer}", json={"plate_no": tp + "B"})
     assert r.status_code == 422 and r.json()["error"]["code"] == "TRAILER_CHANGE_REASON"
     assert carrier.patch(f"/api/fleet/trailers/{trailer}", json={"plate_no": tp + "B", "reason": "new trailer plates"}).status_code == 200
@@ -203,3 +218,25 @@ def test_the_rental_desk_charges_the_kilometres_over_the_allowance_and_sends_a_d
     row = next(x for x in carrier.get("/api/fleet/rentals").json()["rentals"] if x["uid"] == uid)
     assert row["status"] == "RETURNED" and row["driver"] == "Rental Driver" and row["contract_status"] == "CLOSED"
     assert carrier.get(f"/api/fleet/vehicles/{car}").json()["vehicle"]["odometer_km"] == 30560
+
+
+def test_colours_and_axles_are_kept_by_the_platform_and_chosen_not_typed(admin, carrier):
+    lists = admin.get("/api/admin/reference-lists").json()
+    assert any(c["code"] == "BEIGE" and c["hex"] for c in lists["colours"])
+    assert any(a["code"] == "6x4" and a["axles"] == 3 and a["driven_axles"] == 2 for a in lists["axles"])
+    code = "TEST_" + uuid.uuid4().hex[:6].upper()
+    r = admin.post("/api/admin/reference-lists/colours", json={"code": code, "name_en": "Sand " + code[-6:], "name_ar": "\u0631\u0645\u0644\u064a " + code[-6:],
+                                                               "hex": "#c2b280"})
+    assert r.status_code == 201, r.text
+    again = admin.post("/api/admin/reference-lists/colours", json={"code": code + "X", "name_en": "white", "name_ar": "x" + code})
+    assert again.status_code == 409 and again.json()["error"]["code"] == "ENTRY_EXISTS"      # one colour, one spelling
+    r = admin.patch(f"/api/admin/reference-lists/colours/{code}", json={"name_en": "Desert sand " + code[-6:]})
+    assert r.status_code == 422 and r.json()["error"]["code"] == "COLOUR_CHANGE_REASON"
+    assert admin.patch(f"/api/admin/reference-lists/colours/{code}", json={"name_en": "Desert sand " + code[-6:], "reason": "the maker's name"}).status_code == 200
+    assert admin.patch(f"/api/admin/reference-lists/colours/{code}", json={"status": "RETIRED"}).status_code == 200
+    e = admin.get(f"/api/admin/reference-lists/colours/{code}").json()
+    assert e["entry"]["status"] == "RETIRED" and {h["field"] for h in e["history"]} == {"name_en", "status"}
+    assert code not in {c["code"] for c in carrier.get("/api/fleet/options").json()["colours"]}
+    r = admin.post("/api/admin/reference-lists/axles", json={"code": "5x2", "name_en": "odd", "name_ar": "odd"})
+    assert r.status_code == 422
+    assert carrier.post("/api/admin/reference-lists/colours", json={"code": "NOPE", "name_en": "Nope", "name_ar": "Nope"}).status_code in (401, 403)

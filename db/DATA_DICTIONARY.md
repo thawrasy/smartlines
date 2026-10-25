@@ -2,14 +2,14 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**618 tables, 6768 columns, in 26 schemas.**
+**622 tables, 6809 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
 ## Index
 
 - [`iam` — Identity, parties, users, permissions and API clients](#iam) (53 tables)
-- [`ref` — Reference data, locales and files](#ref) (28 tables)
+- [`ref` — Reference data, locales and files](#ref) (32 tables)
 - [`sys` — Settings, outbox and webhooks](#sys) (27 tables)
 - [`net` — Network: stations, routes, lines, corridors and geofences](#net) (45 tables)
 - [`fleet` — Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance](#fleet) (28 tables)
@@ -1129,6 +1129,41 @@ Governorates (1), districts (2) and sub-districts (3), with their United Nations
 | `published_en` | `text` |  |  |
 | `published_ar` | `text` |  |  |
 
+### `ref.axle_config` 🛡️
+
+Axle arrangements chosen from a list (1174): wheel formulas of powered vehicles and axle groups of trailers
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | ✱ | `identity` |
+| `code` | `text` | 🔑 ✱ |  |
+| `kind` | `text` | ✱ |  |
+| `axles` | `smallint` |  |  |
+| `driven_axles` | `smallint` |  |  |
+| `name_en` | `text` | ✱ |  |
+| `name_ar` | `text` | ✱ |  |
+| `sort_order` | `smallint` | ✱ | `100` |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `source` | `text` | ✱ | `'STANDARD'::text` |
+| `change_reason` | `text` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ref.axle_config_change` 🛡️
+
+Every edit of an axle arrangement in the list, field by field, with who, when and why (1174); never changed
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `axle_id` | `bigint` | 🔗 `ref.axle_config` ✱ |  |
+| `changed_at` | `timestamp with time zone` | ✱ | `now()` |
+| `changed_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `field` | `text` | ✱ |  |
+| `old_value` | `text` |  |  |
+| `new_value` | `text` |  |  |
+| `reason` | `text` |  |  |
+
 ### `ref.bank` 🛡️
 
 Banks entered by platform staff and reviewed by another person before companies see them; UNVERIFIED until fully verified (1156, N6)
@@ -1518,6 +1553,38 @@ Vehicle classes
 | `is_active` | `boolean` | ✱ | `true` |
 | `sort` | `integer` | ✱ | `100` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ref.vehicle_colour` 🛡️
+
+Vehicle colours chosen from a list, never typed, so one colour is not entered under several spellings (1174)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | ✱ | `identity` |
+| `code` | `text` | 🔑 ✱ |  |
+| `name_en` | `text` | ✱ |  |
+| `name_ar` | `text` | ✱ |  |
+| `hex` | `text` |  |  |
+| `sort_order` | `smallint` | ✱ | `100` |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `change_reason` | `text` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ref.vehicle_colour_change` 🛡️
+
+Every edit of a colour in the list, field by field, with who, when and why (1174); never changed
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `colour_id` | `bigint` | 🔗 `ref.vehicle_colour` ✱ |  |
+| `changed_at` | `timestamp with time zone` | ✱ | `now()` |
+| `changed_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `field` | `text` | ✱ |  |
+| `old_value` | `text` |  |  |
+| `new_value` | `text` |  |  |
+| `reason` | `text` |  |  |
 
 ### `ref.vehicle_make` 🛡️
 
@@ -3145,6 +3212,8 @@ Trailers with their own plate and licence documents (10.4)
 | `change_reason` | `text` |  |  |
 | `make` | `text` |  |  |
 | `manufacture_year` | `smallint` |  |  |
+| `colour_code` | `text` | 🔗 `ref.vehicle_colour`  |  |
+| `axle_config` | `text` | 🔗 `ref.axle_config`  |  |
 
 ### `fleet.trailer_change` 🛡️
 
@@ -3182,7 +3251,7 @@ Truck extension of fleet.vehicle (vehicle_class TRUCK); plate, chassis, ownershi
 | Column | Type | Constraints | Default |
 |---|---|---|---|
 | `vehicle_id` | `bigint` | 🔑 🔗 `fleet.vehicle` ✱ |  |
-| `axle_config` | `text` | ✱ |  |
+| `axle_config` | `text` | 🔗 `ref.axle_config` ✱ |  |
 | `gvw_kg` | `integer` | ✱ |  |
 | `tare_kg` | `integer` | ✱ |  |
 | `fuel_type` | `text` | ✱ | `'DIESEL'::text` |
@@ -3229,9 +3298,9 @@ Vehicle: type, seated and standing capacity, ownership and owner, and the status
 | `fleet_use` | `text` | ✱ |  |
 | `odometer_km` | `integer` |  |  |
 | `odometer_at` | `timestamp with time zone` |  |  |
-| `colour` | `text` |  |  |
 | `fuel_type` | `text` |  |  |
 | `trim_id` | `bigint` | 🔗 `ref.vehicle_trim`  |  |
+| `colour_code` | `text` | 🔗 `ref.vehicle_colour`  |  |
 
 ### `fleet.vehicle_change` 🛡️
 

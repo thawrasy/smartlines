@@ -95,8 +95,34 @@ async def options(request: Request, pr: Principal = Depends(operator)):
         branches = await conn.fetch(
             """SELECT b.id, s.name FROM rent.rental_branch b JOIN net.station s ON s.id = b.station_id
                 WHERE b.company_id = $1 AND b.status = 'ACTIVE' ORDER BY s.name""", company) if "RENTAL" in lines else []
+        colours = await conn.fetch("SELECT code, name_en, name_ar, hex FROM ref.vehicle_colour WHERE status = 'ACTIVE' ORDER BY sort_order, code")
+        axles = await conn.fetch(
+            """SELECT code, kind, axles, driven_axles, name_en, name_ar FROM ref.axle_config WHERE status = 'ACTIVE'
+                ORDER BY kind, sort_order, code""") if "TRUCK" in lines else []
     return {"lines": lines, "uses": [u for u, line in LINE_OF.items() if line in lines], "trailer_types": TRAILER_TYPES if "TRUCK" in lines else [],
-            "rental_classes": rows(classes), "rental_branches": rows(branches)}
+            "rental_classes": rows(classes), "rental_branches": rows(branches), "colours": rows(colours),
+            "axle_configs": [r for r in rows(axles) if r["kind"] == "VEHICLE"], "trailer_axles": [r for r in rows(axles) if r["kind"] == "TRAILER"]}
+
+
+@carrier.get("/lists")
+async def lists(request: Request, pr: Principal = Depends(operator)):
+    """The colours and axle arrangements a vehicle or trailer is given (1174), for any screen of the company."""
+    async with db.transaction(context_for(request, pr)) as conn:
+        colours = await conn.fetch("SELECT code, name_en, name_ar, hex FROM ref.vehicle_colour WHERE status = 'ACTIVE' ORDER BY sort_order, code")
+        axles = rows(await conn.fetch(
+            "SELECT code, kind, axles, driven_axles, name_en, name_ar FROM ref.axle_config WHERE status = 'ACTIVE' ORDER BY kind, sort_order, code"))
+    return {"colours": rows(colours), "axle_configs": [a for a in axles if a["kind"] == "VEHICLE"],
+            "trailer_axles": [a for a in axles if a["kind"] == "TRAILER"]}
+
+
+async def _pick(conn: asyncpg.Connection, colour: Optional[str] = None, axle: Optional[str] = None, kind: str = "VEHICLE") -> None:
+    """A colour and an axle arrangement come from their lists (1174), never typed."""
+    if colour is not None and not await conn.fetchval(
+            "SELECT EXISTS (SELECT 1 FROM ref.vehicle_colour WHERE code = $1 AND status = 'ACTIVE')", colour):
+        raise ApiError(422, "COLOUR_UNKNOWN", "choose the colour from the list")
+    if axle is not None and not await conn.fetchval(
+            "SELECT EXISTS (SELECT 1 FROM ref.axle_config WHERE code = $1 AND kind = $2 AND status = 'ACTIVE')", axle, kind):
+        raise ApiError(422, "AXLE_UNKNOWN", "choose the axle arrangement from the list")
 
 
 @carrier.get("/units")
@@ -104,7 +130,7 @@ async def units(request: Request, pr: Principal = Depends(operator)):
     company = _need(pr)
     async with db.transaction(context_for(request, pr)) as conn:
         vehicles = await conn.fetch(
-            """SELECT v.uid, v.fleet_use, v.vehicle_class, v.plate_no, v.make, v.model, v.manufacture_year, v.colour, v.fuel_type,
+            """SELECT v.uid, v.fleet_use, v.vehicle_class, v.plate_no, v.make, v.model, v.manufacture_year, v.colour_code, v.fuel_type,
                       v.passenger_seats, v.cargo_capacity_kg, v.odometer_km, v.status, v.block_reason,
                       (SELECT min(l.expiry_date) FROM fleet.license_record l
                         WHERE l.subject_type = 'VEHICLE' AND l.subject_id = v.id AND l.status <> 'SUSPENDED') AS next_expiry,
@@ -122,7 +148,7 @@ async def units(request: Request, pr: Principal = Depends(operator)):
                         WHERE c.truck_vehicle_id = v.id AND c.period @> now()) AS trailer_plate
                  FROM fleet.vehicle v WHERE v.company_id = $1 ORDER BY v.fleet_use, v.plate_no""", company)
         trailers = await conn.fetch(
-            """SELECT t.uid, t.plate_no, t.plate_country, t.trailer_type, t.payload_kg, t.axles, t.status, t.make, t.manufacture_year,
+            """SELECT t.uid, t.plate_no, t.plate_country, t.trailer_type, t.payload_kg, t.axles, t.axle_config, t.colour_code, t.status, t.make, t.manufacture_year,
                       (SELECT min(l.expiry_date) FROM fleet.license_record l WHERE l.subject_type = 'TRAILER' AND l.subject_id = t.id) AS next_expiry,
                       (SELECT max(upper(p.period)) FROM fleet.insurance_policy p WHERE p.trailer_id = t.id AND p.status = 'VALID') AS insured_until,
                       (SELECT v.plate_no FROM fleet.truck_combination c JOIN fleet.vehicle v ON v.id = c.truck_vehicle_id
@@ -159,7 +185,7 @@ class FleetVehicleIn(BaseModel):
     make: Optional[str] = Field(default=None, max_length=60)
     model: Optional[str] = Field(default=None, max_length=60)
     manufacture_year: Optional[int] = Field(default=None, ge=1970, le=2100)
-    colour: Optional[str] = Field(default=None, min_length=2, max_length=30)
+    colour_code: Optional[str] = Field(default=None, pattern=r"^[A-Z][A-Z0-9_]{1,29}$")
     fuel_type: Optional[Fuel] = None
     odometer_km: Optional[int] = Field(default=None, ge=0, le=9999999)
     ownership_type: Literal["OWNED", "LEASED"] = "OWNED"
@@ -170,7 +196,7 @@ class FleetVehicleIn(BaseModel):
     cargo_capacity_kg: Optional[int] = Field(default=None, ge=0, le=60000)
     gvw_kg: Optional[int] = Field(default=None, ge=1000, le=100000)
     tare_kg: Optional[int] = Field(default=None, ge=500, le=40000)
-    axle_config: Optional[str] = Field(default=None, pattern=r"^[0-9]x[0-9]$")
+    axle_config: Optional[str] = Field(default=None, pattern=r"^[0-9]{1,2}x[0-9]{1,2}$")
     # rental cars: their class and home branch
     rental_class: Optional[str] = Field(default=None, max_length=20)
     home_branch_id: Optional[int] = None
@@ -232,18 +258,21 @@ async def add_vehicle(body: FleetVehicleIn, request: Request, pr: Principal = De
                     raise ApiError(422, "TRIM_UNKNOWN", "choose a trim of the vehicle's model")
         if use == "RENTAL_CAR" and not body.rental_class:
             raise ApiError(422, "RENTAL_CLASS_REQUIRED", "choose the car's rental class")
+        if klass == "TRUCK" and not (body.axle_config and body.gvw_kg and body.tare_kg):
+            raise ApiError(422, "TRUCK_DETAILS_REQUIRED", "give the truck's axle arrangement and its gross and empty weights")
+        await _pick(conn, body.colour_code, body.axle_config if klass == "TRUCK" else None)
         if use == "TAXI" and not (body.taxi_licence_no and body.taxi_licence_expiry):
             raise ApiError(422, "TAXI_LICENCE_REQUIRED", "give the taxi licence number and its expiry")
         try:
             vid = await conn.fetchval(
                 """INSERT INTO fleet.vehicle (company_id, vehicle_class, vehicle_type, fleet_use, make, model, model_id, trim_id,
                      manufacture_year, plate_no, plate_country, chassis_no, machine_no, passenger_seats, seat_layout_id,
-                     cargo_capacity_kg, colour, fuel_type, odometer_km, odometer_at, ownership_type, owner_party_id, status)
+                     cargo_capacity_kg, colour_code, fuel_type, odometer_km, odometer_at, ownership_type, owner_party_id, status)
                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19,
                            CASE WHEN $19::integer IS NULL THEN NULL ELSE now() END, $20, $1, 'ACTIVE') RETURNING id""",
                 company, klass, vtype, use, body.make, body.model, model_id, trim_id, body.manufacture_year, body.plate_no.strip(),
                 body.plate_country, body.chassis_no.strip().upper(), body.machine_no, seats or 0, layout_id, body.cargo_capacity_kg or 0,
-                body.colour, body.fuel_type, body.odometer_km, body.ownership_type)
+                body.colour_code, body.fuel_type, body.odometer_km, body.ownership_type)
         except asyncpg.UniqueViolationError as e:
             raise ApiError(409, "VEHICLE_EXISTS", "another vehicle has this plate or chassis number") from e
         if klass == "TRUCK":
@@ -469,7 +498,8 @@ class TrailerIn(BaseModel):
     chassis_no: Optional[str] = Field(default=None, min_length=5, max_length=40)
     trailer_type: Literal["FLATBED", "CURTAIN", "REEFER", "TANKER", "CONTAINER_CHASSIS", "LOWBED", "TIPPER", "BOX"]
     payload_kg: int = Field(gt=0, le=80000)
-    axles: int = Field(ge=1, le=8)
+    axle_config: str = Field(pattern=r"^T[1-8]$")
+    colour_code: Optional[str] = Field(default=None, pattern=r"^[A-Z][A-Z0-9_]{1,29}$")
     volume_m3: Optional[float] = Field(default=None, gt=0, le=200)
     length_m: Optional[float] = Field(default=None, gt=0, le=30)
     container_capacity: Optional[Literal[20, 40]] = None
@@ -488,7 +518,8 @@ class TrailerEdit(BaseModel):
     chassis_no: Optional[str] = Field(default=None, min_length=5, max_length=40)
     trailer_type: Optional[Literal["FLATBED", "CURTAIN", "REEFER", "TANKER", "CONTAINER_CHASSIS", "LOWBED", "TIPPER", "BOX"]] = None
     payload_kg: Optional[int] = Field(default=None, gt=0, le=80000)
-    axles: Optional[int] = Field(default=None, ge=1, le=8)
+    axle_config: Optional[str] = Field(default=None, pattern=r"^T[1-8]$")
+    colour_code: Optional[str] = Field(default=None, pattern=r"^[A-Z][A-Z0-9_]{1,29}$")
     make: Optional[str] = Field(default=None, max_length=60)
     manufacture_year: Optional[int] = Field(default=None, ge=1970, le=2100)
     status: Optional[Literal["ACTIVE", "RETIRED"]] = None
@@ -527,13 +558,14 @@ async def add_trailer(body: TrailerIn, request: Request, pr: Principal = Depends
         if "TRUCK" not in await _lines(conn, company):
             raise ApiError(403, "FLEET_LINE_CLOSED", "the company's contract does not cover trucks")
         await _module("TRUCK")
+        await _pick(conn, body.colour_code, body.axle_config, "TRAILER")
         try:
             tid = await conn.fetchval(
-                """INSERT INTO fleet.trailer (company_id, plate_no, plate_country, chassis_no, trailer_type, payload_kg, axles, volume_m3,
-                     length_m, container_capacity, make, manufacture_year, ownership_type, status)
-                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'OWNED', 'ACTIVE') RETURNING id""",
-                company, body.plate_no.strip(), body.plate_country, body.chassis_no, body.trailer_type, body.payload_kg, body.axles,
-                body.volume_m3, body.length_m, body.container_capacity, body.make, body.manufacture_year)
+                """INSERT INTO fleet.trailer (company_id, plate_no, plate_country, chassis_no, trailer_type, payload_kg, axle_config, colour_code,
+                     volume_m3, length_m, container_capacity, make, manufacture_year, ownership_type, status)
+                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'OWNED', 'ACTIVE') RETURNING id""",
+                company, body.plate_no.strip(), body.plate_country, body.chassis_no, body.trailer_type, body.payload_kg, body.axle_config,
+                body.colour_code, body.volume_m3, body.length_m, body.container_capacity, body.make, body.manufacture_year)
         except asyncpg.UniqueViolationError as e:
             raise ApiError(409, "TRAILER_EXISTS", "another trailer has this plate") from e
         await _licence(conn, company, tid, LicenceIn(license_type="TRANSPORT", license_no=body.licence_no, issuer=body.licence_issuer,
@@ -580,6 +612,7 @@ async def edit_trailer(uid: uuid.UUID, body: TrailerEdit, request: Request, pr: 
         t = await _trailer(conn, company, uid)
         if t["status"] == "BLOCKED" and "status" in given:
             raise ApiError(409, "TRAILER_HELD", "a blocked trailer is released by the platform")
+        await _pick(conn, given.get("colour_code"), given.get("axle_config"), "TRAILER")
         cols = list(given)
         try:
             await conn.execute(f"UPDATE fleet.trailer SET {', '.join(f'{c} = ${i + 2}' for i, c in enumerate(cols))}, "
@@ -633,7 +666,7 @@ async def couple(body: CouplingIn, request: Request, pr: Principal = Depends(ope
             if driver is None:
                 raise not_found("driver")
         if not await conn.fetchval("SELECT EXISTS (SELECT 1 FROM fleet.truck_unit WHERE vehicle_id = $1)", v["id"]):
-            await conn.execute("INSERT INTO fleet.truck_unit (vehicle_id) VALUES ($1)", v["id"])
+            raise ApiError(409, "TRUCK_DETAILS_MISSING", "record the head's axle arrangement and weights before coupling a trailer")
         try:
             cid = await conn.fetchval(
                 """INSERT INTO fleet.truck_combination (company_id, truck_vehicle_id, trailer_id, driver_party_id, period)
@@ -841,3 +874,141 @@ async def close_line(lid: int, request: Request, pr: Principal = Depends(staff))
                       ended_at = now() WHERE id = $1""", lid, pr.user_id)
     request.state.audit = {"action": "company.fleet_line_close", "object_type": "company", "object_id": r["company_id"], "reason": r["line"]}
     return {"id": lid, "ended": datetime.now(timezone.utc).date().isoformat()}
+
+
+# ------------------------------------------------------------------ the colour and axle lists (1174), kept by the platform
+LISTS = {"colours": ("ref.vehicle_colour", "ref.vehicle_colour_change", "colour_id", "COLOUR"),
+         "axles": ("ref.axle_config", "ref.axle_config_change", "axle_id", "AXLE")}
+ListKind = Literal["colours", "axles"]
+
+
+def _keeper(pr: Principal) -> None:
+    if "reference.manage" not in pr.permissions:
+        raise forbidden("missing permission: reference.manage")
+
+
+class ColourIn(BaseModel):
+    code: str = Field(pattern=r"^[A-Z][A-Z0-9_]{1,29}$")
+    name_en: str = Field(min_length=2, max_length=40)
+    name_ar: str = Field(min_length=2, max_length=40)
+    hex: Optional[str] = Field(default=None, pattern=r"^#[0-9A-Fa-f]{6}$")
+    sort_order: int = Field(default=100, ge=0, le=9999)
+
+
+class AxleIn(BaseModel):
+    code: str = Field(pattern=r"^([0-9]{1,2}x[0-9]{1,2}|T[1-8])$")
+    name_en: str = Field(min_length=2, max_length=60)
+    name_ar: str = Field(min_length=2, max_length=60)
+    sort_order: int = Field(default=100, ge=0, le=9999)
+
+
+class ListEdit(BaseModel):
+    name_en: Optional[str] = Field(default=None, min_length=2, max_length=60)
+    name_ar: Optional[str] = Field(default=None, min_length=2, max_length=60)
+    hex: Optional[str] = Field(default=None, pattern=r"^#[0-9A-Fa-f]{6}$")
+    sort_order: Optional[int] = Field(default=None, ge=0, le=9999)
+    status: Optional[Literal["ACTIVE", "RETIRED"]] = None
+    reason: Optional[str] = Field(default=None, max_length=500)
+
+
+@platform.get("/reference-lists")
+async def reference_lists(request: Request, pr: Principal = Depends(staff)):
+    _staff(pr)
+    async with db.transaction(context_for(request, pr)) as conn:
+        colours = await conn.fetch(
+            """SELECT c.code, c.name_en, c.name_ar, c.hex, c.sort_order, c.status,
+                      (SELECT count(*) FROM fleet.vehicle v WHERE v.colour_code = c.code)
+                      + (SELECT count(*) FROM fleet.trailer t WHERE t.colour_code = c.code) AS used
+                 FROM ref.vehicle_colour c ORDER BY c.status, c.sort_order, c.code""")
+        axles = await conn.fetch(
+            """SELECT a.code, a.kind, a.axles, a.driven_axles, a.name_en, a.name_ar, a.sort_order, a.status, a.source,
+                      (SELECT count(*) FROM fleet.truck_unit u WHERE u.axle_config = a.code)
+                      + (SELECT count(*) FROM fleet.trailer t WHERE t.axle_config = a.code) AS used
+                 FROM ref.axle_config a ORDER BY a.status, a.kind, a.sort_order, a.code""")
+    return {"colours": rows(colours), "axles": rows(axles)}
+
+
+@platform.get("/reference-lists/{kind}/{code}")
+async def reference_entry(kind: ListKind, code: str, request: Request, pr: Principal = Depends(staff)):
+    _staff(pr)
+    table, hist, fk, _ = LISTS[kind]
+    async with db.transaction(context_for(request, pr)) as conn:
+        rec = await conn.fetchrow(f"SELECT * FROM {table} WHERE code = $1", code)
+        if rec is None:
+            raise not_found("list entry")
+        history = await conn.fetch(
+            f"""SELECT c.changed_at, c.field, c.old_value, c.new_value, c.reason, u.email AS changed_by
+                  FROM {hist} c LEFT JOIN iam.app_user u ON u.id = c.changed_by
+                 WHERE c.{fk} = $1 ORDER BY c.changed_at DESC, c.id DESC LIMIT 200""", rec["id"])
+    out = row_dict(rec)
+    for k in ("id", "change_reason"):
+        out.pop(k, None)
+    return {"entry": out, "history": rows(history)}
+
+
+@platform.post("/reference-lists/colours", status_code=201)
+async def add_colour(body: ColourIn, request: Request, pr: Principal = Depends(staff)):
+    _keeper(pr)
+    async with db.transaction(context_for(request, pr)) as conn:
+        try:
+            await conn.execute("INSERT INTO ref.vehicle_colour (code, name_en, name_ar, hex, sort_order) VALUES ($1, $2, $3, $4, $5)",
+                               body.code, body.name_en.strip(), body.name_ar.strip(), body.hex.upper() if body.hex else None, body.sort_order)
+        except asyncpg.UniqueViolationError as e:
+            raise ApiError(409, "ENTRY_EXISTS", "the list already has this colour, by its code or one of its names") from e
+    request.state.audit = {"action": "reference.colour_add", "object_type": "vehicle_colour", "reason": body.code}
+    return {"code": body.code}
+
+
+@platform.post("/reference-lists/axles", status_code=201)
+async def add_axle(body: AxleIn, request: Request, pr: Principal = Depends(staff)):
+    _keeper(pr)
+    trailer = body.code.startswith("T")
+    if trailer:
+        axles, driven = int(body.code[1:]), None
+    else:
+        wheels, drive = (int(x) for x in body.code.split("x"))
+        if wheels % 2 or drive % 2 or drive > wheels or not 2 <= wheels <= 16:
+            raise ApiError(422, "AXLE_FORMULA", "a wheel formula counts wheel positions by driven positions, both even, e.g. 6x4")
+        axles, driven = wheels // 2, drive // 2
+    async with db.transaction(context_for(request, pr)) as conn:
+        try:
+            await conn.execute(
+                """INSERT INTO ref.axle_config (code, kind, axles, driven_axles, name_en, name_ar, sort_order, source)
+                   VALUES ($1, $2, $3, $4, $5, $6, $7, 'PLATFORM')""",
+                body.code, "TRAILER" if trailer else "VEHICLE", axles, driven, body.name_en.strip(), body.name_ar.strip(), body.sort_order)
+        except asyncpg.UniqueViolationError as e:
+            raise ApiError(409, "ENTRY_EXISTS", "the list already has this axle arrangement") from e
+    request.state.audit = {"action": "reference.axle_add", "object_type": "axle_config", "reason": body.code}
+    return {"code": body.code}
+
+
+@platform.patch("/reference-lists/{kind}/{code}")
+async def edit_reference(kind: ListKind, code: str, body: ListEdit, request: Request, pr: Principal = Depends(staff)):
+    _keeper(pr)
+    table, _, _, prefix = LISTS[kind]
+    given = body.model_dump(exclude_unset=True)
+    reason = (given.pop("reason", None) or "").strip()
+    if kind == "axles":
+        given.pop("hex", None)
+    if not given:
+        raise ApiError(422, "NOTHING_TO_CHANGE", "give at least one field to change")
+    if kind == "colours" and any(len(given.get(k) or "") > 40 for k in ("name_en", "name_ar")):
+        raise ApiError(422, "NAME_TOO_LONG", "a colour's name has at most 40 letters")
+    if given.get("hex"):
+        given["hex"] = given["hex"].upper()
+    async with db.transaction(context_for(request, pr)) as conn:
+        rec = await conn.fetchrow(f"SELECT * FROM {table} WHERE code = $1 FOR UPDATE", code)
+        if rec is None:
+            raise not_found("list entry")
+        if any(k in given and given[k] != rec[k] for k in ("name_en", "name_ar")) and len(reason) < 3:
+            raise ApiError(422, f"{prefix}_CHANGE_REASON", "changing a name needs its reason")
+        if rec.get("source") == "LEGACY" and given.get("status") == "ACTIVE":
+            raise ApiError(409, "LEGACY_ENTRY", "a value typed before the list stays retired; add the right arrangement instead")
+        cols = list(given)
+        try:
+            await conn.execute(f"UPDATE {table} SET {', '.join(f'{c} = ${i + 2}' for i, c in enumerate(cols))}, "
+                               f"change_reason = ${len(cols) + 2} WHERE code = $1", code, *[given[c] for c in cols], reason or None)
+        except asyncpg.UniqueViolationError as e:
+            raise ApiError(409, "ENTRY_EXISTS", "another entry has this name") from e
+    request.state.audit = {"action": f"reference.{kind}_edit", "object_type": table, "reason": f"{code}: {reason or ', '.join(cols)}"[:300]}
+    return {"code": code, "changed": cols}

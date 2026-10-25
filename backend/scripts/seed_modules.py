@@ -211,8 +211,9 @@ PLAN = [
                                   "status": weighted(("UNDER_REVIEW", 2), ("NOTIFIED", 1), ("ACCEPTED", 1), ("PAID", 1), ("REJECTED", 1))}),
     ("fleet.boarding_validator", 6, {"status": weighted(("ACTIVE", 5), ("OFFLINE", 1))}),
     # ---------------------------------------------------------------- freight
-    ("fleet.truck_unit", 6, {"vehicle_id": "@trucks", "gvw_kg": 40000, "tare_kg": cycle(8200, 8800, 9100)}),
-    ("fleet.trailer", 6, {"status": weighted(("ACTIVE", 4), ("PENDING", 1), ("BLOCKED", 1)), "created_at": lambda i: ago(60)}),
+    ("fleet.truck_unit", 6, {"vehicle_id": "@trucks", "axle_config": cycle("4x2", "6x4", "6x2", "8x4"), "gvw_kg": 40000, "tare_kg": cycle(8200, 8800, 9100)}),
+    ("fleet.trailer", 6, {"axle_config": cycle("T2", "T3", "T3", "T1"), "colour_code": cycle("WHITE", "GREY", "BLUE"),
+                       "status": weighted(("ACTIVE", 4), ("PENDING", 1), ("BLOCKED", 1)), "created_at": lambda i: ago(60)}),
     ("frt.freight_request", 36, {"mode": "BID", "shipper_company_id": None,
                                  "cargo_category": cycle("GENERAL", "FOOD", "GENERAL", "REFRIGERATED", "VEHICLES", "CONTAINERS"),
                                  "cargo_description": cycle("Olive oil, 40 pallets", "Flour sacks for bakeries", "Cement bags", "Citrus from the coast",

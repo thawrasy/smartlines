@@ -4,6 +4,7 @@ import { useI18n } from "../../i18n";
 import { PageHead } from "../../components/layout";
 import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Status, useLoad, useToast } from "../../components/ui";
 import { VehicleModels } from "./VehicleModels";
+import { RefListsAdmin } from "./RefListsAdmin";
 
 type Kind = "banks" | "insurers";
 interface Branch { uid: string; name_ar: string; name_en: string; branch_code: string | null; swift_bic: string | null; is_head_office: boolean;
@@ -29,18 +30,18 @@ const CHOICES: Record<string, string[]> = {
  *  it before companies see it, and a change to a reviewed entry waits as a proposal for a second person. */
 export function RegistriesPage() {
   const { t } = useI18n();
-  const [kind, setKind] = useState<Kind | "vehicles">("banks");
+  const [kind, setKind] = useState<Kind | "vehicles" | "lists">("banks");
   return (
     <div className="stack">
       <PageHead title={t("reg.title")} sub={t("reg.sub")} />
       <div className="segmented" role="tablist" aria-label={t("reg.title")} style={{ alignSelf: "flex-start" }}>
-        {(["banks", "insurers", "vehicles"] as const).map((k) => (
+        {(["banks", "insurers", "vehicles", "lists"] as const).map((k) => (
           <button key={k} type="button" role="tab" aria-selected={kind === k} className={kind === k ? "on" : ""} onClick={() => setKind(k)}>
-            <Icon name={k === "banks" ? "account_balance" : k === "insurers" ? "health_and_safety" : "directions_bus"} size={18} />{t(`reg.tab.${k}`)}
+            <Icon name={k === "banks" ? "account_balance" : k === "insurers" ? "health_and_safety" : k === "lists" ? "palette" : "directions_bus"} size={18} />{t(`reg.tab.${k}`)}
           </button>
         ))}
       </div>
-      {kind === "vehicles" ? <VehicleModels /> : <Registry key={kind} kind={kind} />}
+      {kind === "vehicles" ? <VehicleModels /> : kind === "lists" ? <RefListsAdmin /> : <Registry key={kind} kind={kind} />}
     </div>
   );
 }

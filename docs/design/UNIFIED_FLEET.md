@@ -1,4 +1,4 @@
-# One fleet for every vehicle (1172, 1173)
+# One fleet for every vehicle (1172, 1173, 1174)
 
 Owner's notes of 25 October 2026: the list of vehicle types must cover the makes, models and trims since 2020 and stay
 editable; every vehicle (whatever its kind) is defined from one screen; trucks have a tractor head and a trailer, each
@@ -66,6 +66,27 @@ marks the vehicle `IN_MAINTENANCE`: no trip is opened on it (1101) and it is not
 it comes back. The return closes the period, makes the vehicle active and moves its plan on (last kilometres and date).
 A vehicle with a renter or on a trip is not sent.
 
+### Colours and axles from lists (1174)
+
+Owner's notes of 25 October 2026: colours and axles are defined in advance so that entry mistakes and misspelt
+duplicates cannot happen.
+
+| List | What it holds |
+|---|---|
+| `ref.vehicle_colour` | 25 colours to start (white, pearl white, black, silver, grey, dark grey, beige, champagne, brown, bronze, gold, yellow, orange, red, maroon, pink, purple, blue, navy, sky blue, turquoise, green, dark green, olive, two-tone) with English and Arabic names and a swatch; each name is unique |
+| `ref.axle_config` | Wheel formulas of trucks and tractor heads (4x2, 4x4, 6x2, 6x4, 6x6, 8x2, 8x4, 8x6, 8x8, 10x4, 10x6, 10x8: wheel positions by driven positions, as makers and regulators write them) and trailer axle groups T1 to T8; each with its number of axles |
+
+* `fleet.vehicle.colour_code` and `fleet.trailer.colour_code` point at the colour list; the free colour text of 1173 is
+  gone. `fleet.truck_unit.axle_config` and `fleet.trailer.axle_config` point at the axle list; a trailer's number of
+  axles follows its group. A truck takes a wheel formula, a trailer an axle group (`AXLE_KIND`).
+* The platform adds an entry, renames it with a reason, or retires it (Registries, tab "Colours and axles";
+  `/api/admin/reference-lists`). A code never changes and nothing is deleted; a retired entry stays on the vehicles
+  that have it and is not chosen again (`COLOUR_RETIRED`, `AXLE_RETIRED`). Every edit is kept.
+* Axle values typed before the list are kept as retired entries marked `LEGACY`, so no truck loses its value.
+* Screens pick colours from swatches and axles from a list (`/api/fleet/lists`); the API refuses anything else
+  (`COLOUR_UNKNOWN`, `AXLE_UNKNOWN`). Coupling a head whose axles and weights were never recorded is refused
+  (`TRUCK_DETAILS_MISSING`).
+
 ## Car rental
 
 `rent.rental_rate` gives unlimited kilometres, or kilometres a day with the price of each extra one, and the price of a
@@ -80,3 +101,4 @@ back, and each reading moves the car's own odometer.
   (details and licences, insurance, service plan, workshop, trailer). The rental desk is a tab when car rental is open.
 * Companies (platform): the company's lines of business, opened and closed by contract.
 * Vehicle makes and models (platform): Arabic names, years and trims; edit with history; delete while unused.
+* Colours and axles (platform): the two lists, with swatches, what uses each entry, edit with history and retire.
