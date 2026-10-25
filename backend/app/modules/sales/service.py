@@ -16,7 +16,7 @@ from ... import crypto, db, money_mode
 from ...config import get_settings
 from ...errors import ApiError, not_found
 from ...ledger import cash_wallet, company_wallet, platform_wallet, post_txn, user_wallet
-from ...util import booking_ref, row_dict, ticket_name, ticket_no
+from ...util import booking_ref, round_unit, row_dict, ticket_name, ticket_no
 from ..family import service as fam
 from ..fares import categories as cat
 from ..notify.outbox import emit
@@ -58,9 +58,6 @@ class Buyer:
         return "WALLET"
 
 
-def round_unit(amount: float) -> int:
-    """Rounds to a whole currency unit (100 minor units)."""
-    return int(round(amount / 100.0)) * 100
 
 
 def commission_for(fares_total: int, commission_bp: int) -> int:

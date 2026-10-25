@@ -43,6 +43,7 @@ import math
 import secrets
 import uuid
 from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal
 from typing import Optional
 
 import asyncpg
@@ -55,6 +56,7 @@ from ..errors import ApiError, not_found
 from ..ledger import company_wallet, post_txn, user_wallet
 from ..modules.notify.outbox import emit
 from ..modules.sales import documents
+from ..util import round_minor
 from . import features
 
 router = APIRouter(tags=["workflows"])
@@ -346,7 +348,7 @@ async def _taxi_estimate(conn: asyncpg.Connection, body: TaxiTrip) -> dict:
         raise ApiError(422, "TOO_SHORT", "pickup and drop-off are too close")
     if km > 80:
         raise ApiError(422, "TOO_FAR", "city taxis cover trips up to 80 km")
-    fare = tariff["flag_fall"] + round(tariff["per_km"] * km)
+    fare = tariff["flag_fall"] + round_minor(Decimal(tariff["per_km"]) * Decimal(str(km)))
     fare = max(fare, tariff["min_fare"] or 0)
     fare = int(math.ceil(fare / 50000) * 50000)          # nearest 500 pounds up
     return {"km": km, "minutes": max(5, round(km * 2.4)), "fare": fare,

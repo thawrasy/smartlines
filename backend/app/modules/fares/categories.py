@@ -14,6 +14,7 @@ from typing import Optional
 import asyncpg
 
 from ...errors import ApiError
+from ...util import round_unit
 
 CATEGORIES = ("ADULT", "CHILD", "INFANT")
 
@@ -91,8 +92,6 @@ async def category_fare(conn: asyncpg.Connection, company_id: int, route_id: Opt
     return round_unit(adult_fare * float(r["value"]) / 100)
 
 
-def round_unit(amount: float) -> int:
-    return int(round(amount / 100.0)) * 100
 
 
 @dataclass(frozen=True)

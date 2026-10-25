@@ -44,3 +44,16 @@ def rows(records) -> list[dict]:
 def ticket_name(first: str | None, last: str | None, full: str) -> str:
     """Name printed on a ticket: first and last name only. The booking and manifests keep the full document name."""
     return " ".join(p for p in (first, last) if p) or full
+
+
+def round_unit(amount) -> int:
+    """Rounds minor units to a whole currency unit (100 minor units), halves up as the database's round() does: Python's
+    round() takes a half to the even unit, so 2,550 and 2,650 would both become 2,600."""
+    from decimal import ROUND_HALF_UP, Decimal
+    return int((Decimal(str(amount)) / 100).quantize(Decimal(1), rounding=ROUND_HALF_UP)) * 100
+
+
+def round_minor(amount) -> int:
+    """Rounds an amount to whole minor units, halves up like round_unit (a rate per ton times a weight, a fare per km)."""
+    from decimal import ROUND_HALF_UP, Decimal
+    return int(Decimal(str(amount)).quantize(Decimal(1), rounding=ROUND_HALF_UP))

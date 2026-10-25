@@ -29,6 +29,7 @@ invoiced twice. The freight switch (features.freight) opens all of it.
 import json
 import uuid
 from datetime import date
+from decimal import Decimal
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -37,6 +38,7 @@ from pydantic import BaseModel, Field, field_validator
 from ... import db, markets
 from ...deps import Principal, base_context, context_for, require_portal
 from ...errors import ApiError, forbidden, not_found
+from ...util import round_minor
 
 carrier = APIRouter(prefix="/api/carrier/freight", tags=["freight"])
 public = APIRouter(prefix="/api/public/freight", tags=["freight"])
@@ -455,7 +457,7 @@ async def _price(conn, rate: Optional[dict], boxes: list, cons: dict, body: Move
         return rate["price"], rate["currency"], rate["id"]
     if unit == "TON":
         kg = sum(b["gross_weight_kg"] or 0 for b in boxes) or float(cons["gross_weight_kg"])
-        return int(round(rate["price"] * kg / 1000)), rate["currency"], rate["id"]
+        return round_minor(Decimal(rate["price"]) * Decimal(str(kg)) / 1000), rate["currency"], rate["id"]
     raise ApiError(422, "RATE_UNIT", "a rate per bill of lading is invoiced, not put on a truck")
 
 
