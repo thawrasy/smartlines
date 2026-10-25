@@ -81,7 +81,9 @@ def read(data: bytes) -> Boundaries:
 async def load(conn: asyncpg.Connection, b: Boundaries, user_id: Optional[int], file_name: Optional[str]) -> dict:
     if await conn.fetchval("SELECT 1 FROM ref.geo_source WHERE sha256 = $1", b.sha256):
         return {"already_loaded": True, "counts": b.levels()}
-    codes = [s.pcode for s in b.shapes]
+    # an area whose code the platform changed is found by the code the file still carries (1161, N39)
+    codes = await conn.fetchval("SELECT array_agg(ref.current_code('AREA', k) ORDER BY o) FROM unnest($1::text[]) WITH ORDINALITY AS u(k, o)",
+                                [s.pcode for s in b.shapes])
     unknown = await conn.fetch(
         """SELECT k FROM unnest($1::text[]) AS k
             WHERE NOT EXISTS (SELECT 1 FROM ref.admin_area a WHERE a.pcode = k AND a.status = 'ACTIVE') ORDER BY k LIMIT 10""", codes)

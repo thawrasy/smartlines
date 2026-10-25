@@ -87,7 +87,7 @@ async def _station(conn, uid: Optional[uuid.UUID]) -> Optional[int]:
 async def _city(conn, code: Optional[str]) -> Optional[int]:
     if code is None:
         return None
-    i = await conn.fetchval("SELECT id FROM ref.city WHERE code = $1", code.upper())
+    i = await conn.fetchval("SELECT ref.code_entity('CITY', $1)", code.upper())
     if i is None:
         raise not_found("city")
     return i
@@ -720,8 +720,8 @@ async def lane_rates(request: Request, unit: Optional[str] = Query(default=None,
     async with db.transaction(base_context(request)) as conn:
         rows = await conn.fetch(
             RATE_SQL + """ WHERE r.status = 'ACTIVE' AND r.valid @> current_date AND ($1::text IS NULL OR r.unit = $1)
-                            AND ($2::text IS NULL OR fc.code = $2 OR fs.city_id = (SELECT id FROM ref.city WHERE code = $2))
-                            AND ($3::text IS NULL OR tc.code = $3 OR ts.city_id = (SELECT id FROM ref.city WHERE code = $3))
+                            AND ($2::text IS NULL OR fc.code = ref.current_code('CITY', $2) OR fs.city_id = ref.code_entity('CITY', $2))
+                            AND ($3::text IS NULL OR tc.code = ref.current_code('CITY', $3) OR ts.city_id = ref.code_entity('CITY', $3))
                             AND ($4::text IS NULL OR r.to_country = $4)
                           ORDER BY r.currency, r.price LIMIT 100""", unit, from_city, to_city, to_country)
     return {"rates": [{k: v for k, v in dict(r).items() if k != "status"} for r in rows]}

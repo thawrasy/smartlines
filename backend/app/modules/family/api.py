@@ -455,7 +455,7 @@ async def add_rule(uid: uuid.UUID, body: RuleIn, request: Request, pr: Principal
         cities = {}
         for code in (body.from_city, body.to_city):
             if code:
-                cid = await conn.fetchval("SELECT id FROM ref.city WHERE code = $1", code.upper())
+                cid = await conn.fetchval("SELECT ref.code_entity('CITY', $1)", code.upper())
                 if cid is None:
                     raise not_found("city")
                 cities[code] = cid

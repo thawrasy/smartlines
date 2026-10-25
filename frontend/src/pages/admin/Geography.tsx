@@ -6,6 +6,7 @@ import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, useLoad, useToast } 
 import { FieldSurveys } from "./FieldSurveys";
 import { AreaMap } from "./AreaMap";
 import { NameCorrections } from "./NameCorrections";
+import { CodeChanges } from "./CodeChanges";
 
 // The administrative geography (owner's request, October 2026; migration 1124): the governorates, districts,
 // sub-districts, communities and city neighbourhoods of the United Nations' P-code workbook, loaded by the platform, and
@@ -170,6 +171,7 @@ export function AdminGeography() {
                 </div>
                 <FieldSurveys waiting={d.proposed} onChange={() => { state.reload(); level.reload(); }} />
                 <NameCorrections onChange={() => { level.reload(); if (found) void search(); }} />
+                <CodeChanges onChange={() => { state.reload(); level.reload(); }} />
               </>
             )}
           </>

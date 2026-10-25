@@ -234,6 +234,43 @@ PLACE_SQL = """
     RETURNING (xmax = 0) AS added"""
 
 
+async def _recode(conn: asyncpg.Connection, wb: Workbook) -> int:
+    """Reads the file's codes through the platform's code changes (1161, N39): an area or place whose code changed is
+    found by its old code, and an area the file adds under a re-coded area takes the new prefix (SY1405 under SY14
+    re-coded SY20 becomes SY2005). Returns how many codes were read otherwise."""
+    areas = {r["old_code"]: r["current_code"] for r in await conn.fetch("SELECT * FROM ref.code_aliases('AREA')")}
+    places = {r["old_code"]: r["current_code"] for r in await conn.fetch("SELECT * FROM ref.code_aliases('PLACE')")}
+    if not areas and not places:
+        return 0
+    n = 0
+
+    def area(code: Optional[str]) -> Optional[str]:
+        nonlocal n
+        if code is None:
+            return None
+        if code in areas:
+            n += 1
+            return areas[code]
+        for cut in range(len(code) - 2, 3, -2):                 # the nearest re-coded area above it
+            if code[:cut] in areas:
+                n += 1
+                return areas[code[:cut]] + code[cut:]
+        return code
+
+    def place(code: Optional[str]) -> Optional[str]:
+        nonlocal n
+        if code in places:
+            n += 1
+            return places[code]
+        return code
+
+    for a in wb.areas:
+        a.pcode, a.parent = area(a.pcode), area(a.parent)
+    for p in wb.places:
+        p.pcode, p.area, p.parent = place(p.pcode), area(p.area), place(p.parent)
+    return n
+
+
 async def load(conn: asyncpg.Connection, wb: Workbook, user_id: Optional[int], file_name: Optional[str]) -> dict:
     """Writes the workbook (the platform's context, in the caller's transaction) and reports what changed."""
     if await conn.fetchval("SELECT 1 FROM ref.geo_source WHERE sha256 = $1", wb.sha256):
@@ -245,6 +282,7 @@ async def load(conn: asyncpg.Connection, wb: Workbook, user_id: Optional[int], f
            VALUES ('OCHA', $1, $2, $3, $4, $5::jsonb, $6) RETURNING id""",
         f"{wb.country} administrative divisions and populated places (P-codes)", (file_name or "")[:200] or None,
         wb.sha256, wb.valid_on, json.dumps(wb.counts()), user_id)
+    recoded = await _recode(conn, wb)
     added = updated = 0
     for level in (1, 2, 3):
         rows = [a for a in wb.areas if a.level == level]
@@ -276,12 +314,13 @@ async def load(conn: asyncpg.Connection, wb: Workbook, user_id: Optional[int], f
            SELECT count(*) FROM r""", [a.pcode for a in wb.areas], wb.country)
     linked = await conn.fetchval(
         """WITH k AS (SELECT * FROM unnest($1::text[], $2::text[]) AS k(code, pcode)),
-                l AS (UPDATE ref.city c SET place_id = p.id FROM k JOIN ref.place p ON p.pcode = k.pcode
-                       WHERE c.code = k.code AND c.place_id IS NULL
+                l AS (UPDATE ref.city c SET place_id = p.id FROM k JOIN ref.place p ON p.pcode = ref.current_code('PLACE', k.pcode)
+                       WHERE c.code = ref.current_code('CITY', k.code) AND c.place_id IS NULL
                          AND NOT EXISTS (SELECT 1 FROM ref.city o WHERE o.place_id = p.id) RETURNING 1)
            SELECT count(*) FROM l""", list(KNOWN_CITIES), list(KNOWN_CITIES.values()))
     # the platform's corrections of the published names hold for the newer file too (1127)
     await conn.fetchval("SELECT ref.apply_name_corrections()")
-    report = wb.counts() | {"added": added, "updated": updated, "retired": retired, "cities_linked": linked}
+    report = wb.counts() | {"added": added, "updated": updated, "retired": retired, "cities_linked": linked,
+                             "read_by_old_code": recoded}
     await conn.execute("UPDATE ref.geo_source SET counts = $2::jsonb WHERE id = $1", source, json.dumps(report))
     return {"already_loaded": False, "counts": report}

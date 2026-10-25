@@ -86,7 +86,7 @@ def international_trip(owner) -> dict:
     # the crossing plan: which border point the trip leaves Syria through (planning data of the trip)
     owner_sql("""INSERT INTO ops.trip_crossing_plan (trip_id, seq, exit_station_id, entry_station_id)
                  SELECT t.id, 1, x.id, e.id FROM ops.trip t, net.station x, net.station e
-                  WHERE t.uid = $1 AND x.code = 'SY-DAM-X901' AND e.code = 'SY-DRA-X902'""", uuid.UUID(t["uid"]))
+                  WHERE t.uid = $1 AND x.id = ref.code_entity('STATION', 'SY-RDM-X901') AND e.code = 'SY-DRA-X902'""", uuid.UUID(t["uid"]))
     owner_sql("UPDATE fleet.vehicle SET cargo_capacity_kg = 1000 WHERE uid = $1", uuid.UUID(vehicle))
     return t
 
@@ -136,7 +136,7 @@ def test_an_international_manifest_carries_cargo_is_signed_and_answered_through_
 
     # the authority of the crossing, with a border key: list, read, verify, decide
     authority = owner_sql("""SELECT bp.authority_id FROM brd.border_point bp JOIN net.station s ON s.id = bp.station_id
-                              WHERE s.code = 'SY-DAM-X901'""")
+                              WHERE s.id = ref.code_entity('STATION', 'SY-RDM-X901')""")
     code = owner_sql("SELECT code FROM sec.authority_profile WHERE id = $1", authority)
     admin, security = login("admin@masslak.test", "PLATFORM"), login("security@masslak.test", "PLATFORM")
     r = admin.post("/api/integrations/clients", json={"name": "Border authority", "kind": "AUTHORITY", "authority_code": code,

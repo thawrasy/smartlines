@@ -113,6 +113,8 @@ async def search(conn: asyncpg.Connection, origin: str, destination: str, on: da
     cfg = await settings(conn)
     if not cfg["enabled"]:
         return {"enabled": False, "settings": cfg, "connections": []}
+    # an old city code still finds its city (1161, N39)
+    origin, destination = await conn.fetchval("SELECT ARRAY[ref.current_code('CITY', $1), ref.current_code('CITY', $2)]", origin, destination)
     recs = await conn.fetch(SEARCH_SQL, origin, destination, on, cfg["max_minutes"], cfg["min_minutes"], cfg["min_minutes_station_change"])
     out = []
     for r in recs:

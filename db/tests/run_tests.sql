@@ -4074,6 +4074,30 @@ SELECT pg_temp.ok(jsonb_array_length(ref.geo_cascade(NULL, NULL, NULL) -> 'citie
 ROLLBACK;
 SET ROLE masslak_app;
 
+-- Code changes (1161): previewed, approved by another person, cascading, old codes kept; nobody writes a code directly
+BEGIN;
+RESET ROLE;
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+SELECT pg_temp.expect_error($$UPDATE ref.city SET code = 'QQQ' WHERE code = 'DAM'$$, 'CODE_CHANGE_REQUIRED',
+  'Code changes (1161): a code is not written directly');
+SELECT pg_temp.ok(jsonb_array_length(ref.code_plan('CITY', 'DAM', 'DMQ') -> 'items') =
+                  1 + (SELECT count(*) FROM net.station s JOIN ref.city c ON c.id = s.city_id WHERE c.code = 'DAM' AND s.code LIKE 'SY-DAM-%'),
+  'Code changes (1161): a city''s new code goes to its stations');
+SELECT pg_temp.ok(ref.code_plan('CITY', 'DAM', 'ALP') -> 'conflicts' @> '[{"code": "ALP", "problem": "IN_USE"}]',
+  'Code changes (1161): a code in use is reported');
+SELECT ref.request_code_change('CITY', 'DAM', 'DMQ', 'database check', NULL, current_date) AS cc \gset
+SELECT pg_temp.expect_error(format($$SELECT ref.decide_code_change(%L, true, NULL)$$, :'cc'), 'FOUR_EYES',
+  'Code changes (1161): who asked does not approve');
+SELECT sys.set_context(:ufin, NULL, 'SYSTEM');
+SELECT pg_temp.ok(ref.decide_code_change(:'cc', true, NULL) = 'APPLIED', 'Code changes (1161): another person approves; due today, it applies');
+SELECT pg_temp.ok(ref.current_code('CITY', 'DAM') = 'DMQ' AND NOT EXISTS (SELECT 1 FROM net.station WHERE code LIKE 'SY-DAM-%')
+                  AND ref.code_on('CITY', ref.code_entity('CITY', 'DMQ'), now() - interval '1 minute') = 'DAM',
+  'Code changes (1161): the old code finds the city, its stations moved, and the code of a past time is known');
+SELECT pg_temp.expect_error($$INSERT INTO ref.city (code, country_code, name, timezone) VALUES ('DAM', 'SY', 'Reuse', 'Asia/Damascus')$$,
+  'CODE_OLD', 'Code changes (1161): an old code is not given to something else');
+ROLLBACK;
+SET ROLE masslak_app;
+
 -- Party KYC (1159): one form in force for each kind; persons' files decided by another person; the unlocks are switches
 BEGIN;
 RESET ROLE;

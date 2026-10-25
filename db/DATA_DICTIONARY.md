@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**583 tables, 6332 columns, in 26 schemas.**
+**585 tables, 6363 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -11,7 +11,7 @@ Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant i
 - [`iam` — Identity, parties, users, permissions and API clients](#iam) (50 tables)
 - [`ref` — Reference data, locales and files](#ref) (23 tables)
 - [`sys` — Settings, outbox and webhooks](#sys) (27 tables)
-- [`net` — Network: stations, routes, lines, corridors and geofences](#net) (28 tables)
+- [`net` — Network: stations, routes, lines, corridors and geofences](#net) (30 tables)
 - [`fleet` — Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance](#fleet) (23 tables)
 - [`pricing` — Pricing, taxes, commissions, campaigns and loyalty](#pricing) (38 tables)
 - [`ops` — Trips, inventory, operations, shuttle rides, tracking and incidents](#ops) (40 tables)
@@ -1902,6 +1902,51 @@ Three-letter carrier code (optional two-character code), unique platform-wide an
 | `approved_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `valid_from` | `date` |  |  |
 | `retired_at` | `date` |  |  |
+
+### `net.code_change` 🛡️
+
+Requests to change the code of an area, place, city or station: the codes they touch, a second person's decision, the date they take effect (1161, N39)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `entity_kind` | `text` | ✱ |  |
+| `area_id` | `bigint` | 🔗 `ref.admin_area`  |  |
+| `place_id` | `bigint` | 🔗 `ref.place`  |  |
+| `city_id` | `bigint` | 🔗 `ref.city`  |  |
+| `station_id` | `bigint` | 🔗 `net.station`  |  |
+| `old_code` | `text` | ✱ |  |
+| `new_code` | `text` | ✱ |  |
+| `reason` | `text` | ✱ |  |
+| `source_document` | `text` |  |  |
+| `effective_on` | `date` | ✱ |  |
+| `plan` | `jsonb` | ✱ |  |
+| `status` | `text` | ✱ | `'PENDING'::text` |
+| `requested_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `requested_at` | `timestamp with time zone` | ✱ | `now()` |
+| `decided_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `decided_at` | `timestamp with time zone` |  |  |
+| `decision_note` | `text` |  |  |
+| `applied_at` | `timestamp with time zone` |  |  |
+| `failure` | `text` |  |  |
+
+### `net.code_history` 🛡️
+
+The codes a thing had before: kept as aliases, so an old code still finds it, and dated, so a report shows the code of its day (1161, N39)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `entity_kind` | `text` | ✱ |  |
+| `area_id` | `bigint` | 🔗 `ref.admin_area`  |  |
+| `place_id` | `bigint` | 🔗 `ref.place`  |  |
+| `city_id` | `bigint` | 🔗 `ref.city`  |  |
+| `station_id` | `bigint` | 🔗 `net.station`  |  |
+| `code` | `text` | ✱ |  |
+| `valid_from` | `timestamp with time zone` |  |  |
+| `valid_to` | `timestamp with time zone` | ✱ |  |
+| `change_id` | `bigint` | 🔗 `net.code_change` ✱ |  |
 
 ### `net.code_reservation` 🛡️
 

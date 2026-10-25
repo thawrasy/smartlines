@@ -89,7 +89,7 @@ flowchart LR
   iam -->|7| ref
   iam -->|2| sec
   net -->|21| iam
-  net -->|4| ref
+  net -->|10| ref
   ops -->|2| fin
   ops -->|10| fleet
   ops -->|26| iam
@@ -1002,6 +1002,26 @@ erDiagram
     text status
     bigint approved_by FK
   }
+  net_code_change {
+    bigint id PK
+    uuid uid
+    bigint area_id FK
+    bigint place_id FK
+    bigint city_id FK
+    bigint station_id FK
+    text status
+    bigint requested_by FK
+    bigint decided_by FK
+  }
+  net_code_history {
+    bigint id PK
+    bigint area_id FK
+    bigint place_id FK
+    bigint city_id FK
+    bigint station_id FK
+    text code
+    bigint change_id FK
+  }
   net_code_reservation {
     text code PK
   }
@@ -1174,6 +1194,9 @@ erDiagram
   iam_company {
     ref external
   }
+  ref_admin_area {
+    ref external
+  }
   ref_city {
     ref external
   }
@@ -1204,6 +1227,7 @@ erDiagram
   net_station_gate }o..o| iam_company : "operator_company_id"
   net_station }o..o| iam_company : "owner_company_id"
   net_station_boarding }o..o| iam_company : "manager_company_id"
+  net_code_history }o--|| net_code_change : "change_id"
   net_station }o..o| net_compliance_profile : "compliance_profile_id"
   net_approved_rest_stop }o--|| net_corridor : "corridor_id"
   net_line_version }o--|| net_line : "line_id"
@@ -1233,11 +1257,19 @@ erDiagram
   net_route }o--|| net_station : "origin_station_id"
   net_station_operator_grant }o..o| net_station : "station_id"
   net_route }o--|| net_station : "dest_station_id"
+  net_code_history }o..o| net_station : "station_id"
+  net_code_change }o..o| net_station : "station_id"
   net_station_display }o..o| net_station_gate : "gate_id"
   net_station_carrier_bay }o--|| net_station_gate : "gate_id"
   net_screen_pairing }o..o| net_station_screen : "screen_id"
+  net_code_history }o..o| ref_admin_area : "area_id"
+  net_code_change }o..o| ref_admin_area : "area_id"
   net_station }o--|| ref_city : "city_id"
+  net_code_history }o..o| ref_city : "city_id"
+  net_code_change }o..o| ref_city : "city_id"
   net_line }o..o| ref_city : "city_id"
+  net_code_history }o..o| ref_place : "place_id"
+  net_code_change }o..o| ref_place : "place_id"
   net_station }o..o| ref_place : "place_id"
   net_station }o--|| ref_station_subtype : "subtype"
 ```

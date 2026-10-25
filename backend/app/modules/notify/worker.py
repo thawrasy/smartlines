@@ -196,6 +196,8 @@ async def main(once: bool) -> None:
                         await conn.execute("SELECT net.raise_screen_alerts()")
                         # the platform shield's traffic watch: the last minute against the usual (1142)
                         await conn.execute("SELECT sec.evaluate_traffic()")
+                        # approved code changes whose date has come take effect, the old codes kept (1161, N39)
+                        await conn.execute("SELECT ref.apply_due_code_changes()")
                     # connections held after their trip was completed are released when the change window ends (1132)
                     from ..sales.connections import release_due_holds
                     hold_ctx = _ctx()

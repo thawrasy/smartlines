@@ -117,7 +117,7 @@ async def parcel_trips(request: Request, origin: str = Query(..., min_length=3, 
                  JOIN ops.trip_stop a ON a.trip_id = t.id JOIN net.station sa ON sa.id = a.station_id JOIN ref.city ca ON ca.id = sa.city_id
                  JOIN ops.trip_stop b ON b.trip_id = t.id AND b.seq > a.seq JOIN net.station sb ON sb.id = b.station_id
                  JOIN ref.city cb ON cb.id = sb.city_id
-                WHERE t.status IN ('PUBLISHED', 'BOARDING') AND ca.code = $1 AND cb.code = $2 AND a.kind = 'STATION' AND b.kind = 'STATION'
+                WHERE t.status IN ('PUBLISHED', 'BOARDING') AND ca.code = ref.current_code('CITY', $1) AND cb.code = ref.current_code('CITY', $2) AND a.kind = 'STATION' AND b.kind = 'STATION'
                   AND (a.sched_dep AT TIME ZONE ca.timezone)::date = $3 AND a.sched_dep > now()
                 ORDER BY t.id, a.seq, b.seq DESC""", origin.upper(), destination.upper(), on)
         pol = await service.policy(conn)

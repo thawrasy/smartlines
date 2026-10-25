@@ -114,7 +114,7 @@ def _offer(r: asyncpg.Record) -> dict:
 async def _city(conn: asyncpg.Connection, code: Optional[str]) -> Optional[int]:
     if code is None:
         return None
-    cid = await conn.fetchval("SELECT id FROM ref.city WHERE code = $1 AND is_active", code)
+    cid = await conn.fetchval("SELECT id FROM ref.city WHERE id = ref.code_entity('CITY', $1) AND is_active", code)
     if cid is None:
         raise ApiError(422, "UNKNOWN_CITY", f"no city {code}")
     return cid

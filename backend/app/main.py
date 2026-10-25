@@ -37,6 +37,7 @@ from .modules.boarding import api as boarding_api
 from .modules.boarding import bays as boarding_bays
 from .modules.boarding import displays as boarding_displays
 from .modules.geo import api as geo_api
+from .modules.geo import codes as geo_codes
 from .modules.sales import charter_api, connections_api, journeys_api
 from .modules.schedules import api as schedules_api
 from .modules.kyc import api as kyc_api
@@ -159,7 +160,7 @@ for r in (metrics.router, auth.router, public.router, bookings.router, wallet.ro
           boarding_displays.station, boarding_displays.platform, boarding_displays.public, schedules_api.carrier, schedules_api.platform,
           kyc_api.carrier, kyc_api.agency, kyc_api.station, kyc_api.platform, kyc_persons.person, kyc_persons.platform, journeys_api.passenger, journeys_api.agency,
           charter_api.carrier, charter_api.agency, charter_api.passenger, charter_api.platform,
-          geo_api.public, geo_api.platform, connections_api.carrier, connections_api.platform,
+          geo_api.public, geo_api.platform, geo_codes.router, connections_api.carrier, connections_api.platform,
           freight_api.carrier, freight_api.public, trip_changes.carrier, trip_changes.platform):
     app.include_router(r)
 

@@ -163,7 +163,7 @@ async def search(request: Request, origin: str = Query(..., min_length=3, max_le
                 JOIN ref.city cb ON cb.id = sb.city_id
                 LEFT JOIN ops.trip_pair_fare pf ON pf.trip_id = t.id AND pf.from_seq = a.seq AND pf.to_seq = b.seq
                WHERE t.status IN ('PUBLISHED','BOARDING')
-                 AND ca.code = $1 AND cb.code = $2
+                 AND ca.code = ref.current_code('CITY', $1) AND cb.code = ref.current_code('CITY', $2)
                  AND a.kind = 'STATION' AND b.kind = 'STATION' AND a.sellable AND a.sales_closed_at IS NULL
                  AND (t.service_type = 'INDIRECT' OR (a.seq = 0 AND b.seq = t.segments_count))
                  AND (a.sched_dep AT TIME ZONE ca.timezone)::date = $3          -- the day where the traveller boards (1061)

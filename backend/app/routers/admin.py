@@ -230,7 +230,7 @@ async def _station_place(conn, pcode: Optional[str], city_code: Optional[str]):
         """SELECT c.id, c.code, c.country_code,
                   (SELECT g.id FROM ref.place p JOIN ref.admin_area s ON s.id = p.area_id JOIN ref.admin_area d ON d.id = s.parent_id
                      JOIN ref.admin_area g ON g.id = d.parent_id WHERE p.id = c.place_id) AS governorate
-             FROM ref.city c WHERE c.code = $1""", code)
+             FROM ref.city c WHERE c.id = ref.code_entity('CITY', $1)""", code)
     if city is None:
         raise not_found("city")
     if place and city["governorate"] and place["governorate"] != city["governorate"]:

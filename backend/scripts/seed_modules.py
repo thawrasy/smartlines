@@ -589,14 +589,16 @@ async def main():
     # every run, so a demo database seeded with the crossings under Damascus is corrected.
     s.named["border"] = []
     for code, city_code, village, name, lat, lng in (
-            ("SY-DAM-X901", "RDM", None, "Jdeidet Yabous crossing", 33.6330, 36.0750),
+            ("SY-RDM-X901", "RDM", None, "Jdeidet Yabous crossing", 33.6330, 36.0750),
             ("SY-DRA-X902", "DRA", "Nasib", "Nasib crossing", 32.5450, 36.2050)):
         city = await conn.fetchval("SELECT id FROM ref.city WHERE code = $1", city_code)
         place = village and await conn.fetchval(
             """SELECT p.id FROM ref.place p JOIN ref.admin_area a ON a.id = p.area_id
                 WHERE p.name_en = $1 AND p.status = 'ACTIVE' AND left(a.pcode, 4) = ref.city_governorate($2) LIMIT 1""",
             village, city)
-        sid = await conn.fetchval("SELECT id FROM net.station WHERE code = $1", code) or await conn.fetchval(
+        # found by its code, an old one (1161), or the code it had in demo databases seeded before it moved city
+        sid = await conn.fetchval("SELECT coalesce(ref.code_entity('STATION', $1), ref.code_entity('STATION', $2))",
+                                  code, code.replace("SY-RDM-", "SY-DAM-")) or await conn.fetchval(
             """INSERT INTO net.station (code, city_id, country_code, station_class, subtype, name, lat, lng, status)
                VALUES ($1, $2, 'SY', 'CENTRAL', 'BORDER', $3, $4, $5, 'ACTIVE') RETURNING id""", code, city, name, lat, lng)
         await conn.execute("UPDATE net.station SET city_id = $2, place_id = coalesce($3, place_id) WHERE id = $1",
