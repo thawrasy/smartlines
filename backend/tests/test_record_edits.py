@@ -82,3 +82,36 @@ def test_a_crew_member_is_corrected_with_a_reason(carrier):
                          WHERE p.uid = $1 AND c.field IN ('crew_type', 'license_class')""", uid)
     assert kept == 2
     assert carrier.patch(f"/api/carrier/crew/{uid}", json={"first_name": None, "reason": "test"}).json()["error"]["code"] == "NAME_PARTS_REQUIRED"
+
+
+def test_the_platform_edits_a_station_and_keeps_its_history():
+    admin = login("admin@masslak.test", "PLATFORM")
+    st = admin.get("/api/admin/stations").json()["stations"][0]
+    r = admin.patch(f"/api/admin/stations/{st['uid']}", json={"name": st["name"] + " (renamed)"})
+    assert r.status_code == 422 and r.json()["error"]["code"] == "STATION_CHANGE_REASON"
+    assert admin.patch(f"/api/admin/stations/{st['uid']}", json={"lat": 33.5}).json()["error"]["code"] == "POSITION_PAIR"
+    r = admin.patch(f"/api/admin/stations/{st['uid']}", json={"name": st["name"] + " (renamed)", "phone": "+963112223344",
+                                                             "reason": "the governorate renamed the station"})
+    assert r.status_code == 200, r.text
+    d = admin.get(f"/api/admin/stations/{st['uid']}").json()
+    assert d["station"]["name"].endswith("(renamed)") and d["station"]["phone"] == "+963112223344"
+    assert {h["field"] for h in d["history"]} >= {"name", "phone"}
+    assert next(h for h in d["history"] if h["field"] == "name")["reason"] == "the governorate renamed the station"
+    admin.patch(f"/api/admin/stations/{st['uid']}", json={"name": st["name"], "reason": "test: back to the old name"})
+    carrier = login("owner@carrier.test", "OPERATOR")
+    assert carrier.patch(f"/api/admin/stations/{st['uid']}", json={"phone": "+963110000000"}).status_code in (401, 403)
+
+
+def test_the_platform_corrects_a_company_and_keeps_its_history():
+    admin = login("admin@masslak.test", "PLATFORM")
+    co = next(c for c in admin.get("/api/admin/companies").json()["companies"] if c["company_type"] == "CARRIER")
+    r = admin.patch(f"/api/admin/companies/{co['uid']}", json={"legal_name": co["legal_name"] + " LLC"})
+    assert r.status_code == 422 and r.json()["error"]["code"] == "COMPANY_CHANGE_REASON"
+    r = admin.patch(f"/api/admin/companies/{co['uid']}", json={"legal_name": co["legal_name"] + " LLC", "cr_expiry": "2030-12-31",
+                                                               "reason": "registered name corrected from the register"})
+    assert r.status_code == 200, r.text
+    d = admin.get(f"/api/admin/companies/{co['uid']}").json()
+    assert d["company"]["legal_name"] == co["legal_name"] + " LLC" and d["company"]["cr_expiry"] == "2030-12-31"
+    name = next(h for h in d["history"] if h["field"] == "legal_name")
+    assert name["old_value"] == co["legal_name"] and name["reason"] == "registered name corrected from the register"
+    admin.patch(f"/api/admin/companies/{co['uid']}", json={"legal_name": co["legal_name"], "reason": "test: back to the old name"})

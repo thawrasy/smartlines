@@ -227,6 +227,11 @@ erDiagram
     bigint approved_by FK
     bigint payout_bank_account_id FK
   }
+  iam_company_change {
+    bigint id PK
+    bigint company_id FK
+    bigint changed_by FK
+  }
   iam_company_kyc {
     bigint id PK
     uuid uid
@@ -632,6 +637,7 @@ erDiagram
   iam_company_logo }o--|| iam_company : "company_id"
   iam_company_member }o--|| iam_company : "company_id"
   iam_carrier_class_assignment }o--|| iam_company : "company_id"
+  iam_company_change }o--|| iam_company : "company_id"
   iam_user_station_scope }o--|| iam_company : "company_id"
   iam_company_kyc }o--|| iam_company : "company_id"
   iam_integration_request }o--|| iam_company : "company_id"
@@ -1275,6 +1281,11 @@ erDiagram
     bigint gate_id FK
     bigint set_by_user_id FK
   }
+  net_station_change {
+    bigint id PK
+    bigint station_id FK
+    bigint changed_by FK
+  }
   net_station_contact {
     bigint id PK
     bigint station_id FK
@@ -1401,6 +1412,7 @@ erDiagram
   net_approved_rest_stop }o--|| net_station : "station_id"
   net_station_gate }o--|| net_station : "station_id"
   net_station_display }o--|| net_station : "station_id"
+  net_station_change }o--|| net_station : "station_id"
   net_route_stop }o--|| net_station : "station_id"
   net_line_stop }o--|| net_station : "station_id"
   net_line_fare }o..o| net_station : "from_station_id"

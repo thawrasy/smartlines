@@ -8,6 +8,11 @@ const en = {
   },
   lang: { ar: "Arabic", en: "English", switchTo: "Language" },
   edit: {
+    companyTitle: "Edit {name}", stationTitle: "Edit station {name}",
+    regulatedHint: "Fields marked * change only with a reason. Every change is kept with who made it and when.",
+    c: { nameLatin: "Name in Latin letters", crNo: "Commercial registration number", crExpiry: "Registration valid until", licenceNo: "Transport licence number", regulatorCode: "Regulator's code" },
+    s: { address: "Address", operator: "Operator", licenceNo: "Licence number", licenceAuthority: "Licensing authority", licenceExpiry: "Licence valid until",
+      leadMin: "Arrive before departure (minutes)", active: "Active", suspended: "Suspended", pending: "Pending" },
     edit: "Edit", vehicle: "Vehicle", vehicleTitle: "Vehicle {plate}", crewTitle: "Edit crew member",
     tab: { details: "Details", licences: "Licences", history: "History of changes" },
     machineNo: "Engine number", cargoKg: "Cargo capacity (kg)", fuelTank: "Fuel tank (litres)", ownership: "Ownership",

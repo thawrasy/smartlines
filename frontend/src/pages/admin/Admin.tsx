@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { RecordEditor, type EditField } from "../../components/RecordEditor";
 import { api, newKey } from "../../api";
 import { useI18n } from "../../i18n";
 import { useAuth } from "../../auth";
@@ -37,6 +38,16 @@ export function AdminOverview() {
   );
 }
 
+// the fields of a company the platform corrects (1171); the legal name and the registration and licence numbers need a reason
+function companyFields(t: (k: string) => string): EditField[] {
+  return [
+    { key: "legal_name", label: t("admin.legalName") }, { key: "name_latin", label: t("edit.c.nameLatin"), ltr: true },
+    { key: "cr_no", label: t("edit.c.crNo"), ltr: true }, { key: "cr_expiry", label: t("edit.c.crExpiry"), kind: "date" },
+    { key: "transport_license_no", label: t("edit.c.licenceNo"), ltr: true }, { key: "regulator_code", label: t("edit.c.regulatorCode"), ltr: true },
+  ];
+}
+const COMPANY_REGULATED = ["legal_name", "cr_no", "transport_license_no"];
+
 export function AdminCompanies() {
   const { t, date } = useI18n();
   const { can } = useAuth();
@@ -46,6 +57,7 @@ export function AdminCompanies() {
   const blank = { legal_name: "", code3: "", code2: "", transport_license_no: "", owner_name: "", owner_email: "", owner_password: "" };
   const [f, setF] = useState(blank);
   const [identity, setIdentity] = useState<Company | null>(null);
+  const [editing, setEditing] = useState<Company | null>(null);
   const slip = useSignInSlip();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
@@ -87,12 +99,15 @@ export function AdminCompanies() {
               <td>{can("company.approve") && <div className="row nowrap" style={{ gap: 4 }}>
                 {c.approval_status !== "APPROVED" && <button className="btn tonal small" onClick={() => setStatusFor({ uid: c.uid, status: "APPROVED" })}>{t("admin.approve")}</button>}
                 {c.approval_status === "APPROVED" && <button className="btn danger small" onClick={() => setStatusFor({ uid: c.uid, status: "SUSPENDED" })}>{t("admin.suspend")}</button>}
+                <button className="btn text small" onClick={() => setEditing(c)}><Icon name="edit" />{t("edit.edit")}</button>
                 <button className="btn text small" onClick={() => setIdentity(c)}><Icon name="image" />{t("company.identity")}</button>
               </div>}</td>
             </tr>
           ))}</tbody>
         </table></div>
       )}</Loaded>
+      {editing && <RecordEditor title={t("edit.companyTitle", { name: editing.legal_name })} url={`/api/admin/companies/${editing.uid}`} record="company"
+                                fields={companyFields(t)} regulated={COMPANY_REGULATED} onClose={() => { setEditing(null); state.reload(); }} />}
       {open && (
         <Modal title={t("admin.onboard")} onClose={() => setOpen(false)}
                actions={<><button className="btn text" onClick={() => setOpen(false)}>{t("common.cancel")}</button><button className="btn" disabled={busy} onClick={onboard}>{t("common.create")}</button></>}>
@@ -193,6 +208,7 @@ export function AdminStations() {
   const [place, setPlace] = useState<PickedPlace | null>(null);
   const [geo, setGeo] = useState<GeoChoice>(NO_GEO);
   const [placing, setPlacing] = useState<AdminStation | null>(null);
+  const [editing, setEditing] = useState<AdminStation | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const set = (k: keyof typeof blank) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value });
@@ -222,16 +238,26 @@ export function AdminStations() {
       </PageHead>
       <Loaded state={state}>{({ stations }) => (
         <div className="table-wrap" tabIndex={0}><table className="table">
-          <thead><tr><th>{t("common.code")}</th><th>{t("common.station")}</th><th>{t("common.city")}</th><th>{t("geo.place")}</th><th>{t("common.type")}</th><th>{t("admin.lat")}, {t("admin.lng")}</th><th>{t("common.status")}</th></tr></thead>
+          <thead><tr><th>{t("common.code")}</th><th>{t("common.station")}</th><th>{t("common.city")}</th><th>{t("geo.place")}</th><th>{t("common.type")}</th><th>{t("admin.lat")}, {t("admin.lng")}</th><th>{t("common.status")}</th><th>{t("common.actions")}</th></tr></thead>
           <tbody>{stations.map((s) => (
             <tr key={s.uid}><td className="mono small">{s.code}</td><td>{station(s.code, s.name)}</td><td>{city(s.city_code)}</td>
               <td>{s.place_pcode ? <span>{placeName(s)} <span className="mono small muted">{s.place_pcode}</span></span>
                 : can("station.approve") && <button className="btn text small" onClick={() => { setPlacing(s); setPlace(null); }}>{t("geo.setPlace")}</button>}</td>
               <td>{s.station_class}</td>
-              <td className="mono small ltr">{s.lat.toFixed(4)}, {s.lng.toFixed(4)}</td><td><Status value={s.status} /></td></tr>
+              <td className="mono small ltr">{s.lat.toFixed(4)}, {s.lng.toFixed(4)}</td><td><Status value={s.status} /></td>
+              <td>{can("station.approve") && <button className="btn text small" onClick={() => setEditing(s)}><Icon name="edit" />{t("edit.edit")}</button>}</td></tr>
           ))}</tbody>
         </table></div>
       )}</Loaded>
+      {editing && <RecordEditor title={t("edit.stationTitle", { name: station(editing.code, editing.name) })} url={`/api/admin/stations/${editing.uid}`} record="station"
+        regulated={["name", "lat", "lng"]} onClose={() => { setEditing(null); state.reload(); }}
+        fields={[{ key: "name", label: t("common.station") }, { key: "address", label: t("edit.s.address") },
+                 { key: "lat", label: t("admin.lat"), kind: "number" }, { key: "lng", label: t("admin.lng"), kind: "number" },
+                 { key: "phone", label: t("common.mobile"), ltr: true }, { key: "email", label: t("common.email"), kind: "email" },
+                 { key: "operator_name", label: t("edit.s.operator") }, { key: "license_no", label: t("edit.s.licenceNo"), ltr: true },
+                 { key: "license_authority", label: t("edit.s.licenceAuthority") }, { key: "license_expiry", label: t("edit.s.licenceExpiry"), kind: "date" },
+                 { key: "lead_min", label: t("edit.s.leadMin"), kind: "number" },
+                 { key: "status", label: t("common.status"), kind: "select", options: [{ value: "ACTIVE", label: t("edit.s.active") }, { value: "SUSPENDED", label: t("edit.s.suspended") }, { value: "PENDING", label: t("edit.s.pending") }] }]} />}
       {open && (
         <Modal title={t("admin.newStation")} onClose={close}
                actions={<><button className="btn text" onClick={close}>{t("common.cancel")}</button><button className="btn" disabled={busy} onClick={submit}>{t("common.save")}</button></>}>
@@ -285,6 +311,7 @@ export function AdminAgencies() {
   const state = useLoad(() => api.get<{ agencies: AdminAgency[] }>("/api/admin/agencies"));
   const blank = { legal_name: "", license_no: "", owner_name: "", owner_email: "", owner_password: "", commission_pct: "5", daily_limit: "500000" };
   const [f, setF] = useState(blank);
+  const [editing, setEditing] = useState<{ uid: string; legal_name: string } | null>(null);
   const [mode, setMode] = useState<null | "new" | { terms: AdminAgency } | { deposit: AdminAgency }>(null);
   const slip = useSignInSlip();
   const [terms, setTerms] = useState({ commission_pct: "", daily_limit: "", status: "ACTIVE", reason: "" });
@@ -338,12 +365,15 @@ export function AdminAgencies() {
               <td><Status value={a.agreement_status ?? a.approval_status} /></td>
               <td><div className="row nowrap" style={{ gap: 4 }}>
                 {can("company.approve") && <button className="btn tonal small" onClick={() => openTerms(a)}>{t("admin.terms")}</button>}
+                {can("company.approve") && <button className="btn text small" onClick={() => setEditing(a)}><Icon name="edit" />{t("edit.edit")}</button>}
                 {can("cash.remittance") && <button className="btn outlined small" onClick={() => openDeposit(a)}>{t("admin.deposit")}</button>}
               </div></td>
             </tr>
           ))}</tbody>
         </table></div>
       )}</Loaded>
+      {editing && <RecordEditor title={t("edit.companyTitle", { name: editing.legal_name })} url={`/api/admin/companies/${editing.uid}`} record="company"
+                                fields={companyFields(t)} regulated={COMPANY_REGULATED} onClose={() => { setEditing(null); state.reload(); }} />}
 
       {mode === "new" && (
         <Modal title={t("admin.onboardAgency")} onClose={close} actions={actions(onboard)}>

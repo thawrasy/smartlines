@@ -5129,6 +5129,19 @@ SELECT pg_temp.expect_error(format('UPDATE fleet.vehicle_change SET new_value = 
   'HISTORY_APPEND_ONLY', 'Record edits (1170): the history of a vehicle is never changed');
 SELECT pg_temp.expect_error(format('DELETE FROM fleet.vehicle_change WHERE vehicle_id = %s', :va),
   'HISTORY_APPEND_ONLY', 'Record edits (1170): the history of a vehicle is never deleted');
+-- Station and company edits (1171): a station's name and a company's legal name change with a reason, and are kept
+SELECT id AS st1171 FROM net.station ORDER BY id LIMIT 1 \gset
+SELECT pg_temp.expect_error(format('UPDATE net.station SET name = ''Renamed 1171'' WHERE id = %s', :st1171),
+  'STATION_CHANGE_REASON', 'Station edits (1171): a station''s name changes only with its reason');
+UPDATE net.station SET name = 'Renamed 1171', change_reason = 'renamed by the governorate' WHERE id = :st1171;
+SELECT pg_temp.ok(EXISTS (SELECT 1 FROM net.station_change WHERE station_id = :st1171 AND field = 'name' AND new_value = 'Renamed 1171'),
+  'Station edits (1171): the station''s new name is kept in its history');
+SELECT id AS co1171 FROM iam.company ORDER BY id LIMIT 1 \gset
+SELECT pg_temp.expect_error(format('UPDATE iam.party SET legal_name = ''Renamed Co 1171'' WHERE id = %s', :co1171),
+  'COMPANY_CHANGE_REASON', 'Company edits (1171): a company''s legal name changes only with its reason');
+UPDATE iam.party SET legal_name = 'Renamed Co 1171', change_reason = 'name from the commercial register' WHERE id = :co1171;
+SELECT pg_temp.ok(EXISTS (SELECT 1 FROM iam.company_change WHERE company_id = :co1171 AND field = 'legal_name' AND new_value = 'Renamed Co 1171'),
+  'Company edits (1171): the company''s new name is kept in its history');
 ROLLBACK;
 
 \echo '=== ALL TESTS PASSED ==='

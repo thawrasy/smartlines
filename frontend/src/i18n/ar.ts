@@ -10,6 +10,11 @@ const ar: Messages = {
   },
   lang: { ar: "العربية", en: "English", switchTo: "اللغة" },
   edit: {
+    companyTitle: "تعديل {name}", stationTitle: "تعديل المحطة {name}",
+    regulatedHint: "الحقول المعلّمة بـ * لا تتغير إلا مع ذكر السبب. يُحفظ كل تعديل مع من أجراه ومتى.",
+    c: { nameLatin: "الاسم بالأحرف اللاتينية", crNo: "رقم السجل التجاري", crExpiry: "السجل ساري حتى", licenceNo: "رقم رخصة النقل", regulatorCode: "رمز الجهة الناظمة" },
+    s: { address: "العنوان", operator: "الجهة المشغلة", licenceNo: "رقم الترخيص", licenceAuthority: "جهة الترخيص", licenceExpiry: "الترخيص ساري حتى",
+      leadMin: "الحضور قبل الانطلاق (دقائق)", active: "فعّالة", suspended: "موقوفة", pending: "قيد المراجعة" },
     edit: "تعديل", vehicle: "المركبة", vehicleTitle: "المركبة {plate}", crewTitle: "تعديل بيانات فرد الطاقم",
     tab: { details: "البيانات", licences: "الرخص", history: "سجل التعديلات" },
     machineNo: "رقم المحرك", cargoKg: "سعة الحمولة (كغ)", fuelTank: "خزان الوقود (لتر)", ownership: "الملكية",

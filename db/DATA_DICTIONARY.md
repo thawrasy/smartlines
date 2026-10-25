@@ -2,16 +2,16 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**608 tables, 6637 columns, in 26 schemas.**
+**610 tables, 6656 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
 ## Index
 
-- [`iam` — Identity, parties, users, permissions and API clients](#iam) (51 tables)
+- [`iam` — Identity, parties, users, permissions and API clients](#iam) (52 tables)
 - [`ref` — Reference data, locales and files](#ref) (24 tables)
 - [`sys` — Settings, outbox and webhooks](#sys) (27 tables)
-- [`net` — Network: stations, routes, lines, corridors and geofences](#net) (44 tables)
+- [`net` — Network: stations, routes, lines, corridors and geofences](#net) (45 tables)
 - [`fleet` — Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance](#fleet) (25 tables)
 - [`pricing` — Pricing, taxes, commissions, campaigns and loyalty](#pricing) (41 tables)
 - [`ops` — Trips, inventory, operations, shuttle rides, tracking and incidents](#ops) (40 tables)
@@ -236,6 +236,22 @@ Carrier company (tenant): 1:1 profile with party; all company data is isolated b
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
 | `payout_bank_account_id` | `bigint` | 🔗 `iam.bank_account`  |  |
 | `company_no` | `text` | ✱ | `(nextval('iam.company_no_seq'::regcla...` |
+| `change_reason` | `text` |  |  |
+
+### `iam.company_change` 🛡️
+
+Every edit of a company and of its legal name, field by field, with who, when and why (1171); never updated or deleted
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `changed_at` | `timestamp with time zone` | ✱ | `now()` |
+| `changed_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `field` | `text` | ✱ |  |
+| `old_value` | `text` |  |  |
+| `new_value` | `text` |  |  |
+| `reason` | `text` |  |  |
 
 ### `iam.company_kyc` 🛡️
 
@@ -713,6 +729,7 @@ Unified party: person, company or entity; registered once and holds multiple rol
 | `last_name_latin` | `text` |  |  |
 | `names_complete` | `boolean` | ✱ | `false` |
 | `id_expiry` | `date` |  |  |
+| `change_reason` | `text` |  |  |
 
 ### `iam.party_photo` 🛡️
 
@@ -2550,6 +2567,7 @@ Register of stations and departure/arrival points (central, company point, exter
 CASE
     WHEN ((lat IS NOT NULL) AND...` |
 | `place_id` | `bigint` | 🔗 `ref.place`  |  |
+| `change_reason` | `text` |  |  |
 
 ### `net.station_boarding` 🛡️
 
@@ -2580,6 +2598,21 @@ The permanent bay of a carrier at a station, set and changed by the station's ad
 | `gate_id` | `bigint` | 🔗 `net.station_gate` ✱ |  |
 | `set_by_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `net.station_change` 🛡️
+
+Every edit of a station, field by field, with who, when and why (1171); never updated or deleted
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `station_id` | `bigint` | 🔗 `net.station` ✱ |  |
+| `changed_at` | `timestamp with time zone` | ✱ | `now()` |
+| `changed_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `field` | `text` | ✱ |  |
+| `old_value` | `text` |  |  |
+| `new_value` | `text` |  |  |
+| `reason` | `text` |  |  |
 
 ### `net.station_contact` 🛡️
 

@@ -127,8 +127,8 @@ async def set_company_status(company_uid: uuid.UUID, body: StatusIn, request: Re
     async with db.transaction(context_for(request, pr)) as conn:
         cid = await conn.fetchval("SELECT id FROM iam.party WHERE uid = $1", company_uid)
         n = await conn.execute(
-            "UPDATE iam.company SET approval_status = $2, approved_by = $3, approved_at = now() WHERE id = $1",
-            cid, body.status, pr.user_id)
+            "UPDATE iam.company SET approval_status = $2, approved_by = $3, approved_at = now(), change_reason = $4 WHERE id = $1",
+            cid, body.status, pr.user_id, body.reason)
         if n.endswith(" 0"):
             raise not_found("company")
     request.state.audit = {"action": "company.status", "object_type": "company", "object_id": cid, "reason": body.reason}
@@ -284,6 +284,125 @@ async def set_station_place(station_uid: uuid.UUID, body: StationPlaceIn, reques
         await conn.execute("UPDATE net.station SET place_id = $2 WHERE id = $1", st["id"], place["id"])
     request.state.audit = {"action": "station.place", "object_type": "station", "object_id": st["id"], "reason": body.place}
     return {"place": body.place}
+
+
+class StationEdit(BaseModel):
+    """A station's details, edited in place (1171): the name and position change only with a reason (tickets and boards
+    show them); every edit is kept in the station's history by the database."""
+    name: Optional[str] = Field(default=None, min_length=3, max_length=160)
+    address: Optional[str] = Field(default=None, max_length=300)
+    lat: Optional[float] = Field(default=None, ge=-90, le=90)
+    lng: Optional[float] = Field(default=None, ge=-180, le=180)
+    phone: Optional[str] = Field(default=None, max_length=30)
+    email: Optional[EmailStr] = None
+    operator_name: Optional[str] = Field(default=None, max_length=160)
+    license_no: Optional[str] = Field(default=None, max_length=60)
+    license_authority: Optional[str] = Field(default=None, max_length=160)
+    license_expiry: Optional[date] = None
+    lead_min: Optional[int] = Field(default=None, ge=0, le=600)
+    status: Optional[Literal["ACTIVE", "SUSPENDED"]] = None
+    reason: Optional[str] = Field(default=None, max_length=500)
+
+
+def _assignments(given: dict, table_cols: dict[str, str]) -> tuple[str, list]:
+    cols = [c for c in given if c in table_cols]
+    return ", ".join(f"{table_cols[c]} = ${i + 2}" for i, c in enumerate(cols)), [given[c] for c in cols]
+
+
+@router.get("/stations/{station_uid}")
+async def station_detail(station_uid: uuid.UUID, request: Request, pr: Principal = Depends(platform)):
+    async with db.transaction(context_for(request, pr)) as conn:
+        st = await conn.fetchrow(
+            """SELECT s.id, s.uid, s.code, s.name, s.address, s.lat, s.lng, s.phone, s.email, s.operator_name, s.license_no,
+                      s.license_authority, s.license_expiry, s.lead_min, s.status, s.station_class, c.code AS city_code
+                 FROM net.station s JOIN ref.city c ON c.id = s.city_id WHERE s.uid = $1""", station_uid)
+        if st is None:
+            raise not_found("station")
+        history = await conn.fetch(
+            """SELECT h.changed_at, h.field, h.old_value, h.new_value, h.reason, u.email AS changed_by
+                 FROM net.station_change h LEFT JOIN iam.app_user u ON u.id = h.changed_by
+                WHERE h.station_id = $1 ORDER BY h.changed_at DESC, h.id DESC LIMIT 200""", st["id"])
+    d = row_dict(st)
+    d.pop("id", None)
+    return {"station": d, "history": rows(history)}
+
+
+@router.patch("/stations/{station_uid}")
+async def edit_station(station_uid: uuid.UUID, body: StationEdit, request: Request,
+                       pr: Principal = Depends(require_permission("station.approve"))):
+    _platform_only(pr)
+    given = body.model_dump(exclude_unset=True)
+    reason = (given.pop("reason", None) or "").strip()
+    if not given:
+        raise ApiError(422, "NOTHING_TO_CHANGE", "give at least one field to change")
+    if ("lat" in given) != ("lng" in given):
+        raise ApiError(422, "POSITION_PAIR", "give the latitude and the longitude together")
+    if any(k in given for k in ("name", "lat", "lng")) and len(reason) < 3:
+        raise ApiError(422, "STATION_CHANGE_REASON", "changing a station's name or position needs its reason")
+    async with db.transaction(context_for(request, pr)) as conn:
+        sid = await conn.fetchval("SELECT id FROM net.station WHERE uid = $1", station_uid)
+        if sid is None:
+            raise not_found("station")
+        assign, values = _assignments(given, {k: k for k in given})
+        await conn.execute(f"UPDATE net.station SET {assign}, change_reason = ${len(values) + 2} WHERE id = $1",
+                           sid, *values, reason or None)
+    request.state.audit = {"action": "station.edit", "object_type": "station", "object_id": sid,
+                           "reason": (reason or ", ".join(given))[:300]}
+    return {"uid": str(station_uid), "changed": list(given)}
+
+
+class CompanyEdit(BaseModel):
+    """A company's details (a carrier, an agency, a station operating company), edited in place (1171): its legal name
+    and its registration and licence numbers change only with a reason; every edit is kept in its history."""
+    legal_name: Optional[str] = Field(default=None, min_length=3, max_length=160)
+    name_latin: Optional[str] = Field(default=None, max_length=160)
+    cr_no: Optional[str] = Field(default=None, max_length=60)
+    cr_expiry: Optional[date] = None
+    transport_license_no: Optional[str] = Field(default=None, max_length=60)
+    regulator_code: Optional[str] = Field(default=None, max_length=40)
+    reason: Optional[str] = Field(default=None, max_length=500)
+
+
+@router.get("/companies/{company_uid}")
+async def company_detail(company_uid: uuid.UUID, request: Request, pr: Principal = Depends(platform)):
+    async with db.transaction(context_for(request, pr)) as conn:
+        cid = await _company(conn, company_uid)
+        c = await conn.fetchrow(
+            """SELECT p.uid, p.legal_name, p.name_latin, c.company_type, c.company_no, c.cr_no, c.cr_expiry, c.transport_license_no,
+                      c.regulator_code, c.approval_status
+                 FROM iam.company c JOIN iam.party p ON p.id = c.id WHERE c.id = $1""", cid)
+        history = await conn.fetch(
+            """SELECT h.changed_at, h.field, h.old_value, h.new_value, h.reason, u.email AS changed_by
+                 FROM iam.company_change h LEFT JOIN iam.app_user u ON u.id = h.changed_by
+                WHERE h.company_id = $1 ORDER BY h.changed_at DESC, h.id DESC LIMIT 200""", cid)
+    return {"company": row_dict(c), "history": rows(history)}
+
+
+@router.patch("/companies/{company_uid}")
+async def edit_company(company_uid: uuid.UUID, body: CompanyEdit, request: Request,
+                       pr: Principal = Depends(require_permission("company.approve"))):
+    _platform_only(pr)
+    given = body.model_dump(exclude_unset=True)
+    reason = (given.pop("reason", None) or "").strip()
+    if not given:
+        raise ApiError(422, "NOTHING_TO_CHANGE", "give at least one field to change")
+    if any(k in given for k in ("legal_name", "cr_no", "transport_license_no")) and len(reason) < 3:
+        raise ApiError(422, "COMPANY_CHANGE_REASON", "changing a company's legal name, registration or licence number needs its reason")
+    party = {k: (v.strip() if isinstance(v, str) else v) for k, v in given.items() if k in ("legal_name", "name_latin")}
+    company = {k: v for k, v in given.items() if k in ("cr_no", "cr_expiry", "transport_license_no", "regulator_code")}
+    async with db.transaction(context_for(request, pr)) as conn:
+        cid = await _company(conn, company_uid)
+        if party:
+            assign, values = _assignments(party, {k: k for k in party})
+            await conn.execute(f"UPDATE iam.party SET {assign}, change_reason = ${len(values) + 2} WHERE id = $1",
+                               cid, *values, reason or None)
+        if company:
+            assign, values = _assignments(company, {k: k for k in company})
+            await conn.execute(f"UPDATE iam.company SET {assign}, change_reason = ${len(values) + 2} WHERE id = $1",
+                               cid, *values, reason or None)
+    request.state.audit = {"action": "company.edit", "object_type": "company", "object_id": cid,
+                           "reason": (reason or ", ".join(given))[:300]}
+    return {"uid": str(company_uid), "changed": list(given)}
 
 
 # ------------------------------------------------------------------ agencies
