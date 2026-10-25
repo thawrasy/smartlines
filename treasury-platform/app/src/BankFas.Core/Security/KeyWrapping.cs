@@ -25,16 +25,21 @@ public sealed class LocalKeyWrapper : IKeyWrapper
     public const string RefPrefix = "local:";
     private readonly Dictionary<string, byte[]> _keys;
 
+    /// <summary>Master keys from files on the host (<see cref="FileMasterKeys"/>): the same envelope, references file:....</summary>
+    public static LocalKeyWrapper FromFiles(string currentRef, IReadOnlyDictionary<string, byte[]> keys) => new(currentRef, keys, FileMasterKeys.RefPrefix);
+
+    public LocalKeyWrapper(string currentRef, IReadOnlyDictionary<string, byte[]> keys) : this(currentRef, keys, RefPrefix) { }
+
     /// <param name="currentRef">The reference new values are wrapped under; it starts with "local:".</param>
     /// <param name="keys">Each reference with its 32-byte master key.</param>
-    public LocalKeyWrapper(string currentRef, IReadOnlyDictionary<string, byte[]> keys)
+    private LocalKeyWrapper(string currentRef, IReadOnlyDictionary<string, byte[]> keys, string prefix)
     {
         ArgumentNullException.ThrowIfNull(keys);
         _keys = new Dictionary<string, byte[]>(StringComparer.Ordinal);
         foreach (var (name, key) in keys)
         {
-            if (!name.StartsWith(RefPrefix, StringComparison.Ordinal) || key.Length != Envelope.KeyBytes)
-                throw new ArgumentException($"A local master key is named local:... and is 32 bytes ({name}).", nameof(keys));
+            if (!name.StartsWith(prefix, StringComparison.Ordinal) || key.Length != Envelope.KeyBytes)
+                throw new ArgumentException($"A master key is named {prefix}... and is 32 bytes ({name}).", nameof(keys));
             _keys[name] = key.ToArray();
         }
         if (!_keys.ContainsKey(currentRef)) throw new ArgumentException("The current master key is not among the keys.", nameof(currentRef));
@@ -51,4 +56,36 @@ public sealed class LocalKeyWrapper : IKeyWrapper
 
     private byte[] KeyOf(string masterKeyRef) =>
         _keys.TryGetValue(masterKeyRef, out var key) ? key : throw new CryptographicException($"Unknown master key {masterKeyRef}.");
+}
+
+/// <summary>
+/// Master keys held in files on the host, outside the database, the image and the configuration (DQ-S02-1, interim
+/// until a key store or HSM is chosen): each <c>&lt;name&gt;.key</c> in the directory holds the base64 of 32 bytes and is
+/// the key <c>file:&lt;name&gt;</c>. Every file must be readable by its owner only; a looser one is refused, so a key
+/// never starts in use after a careless copy. An old key stays in the directory as long as values wrapped under it
+/// remain (rotation keeps the old file, adds a new one and makes it current).
+/// </summary>
+public static class FileMasterKeys
+{
+    public const string RefPrefix = "file:";
+
+    public static IReadOnlyDictionary<string, byte[]> Load(string directory)
+    {
+        if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory))
+            throw new InvalidOperationException("The master key directory does not exist (Keys:File:Directory).");
+        var keys = new Dictionary<string, byte[]>(StringComparer.Ordinal);
+        foreach (var path in Directory.EnumerateFiles(directory, "*.key").Order(StringComparer.Ordinal))
+        {
+            if (!OperatingSystem.IsWindows()
+                && (File.GetUnixFileMode(path) & (UnixFileMode.GroupRead | UnixFileMode.GroupWrite | UnixFileMode.OtherRead | UnixFileMode.OtherWrite)) != 0)
+                throw new InvalidOperationException($"The master key file {Path.GetFileName(path)} is readable by others than its owner (chmod 400).");
+            byte[] key;
+            try { key = Convert.FromBase64String(File.ReadAllText(path).Trim()); }
+            catch (FormatException) { throw new InvalidOperationException($"The master key file {Path.GetFileName(path)} is not base64."); }
+            if (key.Length != Envelope.KeyBytes) throw new InvalidOperationException($"The master key file {Path.GetFileName(path)} does not hold 32 bytes.");
+            keys[RefPrefix + Path.GetFileNameWithoutExtension(path)] = key;
+        }
+        if (keys.Count == 0) throw new InvalidOperationException("The master key directory holds no .key file.");
+        return keys;
+    }
 }

@@ -7,6 +7,9 @@
 #
 # Environment: SA_PASSWORD, SQL_SERVER, SQLCMD, BANKFAS_SECRETS_DIR (the provisioned secrets, set a),
 # E2E_WORK (a private directory), E2E_HANDOFF_FILE (optional), E2E_CHROMIUM (optional, a Chromium binary).
+# With E2E_API_IMAGE and E2E_WORKER_IMAGE (tools/ci/image_pilot.sh) the API and the worker run from those images
+# instead, as the host runs them (tools/host/compose.yml: read-only, no capabilities, an unprivileged user), with
+# the master keys in owner-only files (Keys:Provider file).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -34,19 +37,46 @@ for pair in App:app Jobs:jobs Platform:platform Support:support; do
     export "Database__Logins__${login}__SecretFile=$BANKFAS_SECRETS_DIR/bankfas_${name}_a.secret"
 done
 export Hosts__Operator=admin.bankfas.test Portal__Domain=bankfas.test Portal__Port="$PORT"
-export Keys__Provider=local Keys__Local__Current=local:e2e/1 Keys__Local__Keys__0__Ref=local:e2e/1
-Keys__Local__Keys__0__Key="$(openssl rand -base64 32)"; export Keys__Local__Keys__0__Key
+if [ -n "${E2E_API_IMAGE:-}" ]; then
+    # The containers' user (10001) owns what they read and write; the secrets are copied for it.
+    mkdir -p -m 700 "$W/keys" "$W/secrets" "$W/dataprotection"
+    openssl rand -base64 32 > "$W/keys/e2e.key"
+    cp "$BANKFAS_SECRETS_DIR"/*.secret "$W/secrets/"
+    chown -R 10001:10001 "$W"
+    chmod 400 "$W/keys/e2e.key" "$W/secrets/"*.secret
+    BANKFAS_SECRETS_DIR="$W/secrets"
+    export Keys__Provider=file Keys__File__Directory="$W/keys" Keys__File__Current=file:e2e DataProtection__KeysDirectory="$W/dataprotection"
+else
+    export Keys__Provider=local Keys__Local__Current=local:e2e/1 Keys__Local__Keys__0__Ref=local:e2e/1
+    Keys__Local__Keys__0__Key="$(openssl rand -base64 32)"; export Keys__Local__Keys__0__Key
+fi
 export Mail__DropDirectory="$W/mail" Passwords__BreachedList__Directory="$W/breached" Passwords__BreachedList__AllowMissingRanges=true
 export Files__Root="$W/files" Scanning__Provider=test
 export Web__Root="$ROOT/app/web/dist"
 export ASPNETCORE_URLS="https://127.0.0.1:$PORT" Kestrel__Certificates__Default__Path="$W/cert.pfx" Kestrel__Certificates__Default__Password="$CERT_PW"
 
 BIN="$ROOT/app/src"
-dotnet "$BIN/BankFas.Api/bin/Release/net10.0/BankFas.Api.dll" > "$W/api.log" 2>&1 &
-API=$!
-(unset ASPNETCORE_URLS; dotnet "$BIN/BankFas.Worker/bin/Release/net10.0/BankFas.Worker.dll") > "$W/worker.log" 2>&1 &
-WORKER=$!
-stop() { kill "$API" "$WORKER" 2>/dev/null || true; wait "$API" "$WORKER" 2>/dev/null || true; }
+if [ -n "${E2E_API_IMAGE:-}" ]; then
+    for pair in App:app Jobs:jobs Platform:platform Support:support; do
+        login="${pair%%:*}"; name="${pair##*:}"
+        export "Database__Logins__${login}__SecretFile=$BANKFAS_SECRETS_DIR/bankfas_${name}_a.secret"
+    done
+    unset Web__Root                                    # the image carries the portal's files
+    env | grep -E '^(ASPNETCORE_ENVIRONMENT|DOTNET_ENVIRONMENT|Database__|Hosts__|Portal__|Keys__|DataProtection__|Mail__|Passwords__|Files__|Scanning__|Kestrel__)' > "$W/app.env"
+    RUN=(docker run --rm --network host --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges:true -e HOME=/tmp
+         --env-file "$W/app.env" -v "$W:$W")
+    "${RUN[@]}" --name bankfas-pilot-api --shm-size 256m -e ASPNETCORE_URLS="$ASPNETCORE_URLS" "$E2E_API_IMAGE" > "$W/api.log" 2>&1 &
+    API=$!
+    "${RUN[@]}" --name bankfas-pilot-worker "$E2E_WORKER_IMAGE" > "$W/worker.log" 2>&1 &
+    WORKER=$!
+    stop() { docker stop -t 10 bankfas-pilot-api bankfas-pilot-worker > /dev/null 2>&1 || true; wait "$API" "$WORKER" 2>/dev/null || true; }
+else
+    dotnet "$BIN/BankFas.Api/bin/Release/net10.0/BankFas.Api.dll" > "$W/api.log" 2>&1 &
+    API=$!
+    (unset ASPNETCORE_URLS; dotnet "$BIN/BankFas.Worker/bin/Release/net10.0/BankFas.Worker.dll") > "$W/worker.log" 2>&1 &
+    WORKER=$!
+    stop() { kill "$API" "$WORKER" 2>/dev/null || true; wait "$API" "$WORKER" 2>/dev/null || true; }
+fi
 fail() { echo "$1"; echo "-- api"; tail -40 "$W/api.log"; echo "-- worker"; tail -40 "$W/worker.log"; stop; exit 1; }
 trap stop EXIT
 for _ in $(seq 60); do
@@ -71,4 +101,14 @@ E2E_SETUP_LINK="https://admin.bankfas.test:$PORT/setup#token=$TOKEN" E2E_MAIL_DI
         find test-results -name error-context.md -exec sh -c 'echo "-- page at the failure"; head -200 "$1"' _ {} \;
         fail "the browser tests failed"
     }
+if [ -n "${E2E_API_IMAGE:-}" ]; then
+    # Both containers are still up after the run, and the worker has worked (its log, without the request lines).
+    for c in bankfas-pilot-api bankfas-pilot-worker; do
+        [ "$(docker inspect -f '{{.State.Running}}' "$c" 2>/dev/null)" = "true" ] || fail "the container $c stopped"
+    done
+    echo "-- worker log (last lines)"; tail -15 "$W/worker.log"
+    grep -qiE "unhandled|crit|fail:" "$W/worker.log" && fail "the worker logged a failure"
+    ls "$W/dataprotection"/key-*.xml > /dev/null 2>&1 || fail "the data protection keys were not kept"
+    grep -q masterKeyWrapped "$W/dataprotection"/key-*.xml || fail "a data protection key is stored unwrapped"
+fi
 echo "browser tests passed"

@@ -14,7 +14,7 @@ builder.Services.Configure<PortalOptions>(builder.Configuration.GetSection(Porta
 builder.Services.AddSingleton<SqlConnectionFactory>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddMemoryCache();
-builder.Services.AddDataProtection().SetApplicationName("BankFas");
+DataProtectionKeys.Configure(builder.Services.AddDataProtection().SetApplicationName("BankFas"), builder.Configuration, builder.Environment);
 builder.Services.AddSingleton<PendingSecretProtector>();
 builder.Services.AddSingleton<TenantKeyRing>();
 builder.Services.AddSingleton<OpaqueRefs>();

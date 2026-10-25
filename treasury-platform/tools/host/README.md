@@ -16,6 +16,23 @@ record. Values between `<...>` are host-specific and are never written in the re
 | `fail2ban/jail.local`, `fail2ban/filter.d/bankfas-caddy.conf` | `/etc/fail2ban/` | Bans at the firewall: SSH failures, and addresses the platform keeps refusing in the Caddy log |
 | `collect_evidence.sh` | run as root on suspicion | DOC-S15 steps 2, 5, 6 and 9: copies the logs with a timestamp and checksums, lists processes, ports, containers, users and keys; changes nothing |
 | `check_host.sh` | systemd timer every 5 minutes | Alerts on new listening ports, new containers, changed `authorized_keys`, disk and memory pressure, a stopped service |
+| `download_breached.sh` | run once, then monthly, as a user that can write `/srv/bankfas/breached` | The leaked-password list (DQ-S04-1): one file per SHA-1 prefix from the public range API, resumable, about 30 GB |
 
 The application's own guard (per-address limit, temporary blocks, the security page of the operator panel) is in
 `app/src/BankFas.Api/Infrastructure/SecurityGuard.cs`; its values are the `Security` section of the configuration.
+
+## Before the first start (docs/53, ADR 0053)
+
+- **Master keys:** `/opt/bankfas/secrets/master-keys/<name>.key`, each the base64 of 32 random bytes
+  (`openssl rand -base64 32`), owned by 10001 and mode 400; `Keys__File__Current=file:<name>` in `api.env` and
+  `worker.env`. Keep an offline copy: without it nothing encrypted can be opened again. Rotation adds a new file and
+  makes it current; the old one stays.
+- **Data protection keys:** `/srv/bankfas/dataprotection`, owned by 10001; wrapped by the master key.
+- **Leaked-password list:** `download_breached.sh /srv/bankfas/breached`, then `Passwords__BreachedList__Directory`.
+- **Malware scan:** ClamAV (`Scanning__Provider=clamav`, `Scanning__Host`, `Scanning__Port`).
+- **Mail:** `Mail__Smtp__Host` and the account of the relay.
+- **Database:** a certificate the containers trust on SQL Server (no `TrustServerCertificate` outside tests).
+- **Images:** built on the host or a build machine; behind a TLS-inspecting proxy pass its CA with
+  `--secret id=extra_ca,src=<ca.pem>`, and without access to Playwright's servers pass Chromium with
+  `--build-context chromium=<path>/chrome-linux` (`app/deploy/Dockerfile`).
+- **Pilot check of the images:** `tools/ci/image_pilot.sh` after `db_ci.sh` on a throwaway server.

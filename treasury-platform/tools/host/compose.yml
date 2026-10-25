@@ -17,11 +17,18 @@ services:
       Security__TrustedProxies__0: 172.30.0.1
       Security__AlertEmails__0: <SECURITY_MAILBOX>
       HOME: /tmp                             # Chromium's caches for the PDF prints (ADR 0051) go to the tmpfs
+      # The master keys in owner-only files (ADR 0053): /opt/bankfas/secrets/master-keys/<name>.key, owned by 10001,
+      # mode 400; api.env names the current one (Keys__File__Current=file:<name>).
+      Keys__Provider: file
+      Keys__File__Directory: /run/secrets/master-keys
+      DataProtection__KeysDirectory: /srv/bankfas/dataprotection   # outlives a restart, wrapped by the master key
     shm_size: 256m                           # Chromium's shared memory for the PDF prints
     env_file: /opt/bankfas/api.env          # the database and key settings; root-only, never in the repository
     volumes:
       - /opt/bankfas/secrets:/run/secrets:ro
       - /srv/bankfas/files:/srv/bankfas/files
+      - /srv/bankfas/dataprotection:/srv/bankfas/dataprotection
+      - /srv/bankfas/breached:/srv/bankfas/breached:ro               # the leaked-password list (download_breached.sh)
     networks: [app]
   # The worker (app/deploy/Dockerfile, target worker): the scheduled jobs and the outbox; no port at all.
   worker:
@@ -31,6 +38,9 @@ services:
     tmpfs: [/tmp]
     security_opt: ["no-new-privileges:true"]
     cap_drop: [ALL]
+    environment:
+      Keys__Provider: file
+      Keys__File__Directory: /run/secrets/master-keys
     env_file: /opt/bankfas/worker.env       # the database (job login) and mail settings; root-only, never in the repository
     volumes:
       - /opt/bankfas/secrets:/run/secrets:ro
