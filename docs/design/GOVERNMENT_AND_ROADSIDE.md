@@ -6,7 +6,7 @@ and every movement on the road can be checked without stopping the vehicle.
 
 ## N47: government bodies
 
-* **The register** (`gov.authority`): each body with a fixed code, its kind and its names in Arabic and English:
+* **The register** (`sec.authority_profile`): each body with a fixed code, its kind and its names in Arabic and English:
   * `INTERIOR`: the Ministry of the Interior and internal security;
   * `PUBLIC_SECURITY`: public security;
   * `TRAFFIC`: traffic police;
@@ -16,7 +16,7 @@ and every movement on the road can be checked without stopping the vehicle.
 * **How a body comes in**:
   * its members sign in at the inspector portal (`INSPECTOR`), each tied to one body;
   * and/or its systems call the integration API v1 with a client of kind `GOVERNMENT` tied to the body.
-* **What each body may see** is set per body by the platform, starting from the kind's default (`gov.authority_scope`):
+* **What each body may see** is set per body by the platform, starting from the kind's default (`sec.authority_scope`):
   * `MOVEMENTS`: trips, vehicles, crews, load;
   * `MANIFEST_NAMES`: passengers' names;
   * `ID_NUMBERS`: passengers' ID numbers, encrypted and shown only to the bodies that hold this scope;
@@ -32,7 +32,7 @@ and every movement on the road can be checked without stopping the vehicle.
   * a signed QR printed on a placard (A4, readable from a few metres) and fixed to the windscreen and the rear;
   * it names the vehicle, not a trip, so it is printed once;
   * at the moment of the scan it answers with the vehicle's current movement;
-  * a lost or copied placard is revoked and a new serial printed (`fleet.vehicle_pass`).
+  * a lost or copied placard is revoked and a new serial printed (`fleet.vehicle_qr_tag`).
 * **The scan** (inspector portal, a phone's camera; later the security officer's app) shows, without stopping the
   vehicle:
   * the carrier and its licence state;
@@ -51,11 +51,22 @@ and every movement on the road can be checked without stopping the vehicle.
 * **Sample check**: the officer asks for a sample; the server picks the passengers at random (the officer cannot choose),
   shows their seats and names (within the body's scopes), and the officer records each one as checked or as an issue.
   A full check lists everyone.
-* **The inspection record** (`sec.roadside_check`): the vehicle, the movement, the body, the officer, the place, the time,
+* **The inspection record** (`fleet.field_check_log`): the vehicle, the movement, the body, the officer, the place, the time,
   the result and the sample, never changed afterwards. The carrier sees the checks of its own vehicles.
 * **Every module**: the scan resolves the vehicle's movement in every service the platform runs. Each module that
   moves people or goods on a vehicle answers the same question ("what is this vehicle doing now"), so a new module
   joins the scan the way it joins the menu.
+
+## What the schema already holds
+
+The study planned this, and the tables exist without screens or API yet. N47 and N48 build on them, not beside them:
+
+* `sec.authority_profile`: the bodies (kinds, protocol, data scope), already referenced by border manifests, alerts
+  and data requests. It gains the new kinds, names in both languages, members and scopes.
+* `fleet.vehicle_qr_tag`: the signed sticker on the vehicle for field verification (study 4.18 e). It gains a serial
+  and the placard.
+* `fleet.field_check_log`: every field query by security officers and authorised bodies. It gains the body, the
+  movement, the sample and the result of each person checked.
 
 ## Build order
 
