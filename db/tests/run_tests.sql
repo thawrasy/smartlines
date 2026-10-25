@@ -5071,6 +5071,49 @@ SELECT pg_temp.ok((SELECT value FROM sys.setting WHERE key = 'security.alert_tel
                   AND sec.setting_int('security.signin_device_per_minute', 0) = 10
                   AND sec.setting_int('security.signin_network_per_minute', 0) = 600,
   'Security watch (1167): no chat is sent alerts until the platform names one; sign-in limits per device and network');
+-- Government bodies and roadside checks (1169): a scope counts once a second person approves it; placards and checks are kept
+INSERT INTO sec.authority_profile (code, name, name_ar, name_en, authority_type, protocol, active)
+VALUES ('GOV-T1169', 'Interior test', U&'\0627\0644\062F\0627\062E\0644\064A\0629', 'Interior test', 'INTERIOR', 'MANUAL', true) RETURNING id AS gov1 \gset
+INSERT INTO sec.authority_scope (authority_id, data_category, scope_type, legal_basis, valid, created_by)
+VALUES (:gov1, 'MANIFEST_PERSON', 'ALL', 'test basis', daterange(current_date, current_date + 30), :uadmin) RETURNING id AS gsc \gset
+SELECT pg_temp.ok(NOT sec.authority_may(:gov1, 'MANIFEST_PERSON'), 'Government bodies (1169): a scope does not count before it is approved');
+SELECT pg_temp.expect_error(format('UPDATE sec.authority_scope SET approved_by = %s WHERE id = %s', :uadmin, :gsc),
+  'check constraint', 'Government bodies (1169): the person who created a scope does not approve it');
+UPDATE sec.authority_scope SET approved_by = :uother WHERE id = :gsc;
+SELECT pg_temp.ok(sec.authority_may(:gov1, 'MANIFEST_PERSON') AND NOT sec.authority_may(:gov1, 'IDENTITY'),
+  'Government bodies (1169): an approved scope counts, and only for its category');
+UPDATE sec.authority_profile SET active = false WHERE id = :gov1;
+SELECT pg_temp.ok(NOT sec.authority_may(:gov1, 'MANIFEST_PERSON'), 'Government bodies (1169): an inactive body sees nothing');
+INSERT INTO fleet.vehicle_qr_tag (vehicle_id, token_hash, serial, issued_by)
+VALUES (:va, decode(md5('placard-1169-a'), 'hex'), 41, :uadmin) RETURNING id AS qrt \gset
+SELECT pg_temp.expect_error(format('UPDATE fleet.vehicle_qr_tag SET serial = 42 WHERE id = %s', :qrt),
+  'QR_TAG_FIXED', 'Roadside (1169): a placard''s code never changes');
+SELECT pg_temp.expect_error(format('UPDATE fleet.vehicle_qr_tag SET revoked_at = now() WHERE id = %s', :qrt),
+  'QR_TAG_REASON', 'Roadside (1169): a revocation gives its reason');
+SELECT pg_temp.expect_error(format('DELETE FROM fleet.vehicle_qr_tag WHERE id = %s', :qrt),
+  'QR_TAG_KEPT', 'Roadside (1169): a placard is revoked, never deleted');
+INSERT INTO fleet.field_check_log (inspector_user_id, vehicle_id, method, result, tag_id, warnings, sample_mode, sample)
+VALUES (:uadmin, :va, 'QR', 'VALID', :qrt, '["OVERLOAD"]', 'SAMPLE',
+        '[{"ticket": "t1", "seat": "3A", "outcome": null}, {"ticket": "t2", "seat": "7C", "outcome": null}]') RETURNING id AS fcl \gset
+INSERT INTO sec.field_check_body (check_id, authority_id) VALUES (:fcl, :gov1);
+SELECT pg_temp.ok((SELECT status = 'OPEN' AND closed_at IS NULL FROM fleet.field_check_log WHERE id = :fcl),
+  'Roadside (1169): a scan opens a check');
+SELECT pg_temp.expect_error(format('UPDATE sec.field_check_body SET authority_id = authority_id WHERE check_id = %s', :fcl),
+  'FIELD_CHECK_FIXED', 'Roadside (1169): the body of a check is never changed');
+SELECT pg_temp.expect_error(format('UPDATE fleet.field_check_log SET warnings = ''[]'' WHERE id = %s', :fcl),
+  'FIELD_CHECK_FIXED', 'Roadside (1169): what the scan found is never changed');
+SELECT pg_temp.expect_error(format($q$UPDATE fleet.field_check_log SET sample = '[{"ticket": "t9", "outcome": null}, {"ticket": "t2", "outcome": null}]' WHERE id = %s$q$, :fcl),
+  'FIELD_CHECK_SAMPLE_FIXED', 'Roadside (1169): the people drawn at random are not swapped');
+SELECT pg_temp.expect_error(format('UPDATE fleet.field_check_log SET status = ''CLOSED'' WHERE id = %s', :fcl),
+  'FIELD_CHECK_OUTCOME', 'Roadside (1169): a check closes with its outcome');
+UPDATE fleet.field_check_log SET sample = '[{"ticket": "t1", "seat": "3A", "outcome": "CHECKED"}, {"ticket": "t2", "seat": "7C", "outcome": "ISSUE"}]',
+       status = 'CLOSED', outcome = 'ISSUES', note = 'one passenger without an ID' WHERE id = :fcl;
+SELECT pg_temp.ok((SELECT closed_at IS NOT NULL FROM fleet.field_check_log WHERE id = :fcl),
+  'Roadside (1169): closing records the time');
+SELECT pg_temp.expect_error(format('UPDATE fleet.field_check_log SET note = ''changed'' WHERE id = %s', :fcl),
+  'FIELD_CHECK_CLOSED', 'Roadside (1169): a closed check is never changed');
+SELECT pg_temp.expect_error(format('DELETE FROM fleet.field_check_log WHERE id = %s', :fcl),
+  'FIELD_CHECK_KEPT', 'Roadside (1169): a check is never deleted');
 ROLLBACK;
 
 \echo '=== ALL TESTS PASSED ==='
