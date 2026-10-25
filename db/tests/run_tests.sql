@@ -5018,19 +5018,19 @@ INSERT INTO net.port_of_entry (code, kind, name_ar, name_en, counterpart_country
 VALUES ('LND-LB-99', 'LAND_BORDER', 'x port', 'Port', 'LB', :pg3, 'AREA', 'NONE') RETURNING id AS port \gset
 SELECT pg_temp.expect_error($$UPDATE net.port_of_entry SET name_en = 'Renamed' WHERE code = 'LND-LB-99'$$,
   'PORT_CHANGE_REASON', 'Ports (1168): a hand edit needs its reason');
-SELECT net.port_change_note('renamed by the authority');
-UPDATE net.port_of_entry SET name_en = 'Renamed', status = 'RESTRICTED' WHERE code = 'LND-LB-99';
+UPDATE net.port_of_entry SET name_en = 'Renamed', status = 'RESTRICTED', change_reason = 'renamed by the authority' WHERE code = 'LND-LB-99';
 SELECT pg_temp.ok((SELECT count(*) FROM net.port_of_entry_change WHERE port_id = :port AND reason = 'renamed by the authority') = 2
-                  AND (SELECT edited_by_hand FROM net.port_of_entry WHERE id = :port)
+                  AND (SELECT edited_by_hand AND change_reason IS NULL FROM net.port_of_entry WHERE id = :port)
                   AND (SELECT old_value || '>' || new_value FROM net.port_of_entry_change WHERE port_id = :port AND field = 'name_en') = 'Port>Renamed',
-  'Ports (1168): each changed field is kept with its old and new value, and the port is marked edited by hand');
+  'Ports (1168): each changed field is kept with its old and new value and its reason (not kept on the row), and the port is marked edited by hand');
+SELECT pg_temp.expect_error($$UPDATE net.port_of_entry SET status = 'ACTIVE' WHERE code = 'LND-LB-99'$$,
+  'PORT_CHANGE_REASON', 'Ports (1168): a reason is for one edit only; the next edit needs its own');
 SELECT pg_temp.expect_error($$UPDATE net.port_of_entry SET code = 'LND-LB-98' WHERE code = 'LND-LB-99'$$,
   'PORT_CODE_FIXED', 'Ports (1168): the code never changes');
 SELECT pg_temp.expect_error(format('DELETE FROM net.port_of_entry_change WHERE port_id = %s', :port),
   'PORT_HISTORY_APPEND_ONLY', 'Ports (1168): the history is never rewritten');
-SELECT pg_temp.expect_error($$UPDATE net.port_of_entry SET lat = 33.5 WHERE code = 'LND-LB-99'$$,
+SELECT pg_temp.expect_error($$UPDATE net.port_of_entry SET lat = 33.5, change_reason = 'surveyed' WHERE code = 'LND-LB-99'$$,
   'check constraint', 'Ports (1168): a position needs both coordinates and a source');
-SELECT net.port_change_note(NULL);
 -- Security watch (1167): bait addresses block at once, the exception register needs a second person and an end date
 SELECT sec.bait_touch('100.64.88.1', 'GET', '/api/internal/users', 'curl') AS bait_rule \gset
 SELECT pg_temp.ok((SELECT action FROM sec.ip_decision('100.64.88.1', 'PASSENGER')) = 'BLOCK'

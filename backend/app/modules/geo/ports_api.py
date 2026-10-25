@@ -153,7 +153,8 @@ async def edit(code: str, body: PortIn, request: Request, pr: Principal = Depend
             sets.append("station_id = ?")
         if not sets:
             raise ApiError(422, "NOTHING_TO_CHANGE", "give at least one field to change")
-        await conn.execute("SELECT net.port_change_note($1, NULL)", body.reason.strip())
+        args.append(body.reason.strip())
+        sets.append("change_reason = ?")        # the history trigger records it and clears it
         # each ? takes the next argument, in order, from $2 on ($1 is the port)
         sql, n = [], 2
         for s in sets:
@@ -161,7 +162,6 @@ async def edit(code: str, body: PortIn, request: Request, pr: Principal = Depend
                 s, n = s[:-1] + f"${n}", n + 1
             sql.append(s)
         await conn.execute(f"UPDATE net.port_of_entry SET {', '.join(sql)} WHERE id = $1", port["id"], *args)
-        await conn.execute("SELECT net.port_change_note(NULL, NULL)")
         changed = await conn.fetchval("SELECT count(*) FROM net.port_of_entry_change WHERE port_id = $1 AND changed_at = now()", port["id"])
     request.state.audit = {"action": "ports.edit", "object_type": "port_of_entry", "object_id": _code(code), "reason": body.reason[:120]}
     return {"code": _code(code), "changed_fields": changed}

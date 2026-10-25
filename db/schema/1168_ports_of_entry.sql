@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS net.port_of_entry (
   review_note          text CHECK (review_note IS NULL OR length(review_note) <= 2000),
   source_id            bigint REFERENCES ref.geo_source(id),
   edited_by_hand       boolean NOT NULL DEFAULT false,
+  change_reason        text CHECK (change_reason IS NULL),     -- the update trigger moves it into the history
   created_at           timestamptz NOT NULL DEFAULT now(),
   updated_at           timestamptz NOT NULL DEFAULT now(),
   CHECK ((lat IS NULL) = (lng IS NULL)),
@@ -47,6 +48,7 @@ COMMENT ON TABLE net.port_of_entry IS 'Border crossings and airports under a fix
 COMMENT ON COLUMN net.port_of_entry.code IS 'Fixed: LND-<ISO country>-<nn> for a land crossing, AIR-<IATA or short name> for an airport';
 COMMENT ON COLUMN net.port_of_entry.lat IS 'The linked United Nations location''s position until a surveyed one replaces it (position_source)';
 COMMENT ON COLUMN net.port_of_entry.status_confirmed IS 'The operating status is confirmed by an official source; the owner''s file leaves it unconfirmed';
+COMMENT ON COLUMN net.port_of_entry.change_reason IS 'Given with a hand edit and moved into the history by the trigger; never kept on the row';
 COMMENT ON COLUMN net.port_of_entry.edited_by_hand IS 'Edited by the platform after a file loaded it: a later file does not overwrite it';
 CREATE INDEX IF NOT EXISTS port_of_entry_area ON net.port_of_entry (area_id);
 CREATE INDEX IF NOT EXISTS port_of_entry_place ON net.port_of_entry (place_id);
@@ -71,23 +73,14 @@ CREATE INDEX IF NOT EXISTS port_of_entry_change_port ON net.port_of_entry_change
 CREATE INDEX IF NOT EXISTS port_of_entry_change_user ON net.port_of_entry_change (changed_by);
 CREATE INDEX IF NOT EXISTS port_of_entry_change_file ON net.port_of_entry_change (by_file);
 
--- The history is written by the table itself: the caller gives its reason, or the file being loaded, for the rest of the
--- transaction through net.port_change_note (the application role cannot call set_config itself, 1080); a hand edit
--- needs a reason, a file load names the file.
-CREATE OR REPLACE FUNCTION net.port_change_note(p_reason text, p_file bigint DEFAULT NULL) RETURNS void
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
-BEGIN
-  PERFORM set_config('app.port_change_reason', coalesce(left(p_reason, 500), ''), true);
-  PERFORM set_config('app.port_change_file', coalesce(p_file::text, ''), true);
-END $$;
-COMMENT ON FUNCTION net.port_change_note(text, bigint) IS 'The reason, or the loading file, the next changes of ports record in their history, for this transaction (1168)';
-REVOKE ALL ON FUNCTION net.port_change_note(text, bigint) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION net.port_change_note(text, bigint) TO masslak_app;
+-- The history is written by the table itself. A hand edit gives its reason in change_reason, which the trigger moves
+-- into the history and clears; a file load sets source_id to the file being loaded, and its changes are recorded as the
+-- file's. Neither trusts a session setting (1084: only guarded settings may carry trust).
 CREATE OR REPLACE FUNCTION net.tg_port_of_entry_history() RETURNS trigger
 LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $$
 DECLARE
-  reason text := nullif(current_setting('app.port_change_reason', true), '');
-  file bigint := nullif(current_setting('app.port_change_file', true), '')::bigint;
+  reason text := nullif(btrim(NEW.change_reason), '');
+  file bigint := CASE WHEN NEW.source_id IS DISTINCT FROM OLD.source_id THEN NEW.source_id END;
   uid bigint := sys.ctx_user_id();
   f text;
   o jsonb := to_jsonb(OLD);
@@ -118,6 +111,7 @@ BEGIN
       VALUES (OLD.id, uid, file, f, o ->> f, n ->> f, left(reason, 500));
     END IF;
   END LOOP;
+  NEW.change_reason := NULL;
   NEW.updated_at := now();
   RETURN NEW;
 END $$;

@@ -171,7 +171,6 @@ async def load(conn: asyncpg.Connection, reg: Register, user_id: Optional[int], 
         """INSERT INTO ref.geo_source (publisher, dataset, file_name, sha256, counts, imported_by, content)
            VALUES ('OWNER', 'border crossings and airports', $1, $2, $3::jsonb, $4, 'PORTS') RETURNING id""",
         (file_name or "")[:200] or None, reg.sha256, json.dumps(reg.counts()), user_id)
-    await conn.execute("SELECT net.port_change_note(NULL, $1)", source)
     added = updated = 0
     kept: list[str] = []
     for p in reg.ports:
@@ -194,7 +193,6 @@ async def load(conn: asyncpg.Connection, reg: Register, user_id: Optional[int], 
                 f"""UPDATE net.port_of_entry SET {', '.join(f'{f} = ${i}' for i, f in enumerate(FIELDS, start=2))},
                         source_id = ${2 + len(FIELDS)} WHERE id = $1""", row["id"], *values, source)
             updated += 1
-    await conn.execute("SELECT net.port_change_note(NULL, NULL)")
     report = reg.counts() | {"added": added, "updated": updated, "kept_edited": kept}
     await conn.execute("UPDATE ref.geo_source SET counts = $2::jsonb WHERE id = $1", source, json.dumps(report))
     return {"already_loaded": False, "counts": report}

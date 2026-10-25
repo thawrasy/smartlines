@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**605 tables, 6596 columns, in 26 schemas.**
+**605 tables, 6597 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -2308,6 +2308,7 @@ Border crossings and airports under a fixed code, tied to the administrative geo
 | `review_note` | `text` |  |  |
 | `source_id` | `bigint` | 🔗 `ref.geo_source`  |  |
 | `edited_by_hand` | `boolean` | ✱ | `false` |
+| `change_reason` | `text` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
 

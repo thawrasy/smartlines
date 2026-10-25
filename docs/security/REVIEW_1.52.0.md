@@ -18,9 +18,11 @@ the owner's approval. This note records what was checked, what was found and fix
 | Uploaded files | Every upload reads at most its limit plus one byte; the edge refuses bodies over 6 MB | Bounded |
 | Uploaded workbooks | The five importers that read Excel files | **Finding 2** |
 | Money rounding | Every Python `round(` in the API | **Finding 1** |
-| Foreign keys without an index | `db/tools/fitness.py` | 257 of 1983, all in the accepted baseline, which only shrinks; no new one |
+| Foreign keys without an index | `db/tools/fitness.py` | 251 of 1822 on a clean build, all in the accepted baseline, which only shrinks; no new one |
 | Browser code | `dangerouslySetInnerHTML`, `eval`, `console.log` in web and mobile | One use, for the built-in icon set (no outside text) |
 | Server-side calls | `subprocess`, `shell=True`, disabled certificate checks | None |
+| Full suite on a fresh database | 951 backend tests, 1132 database checks | **Finding 3** |
+| Production installation | The CI job that installs the production profile | **Finding 4** |
 | Screens | Accessibility, direction and language, sideways scrolling, in both languages and both screen sizes (292 page views) | No critical or serious finding |
 
 ## Findings and fixes
@@ -38,9 +40,20 @@ the owner's approval. This note records what was checked, what was found and fix
    openpyxl runs with it, and that every importer (geography, roads, ports, registries, vehicles) treats a workbook with
    entities as a file error. The first check fails when the package is missing.
 
+3. **Port edits trusted two unguarded settings.** The history of border crossings and airports (1168) took the reason
+   of a hand edit and the file of a load from two session settings. Only the settings the database module guards may
+   carry trust (1084), and these two were not among them. The full run caught it
+   (`test_every_custom_setting_the_schema_trusts_is_guarded`). Fixed before release: a hand edit gives its reason in
+   the row's `change_reason`, which the trigger moves into the history and clears; a load is recognised by the new
+   `source_id` it sets. The helper `net.port_change_note` is gone.
+4. **The egress proxy refused calls once a minute.** Its entrypoint ran `squid -k reconfigure` every 60 seconds. A
+   reconfigure closes and reopens the listening port, so an outbound call (payments, notices, webhooks) made in that
+   moment was refused. The production installation job's self-test hit it. Fixed: Squid is reconfigured only when the
+   shared lists change, and the self-test retries a refused connection for a few seconds.
+
 ## Open items (not blockers)
 
-* The 257 foreign keys without an index stay in the accepted baseline of `db/tools/fitness.py`. The baseline only
+* The 251 foreign keys without an index stay in the accepted baseline of `db/tools/fitness.py`. The baseline only
   shrinks, and a new foreign key must come with its index. Each one should be looked at before its tables grow.
 * The local screen checks skip the station portal and the departure board unless a station session is given
   (`MASSLAK_UI_STATION`). CI gives one, so they are checked there.

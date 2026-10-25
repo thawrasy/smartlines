@@ -1611,10 +1611,6 @@
    "masslak_api",
    "masslak_app"
   ],
-  "net.port_change_note(text,bigint)": [
-   "masslak_api",
-   "masslak_app"
-  ],
   "ops.free_schedule_numbers(bigint,text,text,daterange,bigint,integer)": [
    "masslak_api",
    "masslak_app"
