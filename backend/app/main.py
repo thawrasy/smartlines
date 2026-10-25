@@ -40,6 +40,7 @@ from .modules.geo import api as geo_api
 from .modules.geo import codes as geo_codes
 from .modules.geo import roads_api as geo_roads
 from .modules.geo import ports_api as geo_ports
+from .modules.roadside import api as roadside_api
 from .modules.network import routes as network_routes
 from .modules.fares import matrix as fare_matrix
 from .modules.sales import charter_api, connections_api, journeys_api
@@ -166,7 +167,7 @@ for r in (metrics.router, auth.router, public.router, bookings.router, wallet.ro
           boarding_displays.station, boarding_displays.platform, boarding_displays.public, schedules_api.carrier, schedules_api.platform, schedule_numbers.carrier, schedule_numbers.platform,
           kyc_api.carrier, kyc_api.agency, kyc_api.station, kyc_api.platform, kyc_persons.person, kyc_persons.platform, journeys_api.passenger, journeys_api.agency,
           charter_api.carrier, charter_api.agency, charter_api.passenger, charter_api.platform,
-          geo_api.public, geo_api.platform, geo_codes.router, geo_roads.public, geo_roads.platform, geo_roads.carrier, geo_ports.public, geo_ports.platform, network_routes.public, network_routes.platform, network_routes.carrier, fare_matrix.carrier, fare_matrix.platform, connections_api.carrier, connections_api.platform,
+          geo_api.public, geo_api.platform, geo_codes.router, geo_roads.public, geo_roads.platform, geo_roads.carrier, geo_ports.public, geo_ports.platform, roadside_api.platform, roadside_api.carrier, roadside_api.inspector, network_routes.public, network_routes.platform, network_routes.carrier, fare_matrix.carrier, fare_matrix.platform, connections_api.carrier, connections_api.platform,
           freight_api.carrier, freight_api.public, trip_changes.carrier, trip_changes.platform):
     app.include_router(r)
 

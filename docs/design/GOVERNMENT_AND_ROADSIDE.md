@@ -14,13 +14,17 @@ and every movement on the road can be checked without stopping the vehicle.
   * `FINANCE`: the Ministry of Finance (taxes and their remittance);
   * `TRANSPORT_MINISTRY` and `OTHER`.
 * **How a body comes in**:
-  * its members sign in at the inspector portal (`INSPECTOR`), each tied to one body;
-  * and/or its systems call the integration API v1 with a client of kind `GOVERNMENT` tied to the body.
-* **What each body may see** is set per body by the platform, starting from the kind's default (`sec.authority_scope`):
-  * `MOVEMENTS`: trips, vehicles, crews, load;
-  * `MANIFEST_NAMES`: passengers' names;
-  * `ID_NUMBERS`: passengers' ID numbers, encrypted and shown only to the bodies that hold this scope;
-  * `CARGO`: parcels and goods;
+  * its members sign in at the inspector portal (`INSPECTOR`) from the platform's officer app on their phones (or the
+    web), as platform accounts made members of one or more bodies (`sec.authority_member`); a member of several bodies
+    names the body each check is made for;
+  * and/or its systems call the integration API v1 with a client of kind `GOVERNMENT` tied to the body, when the body
+    asks to link its own applications.
+* **What each body may see** is set per body by the platform, starting from the kind's default (`sec.authority_scope`),
+  and each scope is in force only once a second person approved it, for its dates (`sec.authority_may`):
+  * `MANIFEST_VEHICLE` and `TRACKING`: the movement, the vehicle, the crew, the counts;
+  * `MANIFEST_PERSON`: passengers' names and seats (the sample);
+  * `IDENTITY`: passengers' ID numbers, encrypted and shown only to the bodies that hold this scope;
+  * `MANIFEST_CARGO`: parcels and goods;
   * `TAX`: tax due and remitted;
   * `REGULATORY`: the regulator's indicators.
 * **Records**: every look and every check is recorded with the member, the body, the time and the place, and the
@@ -29,12 +33,19 @@ and every movement on the road can be checked without stopping the vehicle.
 ## N48: the vehicle movement code
 
 * **One large code per vehicle**:
-  * a signed QR printed on a placard (A4, readable from a few metres) and fixed to the windscreen and the rear;
+  * a QR printed on a placard and fixed to the windscreen and the rear; the code is short (`MS1` and 13 letters or
+    digits, 65 bits of a keyed hash of the vehicle and the serial), so it fits the smallest symbol (21 x 21 modules)
+    and the symbol fills the page: about 12 mm a module on A3 (the default) and 9 mm on A4. Tested: it still decodes
+    when the symbol is 66 pixels wide in the photo and slightly blurred, which a phone reaches from many metres and from
+    a moving vehicle;
+  * the code cannot be guessed; the server keeps only its digest and finds the placard by it, and answers only while
+    the placard is in force. A placard printed before a change of the QR key still matches and is reprinted with the
+    key it was made with;
   * it names the vehicle, not a trip, so it is printed once;
   * at the moment of the scan it answers with the vehicle's current movement;
   * a lost or copied placard is revoked and a new serial printed (`fleet.vehicle_qr_tag`).
-* **The scan** (inspector portal, a phone's camera; later the security officer's app) shows, without stopping the
-  vehicle:
+* **The scan** (the platform's officer app on the security officer's phone: the camera reads the code; the code can
+  also be typed) shows, without stopping the vehicle:
   * the carrier and its licence state;
   * the vehicle, its plate and its seats;
   * the movement now: a scheduled trip with its number, route, departure and stops, or a charter, shuttle, parcel run
@@ -59,18 +70,22 @@ and every movement on the road can be checked without stopping the vehicle.
 
 ## What the schema already holds
 
-The study planned this, and the tables exist without screens or API yet. N47 and N48 build on them, not beside them:
+The study planned this, and the tables existed without screens or API. N47 and N48 build on them, not beside them
+(migration 1169):
 
 * `sec.authority_profile`: the bodies (kinds, protocol, data scope), already referenced by border manifests, alerts
   and data requests. It gains the new kinds, names in both languages, members and scopes.
 * `fleet.vehicle_qr_tag`: the signed sticker on the vehicle for field verification (study 4.18 e). It gains a serial
   and the placard.
-* `fleet.field_check_log`: every field query by security officers and authorised bodies. It gains the body, the
-  movement, the sample and the result of each person checked.
+* `fleet.field_check_log`: every field query by security officers and authorised bodies. It gains the movement, the
+  warnings, the sample and the result of each person checked; the body of each check is kept in
+  `sec.field_check_body`, so the fleet schema does not depend on the security schema.
 
 ## Build order
 
 1. Database: bodies, scopes, members, vehicle passes, roadside checks (one migration), checks in `db/tests`.
-2. API: register and scopes (platform), scan, sample and record (inspector), placard PDF (carrier), API v1 for bodies.
-3. Screens: platform "Government bodies"; inspector "Roadside check" with the camera; carrier "Vehicle placard".
+2. API (`app/modules/roadside`): register and scopes (platform), scan, sample and record (inspector), placard PDF
+   (carrier); members through the routes of the regular trips module; API v1 for bodies.
+3. Screens: platform "Government bodies"; inspector "Roadside check" with the camera; carrier "Vehicle placard"; the
+   officer mode of the mobile app.
 4. Tests, generated docs, Arabic report.

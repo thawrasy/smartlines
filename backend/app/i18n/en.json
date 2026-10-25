@@ -1375,5 +1375,17 @@
   "security.monitoring_alert": {
     "subject": "Monitoring: {alertname} {status_label}",
     "body": "{status_label}: {alertname} ({severity}). {summary} Since {starts_at} UTC."
+  },
+  "placard": {
+    "title": "Movement code",
+    "scan": "Security and authorised bodies: scan this code to see the vehicle's movement, crew, passengers and load.",
+    "carrier": "Carrier",
+    "plate": "Plate",
+    "seats": "Seats",
+    "serial": "Placard",
+    "front": "Front windscreen",
+    "rear": "Rear window",
+    "keep": "Keep this placard visible and undamaged. A lost or copied placard is revoked and a new one printed.",
+    "brand": "Masslak, the transport platform"
   }
 }

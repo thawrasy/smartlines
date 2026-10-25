@@ -10,7 +10,8 @@
     POST /api/carrier/schedule-requests/{uid}/withdraw
 
     Platform (the PLATFORM portal): schedule.approve for the platform's stages; a government authority's members decide
-    its stages by membership (sec.authority_member); schedule.settings for the rules and the members
+    its stages by membership (sec.authority_member); schedule.settings for the rules and the members (or authority.manage,
+    the government bodies' right of 1169, for the members)
     GET  /api/admin/schedules/requests?status=       the requests, the stage each waits for, the number the platform suggests
     POST /api/admin/schedules/requests/{uid}/decide  {approve, note, number}: the last approval applies it and makes its trips
     GET  /api/admin/schedules/settings               the rules in force and the authorities with their members
@@ -62,8 +63,8 @@ async def _db(call):
         raise
 
 
-def _need(pr: Principal, code: str) -> None:
-    if code not in pr.permissions:
+def _need(pr: Principal, code: str, *alternatives: str) -> None:
+    if code not in pr.permissions and not any(a in pr.permissions for a in alternatives):
         raise forbidden(f"missing permission: {code}")
 
 
@@ -468,7 +469,7 @@ async def _authority(conn, code: str) -> int:
 async def add_member(code: str, body: MemberIn, request: Request, pr: Principal = Depends(staff)):
     """A platform staff account decides for a government authority at the stages that name it."""
     require_step_up(pr)                 # a sensitive operation: a recent second factor (1136)
-    _need(pr, "schedule.settings")
+    _need(pr, "schedule.settings", "authority.manage")
     async with db.transaction(context_for(request, pr)) as conn:
         aid = await _authority(conn, code)
         user = await conn.fetchrow(
@@ -485,7 +486,7 @@ async def add_member(code: str, body: MemberIn, request: Request, pr: Principal 
 
 @platform.delete("/authorities/{code}/members/{user_uid}")
 async def remove_member(code: str, user_uid: uuid.UUID, request: Request, pr: Principal = Depends(staff)):
-    _need(pr, "schedule.settings")
+    _need(pr, "schedule.settings", "authority.manage")
     async with db.transaction(context_for(request, pr)) as conn:
         aid = await _authority(conn, code)
         uid = await conn.fetchval("SELECT id FROM iam.app_user WHERE uid = $1", user_uid)

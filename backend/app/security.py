@@ -224,6 +224,29 @@ def verify_parcel_label(token: str) -> tuple[str, str] | None:
     return parts[2], parts[3]
 
 
+def vehicle_code_token(vehicle_uid: str, serial: int, key: bytes | None = None) -> str:
+    """The code on a vehicle's placard (1169, N48): MS1 and 13 letters or digits, derived from the vehicle and the
+    placard's serial with the QR key. It is short on purpose: in the QR's capital-letters mode it fits the smallest
+    symbol (21 x 21 modules), so each module is large and the code reads from a distance and from a moving vehicle.
+    It cannot be guessed or forged (65 bits from a keyed hash); the server finds the placard by the code's digest and
+    answers only while the placard is in force. It never rotates: the placard is fixed to the vehicle."""
+    key = key or token_keys("qr")[0][1]
+    digest = hmac.new(key, f"vehicle.{vehicle_uid}.{serial}".encode(), hashlib.sha256).digest()
+    return "MS1" + base64.b32encode(digest).decode()[:13]
+
+
+def vehicle_code_tokens(vehicle_uid: str, serial: int) -> list[str]:
+    """The placard's code under each QR key, the current one first: a placard printed before a key change still
+    matches its stored digest, and its pages are printed again with the key it was made with."""
+    return [vehicle_code_token(vehicle_uid, serial, key) for _, key in token_keys("qr")]
+
+
+def vehicle_code_shape(token: str) -> str | None:
+    """The code as read by a camera (spaces and case forgiven), or None if it is not a movement code."""
+    t = "".join(token.split()).upper()
+    return t if len(t) == 16 and t.startswith("MS1") and all(c in "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567" for c in t[3:]) else None
+
+
 def ticket_qr_token(ticket_uid: str, now: float | None = None) -> tuple[str, int]:
     """Rotating ticket code: changes every qr_window_seconds; Q1.<key id>.<ticket>.<window>.<signature>."""
     window = get_settings().qr_window_seconds
