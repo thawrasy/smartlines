@@ -66,10 +66,12 @@ BODY_TRAVERSAL = re.compile(r"/etc/(passwd|shadow)\b|/proc/self/", _I)
 SCANNERS = re.compile(
     r"sqlmap|nikto|\bnmap\b|masscan|zgrab|nuclei|acunetix|nessus|openvas|wpscan|dirbuster|gobuster|\bffuf\b|feroxbuster"
     r"|\bhydra\b|w3af|arachni|jaeles|commix|havij|netsparker|appscan|burpcollaborator|interactsh|zmeu|morfeus", _I)
+# a probe name is a whole path segment: /pma is a probe, a booking reference such as /api/bookings/PMAEGJ is not
 PROBES = re.compile(
     r"/(\.env|\.git|\.svn|\.hg|\.htaccess|\.htpasswd|\.ds_store|\.aws|\.ssh|wp-admin|wp-login|wp-content|wp-includes|xmlrpc\.php"
-    r"|phpmyadmin|pma|myadmin|cgi-bin|actuator|server-status|vendor/phpunit|boaform|hnap1|owa/|autodiscover|telescope|_ignition"
-    r"|console/|solr/|jmx-console|manager/html)"
+    r"|phpmyadmin|pma|myadmin|cgi-bin|actuator|server-status|vendor/phpunit|boaform|hnap1|autodiscover|telescope|_ignition"
+    r"|jmx-console|manager/html)(?=/|$)"
+    r"|/(owa|console|solr)/"
     r"|\.(php\d?|asp|aspx|jsp|cgi|pl|env|bak|old|orig|sql|ini|swp|map)$", _I)
 # bait addresses (1167): paths no route serves and no honest client asks for; robots.txt names /backup/ as disallowed,
 # which only a scanner reads as an invitation. A touch blocks the address at once (sec.bait_touch).

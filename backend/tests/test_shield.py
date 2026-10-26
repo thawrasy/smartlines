@@ -31,6 +31,14 @@ def test_probes_scanners_methods_and_size_are_caught():
     assert shield.inspect_line("GET", "/api/trips", "q=" + "a" * 3000, {}).rule == "oversize"
 
 
+def test_a_reference_that_starts_like_a_probe_name_passes():
+    """Booking references are random letters: PMAEGJ is a booking, not phpMyAdmin (CI of 26 October 2026)."""
+    for ref in ("PMAEGJ", "MYADMX", "OWAXYZ", "SOLR42", "TELESCOPE1"):
+        assert shield.inspect_line("GET", f"/api/bookings/{ref}", "", {}) is None, ref
+    assert shield.inspect_line("GET", "/pma/index", "", {}).rule == "probe"
+    assert shield.inspect_line("GET", "/owa/auth/logon.aspx", "", {}).rule == "probe"
+
+
 def test_values_named_like_secrets_are_not_inspected():
     # a password may hold any characters: the firewall never reads it (nor stores it as a sample)
     body = b'{"identifier": "a@b.test", "password": "<any characters at all>", "portal": "PASSENGER"}'
