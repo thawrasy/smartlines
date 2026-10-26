@@ -81,6 +81,18 @@ const FIELDS: Def[] = [
   { key: 'lcTextLanguage', label: 'Language of the credit', options: ['EN', 'AR', 'BOTH'] },
 ];
 const shown = (d: Def, e: Edit) => !d.when || d.when(e);
+// The English words of the list values, the same as the print's (BankFas.Core TermsLabels); Arabic comes from ar.ts.
+const EN: Record<string, string> = {
+  SIGHT: 'Sight', DEFERRED_PAYMENT: 'Deferred payment', ACCEPTANCE: 'Acceptance', NEGOTIATION: 'Negotiation', MIXED: 'Mixed payment',
+  SHIPMENT_DATE: 'Shipment date', DELIVERY_NOTE_DATE: 'Delivery note date', INVOICE_DATE: 'Invoice date', DOCUMENTS_RECEIPT_DATE: 'Documents receipt date',
+  ACCEPTANCE_DATE: 'Acceptance date', ADVISING_BANK: 'Advising bank', ISSUING_BANK: 'Issuing bank', ANY_BANK: 'Any bank', NOMINATED_BANK: 'Nominated bank',
+  CONFIRMING_BANK: 'Confirming bank', WITHOUT: 'Without', MAY_ADD: 'May add', CONFIRMED: 'Confirmed', NONE: 'None', ABOUT: 'About (±10%)',
+  PLUS_MINUS: 'Plus or minus', ABSOLUTE: 'A set date', DAYS_AFTER_ISSUE: 'Days after issue', ALLOWED: 'Allowed', NOT_ALLOWED: 'Not allowed',
+  NOT_APPLICABLE: 'Not applicable', SEA: 'Sea', AIR: 'Air', ROAD: 'Road', RAIL: 'Rail', COURIER: 'Courier', MULTIMODAL: 'Multimodal',
+  DOMESTIC_DELIVERY: 'Domestic delivery', APPLICANT: 'Applicant', BENEFICIARY: 'Beneficiary', NOT_REQUIRED_BY_TERMS: 'Not required by the terms',
+  EN: 'English', AR: 'Arabic', BOTH: 'Arabic and English', SHARED: 'Shared', ISSUING_BANK_LOCAL: "Issuing bank's charges", ADVISING: 'Advising',
+  CONFIRMATION: 'Confirmation', NEGOTIATION_SETTLEMENT: 'Negotiation and settlement', AMENDMENT: 'Amendment', OTHER_OUTSIDE_ISSUING: 'Other charges outside the issuing bank',
+};
 
 /** The SWIFT MT700 field of a term, from the field dictionary (GET /lc/swift-tags): the code alone, as on the bank's copy
  * of the message (the owner, docs/60 section 6). 42C for an acceptance credit's drafts, 42P otherwise. A term with no
@@ -118,9 +130,10 @@ export function TermsEditor() {
       api<{ items: { code: string; nameAr: string; nameEn: string }[] }>('GET', `/lc/lists/${list}`).then(r => setLists(l => ({ ...l, [list]: r.items }))).catch(() => undefined);
   }, []);
   // A value from a catalogue list shows the item's name; a list value of the terms, its word.
+  const code = (v: string) => lang === 'ar' ? t(v) : EN[v] ?? v;
   const word = (d: Def | undefined, v: unknown) => {
     const item = d?.list ? lists[d.list]?.find(i => i.code === v) : undefined;
-    return item ? (lang === 'ar' ? item.nameAr : item.nameEn) : t(v === true ? 'Yes' : v === false ? 'No' : str(v));
+    return item ? (lang === 'ar' ? item.nameAr : item.nameEn) : v === true ? t('Yes') : v === false ? t('No') : code(str(v));
   };
   useEffect(() => { api<{ fields: Record<string, string> }>('GET', '/lc/swift-tags').then(r => setTags(r.fields)).catch(() => setTags({})); }, []);
   useEffect(() => { api<{ items: Row[] }>('GET', '/document-clauses').then(r => setClauses(r.items)).catch(() => setClauses([])); }, []);
@@ -180,9 +193,9 @@ export function TermsEditor() {
             {FIELDS.filter(d => shown(d, edit)).map(d => <div key={d.key} className="with-tag">
               {d.options || d.list || d.type === 'bool'
                 ? <Select label={d.label} value={edit[d.key] ?? ''} onChange={v => setEdit({ ...edit, [d.key]: v })}
-                    options={[{ value: '', label: '—' }, ...(d.options ?? (d.list ? (lists[d.list] ?? []).map(i => i.code) : ['true', 'false'])).map(o => ({ value: o, label: d.list ? word(d, o) : t(o === 'true' ? 'Yes' : o === 'false' ? 'No' : o) }))]} />
+                    options={[{ value: '', label: '—' }, ...(d.options ?? (d.list ? (lists[d.list] ?? []).map(i => i.code) : ['true', 'false'])).map(o => ({ value: o, label: d.list ? word(d, o) : o === 'true' ? t('Yes') : o === 'false' ? t('No') : code(o) }))]} />
                 : d.type === 'long'
-                  ? <label>{t(d.label)}<textarea rows={3} value={edit[d.key] ?? ''} onChange={e => setEdit({ ...edit, [d.key]: e.target.value })} /></label>
+                  ? <label><span>{t(d.label)}</span><textarea rows={3} value={edit[d.key] ?? ''} onChange={e => setEdit({ ...edit, [d.key]: e.target.value })} /></label>
                   : <Field label={d.label} type={d.type ?? 'text'} value={edit[d.key] ?? ''} onChange={v => setEdit({ ...edit, [d.key]: v })} required={false} />}
               <Tag tag={tags[d.key]} lcType={edit.lcType} />
             </div>)}
@@ -211,7 +224,7 @@ export function TermsEditor() {
       )}
       <h2>{t('Charges')}</h2>
       <Table rows={terms.charges ?? []} empty="No charge." columns={[
-        { header: 'Category', cell: r => t(str(r.category)) }, { header: 'Payer', cell: r => t(str(r.payer)) }, { header: 'Applicant share %', cell: r => str(r.applicantSharePct) },
+        { header: 'Category', cell: r => code(str(r.category)) }, { header: 'Payer', cell: r => code(str(r.payer)) }, { header: 'Applicant share %', cell: r => str(r.applicantSharePct) },
       ]} />
     </section>
   );
