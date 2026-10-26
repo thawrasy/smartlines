@@ -362,7 +362,7 @@ test('an operator onboards a tenant and its first administrator signs in', async
     await fo.p.getByRole('button', { name: 'Submit for approval' }).click();
     const tm = await signIn(tmEmailFac);
     await tm.p.goto(facilityUrl);
-    await tm.p.getByRole('button', { name: /^Approve/ }).click();
+    await tm.p.getByRole('button', { name: /^Approve($| \()/ }).click();
     await expect(tm.p.getByText('Not approved yet.')).toHaveCount(0);
     await tm.context.close();
     await fo.p.goto(facilityUrl);
