@@ -5587,6 +5587,9 @@ SELECT pg_temp.ok((SELECT pg_get_constraintdef(oid) LIKE '%arrived_at IS NULL) O
                      AND pg_get_constraintdef(oid) LIKE '%pickup_code_hash IS NOT NULL%'
                      FROM pg_constraint WHERE conname = 'shipment_journey_ck'),
   'Parcels (1182): no arrival before loading, never both delivered and returned, an arrived parcel holds its code''s hash');
+SELECT pg_temp.ok((SELECT count(*) FROM pg_policies WHERE schemaname = 'ship' AND policyname = 'module_gate'
+                     AND tablename IN ('delivery_attempt', 'delivery_proof', 'cod_collection') AND qual LIKE '%trip_parcels%') = 3,
+  'Parcels (1182): the hand-over''s attempt, proof and cash on delivery open with the trip parcels switch, not only with cargo');
 SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'ship' AND table_name = 'shipment'
                                 AND column_name IN ('pickup_code', 'pickup_pin')),
   'Parcels (1182): the pickup code itself is never a column');

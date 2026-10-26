@@ -52,3 +52,16 @@ COMMENT ON COLUMN ship.shipment.pickup_code_tries IS 'Wrong codes given; past th
 COMMENT ON COLUMN ship.shipment.delivered_at IS 'When the recipient collected the parcel (1182)';
 COMMENT ON COLUMN ship.shipment.exception_kind IS 'DAMAGED, MISSING, REFUSED or UNCLAIMED, with its note (1182)';
 COMMENT ON COLUMN ship.shipment.returned_at IS 'When the parcel went back to its sender after an exception (1182)';
+
+-- the hand-over to the recipient writes its attempt, its proof and the cash collected on delivery: these tables open with
+-- either switch too, as 1147 opened the parcel tables (the courier's own tables stay behind cargo alone)
+DO $$
+DECLARE t text;
+BEGIN
+  FOREACH t IN ARRAY ARRAY['ship.delivery_attempt', 'ship.delivery_proof', 'ship.cod_collection'] LOOP
+    EXECUTE format('ALTER TABLE %s ENABLE ROW LEVEL SECURITY', t);
+    EXECUTE format('DROP POLICY IF EXISTS module_gate ON %s', t);
+    EXECUTE format('CREATE POLICY module_gate ON %s AS RESTRICTIVE FOR ALL USING (sys.ctx_is_platform() OR sys.feature_on(%L)) '
+                   'WITH CHECK (sys.ctx_is_platform() OR sys.feature_on(%L))', t, '{cargo,trip_parcels}', '{cargo,trip_parcels}');
+  END LOOP;
+END $$;
