@@ -11,6 +11,8 @@ import { tone, useLabels } from "../../../ui/labels";
 import { useLoad } from "../../../ui/useLoad";
 
 interface Options { services: { id: number; code: string; name: string; max_weight_kg: number | null }[]; stations: { id: number; code: string; name: string; city: string }[] }
+interface TripParcel { tracking_no: string; status: string; created_at: string; recipient_name: string; trip_no: string | null; origin_code: string | null;
+  destination_code: string | null }
 interface Parcel { tracking_no: string; status: string; created_at: string; recipient_name: string; service: string; origin_code: string; destination_code: string; origin: string; destination: string; price: number }
 
 /** Send a parcel between stations: price from the published rate table, paid from the wallet, tracked by number. */
@@ -19,6 +21,7 @@ export default function Parcels() {
   const labels = useLabels();
   const opts = useLoad(() => api.get<Options>("/api/w/parcels/options"));
   const mine = useLoad(() => api.get<{ parcels: Parcel[] }>("/api/w/parcels/mine"));
+  const onTrips = useLoad(() => api.get<{ parcels: TripParcel[] }>("/api/parcels/mine"));     // parcels on scheduled trips (1182)
   const [f, setF] = useState({ service: null as number | null, fromCity: null as string | null, from: null as number | null,
                                toCity: null as string | null, to: null as number | null, weight: "", value: "", name: "", mobile: "", contents: "" });
   const [quote, setQuote] = useState<{ price: number; zone: string } | null>(null);
@@ -91,6 +94,14 @@ export default function Parcels() {
                   right={<Chip label={labels.value(x.status)} tone={tone(x.status)} />}
                   onPress={() => router.push({ pathname: "/svc/track", params: { no: x.tracking_no } })}>
           <View style={s.between}><Text style={s.mono}>{x.tracking_no}</Text><Text style={s.price}>{money(x.price)}</Text></View>
+        </ListCard>
+      ))}
+      {onTrips.data && onTrips.data.parcels.length > 0 ? <Text style={s.section}>{t("svc.journey.onTrips")}</Text> : null}
+      {onTrips.data?.parcels.map((x) => (
+        <ListCard key={x.tracking_no} title={x.tracking_no} sub={`${x.recipient_name} · ${date(x.created_at)}${x.trip_no ? ` · ${x.trip_no}` : ""}`}
+                  right={<Chip label={labels.value(x.status)} tone={tone(x.status)} />}
+                  onPress={() => router.push({ pathname: "/svc/journey", params: { no: x.tracking_no } })}>
+          <Text style={s.small}>{t("svc.journey.follow")}</Text>
         </ListCard>
       ))}
     </Screen>
