@@ -267,7 +267,8 @@ public static class RequestEndpoints
               JOIN org.Company AS co ON co.CompanyId = r.CompanyId
               LEFT JOIN ref.Currency AS cur ON cur.CurrencyId = r.CurrencyId
               LEFT JOIN wfl.WorkflowStage AS s ON s.WorkflowStageId = r.CurrentStageId
-             WHERE {filter} AND (@q = '' OR r.SearchText LIKE '%' + @nq + '%' OR r.RequestNo = @q OR r.DraftRef = @q)
+             WHERE {filter} AND (@q = '' OR r.SearchText LIKE '%' + @nq + '%' OR r.RequestNo = @q OR r.DraftRef = @q
+                    OR EXISTS (SELECT 1 FROM wfl.RequestExternalRef AS e WHERE e.RequestId = r.RequestId AND e.IsActive = 1 AND e.NormalizedValue = @nref))
                AND (@cat = '' OR rt.Category = @cat)
              ORDER BY r.UpdatedAt DESC, r.RequestId DESC;
             """,
@@ -275,7 +276,7 @@ public static class RequestEndpoints
             {
                 u = u.UserId, roles = actor.RoleIds.DefaultIfEmpty(-1).ToArray(), perms = actor.Permissions.DefaultIfEmpty("-").ToArray(), all = scope.All, scope = scope.SqlIds,
                 close = actor.Permissions.Contains("req.treasury.close"), staff, q, nq = Normalizer.Name(q), take = csv ? 5000 : 200,
-                cat = category, me = assignee == "me" ? 1 : 0,
+                cat = category, me = assignee == "me" ? 1 : 0, nref = NormaliseRef(q),
             }, cancellationToken: ct));
         if (!csv) return Results.Ok(new { items = rows });
         // FR-REQ-026: the same list as a CSV file, at most 5,000 rows, audited; the treasury's columns only for its staff.
@@ -397,6 +398,15 @@ public static class RequestEndpoints
                    CASE WHEN a.AssignedUserId = @me OR (a.AssignedUserId IS NULL AND a.AssignedRoleId IN @roles) THEN 1 ELSE 0 END AS mine
               FROM wfl.RequestApproval AS a WHERE a.StageInstanceId = @i ORDER BY a.SlotKey;
             """, new { i = r.CurrentStageInstanceId ?? -1, me = u.UserId, roles = actor.RoleIds.DefaultIfEmpty(-1).ToArray() }, cancellationToken: ct));
+        // The request's reference registry (docs/31 row 72, FR-REQ-010): every reference kept, the current one of each
+        // system and kind first; a changed one stays as history.
+        var references = await u.Connection.QueryAsync(new CommandDefinition(
+            """
+            SELECT e.SystemCode AS system, e.RefType AS kind, e.RefValue AS value, e.IsActive AS isCurrent, e.EnteredAt AS at, e.EnteredAtStageKey AS stage,
+                   a.DisplayNameEn AS byEn, a.DisplayNameAr AS byAr
+              FROM wfl.RequestExternalRef AS e LEFT JOIN sec.AppUser AS a ON a.AppUserId = e.EnteredBy
+             WHERE e.RequestId = @id ORDER BY e.IsActive DESC, e.SystemCode, e.RefType, e.EnteredAt DESC;
+            """, new { id = requestId }, cancellationToken: ct));
         var mine = actor.UserId == r.RequesterUserId || actor.UserId == r.CreatedByUserId;
         var editable = mine && (r.Status == "DRAFT" || inst?.StageKey == "RETURNED");
         var actions = new List<string>();
@@ -430,7 +440,8 @@ public static class RequestEndpoints
         {
             actions, fields = formFields,
             id = r.PublicId, draftRef = r.DraftRef, requestNo = r.RequestNo, status = PublicStatus(r.Status, staff), title = r.Title, amount = r.Amount, currency = r.CurrencyCode,
-            head, form, comments, attachments, slots, timeline,
+            head, form, comments, attachments, slots, timeline, references,
+            canAddReference = actor.Permissions.Contains("req.extref.edit") && r.Status is "DRAFT" or "ACTIVE" or "AWAITING_CLOSE",
             canAttach = r.Status is "DRAFT" or "ACTIVE" or "AWAITING_CLOSE",
             myApprovals = approvals.Where(a => (int)a.mine == 1).Select(a => new { slot = (string)a.slot, decision = (string)a.decision }),
         };

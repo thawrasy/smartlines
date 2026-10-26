@@ -69,6 +69,13 @@ public sealed class RequestTypeTests(PlatformFixture f)
 
         // A request on it: the manager approves, the queue numbers it BGR-, only the treasury executive role claims it, then it completes.
         var id = PlatformFixture.Id(await rq.PostOkAsync("/api/v1/requests", new { type = "GUARANTEE_REQUEST", company, data = new { title = "Bid bond", amount = new { value = 250_000, currency = "SAR" } } }));
+        // The reference registry (row 72): an ERP reference, changed once; the current one is searchable, the first kept as history.
+        await rq.PostOkAsync($"/api/v1/requests/{id}/external-refs", new { systemCode = "ERP", refType = "ERP_REFERENCE", value = "po-7781" });
+        await rq.PostOkAsync($"/api/v1/requests/{id}/external-refs", new { systemCode = "ERP", refType = "ERP_REFERENCE", value = "PO 7782" });
+        var refs = (await rq.GetJsonAsync($"/api/v1/requests/{id}")).GetProperty("request").GetProperty("references").EnumerateArray()
+            .Select(x => (x.GetProperty("value").GetString(), x.GetProperty("isCurrent").GetBoolean())).ToList();
+        Assert.Equal([("PO 7782", true), ("po-7781", false)], refs);
+        Assert.Contains((await rq.GetJsonAsync("/api/v1/requests?view=mine&q=po7782")).GetProperty("items").EnumerateArray(), x => x.GetProperty("id").GetString() == id);
         await ActAsync(rq, id, "submit");
         // The screens of the category (row 73): pending approval on the general screen, not on the import credits one.
         static bool Has(System.Text.Json.JsonElement list, string id) => list.GetProperty("items").EnumerateArray().Any(x => x.GetProperty("id").GetString() == id);

@@ -100,6 +100,7 @@ interface Detail {
   request: {
     id: string; draftRef: string; requestNo?: string; status: string; title?: string; amount?: number; currency?: string; head: Row; form: Record<string, unknown>;
     comments: Row[]; attachments: Row[]; slots?: Row[]; canAttach?: boolean; timeline: Row[]; actions: string[]; fields: FieldDef[];
+    references?: Row[]; canAddReference?: boolean;
   };
   staff?: Row;
 }
@@ -227,6 +228,7 @@ export function RequestDetail() {
           setNote('');
         }, 'Saved.')}>{t('Add the comment')}</button>
       </section>
+      <References id={id ?? ''} rows={rq.references ?? []} canAdd={!!rq.canAddReference} onDone={load} />
       <section className="card">
         <h2>{t('Attachments')}</h2>
         <Table rows={rq.attachments} empty="No attachment." columns={[
@@ -280,5 +282,60 @@ function RequestUpload({ id, slots, onDone }: { id: string; slots: Row[]; onDone
       <AttachForm path={`/requests/${id}/attachments/upload`} types={s ? undefined : types} fixedType={s ? str(s.documentType) : undefined}
         extra={slot ? { slot } : undefined} onDone={onDone} />
     </>
+  );
+}
+
+/** The reference kinds of a request (docs/31 row 72): the system that issued it and what it is; "other" takes both as typed. */
+const REFERENCE_KINDS: { value: string; label: string; system: string; kind: string }[] = [
+  { value: 'ERP', label: 'ERP reference', system: 'ERP', kind: 'ERP_REFERENCE' },
+  { value: 'LC_NUMBER', label: "The bank's letter of credit number", system: 'BANK', kind: 'LC_NUMBER' },
+  { value: 'BANK_REFERENCE', label: "The bank's reference", system: 'BANK', kind: 'BANK_REFERENCE' },
+  { value: 'BENEFICIARY_BANK', label: "The beneficiary bank's reference", system: 'BENEFICIARY_BANK', kind: 'BANK_REFERENCE' },
+  { value: 'OTHER', label: 'Another reference', system: '', kind: '' },
+];
+
+/** The request's reference registry: the current reference of each kind, the earlier ones kept as history, and a new one. */
+function References({ id, rows, canAdd, onDone }: { id: string; rows: Row[]; canAdd: boolean; onDone: () => Promise<void> }) {
+  const { t, lang } = useI18n();
+  const [kind, setKind] = useState('ERP');
+  const [system, setSystem] = useState('');
+  const [other, setOther] = useState('');
+  const [value, setValue] = useState('');
+  const [notice, setNotice] = useState<{ ok?: string; error?: string }>({});
+  const label = (r: Row) => {
+    const k = REFERENCE_KINDS.find(x => x.system === r.system && x.kind === r.kind);
+    return k ? t(k.label) : `${str(r.system)} · ${str(r.kind)}`;
+  };
+  return (
+    <section className="card">
+      <h2>{t('References')}</h2>
+      <Table rows={rows} empty="No reference yet." columns={[
+        { header: 'Reference', cell: r => label(r) },
+        { header: 'Value', cell: r => <span dir="ltr" className={r.isCurrent ? '' : 'muted'}>{str(r.value)}</span> },
+        { header: 'Status', cell: r => t(r.isCurrent ? 'Current' : 'Replaced') },
+        { header: 'By', cell: r => pick(lang, r, 'by') },
+        { header: 'When', cell: r => <span dir="ltr">{day(r.at)}</span> },
+      ]} />
+      {canAdd && (
+        <div className="row">
+          <Select label="Reference" value={kind} onChange={setKind} options={REFERENCE_KINDS.map(k => ({ value: k.value, label: k.label }))} />
+          {kind === 'OTHER' && <Field label="Issued by" value={system} onChange={setSystem} />}
+          {kind === 'OTHER' && <Field label="Kind" value={other} onChange={setOther} />}
+          <Field label="Value" value={value} onChange={setValue} />
+          <button type="button" disabled={!value} onClick={async () => {
+            setNotice({});
+            const k = REFERENCE_KINDS.find(x => x.value === kind)!;
+            try {
+              const r = await api<{ warning?: string }>('POST', `/requests/${id}/external-refs`,
+                { systemCode: k.value === 'OTHER' ? system : k.system, refType: k.value === 'OTHER' ? other : k.kind, value });
+              setValue('');
+              await onDone();
+              setNotice({ ok: r.warning ? 'Saved. The same reference is on another open request.' : 'Saved.' });
+            } catch (e) { setNotice({ error: message(e) }); }
+          }}>{t('Add the reference')}</button>
+        </div>
+      )}
+      <Notice ok={notice.ok} error={notice.error} />
+    </section>
   );
 }
