@@ -1,11 +1,11 @@
-# دليل تجربة BankFas الخاصة على خادم Ubuntu بعنوان IP (الإصدار 1.0.7)
+# دليل تجربة BankFas الخاصة على خادم Ubuntu بعنوان IP (الإصدار 1.0.8)
 
 التاريخ: 2026-10-26. كتبه وكيل ذكاء اصطناعي.
 
 ## عن هذا الدليل
 
 - **لمن:** لمن لم يتعامل مع خادم من قبل. لا يلزمك أن تعرف Linux أو SSH أو الأوامر.
-- **ماذا يفعل:** يثبّت BankFas الإصدار 1.0.7 كاملًا على **خادم واحد** بنظام Ubuntu 24.04، **تجربةً خاصة ببيانات توضيحية فقط**.
+- **ماذا يفعل:** يثبّت BankFas الإصدار 1.0.8 كاملًا على **خادم واحد** بنظام Ubuntu 24.04، **تجربةً خاصة ببيانات توضيحية فقط**.
 - **بلا نطاق:** لا نطاق، ولا DNS، ولا Cloudflare، ولا GoDaddy، ولا شهادة عامة. تفتح النظام بعنوان الخادم مباشرة: `https://<SERVER_IP>`.
 - **المصادر:** ترتيب الخطوات من `docs/54` و`docs/58`، وتحميل الصورتين من الحزمة كما في `docs/57`. وكل أمر هنا مطابق للسكربتات في الحزمة (`tools/host` و`tools/deploy`).
 - **كيف تقرأ:**
@@ -140,7 +140,7 @@ flowchart LR
 - [ ] **جهاز Windows 10 أو 11** (أو Mac)، متصل بالإنترنت، وفيه **Chrome أو Edge**.
 - [ ] **الخادم** من 1.1، وعنوانه `<SERVER_IP>`.
 - [ ] **حساب GitHub** له صلاحية على المستودع الخاص. صفحة الإصدار خاصة، ولا تفتح إلا بعد تسجيل الدخول:
-  `https://github.com/thawrasy/smartlines/releases/tag/bankfas-v1.0.7`
+  `https://github.com/thawrasy/smartlines/releases/tag/bankfas-v1.0.8`
 - [ ] **عناوين IP العامة للمختبرين.** كل مختبر يفتح `https://api.ipify.org` ويرسل لك الرقم (الجزء 6).
 - [ ] **خزنة كلمات مرور** (برنامج إدارة كلمات المرور) أو قرص USB مشفّر، **خارج الخادم**. ستحفظ فيها المفاتيح وكلمات المرور.
 - [ ] **تطبيق مصادقة** على هاتفك، مثل Microsoft Authenticator أو Google Authenticator.
@@ -150,21 +150,21 @@ flowchart LR
 
 من صفحة الإصدار، في قسم `Assets`، نزّل ملفين:
 
-- `bankfas-1.0.7-server.tar`: **الملف الواحد الذي يُرفع إلى الخادم** (نحو 300 ميغابايت).
-- `bankfas-1.0.7-server.tar.sha256`: بصمته، للتحقق من سلامته.
+- `bankfas-1.0.8-server.tar`: **الملف الواحد الذي يُرفع إلى الخادم** (نحو 300 ميغابايت).
+- `bankfas-1.0.8-server.tar.sha256`: بصمته، للتحقق من سلامته.
 
-في داخل الملف الكبير مجلد `bankfas-1.0.7/` وفيه:
+في داخل الملف الكبير مجلد `bankfas-1.0.8/` وفيه:
 
 | الملف | ما هو |
 |---|---|
-| `bankfas-images-1.0.7.tar.gz` | الصورتان معًا: `bankfas-api:1.0.7` و`bankfas-worker:1.0.7` |
-| `bankfas-kit-1.0.7.tar.gz` | أدوات التثبيت: المجلد `treasury-platform` بأدواته `tools` وسكربتات القاعدة `db`، بلا وثائق |
+| `bankfas-images-1.0.8.tar.gz` | الصورتان معًا: `bankfas-api:1.0.8` و`bankfas-worker:1.0.8` |
+| `bankfas-kit-1.0.8.tar.gz` | أدوات التثبيت: المجلد `treasury-platform` بأدواته `tools` وسكربتات القاعدة `db`، بلا وثائق |
 | `INSTALL-AR.md` و`INSTALL-AR.docx` | هذا الدليل |
 | `RELEASE-NOTES-AR.md` | ملاحظات الإصدار (`docs/57`) |
 | `VERSION.txt` | رقم الإصدار، ورقم الحفظة، ومعرّفا الصورتين |
 | `SHA256SUMS` | بصمة كل ملف |
 
-- الوثائق كلها في ملف منفصل `bankfas-docs-1.0.7.tar.gz`. هو مذكور في `SHA256SUMS`، لكنه **لا يُرفع إلى الخادم**. احفظه على جهازك إن أردته.
+- الوثائق كلها في ملف منفصل `bankfas-docs-1.0.8.tar.gz`. هو مذكور في `SHA256SUMS`، لكنه **لا يُرفع إلى الخادم**. احفظه على جهازك إن أردته.
 
 ### 1.4 كم يستغرق
 
@@ -562,27 +562,27 @@ free -h
 ### 5.1 نزّل الملفين على جهازك
 
 1. سجّل الدخول إلى GitHub بحساب له صلاحية على المستودع. **بدون تسجيل الدخول تظهر الصفحة «404».**
-2. افتح `https://github.com/thawrasy/smartlines/releases/tag/bankfas-v1.0.7`.
-3. في قسم `Assets` اضغط `bankfas-1.0.7-server.tar`، ثم `bankfas-1.0.7-server.tar.sha256`. يُحفظان غالبًا في مجلد التنزيلات.
+2. افتح `https://github.com/thawrasy/smartlines/releases/tag/bankfas-v1.0.8`.
+3. في قسم `Assets` اضغط `bankfas-1.0.8-server.tar`، ثم `bankfas-1.0.8-server.tar.sha256`. يُحفظان غالبًا في مجلد التنزيلات.
 
 ### 5.2 تحقّق من الملف الكبير على جهازك (اختياري لكنه مفيد)
 
 **في Windows (PowerShell)،** احسب بصمة الملف:
 
 ```powershell
-Get-FileHash $env:USERPROFILE\Downloads\bankfas-1.0.7-server.tar -Algorithm SHA256
+Get-FileHash $env:USERPROFILE\Downloads\bankfas-1.0.8-server.tar -Algorithm SHA256
 ```
 
 ثم اعرض البصمة المنشورة:
 
 ```powershell
-Get-Content $env:USERPROFILE\Downloads\bankfas-1.0.7-server.tar.sha256
+Get-Content $env:USERPROFILE\Downloads\bankfas-1.0.8-server.tar.sha256
 ```
 
 **في Mac:**
 
 ```bash
-shasum -a 256 ~/Downloads/bankfas-1.0.7-server.tar && cat ~/Downloads/bankfas-1.0.7-server.tar.sha256
+shasum -a 256 ~/Downloads/bankfas-1.0.8-server.tar && cat ~/Downloads/bankfas-1.0.8-server.tar.sha256
 ```
 
 ما يجب أن تراه: الرقمان الطويلان متطابقان (Windows يكتبه بحروف كبيرة، وهذا لا يهم). إن اختلفا، فنزّل الملف من جديد.
@@ -594,13 +594,13 @@ shasum -a 256 ~/Downloads/bankfas-1.0.7-server.tar && cat ~/Downloads/bankfas-1.
 في Windows (PowerShell على جهازك):
 
 ```powershell
-scp $env:USERPROFILE\Downloads\bankfas-1.0.7-server.tar $env:USERPROFILE\Downloads\bankfas-1.0.7-server.tar.sha256 <YOUR_USER>@<SERVER_IP>:~/
+scp $env:USERPROFILE\Downloads\bankfas-1.0.8-server.tar $env:USERPROFILE\Downloads\bankfas-1.0.8-server.tar.sha256 <YOUR_USER>@<SERVER_IP>:~/
 ```
 
 في Mac:
 
 ```bash
-scp ~/Downloads/bankfas-1.0.7-server.tar ~/Downloads/bankfas-1.0.7-server.tar.sha256 <YOUR_USER>@<SERVER_IP>:~/
+scp ~/Downloads/bankfas-1.0.8-server.tar ~/Downloads/bankfas-1.0.8-server.tar.sha256 <YOUR_USER>@<SERVER_IP>:~/
 ```
 
 ما يجب أن تراه: سطر لكل ملف بالنسبة المئوية حتى `100%`.
@@ -616,13 +616,13 @@ scp ~/Downloads/bankfas-1.0.7-server.tar ~/Downloads/bankfas-1.0.7-server.tar.sh
 ادخل إلى الخادم، ثم قارن البصمة:
 
 ```bash
-cd ~ && sha256sum -c bankfas-1.0.7-server.tar.sha256
+cd ~ && sha256sum -c bankfas-1.0.8-server.tar.sha256
 ```
 
 ما يجب أن تراه:
 
 ```text
-bankfas-1.0.7-server.tar: OK
+bankfas-1.0.8-server.tar: OK
 ```
 
 - إن ظهر `FAILED`: **توقف.** الملف تالف أو ناقص. ارفعه من جديد.
@@ -632,16 +632,16 @@ bankfas-1.0.7-server.tar: OK
 استخرج الملف في مجلدك:
 
 ```bash
-cd ~ && tar -xf bankfas-1.0.7-server.tar
+cd ~ && tar -xf bankfas-1.0.8-server.tar
 ```
 
 ادخل المجلد واعرض محتواه:
 
 ```bash
-cd ~/bankfas-1.0.7 && ls -l
+cd ~/bankfas-1.0.8 && ls -l
 ```
 
-ما يجب أن تراه: `bankfas-images-1.0.7.tar.gz` و`bankfas-kit-1.0.7.tar.gz` و`INSTALL-AR.md` و`INSTALL-AR.docx` و`RELEASE-NOTES-AR.md` و`VERSION.txt` و`SHA256SUMS`.
+ما يجب أن تراه: `bankfas-images-1.0.8.tar.gz` و`bankfas-kit-1.0.8.tar.gz` و`INSTALL-AR.md` و`INSTALL-AR.docx` و`RELEASE-NOTES-AR.md` و`VERSION.txt` و`SHA256SUMS`.
 
 قارن بصمة كل ملف بما في `SHA256SUMS`. الخيار `--ignore-missing` يتخطى ملف الوثائق، لأنه ليس هنا عمدًا:
 
@@ -652,8 +652,8 @@ sha256sum -c --ignore-missing SHA256SUMS
 ما يجب أن تراه: كل سطر ينتهي بـ `OK`، مثل:
 
 ```text
-bankfas-images-1.0.7.tar.gz: OK
-bankfas-kit-1.0.7.tar.gz: OK
+bankfas-images-1.0.8.tar.gz: OK
+bankfas-kit-1.0.8.tar.gz: OK
 INSTALL-AR.docx: OK
 INSTALL-AR.md: OK
 RELEASE-NOTES-AR.md: OK
@@ -668,20 +668,20 @@ VERSION.txt: OK
 cat VERSION.txt
 ```
 
-ما يجب أن تراه: `BankFas 1.0.7`، ثم رقم الحفظة ومعرّفا الصورتين.
+ما يجب أن تراه: `BankFas 1.0.8`، ثم رقم الحفظة ومعرّفا الصورتين.
 
 ### 5.6 استخرج أدوات التثبيت
 
 استخرج حزمة الأدوات:
 
 ```bash
-cd ~/bankfas-1.0.7 && tar -xzf bankfas-kit-1.0.7.tar.gz
+cd ~/bankfas-1.0.8 && tar -xzf bankfas-kit-1.0.8.tar.gz
 ```
 
 ادخل مجلد الأدوات:
 
 ```bash
-cd ~/bankfas-1.0.7/treasury-platform && ls
+cd ~/bankfas-1.0.8/treasury-platform && ls
 ```
 
 ما يجب أن تراه: مجلدات منها `tools` و`db`، والملف `versions.json`. (لا مجلد `docs`: الوثائق في ملف منفصل.)
@@ -689,7 +689,7 @@ cd ~/bankfas-1.0.7/treasury-platform && ls
 - **مهم:** كل أوامر `tools/...` في هذا الدليل تُنفّذ من هذا المجلد. إن دخلت من جديد إلى الخادم، فارجع إليه أولًا:
 
 ```bash
-cd ~/bankfas-1.0.7/treasury-platform
+cd ~/bankfas-1.0.8/treasury-platform
 ```
 
 ---
@@ -727,7 +727,7 @@ echo $SSH_CLIENT
 من مجلد الأدوات:
 
 ```bash
-cd ~/bankfas-1.0.7/treasury-platform
+cd ~/bankfas-1.0.8/treasury-platform
 ```
 
 شغّل السكربت. ضع عنوانك في القائمتين، ثم عناوين المختبرين في `WEB_CIDRS`، مفصولة بمسافة، وبعد كل عنوان `/32`:
@@ -761,7 +761,7 @@ Status: active
 السكربت **يمسح القواعد كلها ثم يكتبها من جديد** في كل تشغيل. لذلك أعده **بالقائمة الكاملة** كل مرة، لا بالعنوان الجديد وحده:
 
 ```bash
-sudo ADMIN_CIDRS="<YOUR_IP>/32" WEB_CIDRS="<YOUR_IP>/32 <TESTER_IP>/32 <NEW_TESTER_IP>/32" DB_ON_THIS_HOST=1 bash ~/bankfas-1.0.7/treasury-platform/tools/host/ufw.sh
+sudo ADMIN_CIDRS="<YOUR_IP>/32" WEB_CIDRS="<YOUR_IP>/32 <TESTER_IP>/32 <NEW_TESTER_IP>/32" DB_ON_THIS_HOST=1 bash ~/bankfas-1.0.8/treasury-platform/tools/host/ufw.sh
 ```
 
 - لا تنسَ `DB_ON_THIS_HOST=1`. بدونه تنقطع الحاويات عن قاعدة البيانات.
@@ -794,7 +794,7 @@ tmux new -s breached
 داخل الجلسة، شغّل التنزيل:
 
 ```bash
-sudo bash ~/bankfas-1.0.7/treasury-platform/tools/host/download_breached.sh /srv/bankfas/breached
+sudo bash ~/bankfas-1.0.8/treasury-platform/tools/host/download_breached.sh /srv/bankfas/breached
 ```
 
 - اكتب كلمة مرورك إن طلبها.
@@ -829,7 +829,7 @@ tmux attach -t breached
 من مجلد الأدوات، أنشئ مجلد الإعداد وانسخ المثال إليه بصلاحية 600:
 
 ```bash
-cd ~/bankfas-1.0.7/treasury-platform && sudo install -d -m 700 /opt/bankfas && sudo install -m 600 tools/host/site.conf.example /opt/bankfas/site.conf
+cd ~/bankfas-1.0.8/treasury-platform && sudo install -d -m 700 /opt/bankfas && sudo install -m 600 tools/host/site.conf.example /opt/bankfas/site.conf
 ```
 
 افتحه بالمحرر nano عبر sudoedit:
@@ -860,8 +860,8 @@ SUDO_EDITOR=nano sudoedit /opt/bankfas/site.conf
 | `SECURITY_MAILBOX` | `<OWNER_EMAIL>` | عنوان التنبيهات الأمنية. أي عنوان لك |
 | `DNS_PROVIDER` | **فارغ** | لا يُستعمل مع `ACCESS=ip` |
 | `DNS_TOKEN_VAR` | **فارغ** | لا يُستعمل مع `ACCESS=ip` |
-| `API_IMAGE` | `bankfas-api:1.0.7` | صورة الخادم في الحزمة |
-| `WORKER_IMAGE` | `bankfas-worker:1.0.7` | صورة الخادم الخلفي في الحزمة |
+| `API_IMAGE` | `bankfas-api:1.0.8` | صورة الخادم في الحزمة |
+| `WORKER_IMAGE` | `bankfas-worker:1.0.8` | صورة الخادم الخلفي في الحزمة |
 | `CLAMAV_VERSION` | `1.4` (اتركه) | إصدار فاحص الملفات |
 | `KEY_NAME` | `2026-10` (اتركه) | اسم ملف المفتاح الرئيسي الذي يُنشأ مرة واحدة |
 
@@ -884,8 +884,8 @@ OPS_MAILBOX=<OWNER_EMAIL>
 SECURITY_MAILBOX=<OWNER_EMAIL>
 DNS_PROVIDER=
 DNS_TOKEN_VAR=
-API_IMAGE=bankfas-api:1.0.7
-WORKER_IMAGE=bankfas-worker:1.0.7
+API_IMAGE=bankfas-api:1.0.8
+WORKER_IMAGE=bankfas-worker:1.0.8
 CLAMAV_VERSION=1.4
 KEY_NAME=2026-10
 ```
@@ -913,7 +913,7 @@ sudo grep -E '^[A-Z_]+=' /opt/bankfas/site.conf; sudo stat -c '%a %U' /opt/bankf
 الأدوات تقارن الخادم بملف `versions.json`. اعرض ما فيه:
 
 ```bash
-cd ~/bankfas-1.0.7/treasury-platform && grep -E '"(os_release|release|update|product_version)"' versions.json
+cd ~/bankfas-1.0.8/treasury-platform && grep -E '"(os_release|release|update|product_version)"' versions.json
 ```
 
 ما يجب أن تراه:
@@ -1115,7 +1115,7 @@ openssl version
 من مجلد الأدوات، شغّل السكربت:
 
 ```bash
-cd ~/bankfas-1.0.7/treasury-platform && sudo tools/host/trial_db_cert.sh
+cd ~/bankfas-1.0.8/treasury-platform && sudo tools/host/trial_db_cert.sh
 ```
 
 ما يجب أن تراه (مختصرًا):
@@ -1251,7 +1251,7 @@ sudo -i
 ادخل مجلد الأدوات:
 
 ```bash
-cd /home/<YOUR_USER>/bankfas-1.0.7/treasury-platform
+cd /home/<YOUR_USER>/bankfas-1.0.8/treasury-platform
 ```
 
 عنوان القاعدة باسم الشهادة:
@@ -1734,7 +1734,7 @@ sudo docker run --rm hello-world
 من مجلد الأدوات، انسخ إعدادات Docker (تدوير السجلات، ولا صلاحيات جديدة، وعزل الحاويات)، ثم أعد تشغيله:
 
 ```bash
-cd ~/bankfas-1.0.7/treasury-platform && sudo cp tools/host/docker-daemon.json /etc/docker/daemon.json && sudo systemctl restart docker
+cd ~/bankfas-1.0.8/treasury-platform && sudo cp tools/host/docker-daemon.json /etc/docker/daemon.json && sudo systemctl restart docker
 ```
 
 تأكد أنه يعمل:
@@ -1822,7 +1822,7 @@ caddy version
 من مجلد الأدوات:
 
 ```bash
-cd ~/bankfas-1.0.7/treasury-platform && sudo tools/host/provision_app_host.sh --db-secrets /tmp/db-secrets.tar
+cd ~/bankfas-1.0.8/treasury-platform && sudo tools/host/provision_app_host.sh --db-secrets /tmp/db-secrets.tar
 ```
 
 ما يجب أن تراه (مختصرًا):
@@ -2063,17 +2063,17 @@ systemctl list-timers bankfas-check.timer --no-pager
 
 ### 12.1 حمّل الصورتين من الملف الواحد
 
-الملف `bankfas-images-1.0.7.tar.gz` فيه الصورتان معًا:
+الملف `bankfas-images-1.0.8.tar.gz` فيه الصورتان معًا:
 
 ```bash
-sudo docker load -i ~/bankfas-1.0.7/bankfas-images-1.0.7.tar.gz
+sudo docker load -i ~/bankfas-1.0.8/bankfas-images-1.0.8.tar.gz
 ```
 
 ما يجب أن تراه في الآخر:
 
 ```text
-Loaded image: bankfas-api:1.0.7
-Loaded image: bankfas-worker:1.0.7
+Loaded image: bankfas-api:1.0.8
+Loaded image: bankfas-worker:1.0.8
 ```
 
 اعرضهما:
@@ -2082,7 +2082,7 @@ Loaded image: bankfas-worker:1.0.7
 sudo docker image ls | grep bankfas
 ```
 
-ما يجب أن تراه: `bankfas-api` و`bankfas-worker`، وبجانب كل منهما `1.0.7`.
+ما يجب أن تراه: `bankfas-api` و`bankfas-worker`، وبجانب كل منهما `1.0.8`.
 
 ### 12.2 راجع compose.yml
 
@@ -2095,11 +2095,11 @@ sudo grep -E 'image:|extra_hosts|ca-certificates|/srv/bankfas/mail' /opt/bankfas
 ما يجب أن تراه (مرتين لكل من `api` و`worker`):
 
 ```text
-    image: bankfas-api:1.0.7
+    image: bankfas-api:1.0.8
     extra_hosts: ["db.bankfas.internal:172.30.0.1"]   # the database on this host (docs/58)
       - /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt:ro   # the host's authorities (docs/62)
       - /srv/bankfas/mail:/srv/bankfas/mail   # the mail kept on this host (docs/62)
-    image: bankfas-worker:1.0.7
+    image: bankfas-worker:1.0.8
     ...
     image: clamav/clamav:1.4
 ```
@@ -2111,7 +2111,7 @@ sudo grep -E 'image:|extra_hosts|ca-certificates|/srv/bankfas/mail' /opt/bankfas
 يجب أن يخرج بصفر قبل أول تشغيل. يقرأ فقط ولا يغيّر شيئًا:
 
 ```bash
-cd ~/bankfas-1.0.7/treasury-platform && sudo tools/host/check_ready.sh; echo "exit=$?"
+cd ~/bankfas-1.0.8/treasury-platform && sudo tools/host/check_ready.sh; echo "exit=$?"
 ```
 
 ما يجب أن تراه: أسطر `PASS`، ومنها:
@@ -2371,7 +2371,7 @@ https://admin.localhost:8443
 انتظر دقيقتين إلى خمس بعد إنشاء المشترك، ثم على الخادم:
 
 ```bash
-cd ~/bankfas-1.0.7/treasury-platform && sudo tools/host/show_mail.sh
+cd ~/bankfas-1.0.8/treasury-platform && sudo tools/host/show_mail.sh
 ```
 
 ما يجب أن تراه:
@@ -2417,7 +2417,7 @@ link:    https://<SERVER_IP>/invitation#token=...
 ثم أنت، على الخادم، اعرض دعوة هذا المختبر:
 
 ```bash
-sudo ~/bankfas-1.0.7/treasury-platform/tools/host/show_mail.sh 5 <TESTER_EMAIL>
+sudo ~/bankfas-1.0.8/treasury-platform/tools/host/show_mail.sh 5 <TESTER_EMAIL>
 ```
 
 أرسل له الرابط، ومعه الشهادة الجذرية (13.3)، وتذكيرًا بأن عنوانه يجب أن يكون في `WEB_CIDRS`. وهو يكمل كما في 14.4.
@@ -2441,7 +2441,7 @@ sudo ~/bankfas-1.0.7/treasury-platform/tools/host/show_mail.sh 5 <TESTER_EMAIL>
 - ما يجب أن تراه: ملف PDF بهوية النظام. قد تأخذ الطباعة ثوانيَ.
 - تحقّق: هذه الشاشات تحتاج بيانات قبلها (طلب، أو قوائم مالية وتقييم). خطوات إنشائها خارج هذا الدليل.
 
-**الشاشة الجديدة في 1.0.7: أنواع الطلبات ودورات العمل:** المجموعة `Settings`، ثم `Request types and workflows` (بالعربية: «أنواع الطلبات ودورات العمل»).
+**الشاشة الجديدة في 1.0.8: أنواع الطلبات ودورات العمل:** المجموعة `Settings`، ثم `Request types and workflows` (بالعربية: «أنواع الطلبات ودورات العمل»).
 1. تظهر الأنواع مجمّعة حسب الشاشة (مثل `Import letters of credit` و`General requests`).
 2. في النموذج `New request type`: `Code` (حروف كبيرة وأرقام و`_`، مثل `TRIAL_REQUEST`)، و`Name (English)`، و`Name (Arabic)`، و`Screen`، و`Number prefix` (من 2 إلى 6 حروف كبيرة، مثل `TRL`). ثم `Create the type`.
 3. في صفحة النوع: حدّد `Who may raise it` (الأدوار أو الأقسام)، ثم `Save the audience`.
@@ -2527,7 +2527,7 @@ sudo journalctl -t bankfas-alert --since "24 hours ago" --no-pager
 أحدث الرسائل المحفوظة (دعوات، وإعادة كلمات مرور):
 
 ```bash
-sudo ~/bankfas-1.0.7/treasury-platform/tools/host/show_mail.sh
+sudo ~/bankfas-1.0.8/treasury-platform/tools/host/show_mail.sh
 ```
 
 ### 16.2 إعادة التشغيل
@@ -2646,7 +2646,7 @@ sudo openssl x509 -enddate -noout -in /var/opt/mssql/certs/db.pem
 لتجديدها قبل ذلك (يعيد تشغيل SQL Server، فيتوقف التطبيق ثواني):
 
 ```bash
-cd ~/bankfas-1.0.7/treasury-platform && sudo tools/host/trial_db_cert.sh --renew
+cd ~/bankfas-1.0.8/treasury-platform && sudo tools/host/trial_db_cert.sh --renew
 ```
 
 ### 16.7 الترقية إلى إصدار لاحق (docs/57)
@@ -2696,8 +2696,8 @@ sudo docker compose -f /opt/bankfas/compose.yml up -d
 **إن كان في الإصدار تغيير في قاعدة البيانات**، فيلزم قبل الخطوة 8 (`docs/54` الجزء O، و`docs/58` §5):
 - إيقاف التطبيق: `sudo docker compose -f /opt/bankfas/compose.yml stop api worker`.
 - نسخة كاملة حديثة (16.4). فالنافذة لا تُفتح بدونها.
-- من نافذة root، بمتغيرات 8.10، ومن مجلد أدوات **الإصدار الجديد**: `tools/deploy/prepare_database.sh open`، ثم `SQL_USER=bankfas_migrator SQLCMDPASSWORD="$(cat $BANKFAS_SECRETS_DIR/bankfas_migrator.secret)" tools/deploy/migrate.sh status`، ثم الأمر نفسه بـ `apply`، ثم `tools/deploy/prepare_database.sh close`.
-- اتبع ملاحظات ذلك الإصدار إن ذكرت غير ذلك.
+- من نافذة root، بمتغيرات 8.10 مع مرجع تغيير جديد (مثل `export BANKFAS_CHANGE_REF=TRIAL-002`)، ومن مجلد أدوات **الإصدار الجديد**: `tools/deploy/prepare_database.sh open`، ثم `SQL_USER=bankfas_migrator SQLCMDPASSWORD="$(cat $BANKFAS_SECRETS_DIR/bankfas_migrator.secret)" tools/deploy/migrate.sh status`، ثم الأمر نفسه بـ `apply`، ثم `tools/deploy/prepare_database.sh close`.
+- اتبع ملاحظات ذلك الإصدار إن ذكرت غير ذلك. والإصدار 1.0.8 فيه تغيير في القاعدة (ثلاثة ترحيلات)، فمن ثبّت 1.0.7 يمرّ بهذه الخطوات.
 
 ---
 
@@ -2713,7 +2713,7 @@ sudo docker compose -f /opt/bankfas/compose.yml up -d
 | **البوابة تفتح فارغة، أو `Not found`** | الرمز في لوحة المشغّل يختلف عن `IP_TENANT` | قارن: `sudo grep IP_TENANT /opt/bankfas/site.conf` مع الرمز في صفحة `Tenants`. يجب أن يتطابقا (14.2) |
 | **النفق لا يعمل** | نافذة النفق مغلقة، أو المنفذ 8443 مشغول على جهازك، أو المتصفح Safari | جدول 13.4. استعمل Chrome أو Edge |
 | **`https://admin.localhost:8443` يعطي `502`** | حاوية `api` متوقفة | 16.1، ثم `sudo docker compose -f /opt/bankfas/compose.yml logs --tail 100 api` |
-| **الرسالة لم تصل** | لا بريد في التجربة: الرسائل محفوظة على الخادم | `sudo ~/bankfas-1.0.7/treasury-platform/tools/host/show_mail.sh 10`. وإن لم تظهر، فسجل `worker` |
+| **الرسالة لم تصل** | لا بريد في التجربة: الرسائل محفوظة على الخادم | `sudo ~/bankfas-1.0.8/treasury-platform/tools/host/show_mail.sh 10`. وإن لم تظهر، فسجل `worker` |
 | **مختبر محظور** بعد محاولات كثيرة | fail2ban (سجل Caddy) | `sudo fail2ban-client set bankfas-caddy unbanip <TESTER_IP>` |
 | **SSH:** `Connection timed out` | عنوانك تغيّر، فالجدار لا يسمح به | ادخل من **طرفية الطوارئ في لوحة المزوّد** (Console) بحسابك وكلمة مروره، ثم أعد 6.3 بعنوانك الجديد في `ADMIN_CIDRS` و`WEB_CIDRS`. وأضفه إلى `ignoreip` في `/etc/fail2ban/jail.local` |
 | **SSH:** `Permission denied (publickey)` | جهاز آخر بلا مفتاحك، أو حسابك ليس في `bankfas-admins` | استعمل الجهاز الذي فيه المفتاح. ومن طرفية المزوّد: `id <YOUR_USER>` |
@@ -2745,7 +2745,7 @@ sudo docker compose -f /opt/bankfas/compose.yml up -d
 - **عند الشك في اختراق:** لا تحذف ولا تعِد تشغيل شيئًا. اجمع الأدلة أولًا:
 
 ```bash
-sudo ~/bankfas-1.0.7/treasury-platform/tools/host/collect_evidence.sh
+sudo ~/bankfas-1.0.8/treasury-platform/tools/host/collect_evidence.sh
 ```
 
 ثم انسخ المجلد الذي يطبعه (تحت `/var/tmp`) خارج الخادم، واتبع DOC-S15.
