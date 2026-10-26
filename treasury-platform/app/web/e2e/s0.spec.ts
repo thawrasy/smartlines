@@ -267,12 +267,18 @@ test('an operator onboards a tenant and its first administrator signs in', async
   await page.goto(`${origin}/sales/lcs`);
   await expect(page.getByRole('heading', { name: /Received letters of credit/ })).toBeVisible();
 
-  // The screens in Arabic, for docs/59: each page as the administrator sees it after the steps above.
+  // The screens in English (the default) and in Arabic, for docs/59: each page as the administrator sees it.
   if (shots) {
-    for (const [name, path] of [['20-home', '/'], ['21-companies', '/companies'], ['22-banks', '/institutions'], ['23-users', '/users'],
+    const pages = [['20-home', '/'], ['21-companies', '/companies'], ['22-banks', '/institutions'], ['23-users', '/users'],
       ['24-roles', '/roles'], ['25-settings', '/settings'], ['26-catalogues', '/catalogs'], ['27-requests', '/requests'],
       ['28-letters-of-credit', '/lcs'], ['29-facilities', '/facilities'], ['30-dashboards', '/dashboards'], ['31-audit', '/audit'],
-      ['32-compare-terms', '/terms/compare']] as const) {
+      ['32-compare-terms', '/terms/compare']] as const;
+    for (const [name, path] of pages) {
+      await page.goto(`${origin}${path}`);
+      await page.getByRole('heading').first().waitFor();
+      await shot(page, `en-${name}`);
+    }
+    for (const [name, path] of pages) {
       await page.goto(`${origin}${path}`);
       await page.getByRole('heading').first().waitFor();
       if (await page.locator('html').getAttribute('lang') !== 'ar') await page.getByRole('button', { name: 'العربية' }).click();
@@ -381,9 +387,19 @@ test('an operator onboards a tenant and its first administrator signs in', async
     await use.getByLabel(/^Amount/).fill('1500000');
     await use.getByRole('button', { name: 'Record' }).click();
     await expect(fo.p.getByText('LC-2026-0001')).toBeVisible();
+    const facilityPages = [['40-facilities-list', `${origin}/facilities`], ['41-facility-card', facilityUrl],
+      ['43-tariff-schedules', `${origin}/tariff-schedules`], ['44-collateral', `${origin}/collaterals`], ['45-breaches', `${origin}/breaches`]] as const;
+    for (const [name, url] of facilityPages) {
+      await fo.p.goto(url);
+      await fo.p.getByRole('heading').first().waitFor();
+      await shot(fo.p, `en-${name}`);
+    }
+    await fo.p.goto(facilityUrl);
+    await fo.p.getByRole('heading').first().waitFor();
+    await fo.p.waitForLoadState('networkidle').catch(() => undefined);
+    await fo.p.screenshot({ path: `${shots}/en-42-facility-card-full.png`, fullPage: true });
     await fo.p.getByRole('button', { name: 'العربية' }).click();
-    for (const [name, url] of [['40-facilities-list', `${origin}/facilities`], ['41-facility-card', facilityUrl],
-      ['43-tariff-schedules', `${origin}/tariff-schedules`], ['44-collateral', `${origin}/collaterals`], ['45-breaches', `${origin}/breaches`]] as const) {
+    for (const [name, url] of facilityPages) {
       await fo.p.goto(url);
       await fo.p.getByRole('heading').first().waitFor();
       await shot(fo.p, name);
@@ -405,6 +421,7 @@ test('an operator onboards a tenant and its first administrator signs in', async
     const newRequest = rq.p.locator('form', { hasText: 'New request' });
     await newRequest.getByLabel(/^Request type/).selectOption('PURCHASE_LC');
     await newRequest.getByLabel(/^Title/).fill('Seamless steel pipes, order 4471');
+    await shot(rq.p, 'en-50-request-new');
     await rq.p.getByRole('button', { name: 'العربية' }).click();
     await shot(rq.p, '50-request-new');
     await rq.p.getByRole('button', { name: 'English' }).click();
@@ -440,9 +457,12 @@ test('an operator onboards a tenant and its first administrator signs in', async
     await rq.p.goto(`${requestUrl}/terms`);
     await rq.p.getByRole('heading').first().waitFor();
     await rq.p.screenshot({ path: `${shots}/56-terms-en-full.png`, fullPage: true });
+    await shot(rq.p, 'en-52-terms');
     await rq.p.goto(`${origin}/api/v1/requests/${requestId}/terms/print?lang=en`);
     await shot(rq.p, '57-terms-print-en');
     await rq.p.goto(requestUrl);
+    await rq.p.getByRole('heading').first().waitFor();
+    await shot(rq.p, 'en-51-request-card');
     await rq.p.getByRole('button', { name: 'العربية' }).click();
     await rq.p.goto(requestUrl);
     await rq.p.getByRole('heading').first().waitFor();
