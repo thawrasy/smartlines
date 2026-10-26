@@ -179,16 +179,17 @@ async def scope_approve(code: str, sid: int, request: Request, pr: Principal = D
     return {"id": sid, "approved": True}
 
 
-_CHECKS = """SELECT f.uid, f.created_at, f.closed_at, f.status, f.result, f.outcome, f.movement_kind, f.movement_ref,
+CHECKS = """SELECT f.uid, f.created_at, f.closed_at, f.status, f.result, f.outcome, f.movement_kind, f.movement_ref,
                     f.warnings, f.sample_mode, jsonb_array_length(f.sample) AS sampled, f.note, f.lat, f.lng,
-                    v.plate_no, cp.legal_name AS carrier, a.code AS body, u.email AS inspector
+                    v.plate_no, cp.legal_name AS carrier, a.code AS body, coalesce(u.email, ac.name) AS inspector,
+                    f.officer_ref, (f.api_client_id IS NOT NULL) AS by_api
                FROM fleet.field_check_log f JOIN fleet.vehicle v ON v.id = f.vehicle_id
                JOIN iam.party cp ON cp.id = v.company_id
                LEFT JOIN sec.field_check_body b ON b.check_id = f.id LEFT JOIN sec.authority_profile a ON a.id = b.authority_id
-               LEFT JOIN iam.app_user u ON u.id = f.inspector_user_id"""
+               LEFT JOIN iam.app_user u ON u.id = f.inspector_user_id LEFT JOIN iam.api_client ac ON ac.id = f.api_client_id"""
 
 
-def _check_row(r, drop: tuple[str, ...] = ()) -> dict:
+def check_row(r, drop: tuple[str, ...] = ()) -> dict:
     d = {k: v for k, v in dict(r).items() if k not in drop}
     if isinstance(d.get("warnings"), str):              # jsonb comes back as text
         d["warnings"] = json.loads(d["warnings"])
@@ -199,8 +200,8 @@ def _check_row(r, drop: tuple[str, ...] = ()) -> dict:
 async def checks_all(request: Request, pr: Principal = Depends(require_portal("PLATFORM"))):
     _platform(pr)
     async with db.transaction(context_for(request, pr)) as conn:
-        rows = await conn.fetch(f"{_CHECKS} ORDER BY f.created_at DESC LIMIT 200")
-    return {"checks": [_check_row(r) for r in rows]}
+        rows = await conn.fetch(f"{CHECKS} ORDER BY f.created_at DESC LIMIT 200")
+    return {"checks": [check_row(r) for r in rows]}
 
 
 # ------------------------------------------------------------------ carrier: the placard
@@ -308,8 +309,8 @@ async def carrier_checks(request: Request, pr: Principal = Depends(require_porta
     if not pr.company_id or not pr.permissions.intersection({"vehicle.placard", "vehicle.manage", "report.company"}):
         raise forbidden("the company's roadside checks")
     async with db.transaction(context_for(request, pr)) as conn:
-        rows = await conn.fetch(f"{_CHECKS} WHERE v.company_id = $1 ORDER BY f.created_at DESC LIMIT 200", pr.company_id)
-    return {"checks": [_check_row(r, ("inspector",)) for r in rows]}
+        rows = await conn.fetch(f"{CHECKS} WHERE v.company_id = $1 ORDER BY f.created_at DESC LIMIT 200", pr.company_id)
+    return {"checks": [check_row(r, ("inspector", "officer_ref")) for r in rows]}
 
 
 # ------------------------------------------------------------------ inspector: scan, sample, close
@@ -381,54 +382,69 @@ def _warnings(vehicle, movement, doc_expired: bool) -> list[str]:
     return w
 
 
-@inspector.post("/scan", status_code=201)
-async def scan(body: ScanIn, request: Request, pr: Principal = Depends(inspect)):
-    if pr.portal not in ("INSPECTOR", "PLATFORM"):
-        raise forbidden("roadside checks are made from the inspector portal")
-    code = vehicle_code_shape(body.code)
+async def lookup(conn, raw_code: str, acting, *, user_id: Optional[int] = None, client_id: Optional[int] = None,
+                 officer_ref: Optional[str] = None, lat: Optional[float] = None, lng: Optional[float] = None,
+                 closed: bool = False) -> dict:
+    """One roadside look at a vehicle by its movement code, shared by the officer's scan and a body's API (1178): finds the
+    placard, the vehicle and its movement now, records the check for the body, and answers what the body may see. An
+    officer's check stays open for the sample and its outcome; a system's lookup is closed when made, without an outcome,
+    as single lookups were before 1169."""
+    code = vehicle_code_shape(raw_code)
     if code is None:
         raise ApiError(422, "CODE_INVALID", "this is not a movement code of the platform")
-    async with db.transaction(context_for(request, pr)) as conn:
-        acting = await _acting_body(conn, pr, body.body)
-        # the placard is found by the code's digest: a code no placard was printed with answers as unknown
-        tag = await conn.fetchrow("SELECT id, vehicle_id, revoked_at FROM fleet.vehicle_qr_tag WHERE token_hash = $1", token_hash(code))
-        if tag is None:
-            raise ApiError(404, "CODE_UNKNOWN", "no placard was printed with this code")
-        v = await conn.fetchrow(
-            """SELECT v.id, v.uid::text AS uid, v.plate_no, v.vehicle_type, v.make, v.model, v.passenger_seats, v.status,
-                      cp.legal_name AS carrier, c.approval_status AS carrier_status
-                 FROM fleet.vehicle v JOIN iam.party cp ON cp.id = v.company_id JOIN iam.company c ON c.id = v.company_id
-                WHERE v.id = $1""", tag["vehicle_id"])
-        result = "REVOKED" if tag["revoked_at"] else "VALID"
-        window = await conn.fetchval("SELECT coalesce((SELECT (value #>> '{}')::int FROM sys.setting WHERE key = 'roadside.window_minutes'), 180)")
-        movement = await movements.current(conn, dict(v), window) if result == "VALID" else None
-        doc_expired = await conn.fetchval(
-            """SELECT EXISTS (SELECT 1 FROM fleet.license_record WHERE subject_vehicle_id = $1 AND expiry_date < current_date
-                                AND status <> 'SUSPENDED')""", v["id"])
-        warnings = _warnings(v, movement, doc_expired) if result == "VALID" else ["CODE_" + result]
-        check = await conn.fetchrow(
-            """INSERT INTO fleet.field_check_log (inspector_user_id, vehicle_id, method, result, lat, lng, tag_id, movement_kind,
-                                                  movement_ref, trip_id, warnings, status)
-               VALUES ($1, $2, 'QR', $3, $4, $5, $6, $7, $8, $9, $10::jsonb, 'OPEN') RETURNING id, uid""",
-            pr.user_id, v["id"], result, body.lat, body.lng, tag["id"],
-            movement["kind"] if movement else None, movement["ref"] if movement else None,
-            movement.get("trip_id") if movement else None, json.dumps(warnings))
-        if acting:
-            await conn.execute("INSERT INTO sec.field_check_body (check_id, authority_id) VALUES ($1, $2)", check["id"], acting["id"])
-        see_movement = await _may(conn, acting, "MANIFEST_VEHICLE", "TRACKING")
-        see_cargo = await _may(conn, acting, "MANIFEST_CARGO")
+    # the placard is found by the code's digest: a code no placard was printed with answers as unknown
+    tag = await conn.fetchrow("SELECT id, vehicle_id, revoked_at FROM fleet.vehicle_qr_tag WHERE token_hash = $1", token_hash(code))
+    if tag is None:
+        raise ApiError(404, "CODE_UNKNOWN", "no placard was printed with this code")
+    v = await conn.fetchrow(
+        """SELECT v.id, v.uid::text AS uid, v.plate_no, v.vehicle_type, v.make, v.model, v.passenger_seats, v.status,
+                  cp.legal_name AS carrier, c.approval_status AS carrier_status
+             FROM fleet.vehicle v JOIN iam.party cp ON cp.id = v.company_id JOIN iam.company c ON c.id = v.company_id
+            WHERE v.id = $1""", tag["vehicle_id"])
+    result = "REVOKED" if tag["revoked_at"] else "VALID"
+    window = await conn.fetchval("SELECT coalesce((SELECT (value #>> '{}')::int FROM sys.setting WHERE key = 'roadside.window_minutes'), 180)")
+    movement = await movements.current(conn, dict(v), window) if result == "VALID" else None
+    doc_expired = await conn.fetchval(
+        """SELECT EXISTS (SELECT 1 FROM fleet.license_record WHERE subject_vehicle_id = $1 AND expiry_date < current_date
+                            AND status <> 'SUSPENDED')""", v["id"])
+    warnings = _warnings(v, movement, doc_expired) if result == "VALID" else ["CODE_" + result]
+    check = await conn.fetchrow(
+        """INSERT INTO fleet.field_check_log (inspector_user_id, api_client_id, officer_ref, vehicle_id, method, result, lat, lng,
+                                              tag_id, movement_kind, movement_ref, trip_id, warnings, status, closed_at)
+           VALUES ($1, $2, $3, $4, 'QR', $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13,
+                   CASE WHEN $13::text = 'CLOSED' THEN now() END) RETURNING id, uid""",
+        user_id, client_id, officer_ref, v["id"], result, lat, lng, tag["id"],
+        movement["kind"] if movement else None, movement["ref"] if movement else None,
+        movement.get("trip_id") if movement else None, json.dumps(warnings),
+        "CLOSED" if closed else "OPEN")
+    if acting:
+        await conn.execute("INSERT INTO sec.field_check_body (check_id, authority_id) VALUES ($1, $2)", check["id"], acting["id"])
+    see_movement = await _may(conn, acting, "MANIFEST_VEHICLE", "TRACKING")
+    see_cargo = await _may(conn, acting, "MANIFEST_CARGO")
     shown = None
     if movement and see_movement:
         shown = {k: val for k, val in movement.items() if k not in ("trip_id", "cargo")}
         shown["crew"] = [{"role": c["crew_role"], "name": c["name"], "licence_expiry": c.get("licence_expiry")} for c in movement.get("crew") or []]
         if see_cargo:
             shown["cargo"] = movement.get("cargo")
-    request.state.audit = {"action": "roadside.scan", "object_type": "vehicle", "object_id": v["uid"]}
     return {"check": str(check["uid"]), "result": result, "warnings": warnings, "body": acting["code"] if acting else None,
             "vehicle": {"plate_no": v["plate_no"], "type": v["vehicle_type"], "make": v["make"], "model": v["model"],
                         "seats": v["passenger_seats"], "status": v["status"], "carrier": v["carrier"],
                         "carrier_status": v["carrier_status"]},
-            "movement": shown, "movement_hidden": bool(movement) and not see_movement}
+            "movement": shown, "movement_hidden": bool(movement) and not see_movement, "_vehicle_uid": v["uid"]}
+
+
+@inspector.post("/scan", status_code=201)
+async def scan(body: ScanIn, request: Request, pr: Principal = Depends(inspect)):
+    if pr.portal not in ("INSPECTOR", "PLATFORM"):
+        raise forbidden("roadside checks are made from the inspector portal")
+    if vehicle_code_shape(body.code) is None:              # a code that is not one of the platform's, before anything else
+        raise ApiError(422, "CODE_INVALID", "this is not a movement code of the platform")
+    async with db.transaction(context_for(request, pr)) as conn:
+        acting = await _acting_body(conn, pr, body.body)
+        out = await lookup(conn, body.code, acting, user_id=pr.user_id, lat=body.lat, lng=body.lng)
+    request.state.audit = {"action": "roadside.scan", "object_type": "vehicle", "object_id": out.pop("_vehicle_uid")}
+    return out
 
 
 async def _open_check(conn, pr: Principal, uid: uuid.UUID):
@@ -508,5 +524,5 @@ async def close(uid: uuid.UUID, body: CloseIn, request: Request, pr: Principal =
 @inspector.get("/checks")
 async def my_checks(request: Request, pr: Principal = Depends(inspect)):
     async with db.transaction(context_for(request, pr)) as conn:
-        rows = await conn.fetch(f"{_CHECKS} WHERE f.inspector_user_id = $1 ORDER BY f.created_at DESC LIMIT 100", pr.user_id)
-    return {"checks": [_check_row(r) for r in rows]}
+        rows = await conn.fetch(f"{CHECKS} WHERE f.inspector_user_id = $1 ORDER BY f.created_at DESC LIMIT 100", pr.user_id)
+    return {"checks": [check_row(r) for r in rows]}

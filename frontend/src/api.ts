@@ -66,7 +66,7 @@ export function newKey() {
 }
 
 // ---------- Response types ----------
-export type Portal = "PASSENGER" | "OPERATOR" | "DRIVER" | "AGENCY" | "PLATFORM" | "STATION";
+export type Portal = "PASSENGER" | "OPERATOR" | "DRIVER" | "AGENCY" | "PLATFORM" | "STATION" | "INSPECTOR";
 
 // The market a user sees times and money in (1061): the company's, or the person's; the default market for visitors
 /** minor_unit: the scale amounts travel in (10^-minor_unit of the currency); decimals: the places people see and pay in (1176). */

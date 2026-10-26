@@ -86,6 +86,7 @@ export function homeFor(me: Me): string {
     case "OPERATOR":   // counter staff (cash sales only) start at the counter
       return me.permissions.includes("sale.cash") && !me.permissions.includes("trip.publish") ? "/carrier/counter" : "/carrier";
     case "DRIVER": return "/driver";
+    case "INSPECTOR": return "/inspector";
     case "AGENCY": return "/agency";
     case "STATION": return "/station";
     case "PLATFORM":

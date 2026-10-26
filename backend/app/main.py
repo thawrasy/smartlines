@@ -185,7 +185,7 @@ app.add_middleware(HeadAsGet)          # added last, so it wraps everything else
 _static = Path(get_settings().static_dir).resolve()
 # top-level paths of the web app (frontend/src/App.tsx; tests/test_api_contract.py keeps the two in step); anything else
 # is a real 404 (no "soft 404" pages for search engines)
-APP_PATHS = {"", "account", "admin", "agency", "board", "booking", "carrier", "charter", "driver", "family", "first-password", "guest", "journey", "login", "m", "mfa", "parcels", "pay",
+APP_PATHS = {"", "account", "admin", "agency", "board", "booking", "carrier", "charter", "driver", "family", "first-password", "guest", "inspector", "journey", "login", "m", "mfa", "parcels", "pay",
              "register", "regulator", "screen", "search", "security", "services", "station", "support", "track", "trip", "trips", "verify", "wallet"}
 if (_static / "index.html").exists():
     app.mount("/assets", StaticFiles(directory=_static / "assets"), name="assets")

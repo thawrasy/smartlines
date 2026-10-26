@@ -123,3 +123,40 @@ def test_a_revoked_placard_answers_revoked_and_a_body_without_scopes_sees_no_mov
     gone = officer.post("/api/roadside/scan", json={"code": token, "body": code}).json()
     assert gone["result"] == "REVOKED" and gone["warnings"] == ["CODE_REVOKED"] and gone["movement"] is None
     assert carrier.post(f"/api/carrier/vehicles/{vehicle}/placard").json()["serial"] == serial + 1
+
+
+def test_a_body_system_looks_a_vehicle_up_through_api_v1(setup):
+    """1178: a body's own system calls API v1 with a client of kind AUTHORITY and the scope roadside:scan. The answer is
+    the officer's scan within the body's scopes; each lookup is a closed check naming the client and the officer's
+    reference, listed for the client, the platform and the carrier (without who made it)."""
+    from test_integration import api
+    admin, second, carrier, code, vehicle = setup
+    if not carrier.get(f"/api/carrier/vehicles/{vehicle}/placard").json()["placard"]:
+        carrier.post(f"/api/carrier/vehicles/{vehicle}/placard")
+    token, _ = _code(carrier, vehicle)
+    r = admin.post("/api/integrations/clients", json={"name": "Interior systems (test)", "kind": "AUTHORITY", "authority_code": code,
+                                                      "scopes": ["roadside:scan"]})
+    assert r.status_code == 201, r.text
+    assert second.post(f"/api/integrations/clients/{r.json()['uid']}/approve", json={}).status_code == 200
+    c = api(admin.post(f"/api/integrations/clients/{r.json()['uid']}/keys").json()["key"])
+    assert c.post("/api/v1/roadside/scan", json={"code": token}).status_code == 422           # the officer's reference is required
+    assert c.post("/api/v1/roadside/scan", json={"code": "MS1-not-a-code", "officer_ref": "B-17"}).json()["error"]["code"] == "CODE_INVALID"
+    r = c.post("/api/v1/roadside/scan", json={"code": token, "officer_ref": "B-17", "lat": 33.5, "lng": 36.3})
+    assert r.status_code == 201, r.text
+    out = r.json()
+    assert out["result"] == "VALID" and out["body"] == code and out["vehicle"]["plate_no"] and "_vehicle_uid" not in out
+    assert out["movement"]["kind"] == "SCHEDULED_TRIP"                                         # MANIFEST_VEHICLE approved
+    mine = c.get("/api/v1/roadside/checks").json()["checks"]
+    assert mine[0]["uid"] == out["check"] and mine[0]["status"] == "CLOSED" and mine[0]["outcome"] is None
+    assert mine[0]["officer_ref"] == "B-17" and "inspector" not in mine[0]
+    seen = next(x for x in admin.get("/api/admin/authorities/checks").json()["checks"] if x["uid"] == out["check"])
+    assert seen["by_api"] is True and seen["inspector"] == "Interior systems (test)" and seen["officer_ref"] == "B-17"
+    theirs = next(x for x in carrier.get("/api/carrier/roadside-checks").json()["checks"] if x["uid"] == out["check"])
+    assert "inspector" not in theirs and "officer_ref" not in theirs
+    # a lookup closed when made cannot be sampled by anyone, and a client without the scope is refused
+    assert owner_sql("SELECT status FROM fleet.field_check_log WHERE uid = $1::uuid", out["check"]) == "CLOSED"
+    other = admin.post("/api/integrations/clients", json={"name": "No roadside (test)", "kind": "AUTHORITY", "authority_code": code,
+                                                         "scopes": ["border:read"]})
+    second.post(f"/api/integrations/clients/{other.json()['uid']}/approve", json={})
+    blind = api(admin.post(f"/api/integrations/clients/{other.json()['uid']}/keys").json()["key"])
+    assert blind.post("/api/v1/roadside/scan", json={"code": token, "officer_ref": "B-17"}).status_code == 403

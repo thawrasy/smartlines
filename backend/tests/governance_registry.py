@@ -58,6 +58,8 @@ SYSTEM_SCOPE = {
     ("app/modules/integration/v1.py", "manifest_ack"): (1, "an authority acknowledges a manifest delivery"),
     ("app/modules/integration/v1.py", "manifest_deliveries"): (1, "deliveries addressed to the calling authority"),
     ("app/modules/integration/v1.py", "manifest_delivery"): (1, "one manifest delivery addressed to the calling authority"),
+    ("app/modules/integration/v1.py", "roadside_checks"): (1, "a body's API client lists the roadside lookups it made, of any carrier's vehicles"),
+    ("app/modules/integration/v1.py", "roadside_scan"): (1, "a body's API client looks up any carrier's vehicle by its placard code, within the body's scopes"),
     ("app/modules/integration/v1.py", "wallet_credit_status"): (1, "a partner reads the status of its own credit"),
     ("app/modules/integration/v1.py", "wallet_credits"): (1, "a partner lists its own credits to passengers"),
     ("app/modules/integration/v1.py", "wallet_lookup"): (1, "a partner checks that a mobile number has a passenger wallet"),

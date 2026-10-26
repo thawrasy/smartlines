@@ -115,6 +115,9 @@ const StationOps = lazy(() => import("./pages/carrier/StationOps"));
 const AdminBoarding = lazy(() => import("./pages/admin/Boarding"));
 const AdminAuthorities = lazyNamed(() => import("./pages/admin/Authorities"), "AdminAuthorities");
 const CarrierPlacards = lazyNamed(() => import("./pages/carrier/Placards"), "CarrierPlacards");
+const InspectorLayout = lazyNamed(() => import("./pages/inspector/Roadside"), "InspectorLayout");
+const InspectorScan = lazyNamed(() => import("./pages/inspector/Roadside"), "InspectorScan");
+const InspectorChecks = lazyNamed(() => import("./pages/inspector/Roadside"), "InspectorChecks");
 const CarrierFleet = lazyNamed(() => import("./pages/carrier/Fleet"), "CarrierFleet");
 
 /** Menu entries for the switched-on modules the signed-in user can open. */
@@ -393,6 +396,10 @@ export default function App() {
           <Route path="driver" element={<DriverTrips />} />
           <Route path="driver/trip/:uid" element={<DriverTrip />} />
           <Route path="driver/kyc" element={<div className="app-body"><PersonKyc /></div>} />
+        </Route>
+        <Route element={<RequirePortal portal="INSPECTOR"><InspectorLayout /></RequirePortal>}>
+          <Route path="inspector" element={<InspectorScan />} />
+          <Route path="inspector/checks" element={<InspectorChecks />} />
         </Route>
         <Route element={<RequirePortal portal="PLATFORM"><PlatformShell /></RequirePortal>}>
           <Route path="admin" element={<AdminOverview />} />

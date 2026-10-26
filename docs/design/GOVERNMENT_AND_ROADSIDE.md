@@ -68,6 +68,21 @@ and every movement on the road can be checked without stopping the vehicle.
   moves people or goods on a vehicle answers the same question ("what is this vehicle doing now"), so a new module
   joins the scan the way it joins the menu.
 
+## Three doors to the same check (1178)
+
+The roadside check is one lookup (`roadside.api.lookup`), reached three ways; each gives the same answer within the body's
+approved scopes and records the same check:
+
+| Door | Who | Route | The check |
+|---|---|---|---|
+| Officer app | a member on their phone (`APP_VARIANT=officer`) | `POST /api/roadside/scan` | open: sample, then closed with its outcome |
+| Web inspector portal | a member at a checkpoint desk or laptop: `/login?portal=INSPECTOR`, then `/inspector` | the same | the same; the browser's camera reads the code where it can, else the code is typed |
+| API v1 | the body's own systems: a client of kind `AUTHORITY` tied to the body, scope `roadside:scan` | `POST /api/v1/roadside/scan`, `GET /api/v1/roadside/checks` | closed when made, without an outcome; names the client and the body's reference for its officer |
+
+`fleet.field_check_log` names exactly one of the officer's account (`inspector_user_id`) and the API client
+(`api_client_id`), with the body's `officer_ref` for an API lookup; neither ever changes. The platform sees who made each
+check (the client's name for an API lookup); the carrier sees the checks of its vehicles without who made them.
+
 ## What the schema already holds
 
 The study planned this, and the tables existed without screens or API. N47 and N48 build on them, not beside them
@@ -85,7 +100,7 @@ The study planned this, and the tables existed without screens or API. N47 and N
 
 1. Database: bodies, scopes, members, vehicle passes, roadside checks (one migration), checks in `db/tests`.
 2. API (`app/modules/roadside`): register and scopes (platform), scan, sample and record (inspector), placard PDF
-   (carrier); members through the routes of the regular trips module; API v1 for bodies.
-3. Screens: platform "Government bodies"; inspector "Roadside check" with the camera; carrier "Vehicle placard"; the
-   officer mode of the mobile app.
+   (carrier); members through the routes of the regular trips module; API v1 for bodies (1178).
+3. Screens: platform "Government bodies"; inspector "Roadside check" with the camera, on the web (`/inspector`) and in
+   the officer mode of the mobile app; carrier "Vehicle placard".
 4. Tests, generated docs, Arabic report.

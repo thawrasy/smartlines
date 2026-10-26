@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**622 tables, 6811 columns, in 26 schemas.**
+**622 tables, 6813 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -2944,7 +2944,7 @@ Every field query by security officers and authorized bodies
 | Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
-| `inspector_user_id` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `inspector_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
 | `vehicle_id` | `bigint` | 🔗 `fleet.vehicle`  |  |
 | `method` | `text` | ✱ |  |
 | `result` | `text` | ✱ |  |
@@ -2963,6 +2963,8 @@ Every field query by security officers and authorized bodies
 | `outcome` | `text` |  |  |
 | `note` | `text` |  |  |
 | `closed_at` | `timestamp with time zone` |  |  |
+| `api_client_id` | `bigint` | 🔗 `iam.api_client`  |  |
+| `officer_ref` | `text` |  |  |
 
 ### `fleet.insurance_claim` 🛡️
 

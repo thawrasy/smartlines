@@ -67,7 +67,7 @@ flowchart LR
   fin -->|6| pricing
   fin -->|5| sales
   fin -->|2| ship
-  fleet -->|33| iam
+  fleet -->|34| iam
   fleet -->|2| net
   fleet -->|5| ops
   fleet -->|1| ptn
@@ -1541,6 +1541,7 @@ erDiagram
     bigint tag_id FK
     bigint trip_id FK
     text status
+    bigint api_client_id FK
   }
   fleet_insurance_claim {
     bigint id PK
@@ -1727,6 +1728,9 @@ erDiagram
     bigint changed_by FK
     bigint release_document_id FK
   }
+  iam_api_client {
+    ref external
+  }
   iam_app_user {
     ref external
   }
@@ -1809,6 +1813,7 @@ erDiagram
   fleet_license_record }o..o| fleet_vehicle : "subject_vehicle_id"
   fleet_field_check_log }o..o| fleet_vehicle_qr_tag : "tag_id"
   fleet_maintenance_visit }o..o| fleet_vehicle_service_status : "service_status_id"
+  fleet_field_check_log }o..o| iam_api_client : "api_client_id"
   fleet_vehicle_qr_tag }o..o| iam_app_user : "issued_by"
   fleet_seat_layout }o..o| iam_company : "company_id"
   fleet_seat_price_rule }o--|| iam_company : "company_id"

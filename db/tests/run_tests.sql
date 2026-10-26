@@ -5114,6 +5114,15 @@ SELECT pg_temp.expect_error(format('UPDATE fleet.field_check_log SET note = ''ch
   'FIELD_CHECK_CLOSED', 'Roadside (1169): a closed check is never changed');
 SELECT pg_temp.expect_error(format('DELETE FROM fleet.field_check_log WHERE id = %s', :fcl),
   'FIELD_CHECK_KEPT', 'Roadside (1169): a check is never deleted');
+-- A body's system looks a vehicle up (1178): the check names exactly one of an officer's account and an API client
+SELECT pg_temp.expect_error(format($q$INSERT INTO fleet.field_check_log (vehicle_id, method, result, tag_id) VALUES (%s, 'QR', 'VALID', %s)$q$, :va, :qrt),
+  'field_check_log_who', 'Roadside API (1178): a check names who made it');
+INSERT INTO fleet.field_check_log (inspector_user_id, vehicle_id, method, result, tag_id, officer_ref)
+VALUES (:uadmin, :va, 'QR', 'VALID', :qrt, 'B-17') RETURNING id AS fcl2 \gset
+SELECT pg_temp.expect_error(format('UPDATE fleet.field_check_log SET officer_ref = ''B-99'' WHERE id = %s', :fcl2),
+  'FIELD_CHECK_FIXED', 'Roadside API (1178): the officer''s reference is never changed');
+SELECT pg_temp.expect_error(format('UPDATE fleet.field_check_log SET inspector_user_id = NULL WHERE id = %s', :fcl2),
+  'FIELD_CHECK_FIXED', 'Roadside API (1178): who made a check is never changed');
 -- Record edits (1170): a vehicle's regulated fields change with a reason, every edit is kept, the history never changes
 SELECT pg_temp.expect_error(format('UPDATE fleet.vehicle SET plate_no = ''EDIT-1170'' WHERE id = %s', :va),
   'VEHICLE_CHANGE_REASON', 'Record edits (1170): a vehicle''s plate changes only with its reason');

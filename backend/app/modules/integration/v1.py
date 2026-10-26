@@ -12,6 +12,7 @@
     vouchers:redeem POST /api/v1/loyalty/vouchers/check, POST /api/v1/loyalty/vouchers/redeem, GET /api/v1/loyalty/redemptions
     border:read     GET  /api/v1/border/manifests, /api/v1/border/manifests/{uid}
     border:respond  POST /api/v1/border/manifests/{uid}/decisions
+    roadside:scan   POST /api/v1/roadside/scan, GET /api/v1/roadside/checks
     webhooks:manage GET/POST /api/v1/webhooks, DELETE /api/v1/webhooks/{uid}, POST /api/v1/webhooks/{uid}/rotate|ping,
                     GET /api/v1/webhooks/deliveries, POST /api/v1/webhooks/deliveries/{uid}/retry
 
@@ -38,6 +39,7 @@ from ..loyalty import partners as loyalty_partners
 from ..manifests import service as manifests
 from ..payments import service as payments
 from ..reports import api as reports
+from ..roadside import api as roadside
 from ..sales import service as sales
 from ..sales.models import AgencyBookingIn, HoldIn
 from . import service
@@ -377,6 +379,49 @@ async def voucher_redemptions(request: Request, date_from: date = Query(..., ali
         async with db.system_scope(conn, ctx):
             partner = await _loyalty_partner(conn, caller)
             return {"redemptions": await loyalty_partners.partner_redemptions(conn, partner["id"], date_from, end)}
+
+
+# ------------------------------------------------------------------ roadside lookups (authorities, N47/N48, 1178)
+class RoadsideScanIn(BaseModel):
+    code: str = Field(min_length=10, max_length=60, description="the movement code read from the vehicle's placard")
+    officer_ref: str = Field(min_length=1, max_length=60, description="the body's own reference for the officer (badge or system id)")
+    lat: Optional[float] = Field(default=None, ge=-90, le=90)
+    lng: Optional[float] = Field(default=None, ge=-180, le=180)
+
+
+async def _roadside_body(conn, authority: int):
+    body = await conn.fetchrow("SELECT id, code, authority_type, name_ar, name_en, active FROM sec.authority_profile WHERE id = $1", authority)
+    if body is None or not body["active"]:
+        raise ApiError(403, "AUTHORITY_INACTIVE", "the body this client is linked to is not active")
+    return body
+
+
+@router.post("/roadside/scan", status_code=201)
+async def roadside_scan(body: RoadsideScanIn, request: Request, caller: Caller = Depends(api_caller)):
+    """The vehicle behind a movement code and its movement now (trip, crew, counts, cargo), within the scopes the platform
+    approved for the client's body. Each lookup is recorded as a roadside check of the body, with the officer's reference."""
+    authority = _authority(caller, "roadside:scan")
+    ctx = context(request, caller)
+    async with db.transaction(ctx) as conn:
+        async with db.system_scope(conn, ctx):
+            acting = await _roadside_body(conn, authority)
+            out = await roadside.lookup(conn, body.code, acting, client_id=caller.client_id, officer_ref=body.officer_ref.strip(),
+                                        lat=body.lat, lng=body.lng, closed=True)
+    request.state.audit = {"action": "roadside.api_scan", "object_type": "vehicle", "object_id": out.pop("_vehicle_uid")}
+    return out
+
+
+@router.get("/roadside/checks")
+async def roadside_checks(request: Request, since: Optional[datetime] = None, caller: Caller = Depends(api_caller)):
+    """The roadside lookups this client made (newest first, at most 500)."""
+    _authority(caller, "roadside:scan")
+    ctx = context(request, caller)
+    async with db.transaction(ctx) as conn:
+        async with db.system_scope(conn, ctx):
+            rows = await conn.fetch(
+                f"""{roadside.CHECKS} WHERE f.api_client_id = $1 AND ($2::timestamptz IS NULL OR f.created_at >= $2)
+                     ORDER BY f.created_at DESC LIMIT 500""", caller.client_id, since)
+    return {"checks": [roadside.check_row(r, ("inspector", "by_api", "sample_mode", "sampled")) for r in rows]}
 
 
 # ------------------------------------------------------------------ border manifests (authorities)

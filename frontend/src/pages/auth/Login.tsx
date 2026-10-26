@@ -38,6 +38,8 @@ export default function Login() {
   const { signIn } = useAuth();
   const nav = useNavigate();
   const [params] = useSearchParams();
+  // drivers and roadside officers open their own portal from the business door (?portal=DRIVER|INSPECTOR)
+  const portal = (["DRIVER", "INSPECTOR"] as const).find((p) => p === params.get("portal"));
   const [door, setDoor] = useState<Door>(params.get("door") === "business" || (params.get("portal") ?? "PASSENGER") !== "PASSENGER" ? "business" : "individual");
   const [identifier, setIdentifier] = useState("");
   const [companyNo, setCompanyNo] = useState("");
@@ -52,7 +54,7 @@ export default function Login() {
     try {
       const res = await signIn(door === "individual"
         ? { kind: "individual", identifier: identifier.trim(), password }
-        : { kind: "business", company_no: companyNo.trim(), username: username.trim().toLowerCase(), password });
+        : { kind: "business", company_no: companyNo.trim(), username: username.trim().toLowerCase(), password, ...(portal ? { portal } : {}) });
       const next = params.get("next");
       const safeNext = next && next.startsWith("/") && !next.startsWith("//") ? next : null;
       const tail = safeNext ? `next=${encodeURIComponent(safeNext)}` : "";
