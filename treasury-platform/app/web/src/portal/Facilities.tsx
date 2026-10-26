@@ -408,7 +408,7 @@ function LimitTree({ id, draft, edit, onChange }: { id: string; draft: boolean; 
           { header: 'Reserved', cell: l => l.use ? <span dir="ltr">{amount(l.use.reserved)}</span> : null },
           { header: 'Available', cell: l => l.use ? <span dir="ltr" className={l.use.avail < 0 ? 'error' : ''}>{amount(l.use.avail)}</span> : null },
           { header: 'Bound by', cell: l => l.use?.bindingNode },
-          { header: 'Lines', cell: l => l.lines.map(x => <div key={x.id} dir="ltr">{x.bankProductCode ?? x.product} {x.cap != null && amount(x.cap)}{x.use && ` · ${amount(x.use.avail)}`}
+          { header: 'Lines', cell: l => l.lines.map(x => <div key={x.id}>{(lang === 'ar' ? x.productNameAr : x.productNameEn) ?? x.productNameAr ?? x.product}{x.bankProductCode && <small className="muted" dir="ltr"> {x.bankProductCode}</small>} <span dir="ltr">{x.cap != null && amount(x.cap)}{x.use && ` · ${amount(x.use.avail)}`}</span>
             {view === 'draft' && tree.canEdit && edit && <button className="link" onClick={async () => { await api('DELETE', `/facilities/${id}/lines/${x.id}`); await after(); }}>{t('Remove')}</button>}</div>) },
           { header: '', cell: l => view === 'draft' && tree.canEdit && edit
             ? <button className="link" onClick={async () => { await api('DELETE', `/facilities/${id}/limits/${l.limit.id}`); await after(); }}>{t('Remove')}</button> : null },

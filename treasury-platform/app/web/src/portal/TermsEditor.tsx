@@ -81,18 +81,6 @@ const FIELDS: Def[] = [
   { key: 'lcTextLanguage', label: 'Language of the credit', options: ['EN', 'AR', 'BOTH'] },
 ];
 const shown = (d: Def, e: Edit) => !d.when || d.when(e);
-// The English words of the list values, the same as the print's (BankFas.Core TermsLabels); Arabic comes from ar.ts.
-const EN: Record<string, string> = {
-  SIGHT: 'Sight', DEFERRED_PAYMENT: 'Deferred payment', ACCEPTANCE: 'Acceptance', NEGOTIATION: 'Negotiation', MIXED: 'Mixed payment',
-  SHIPMENT_DATE: 'Shipment date', DELIVERY_NOTE_DATE: 'Delivery note date', INVOICE_DATE: 'Invoice date', DOCUMENTS_RECEIPT_DATE: 'Documents receipt date',
-  ACCEPTANCE_DATE: 'Acceptance date', ADVISING_BANK: 'Advising bank', ISSUING_BANK: 'Issuing bank', ANY_BANK: 'Any bank', NOMINATED_BANK: 'Nominated bank',
-  CONFIRMING_BANK: 'Confirming bank', WITHOUT: 'Without', MAY_ADD: 'May add', CONFIRMED: 'Confirmed', NONE: 'None', ABOUT: 'About (±10%)',
-  PLUS_MINUS: 'Plus or minus', ABSOLUTE: 'A set date', DAYS_AFTER_ISSUE: 'Days after issue', ALLOWED: 'Allowed', NOT_ALLOWED: 'Not allowed',
-  NOT_APPLICABLE: 'Not applicable', SEA: 'Sea', AIR: 'Air', ROAD: 'Road', RAIL: 'Rail', COURIER: 'Courier', MULTIMODAL: 'Multimodal',
-  DOMESTIC_DELIVERY: 'Domestic delivery', APPLICANT: 'Applicant', BENEFICIARY: 'Beneficiary', NOT_REQUIRED_BY_TERMS: 'Not required by the terms',
-  EN: 'English', AR: 'Arabic', BOTH: 'Arabic and English', SHARED: 'Shared', ISSUING_BANK_LOCAL: "Issuing bank's charges", ADVISING: 'Advising',
-  CONFIRMATION: 'Confirmation', NEGOTIATION_SETTLEMENT: 'Negotiation and settlement', AMENDMENT: 'Amendment', OTHER_OUTSIDE_ISSUING: 'Other charges outside the issuing bank',
-};
 
 /** The SWIFT MT700 field of a term, from the field dictionary (GET /lc/swift-tags): the code alone, as on the bank's copy
  * of the message (the owner, docs/60 section 6). 42C for an acceptance credit's drafts, 42P otherwise. A term with no
@@ -130,7 +118,7 @@ export function TermsEditor() {
       api<{ items: { code: string; nameAr: string; nameEn: string }[] }>('GET', `/lc/lists/${list}`).then(r => setLists(l => ({ ...l, [list]: r.items }))).catch(() => undefined);
   }, []);
   // A value from a catalogue list shows the item's name; a list value of the terms, its word.
-  const code = (v: string) => lang === 'ar' ? t(v) : EN[v] ?? v;
+  const code = (v: string) => t(v);   // a list value as a word, in either language (i18n)
   const word = (d: Def | undefined, v: unknown) => {
     const item = d?.list ? lists[d.list]?.find(i => i.code === v) : undefined;
     return item ? (lang === 'ar' ? item.nameAr : item.nameEn) : v === true ? t('Yes') : v === false ? t('No') : code(str(v));

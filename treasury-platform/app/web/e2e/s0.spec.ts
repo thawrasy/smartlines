@@ -352,7 +352,7 @@ test('an operator onboards a tenant and its first administrator signs in', async
     await lender.getByLabel(/^Bank/).selectOption({ index: 1 });
     await lender.getByLabel(/^Share/).fill('100');
     await lender.getByRole('button', { name: 'Add' }).click();
-    await expect(fo.p.getByRole('cell', { name: 'SOLE' }).first()).toBeVisible();
+    await expect(fo.p.getByRole('cell', { name: 'Sole lender' }).first()).toBeVisible();
     const limits = fo.p.locator('section.card', { has: fo.p.getByRole('heading', { name: 'Limits' }) });
     await limits.getByRole('button', { name: 'Draft', exact: true }).click();
     const addLimit = async (code: string, type: string, amount: string, parent?: string) => {
