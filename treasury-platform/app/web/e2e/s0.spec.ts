@@ -370,8 +370,9 @@ test('an operator onboards a tenant and its first administrator signs in', async
     await expect(fo.p.getByRole('button', { name: 'Withdraw' })).toBeVisible();
     const tm = await signIn(tmEmailFac);
     await tm.p.goto(facilityUrl);
-    await tm.p.getByRole('button', { name: /^Approve($| \()/ }).click();
-    await expect(tm.p.getByText('Not approved yet.')).toHaveCount(0);
+    // The facility has no agreement file yet, so the approval acknowledges that warning: wait for the checks to load.
+    await tm.p.getByRole('button', { name: /^Approve \(/ }).click();
+    await expect(tm.p.getByText('Not approved yet.')).toHaveCount(0, { timeout: 20_000 });
     await tm.context.close();
     await fo.p.goto(facilityUrl);
     const use = fo.p.locator('form', { hasText: 'Record a utilisation' });
