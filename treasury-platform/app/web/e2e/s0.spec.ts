@@ -283,16 +283,26 @@ test('an operator onboards a tenant and its first administrator signs in', async
     // The facilities, for docs/59: a facilities officer creates a facility with one bank, two limits and a product line,
     // a treasury manager approves it and the officer records a utilisation. The full paths are in FacilityTests and
     // LimitTests; this runs only for the screenshots.
+    // The administrator's sign-in is old by now: a sensitive change asks for a fresh code first.
+    const fresh = async (done: ReturnType<Page['getByText']>) => {
+      const dialog = page.getByRole('dialog');
+      await expect(done.or(dialog)).toBeVisible();
+      if (await dialog.isVisible()) {
+        await dialog.getByLabel('6-digit code').fill(await admin.next());
+        await dialog.getByRole('button', { name: 'Confirm' }).click();
+      }
+      await expect(done).toBeVisible();
+    };
     const invite = async (email: string, nameEn: string, role: string) => {
       await openMenu(page, 'Users');
       await page.getByLabel(/^E-mail/).fill(email);
       await page.getByLabel(/^Name \(English\)/).fill(nameEn);
       await page.getByRole('checkbox', { name: new RegExp(`^${role} · `) }).check();
       await page.getByRole('button', { name: 'Send the invitation' }).click();
-      await expect(page.getByText('The invitation is on its way.')).toBeVisible();
+      await fresh(page.getByText('The invitation is on its way.'));
       await page.getByRole('link', { name: nameEn }).click();
       await page.getByRole('button', { name: 'Save scope' }).click();
-      await expect(page.getByText('Sees every company.')).toBeVisible();
+      await fresh(page.getByText('Sees every company.'));
     };
     const signIn = async (email: string) => {
       const context = await browser.newContext();
