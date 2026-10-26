@@ -42,9 +42,10 @@ def test_a_hub_serves_the_screens_of_its_station_to_the_players_the_administrati
         dep = staff.post("/api/station/screens", json={"station_uid": origin, "kind": "DEPARTURES", "label": "Gates hall"}).json()["uid"]
 
         # a one-time code, shown once; another company is not this station's administration
-        r = station_session(stranger).post("/api/station/hubs/pairing", json={"station_uid": origin, "label": "Server room"})
+        room = f"Server room {uuid.uuid4().hex[:6]}"      # a hub's name is unique at its station, across runs too
+        r = station_session(stranger).post("/api/station/hubs/pairing", json={"station_uid": origin, "label": room})
         assert r.status_code == 403 and r.json()["error"]["code"] == "NOT_STATION_ADMIN"
-        r = staff.post("/api/station/hubs/pairing", json={"station_uid": origin, "label": "Server room"})
+        r = staff.post("/api/station/hubs/pairing", json={"station_uid": origin, "label": room})
         assert r.status_code == 201, r.text
         code = r.json()["code"]
         assert len(code) == 8
@@ -97,7 +98,8 @@ def test_a_hub_serves_the_screens_of_its_station_to_the_players_the_administrati
         kinds = {e["kind"] for e in view["events"]}
         assert {"ADDRESS_MISMATCH", "UPLINK_RESTORED"} <= kinds
         assert next(x for x in view["screens"] if x["uid"] == dep)["code"] == "DEP-1"
-        assert view["hubs"][0]["online"] and view["hubs"][0]["screens"] == 1
+        mine = next(h for h in view["hubs"] if h["label"] == room)
+        assert mine["online"] and mine["screens"] == 1
 
         # a second device is rejected; the hub learns to refuse it
         other_mac = "aa:bb:cc:00:11:22"
@@ -109,13 +111,14 @@ def test_a_hub_serves_the_screens_of_its_station_to_the_players_the_administrati
 
         # the player is released: the screen waits for another; then the hub is revoked with a reason
         assert staff.delete(f"/api/station/hubs/screens/{dep}/player").status_code == 200
-        assert hub.get("/api/hub/sync").json()["screens"] == []
-        hub_uid = view["hubs"][0]["uid"]
+        freed = hub.get("/api/hub/sync").json()["screens"]
+        assert [(x["code"], x["mac"], x["ip"]) for x in freed] == [("DEP-1", None, None)]   # open to a new player
+        hub_uid = mine["uid"]
         assert staff.post(f"/api/station/hubs/{hub_uid}/revoke", json={"reason": "x"}).status_code == 422
         assert staff.post(f"/api/station/hubs/{hub_uid}/revoke", json={"reason": "box replaced"}).status_code == 200
         assert hub.get("/api/hub/sync").json()["error"]["code"] == "HUB_KEY_INVALID"
         # the platform sees the same
-        assert admin.get(f"/api/admin/boarding/stations/{origin}/hubs").json()["hubs"][0]["revoke_reason"] == "box replaced"
+        assert next(h for h in admin.get(f"/api/admin/boarding/stations/{origin}/hubs").json()["hubs"] if h["uid"] == hub_uid)["revoke_reason"] == "box replaced"
         assert owner_sql("SELECT count(*) FROM audit.activity_log WHERE action LIKE 'boarding.hub_%'") >= 3
     finally:
         owner_sql("DELETE FROM net.station_screen WHERE station_id = (SELECT id FROM net.station WHERE uid = $1::uuid)", origin)
