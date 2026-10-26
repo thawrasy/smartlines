@@ -10,7 +10,7 @@
 #           written to /srv/bankfas/mail on this host (tools/host/show_mail.sh reads them).
 ACCESS=domain
 SERVER_IP=
-IP_TENANT=demo
+IP_TENANT=trial
 # The platform domain: the portals are <code>.DOMAIN, the operator panel admin.DOMAIN. With ACCESS=ip it is only a
 # name inside this host (for example bankfas.internal) and never needs to resolve.
 DOMAIN=treasury.example.com
