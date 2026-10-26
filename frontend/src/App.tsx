@@ -116,6 +116,15 @@ const AdminBoarding = lazy(() => import("./pages/admin/Boarding"));
 const AdminAuthorities = lazyNamed(() => import("./pages/admin/Authorities"), "AdminAuthorities");
 const CarrierPlacards = lazyNamed(() => import("./pages/carrier/Placards"), "CarrierPlacards");
 const InspectorLayout = lazyNamed(() => import("./pages/inspector/Roadside"), "InspectorLayout");
+const FuelHome = lazyNamed(() => import("./pages/fuel/Fuel"), "FuelHome");
+const FuelPump = lazyNamed(() => import("./pages/fuel/Fuel"), "FuelPump");
+const FuelFills = lazyNamed(() => import("./pages/fuel/Fuel"), "FuelFills");
+const FuelAccounts = lazyNamed(() => import("./pages/fuel/Fuel"), "FuelAccounts");
+const FuelStations = lazyNamed(() => import("./pages/fuel/Fuel"), "FuelStations");
+const FuelAnomalies = lazyNamed(() => import("./pages/fuel/Fuel"), "FuelAnomalies");
+const CarrierFuel = lazyNamed(() => import("./pages/fuel/CarrierFuel"), "CarrierFuel");
+const DriverFuel = lazyNamed(() => import("./pages/fuel/CarrierFuel"), "DriverFuel");
+const AdminFuel = lazyNamed(() => import("./pages/fuel/CarrierFuel"), "AdminFuel");
 const InspectorScan = lazyNamed(() => import("./pages/inspector/Roadside"), "InspectorScan");
 const InspectorChecks = lazyNamed(() => import("./pages/inspector/Roadside"), "InspectorChecks");
 const CarrierFleet = lazyNamed(() => import("./pages/carrier/Fleet"), "CarrierFleet");
@@ -167,6 +176,7 @@ function PlatformShell() {
       { to: "/admin/finance", group: "finance", icon: "payments", label: t("finance.desk"), show: can("withdrawal.approve", "payout.run") },
       { to: "/admin/stations", group: "partners", icon: "location_on", label: t("admin.stations"), show: can("station.approve") },
       { to: "/admin/boarding", group: "operations", icon: "departure_board", label: t("brdadm.nav"), show: can("boarding.manage", "payout.run") },
+      { to: "/admin/fuel", group: "partners", icon: "local_gas_station", label: t("fuel.adminNav"), show: can("partners.manage") },
       // regular trips: the platform's stages (schedule.approve), and the members of government authorities (regulators)
       { to: "/admin/schedules", group: "operations", icon: "event_repeat", label: t("schedadm.nav"), show: can("schedule.approve", "schedule.settings", "regulator.dashboard") },
       // carriers' ranges of trip numbers (1165, N7)
@@ -222,6 +232,7 @@ function CarrierShell() {
       { to: "/carrier/vehicles", group: "fleet", icon: "directions_car", label: t("carrier.vehicles"), show: !can("vehicle.manage") },
       { to: "/carrier/layouts", group: "fleet", icon: "event_seat", label: t("layout.title") },
       { to: "/carrier/placards", group: "fleet", icon: "qr_code_2", label: t("plc.nav"), show: can("vehicle.placard") },
+      { to: "/carrier/fuel", group: "fleet", icon: "local_gas_station", label: t("fuel.carrierNav"), show: can("vehicle.manage") },
       { to: "/carrier/crew", group: "fleet", icon: "badge", label: t("carrier.crew") },
       { to: "/carrier/stations", group: "operations", icon: "storefront", label: t("stops.nav"), show: can("boarding.operators", "boarding.references") },
       { to: "/carrier/parcels", group: "sales", icon: "local_shipping", label: t("parcel.carrierNav"), show: can("parcels.tariffs", "shipping.operate", "parcels.counter") },
@@ -284,6 +295,23 @@ function StationShell() {
   );
 }
 
+function FuelShell() {
+  const { t } = useI18n();
+  const { can } = useAuth();
+  // a fuel company's portal (1180): the manager runs the stations and accounts, the attendant fills at the pump
+  return (
+    <PortalShell portal="fuel" title={t("fuel.portal")} order={["operations", "money", "station", "settings"]} items={[
+      { to: "/fuel", end: true, icon: "dashboard", label: t("fuel.home") },
+      { to: "/fuel/pump", group: "operations", icon: "local_gas_station", label: t("fuel.pump"), show: can("fuel.attend") },
+      { to: "/fuel/fills", group: "operations", icon: "receipt_long", label: t("fuel.fills") },
+      { to: "/fuel/anomalies", group: "operations", icon: "warning", label: t("fuel.anomalies"), show: can("fuel.manage") },
+      { to: "/fuel/accounts", group: "money", icon: "account_balance_wallet", label: t("fuel.accounts"), show: can("fuel.manage") },
+      { to: "/fuel/stations", group: "station", icon: "store", label: t("fuel.stations"), show: can("fuel.manage") },
+      ...(can("company.staff") ? [{ to: "/fuel/people", group: "settings", icon: "group" as const, label: t("people.nav") }] : []),
+    ]} />
+  );
+}
+
 function TestGatewayRoute() {
   const { uid } = useParams();
   return <TestGateway uid={uid ?? ""} />;
@@ -341,6 +369,7 @@ export default function App() {
           <Route path="carrier/crew" element={<CarrierCrew />} />
           <Route path="carrier/placards" element={<CarrierPlacards />} />
           <Route path="carrier/fleet" element={<CarrierFleet />} />
+          <Route path="carrier/fuel" element={<CarrierFuel />} />
           <Route path="carrier/stations" element={<StationOps />} />
           <Route path="carrier/parcels" element={<CarrierParcels />} />
           <Route path="carrier/charter" element={<CarrierCharter />} />
@@ -389,6 +418,15 @@ export default function App() {
           <Route path="station/trip/:uid" element={<Book />} />
           <Route path="station/booking/:ref" element={<Booking />} />
         </Route>
+        <Route element={<RequirePortal portal="FUEL"><FuelShell /></RequirePortal>}>
+          <Route path="fuel" element={<FuelHome />} />
+          <Route path="fuel/pump" element={<FuelPump />} />
+          <Route path="fuel/fills" element={<FuelFills />} />
+          <Route path="fuel/anomalies" element={<FuelAnomalies />} />
+          <Route path="fuel/accounts" element={<FuelAccounts />} />
+          <Route path="fuel/stations" element={<FuelStations />} />
+          <Route path="fuel/people" element={<PeoplePage />} />
+        </Route>
         <Route path="board/:uid" element={<DepartureBoard />} />
         <Route path="screen/pair" element={<ScreenPair />} />
         <Route path="screen/:uid" element={<DepartureBoard screen />} />
@@ -396,6 +434,7 @@ export default function App() {
           <Route path="driver" element={<DriverTrips />} />
           <Route path="driver/trip/:uid" element={<DriverTrip />} />
           <Route path="driver/kyc" element={<div className="app-body"><PersonKyc /></div>} />
+          <Route path="driver/fuel" element={<DriverFuel />} />
         </Route>
         <Route element={<RequirePortal portal="INSPECTOR"><InspectorLayout /></RequirePortal>}>
           <Route path="inspector" element={<InspectorScan />} />
@@ -410,6 +449,7 @@ export default function App() {
           <Route path="admin/privacy" element={<AdminPrivacy />} />
           <Route path="admin/stations" element={<AdminStations />} />
           <Route path="admin/boarding" element={<AdminBoarding />} />
+          <Route path="admin/fuel" element={<AdminFuel />} />
           <Route path="admin/schedules" element={<AdminSchedules />} />
           <Route path="admin/booking" element={<AdminBookingRules />} />
           <Route path="admin/geography" element={<AdminGeography />} />

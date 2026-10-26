@@ -1655,6 +1655,57 @@
   "net.station_hubs(bigint)": [
    "masslak_api",
    "masslak_app"
-  ]
+  ],
+  "ptn.account_visible(bigint)": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_readonly"
+  ],
+  "ptn.attendant_station(uuid)": [],
+  "ptn.budget_start(text,bigint)": [],
+  "ptn.card_state(bigint,bigint)": [],
+  "ptn.decide_fuel_anomaly(uuid,text,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ptn.fuel_bind_tag(uuid,uuid,bytea)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ptn.fuel_company_view(bigint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ptn.fuel_fill(uuid,uuid,text,text,numeric,bigint,bigint,integer,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ptn.fuel_identify(uuid,bytea,text,uuid)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ptn.fuel_open_account(uuid,character)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ptn.fuel_reverse_sale(uuid,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ptn.fuel_set_low_balance(uuid,bigint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ptn.fuel_topup(uuid,bigint,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ptn.fuel_unbind_tag(uuid)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ptn.tg_fuel_account_entry()": [],
+  "ptn.tg_fuel_card_account()": [],
+  "ptn.tg_fuel_partner_company()": []
  }
 }

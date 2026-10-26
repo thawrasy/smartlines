@@ -430,6 +430,38 @@
      "null"
     ]
    }
+  },
+  "fuel.filled@1": {
+   "required": [
+    "sale_uid",
+    "station",
+    "fuel_type",
+    "litres",
+    "amount",
+    "currency",
+    "balance",
+    "held"
+   ],
+   "properties": {
+    "sale_uid": "string",
+    "station": "string",
+    "plate_no": [
+     "string",
+     "null"
+    ],
+    "fuel_type": "string",
+    "litres": "number",
+    "amount": "integer",
+    "currency": "string",
+    "balance": "integer",
+    "left_amount": [
+     "integer",
+     "null"
+    ],
+    "held": "boolean",
+    "low_balance": "boolean",
+    "anomalies": "array"
+   }
   }
  }
 }

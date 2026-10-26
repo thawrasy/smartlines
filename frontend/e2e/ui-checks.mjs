@@ -35,13 +35,13 @@ const PORTALS = [
     `/search?from=DRA&to=ALP&on=${later}`] },   // no trip runs direct: the connections through Damascus (1130)
   { who: ["passenger@masslak.test", "PASSENGER"], pages: ["/trips", "/wallet", "/family", "/account", "/account/kyc", "/services", "/support", "@journey", "@connection", "/charter"] },
   { who: ["owner@carrier.test", "OPERATOR"],
-    pages: ["/carrier", "/carrier/people", "/carrier/integrations", "/carrier/trips", "/carrier/routes", "/carrier/roads", "/carrier/vehicles", "/carrier/finance", "/carrier/documents", "/carrier/reports", "/carrier/stations", "/carrier/schedules", "/carrier/kyc", "/carrier/charter", "/carrier/agency-cash", "/carrier/parcels", "/carrier/placards", "/carrier/fleet"] },
+    pages: ["/carrier", "/carrier/people", "/carrier/integrations", "/carrier/trips", "/carrier/routes", "/carrier/roads", "/carrier/vehicles", "/carrier/finance", "/carrier/documents", "/carrier/reports", "/carrier/stations", "/carrier/schedules", "/carrier/kyc", "/carrier/charter", "/carrier/agency-cash", "/carrier/parcels", "/carrier/placards", "/carrier/fleet", "/carrier/fuel"] },
   { who: ["counter@carrier.test", "OPERATOR"], pages: ["/carrier/counter", "/carrier/counter/report"] },
   { who: ["agency@agency.test", "AGENCY"], pages: ["/agency", "/agency/bookings", "/agency/statement", "/agency/cash-accounts", "/agency/people", "/agency/integrations", "/agency/kyc", `/agency/search?${MULTI}&pax=6`, "/agency/charter"] },
   { who: ["driver@carrier.test", "DRIVER"], pages: ["/driver", "/driver/kyc"] },
   { who: ["admin@masslak.test", "INSPECTOR"], pages: ["/inspector", "/inspector/checks"] },   // the roadside check on the web (1178)
   { who: ["admin@masslak.test", "PLATFORM"],
-    pages: ["/admin", "/admin/people", "/admin/registries", "/admin/integrations", "/admin/companies", "/admin/finance", "/admin/documents", "/admin/stations", "/admin/boarding", "/admin/schedules", "/admin/kyc", "/admin/modules", "/admin/payments", "/admin/booking", "/admin/booking?tab=connections", "/admin/booking?tab=parcels", "/admin/booking?tab=tripChanges", "/admin/geography", "/admin/roads", "/admin/ports", "/admin/network", "/admin/pricing", "/admin/taxes", "/admin/numbers", "/admin/miles", "/admin/photo", "/admin/authorities"] },
+    pages: ["/admin", "/admin/people", "/admin/registries", "/admin/integrations", "/admin/companies", "/admin/finance", "/admin/documents", "/admin/stations", "/admin/boarding", "/admin/schedules", "/admin/kyc", "/admin/modules", "/admin/payments", "/admin/booking", "/admin/booking?tab=connections", "/admin/booking?tab=parcels", "/admin/booking?tab=tripChanges", "/admin/geography", "/admin/roads", "/admin/ports", "/admin/network", "/admin/pricing", "/admin/taxes", "/admin/numbers", "/admin/miles", "/admin/photo", "/admin/authorities", "/admin/fuel"] },
   ...(STATION ? [{
     label: "STATION", cookies: STATION.cookies,
     choice: { station_uid: STATION.station_uid, station_code: STATION.station_code, station_name: STATION.station_code, counter_code: STATION.counter },

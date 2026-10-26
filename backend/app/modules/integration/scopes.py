@@ -70,6 +70,7 @@ EVENTS = {
     "booking.trip_changed": {"CARRIER", "CHANNEL", "INTEGRATION", "INTERNAL"},
     "incident.reported": {"CARRIER", "INTERNAL"},
     "screen.unseen": {"INTERNAL"},
+    "fuel.filled": {"CARRIER", "INTERNAL"},     # a fleet's own systems follow its vehicles' fills (1180)
     "webhook.ping": set(KIND_SCOPES),
 }
 

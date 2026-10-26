@@ -5374,4 +5374,102 @@ SELECT pg_temp.ok((SELECT count(*) = 3 AND bool_and(screen_id IS NULL) FROM net.
 ROLLBACK;
 SET ROLE masslak_app;
 
+-- Fuel stations (1180): accounts paid in advance to the fuel company, budgets per vehicle, NFC tags, checked fills
+BEGIN;
+RESET ROLE;
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+INSERT INTO iam.party (party_type, legal_name) VALUES ('COMPANY', 'Fuel Test Co') RETURNING id AS fco \gset
+INSERT INTO iam.company (id, company_type, approval_status) VALUES (:fco, 'FUEL_COMPANY', 'APPROVED');
+INSERT INTO iam.party (party_type, legal_name) VALUES ('COMPANY', 'Fuel Test Station 1') RETURNING id AS fsp \gset
+INSERT INTO ptn.partner (party_id, company_id, partner_type, code, status) VALUES (:fsp, :fco, 'FUEL', 'FT-1180', 'ACTIVE') RETURNING id AS fst \gset
+SELECT uid AS fstu FROM ptn.partner WHERE id = :fst \gset
+SELECT pg_temp.expect_error(format($q$INSERT INTO ptn.partner (party_id, company_id, partner_type, code) VALUES (%s, %s, 'FUEL', 'FT-BAD')$q$, :driver, :ca),
+  'FUEL_COMPANY_REQUIRED', 'Fuel (1180): a fuel station belongs to a fuel company');
+INSERT INTO iam.party (party_type, legal_name) VALUES ('PERSON', 'Pump Attendant') RETURNING id AS fpp \gset
+INSERT INTO iam.app_user (party_id, account_kind, email, status) VALUES (:fpp, 'COMPANY', 'pump@fuel.test', 'ACTIVE') RETURNING id AS uatt \gset
+INSERT INTO ptn.station_employee (partner_id, user_id, role) VALUES (:fst, :uatt, 'ATTENDANT');
+INSERT INTO ptn.fuel_price (partner_id, fuel_type, unit_price, currency, valid_from) VALUES (:fst, 'DIESEL', 50000, 'SYP', now() - interval '1 hour');
+UPDATE fleet.vehicle SET fuel_tank_l = 300, status = 'ACTIVE' WHERE id = :va;
+INSERT INTO ref.file_object (storage_key, mime_type, size_bytes, sha256, uploaded_by) VALUES ('t/meter1', 'image/jpeg', 10, '\x01', :uatt) RETURNING id AS fph \gset
+SET LOCAL ROLE masslak_app;
+-- the carrier opens its account and gives its vehicle a card with a daily budget
+SELECT sys.set_context(:ua, :ca, 'COMPANY');
+SELECT ptn.fuel_open_account((SELECT uid FROM iam.party WHERE id = :fco), 'SYP') AS facu \gset
+SELECT id AS fac FROM ptn.fuel_account WHERE uid = :'facu' \gset
+INSERT INTO ptn.fuel_card (company_id, vehicle_id, account_id, fuel_types, budget_period, budget_amount)
+VALUES (:ca, :va, :fac, '{DIESEL}', 'DAY', 6000000) RETURNING uid AS fcard, card_no AS fcno \gset
+SELECT pg_temp.expect_error(format('UPDATE ptn.fuel_account SET balance = 999 WHERE id = %s', :fac),
+  'permission denied', 'Fuel (1180): the application never sets a fuel account''s balance');
+SELECT pg_temp.expect_error(format($q$SELECT ptn.fuel_topup(%L, 100, 'self')$q$, :'facu'),
+  'FUEL_ACCOUNT_UNKNOWN', 'Fuel (1180): the holder does not top up its own account; the fuel company records what it received');
+-- the attendant sees the card but cannot fill: nothing was paid in yet
+SELECT sys.set_context(:uatt, :fco, 'COMPANY');
+SELECT pg_temp.ok((SELECT v ->> 'reason' = 'NO_BALANCE' AND (v ->> 'can_fill')::boolean = false AND v -> 'prices' ->> 'DIESEL' = '50000'
+                     FROM (SELECT ptn.fuel_identify(:'fstu', NULL, :'fcno', NULL) AS v) x),
+  'Fuel (1180): the attendant identifies the vehicle by its card number; an empty account cannot fill');
+SELECT ptn.fuel_topup(:'facu', 10000000, 'cash receipt 17') AS fbal \gset
+SELECT pg_temp.ok(:fbal = 10000000, 'Fuel (1180): the fuel company records the sum it received');
+SELECT pg_temp.expect_error(format($q$SELECT ptn.fuel_fill(%L, %L, 'CARD_NO', 'DIESEL', 40, 2000000, NULL, 120000, 'P1')$q$, :'fstu', :'fcard'),
+  'FUEL_PHOTO_REQUIRED', 'Fuel (1180): a fill needs the photo of the pump''s meter');
+SELECT pg_temp.expect_error(format($q$SELECT ptn.fuel_fill(%L, %L, 'CARD_NO', 'GASOLINE', 40, 2000000, %s, 120000, 'P1')$q$, :'fstu', :'fcard', :fph),
+  'FUEL_TYPE_NOT_ALLOWED', 'Fuel (1180): the card takes only its fuel types');
+SELECT pg_temp.expect_error(format($q$SELECT ptn.fuel_fill(%L, %L, 'CARD_NO', 'DIESEL', 140, 7000000, %s, 120000, 'P1')$q$, :'fstu', :'fcard', :fph),
+  'FUEL_BUDGET', 'Fuel (1180): a fill beyond the day''s budget is refused');
+SELECT ptn.fuel_fill(:'fstu', :'fcard', 'CARD_NO', 'DIESEL', 40, 2000000, :fph, 120000, 'P1') AS ffill \gset
+SELECT pg_temp.ok((:'ffill'::jsonb ->> 'status') = 'COMPLETED' AND (:'ffill'::jsonb ->> 'balance')::bigint = 8000000
+                  AND (:'ffill'::jsonb ->> 'left_amount')::bigint = 4000000,
+  'Fuel (1180): a fill matching the price, tank and odometer completes and is paid from the account');
+-- 30 litres after 50 km, and the meter shows more than litres x price: both held for review
+SELECT ptn.fuel_fill(:'fstu', :'fcard', 'CARD_NO', 'DIESEL', 30, 1700000, :fph, 120050, 'P2') AS fheld \gset
+SELECT pg_temp.ok((:'fheld'::jsonb ->> 'status') = 'HELD'
+                  AND (SELECT array_agg(e ->> 'type' ORDER BY e ->> 'type') FROM jsonb_array_elements(:'fheld'::jsonb -> 'anomalies') e)
+                      = '{AMOUNT_MISMATCH,CONSUMPTION_HIGH}',
+  'Fuel (1180): a meter amount off the price and a high consumption hold the sale');
+SELECT pg_temp.expect_error(format($q$SELECT ptn.fuel_fill(%L, %L, 'CARD_NO', 'DIESEL', 50, 2500000, %s, 120400, 'P1')$q$, :'fstu', :'fcard', :fph),
+  'FUEL_BUDGET', 'Fuel (1180): the day''s budget counts the fills held for review');
+RESET ROLE;
+SELECT pg_temp.expect_error(format('UPDATE ptn.partner_sale SET amount = 1 WHERE uid = %L', :'fheld'::jsonb ->> 'sale_uid'),
+  'FUEL_SALE_FIXED', 'Fuel (1180): what the pump measured is never changed');
+SELECT pg_temp.expect_error(format('UPDATE ptn.fuel_account_entry SET amount = 1 WHERE account_id = %s', :fac),
+  'FUEL_ENTRY_KEPT', 'Fuel (1180): an account''s entries are never changed');
+SELECT pg_temp.expect_error(format('INSERT INTO ptn.fuel_account_entry (account_id, kind, amount, balance_after, note) VALUES (%s, %L, -99999999, 0, %L)', :fac, 'ADJUSTMENT', 'too much'),
+  'FUEL_BALANCE', 'Fuel (1180): a fuel account never goes below zero');
+SET LOCAL ROLE masslak_app;
+-- the carrier decides its held fill: one anomaly explained, the other confirmed, and the sale becomes disputed
+SELECT sys.set_context(:ua, :ca, 'COMPANY');
+SELECT pg_temp.expect_error(format($q$SELECT ptn.decide_fuel_anomaly(an.uid, 'EXPLAINED', '') FROM ptn.fuel_anomaly an
+                                      JOIN ptn.partner_sale s ON s.session_id = an.session_id WHERE s.uid = %L LIMIT 1$q$, :'fheld'::jsonb ->> 'sale_uid'),
+  'FUEL_ANOMALY_NOTE', 'Fuel (1180): an anomaly is decided with a note');
+SELECT ptn.decide_fuel_anomaly(an.uid, CASE an.anomaly_type WHEN 'AMOUNT_MISMATCH' THEN 'CONFIRMED' ELSE 'EXPLAINED' END, 'checked with the driver')
+  FROM ptn.fuel_anomaly an JOIN ptn.partner_sale s ON s.session_id = an.session_id WHERE s.uid = (:'fheld'::jsonb ->> 'sale_uid')::uuid;
+SELECT pg_temp.ok((SELECT status = 'DISPUTED' FROM ptn.partner_sale WHERE uid = (:'fheld'::jsonb ->> 'sale_uid')::uuid),
+  'Fuel (1180): a confirmed anomaly leaves the sale disputed');
+-- the fuel company gives the disputed fill back, once, with its reason
+SELECT sys.set_context(:uatt, :fco, 'COMPANY');
+SELECT pg_temp.ok(ptn.fuel_reverse_sale((:'fheld'::jsonb ->> 'sale_uid')::uuid, 'meter misread, refunded') = 8000000,
+  'Fuel (1180): a fill given back returns its amount to the account');
+SELECT pg_temp.expect_error(format($q$SELECT ptn.fuel_reverse_sale(%L, 'again')$q$, :'fheld'::jsonb ->> 'sale_uid'),
+  'FUEL_SALE_REVERSED', 'Fuel (1180): a fill is given back once');
+-- a new NFC tag is bound at the pump, and then identifies the vehicle; a tag serves one card
+SELECT ptn.fuel_bind_tag(:'fstu', :'fcard', sha256('tag-1180'::bytea));
+SELECT pg_temp.ok((SELECT (v ->> 'tag_bound')::boolean AND v ->> 'card_uid' = :'fcard'
+                     FROM (SELECT ptn.fuel_identify(:'fstu', sha256('tag-1180'::bytea), NULL, NULL) AS v) x),
+  'Fuel (1180): the bound tag identifies the vehicle');
+SELECT pg_temp.expect_error(format($q$SELECT ptn.fuel_bind_tag(%L, %L, sha256('tag-other'::bytea))$q$, :'fstu', :'fcard'),
+  'FUEL_CARD_HAS_TAG', 'Fuel (1180): a card keeps one tag until its owner unbinds it');
+SELECT sys.set_context(:ua, :cb, 'COMPANY');
+SELECT pg_temp.ok((SELECT count(*) FROM ptn.fuel_account) = 0 AND ptn.fuel_unbind_tag(:'fcard') = 0,
+  'Fuel (1180): another carrier sees no account of others and cannot unbind their tags');
+SELECT sys.set_context(:ua, :ca, 'COMPANY');
+UPDATE ptn.fuel_card SET status = 'BLOCKED', blocked_reason = 'card lost' WHERE uid = :'fcard';
+SELECT pg_temp.ok(ptn.fuel_unbind_tag(:'fcard') = 1, 'Fuel (1180): the owner unbinds a lost card''s tag');
+SELECT sys.set_context(:uatt, :fco, 'COMPANY');
+SELECT pg_temp.ok((SELECT v ->> 'reason' = 'CARD_BLOCKED' FROM (SELECT ptn.fuel_identify(:'fstu', NULL, :'fcno', NULL) AS v) x),
+  'Fuel (1180): a blocked card cannot fill');
+SELECT sys.set_context(:ua, :fco, 'COMPANY');
+SELECT pg_temp.expect_error(format($q$SELECT ptn.fuel_identify(%L, NULL, %L, NULL)$q$, :'fstu', :'fcno'),
+  'NOT_STATION_STAFF', 'Fuel (1180): only the station''s attendants work at its pumps');
+ROLLBACK;
+SET ROLE masslak_app;
+
 \echo '=== ALL TESTS PASSED ==='

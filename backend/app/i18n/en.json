@@ -1416,5 +1416,19 @@
       "EXPECTED": "Expected",
       "SEE_COUNTER": "See the counter"
     }
+  },
+  "fuel.filled": {
+    "subject": "Fuel: {plate_no} filled {litres} L at {station}",
+    "body": "The vehicle {plate_no} filled {litres} L of {fuel_type} at {station} for {amount}. The account holds {balance}; the vehicle's budget left in this period is {left_amount}. {held_note}"
+  },
+  "fuel_labels": {
+    "HELD": "The checks found something to review: the fill is held until you or the fuel company decide.",
+    "LOW_BALANCE": "The account is below the balance you set: ask the fuel company to record a new payment.",
+    "NO_BUDGET": "no budget set",
+    "DIESEL": "diesel",
+    "GASOLINE": "petrol",
+    "LPG": "LPG",
+    "CNG": "CNG",
+    "ADBLUE": "AdBlue"
   }
 }

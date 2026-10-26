@@ -52,6 +52,14 @@ def render(template: str, channel: str, locale: str, values: dict) -> tuple[str,
         vals["free_cancel_text"] = words.get("trip_change_labels", {}).get("FREE_CANCEL", "") if values.get("free_cancel") else ""
         if vals.get("new_trip_code") is None and "new_trip_no" in vals:
             vals["new_trip_code"] = vals["new_trip_no"]
+    if template == "fuel.filled":                            # a fill (1180): money, fuel and the checks read as words
+        lab = words.get("fuel_labels", {})
+        vals["balance"] = money(int(values.get("balance") or 0))
+        left = values.get("left_amount")
+        vals["left_amount"] = money(int(left)) if left is not None else lab.get("NO_BUDGET", "-")
+        vals["fuel_type"] = lab.get(str(values.get("fuel_type")), values.get("fuel_type"))
+        vals["held_note"] = " ".join(x for x in (lab.get("HELD", "") if values.get("held") else "",
+                                                 lab.get("LOW_BALANCE", "") if values.get("low_balance") else "") if x)
     if vals.get("trip_code") is None and "trip_no" in vals:   # the trip number passengers read (1114), else the reference
         vals["trip_code"] = vals["trip_no"]
     def fill(s: str) -> str:

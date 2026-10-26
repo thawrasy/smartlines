@@ -22,10 +22,10 @@ from ..security import (hash_password, identifier_blocked, identifier_hash, new_
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
-Portal = Literal["PASSENGER", "OPERATOR", "DRIVER", "AGENCY", "PLATFORM", "INSPECTOR", "STATION"]
+Portal = Literal["PASSENGER", "OPERATOR", "DRIVER", "AGENCY", "PLATFORM", "INSPECTOR", "STATION", "FUEL"]
 PORTALS_BY_KIND = {
     "CUSTOMER": {"PASSENGER"},
-    "COMPANY": {"OPERATOR", "DRIVER", "STATION"},       # STATION: a station's operating company (1099)
+    "COMPANY": {"OPERATOR", "DRIVER", "STATION", "FUEL"},   # STATION: a station's operating company (1099); FUEL: a fuel company (1180)
     "AGENCY": {"AGENCY"},
     "PLATFORM": {"PLATFORM", "INSPECTOR"},
 }
@@ -319,7 +319,7 @@ async def login_business(body: BusinessIn, request: Request, response: Response)
         where, args = "username = $1 AND account_kind = 'PLATFORM'", (username,)
     else:
         kind = company["company_type"]
-        portal = "AGENCY" if kind == "AGENCY" else "STATION" if kind == "STATION_OPERATOR" else (
+        portal = "AGENCY" if kind == "AGENCY" else "STATION" if kind == "STATION_OPERATOR" else "FUEL" if kind == "FUEL_COMPANY" else (
             "DRIVER" if body.portal == "DRIVER" else "OPERATOR")
         where, args = "username = $1 AND home_company_id = $2", (username, company["id"])
     return await _sign_in(LoginIn(identifier=ident, password=body.password, portal=portal, device_id=body.device_id,
@@ -401,15 +401,16 @@ async def _sign_in(body: LoginIn, request: Request, response: Response, *, ident
     rehashed = hash_password(body.password) if password_needs_rehash(user["password_hash"]) else None
     async with db.transaction(ctx) as conn:
         company_id = None
-        if body.portal in ("OPERATOR", "DRIVER", "AGENCY", "STATION"):
+        if body.portal in ("OPERATOR", "DRIVER", "AGENCY", "STATION", "FUEL"):
             # Agency staff open only the agency portal, a station operating company's staff only the station portal
-            # (1099), carrier staff only the carrier and driver portals
+            # (1099), a fuel company's staff only the fuel portal (1180), carrier staff only the carrier and driver portals
             company_id = await conn.fetchval(
                 """SELECT m.company_id FROM iam.company_member m JOIN iam.company c ON c.id = m.company_id
                     WHERE m.user_id = $1 AND m.status = 'ACTIVE' AND c.approval_status = 'APPROVED'
                       AND CASE $2 WHEN 'AGENCY' THEN c.company_type = 'AGENCY'
                                   WHEN 'STATION' THEN c.company_type = 'STATION_OPERATOR'
-                                  ELSE c.company_type NOT IN ('AGENCY', 'STATION_OPERATOR') END
+                                  WHEN 'FUEL' THEN c.company_type = 'FUEL_COMPANY'
+                                  ELSE c.company_type NOT IN ('AGENCY', 'STATION_OPERATOR', 'FUEL_COMPANY') END
                       AND ($3::bigint IS NULL OR m.company_id = $3)
                     ORDER BY m.is_owner DESC LIMIT 1""", user["id"], body.portal, fixed_company)
             if company_id is None:

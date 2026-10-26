@@ -47,3 +47,30 @@ The partner model was planned and stays the base, not a parallel one:
    portal, platform review of anomalies and contracts.
 3. Screens: web portals; the station mode of the mobile app (NFC and camera); notices.
 4. Tests, docs, a pilot with one station.
+
+## What is built (1180)
+
+- **Database** (`db/schema/1180_fuel_stations.sql`, phase 9, behind the `service_partners` switch): FUEL portal and
+  FUEL_COMPANY company type with the `fuel.manage` / `fuel.attend` rights; prepaid accounts held with the fuel company
+  (`ptn.fuel_account`) with an append-only entry book whose trigger moves the balance and never lets it go below zero;
+  vehicle cards with a budget per day, week or month (amount and/or litres); NFC tags stored only as a hash; the fill
+  (`ptn.fuel_fill`) requires the meter photo uploaded by the attendant and checks amount against price, tank size,
+  odometer going back, consumption and distance. Any finding holds the fill until the carrier decides it; the fuel
+  company can give a fill back with a REVERSAL entry. Every write goes through SECURITY DEFINER functions.
+- **API** (`backend/app/modules/fuel/api.py`): fuel company portal (`/api/fuel`: overview, attendants, prices, accounts and
+  top-ups, fills and photos, reversals, findings, and the pump: identify, bind tag, fill); carrier fuel
+  (`/api/carrier/fuel`: accounts, cards and budgets, block, unbind, pump code, fills, consumption, findings); the driver's
+  pump code (`/api/driver/fuel`); platform onboarding of fuel companies and stations (`/api/admin/fuel`).
+- **Pump code**: `F1` + base32 of the card id, expiry and an HMAC; life from the `fuel.checks.code_seconds` setting.
+- **Notice**: `fuel.filled` to the owners of the vehicle's company, with the balance and the budget left; also an
+  integration event for carrier and internal clients.
+- **Screens**: fuel portal (home, pump with Web NFC, QR camera, typed card number, meter photo; fills, findings,
+  accounts, stations, people), carrier fuel page, driver code page, platform fuel page; English and Arabic.
+- **Tests**: 24 database checks and `backend/tests/test_fuel_stations.py` (the whole flow end to end).
+
+## Not built yet
+
+- Station mode in the native mobile app and the pump code screen in the mobile driver app (the web driver page exists).
+- Private subscribers without a fleet company.
+- Settlement statements between the platform and fuel companies (the platform holds no fuel money today).
+- Findings for fills outside the vehicle's route or working hours.

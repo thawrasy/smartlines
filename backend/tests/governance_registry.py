@@ -34,6 +34,7 @@ SYSTEM_SCOPE = {
     ("app/modules/documents/scanner.py", "scan_file"): (1, "the scanner job marks any uploaded file and raises its event"),
     ("app/modules/documents/service.py", "read_file"): (1, "reading a document writes the data access log the reader cannot write"),
     ("app/modules/documents/service.py", "store_file"): (1, "encryption key lookup for a new document (uploads, licence pictures)"),
+    ("app/modules/fuel/api.py", "read_meter_photo"): (1, "the meter's photo of a fill, read for its fuel company or the vehicle's company after the caller's own policy showed it the fill; the attendant who took it owns the file row"),
     ("app/modules/photo/service.py", "read_own"): (1, "the traveler reads their own boarding photo in the app, when the platform lets the traveler see it; the file row is read for the person, audited by the caller"),
     ("app/modules/photo/service.py", "read_for_ticket"): (1, "the driver or the carrier office reads a passenger's photo for a ticket of its trip; the caller audits the read"),
     ("app/modules/photo/service.py", "store"): (1, "encryption key lookup for a stored photo or evidence file; the caller checks who may store it"),

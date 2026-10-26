@@ -96,6 +96,10 @@ import i_play_arrow from "@material-symbols/svg-400/rounded/play_arrow.svg?raw";
 import i_flag from "@material-symbols/svg-400/rounded/flag.svg?raw";
 import i_directions_car from "@material-symbols/svg-400/rounded/directions_car.svg?raw";
 import i_local_gas_station from "@material-symbols/svg-400/rounded/local_gas_station.svg?raw";
+import i_nfc from "@material-symbols/svg-400/rounded/nfc.svg?raw";
+import i_photo_camera from "@material-symbols/svg-400/rounded/photo_camera.svg?raw";
+import i_link_off from "@material-symbols/svg-400/rounded/link_off.svg?raw";
+import i_speed from "@material-symbols/svg-400/rounded/speed.svg?raw";
 import i_restaurant from "@material-symbols/svg-400/rounded/restaurant.svg?raw";
 import i_inventory_2 from "@material-symbols/svg-400/rounded/inventory_2.svg?raw";
 import i_handshake from "@material-symbols/svg-400/rounded/handshake.svg?raw";
@@ -249,6 +253,10 @@ export const ICONS = {
   flag: i_flag,
   directions_car: i_directions_car,
   local_gas_station: i_local_gas_station,
+  nfc: i_nfc,
+  photo_camera: i_photo_camera,
+  link_off: i_link_off,
+  speed: i_speed,
   restaurant: i_restaurant,
   inventory_2: i_inventory_2,
   handshake: i_handshake,

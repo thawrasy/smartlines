@@ -7,7 +7,7 @@ import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Status, useLoad, useToast 
 // The platform shield (owner's request, October 2026; migration 1142). The security staff watch the traffic, raise or
 // lower the shield level, acknowledge the alerts and set the firewall and one-session rules. Read only until the
 // account carries the security.console permission (the route and this page are hidden otherwise).
-const PORTALS = ["PASSENGER", "PLATFORM", "OPERATOR", "AGENCY", "STATION", "DRIVER", "INSPECTOR"] as const;
+const PORTALS = ["PASSENGER", "PLATFORM", "OPERATOR", "AGENCY", "STATION", "FUEL", "DRIVER", "INSPECTOR"] as const;
 type Portal = (typeof PORTALS)[number];
 type Level = "NORMAL" | "ELEVATED" | "LOCKDOWN";
 

@@ -84,6 +84,8 @@ async def deliveries(conn: asyncpg.Connection, event: asyncpg.Record, payload: d
         if event["company_id"] is not None:
             return await _owners(conn, event["company_id"], kind, payload)
         return await _platform_staff(conn, "boarding.manage", kind, ["IN_APP", "EMAIL"], payload)
+    if kind == "fuel.filled":           # a vehicle filled at a fuel station (1180): the owners of the company holding the account
+        return await _owners(conn, event["company_id"], kind, payload)
     if kind == "sos.raised":            # an emergency on a trip (1101): the carrier's owners and the platform's security staff
         owners = await _owners(conn, event["company_id"], kind, payload)
         for d in owners:

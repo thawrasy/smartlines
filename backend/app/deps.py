@@ -24,6 +24,7 @@ PORTAL_SCOPE = {
     "PLATFORM": "PLATFORM",
     "INSPECTOR": "PLATFORM",
     "STATION": "COMPANY",           # a station's operating company: its own rows, and the grants given to it (1098, 1099)
+    "FUEL": "COMPANY",              # a fuel company: its stations, the accounts held with it (1180)
 }
 
 
@@ -113,10 +114,13 @@ async def load_permissions(conn: asyncpg.Connection, pr: Principal) -> None:
         if "is_owner" in r.keys() and r["is_owner"]:
             pr.is_owner = True
     if pr.is_owner:
-        # the owner of a station operating company holds the station permissions only, never a carrier's (1099)
+        # the owner of a station operating company holds the station permissions only, never a carrier's (1099); a fuel
+        # company's owner the fuel permissions (1180); no other owner holds the fuel ones
         perms = await conn.fetch(
             """SELECT code FROM iam.permission WHERE scope IN ('COMPANY','BOTH')
-                 AND ($1 <> 'STATION' OR module = 'station' OR code IN ('company.staff', 'company.login_log', 'company.kyc'))""",
+                 AND CASE $1 WHEN 'STATION' THEN module = 'station' OR code IN ('company.staff', 'company.login_log', 'company.kyc')
+                             WHEN 'FUEL' THEN module = 'fuel' OR code IN ('company.staff', 'company.login_log', 'company.kyc')
+                             ELSE module <> 'fuel' END""",
             pr.portal)
         pr.permissions |= {p["code"] for p in perms}
     # per-user exceptions (1154, N1): approved by a second person, within their dates, for this portal's company
@@ -176,7 +180,7 @@ async def optional_principal(request: Request) -> Optional[Principal]:
     return pr
 
 
-STAFF_PORTALS = {"OPERATOR", "AGENCY", "PLATFORM", "INSPECTOR", "DRIVER", "STATION"}
+STAFF_PORTALS = {"OPERATOR", "AGENCY", "PLATFORM", "INSPECTOR", "DRIVER", "STATION", "FUEL"}
 
 
 def mfa_required_for(portal: str, account_requires: bool, has_factor: bool, policy: mfa_policy.Policy) -> bool:

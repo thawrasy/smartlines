@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**626 tables, 6858 columns, in 26 schemas.**
+**629 tables, 6905 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -22,7 +22,7 @@ Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant i
 - [`crm` — Complaints, ratings, notifications, the AI assistant and the contact center](#crm) (19 tables)
 - [`gov` — Governance, obligations and data protection](#gov) (15 tables)
 - [`sec` — Security: IP rules, risk, signing, the security hub and government adapters](#sec) (34 tables)
-- [`ptn` — Service partners: fuel stations, rest stops and maintenance](#ptn) (14 tables)
+- [`ptn` — Service partners: fuel stations, rest stops and maintenance](#ptn) (17 tables)
 - [`ship` — Shipments and the integrated shipping network](#ship) (59 tables)
 - [`frt` — Trucking, heavy transport and transit freight](#frt) (31 tables)
 - [`brd` — Border manifest gateway](#brd) (12 tables)
@@ -8304,6 +8304,40 @@ Watch and ban list with hashed matching, without copying full data
 <a id="ptn"></a>
 ## `ptn` — Service partners: fuel stations, rest stops and maintenance
 
+### `ptn.fuel_account` 🛡️
+
+What a carrier, taxi owner or rental company paid in advance to a fuel company, less its fills; the money is the fuel company's, the platform keeps the account (1180)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `fuel_company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `holder_company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ |  |
+| `balance` | `bigint` | ✱ | `0` |
+| `low_balance` | `bigint` |  |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ptn.fuel_account_entry` 🛡️
+
+Each movement of a fuel account: a sum the fuel company received, a fill, a fill given back, an adjustment with its reason; never changed (1180)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `account_id` | `bigint` | 🔗 `ptn.fuel_account` ✱ |  |
+| `kind` | `text` | ✱ |  |
+| `amount` | `bigint` | ✱ |  |
+| `balance_after` | `bigint` | ✱ |  |
+| `sale_id` | `bigint` | 🔗 `ptn.partner_sale`  |  |
+| `reference` | `text` |  |  |
+| `note` | `text` |  |  |
+| `recorded_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
 ### `ptn.fuel_anomaly` 🛡️
 
 Fuel quantity that does not match tank size, distance or expected consumption (14.11 f)
@@ -8322,6 +8356,9 @@ Fuel quantity that does not match tank size, distance or expected consumption (1
 | `status` | `text` | ✱ | `'OPEN'::text` |
 | `resolved_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `resolved_at` | `timestamp with time zone` |  |  |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `note` | `text` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `ptn.fuel_card` 🛡️
 
@@ -8340,6 +8377,28 @@ Virtual fuel card of a carrier, bound to a vehicle or a driver, with limits
 | `fuel_types` | `text[]` | ✱ | `'{DIESEL}'::text[]` |
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `account_id` | `bigint` | 🔗 `ptn.fuel_account`  |  |
+| `card_no` | `text` | ✱ | `upper(substr(md5((gen_random_uuid()):...` |
+| `budget_period` | `text` |  |  |
+| `budget_amount` | `bigint` |  |  |
+| `budget_litres` | `numeric(8,2)` |  |  |
+| `blocked_reason` | `text` |  |  |
+| `blocked_at` | `timestamp with time zone` |  |  |
+
+### `ptn.fuel_card_tag` 🛡️
+
+The NFC tag of a vehicle's fuel card, as the hash of the random identifier it holds; one tag per card and one card per tag (1180)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `card_id` | `bigint` | 🔗 `ptn.fuel_card` ✱ |  |
+| `tag_hash` | `bytea` | ✱ |  |
+| `partner_id` | `bigint` | 🔗 `ptn.partner`  |  |
+| `bound_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `bound_at` | `timestamp with time zone` | ✱ | `now()` |
+| `unbound_at` | `timestamp with time zone` |  |  |
+| `unbound_by` | `bigint` | 🔗 `iam.app_user`  |  |
 
 ### `ptn.fuel_price` 🛡️
 
@@ -8417,6 +8476,7 @@ A contracted service partner, registered on the station pattern (14.11, 4.11)
 | `compliance_state` | `text` | ✱ | `'PENDING'::text` |
 | `status` | `text` | ✱ | `'PENDING'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `pumps` | `smallint` |  |  |
 
 ### `ptn.partner_contract` 🛡️
 
@@ -8512,6 +8572,14 @@ The shared sale transaction for fuel and rest stops, posted through the ledger
 | `status` | `text` | ✱ | `'COMPLETED'::text` |
 | `ledger_txn_id` | `bigint` | 🔗 `fin.ledger_txn`  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `card_id` | `bigint` | 🔗 `ptn.fuel_card`  |  |
+| `meter_photo_file_id` | `bigint` | 🔗 `ref.file_object`  |  |
+| `expected_amount` | `bigint` |  |  |
+| `identified_by` | `text` |  |  |
+| `plate_no` | `text` |  |  |
+| `holder_name` | `text` |  |  |
+| `station_name` | `text` |  |  |
+| `pump_ref` | `text` |  |  |
 
 ### `ptn.partner_settlement` 🛡️
 

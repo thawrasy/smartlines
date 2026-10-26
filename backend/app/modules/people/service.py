@@ -20,7 +20,7 @@ from ...errors import ApiError, forbidden, not_found
 from ...util import rows
 from ..account.doors import temporary_password
 
-Kind = Literal["PLATFORM", "CARRIER", "AGENCY", "STATION"]
+Kind = Literal["PLATFORM", "CARRIER", "AGENCY", "STATION", "FUEL"]
 # what a station operating company's staff may hold besides the station module (1099): managing its own people
 STATION_EXTRA = ("company.staff", "company.login_log")
 
@@ -76,12 +76,13 @@ async def scope_of(conn: asyncpg.Connection, pr: Principal) -> Scope:
         if "users.manage" not in pr.permissions:
             raise forbidden("missing permission: users.manage")
         return Scope("PLATFORM", None)
-    if pr.portal not in ("OPERATOR", "AGENCY", "STATION") or not pr.company_id:
+    if pr.portal not in ("OPERATOR", "AGENCY", "STATION", "FUEL") or not pr.company_id:
         raise forbidden("users and roles are managed from a staff portal")
     if not (pr.is_owner or "company.staff" in pr.permissions):
         raise forbidden("missing permission: company.staff")
     ctype = await conn.fetchval("SELECT company_type FROM iam.company WHERE id = $1", pr.company_id)
-    kind: Kind = "AGENCY" if ctype == "AGENCY" else "STATION" if ctype == "STATION_OPERATOR" else "CARRIER"
+    kind: Kind = ("AGENCY" if ctype == "AGENCY" else "STATION" if ctype == "STATION_OPERATOR" else "FUEL" if ctype == "FUEL_COMPANY"
+                  else "CARRIER")
     return Scope(kind, pr.company_id)
 
 
@@ -92,8 +93,11 @@ async def catalog_codes(conn: asyncpg.Connection, sc: Scope) -> dict[str, asyncp
     elif sc.kind == "STATION":
         recs = await conn.fetch("""SELECT * FROM iam.permission WHERE scope IN ('COMPANY', 'BOTH')
                                      AND (module = 'station' OR code = ANY($1::text[])) ORDER BY module, code""", list(STATION_EXTRA))
+    elif sc.kind == "FUEL":         # a fuel company (1180): its own rights and its staff
+        recs = await conn.fetch("""SELECT * FROM iam.permission WHERE scope IN ('COMPANY', 'BOTH')
+                                     AND (module = 'fuel' OR code = ANY($1::text[])) ORDER BY module, code""", list(STATION_EXTRA))
     else:
-        recs = await conn.fetch("""SELECT * FROM iam.permission WHERE scope IN ('COMPANY', 'BOTH') AND module <> 'station'
+        recs = await conn.fetch("""SELECT * FROM iam.permission WHERE scope IN ('COMPANY', 'BOTH') AND module NOT IN ('station', 'fuel')
                                    ORDER BY module, code""")
     return {r["code"]: r for r in recs}
 
@@ -254,7 +258,7 @@ async def add_user(conn: asyncpg.Connection, pr: Principal, body: UserIn) -> dic
     sc = await scope_of(conn, pr)
     given = await _givable_roles(conn, pr, sc, body.roles)
     kind = "PLATFORM" if sc.platform else "AGENCY" if sc.kind == "AGENCY" else "COMPANY"
-    party_role = {"PLATFORM": "OPERATOR", "CARRIER": "OPERATOR", "AGENCY": "AGENCY", "STATION": "STATION_STAFF"}[sc.kind]
+    party_role = {"PLATFORM": "OPERATOR", "CARRIER": "OPERATOR", "AGENCY": "AGENCY", "STATION": "STATION_STAFF", "FUEL": "FUEL_STAFF"}[sc.kind]
     party_id = await conn.fetchval("INSERT INTO iam.party (party_type, legal_name) VALUES ('PERSON', $1) RETURNING id", body.full_name.strip())
     await conn.execute("INSERT INTO iam.party_role (party_id, role_code) VALUES ($1, $2) ON CONFLICT DO NOTHING", party_id, party_role)
     try:

@@ -89,6 +89,7 @@ export function homeFor(me: Me): string {
     case "INSPECTOR": return "/inspector";
     case "AGENCY": return "/agency";
     case "STATION": return "/station";
+    case "FUEL": return "/fuel";
     case "PLATFORM":
       if (me.permissions.includes("company.approve")) return "/admin";
       if (me.permissions.includes("security.ip_rules") || me.permissions.includes("audit.view")) return "/security";
