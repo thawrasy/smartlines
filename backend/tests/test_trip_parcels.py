@@ -180,3 +180,107 @@ def test_the_platform_stops_a_carrier_and_decides_its_fees_when_it_regulates_the
     s = owner.get("/api/carrier/parcels/settings").json()
     assert (s["cancel_fee"], s["no_show_fee"], s["pending_fees"]) == (50000, 70000, None)
     assert admin.post(f"/api/admin/parcels/carriers/{carrier_uid}/fees", json={"approve": True, "reason": "again"}).json()["error"]["code"] == "NO_PENDING_FEES"
+
+
+def handed_over(admin, owner, setup, pax):
+    """A parcel the sender reserved and handed over at the counter: its tracking number and label code."""
+    policy(admin, setup, scheduled_only=False)
+    try:
+        assert admin.put("/api/admin/money-mode", json={"mode": "NO_FUNDS", "basis": "Phase one of the pilot"}).status_code == 200
+        r = pax.post("/api/parcels", json=body(setup, accept_rules=True))
+        assert r.status_code == 201, r.text
+        no = r.json()["tracking_no"]
+        label = owner.post(f"/api/carrier/parcels/{no}/receive", json={})
+        assert label.status_code == 200, label.text
+    finally:
+        admin.put("/api/admin/money-mode", json={"mode": "FULL", "basis": "back to the test default"})
+    return no, label.json()["code"]
+
+
+def test_the_parcel_is_loaded_arrives_and_is_collected_with_the_senders_code(admin, owner, setup):
+    """1182: on board by its label, off at the destination, the code to the sender and the recipient, wrong codes counted,
+    then handed over with the right one; each step a milestone the sender reads."""
+    pax = new_passenger()
+    no, code = handed_over(admin, owner, setup, pax)
+    r = owner.post("/api/carrier/parcels/scan/arrive", json={"tracking_no": no})
+    assert r.status_code == 409 and r.json()["error"]["code"] == "PARCEL_NOT_LOADED"
+    assert owner.post("/api/carrier/parcels/scan/load", json={"code": code[:-3] + "AAA"}).json()["error"]["code"] in ("LABEL_INVALID", "VALIDATION")
+    r = owner.post("/api/carrier/parcels/scan/load", json={"code": code, "trip_uid": str(uuid.uuid4())})
+    assert r.status_code == 409 and r.json()["error"]["code"] == "PARCEL_OTHER_TRIP"
+    r = owner.post("/api/carrier/parcels/scan/load", json={"code": code, "trip_uid": setup["trip"]["uid"]})
+    assert r.status_code == 200 and r.json()["status"] == "IN_NETWORK", r.text
+    assert owner.post("/api/carrier/parcels/scan/load", json={"code": code}).json()["error"]["code"] == "PARCEL_ON_BOARD"
+    j = pax.get(f"/api/parcels/{no}/journey").json()
+    assert j["loaded_at"] and j["pickup_code"] is None
+    r = owner.post("/api/carrier/parcels/scan/arrive", json={"code": code})
+    assert r.status_code == 200 and r.json()["waits_days"] >= 1, r.text
+    j = pax.get(f"/api/parcels/{no}/journey").json()
+    pin = j["pickup_code"]
+    assert len(pin) == 6 and pin.isdigit()
+    assert [e["milestone"] for e in j["events"]][-2:] == ["LOADED", "ARRIVED"]
+    assert new_passenger().get(f"/api/parcels/{no}/journey").status_code == 404           # another passenger sees nothing
+    assert owner_sql("SELECT count(*) FROM sys.outbox_event WHERE event_type = 'parcel.arrived' AND payload ->> 'tracking_no' = $1", no) == 1
+    assert owner_sql("SELECT position($2 in payload::text) FROM sys.outbox_event WHERE event_type = 'parcel.arrived' "
+                     "AND payload ->> 'tracking_no' = $1", no, pin) == 0                    # the code never sits in the outbox
+    waiting = owner.get("/api/carrier/parcels/waiting").json()
+    row = next(p for p in waiting["parcels"] if p["tracking_no"] == no)
+    assert row["overdue"] is False and row["days_waited"] == 0
+    # a refused or unclaimed parcel needs the days to pass; a wrong code is counted
+    r = owner.post(f"/api/carrier/parcels/{no}/exception", json={"kind": "UNCLAIMED", "note": "nobody came"})
+    assert r.status_code == 409 and r.json()["error"]["code"] == "PARCEL_NOT_OVERDUE"
+    wrong = "000000" if pin != "000000" else "111111"
+    r = owner.post(f"/api/carrier/parcels/{no}/deliver", json={"pickup_code": wrong, "delivered_to": "Rami Saleh"})
+    assert r.status_code == 422 and r.json()["error"]["code"] == "PICKUP_CODE_WRONG" and r.json()["error"]["tries_left"] == 4
+    assert owner.post(f"/api/carrier/parcels/{no}/deliver", json={"delivered_to": "Rami Saleh"}).status_code == 422
+    r = owner.post(f"/api/carrier/parcels/{no}/deliver", json={"pickup_code": pin, "delivered_to": "Rami Saleh"})
+    assert r.status_code == 200 and r.json()["method"] == "OTP", r.text
+    assert owner.post(f"/api/carrier/parcels/{no}/deliver", json={"pickup_code": pin, "delivered_to": "Rami"}).json()["error"]["code"] \
+        == "PARCEL_NOT_WAITING"
+    assert owner_sql("SELECT p.method || ':' || s.status FROM ship.delivery_proof p JOIN ship.shipment s ON s.id = p.shipment_id "
+                     "WHERE s.tracking_no = $1", no) == "OTP:DELIVERED"
+    j = pax.get(f"/api/parcels/{no}/journey").json()
+    assert j["status"] == "DELIVERED" and j["pickup_code"] is None and j["events"][-1]["milestone"] == "DELIVERED"
+    assert not any(p["tracking_no"] == no for p in owner.get("/api/carrier/parcels/waiting").json()["parcels"])
+
+
+def test_locked_codes_need_an_identity_check_and_an_unclaimed_parcel_goes_back(admin, owner, setup):
+    pax = new_passenger()
+    no, code = handed_over(admin, owner, setup, pax)
+    assert owner.post("/api/carrier/parcels/scan/load", json={"tracking_no": no}).status_code == 200
+    assert owner.post("/api/carrier/parcels/scan/arrive", json={"tracking_no": no}).status_code == 200
+    owner_sql("UPDATE ship.shipment SET pickup_code_tries = 5 WHERE tracking_no = $1", no)
+    pin = pax.get(f"/api/parcels/{no}/journey").json()["pickup_code"]
+    r = owner.post(f"/api/carrier/parcels/{no}/deliver", json={"pickup_code": pin, "delivered_to": "Rami Saleh"})
+    assert r.status_code == 423 and r.json()["error"]["code"] == "PICKUP_CODE_LOCKED"
+    # not collected within the policy's days: recorded as unclaimed, then sent back
+    owner_sql("UPDATE ship.shipment SET arrived_at = arrived_at - interval '30 days' WHERE tracking_no = $1", no)
+    assert next(p for p in owner.get("/api/carrier/parcels/waiting").json()["parcels"] if p["tracking_no"] == no)["overdue"] is True
+    assert owner.post(f"/api/carrier/parcels/{no}/return", json={"note": "back to the sender"}).json()["error"]["code"] == "PARCEL_NO_EXCEPTION"
+    r = owner.post(f"/api/carrier/parcels/{no}/exception", json={"kind": "UNCLAIMED", "note": "nobody came in thirty days"})
+    assert r.status_code == 200 and r.json()["status"] == "EXCEPTION", r.text
+    assert pax.get(f"/api/parcels/{no}/journey").json()["pickup_code"] is None
+    r = owner.post(f"/api/carrier/parcels/{no}/return", json={"note": "back to the sender"})
+    assert r.status_code == 200 and r.json()["status"] == "RETURNED"
+    assert owner.post(f"/api/carrier/parcels/{no}/deliver", json={"id_checked": True, "id_note": "ID card 4471",
+                                                                  "delivered_to": "Rami"}).json()["error"]["code"] == "PARCEL_NOT_WAITING"
+    assert [e["milestone"] for e in pax.get(f"/api/parcels/{no}/journey").json()["events"]][-2:] == ["EXCEPTION", "RETURNED"]
+
+
+def test_an_identity_check_hands_over_a_parcel_whose_code_is_lost_and_damage_is_recorded(admin, owner, setup):
+    pax = new_passenger()
+    no, _ = handed_over(admin, owner, setup, pax)
+    damaged, _ = handed_over(admin, owner, setup, pax)
+    for n in (no, damaged):
+        assert owner.post("/api/carrier/parcels/scan/load", json={"tracking_no": n}).status_code == 200
+    r = owner.post(f"/api/carrier/parcels/{damaged}/exception", json={"kind": "REFUSED", "note": "not yet at the station"})
+    assert r.status_code == 409 and r.json()["error"]["code"] == "PARCEL_NOT_WAITING"
+    r = owner.post(f"/api/carrier/parcels/{damaged}/exception", json={"kind": "DAMAGED", "note": "box crushed in the hold"})
+    assert r.status_code == 200, r.text
+    assert owner_sql("SELECT count(*) FROM sys.outbox_event WHERE event_type = 'parcel.exception' AND payload ->> 'tracking_no' = $1", damaged) == 1
+    assert owner.post("/api/carrier/parcels/scan/arrive", json={"tracking_no": no}).status_code == 200
+    r = owner.post(f"/api/carrier/parcels/{no}/deliver", json={"id_checked": True, "id_note": "ID card ending 4471", "delivered_to": "Rami Saleh"})
+    assert r.status_code == 200 and r.json()["method"] == "ID", r.text
+    assert owner_sql("SELECT delivered_to FROM ship.delivery_proof p JOIN ship.shipment s ON s.id = p.shipment_id WHERE s.tracking_no = $1",
+                     no) == "Rami Saleh (ID card ending 4471)"
+    assert new_passenger().post(f"/api/carrier/parcels/{no}/deliver", json={"id_checked": True, "id_note": "x card",
+                                                                         "delivered_to": "Someone"}).status_code == 403

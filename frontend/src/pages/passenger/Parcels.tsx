@@ -3,6 +3,7 @@ import { api } from "../../api";
 import { useI18n } from "../../i18n";
 import { CarrierName, Empty, ErrorBox, Field, Icon, Loaded, Modal, Status, useLoad, useToast } from "../../components/ui";
 import { useItem } from "../carrier/ParcelDesk";
+import { JourneyView } from "../carrier/ParcelJourney";
 
 type Mode = "WEIGHT" | "VOLUME" | "WEIGHT_AND_VOLUME" | "FIXED" | "NEGOTIATED";
 interface Tariff { uid: string; code: string; name: string; pricing_mode: Mode; currency: string; max_weight_kg: number | null; max_volume_m3: number | null }
@@ -26,6 +27,7 @@ export default function Parcels() {
   const trips = useLoad((signal) => api.get<{ trips: HoldTrip[] }>("/api/parcels/trips", search, { signal }), [search]);
   const mine = useLoad((signal) => api.get<{ parcels: Mine[] }>("/api/parcels/mine", undefined, { signal }));
   const offers = useLoad((signal) => api.get<{ offers: Offer[] }>("/api/parcels/offers", undefined, { signal }));
+  const [following, setFollowing] = useState<string | null>(null);
   const [pick, setPick] = useState<{ trip: HoldTrip; tariff: Tariff } | null>(null);
   const [size, setSize] = useState({ weight_kg: 1, length_cm: 30, width_cm: 20, height_cm: 10 });
   const [who, setWho] = useState({ description: "", recipient_name: "", recipient_mobile: "" });
@@ -167,10 +169,12 @@ export default function Parcels() {
             <tr key={p.tracking_no}><td className="mono">{p.tracking_no}</td><td className="mono">{p.trip_no ?? "—"}</td>
               <td>{p.weight_kg != null ? `${num(p.weight_kg)} kg` : "—"}{p.volume_m3 != null && ` · ${num(p.volume_m3)} m³`}</td>
               <td>{p.price_breakdown.total != null ? money(p.price_breakdown.total, true, p.currency) : "—"}</td><td><Status value={p.status} /></td>
-              <td>{p.status === "EXPECTED" && <button className="btn text" disabled={busy} onClick={() => cancelReservation(p.tracking_no)}>{t("parcel.cancelReservation")}</button>}</td></tr>
+              <td>{p.status === "EXPECTED" && <button className="btn text" disabled={busy} onClick={() => cancelReservation(p.tracking_no)}>{t("parcel.cancelReservation")}</button>}
+                {p.status !== "EXPECTED" && p.status !== "CANCELLED" && <button className="btn text" onClick={() => setFollowing(p.tracking_no)}><Icon name="route" />{t("parcel.journey.follow")}</button>}</td></tr>
           ))}</tbody></table></div>
         )}</Loaded>
       </section>
+      {following && <JourneyView trackingNo={following} onClose={() => setFollowing(null)} />}
     </div>
   );
 }

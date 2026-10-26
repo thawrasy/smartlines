@@ -1430,5 +1430,26 @@
     "LPG": "LPG",
     "CNG": "CNG",
     "ADBLUE": "AdBlue"
+  },
+  "parcel.arrived": {
+    "subject": "Parcel {tracking_no} has arrived at {station}",
+    "body": "Your parcel {tracking_no} for {recipient_name} has arrived at {station} with {carrier}. The recipient collects it with the code {pickup_code} and an identity document. It waits {days} days; after that it may be sent back.",
+    "sms": "Masslak: parcel {tracking_no} is waiting at {station}. Pickup code {pickup_code}. Bring an identity document."
+  },
+  "parcel.delivered": {
+    "subject": "Parcel {tracking_no} was delivered",
+    "body": "Your parcel {tracking_no} was handed to {delivered_to} at {station} ({method_label})."
+  },
+  "parcel.exception": {
+    "subject": "Parcel {tracking_no}: {kind_label}",
+    "body": "Your parcel {tracking_no} for {recipient_name} was recorded as {kind_label} by {carrier}: {note}. The carrier will contact you about what happens next."
+  },
+  "parcel_labels": {
+    "OTP": "with the pickup code",
+    "ID": "after an identity check",
+    "DAMAGED": "damaged",
+    "MISSING": "missing",
+    "REFUSED": "refused by the recipient",
+    "UNCLAIMED": "not collected"
   }
 }

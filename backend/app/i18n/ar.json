@@ -1430,5 +1430,26 @@
     "LPG": "غاز مسال",
     "CNG": "غاز طبيعي مضغوط",
     "ADBLUE": "أدبلو"
+  },
+  "parcel.arrived": {
+    "subject": "وصل الطرد {tracking_no} إلى {station}",
+    "body": "وصل طردك {tracking_no} المرسل إلى {recipient_name} إلى {station} مع {carrier}. يستلمه المستلم بالرمز {pickup_code} مع وثيقة إثبات شخصية. يبقى في الانتظار {days} أيام، ويجوز بعدها إعادته.",
+    "sms": "مسلك: الطرد {tracking_no} بانتظارك في {station}. رمز الاستلام {pickup_code}. أحضر وثيقة إثبات شخصية."
+  },
+  "parcel.delivered": {
+    "subject": "سُلّم الطرد {tracking_no}",
+    "body": "سُلّم طردك {tracking_no} إلى {delivered_to} في {station} ({method_label})."
+  },
+  "parcel.exception": {
+    "subject": "الطرد {tracking_no}: {kind_label}",
+    "body": "سجّل {carrier} طردك {tracking_no} المرسل إلى {recipient_name} على أنه {kind_label}: {note}. سيتواصل معك الناقل بشأن الخطوة التالية."
+  },
+  "parcel_labels": {
+    "OTP": "برمز الاستلام",
+    "ID": "بعد التحقق من الهوية",
+    "DAMAGED": "تالف",
+    "MISSING": "مفقود",
+    "REFUSED": "رفضه المستلم",
+    "UNCLAIMED": "لم يُستلم"
   }
 }

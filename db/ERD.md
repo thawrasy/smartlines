@@ -145,7 +145,7 @@ flowchart LR
   ship -->|4| fin
   ship -->|3| fleet
   ship -->|1| frt
-  ship -->|41| iam
+  ship -->|44| iam
   ship -->|12| net
   ship -->|5| ops
   ship -->|2| ref
@@ -5384,6 +5384,9 @@ erDiagram
     bigint tariff_id FK
     bigint drop_point_id FK
     bigint handed_over_by FK
+    bigint loaded_by FK
+    bigint arrived_by FK
+    bigint delivered_by FK
   }
   ship_shipment_leg {
     bigint id PK
@@ -5520,6 +5523,9 @@ erDiagram
   ship_parcel_offer }o..o| iam_app_user : "requester_user_id"
   ship_parcel_offer }o..o| iam_app_user : "offered_by"
   ship_shipment }o..o| iam_app_user : "handed_over_by"
+  ship_shipment }o..o| iam_app_user : "loaded_by"
+  ship_shipment }o..o| iam_app_user : "arrived_by"
+  ship_shipment }o..o| iam_app_user : "delivered_by"
   ship_parcel_carrier }o--|| iam_company : "company_id"
   ship_rate_table }o..o| iam_company : "company_id"
   ship_cargo_rate_card }o--|| iam_company : "company_id"

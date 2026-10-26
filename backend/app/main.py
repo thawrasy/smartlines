@@ -60,6 +60,7 @@ from .modules.loyalty import admin as loyalty_admin
 from .modules.loyalty import api as loyalty_api
 from .modules.loyalty import miles as loyalty_miles
 from .modules.parcels import api as parcels_api
+from .modules.parcels import journey as parcel_journey
 from .modules.parcels import trip_api as trip_parcels
 from .modules.trips import api as trip_changes
 from .modules.seo import pages as seo_pages
@@ -168,7 +169,7 @@ for r in (metrics.router, auth.router, public.router, bookings.router, wallet.ro
           account_api.router, account_api.platform, people_api.router, registry_api.router, registry_api.platform, registry_api.vehicle_router, registry_api.vehicle_platform, modular_api.router, modular_workflows.router, reports_api.router, payments_api.router,
           integration_console.router, integration_v1.router, family_api.router, photo_api.platform, boarding_api.platform, boarding_api.carrier, boarding_api.station_operators, boarding_api.station,
           manifests_api.carrier, manifests_api.platform,
-          support_api.router, support_api.admin, cash_api.router, payment_activation.router, seo_pages.router, parcels_api.customer, parcels_api.carrier, trip_parcels.customer, trip_parcels.carrier, trip_parcels.platform,
+          support_api.router, support_api.admin, cash_api.router, payment_activation.router, seo_pages.router, parcels_api.customer, parcels_api.carrier, parcel_journey.customer, parcel_journey.carrier, trip_parcels.customer, trip_parcels.carrier, trip_parcels.platform,
           loyalty_api.router, loyalty_admin.router, loyalty_miles.public, loyalty_miles.platform, station_sales.router, boarding_screens.platform, boarding_screens.carrier,
           boarding_screens.public, boarding_bays.station, boarding_bays.platform,
           boarding_displays.station, boarding_displays.platform, boarding_displays.public, boarding_hubs.station, boarding_hubs.platform, boarding_hubs.hub, schedules_api.carrier, schedules_api.platform, schedule_numbers.carrier, schedule_numbers.platform,

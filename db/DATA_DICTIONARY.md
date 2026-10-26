@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**637 tables, 6999 columns, in 26 schemas.**
+**637 tables, 7010 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -9585,6 +9585,17 @@ A consignment from sender to receiver, independent of the vehicles that carry it
 | `sold_at_counter` | `boolean` | ✱ | `false` |
 | `sender_name` | `text` |  |  |
 | `release_reason` | `text` |  |  |
+| `loaded_at` | `timestamp with time zone` |  |  |
+| `loaded_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `arrived_at` | `timestamp with time zone` |  |  |
+| `arrived_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `pickup_code_hash` | `bytea` |  |  |
+| `pickup_code_tries` | `smallint` | ✱ | `0` |
+| `delivered_at` | `timestamp with time zone` |  |  |
+| `delivered_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `exception_kind` | `text` |  |  |
+| `exception_note` | `text` |  |  |
+| `returned_at` | `timestamp with time zone` |  |  |
 
 ### `ship.shipment_leg` 🛡️
 

@@ -5579,6 +5579,19 @@ SELECT pg_temp.expect_error(format($q$SELECT ptn.fuel_identify(%L, sha256('tag-1
 SELECT sys.set_context(:ua, :fco, 'COMPANY');
 SELECT pg_temp.expect_error(format($q$SELECT ptn.fuel_identify(%L, NULL, NULL, %L, NULL)$q$, :'fstu', :'fcno'),
   'NOT_STATION_STAFF', 'Fuel (1180): only the station''s attendants work at its pumps');
+-- a parcel's journey after hand-over (1182): its steps keep their order and the pickup code is only a hash
+SELECT pg_temp.ok((SELECT convalidated FROM pg_constraint WHERE conname = 'shipment_journey_ck' AND conrelid = 'ship.shipment'::regclass),
+  'Parcels (1182): the journey''s order is a validated check on the shipment');
+SELECT pg_temp.ok((SELECT pg_get_constraintdef(oid) LIKE '%arrived_at IS NULL) OR (loaded_at IS NOT NULL%'
+                     AND pg_get_constraintdef(oid) LIKE '%delivered_at IS NULL) OR (returned_at IS NULL%'
+                     AND pg_get_constraintdef(oid) LIKE '%pickup_code_hash IS NOT NULL%'
+                     FROM pg_constraint WHERE conname = 'shipment_journey_ck'),
+  'Parcels (1182): no arrival before loading, never both delivered and returned, an arrived parcel holds its code''s hash');
+SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'ship' AND table_name = 'shipment'
+                                AND column_name IN ('pickup_code', 'pickup_pin')),
+  'Parcels (1182): the pickup code itself is never a column');
+SELECT pg_temp.ok((SELECT value ? 'unclaimed_days' AND value ? 'pickup_code_tries' FROM sys.setting WHERE key = 'parcels.policy'),
+  'Parcels (1182): the policy holds the days a parcel waits and the wrong codes allowed');
 ROLLBACK;
 SET ROLE masslak_app;
 

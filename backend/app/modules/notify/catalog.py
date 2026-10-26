@@ -50,6 +50,25 @@ async def default_locale(conn) -> str:
     return await conn.fetchval("SELECT coalesce((SELECT value #>> '{}' FROM sys.setting WHERE key = 'ui.default_locale'), 'en')")
 
 
+async def _parcel(conn, kind: str, payload: dict) -> list[Delivery]:
+    """The sender's account hears of each step. On arrival the recipient's mobile is texted the pickup code too: the code
+    is drawn again here from the parcel and the moment it arrived, so it never sits in the outbox."""
+    values = dict(payload)
+    if kind == "parcel.arrived":
+        from ..parcels.journey import pickup_code
+        values["pickup_code"] = pickup_code(payload["tracking_no"], payload["arrived_at"])
+    out: list[Delivery] = []
+    uid = await conn.fetchval("SELECT id FROM iam.app_user WHERE party_id = $1 AND status = 'ACTIVE' ORDER BY id LIMIT 1",
+                              payload.get("shipper_party_id"))
+    if uid is not None:
+        d = await _user(conn, uid, kind, ["IN_APP", "EMAIL"], values)
+        if d:
+            out.append(d)
+    if kind == "parcel.arrived" and payload.get("recipient_mobile"):
+        out.append(Delivery(kind, ["SMS"], await default_locale(conn), mobile=payload["recipient_mobile"], values=values))
+    return out
+
+
 async def deliveries(conn: asyncpg.Connection, event: asyncpg.Record, payload: dict) -> list[Delivery]:
     kind = event["event_type"]
     if kind in ("booking.confirmed", "booking.cancelled", "booking.reserved", "booking.cancelled_by_carrier"):
@@ -84,6 +103,8 @@ async def deliveries(conn: asyncpg.Connection, event: asyncpg.Record, payload: d
         if event["company_id"] is not None:
             return await _owners(conn, event["company_id"], kind, payload)
         return await _platform_staff(conn, "boarding.manage", kind, ["IN_APP", "EMAIL"], payload)
+    if kind in ("parcel.arrived", "parcel.delivered", "parcel.exception"):   # a parcel's journey (1182): its sender, and
+        return await _parcel(conn, kind, payload)                            # the recipient's mobile when it arrives
     if kind == "fuel.filled":           # a vehicle filled at a fuel station (1180): the owners of the company holding the account
         return await _owners(conn, event["company_id"], kind, payload)
     if kind == "sos.raised":            # an emergency on a trip (1101): the carrier's owners and the platform's security staff

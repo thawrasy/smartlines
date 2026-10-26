@@ -5,6 +5,7 @@ import { PageHead } from "../../components/layout";
 import { ErrorBox, Field, Icon, Loaded, Modal, Status, useLoad, useToast } from "../../components/ui";
 import { useAuth } from "../../auth";
 import { CounterParcel, ParcelAwaiting, ParcelPoints, ParcelSettings } from "./ParcelDesk";
+import { ParcelScan, ParcelWaiting } from "./ParcelJourney";
 
 type Mode = "WEIGHT" | "VOLUME" | "WEIGHT_AND_VOLUME" | "FIXED" | "NEGOTIATED";
 interface Tariff { uid: string; code: string; name: string; pricing_mode: Mode; currency: string; base_price: number; per_kg: number | null;
@@ -14,14 +15,16 @@ interface Offer { uid: string; status: string; trip_no: string; tariff_name: str
 const MODES: Mode[] = ["WEIGHT", "VOLUME", "WEIGHT_AND_VOLUME", "FIXED", "NEGOTIATED"];
 const BLANK = { code: "", name: "", pricing_mode: "WEIGHT" as Mode, currency: "SYP", base_price: 0, per_kg: "", per_m3: "", fixed_price: "", min_charge: 0, max_weight_kg: "" };
 
-type Tab = "counter" | "awaiting" | "tariffs" | "settings" | "points";
+type Tab = "counter" | "awaiting" | "scan" | "waiting" | "tariffs" | "settings" | "points";
 
-/** The carrier's parcel desk (1147): the counter, parcels awaiting hand-over, tariffs and agreed prices, its choices
- *  and its drop-off points. */
+/** The carrier's parcel desk (1147): the counter, parcels awaiting hand-over, on board and arrived, parcels waiting for
+ *  their recipients (1182), tariffs and agreed prices, its choices and its drop-off points. */
 export default function CarrierParcels() {
   const { t } = useI18n();
   const { can } = useAuth();
-  const tabs: Tab[] = [...(can("parcels.counter") ? ["counter", "awaiting"] as Tab[] : []), "tariffs", "settings", "points"];
+  const staff = can("parcels.counter") || can("shipping.operate");
+  const tabs: Tab[] = [...(can("parcels.counter") ? ["counter", "awaiting"] as Tab[] : []), ...(staff ? ["scan", "waiting"] as Tab[] : []),
+    "tariffs", "settings", "points"];
   const [tab, setTab] = useState<Tab>(tabs[0]);
   return (
     <div className="stack">
@@ -31,6 +34,8 @@ export default function CarrierParcels() {
       </div>
       {tab === "counter" && <CounterParcel />}
       {tab === "awaiting" && <ParcelAwaiting />}
+      {tab === "scan" && <ParcelScan />}
+      {tab === "waiting" && <ParcelWaiting />}
       {tab === "tariffs" && <Tariffs />}
       {tab === "settings" && <ParcelSettings />}
       {tab === "points" && <ParcelPoints />}

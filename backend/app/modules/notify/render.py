@@ -60,6 +60,10 @@ def render(template: str, channel: str, locale: str, values: dict) -> tuple[str,
         vals["fuel_type"] = lab.get(str(values.get("fuel_type")), values.get("fuel_type"))
         vals["held_note"] = " ".join(x for x in (lab.get("HELD", "") if values.get("held") else "",
                                                  lab.get("LOW_BALANCE", "") if values.get("low_balance") else "") if x)
+    if template.startswith("parcel."):                       # a parcel's journey (1182): how it was handed over, what went wrong
+        lab = words.get("parcel_labels", {})
+        vals["method_label"] = lab.get(str(values.get("method")), values.get("method", ""))
+        vals["kind_label"] = lab.get(str(values.get("kind")), values.get("kind", ""))
     if vals.get("trip_code") is None and "trip_no" in vals:   # the trip number passengers read (1114), else the reference
         vals["trip_code"] = vals["trip_no"]
     def fill(s: str) -> str:
