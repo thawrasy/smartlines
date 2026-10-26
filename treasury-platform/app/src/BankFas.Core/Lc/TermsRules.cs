@@ -119,7 +119,7 @@ public static class TermsRules
                 E("V-LCT-07", "toleranceMode", "Without a tolerance the percentages are zero.");
                 break;
             case "ABOUT" when f.TolerancePlusPct != 10 || f.ToleranceMinusPct != 10:
-                E("V-LCT-07", "toleranceMode", "\"About\" is plus or minus 10 percent (UCP 600 article 30).");
+                E("V-LCT-07", "toleranceMode", "\"About\" is plus or minus 10 percent.");
                 break;
             case "PLUS_MINUS":
                 if (f.TolerancePlusPct is < 0 or > 100 || f.ToleranceMinusPct is < 0 or > 100) E("V-LCT-07", "tolerancePlusPct", "A tolerance is from 0 to 100 percent.");
@@ -144,22 +144,22 @@ public static class TermsRules
         if (!Bic(f.ConfirmingBankBic)) E("V-LCT-20", "confirmingBankBic", "A BIC is 8 or 11 capital letters and digits.");
         // UCP 600 article 28 (f) (ii): the cover is at least 110 percent of the CIF or CIP value unless the credit states otherwise.
         if (f.InsuranceResponsibility != "NOT_REQUIRED_BY_TERMS" && f.InsuranceMinPct is { } ins && ins < 110)
-            W("V-LCT-UCP28", "insuranceMinPct", "An insurance cover below 110 percent of the CIF or CIP value departs from UCP 600 article 28 (f) (ii); state it in the credit.");
+            W("V-LCT-UCP28", "insuranceMinPct", "An insurance cover below 110 percent of the CIF or CIP value is below the usual minimum; state it in the credit.");
         // Under CIF and CIP the seller insures: the beneficiary, with an insurance document among those required (article 28, BR-LCT-010).
         if (f.IncotermCode is "CIF" or "CIP")
         {
-            if (!f.HasInsuranceDocument) W("V-LCT-UCP28", "documents", "A CIF or CIP credit asks for an insurance document (UCP 600 article 28).");
+            if (!f.HasInsuranceDocument) W("V-LCT-UCP28", "documents", "A CIF or CIP credit asks for an insurance document.");
             if (f.InsuranceResponsibility is not null and not "BENEFICIARY") W("V-LCT-UCP28", "insuranceResponsibility", "Under CIF or CIP the beneficiary insures the goods.");
         }
         // UCP 600 articles 31 and 32: shipment by instalments is shipment in parts, so it needs partial shipments allowed.
         if (!string.IsNullOrWhiteSpace(f.InstallmentShipments) && f.PartialShipments == "NOT_ALLOWED")
-            E("V-LCT-UCP32", "partialShipments", "Instalment shipments need partial shipments allowed (UCP 600 articles 31 and 32).");
+            E("V-LCT-UCP32", "partialShipments", "Instalment shipments need partial shipments allowed.");
         // UCP 600 article 29 (a) and (c): an expiry on a day the bank is closed moves to the next banking day; the latest shipment does not.
         if (f.ExpiryOnNonWorkingDay)
-            W("V-LCT-UCP29", "expiryDate", "The expiry falls on a non-working day: under UCP 600 article 29 (a) it moves to the next banking day, but the latest shipment date does not (29 c).");
+            W("V-LCT-UCP29", "expiryDate", "The expiry falls on a non-working day: it moves to the next banking day, but the latest shipment date does not.");
         // UCP 600 articles 19 (c), 20 (c), 23 (c) and 24 (e): a transport document may show transhipment even when the credit forbids it.
         if (f.Transhipment == "NOT_ALLOWED" && f.TransportMode is "SEA" or "AIR" or "MULTIMODAL" or "ROAD" or "RAIL")
-            W("V-LCT-UCP20", "transhipment", "Under UCP 600 articles 19 to 24 a transport document showing transhipment is still acceptable in the cases they list (one document covering the whole carriage, or goods in containers), even when the credit forbids it.");
+            W("V-LCT-UCP20", "transhipment", "A transport document showing transhipment may still be accepted (one document covering the whole carriage, or goods in containers), even when the credit forbids it.");
 
         // BR-LCT-015: a debit of the full value means a margin of 100 percent.
         if (f.DebitAuthorization == "FULL_LC_VALUE" && f.MarginPct is not 100) E("BR-LCT-015", "marginPct", "A debit of the full value takes a margin of 100 percent.");

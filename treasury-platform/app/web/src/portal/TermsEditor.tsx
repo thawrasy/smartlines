@@ -17,57 +17,52 @@ type Terms = {
 };
 const str = (v: unknown) => v == null ? '' : String(v);
 
-type Def = { key: string; label: string; type?: 'text' | 'number' | 'date'; options?: string[] };
+// tag: the field of the SWIFT MT700 message the term goes into (shown beside it); a term with none is not a field of its own.
+type Def = { key: string; label: string; type?: 'text' | 'number' | 'date'; options?: string[]; tag?: string };
 const FIELDS: Def[] = [
-  { key: 'lcType', label: 'Type of credit', options: ['SIGHT', 'DEFERRED_PAYMENT', 'ACCEPTANCE', 'NEGOTIATION', 'MIXED'] },
-  { key: 'deferralDays', label: 'Deferral days', type: 'number' },
-  { key: 'maturityBasis', label: 'Tenor runs from', options: ['SHIPMENT_DATE', 'DELIVERY_NOTE_DATE', 'INVOICE_DATE', 'DOCUMENTS_RECEIPT_DATE', 'ACCEPTANCE_DATE'] },
-  { key: 'availableWith', label: 'Available with', options: ['ADVISING_BANK', 'ISSUING_BANK', 'ANY_BANK', 'NOMINATED_BANK'] },
-  { key: 'confirmation', label: 'Confirmation', options: ['WITHOUT', 'MAY_ADD', 'CONFIRMED'] },
+  { key: 'lcType', label: 'Type of credit', options: ['SIGHT', 'DEFERRED_PAYMENT', 'ACCEPTANCE', 'NEGOTIATION', 'MIXED'], tag: '41a' },
+  { key: 'deferralDays', label: 'Deferral days', type: 'number', tag: '42P' },
+  { key: 'maturityBasis', label: 'Tenor runs from', options: ['SHIPMENT_DATE', 'DELIVERY_NOTE_DATE', 'INVOICE_DATE', 'DOCUMENTS_RECEIPT_DATE', 'ACCEPTANCE_DATE'], tag: '42P' },
+  { key: 'availableWith', label: 'Available with', options: ['ADVISING_BANK', 'ISSUING_BANK', 'ANY_BANK', 'NOMINATED_BANK'], tag: '41a' },
+  { key: 'confirmation', label: 'Confirmation', options: ['WITHOUT', 'MAY_ADD', 'CONFIRMED'], tag: '49' },
   { key: 'advisingBankName', label: 'Advising bank' },
   { key: 'advisingBankAddress', label: 'Advising bank address' },
   { key: 'advisingBankBic', label: 'Advising bank BIC' },
-  { key: 'currencyId', label: 'Currency' },
-  { key: 'amount', label: 'Amount', type: 'number' },
-  { key: 'toleranceMode', label: 'Tolerance', options: ['NONE', 'ABOUT', 'PLUS_MINUS'] },
-  { key: 'tolerancePlusPct', label: 'Plus tolerance %', type: 'number' },
-  { key: 'toleranceMinusPct', label: 'Minus tolerance %', type: 'number' },
-  { key: 'expiryRule', label: 'Expiry', options: ['ABSOLUTE', 'DAYS_AFTER_ISSUE'] },
-  { key: 'expiryDate', label: 'Expiry date', type: 'date' },
-  { key: 'expiryDaysAfterIssue', label: 'Days from issue to expiry', type: 'number' },
-  { key: 'expiryPlace', label: 'Place of expiry' },
-  { key: 'latestShipmentRule', label: 'Latest shipment', options: ['ABSOLUTE', 'DAYS_AFTER_ISSUE'] },
-  { key: 'latestShipmentDate', label: 'Latest shipment date', type: 'date' },
-  { key: 'presentationDays', label: 'Presentation days', type: 'number' },
-  { key: 'presentationBasis', label: 'Presentation from', options: ['SHIPMENT_DATE', 'DELIVERY_NOTE_DATE', 'INVOICE_DATE'] },
-  { key: 'partialShipments', label: 'Partial shipments', options: ['ALLOWED', 'NOT_ALLOWED'] },
-  { key: 'transhipment', label: 'Transhipment', options: ['ALLOWED', 'NOT_ALLOWED', 'NOT_APPLICABLE'] },
+  { key: 'currencyId', label: 'Currency', tag: '32B' },
+  { key: 'amount', label: 'Amount', type: 'number', tag: '32B' },
+  { key: 'toleranceMode', label: 'Tolerance', options: ['NONE', 'ABOUT', 'PLUS_MINUS'], tag: '39A' },
+  { key: 'tolerancePlusPct', label: 'Plus tolerance %', type: 'number', tag: '39A' },
+  { key: 'toleranceMinusPct', label: 'Minus tolerance %', type: 'number', tag: '39A' },
+  { key: 'expiryRule', label: 'Expiry', options: ['ABSOLUTE', 'DAYS_AFTER_ISSUE'], tag: '31D' },
+  { key: 'expiryDate', label: 'Expiry date', type: 'date', tag: '31D' },
+  { key: 'expiryDaysAfterIssue', label: 'Days from issue to expiry', type: 'number', tag: '31D' },
+  { key: 'expiryPlace', label: 'Place of expiry', tag: '31D' },
+  { key: 'latestShipmentRule', label: 'Latest shipment', options: ['ABSOLUTE', 'DAYS_AFTER_ISSUE'], tag: '44C' },
+  { key: 'latestShipmentDate', label: 'Latest shipment date', type: 'date', tag: '44C' },
+  { key: 'presentationDays', label: 'Presentation days', type: 'number', tag: '48' },
+  { key: 'presentationBasis', label: 'Presentation from', options: ['SHIPMENT_DATE', 'DELIVERY_NOTE_DATE', 'INVOICE_DATE'], tag: '48' },
+  { key: 'partialShipments', label: 'Partial shipments', options: ['ALLOWED', 'NOT_ALLOWED'], tag: '43P' },
+  { key: 'transhipment', label: 'Transhipment', options: ['ALLOWED', 'NOT_ALLOWED', 'NOT_APPLICABLE'], tag: '43T' },
   { key: 'transportMode', label: 'Transport', options: ['SEA', 'AIR', 'ROAD', 'RAIL', 'COURIER', 'MULTIMODAL', 'DOMESTIC_DELIVERY'] },
-  { key: 'portOfLoading', label: 'Port of loading' },
-  { key: 'portOfDischarge', label: 'Port of discharge' },
-  { key: 'incotermId', label: 'Incoterm' },
-  { key: 'incotermPlace', label: 'Incoterm place' },
-  { key: 'goodsDescription', label: 'Goods' },
+  { key: 'portOfLoading', label: 'Port of loading', tag: '44E' },
+  { key: 'portOfDischarge', label: 'Port of discharge', tag: '44F' },
+  { key: 'incotermId', label: 'Incoterm', tag: '45A' },
+  { key: 'incotermPlace', label: 'Incoterm place', tag: '45A' },
+  { key: 'goodsDescription', label: 'Goods', tag: '45A' },
   { key: 'insuranceResponsibility', label: 'Insurance by', options: ['APPLICANT', 'BENEFICIARY', 'NOT_REQUIRED_BY_TERMS'] },
   { key: 'lcTextLanguage', label: 'Language of the credit', options: ['EN', 'AR', 'BOTH'] },
 ];
 
-type UcpRef = { article: string; paragraph: string | null; titleAr: string; titleEn: string; verified: boolean };
-type UcpMap = { fields: Record<string, UcpRef[]>; clauses: Record<string, UcpRef[]> };
-
-/** The UCP 600 articles a field or a document refers to (FR-LCT-005, docs/60), each with its title on hover. */
-function Ucp({ refs }: { refs?: UcpRef[] }) {
-  const { t, lang } = useI18n();
-  if (!refs || refs.length === 0) return null;
-  return (
-    <small className="ucp-ref">
-      UCP 600:{' '}
-      {refs.map((r, i) => <span key={i} title={(lang === 'ar' ? r.titleAr : r.titleEn) + (r.verified ? '' : ` · ${t('Not verified against the ICC text')}`)}>
-        {i > 0 && ' · '}{t('Art.')} {r.article}{r.paragraph ? ` (${r.paragraph})` : ''}{r.verified ? '' : '*'}
-      </span>)}
-    </small>
-  );
+/** The SWIFT MT700 field of a term (the owner's choice: the code alone, as on the bank's copy of the message). 42C for an
+ * acceptance credit's drafts, 42P otherwise. */
+function Tag({ tag, lcType }: { tag?: string; lcType?: string }) {
+  if (!tag) return null;
+  return <small className="swift-tag" dir="ltr">{tag === '42P' && lcType === 'ACCEPTANCE' ? '42C' : tag}</small>;
 }
+
+/** A sight credit is paid at sight: no deferral, so its days and the date they run from are not asked (V-LCT-06). */
+const DEFERRAL = new Set(['deferralDays', 'maturityBasis']);
+const hasDeferral = (lcType: string | undefined) => lcType === 'DEFERRED_PAYMENT' || lcType === 'ACCEPTANCE' || lcType === 'MIXED';
 
 export function TermsEditor() {
   const { id } = useParams();
@@ -75,7 +70,6 @@ export function TermsEditor() {
   const [terms, setTerms] = useState<Terms | null>(null);
   const [edit, setEdit] = useState<Record<string, string>>({});
   const [clauses, setClauses] = useState<Row[]>([]);
-  const [ucp, setUcp] = useState<UcpMap>({ fields: {}, clauses: {} });
   const [docs, setDocs] = useState<{ clause: string; originals: string; copies: string }[]>([]);
   const [suppliers, setSuppliers] = useState<Row[]>([]);
   const [q, setQ] = useState('');
@@ -92,7 +86,6 @@ export function TermsEditor() {
   }, [id]);
   useEffect(() => { void load().catch(e => setError(message(e))); }, [load]);
   useEffect(() => { api<{ items: Row[] }>('GET', '/document-clauses').then(r => setClauses(r.items)).catch(() => setClauses([])); }, []);
-  useEffect(() => { api<UcpMap>('GET', '/lc/ucp-references').then(setUcp).catch(() => setUcp({ fields: {}, clauses: {} })); }, []);
   useEffect(() => {
     api<{ items: Row[] }>('GET', `/counterparties?kind=SUPPLIER${q ? `&q=${encodeURIComponent(q)}` : ''}`).then(r => setSuppliers(r.items)).catch(() => setSuppliers([]));
   }, [q]);
@@ -109,7 +102,7 @@ export function TermsEditor() {
     const before = terms.fields ?? {};
     const changed: Record<string, unknown> = {};
     for (const d of FIELDS) {
-      const v = edit[d.key] ?? '';
+      const v = DEFERRAL.has(d.key) && !hasDeferral(edit.lcType) ? '' : edit[d.key] ?? '';
       if (v === str(before[d.key]).slice(0, d.type === 'date' ? 10 : undefined)) continue;
       changed[d.key] = v === '' ? null : d.type === 'number' ? Number(v) : v;
     }
@@ -126,16 +119,17 @@ export function TermsEditor() {
       {terms.beneficiaryIban && <p>{t("Beneficiary's IBAN")}: <span dir="ltr">{terms.beneficiaryIban}</span></p>}
       <Notice error={error} ok={ok} />
       {terms.exposureAmount != null && <p>{t('Exposure')}: <span dir="ltr">{terms.exposureAmount.toLocaleString('en-US')}</span></p>}
-      <p className="muted"><small>{t('Beside each field and document: the UCP 600 articles it refers to. An article marked * is not yet verified against the ICC text.')}</small></p>
+      <p className="muted"><small>{t('Beside each term: its field in the SWIFT MT700 message.')}</small></p>
       <h2>{t('Checks')}</h2>
       <Table rows={(terms.findings ?? []) as unknown as Row[]} empty="No finding." columns={[
         { header: 'Severity', cell: r => r.severity === 'E' ? <strong>{t('Error')}</strong> : t('Warning') },
-        { header: 'Field', cell: r => str(r.field) }, { header: 'Finding', cell: r => t(str(r.message)) },
+        { header: 'Field', cell: r => { const d = FIELDS.find(x => x.key === r.field); return d ? <>{t(d.label)} <Tag tag={d.tag} lcType={edit.lcType} /></> : str(r.field); } },
+        { header: 'Finding', cell: r => t(str(r.message)) },
       ]} />
       {editable ? (
         <>
           {sales ? <p>{t('Applicant')}: {str(terms.fields?.applicantName)}</p> : <>
-          <Form title="Beneficiary" submit="Choose" onSubmit={() => run(() => api('PUT', `/requests/${id}/terms`, { fields: { beneficiary: edit.beneficiary } }), 'The terms are saved.')}>
+          <Form title="Beneficiary · 59" submit="Choose" onSubmit={() => run(() => api('PUT', `/requests/${id}/terms`, { fields: { beneficiary: edit.beneficiary } }), 'The terms are saved.')}>
             <Field label="Find a supplier" value={q} onChange={setQ} required={false} />
             <Select label="Supplier" value={edit.beneficiary ?? ''} onChange={v => setEdit({ ...edit, beneficiary: v })}
               options={[{ value: '', label: t('Choose') }, ...suppliers.map(s => ({ value: str(s.id), label: `${lang === 'ar' ? str(s.nameAr ?? s.nameEn) : str(s.nameEn)} (${str(s.country)})` }))]} />
@@ -145,15 +139,15 @@ export function TermsEditor() {
           </Form>
           </>}
           <Form title="Terms" submit="Save" onSubmit={save}>
-            {FIELDS.map(d => <div key={d.key} className="with-ucp">
+            {FIELDS.filter(d => !DEFERRAL.has(d.key) || hasDeferral(edit.lcType)).map(d => <div key={d.key} className="with-tag">
               {d.options
                 ? <Select label={d.label} value={edit[d.key] ?? ''} onChange={v => setEdit({ ...edit, [d.key]: v })}
                     options={[{ value: '', label: '—' }, ...d.options.map(o => ({ value: o, label: t(o) }))]} />
                 : <Field label={d.label} type={d.type ?? 'text'} value={edit[d.key] ?? ''} onChange={v => setEdit({ ...edit, [d.key]: v })} required={false} />}
-              <Ucp refs={ucp.fields[d.key]} />
+              <Tag tag={d.tag} lcType={edit.lcType} />
             </div>)}
           </Form>
-          <Form title="Documents required" submit="Save the documents" onSubmit={() => run(() => api('PUT', `/requests/${id}/terms/documents`,
+          <Form title="Documents required · 46A" submit="Save the documents" onSubmit={() => run(() => api('PUT', `/requests/${id}/terms/documents`,
             docs.filter(d => d.clause).map(d => ({ clause: d.clause, originals: Number(d.originals || 0), copies: Number(d.copies || 0) }))), 'The documents are saved.')}>
             {docs.map((d, i) => (
               <div className="row" key={i}>
@@ -161,19 +155,18 @@ export function TermsEditor() {
                   options={[{ value: '', label: t('Choose') }, ...clauses.map(c => ({ value: str(c.code), label: lang === 'ar' ? str(c.nameAr ?? c.nameEn) : str(c.nameEn) }))]} />
                 <Field label="Originals" type="number" value={d.originals} onChange={v => setDocs(docs.map((x, j) => j === i ? { ...x, originals: v } : x))} />
                 <Field label="Copies" type="number" value={d.copies} onChange={v => setDocs(docs.map((x, j) => j === i ? { ...x, copies: v } : x))} />
-                <Ucp refs={ucp.clauses[d.clause]} />
               </div>
             ))}
             <button type="button" onClick={() => setDocs([...docs, { clause: '', originals: '1', copies: '1' }])}>{t('Add a document')}</button>
           </Form>
-          <Form title="Charges" submit="Apply the preset" onSubmit={() => run(() => api('PUT', `/requests/${id}/terms/charges`, { preset }), 'The charges are set.')}>
+          <Form title="Charges · 71D" submit="Apply the preset" onSubmit={() => run(() => api('PUT', `/requests/${id}/terms/charges`, { preset }), 'The charges are set.')}>
             <Select label="Preset" value={preset} onChange={setPreset} options={['OWN_BANK', 'ALL_APPLICANT', 'ALL_BENEFICIARY', 'SPLIT_50'].map(p => ({ value: p, label: t(`Charges ${p}`) }))} />
           </Form>
         </>
       ) : (
         <Table rows={FIELDS.filter(d => terms.fields?.[d.key] != null).map(d => ({ key: d.key, label: d.label, value: terms.fields?.[d.key] }))} empty="No field." columns={[
           { header: 'Field', cell: r => t(str(r.label)) }, { header: 'Value', cell: r => <span dir="auto">{t(str(r.value))}</span> },
-          { header: 'UCP 600', cell: r => <Ucp refs={ucp.fields[str(r.key)]} /> },
+          { header: 'SWIFT', cell: r => <Tag tag={FIELDS.find(d => d.key === r.key)?.tag} lcType={str(terms.fields?.lcType)} /> },
         ]} />
       )}
       <h2>{t('Charges')}</h2>
