@@ -279,5 +279,101 @@ test('an operator onboards a tenant and its first administrator signs in', async
       await shot(page, name);
     }
     await page.getByRole('button', { name: 'English' }).click();
+
+    // The facilities, for docs/59: a facilities officer creates a facility with one bank, two limits and a product line,
+    // a treasury manager approves it and the officer records a utilisation. The full paths are in FacilityTests and
+    // LimitTests; this runs only for the screenshots.
+    const invite = async (email: string, nameEn: string, role: string) => {
+      await openMenu(page, 'Users');
+      await page.getByLabel(/^E-mail/).fill(email);
+      await page.getByLabel(/^Name \(English\)/).fill(nameEn);
+      await page.getByRole('checkbox', { name: new RegExp(`^${role} · `) }).check();
+      await page.getByRole('button', { name: 'Send the invitation' }).click();
+      await expect(page.getByText('The invitation is on its way.')).toBeVisible();
+      await page.getByRole('link', { name: nameEn }).click();
+      await page.getByRole('button', { name: 'Save scope' }).click();
+      await expect(page.getByText('Sees every company.')).toBeVisible();
+    };
+    const signIn = async (email: string) => {
+      const context = await browser.newContext();
+      const p = await context.newPage();
+      await p.goto(await linkSentTo(mailDir, email, '/invitation', 90_000));
+      const password = `an e2e passphrase for ${email}`;
+      await p.getByLabel(/^New password/).fill(password);
+      await p.getByLabel(/^Repeat the password/).fill(password);
+      await p.getByRole('button', { name: 'Save password' }).click();
+      await p.getByLabel(/^E-mail/).fill(email);
+      await p.getByLabel(/^Password/).fill(password);
+      await p.getByRole('button', { name: 'Sign in' }).click();
+      const auth = new Authenticator(base32Decode(await p.locator('.secret code').innerText()));
+      await p.getByLabel('6-digit code').fill(await auth.next());
+      await p.getByRole('button', { name: 'Confirm' }).click();
+      await p.getByRole('button', { name: 'I have saved them' }).click();
+      await expect(p.getByRole('heading', { name: /^Welcome, / })).toBeVisible();
+      return { context, p };
+    };
+    const foEmail = `fo@${code}.test.invalid`, tmEmailFac = `tm@${code}.test.invalid`;
+    await invite(foEmail, 'Facilities Officer', 'FO');
+    await invite(tmEmailFac, 'Treasury Manager', 'TM');
+    const fo = await signIn(foEmail);
+    await fo.p.goto(`${origin}/facilities`);
+    const form = fo.p.locator('form', { hasText: 'New facility' });
+    await form.getByLabel(/^Total/).fill('10000000');
+    await form.getByLabel(/^Start date/).fill('2026-01-01');
+    await form.getByLabel(/^Expiry date/).fill('2027-12-31');
+    await form.getByLabel(/^Bank reference/).fill('CF-2026-001');
+    await form.getByRole('button', { name: 'Create' }).click();
+    await expect(fo.p).toHaveURL(/\/facilities\/[0-9a-f-]{36}$/);
+    const facilityUrl = fo.p.url();
+    const lender = fo.p.locator('form', { hasText: 'Add a lender' });
+    await lender.getByLabel(/^Bank/).selectOption({ index: 1 });
+    await lender.getByLabel(/^Share/).fill('100');
+    await lender.getByRole('button', { name: 'Add' }).click();
+    await expect(fo.p.getByRole('cell', { name: 'SOLE' }).first()).toBeVisible();
+    const limits = fo.p.locator('section.card', { has: fo.p.getByRole('heading', { name: 'Limits' }) });
+    await limits.getByRole('button', { name: 'Draft', exact: true }).click();
+    const addLimit = async (code: string, type: string, amount: string, parent?: string) => {
+      const f = limits.locator('form', { hasText: 'Add a limit' });
+      await f.getByLabel(/^Code/).fill(code);
+      await f.getByLabel(/^Type/).selectOption(type);
+      if (parent) await f.getByLabel(/^Parent/).selectOption({ label: parent });
+      await f.getByLabel(/^Amount/).fill(amount);
+      await f.getByLabel(/^Source/).fill('Facility offer letter, clause 2');
+      await f.getByRole('button', { name: 'Add' }).click();
+      await expect(limits.getByText(code, { exact: true }).first()).toBeVisible();
+    };
+    await addLimit('TOTAL', 'TOTAL_FACILITY', '10000000');
+    await addLimit('LC', 'DOCUMENTARY_CREDITS', '6000000', 'TOTAL');
+    const line = limits.locator('form', { hasText: 'Add a product line' });
+    await line.getByLabel(/^Limit/).selectOption({ label: 'LC' });
+    await line.getByLabel(/^Line cap/).fill('6000000');
+    await line.getByLabel(/^Source/).fill('Facility offer letter, clause 3');
+    await line.getByRole('button', { name: 'Add' }).click();
+    await fo.p.getByRole('button', { name: 'Submit for approval' }).click();
+    const tm = await signIn(tmEmailFac);
+    await tm.p.goto(facilityUrl);
+    await tm.p.getByRole('button', { name: /^Approve/ }).click();
+    await expect(tm.p.getByText('Not approved yet.')).toHaveCount(0);
+    await tm.context.close();
+    await fo.p.goto(facilityUrl);
+    const use = fo.p.locator('form', { hasText: 'Record a utilisation' });
+    await use.getByLabel(/^Limit/).selectOption({ label: 'LC' });
+    await use.getByLabel(/^Reference/).fill('LC-2026-0001');
+    await use.getByLabel(/^Amount/).fill('1500000');
+    await use.getByRole('button', { name: 'Record' }).click();
+    await expect(fo.p.getByText('LC-2026-0001')).toBeVisible();
+    await fo.p.getByRole('button', { name: 'العربية' }).click();
+    for (const [name, url] of [['40-facilities-list', `${origin}/facilities`], ['41-facility-card', facilityUrl],
+      ['43-tariff-schedules', `${origin}/tariff-schedules`], ['44-collateral', `${origin}/collaterals`], ['45-breaches', `${origin}/breaches`]] as const) {
+      await fo.p.goto(url);
+      await fo.p.getByRole('heading').first().waitFor();
+      await shot(fo.p, name);
+    }
+    // The whole card of the facility, top to bottom.
+    await fo.p.goto(facilityUrl);
+    await fo.p.getByRole('heading').first().waitFor();
+    await fo.p.waitForLoadState('networkidle').catch(() => undefined);
+    await fo.p.screenshot({ path: `${shots}/42-facility-card-full.png`, fullPage: true });
+    await fo.context.close();
   }
 });
