@@ -26,10 +26,11 @@ docker save "bankfas-api:$VERSION" "bankfas-worker:$VERSION" | gzip -6 > "$OUT/b
 COMMIT="$(git rev-parse HEAD)"
 # From the repository root: run in treasury-platform/, git archive would keep only that folder's path inside the tree.
 TOP="$(git rev-parse --show-toplevel)"
-git -C "$TOP" archive --format=tar.gz --prefix="treasury-platform/" -o "$OUT/bankfas-kit-$VERSION.tar.gz" \
+git -C "$TOP" archive --format=tar.gz -o "$OUT/bankfas-kit-$VERSION.tar.gz" \
     "$COMMIT" -- treasury-platform ':(exclude)treasury-platform/docs'
-tar -tzf "$OUT/bankfas-kit-$VERSION.tar.gz" | grep -q '^treasury-platform/tools/deploy/deploy.sh$' || { echo "the install kit has no tools" >&2; exit 1; }
-! tar -tzf "$OUT/bankfas-kit-$VERSION.tar.gz" | grep -q '^treasury-platform/docs/' || { echo "the install kit has the documents" >&2; exit 1; }
+KIT_FILES="$(tar -tzf "$OUT/bankfas-kit-$VERSION.tar.gz")"
+grep -qx 'treasury-platform/tools/deploy/deploy.sh' <<< "$KIT_FILES" || { echo "the install kit has no tools" >&2; exit 1; }
+! grep -q '^treasury-platform/docs/' <<< "$KIT_FILES" || { echo "the install kit has the documents" >&2; exit 1; }
 git -C "$TOP" archive --format=tar.gz --prefix="bankfas-docs-$VERSION/" -o "$OUT/bankfas-docs-$VERSION.tar.gz" "$COMMIT:treasury-platform/docs"
 # The install guide and the notes are written for the release they ship with: their commands name this version's files.
 for d in docs/57-release.md docs/62-private-trial-by-ip.md; do
