@@ -20,6 +20,12 @@ trap 'rm -rf "$TMP"' EXIT
 export SQL_SERVER SQLCMD BANKFAS_MIGRATIONS="$TMP/migrations" BANKFAS_CHANGE_REF=CI-migration
 mkdir "$BANKFAS_MIGRATIONS"
 SA_PW="$SQLCMDPASSWORD"
+# The real versioned scripts of db/migrations are in the folder too, as deploy.sh journaled them at the baseline; the
+# probes of this check are numbered after them, from V9000 on. RJ is the real ones' part of a journal, NR their count.
+cp "$ROOT"/db/migrations/V*.sql "$BANKFAS_MIGRATIONS"/ 2>/dev/null || true
+REAL=(); for f in "$BANKFAS_MIGRATIONS"/V*.sql; do [ -e "$f" ] && REAL+=("$(basename "$f" | cut -c1-5)"); done
+NR=${#REAL[@]}; RJ=""; RB=""
+for v in "${REAL[@]}"; do RJ+=",$v"; RB+=",$v:VERSIONED:baseline"; done
 
 val() { "$SQLCMD" -S "$SQL_SERVER" -U sa -C -I -b -d BankFas -h -1 -W -Q "SET NOCOUNT ON; $1" | tr -d '\r' | sed '/^[[:space:]]*$/d' | tail -1; }
 migrate() { SQL_USER=bankfas_migrator SQLCMDPASSWORD="$(cat "$MIGRATOR_SECRET")" bash "$ROOT/tools/deploy/migrate.sh" "$@" > "$TMP/m.out" 2>&1; rc=$?; }
@@ -34,7 +40,7 @@ result() { if [ "$1" = "1" ]; then echo "PASS $2"; else echo "FAIL $2 ($3)"; fi;
 base_fp="$(fp)"
 j="$(journal)"
 jfp="$(val "SELECT CONCAT(MIN(CONVERT(CHAR(64), Fingerprint, 2)), '/', MAX(CONVERT(CHAR(64), Fingerprint, 2)), '/', MIN(ChangeRef)) FROM plat.SchemaMigration;")"
-result "$([ "$j" = "2:BASELINE,R" ] && [ "$jfp" = "$base_fp/$base_fp/CI" ] && echo 1)" \
+result "$([ "$j" = "$((2 + NR)):BASELINE$RJ,R" ] && [ "$jfp" = "$base_fp/$base_fp/CI" ] && echo 1)" \
     "MG1: deploy.sh journals the new database (BASELINE and R) with the schema's fingerprint and its change" "journal $j, fingerprints $jfp, schema $base_fp"
 keep_id="$(val "SELECT MAX(SchemaMigrationId) FROM plat.SchemaMigration;")"
 
@@ -53,19 +59,19 @@ result "$([ "$o1/$s0/$s1/$o2" = "1/1/1/0" ] && echo 1)" \
 # MG2: with nothing pending, apply changes nothing; status reports no problem and exits 0.
 migrate apply; rc1=$rc
 migrate status; rc2=$rc; st="$(cat "$TMP/m.out")"
-result "$([ "$rc1/$rc2" = "0/0" ] && [ "$(journal)" = "2:BASELINE,R" ] && ! grep -q '^problem\|^pending' <<<"$st" && echo 1)" \
+result "$([ "$rc1/$rc2" = "0/0" ] && [ "$(journal)" = "$((2 + NR)):BASELINE$RJ,R" ] && ! grep -q '^problem\|^pending' <<<"$st" && echo 1)" \
     "MG2: apply with nothing pending changes nothing, and status reports no problem" "rc $rc1/$rc2, journal $(journal): $(tr '\n' ' ' <<<"$st" | cut -c1-300)"
 
 # MG3: the repeatable scripts run again on the deployed database, in one transaction, and leave the fingerprint as it
 # was: row filters, grants, procedures and triggers can be brought up to date on any version.
 migrate apply --repeatable; rc1=$rc
 after="$(fp)"
-result "$([ "$rc1" = "0" ] && [ "$after" = "$base_fp" ] && [ "$(journal)" = "3:BASELINE,R,R" ] && echo 1)" \
+result "$([ "$rc1" = "0" ] && [ "$after" = "$base_fp" ] && [ "$(journal)" = "$((3 + NR)):BASELINE$RJ,R,R" ] && echo 1)" \
     "MG3: the repeatable scripts run again on a deployed database and leave its fingerprint unchanged" "rc $rc1, fingerprint $after, journal $(journal): $(tail -5 "$TMP/m.out" | tr '\n' ' ')"
 keep_id="$(val "SELECT MAX(SchemaMigrationId) FROM plat.SchemaMigration;")"
 
 # MG4: a versioned script applies once, with its journal row, and changes the fingerprint; applied again, nothing.
-cat > "$BANKFAS_MIGRATIONS/V0001__probe.sql" <<'SQL'
+cat > "$BANKFAS_MIGRATIONS/V9001__probe.sql" <<'SQL'
 CREATE TABLE plat.MigrationProbe (MigrationProbeId INT NOT NULL CONSTRAINT PK_MigrationProbe PRIMARY KEY);
 GO
 INSERT plat.MigrationProbe (MigrationProbeId) VALUES (1);
@@ -73,38 +79,38 @@ SQL
 migrate apply; rc1=$rc; fp1="$(fp)"; j1="$(journal)"
 migrate apply; rc2=$rc; j2="$(journal)"
 rows="$(val "SELECT COUNT(*) FROM plat.MigrationProbe;")"
-jv="$(val "SELECT CONCAT(Kind, '/', ScriptName, '/', ChangeRef, '/', CASE WHEN Fingerprint = (SELECT Fingerprint FROM plat.fn_SchemaFingerprint()) THEN 'current' END) FROM plat.SchemaMigration WHERE Version = 'V0001';")"
-result "$([ "$rc1" = "0" ] && [ "$rc2" = "0" ] && [ "$fp1" != "$base_fp" ] && [ "$j1" = "5:BASELINE,R,R,V0001,R" ] && [ "$j2" = "$j1" ] && [ "$rows" = "1" ] && [ "$jv" = "VERSIONED/V0001__probe.sql/CI-migration/current" ] && echo 1)" \
+jv="$(val "SELECT CONCAT(Kind, '/', ScriptName, '/', ChangeRef, '/', CASE WHEN Fingerprint = (SELECT Fingerprint FROM plat.fn_SchemaFingerprint()) THEN 'current' END) FROM plat.SchemaMigration WHERE Version = 'V9001';")"
+result "$([ "$rc1" = "0" ] && [ "$rc2" = "0" ] && [ "$fp1" != "$base_fp" ] && [ "$j1" = "$((5 + NR)):BASELINE$RJ,R,R,V9001,R" ] && [ "$j2" = "$j1" ] && [ "$rows" = "1" ] && [ "$jv" = "VERSIONED/V9001__probe.sql/CI-migration/current" ] && echo 1)" \
     "MG4: a versioned script applies once with its journal row and the new fingerprint, then the repeatable scripts" "rc $rc1/$rc2, journal $j1 then $j2, rows $rows, $jv"
 
 # MG9: the last run of the journal is a versioned script (its repeatable run failed before): the next apply runs the
 # repeatable scripts again, though nothing is pending and they did not change (D4).
 val "DELETE FROM plat.SchemaMigration WHERE SchemaMigrationId = (SELECT MAX(SchemaMigrationId) FROM plat.SchemaMigration); SELECT 1;" >/dev/null
 migrate apply; rc1=$rc
-result "$([ "$rc1" = "0" ] && [ "$(journal)" = "5:BASELINE,R,R,V0001,R" ] && grep -q 'ran the repeatable scripts' "$TMP/m.out" && echo 1)" \
+result "$([ "$rc1" = "0" ] && [ "$(journal)" = "$((5 + NR)):BASELINE$RJ,R,R,V9001,R" ] && grep -q 'ran the repeatable scripts' "$TMP/m.out" && echo 1)" \
     "MG9: a repeatable run that failed after a versioned script is taken up again by the next apply" "rc $rc1, journal $(journal)"
 
 # MG5: refused, with nothing changed: an applied script edited or removed, a new script numbered before an applied one,
 # two scripts with one version, a file that is not a versioned script, and a script that ends or opens a transaction or
 # holds a sqlcmd command (D5, B8).
 before="$(journal)"
-echo "-- edited" >> "$BANKFAS_MIGRATIONS/V0001__probe.sql"; migrate apply; e1=$rc; grep -q 'changed after it was applied' "$TMP/m.out" || e1=x
-sed -i '$d' "$BANKFAS_MIGRATIONS/V0001__probe.sql"
-echo "SELECT 1;" > "$BANKFAS_MIGRATIONS/V0000__early.sql"; migrate apply; e2=$rc; grep -q 'sorts before V0001' "$TMP/m.out" || e2=x
-rm "$BANKFAS_MIGRATIONS/V0000__early.sql"
+echo "-- edited" >> "$BANKFAS_MIGRATIONS/V9001__probe.sql"; migrate apply; e1=$rc; grep -q 'changed after it was applied' "$TMP/m.out" || e1=x
+sed -i '$d' "$BANKFAS_MIGRATIONS/V9001__probe.sql"
+echo "SELECT 1;" > "$BANKFAS_MIGRATIONS/V9000__early.sql"; migrate apply; e2=$rc; grep -q 'sorts before V9001' "$TMP/m.out" || e2=x
+rm "$BANKFAS_MIGRATIONS/V9000__early.sql"
 echo "SELECT 1;" > "$BANKFAS_MIGRATIONS/fix.sql"; migrate apply; e3=$rc; grep -q 'is named Vnnnn__description.sql' "$TMP/m.out" || e3=x
 rm "$BANKFAS_MIGRATIONS/fix.sql"
-mv "$BANKFAS_MIGRATIONS/V0001__probe.sql" "$TMP/V0001__probe.sql"; migrate apply; e4=$rc; grep -q 'V0001 is applied but its script is no longer' "$TMP/m.out" || e4=x
-mv "$TMP/V0001__probe.sql" "$BANKFAS_MIGRATIONS/"
-echo "SELECT 1;" > "$BANKFAS_MIGRATIONS/V0003__one.sql"; echo "SELECT 2;" > "$BANKFAS_MIGRATIONS/V0003__two.sql"
-migrate apply; e5=$rc; grep -q 'have the version V0003' "$TMP/m.out" || e5=x
-rm "$BANKFAS_MIGRATIONS"/V0003__*.sql
+mv "$BANKFAS_MIGRATIONS/V9001__probe.sql" "$TMP/V9001__probe.sql"; migrate apply; e4=$rc; grep -q 'V9001 is applied but its script is no longer' "$TMP/m.out" || e4=x
+mv "$TMP/V9001__probe.sql" "$BANKFAS_MIGRATIONS/"
+echo "SELECT 1;" > "$BANKFAS_MIGRATIONS/V9003__one.sql"; echo "SELECT 2;" > "$BANKFAS_MIGRATIONS/V9003__two.sql"
+migrate apply; e5=$rc; grep -q 'have the version V9003' "$TMP/m.out" || e5=x
+rm "$BANKFAS_MIGRATIONS"/V9003__*.sql
 n=0
 for body in "COMMIT;" "  rollback transaction" "BEGIN TRAN;" "save transaction s1;" ":r other.sql" "!! ls"; do
-    printf 'CREATE TABLE plat.MigrationProbeThree (Id INT NOT NULL);\nGO\n%s\nGO\n' "$body" > "$BANKFAS_MIGRATIONS/V0002__control.sql"
+    printf 'CREATE TABLE plat.MigrationProbeThree (Id INT NOT NULL);\nGO\n%s\nGO\n' "$body" > "$BANKFAS_MIGRATIONS/V9002__control.sql"
     migrate apply; [ "$rc" = "1" ] && grep -q 'ends or opens a transaction, or is a sqlcmd command' "$TMP/m.out" && n=$((n + 1))
 done
-rm "$BANKFAS_MIGRATIONS/V0002__control.sql"
+rm "$BANKFAS_MIGRATIONS/V9002__control.sql"
 left="$(val "SELECT CASE WHEN OBJECT_ID(N'plat.MigrationProbeThree') IS NULL THEN 'none' ELSE 'left' END;")"
 result "$([ "$e1/$e2/$e3/$e4/$e5/$n/$left" = "1/1/1/1/1/6/none" ] && [ "$(journal)" = "$before" ] && echo 1)" \
     "MG5: edited, removed, early, duplicate and misnamed scripts, and scripts with transaction or sqlcmd control lines, are refused" \
@@ -112,15 +118,15 @@ result "$([ "$e1/$e2/$e3/$e4/$e5/$n/$left" = "1/1/1/1/1/6/none" ] && [ "$(journa
 
 # MG6: a script that fails part way leaves nothing: its table and its journal row roll back together, and the failure
 # is the script's own (divide by zero, 8134).
-cat > "$BANKFAS_MIGRATIONS/V0002__fails.sql" <<'SQL'
+cat > "$BANKFAS_MIGRATIONS/V9002__fails.sql" <<'SQL'
 CREATE TABLE plat.MigrationProbeTwo (MigrationProbeTwoId INT NOT NULL CONSTRAINT PK_MigrationProbeTwo PRIMARY KEY);
 GO
 SELECT 1 / 0;
 SQL
 migrate apply; e1=$rc; grep -q 'Msg 8134' "$TMP/m.out" || e1=x
-gone="$(val "SELECT CONCAT(CASE WHEN OBJECT_ID(N'plat.MigrationProbeTwo') IS NULL THEN 'no table' END, '/', (SELECT COUNT(*) FROM plat.SchemaMigration WHERE Version = 'V0002'), '/', (SELECT MAX(Version) FROM plat.SchemaMigration WHERE Kind = 'VERSIONED'));")"
-rm "$BANKFAS_MIGRATIONS/V0002__fails.sql"
-result "$([ "$e1" = "1" ] && [ "$gone" = "no table/0/V0001" ] && echo 1)" \
+gone="$(val "SELECT CONCAT(CASE WHEN OBJECT_ID(N'plat.MigrationProbeTwo') IS NULL THEN 'no table' END, '/', (SELECT COUNT(*) FROM plat.SchemaMigration WHERE Version = 'V9002'), '/', (SELECT MAX(Version) FROM plat.SchemaMigration WHERE Kind = 'VERSIONED'));")"
+rm "$BANKFAS_MIGRATIONS/V9002__fails.sql"
+result "$([ "$e1" = "1" ] && [ "$gone" = "no table/0/V9001" ] && echo 1)" \
     "MG6: a versioned script that fails rolls back with its journal row" "exit $e1, $gone: $(grep -m1 'Msg' "$TMP/m.out")"
 
 # MG7: a change made outside the journal stops the next apply, and status names it and exits 1: a table, a member added
@@ -152,7 +158,7 @@ val "DELETE FROM plat.SchemaMigration; SET IDENTITY_INSERT plat.SchemaMigration 
 INSERT plat.SchemaMigration (SchemaMigrationId, Version, Kind, ScriptName, Checksum, Fingerprint, AppliedAt, AppliedBy, DurationMs, ChangeRef)
 SELECT SchemaMigrationId, Version, Kind, ScriptName, Checksum, Fingerprint, AppliedAt, AppliedBy, DurationMs, ChangeRef FROM tempdb..mg_journal;
 SET IDENTITY_INSERT plat.SchemaMigration OFF; DROP TABLE tempdb..mg_journal; SELECT 1;" >/dev/null
-result "$([ "$b0/$b1/$b2" = "1/1/0" ] && [ "$jb" = "BASELINE:BASELINE:bankfas_,V0001:VERSIONED:baseline,R:REPEATABLE:bankfas_/CI-migration" ] && echo 1)" \
+result "$([ "$b0/$b1/$b2" = "1/1/0" ] && [ "$jb" = "BASELINE:BASELINE:bankfas_$RB,V9001:VERSIONED:baseline,R:REPEATABLE:bankfas_/CI-migration" ] && echo 1)" \
     "MG10: a baseline journals the versioned scripts present; apply without a baseline and a baseline outside deploy.sh are refused" "exit codes $b0/$b1/$b2, journal $jb"
 
 # MG11: a run without the change reference is refused before it connects (D7).
@@ -162,7 +168,7 @@ result "$([ "$c1" = "1" ] && grep -q 'BANKFAS_CHANGE_REF' "$TMP/c.out" && echo 1
 
 # Clean-up: the probe table, and the journal rows after MG3; the database is as deploy.sh left it; the window closes.
 val "DROP TABLE IF EXISTS plat.MigrationProbe; DELETE FROM plat.SchemaMigration WHERE SchemaMigrationId > $keep_id; SELECT 1;" >/dev/null
-rm -f "$BANKFAS_MIGRATIONS"/*.sql
+rm -f "$BANKFAS_MIGRATIONS"/V9*.sql
 migrate status; s1=$rc
 admin close; c2=$rc
 # MG12: after the clean-up the schema has its deployed fingerprint, status is clean, and the window closes.
