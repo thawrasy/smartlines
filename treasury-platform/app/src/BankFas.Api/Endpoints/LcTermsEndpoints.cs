@@ -34,6 +34,7 @@ public static class LcTermsEndpoints
         api.MapPost("/counterparties", CreateCounterpartyAsync);
         api.MapGet("/document-clauses", ClausesAsync);
         api.MapGet("/lc/ucp-references", UcpReferencesAsync);
+        api.MapGet("/lc/swift-tags", SwiftTagsAsync);
         api.MapGet("/requests/{id:guid}/terms", GetTermsAsync);
         api.MapPut("/requests/{id:guid}/terms", PutTermsAsync);
         api.MapPut("/requests/{id:guid}/terms/documents", PutDocumentsAsync);
@@ -283,6 +284,19 @@ public static class LcTermsEndpoints
              ORDER BY c.Code;
             """, cancellationToken: http.RequestAborted));
         return Results.Ok(new { items = rows });
+    }
+
+    /// <summary>
+    /// The SWIFT MT700 field of each term (the field dictionary's SwiftTagHint), which the terms screen shows beside it in
+    /// place of UCP references (the owner, docs/60 section 6). The print reads the same column.
+    /// </summary>
+    private static async Task<IResult> SwiftTagsAsync(HttpContext http, SqlConnectionFactory db)
+    {
+        await using var u = await OpenAsync(http, db);
+        var rows = await u.Connection.QueryAsync<(string Key, string Tag)>(new CommandDefinition(
+            "SELECT FieldKey, SwiftTagHint FROM lc.LcFieldDefinition WHERE IsActive = 1 AND SwiftTagHint IS NOT NULL AND SwiftTagHint <> N'';",
+            cancellationToken: http.RequestAborted));
+        return Results.Ok(new { message = "MT700", fields = rows.ToDictionary(x => x.Key, x => x.Tag, StringComparer.Ordinal) });
     }
 
     /// <summary>

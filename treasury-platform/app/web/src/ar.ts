@@ -3024,4 +3024,15 @@ export const ar: Record<string, string> = {
   DAYS_AFTER_ISSUE: 'أيام بعد الإصدار', ALLOWED: 'مسموح', NOT_ALLOWED: 'غير مسموح', SEA: 'بحري', AIR: 'جوي', ROAD: 'بري', RAIL: 'بالقطار',
   COURIER: 'بريد سريع', MULTIMODAL: 'متعدد الوسائط', DOMESTIC_DELIVERY: 'تسليم محلي', APPLICANT: 'طالب الاعتماد', BENEFICIARY: 'المستفيد',
   NOT_REQUIRED_BY_TERMS: 'غير مطلوب في الشروط', EN: 'الإنجليزية', AR: 'العربية', BOTH: 'العربية والإنجليزية',
+  DOMESTIC: 'محلي', INTERNATIONAL: 'دولي', SHARED: 'مشتركة', ISSUING_BANK_LOCAL: 'رسوم البنك المصدِر', ADVISING: 'رسوم التبليغ',
+  CONFIRMATION: 'رسوم التعزيز', NEGOTIATION_SETTLEMENT: 'رسوم التداول والسداد', OTHER_OUTSIDE_ISSUING: 'رسوم أخرى خارج البنك المصدِر',
+  // The MT700 terms the terms screen asks (owner, docs/60 section 6).
+  'Transferable': 'قابل للتحويل', 'Expected issue date': 'تاريخ الإصدار المتوقع', 'Draft required': 'تُسحب كمبيالة', 'Draft drawn on': 'المسحوب عليه الكمبيالة',
+  'Mixed payment details': 'تفاصيل الدفع المختلط', 'Place of taking in charge / dispatch': 'مكان الاستلام / الإرسال', 'Airport of departure': 'مطار المغادرة',
+  'Airport of destination': 'مطار الوصول', 'Place of final destination / delivery': 'مكان الوجهة النهائية / التسليم', 'Earliest shipment date': 'أول تاريخ للشحن',
+  'Days from issue to latest shipment': 'الأيام من الإصدار إلى آخر شحن', 'Instalment shipments': 'الشحن على دفعات', 'Supplier proforma number': 'رقم فاتورة المورّد المبدئية',
+  'Supplier proforma date': 'تاريخ فاتورة المورّد المبدئية', 'Cover percentage stated in the credit': 'نسبة التغطية منصوص عليها في الاعتماد',
+  'Minimum insurance cover %': 'نسبة التأمين الدنيا %', 'Insurance clauses': 'شروط التغطية التأمينية', 'The bank may arrange the insurance': 'يجوز للبنك ترتيب التأمين',
+  'Additional conditions': 'الشروط الإضافية', 'Confirming bank': 'البنك المعزِّز', 'Confirming bank BIC': 'رمز BIC للبنك المعزِّز', 'Assignment of proceeds': 'التنازل عن العائدات',
+  CONFIRMING_BANK: 'البنك المعزِّز',
 };

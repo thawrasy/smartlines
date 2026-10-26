@@ -184,6 +184,10 @@ namespace BankFas.IntegrationTests
 
             // UCP 600 on the terms screen (docs/60): the articles of each field and document, and the checks of articles 31 and 32
             // (instalments need partial shipments, an error) and 19 to 24 (transhipment forbidden by sea, a warning).
+            // The screen shows the SWIFT MT700 field of each term instead (docs/60 section 6), from the field dictionary.
+            var tags = (await rq.GetJsonAsync("/api/v1/lc/swift-tags")).GetProperty("fields");
+            Assert.Equal(("39A", "43T", "46A"), (tags.GetProperty("toleranceMode").GetString(), tags.GetProperty("transhipment").GetString(), tags.GetProperty("documents").GetString()));
+            Assert.False(tags.TryGetProperty("transportMode", out _));
             var ucp = await rq.GetJsonAsync("/api/v1/lc/ucp-references");
             Assert.Contains(ucp.GetProperty("fields").GetProperty("toleranceMode").EnumerateArray(), x => x.GetProperty("article").GetString() == "30");
             Assert.Contains(ucp.GetProperty("clauses").GetProperty("BL_SEA").EnumerateArray(), x => x.GetProperty("article").GetString() == "20");
@@ -200,6 +204,21 @@ namespace BankFas.IntegrationTests
             {
                 fields = new Dictionary<string, object?> { ["installmentShipments"] = null, ["partialShipments"] = "ALLOWED", ["transhipment"] = "ALLOWED" },
             });
+            // The other MT700 fields the owner named as basic (docs/60 section 6): 47A, 44A and 44B, the transfer (40A).
+            await rq.OkAsync(HttpMethod.Put, $"/api/v1/requests/{id}/terms", new
+            {
+                fields = new Dictionary<string, object?>
+                {
+                    ["additionalConditions"] = "All documents must show the credit number.", ["placeOfDispatch"] = "Supplier warehouse", ["placeOfFinalDestination"] = "Applicant warehouse",
+                    ["isTransferable"] = false,
+                },
+            });
+            var more = (await rq.GetJsonAsync($"/api/v1/requests/{id}/terms")).GetProperty("fields");
+            Assert.Equal(("All documents must show the credit number.", "Supplier warehouse", "Applicant warehouse"),
+                (more.GetProperty("additionalConditions").GetString(), more.GetProperty("placeOfDispatch").GetString(), more.GetProperty("placeOfFinalDestination").GetString()));
+            var morePrint = await (await rq.SendAsync(HttpMethod.Get, $"/api/v1/requests/{id}/terms/print?lang=en")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+            foreach (var tag in new[] { "47A", "44A", "44B", "32B", "46A", "71D" })
+                Assert.Contains($"<span class=\"tag\" dir=\"ltr\">{tag}</span>", morePrint, StringComparison.Ordinal);
             await ActAsync(rq, id, "submit");
             var locked = await rq.GetJsonAsync($"/api/v1/requests/{id}/terms");
             Assert.Equal(("LOCKED", "SAUDI RIYAL THREE MILLION ONLY"), (locked.GetProperty("status").GetString(), locked.GetProperty("fields").GetProperty("amountInWordsEn").GetString()));
@@ -537,7 +556,7 @@ namespace BankFas.IntegrationTests
             Assert.Equal("SA0380000000608010167519",
                 (await b.Tm.PostOkAsync($"/api/v1/requests/{id}/terms/beneficiary-iban/reveal", new { reason = "Bank form" })).GetProperty("iban").GetString());
 
-            // The printed terms: HTML with its own CSP, the mask, the footnote and the hash.
+            // The printed terms: HTML with its own CSP, the mask, the SWIFT fields and words (not UCP references or codes), and the hash.
             var print = await b.Rq.SendAsync(HttpMethod.Get, $"/api/v1/requests/{id}/terms/print?lang=en");
             var html = await print.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
             Assert.True(print.IsSuccessStatusCode, html);
@@ -546,7 +565,13 @@ namespace BankFas.IntegrationTests
             Assert.Contains(mask, html, StringComparison.Ordinal);
             Assert.Contains("SHA-256 ", html, StringComparison.Ordinal);
             Assert.DoesNotContain("60801016", html, StringComparison.Ordinal);
-            Assert.Contains("ICC", html, StringComparison.Ordinal);
+            Assert.Contains("<span class=\"tag\" dir=\"ltr\">39A</span>", html, StringComparison.Ordinal);
+            Assert.DoesNotContain("UCP 600", html, StringComparison.Ordinal);   // 40E still reads UCP LATEST VERSION, as in the message
+            Assert.Contains("Plus or minus", html, StringComparison.Ordinal);
+            var arabicPrint = await (await b.Rq.SendAsync(HttpMethod.Get, $"/api/v1/requests/{id}/terms/print?lang=ar")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+            Assert.Contains("<h2>المبلغ</h2>", arabicPrint, StringComparison.Ordinal);
+            Assert.Contains("زيادة ونقص", arabicPrint, StringComparison.Ordinal);
+            Assert.DoesNotContain("PLUS_MINUS", arabicPrint, StringComparison.Ordinal);
             Assert.Equal((422, "V-LCT-UCP-FOOTNOTE"),
                 await b.T.Portal.ProblemAsync(HttpMethod.Patch, "/api/v1/settings", new { values = new Dictionary<string, object> { ["lc.print.ucp_disclaimer"] = false } }));
 
