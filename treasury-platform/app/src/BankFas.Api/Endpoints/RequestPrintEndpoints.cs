@@ -95,6 +95,10 @@ public static class RequestPrintEndpoints
         sb.Append(CultureInfo.InvariantCulture, $"<h1>{H(ar ? head.TypeAr : head.TypeEn ?? head.TypeAr)} <span dir=\"ltr\">{H(number)}</span></h1><table>");
         void Row(string label, object? value) => sb.Append(CultureInfo.InvariantCulture, $"<tr><th class=\"label\">{H(label)}</th><td>{H(value)}</td></tr>");
         Row(T("الشركة", "Company"), ar ? head.CompanyAr : head.CompanyEn ?? head.CompanyAr);
+        // docs/31 row 72: the company number, once the bank has issued the request.
+        if (await u.Connection.ExecuteScalarAsync<string?>(new CommandDefinition("SELECT CompanyRequestNo FROM wfl.RequestCompanyNumber WHERE RequestId = @id;",
+                new { id = requestId }, tx, cancellationToken: ct)) is { } companyNo)
+            Row(T("رقم الشركة", "Company number"), companyNo);
         Row(T("الطالب", "Requester"), ar ? head.ReqAr ?? head.ReqEn : head.ReqEn ?? head.ReqAr);
         Row(T("المرحلة الظاهرة", "Phase"), ar ? head.PhaseAr : head.PhaseEn ?? head.PhaseAr);
         if (staff) Row(T("المرحلة الداخلية", "Stage"), head.Stage);

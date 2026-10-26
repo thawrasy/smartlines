@@ -3112,4 +3112,5 @@ export const ar: Record<string, string> = {
   'Issued by': 'الجهة المصدرة',
   'Add the reference': 'إضافة المرجع',
   'Saved. The same reference is on another open request.': 'حُفظ. المرجع نفسه موجود على طلب آخر مفتوح.',
+  'Company number': 'رقم الشركة',
 };

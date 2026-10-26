@@ -1145,6 +1145,7 @@ public static class RequestEngine
         var y = x with { R = r, Inst = entered };
         var approvers = s.Kind == "APPROVAL" ? await SlotsAsync(y, s, instance, cycle).ConfigureAwait(false) : [];
         if (r.NumberOnStageKey == s.StageKey && r.RequestNo is null) await NumberAsync(y, instance).ConfigureAwait(false);
+        if (outcome == "COMPLETED") await CompanyNumberAsync(y, instance).ConfigureAwait(false);
         await HooksAsync(y, entered, "ON_ENTER", null).ConfigureAwait(false);
         await ActionAsync(x.C, x.Tx, r.RequestId, instance, cycle, outcome == "COMPLETED" ? "READY_TO_CLOSE" : "STAGE_CHANGED", x.Inst.StageKey, s.StageKey, x.Actor.UserId,
             "INTERNAL", null, null, null, x.Ct).ConfigureAwait(false);
@@ -1235,6 +1236,63 @@ public static class RequestEngine
         await ActionAsync(x.C, x.Tx, x.R.RequestId, instance, x.R.CycleNo, "NUMBER_ASSIGNED", null, null, null, "REQUESTER_VISIBLE", null, new { number }, null, x.Ct)
             .ConfigureAwait(false);
         await Outbox.EmitAsync(x.C, x.Tx, "request.numbered", "wfl.Request", x.R.RequestId, new { requestId = x.R.RequestId }, x.Ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// The company number (docs/31 row 72): given once when the bank issues the request, the workflow's successful end, to
+    /// the company it is issued for then (the treasury may have moved it to another company before): the company's code,
+    /// the department code of the type and the gap-free sequence co:&lt;code&gt; of that company, as SA05-IMP-00001. The
+    /// sequence is made on first use with the pattern &lt;code&gt;-{seq:00000}, which the numbering screen may change. A
+    /// request on an issued credit (CHILD) keeps the numbers of its parent.
+    /// </summary>
+    private static async Task CompanyNumberAsync(Ctx x, long instance)
+    {
+        var t = await x.C.QuerySingleAsync<(string Category, string? SeedKey, string? Pattern, string CompanyCode, int Has)>(new CommandDefinition(
+            """
+            SELECT rt.Category, rt.SeedKey, d.Pattern, c.CompanyCode, (SELECT COUNT(*) FROM wfl.RequestCompanyNumber AS n WHERE n.RequestId = r.RequestId)
+              FROM wfl.Request AS r JOIN wfl.RequestType AS rt ON rt.RequestTypeId = r.RequestTypeId JOIN org.Company AS c ON c.CompanyId = r.CompanyId
+              LEFT JOIN cfg.NumberSequenceDefinition AS d ON d.SequenceKey = rt.NumberSequenceKey
+             WHERE r.RequestId = @r;
+            """, new { r = x.R.RequestId }, x.Tx, cancellationToken: x.Ct)).ConfigureAwait(false);
+        if (t.Has > 0 || t.Category == "CHILD") return;
+        var code = NumberCodeOf(t.Category, t.SeedKey, t.Pattern);
+        var key = "co:" + code;
+        await x.C.ExecuteAsync(new CommandDefinition(
+            """
+            IF NOT EXISTS (SELECT 1 FROM cfg.NumberSequenceDefinition WITH (UPDLOCK, HOLDLOCK) WHERE SequenceKey = @key)
+                INSERT cfg.NumberSequenceDefinition (TenantId, SequenceKey, Pattern, ScopeLevel, PeriodBasis, GapPolicy, MinWidth, IsActive)
+                VALUES (CAST(SESSION_CONTEXT(N'TenantId') AS INT), @key, CONCAT(@code, '-{seq:00000}'), 'COMPANY', 'NONE', 'GAP_FREE', 5, 1);
+            """, new { key, code }, x.Tx, cancellationToken: x.Ct)).ConfigureAwait(false);
+        var p = new DynamicParameters();
+        p.Add("@SequenceKey", key, DbType.AnsiString, size: 50);
+        p.Add("@CompanyId", x.R.CompanyId, DbType.Int64);
+        p.Add("@OnDate", TimeZoneInfo.ConvertTime(x.Now, x.Time.Zone).Date, DbType.Date);
+        p.Add("@EntityType", "wfl.RequestCompanyNumber", DbType.AnsiString, size: 60);
+        p.Add("@EntityId", x.R.RequestId, DbType.Int64);
+        p.Add("@IssuedNumber", null, DbType.String, ParameterDirection.Output, 60);
+        p.Add("@NumberIssueId", null, DbType.Int64, ParameterDirection.Output);
+        await x.C.ExecuteAsync(new CommandDefinition("cfg.usp_AllocateNumber", p, x.Tx, commandType: CommandType.StoredProcedure, cancellationToken: x.Ct)).ConfigureAwait(false);
+        var number = $"{t.CompanyCode.ToUpperInvariant()}-{p.Get<string>("@IssuedNumber")}";
+        await x.C.ExecuteAsync(new CommandDefinition(
+            """
+            INSERT wfl.RequestCompanyNumber (TenantId, RequestId, CompanyId, NumberCode, CompanyRequestNo, NumberIssueId, CreatedBy)
+            VALUES (CAST(SESSION_CONTEXT(N'TenantId') AS INT), @r, @c, @code, @no, @issue, @u);
+            """, new { r = x.R.RequestId, c = x.R.CompanyId, code, no = number, issue = p.Get<long>("@NumberIssueId"), u = x.Actor.UserId }, x.Tx,
+            cancellationToken: x.Ct)).ConfigureAwait(false);
+        await ActionAsync(x.C, x.Tx, x.R.RequestId, instance, x.R.CycleNo, "NUMBER_ASSIGNED", null, null, null, "REQUESTER_VISIBLE", null, new { number, kind = "COMPANY" }, null, x.Ct)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>The department code of a type in the company number: the category's (IMP, EXP, GEN, TRS) for a seeded type,
+    /// the prefix of its own request number for a type the tenant made (BGR of BGR-{yy}-{seq:0000}).</summary>
+    public static string NumberCodeOf(string category, string? seedKey, string? pattern)
+    {
+        if (seedKey is null && pattern is not null)
+        {
+            var prefix = pattern.Split('-')[0];
+            if (prefix.Length is >= 2 and <= 6 && prefix.All(ch => ch is >= 'A' and <= 'Z' or >= '0' and <= '9')) return prefix;
+        }
+        return category switch { "PURCHASE" => "IMP", "SALES" => "EXP", "GENERAL" => "GEN", _ => "TRS" };
     }
 
     // ---------- hooks (FR-WFL-021, BR-WFL-015) ----------

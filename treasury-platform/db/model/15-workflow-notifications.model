@@ -359,6 +359,18 @@ table wfl.RequestAttachment  # Links a document to a request and creates a Docum
   unique RequestId,DocumentId
   index RequestId,SlotKey where IsActive = 1   # عدّ المرفقات الفعّالة لفتحة (BR-WFL-014)
 
+table wfl.RequestCompanyNumber  # The company number of a request, given once when the bank issues it (the workflow's successful end): the company's code, the department code of the request type and a gap-free sequence of the company and department, as SA05-IMP-00001 (docs/31 row 72)
+  RequestId          ->wfl.Request req
+  CompanyId          ->org.Company req      # الشركة التي صدر الطلب باسمها عند الإصدار
+  NumberCode         ascii(6)   req         # رمز القسم: IMP · EXP · GEN · TRS أو رمز نوع خاص
+  CompanyRequestNo   str(60)    req
+  NumberIssueId      ->cfg.NumberIssue req  # الرقم المخصَّص من تسلسل co:<رمز القسم> بنطاق الشركة
+  unique RequestId
+  unique CompanyRequestNo
+  unique NumberIssueId
+  index CompanyId
+  check NumberCode COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9]%' AND LEN(NumberCode) >= 2
+
 table wfl.RequestExternalRef  # External reference as free text; edits replace the value and keep the history; no external validation (FR-REQ-010, X-DAT-7, BR-REQ-006)
   RequestId          ->wfl.Request req
   SystemCode         str(40)    req   # نص حر مثل ERP

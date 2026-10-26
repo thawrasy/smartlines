@@ -99,6 +99,16 @@ public sealed class RequestTypeTests(PlatformFixture f)
         Assert.Equal("EXECUTION", (await te.GetJsonAsync($"/api/v1/requests/{id}")).GetProperty("staff").GetProperty("stage").GetString());
         await ActAsync(te, id, "complete");
         Assert.Equal("COMPLETED", (await te.GetJsonAsync($"/api/v1/requests/{id}")).GetProperty("staff").GetProperty("stage").GetString());
+        // Row 72: issued, the request takes its company number: the company's code, the type's department code (its own
+        // prefix, BGR) and the first of that company and department; it is found by it, and the requester sees it.
+        Assert.Equal("RT1-BGR-00001", (await rq.GetJsonAsync($"/api/v1/requests/{id}")).GetProperty("request").GetProperty("companyRequestNo").GetString());
+        Assert.Contains((await te.GetJsonAsync("/api/v1/requests?view=all&q=RT1-BGR-00001")).GetProperty("items").EnumerateArray(), x => x.GetProperty("id").GetString() == id);
+        // A general request of the seeded type takes GEN, counted for the same company apart from BGR.
+        var gen = PlatformFixture.Id(await rq.PostOkAsync("/api/v1/requests", new { type = "GENERIC_SIMPLE", company, data = new { title = "Bank letter" } }));
+        await ActAsync(rq, gen, "submit");
+        await ActAsync(te, gen, "claim");
+        await ActAsync(te, gen, "complete");
+        Assert.Equal("RT1-GEN-00001", (await te.GetJsonAsync($"/api/v1/requests/{gen}")).GetProperty("request").GetProperty("companyRequestNo").GetString());
 
         // Deactivated, it leaves the requester's list and keeps its requests.
         await admin.PostOkAsync("/api/v1/request-type-definitions/GUARANTEE_REQUEST/actions/deactivate", new { });

@@ -2,7 +2,7 @@
 
 > مُولَّد آليًا من نموذج البيانات بـ `tools/dbgen` — لا يُعدَّل يدويًا. الأعمدة المشتركة التي تضيفها اصطلاحات التوليد (TenantId، المعرّف، التدقيق) تظهر في كل جدول.
 
-**عدد الجداول: 258**
+**عدد الجداول: 259**
 
 | الوحدة | عدد الجداول |
 |---|---|
@@ -23,7 +23,7 @@
 | COL | 7 |
 | OBL | 9 |
 | FIN | 57 |
-| REQ | 8 |
+| REQ | 9 |
 | WFL | 11 |
 | NTF | 7 |
 | LC | 23 |
@@ -6160,6 +6160,28 @@
 | UpdatedBy | BIGINT | نعم |  |  |  |
 
 **المفاتيح:** PK(RequestAttachmentId) · UQ(TenantId, RequestId, DocumentId)
+
+### `wfl.RequestCompanyNumber` — The company number of a request, given once when the bank issues it (the workflow's successful end): the company's code, the department code of the request type and a gap-free sequence of the company and department, as SA05-IMP-00001 (docs/31 row 72)
+
+*مملوك للمشترك*
+
+| العمود | النوع | NULL | الافتراضي | المرجع | ملاحظة |
+|---|---|---|---|---|---|
+| TenantId | INT | لا | | plat.Tenant | عزل المشترك |
+| **RequestCompanyNumberId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
+| RequestId | BIGINT | لا |  | wfl.Request |  |
+| CompanyId | BIGINT | لا |  | org.Company | الشركة التي صدر الطلب باسمها عند الإصدار |
+| NumberCode | VARCHAR(6) | لا |  |  | رمز القسم: IMP · EXP · GEN · TRS أو رمز نوع خاص |
+| CompanyRequestNo | NVARCHAR(60) | لا |  |  |  |
+| NumberIssueId | BIGINT | لا |  | cfg.NumberIssue | الرقم المخصَّص من تسلسل co:<رمز القسم> بنطاق الشركة |
+| CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
+| CreatedBy | BIGINT | نعم |  |  |  |
+| UpdatedAt | DATETIME2(3) | نعم |  |  |  |
+| UpdatedBy | BIGINT | نعم |  |  |  |
+
+**المفاتيح:** PK(RequestCompanyNumberId) · UQ(TenantId, RequestId) · UQ(TenantId, CompanyRequestNo) · UQ(TenantId, NumberIssueId)
+
+**قيود:** `NumberCode COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9]%' AND LEN(NumberCode) >= 2`
 
 ### `wfl.RequestExternalRef` — External reference as free text; edits replace the value and keep the history; no external validation (FR-REQ-010, X-DAT-7, BR-REQ-006)
 

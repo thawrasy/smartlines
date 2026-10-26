@@ -89,7 +89,7 @@ public sealed class S5Tests(PlatformFixture f)
         // FR-REQ-026: the list as CSV, without the treasury's columns for a requester.
         var csv = await TextAsync(rq, "/api/v1/requests?view=mine&format=csv");
         var lines = csv.Split("\r\n", StringSplitOptions.RemoveEmptyEntries);
-        Assert.Equal("requestNo,draftRef,type,title,companyNameEn,amount,currency,phase,createdAt,updatedAt", lines[0]);
+        Assert.Equal("requestNo,companyRequestNo,draftRef,type,title,companyNameEn,amount,currency,phase,createdAt,updatedAt", lines[0]);
         Assert.Equal(3, lines.Length);
         Assert.Equal((422, "VALIDATION_FAILED"), await rq.ProblemAsync(HttpMethod.Get, "/api/v1/requests?format=xlsx"));
 

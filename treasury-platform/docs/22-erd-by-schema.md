@@ -598,7 +598,7 @@ erDiagram
 | RevenueEstimate | PreparedBy | sec.AppUser |
 | Scorecard | CurrencyId | ref.Currency |
 
-## مخطط `wfl` (19 جدولًا)
+## مخطط `wfl` (20 جدولًا)
 
 ```mermaid
 erDiagram
@@ -609,6 +609,7 @@ erDiagram
   Request ||--o{ RequestApproval : "RequestId"
   Request ||--o{ RequestAttachment : "RequestId"
   Request ||--o{ RequestComment : "RequestId"
+  Request ||--o{ RequestCompanyNumber : "RequestId"
   Request ||--o{ RequestExternalRef : "RequestId"
   Request ||--o{ RequestStageInstance : "RequestId"
   RequestStageInstance ||--o{ HookExecution : "StageInstanceId"
@@ -664,6 +665,8 @@ erDiagram
 | RequestAttachment | DocumentId | doc.Document |
 | RequestComment | AuthorUserId | sec.AppUser |
 | RequestComment | RetractedBy | sec.AppUser |
+| RequestCompanyNumber | CompanyId | org.Company |
+| RequestCompanyNumber | NumberIssueId | cfg.NumberIssue |
 | RequestExternalRef | EnteredBy | sec.AppUser |
 | RequestStageInstance | AssigneeUserId | sec.AppUser |
 | RequestTypeAudience | DepartmentId | org.Department |

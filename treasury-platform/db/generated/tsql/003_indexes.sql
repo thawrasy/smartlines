@@ -697,6 +697,7 @@ CREATE NONCLUSTERED INDEX [IX_RequestComment_RetractedBy] ON [wfl].[RequestComme
 CREATE NONCLUSTERED INDEX [IX_RequestAttachment_RequestId_SlotKey] ON [wfl].[RequestAttachment] ([TenantId], [RequestId], [SlotKey]) WHERE IsActive = 1;
 CREATE NONCLUSTERED INDEX [IX_RequestAttachment_DocumentId] ON [wfl].[RequestAttachment] ([TenantId], [DocumentId]);
 CREATE NONCLUSTERED INDEX [IX_RequestAttachment_StageInstanceId] ON [wfl].[RequestAttachment] ([TenantId], [RequestId], [StageInstanceId]);
+CREATE NONCLUSTERED INDEX [IX_RequestCompanyNumber_CompanyId] ON [wfl].[RequestCompanyNumber] ([TenantId], [CompanyId]);
 CREATE NONCLUSTERED INDEX [IX_RequestExternalRef_NormalizedValue] ON [wfl].[RequestExternalRef] ([TenantId], [NormalizedValue]) INCLUDE ([RequestId], [SystemCode], [RefType], [IsActive]);
 CREATE NONCLUSTERED INDEX [IX_RequestExternalRef_RefValue] ON [wfl].[RequestExternalRef] ([TenantId], [RefValue]) INCLUDE ([RequestId]);
 CREATE NONCLUSTERED INDEX [IX_RequestExternalRef_SystemCode_RefType_NormalizedValue] ON [wfl].[RequestExternalRef] ([TenantId], [SystemCode], [RefType], [NormalizedValue]) WHERE IsActive = 1;

@@ -790,6 +790,10 @@ ALTER TABLE [wfl].[RequestAttachment] ADD CONSTRAINT [FK_RequestAttachment_Tenan
 ALTER TABLE [wfl].[RequestAttachment] ADD CONSTRAINT [FK_RequestAttachment_RequestId] FOREIGN KEY ([TenantId], [RequestId]) REFERENCES [wfl].[Request] ([TenantId], [RequestId]);
 ALTER TABLE [wfl].[RequestAttachment] ADD CONSTRAINT [FK_RequestAttachment_DocumentId] FOREIGN KEY ([TenantId], [DocumentId]) REFERENCES [doc].[Document] ([TenantId], [DocumentId]);
 ALTER TABLE [wfl].[RequestAttachment] ADD CONSTRAINT [FK_RequestAttachment_StageInstanceId] FOREIGN KEY ([TenantId], [RequestId], [StageInstanceId]) REFERENCES [wfl].[RequestStageInstance] ([TenantId], [RequestId], [RequestStageInstanceId]);
+ALTER TABLE [wfl].[RequestCompanyNumber] ADD CONSTRAINT [FK_RequestCompanyNumber_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
+ALTER TABLE [wfl].[RequestCompanyNumber] ADD CONSTRAINT [FK_RequestCompanyNumber_RequestId] FOREIGN KEY ([TenantId], [RequestId]) REFERENCES [wfl].[Request] ([TenantId], [RequestId]);
+ALTER TABLE [wfl].[RequestCompanyNumber] ADD CONSTRAINT [FK_RequestCompanyNumber_CompanyId] FOREIGN KEY ([TenantId], [CompanyId]) REFERENCES [org].[Company] ([TenantId], [CompanyId]);
+ALTER TABLE [wfl].[RequestCompanyNumber] ADD CONSTRAINT [FK_RequestCompanyNumber_NumberIssueId] FOREIGN KEY ([TenantId], [NumberIssueId]) REFERENCES [cfg].[NumberIssue] ([TenantId], [NumberIssueId]);
 ALTER TABLE [wfl].[RequestExternalRef] ADD CONSTRAINT [FK_RequestExternalRef_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
 ALTER TABLE [wfl].[RequestExternalRef] ADD CONSTRAINT [FK_RequestExternalRef_RequestId] FOREIGN KEY ([TenantId], [RequestId]) REFERENCES [wfl].[Request] ([TenantId], [RequestId]);
 ALTER TABLE [wfl].[RequestExternalRef] ADD CONSTRAINT [FK_RequestExternalRef_SupersededById] FOREIGN KEY ([TenantId], [RequestId], [SupersededById]) REFERENCES [wfl].[RequestExternalRef] ([TenantId], [RequestId], [RequestExternalRefId]);

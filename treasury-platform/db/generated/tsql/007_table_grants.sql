@@ -477,6 +477,8 @@ GRANT SELECT, INSERT, UPDATE ON [wfl].[Request] TO [tp_app];
 GRANT SELECT, INSERT, UPDATE ON [wfl].[RequestComment] TO [tp_app];
 -- wfl.RequestAttachment
 GRANT SELECT, INSERT, UPDATE ON [wfl].[RequestAttachment] TO [tp_app];
+-- wfl.RequestCompanyNumber
+GRANT SELECT, INSERT, UPDATE ON [wfl].[RequestCompanyNumber] TO [tp_app];
 -- wfl.RequestExternalRef
 GRANT SELECT, INSERT, UPDATE ON [wfl].[RequestExternalRef] TO [tp_app];
 -- wfl.RequestStageInstance

@@ -257,7 +257,7 @@ public static class RequestEndpoints
         };
         var rows = await u.Connection.QueryAsync(new CommandDefinition(
             $"""
-            SELECT TOP (@take) r.PublicId AS id, r.DraftRef AS draftRef, r.RequestNo AS requestNo, rt.Code AS type, rt.NameAr AS typeNameAr, rt.NameEn AS typeNameEn,
+            SELECT TOP (@take) r.PublicId AS id, r.DraftRef AS draftRef, r.RequestNo AS requestNo, cn.CompanyRequestNo AS companyRequestNo, rt.Code AS type, rt.NameAr AS typeNameAr, rt.NameEn AS typeNameEn,
                    r.Title AS title, r.Amount AS amount, cur.Code AS currency, ph.Code AS phase, ph.NameAr AS phaseNameAr, ph.NameEn AS phaseNameEn, r.Status AS status,
                    r.Priority AS priority, r.CreatedAt AS createdAt, r.UpdatedAt AS updatedAt, co.NameAr AS companyNameAr, co.NameEn AS companyNameEn,
                    CASE WHEN @staff = 1 THEN s.StageKey END AS stage, CASE WHEN @staff = 1 THEN r.DueAt END AS dueAt, CASE WHEN @staff = 1 THEN r.SlaState END AS slaState
@@ -267,7 +267,8 @@ public static class RequestEndpoints
               JOIN org.Company AS co ON co.CompanyId = r.CompanyId
               LEFT JOIN ref.Currency AS cur ON cur.CurrencyId = r.CurrencyId
               LEFT JOIN wfl.WorkflowStage AS s ON s.WorkflowStageId = r.CurrentStageId
-             WHERE {filter} AND (@q = '' OR r.SearchText LIKE '%' + @nq + '%' OR r.RequestNo = @q OR r.DraftRef = @q
+              LEFT JOIN wfl.RequestCompanyNumber AS cn ON cn.RequestId = r.RequestId
+             WHERE {filter} AND (@q = '' OR r.SearchText LIKE '%' + @nq + '%' OR r.RequestNo = @q OR r.DraftRef = @q OR cn.CompanyRequestNo = @q
                     OR EXISTS (SELECT 1 FROM wfl.RequestExternalRef AS e WHERE e.RequestId = r.RequestId AND e.IsActive = 1 AND e.NormalizedValue = @nref))
                AND (@cat = '' OR rt.Category = @cat)
              ORDER BY r.UpdatedAt DESC, r.RequestId DESC;
@@ -281,8 +282,8 @@ public static class RequestEndpoints
         if (!csv) return Results.Ok(new { items = rows });
         // FR-REQ-026: the same list as a CSV file, at most 5,000 rows, audited; the treasury's columns only for its staff.
         string[] cols = staff
-            ? ["requestNo", "draftRef", "type", "title", "companyNameEn", "amount", "currency", "phase", "status", "stage", "slaState", "dueAt", "createdAt", "updatedAt"]
-            : ["requestNo", "draftRef", "type", "title", "companyNameEn", "amount", "currency", "phase", "createdAt", "updatedAt"];
+            ? ["requestNo", "companyRequestNo", "draftRef", "type", "title", "companyNameEn", "amount", "currency", "phase", "status", "stage", "slaState", "dueAt", "createdAt", "updatedAt"]
+            : ["requestNo", "companyRequestNo", "draftRef", "type", "title", "companyNameEn", "amount", "currency", "phase", "createdAt", "updatedAt"];
         var text = new System.Text.StringBuilder(string.Join(',', cols)).Append("\r\n");
         var count = 0;
         foreach (IDictionary<string, object?> row in rows)
@@ -407,6 +408,8 @@ public static class RequestEndpoints
               FROM wfl.RequestExternalRef AS e LEFT JOIN sec.AppUser AS a ON a.AppUserId = e.EnteredBy
              WHERE e.RequestId = @id ORDER BY e.IsActive DESC, e.SystemCode, e.RefType, e.EnteredAt DESC;
             """, new { id = requestId }, cancellationToken: ct));
+        var companyRequestNo = await u.Connection.ExecuteScalarAsync<string?>(new CommandDefinition(
+            "SELECT CompanyRequestNo FROM wfl.RequestCompanyNumber WHERE RequestId = @id;", new { id = requestId }, cancellationToken: ct));
         var mine = actor.UserId == r.RequesterUserId || actor.UserId == r.CreatedByUserId;
         var editable = mine && (r.Status == "DRAFT" || inst?.StageKey == "RETURNED");
         var actions = new List<string>();
@@ -439,7 +442,7 @@ public static class RequestEndpoints
         var common = new
         {
             actions, fields = formFields,
-            id = r.PublicId, draftRef = r.DraftRef, requestNo = r.RequestNo, status = PublicStatus(r.Status, staff), title = r.Title, amount = r.Amount, currency = r.CurrencyCode,
+            id = r.PublicId, draftRef = r.DraftRef, requestNo = r.RequestNo, companyRequestNo, status = PublicStatus(r.Status, staff), title = r.Title, amount = r.Amount, currency = r.CurrencyCode,
             head, form, comments, attachments, slots, timeline, references,
             canAddReference = actor.Permissions.Contains("req.extref.edit") && r.Status is "DRAFT" or "ACTIVE" or "AWAITING_CLOSE",
             canAttach = r.Status is "DRAFT" or "ACTIVE" or "AWAITING_CLOSE",

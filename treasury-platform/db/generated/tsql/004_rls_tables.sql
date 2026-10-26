@@ -182,6 +182,7 @@ INSERT #rls_tables VALUES (N'wfl', N'TemplateAttachmentRule', 0);
 INSERT #rls_tables VALUES (N'wfl', N'Request', 0);
 INSERT #rls_tables VALUES (N'wfl', N'RequestComment', 0);
 INSERT #rls_tables VALUES (N'wfl', N'RequestAttachment', 0);
+INSERT #rls_tables VALUES (N'wfl', N'RequestCompanyNumber', 0);
 INSERT #rls_tables VALUES (N'wfl', N'RequestExternalRef', 0);
 INSERT #rls_tables VALUES (N'wfl', N'RequestStageInstance', 0);
 INSERT #rls_tables VALUES (N'wfl', N'RequestApproval', 0);

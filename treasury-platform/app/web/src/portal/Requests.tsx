@@ -52,6 +52,7 @@ export function RequestList() {
       <p><a href={`/api/v1${query}&format=csv`} download>{t('Export as CSV')}</a></p>
       <Table rows={rows} empty="No request here." columns={[
         { header: 'Number', cell: r => <Link to={`/requests/${str(r.id)}`} dir="ltr">{str(r.requestNo ?? r.draftRef)}</Link> },
+        { header: 'Company number', cell: r => <span dir="ltr">{str(r.companyRequestNo)}</span> },
         { header: 'Type', cell: r => pick(lang, r, 'typeName') },
         { header: 'Title', cell: r => str(r.title) },
         { header: 'Company', cell: r => pick(lang, r, 'companyName') },
@@ -98,7 +99,7 @@ interface FieldDef { key: string; labelAr: string; labelEn: string; type: string
 interface Detail {
   view: 'REQUESTER' | 'STAFF';
   request: {
-    id: string; draftRef: string; requestNo?: string; status: string; title?: string; amount?: number; currency?: string; head: Row; form: Record<string, unknown>;
+    id: string; draftRef: string; requestNo?: string; companyRequestNo?: string; status: string; title?: string; amount?: number; currency?: string; head: Row; form: Record<string, unknown>;
     comments: Row[]; attachments: Row[]; slots?: Row[]; canAttach?: boolean; timeline: Row[]; actions: string[]; fields: FieldDef[];
     references?: Row[]; canAddReference?: boolean;
   };
@@ -166,6 +167,7 @@ export function RequestDetail() {
     <>
       <section className="card">
         <h1><span dir="ltr">{rq.requestNo ?? rq.draftRef}</span> {pick(lang, rq.head, 'typeName')}</h1>
+        {rq.companyRequestNo && <p>{t('Company number')}: <strong dir="ltr">{rq.companyRequestNo}</strong></p>}
         {rq.fields.some(f => f.type === 'MODULE_FORM' && f.config?.component === 'lc.proforma') && (
           <p><Link to={`/requests/${id}/proforma`}>{t('The proforma')}</Link></p>
         )}
