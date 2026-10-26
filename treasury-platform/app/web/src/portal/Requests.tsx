@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api, apiWithETag, message } from '../api';
 import { useI18n } from '../i18n';
 import { Field, Form, Notice, Select, Table } from '../ui';
@@ -16,27 +16,40 @@ const str = (v: unknown) => v == null ? '' : typeof v === 'number' ? v.toLocaleS
 const day = (v: unknown) => str(v).slice(0, 16).replace('T', ' ');
 const pick = (lang: string, r: Row, base: string) => str(lang === 'ar' ? r[`${base}Ar`] ?? r[`${base}En`] : r[`${base}En`] ?? r[`${base}Ar`]);
 
+/** The screens of the request categories (docs/31 row 73): each shows the request types of its category only. */
+export const CATEGORY_SCREENS: Record<string, string> = {
+  PURCHASE: 'Import letters of credit', SALES: 'Export letters of credit', GENERAL: 'General requests', TREASURY: 'Other requests',
+};
+
 export function RequestList() {
   const { t, lang } = useI18n();
   const me = useMe();
+  const { category = '' } = useParams();
   const [view, setView] = useState('mine');
+  const [mineOnly, setMineOnly] = useState(false);
   const [q, setQ] = useState('');
   const [rows, setRows] = useState<Row[]>([]);
-  const load = useCallback(async () => {
-    const r = await api<{ items: Row[] }>('GET', `/requests?view=${view}${q ? `&q=${encodeURIComponent(q)}` : ''}`);
-    setRows(r.items);
-  }, [view, q]);
+  const query = `/requests?view=${view}${category ? `&category=${category}` : ''}${view === 'execution' && mineOnly ? '&assignee=me' : ''}${q ? `&q=${encodeURIComponent(q)}` : ''}`;
+  const load = useCallback(async () => setRows((await api<{ items: Row[] }>('GET', query)).items), [query]);
   useEffect(() => { void load(); }, [load]);
   const views = [{ value: 'mine', label: t('My requests') }, { value: 'tasks', label: t('Waiting for me') }];
-  if (can(me, 'req.view.all') && can(me, 'req.view.internal')) views.push({ value: 'all', label: t('All requests') });
+  if (can(me, 'req.view.all') && can(me, 'req.view.internal')) {
+    // The treasury's screens: before the treasury, arrived and not taken, and in execution (the manager sees all, staff may keep theirs).
+    views.push({ value: 'pending', label: t('Awaiting approval') }, { value: 'incoming', label: t('Incoming to the treasury') },
+      { value: 'execution', label: t('In execution') }, { value: 'all', label: t('All requests') });
+  }
+  const title = category ? CATEGORY_SCREENS[category] ?? 'Requests' : 'Requests';
   return (
     <section className="card">
-      <h1>{t('Requests')} {can(me, 'req.create') && <small><Link to="/requests/new">{t('New request')}</Link></small>}</h1>
+      <h1>{t(title)} {can(me, 'req.create') && <small><Link to={category ? `/requests/new?category=${category}` : '/requests/new'}>{t('New request')}</Link></small>}</h1>
       <div className="row">
         <Select label="View" value={view} onChange={setView} options={views} />
         <Field label="Search" value={q} onChange={setQ} required={false} />
+        {view === 'execution' && (
+          <label className="check"><input type="checkbox" checked={mineOnly} onChange={e => setMineOnly(e.target.checked)} />{t('Only the ones I hold')}</label>
+        )}
       </div>
-      <p><a href={`/api/v1/requests?view=${view}${q ? `&q=${encodeURIComponent(q)}` : ''}&format=csv`} download>{t('Export as CSV')}</a></p>
+      <p><a href={`/api/v1${query}&format=csv`} download>{t('Export as CSV')}</a></p>
       <Table rows={rows} empty="No request here." columns={[
         { header: 'Number', cell: r => <Link to={`/requests/${str(r.id)}`} dir="ltr">{str(r.requestNo ?? r.draftRef)}</Link> },
         { header: 'Type', cell: r => pick(lang, r, 'typeName') },
@@ -54,15 +67,21 @@ export function RequestList() {
 export function NewRequest() {
   const { lang } = useI18n();
   const nav = useNavigate();
+  const [params] = useSearchParams();
+  const category = params.get('category') ?? '';
   const [types, setTypes] = useState<Row[]>([]);
   const [companies, setCompanies] = useState<Row[]>([]);
   const [type, setType] = useState('');
   const [company, setCompany] = useState('');
   const [title, setTitle] = useState('');
   useEffect(() => {
-    void api<{ items: Row[] }>('GET', '/request-types').then(r => { setTypes(r.items); if (r.items[0]) setType(str(r.items[0].code)); });
+    void api<{ items: Row[] }>('GET', '/request-types').then(r => {
+      const list = category ? r.items.filter(x => x.category === category) : r.items;
+      setTypes(list);
+      if (list[0]) setType(str(list[0].code));
+    });
     void api<{ items: Row[] }>('GET', '/companies').then(r => { setCompanies(r.items); if (r.items[0]) setCompany(str(r.items[0].id)); });
-  }, []);
+  }, [category]);
   return (
     <Form title="New request" submit="Create the draft" onSubmit={async () => {
       const r = await api<{ id: string }>('POST', '/requests', { type, company, data: title ? { title } : {} });

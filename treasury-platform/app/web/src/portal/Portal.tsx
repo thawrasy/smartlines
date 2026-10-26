@@ -150,6 +150,10 @@ const menu: { group: string; items: MenuItem[] }[] = [
   ] },
   { group: 'Treasury requests', items: [
     { to: '/requests', label: 'Requests', anyOf: ['req.view.own', 'req.view.all'] },
+    { to: '/requests/screen/PURCHASE', label: 'Import letters of credit', anyOf: ['req.view.own', 'req.view.all'] },
+    { to: '/requests/screen/SALES', label: 'Export letters of credit', anyOf: ['req.view.own', 'req.view.all'] },
+    { to: '/requests/screen/GENERAL', label: 'General requests', anyOf: ['req.view.own', 'req.view.all'] },
+    { to: '/requests/screen/TREASURY', label: 'Other requests', anyOf: ['req.view.own', 'req.view.all'] },
     { to: '/lcs', label: 'Letters of credit', anyOf: ['lc.view.all', 'lc.view.own'] },
     { to: '/sales/proformas', label: 'Proformas', anyOf: ['lc.view.all', 'lc.view.own'] },
     { to: '/sales/lcs', label: 'Received letters of credit', permission: 'lc.export.view' },
@@ -332,6 +336,7 @@ function Shell() {
               <Route path="/lc-form-templates" element={<FormTemplates />} />
               <Route path="/lc-form-templates/:id" element={<FormTemplateDetail />} />
               <Route path="/requests" element={<RequestList />} />
+              <Route path="/requests/screen/:category" element={<RequestList />} />
               <Route path="/requests/new" element={<NewRequest />} />
               <Route path="/requests/:id" element={<RequestDetail />} />
               <Route path="/requests/:id/terms" element={<TermsEditor />} />

@@ -210,13 +210,19 @@ public static class RequestEndpoints
 
     private static async Task<IResult> ListAsync(HttpContext http, SqlConnectionFactory db)
     {
-        Query.Allow(http.Request, "view", "q", "status", "limit", "format");
+        Query.Allow(http.Request, "view", "q", "status", "limit", "format", "category", "assignee");
         var csv = http.Request.Query["format"].ToString() switch { "" => false, "csv" => true, _ => throw ApiProblemException.Invalid("VALIDATION_FAILED", "The format is csv.") };
         await using var u = await OpenAsync(http, db);
         var ct = http.RequestAborted;
         var actor = await ActorAsync(u, null, ct);
         var view = http.Request.Query["view"].ToString() is { Length: > 0 } v ? v : "mine";
         var q = http.Request.Query["q"].ToString();
+        // docs/31 row 73: one screen per category of request types; empty is every category.
+        var category = http.Request.Query["category"].ToString();
+        if (category.Length > 0 && category is not ("PURCHASE" or "SALES" or "GENERAL" or "TREASURY" or "CHILD"))
+            throw ApiProblemException.Invalid("VALIDATION_FAILED", "The category is PURCHASE, SALES, GENERAL, TREASURY or CHILD.");
+        var assignee = http.Request.Query["assignee"].ToString();
+        if (assignee is not ("" or "me")) throw ApiProblemException.Invalid("VALIDATION_FAILED", "The assignee is me.");
         var scope = await CompanyScope.OfAsync(u, ct);
         var staff = actor.Permissions.Contains("req.view.all") && actor.Permissions.Contains("req.view.internal");
         var filter = view switch
@@ -235,7 +241,19 @@ public static class RequestEndpoints
                         OR (r.Status = 'AWAITING_CLOSE' AND @close = 1 AND (@all = 1 OR r.CompanyId IN @scope)))
                        """,
             "all" when staff => "(@all = 1 OR r.CompanyId IN @scope)",
-            _ => throw ApiProblemException.Invalid("VALIDATION_FAILED", "The view is mine, tasks or all."),
+            // The treasury's screens (docs/31 row 73): waiting for approval before the treasury, arrived in the
+            // treasury queue and not yet taken, and taken into execution; assignee=me keeps the ones held by me.
+            "pending" when staff => "((@all = 1 OR r.CompanyId IN @scope) AND r.Status = 'ACTIVE' AND s.Kind = 'APPROVAL')",
+            "incoming" when staff => """
+                ((@all = 1 OR r.CompanyId IN @scope) AND r.Status = 'ACTIVE' AND s.Kind = 'TREASURY_QUEUE'
+                 AND EXISTS (SELECT 1 FROM wfl.RequestStageInstance AS i WHERE i.RequestStageInstanceId = r.CurrentStageInstanceId AND i.Status = 'QUEUED'))
+                """,
+            "execution" when staff => """
+                ((@all = 1 OR r.CompanyId IN @scope) AND r.Status = 'ACTIVE' AND s.Kind IN ('TREASURY_QUEUE', 'TASK') AND s.AssigneeRule <> 'REQUESTER'
+                 AND EXISTS (SELECT 1 FROM wfl.RequestStageInstance AS i WHERE i.RequestStageInstanceId = r.CurrentStageInstanceId AND i.Status = 'CLAIMED'
+                              AND (@me = 0 OR i.AssigneeUserId = @u)))
+                """,
+            _ => throw ApiProblemException.Invalid("VALIDATION_FAILED", "The view is mine, tasks, all, pending, incoming or execution."),
         };
         var rows = await u.Connection.QueryAsync(new CommandDefinition(
             $"""
@@ -250,12 +268,14 @@ public static class RequestEndpoints
               LEFT JOIN ref.Currency AS cur ON cur.CurrencyId = r.CurrencyId
               LEFT JOIN wfl.WorkflowStage AS s ON s.WorkflowStageId = r.CurrentStageId
              WHERE {filter} AND (@q = '' OR r.SearchText LIKE '%' + @nq + '%' OR r.RequestNo = @q OR r.DraftRef = @q)
+               AND (@cat = '' OR rt.Category = @cat)
              ORDER BY r.UpdatedAt DESC, r.RequestId DESC;
             """,
             new
             {
                 u = u.UserId, roles = actor.RoleIds.DefaultIfEmpty(-1).ToArray(), perms = actor.Permissions.DefaultIfEmpty("-").ToArray(), all = scope.All, scope = scope.SqlIds,
                 close = actor.Permissions.Contains("req.treasury.close"), staff, q, nq = Normalizer.Name(q), take = csv ? 5000 : 200,
+                cat = category, me = assignee == "me" ? 1 : 0,
             }, cancellationToken: ct));
         if (!csv) return Results.Ok(new { items = rows });
         // FR-REQ-026: the same list as a CSV file, at most 5,000 rows, audited; the treasury's columns only for its staff.

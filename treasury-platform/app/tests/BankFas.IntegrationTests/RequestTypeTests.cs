@@ -70,6 +70,11 @@ public sealed class RequestTypeTests(PlatformFixture f)
         // A request on it: the manager approves, the queue numbers it BGR-, only the treasury executive role claims it, then it completes.
         var id = PlatformFixture.Id(await rq.PostOkAsync("/api/v1/requests", new { type = "GUARANTEE_REQUEST", company, data = new { title = "Bid bond", amount = new { value = 250_000, currency = "SAR" } } }));
         await ActAsync(rq, id, "submit");
+        // The screens of the category (row 73): pending approval on the general screen, not on the import credits one.
+        static bool Has(System.Text.Json.JsonElement list, string id) => list.GetProperty("items").EnumerateArray().Any(x => x.GetProperty("id").GetString() == id);
+        Assert.True(Has(await tm.GetJsonAsync("/api/v1/requests?view=pending&category=GENERAL"), id));
+        Assert.False(Has(await tm.GetJsonAsync("/api/v1/requests?view=pending&category=PURCHASE"), id));
+        Assert.Equal((422, "VALIDATION_FAILED"), await tm.ProblemAsync(HttpMethod.Get, "/api/v1/requests?view=pending&category=NOPE"));
         Assert.Equal("APPROVAL_1", (await tm.GetJsonAsync($"/api/v1/requests/{id}")).GetProperty("staff").GetProperty("stage").GetString());
         await ActAsync(tm, id, "approve");
         var queued = await te.GetJsonAsync($"/api/v1/requests/{id}");
@@ -77,7 +82,13 @@ public sealed class RequestTypeTests(PlatformFixture f)
         Assert.StartsWith("BGR-", queued.GetProperty("request").GetProperty("requestNo").GetString());
         var (_, etag) = await te.GetWithETagAsync($"/api/v1/requests/{id}");
         Assert.Equal(403, (await fo.ProblemAsync(HttpMethod.Post, $"/api/v1/requests/{id}/actions/claim", new { }, etag)).Status);
+        Assert.True(Has(await te.GetJsonAsync("/api/v1/requests?view=incoming&category=GENERAL"), id));
+        Assert.False(Has(await te.GetJsonAsync("/api/v1/requests?view=execution&category=GENERAL"), id));
         await ActAsync(te, id, "claim");
+        Assert.False(Has(await te.GetJsonAsync("/api/v1/requests?view=incoming&category=GENERAL"), id));
+        Assert.True(Has(await te.GetJsonAsync("/api/v1/requests?view=execution&category=GENERAL&assignee=me"), id));
+        Assert.False(Has(await tm.GetJsonAsync("/api/v1/requests?view=execution&category=GENERAL&assignee=me"), id));
+        Assert.True(Has(await tm.GetJsonAsync("/api/v1/requests?view=execution&category=GENERAL"), id));
         Assert.Equal("EXECUTION", (await te.GetJsonAsync($"/api/v1/requests/{id}")).GetProperty("staff").GetProperty("stage").GetString());
         await ActAsync(te, id, "complete");
         Assert.Equal("COMPLETED", (await te.GetJsonAsync($"/api/v1/requests/{id}")).GetProperty("staff").GetProperty("stage").GetString());

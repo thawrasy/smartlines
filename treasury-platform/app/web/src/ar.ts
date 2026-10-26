@@ -3098,4 +3098,8 @@ export const ar: Record<string, string> = {
   'Choose the role of each approval by role.': 'اختر الدور لكل موافقة بالدور.',
   'The hours of a step are 1 to 720.': 'ساعات الخطوة من 1 إلى 720.',
   'A workflow has at most five approvals.': 'دورة العمل خمس موافقات على الأكثر.',
+  'Awaiting approval': 'بانتظار الموافقة',
+  'Incoming to the treasury': 'الواردة إلى الخزينة',
+  'In execution': 'قيد التنفيذ',
+  'Only the ones I hold': 'المسندة إليّ فقط',
 };
