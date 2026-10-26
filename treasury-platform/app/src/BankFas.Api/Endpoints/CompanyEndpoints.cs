@@ -211,7 +211,7 @@ public static partial class CompanyEndpoints
         : null;
 
     /// <summary>
-    /// BR-FAC-021: the company's code in its facilities' platform references, two or three characters with a letter
+    /// BR-FAC-021: the company's code in its facilities' platform references, two to six characters with a letter
     /// first. Given empty it is cleared; not given at creation it is the company code when that has the shape.
     /// </summary>
     private static string? Ref(string? text)
@@ -219,7 +219,7 @@ public static partial class CompanyEndpoints
         var v = text?.Trim().ToUpperInvariant();
         if (string.IsNullOrEmpty(v)) return null;
         return FacilityReference.IsCompanyCode(v) ? v
-            : throw ApiProblemException.Invalid("V-ORG-REF", "The reference code is two or three capital letters or digits, a letter first.");
+            : throw ApiProblemException.Invalid("V-ORG-REF", "The reference code is two to six capital letters or digits, a letter first.");
     }
 
     private static string? Erp(string? text) => text is null ? null : text.Trim().Length == 0 ? null : text.Trim().Length > 20

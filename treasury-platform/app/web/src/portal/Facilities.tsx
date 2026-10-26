@@ -31,7 +31,7 @@ function Validity({ v }: { v?: string | null }) {
   return <span className={`badge ${v === 'NOT_CONFIRMED' ? 'error' : v === 'EXPIRING' ? 'warn' : ''}`}>{t(v)}</span>;
 }
 
-// BR-FAC-021: the classes of the platform reference COMPANY-BANK-CLASS-YY, read from the tenant's FACILITY_CLASS list,
+// BR-FAC-021: the classes of the platform reference CLASS-COMPANY-BANK-YY, read from the tenant's FACILITY_CLASS list,
 // which the tenant extends in the catalogue (docs/31 row 45).
 interface FacilityClass { code: string; nameAr: string; nameEn?: string }
 function useFacilityClasses(): FacilityClass[] {
@@ -105,7 +105,7 @@ interface Doc { id: string; document: string; title: string; documentType: strin
 interface Revision { id: string; revisionNo: number; reasonKind: string; status: string; effectiveOn: string; changeSummary?: string; rejectionReason?: string; approvedOn?: string }
 interface Card {
   id: string; facilityNo: string; platformRef?: string | null; facilityClass?: string | null;
-  referenceParts?: { company?: string; bank?: string; facilityClass?: string; preview?: string | null; missing: string[] } | null;
+  referenceParts?: { company?: string; bank?: string; facilityClass?: string; preview?: string | null; file?: string | null; fileId?: string | null; missing: string[] } | null;
   borrower: Named; type: string; currency: string; status: string; statusReason?: string; validity?: string; daysToExpiry: number;
   approvedRevision: number; header: Header; previous?: string; successor?: { id: string; facilityNo: string; status: string };
   lenders: Lender[]; documents: Doc[]; revisions: Revision[];
@@ -181,6 +181,9 @@ export function FacilityDetail() {
           ? <strong dir="ltr">{card.platformRef}</strong>
           : <>{card.referenceParts?.preview ? <span dir="ltr">{card.referenceParts.preview}</span> : '—'} <small className="muted">({t('written at the first approval')})</small></>}
           {' · '}{t('Internal number')}: <span dir="ltr">{card.facilityNo}</span>{card.facilityClass && <> · {t('Class')}: <span dir="ltr">{card.facilityClass}</span></>}</p>
+        {card.referenceParts?.file && <p>{t('Facility file')}: {card.referenceParts.fileId
+          ? <Link to={`/facility-files/${card.referenceParts.fileId}`} dir="ltr">{card.referenceParts.file}</Link>
+          : <span dir="ltr">{card.referenceParts.file}</span>}</p>}
         {card.referenceParts?.missing.map(m => <p key={m} className="error">{t(m)}</p>)}
         <p>{t(card.status)} <Validity v={card.validity} /> {card.validity && <small className="muted">{card.daysToExpiry} {t('days to expiry')}</small>}
           {card.statusReason && <small className="muted"> · {card.statusReason}</small>}</p>

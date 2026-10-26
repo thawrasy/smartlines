@@ -325,6 +325,16 @@ ALTER TABLE [fac].[Facility] ADD CONSTRAINT [FK_Facility_BorrowerCompanyId] FORE
 ALTER TABLE [fac].[Facility] ADD CONSTRAINT [FK_Facility_FacilityTypeId] FOREIGN KEY ([TenantId], [FacilityTypeId]) REFERENCES [cat].[FacilityType] ([TenantId], [FacilityTypeId]);
 ALTER TABLE [fac].[Facility] ADD CONSTRAINT [FK_Facility_CurrencyId] FOREIGN KEY ([CurrencyId]) REFERENCES [ref].[Currency] ([CurrencyId]);
 ALTER TABLE [fac].[Facility] ADD CONSTRAINT [FK_Facility_PreviousFacilityId] FOREIGN KEY ([TenantId], [PreviousFacilityId]) REFERENCES [fac].[Facility] ([TenantId], [FacilityId]);
+ALTER TABLE [fac].[FacilityFile] ADD CONSTRAINT [FK_FacilityFile_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
+ALTER TABLE [fac].[FacilityFile] ADD CONSTRAINT [FK_FacilityFile_CompanyId] FOREIGN KEY ([TenantId], [CompanyId]) REFERENCES [org].[Company] ([TenantId], [CompanyId]);
+ALTER TABLE [fac].[FacilityFile] ADD CONSTRAINT [FK_FacilityFile_InstitutionId] FOREIGN KEY ([TenantId], [InstitutionId]) REFERENCES [ins].[Institution] ([TenantId], [InstitutionId]);
+ALTER TABLE [fac].[FacilityFileFacility] ADD CONSTRAINT [FK_FacilityFileFacility_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
+ALTER TABLE [fac].[FacilityFileFacility] ADD CONSTRAINT [FK_FacilityFileFacility_FacilityFileId] FOREIGN KEY ([TenantId], [FacilityFileId]) REFERENCES [fac].[FacilityFile] ([TenantId], [FacilityFileId]);
+ALTER TABLE [fac].[FacilityFileFacility] ADD CONSTRAINT [FK_FacilityFileFacility_FacilityId] FOREIGN KEY ([TenantId], [FacilityId]) REFERENCES [fac].[Facility] ([TenantId], [FacilityId]);
+ALTER TABLE [fac].[FacilityFileEntry] ADD CONSTRAINT [FK_FacilityFileEntry_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
+ALTER TABLE [fac].[FacilityFileEntry] ADD CONSTRAINT [FK_FacilityFileEntry_FacilityFileId] FOREIGN KEY ([TenantId], [FacilityFileId]) REFERENCES [fac].[FacilityFile] ([TenantId], [FacilityFileId]);
+ALTER TABLE [fac].[FacilityFileEntry] ADD CONSTRAINT [FK_FacilityFileEntry_DocumentId] FOREIGN KEY ([TenantId], [DocumentId]) REFERENCES [doc].[Document] ([TenantId], [DocumentId]);
+ALTER TABLE [fac].[FacilityFileEntry] ADD CONSTRAINT [FK_FacilityFileEntry_FacilityId] FOREIGN KEY ([TenantId], [FacilityId]) REFERENCES [fac].[Facility] ([TenantId], [FacilityId]);
 ALTER TABLE [fac].[FacilityRevision] ADD CONSTRAINT [FK_FacilityRevision_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
 ALTER TABLE [fac].[FacilityRevision] ADD CONSTRAINT [FK_FacilityRevision_FacilityId] FOREIGN KEY ([TenantId], [FacilityId]) REFERENCES [fac].[Facility] ([TenantId], [FacilityId]);
 ALTER TABLE [fac].[FacilityRevision] ADD CONSTRAINT [FK_FacilityRevision_SubmittedBy] FOREIGN KEY ([TenantId], [SubmittedBy]) REFERENCES [sec].[AppUser] ([TenantId], [AppUserId]);

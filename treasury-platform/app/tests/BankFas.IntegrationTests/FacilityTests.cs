@@ -266,11 +266,12 @@ public sealed class FacilityTests(PlatformFixture f)
     }
 
     /// <summary>
-    /// BR-FAC-021 (the owner's request of 2026-10-23): the platform reference COMPANY-BANK-CLASS-YY. The company IMP and
-    /// the bank SNB take their codes as reference codes; a code of another shape is refused. A facility without a class
-    /// does not pass the check (V-FAC-REF); with CAP its first approval writes IMP-SNB-CAP-yy, the year it is in force
-    /// from, and its class no longer changes. A second one of the same stem and year is IMP-SNB-CAP-yy-2; the list finds
-    /// it by its reference; the renewal keeps the stem with its own year.
+    /// BR-FAC-021 and docs/31 row 75: the facility file COMPANY-BANK-NNNN and its contracts. The company IMP and the bank
+    /// SNB take their codes as reference codes; a code of another shape is refused. A facility without a class does not
+    /// pass the check (V-FAC-REF); with CAP its first approval opens the file IMP-SNB-0001 and writes CAP-IMP-SNB-0001,
+    /// and its class no longer changes. A second CAP of the pair joins the open file as CAP-IMP-SNB-0001-02, an LTL as
+    /// LTL-IMP-SNB-0001; the renewal of the first joins its file as CAP-IMP-SNB-0001-03. The file lists its contracts and
+    /// keeps the correspondence with the bank.
     /// </summary>
     [Fact]
     public async Task BR_FAC_021_the_platform_reference_of_a_facility_and_its_renewal()
@@ -287,8 +288,7 @@ public sealed class FacilityTests(PlatformFixture f)
         Assert.Equal((409, "V-INS-REF-TAKEN"), await tm.PostProblemAsync("/api/v1/institutions", new { code = "SNB-2", refCode = "SNB", nameAr = "بنك آخر", type = "BANK", country = "SA" }));
 
         var from = Today.AddMonths(-1);
-        var yy = (from.Year % 100).ToString("00", CultureInfo.InvariantCulture);
-        var id = PlatformFixture.Id(await fo.PostOkAsync("/api/v1/facilities", new
+                var id = PlatformFixture.Id(await fo.PostOkAsync("/api/v1/facilities", new
         {
             borrower = co, facilityType = "CREDIT_FACILITIES", currency = "SAR", totalAmount = 10_000_000, effectiveFrom = D(from), expiryDate = D(from.AddYears(1).AddDays(-1)),
         }));
@@ -302,11 +302,11 @@ public sealed class FacilityTests(PlatformFixture f)
         var (_, etag) = await fo.GetWithETagAsync($"/api/v1/facilities/{id}");
         Assert.Equal((422, "V-FAC-CLASS"), await fo.ProblemAsync(HttpMethod.Patch, $"/api/v1/facilities/{id}", new { facilityClass = "WC" }, etag));
         Assert.Equal(HttpStatusCode.NoContent, (await fo.SendAsync(HttpMethod.Patch, $"/api/v1/facilities/{id}", new { facilityClass = "cap" }, etag)).StatusCode);
-        Assert.Equal($"IMP-SNB-CAP-{yy}", (await CardAsync(fo, id)).GetProperty("referenceParts").GetProperty("preview").GetString());
+        Assert.Equal("CAP-IMP-SNB-0001", (await CardAsync(fo, id)).GetProperty("referenceParts").GetProperty("preview").GetString());
         await ActAsync(fo, id, rev, "submit");
-        Assert.Equal($"IMP-SNB-CAP-{yy}", (await ActAsync(tm, id, rev, "approve", new { acknowledge = Ack })).GetProperty("platformRef").GetString());
+        Assert.Equal("CAP-IMP-SNB-0001", (await ActAsync(tm, id, rev, "approve", new { acknowledge = Ack })).GetProperty("platformRef").GetString());
         card = await CardAsync(fo, id);
-        Assert.Equal(($"IMP-SNB-CAP-{yy}", "CAP"), (card.GetProperty("platformRef").GetString(), card.GetProperty("facilityClass").GetString()));
+        Assert.Equal(("CAP-IMP-SNB-0001", "CAP"), (card.GetProperty("platformRef").GetString(), card.GetProperty("facilityClass").GetString()));
 
         // The class is fixed once the reference is written; a later code of the company does not move it.
         await fo.PostOkAsync($"/api/v1/facilities/{id}/revisions", new { reasonKind = "CORRECTION", changeSummary = "A correction" });
@@ -314,11 +314,11 @@ public sealed class FacilityTests(PlatformFixture f)
         Assert.Equal((422, "V-FAC-REF-FIXED"), await fo.ProblemAsync(HttpMethod.Patch, $"/api/v1/facilities/{id}", new { facilityClass = "STL" }, etag));
         var (_, coTag) = await tm.GetWithETagAsync($"/api/v1/companies/{co}");
         await tm.OkAsync(HttpMethod.Patch, $"/api/v1/companies/{co}", new { refCode = "IM" }, coTag);
-        Assert.Equal($"IMP-SNB-CAP-{yy}", (await CardAsync(fo, id)).GetProperty("platformRef").GetString());
+        Assert.Equal("CAP-IMP-SNB-0001", (await CardAsync(fo, id)).GetProperty("platformRef").GetString());
         (_, coTag) = await tm.GetWithETagAsync($"/api/v1/companies/{co}");
         await tm.OkAsync(HttpMethod.Patch, $"/api/v1/companies/{co}", new { refCode = "IMP" }, coTag);
 
-        // A second working capital facility of the same year takes a serial.
+        // A second working capital facility of the pair joins the open file.
         var second = PlatformFixture.Id(await fo.PostOkAsync("/api/v1/facilities", new
         {
             facilityClass = "CAP", borrower = co, facilityType = "CREDIT_FACILITIES", currency = "SAR", totalAmount = 5_000_000, effectiveFrom = D(from), expiryDate = D(from.AddMonths(6)),
@@ -326,17 +326,39 @@ public sealed class FacilityTests(PlatformFixture f)
         await LenderAsync(fo, second, bank, 100, "SOLE");
         var rev2 = Open(await CardAsync(fo, second));
         await ActAsync(fo, second, rev2, "submit");
-        Assert.Equal($"IMP-SNB-CAP-{yy}-2", (await ActAsync(tm, second, rev2, "approve", new { acknowledge = Ack })).GetProperty("platformRef").GetString());
-        Assert.Single((await fo.GetJsonAsync($"/api/v1/facilities?q=IMP-SNB-CAP-{yy}-2")).GetProperty("items").EnumerateArray());
+        Assert.Equal("CAP-IMP-SNB-0001-02", (await ActAsync(tm, second, rev2, "approve", new { acknowledge = Ack })).GetProperty("platformRef").GetString());
+        Assert.Single((await fo.GetJsonAsync($"/api/v1/facilities?q=CAP-IMP-SNB-0001-02")).GetProperty("items").EnumerateArray());
 
-        // The renewal of the first keeps the stem and takes the year it starts.
+        // A long-term loan of the pair opens its class in the same file.
+        var ltl = PlatformFixture.Id(await fo.PostOkAsync("/api/v1/facilities", new
+        {
+            facilityClass = "LTL", borrower = co, facilityType = "CREDIT_FACILITIES", currency = "SAR", totalAmount = 8_000_000, effectiveFrom = D(from), expiryDate = D(from.AddYears(3)),
+        }));
+        await LenderAsync(fo, ltl, bank, 100, "SOLE");
+        var rev4 = Open(await CardAsync(fo, ltl));
+        await ActAsync(fo, ltl, rev4, "submit");
+        Assert.Equal("LTL-IMP-SNB-0001", (await ActAsync(tm, ltl, rev4, "approve", new { acknowledge = Ack })).GetProperty("platformRef").GetString());
+
+        // The renewal of the first joins its file.
         var next = (await fo.PostOkAsync($"/api/v1/facilities/{id}/actions/renew", new { })).GetProperty("id").GetString()!;
         var nextCard = await CardAsync(fo, next);
-        var start = DateTime.ParseExact(nextCard.GetProperty("header").GetProperty("effectiveFrom").GetString()!, "yyyy-MM-dd", CultureInfo.InvariantCulture);
-        var expected = $"IMP-SNB-CAP-{(start.Year % 100).ToString("00", CultureInfo.InvariantCulture)}";
-        Assert.Equal(("CAP", expected), (nextCard.GetProperty("facilityClass").GetString(), nextCard.GetProperty("referenceParts").GetProperty("preview").GetString()));
+        Assert.Equal(("CAP", "CAP-IMP-SNB-0001-03", "IMP-SNB-0001"), (nextCard.GetProperty("facilityClass").GetString(),
+            nextCard.GetProperty("referenceParts").GetProperty("preview").GetString(), nextCard.GetProperty("referenceParts").GetProperty("file").GetString()));
         var rev3 = Open(nextCard);
         await ActAsync(fo, next, rev3, "submit");
-        Assert.Equal(expected, (await ActAsync(tm, next, rev3, "approve", new { acknowledge = Ack })).GetProperty("platformRef").GetString());
+        Assert.Equal("CAP-IMP-SNB-0001-03", (await ActAsync(tm, next, rev3, "approve", new { acknowledge = Ack })).GetProperty("platformRef").GetString());
+
+        // The file: one per company and bank, its contracts by class, and its correspondence.
+        var files = (await fo.GetJsonAsync($"/api/v1/facility-files?company={co}")).GetProperty("items").EnumerateArray().ToArray();
+        var file = Assert.Single(files);
+        Assert.Equal(("IMP-SNB-0001", 4, "SNB"), (file.GetProperty("fileRef").GetString(), file.GetProperty("contracts").GetInt32(), file.GetProperty("bank").GetProperty("code").GetString()));
+        var fileId = file.GetProperty("id").GetString()!;
+        Assert.Equal((422, "VALIDATION_FAILED"), await fo.PostProblemAsync($"/api/v1/facility-files/{fileId}/entries", new { entryDate = D(Today), direction = "IN", kind = "LETTER", subject = "x" }));
+        await fo.PostOkAsync($"/api/v1/facility-files/{fileId}/entries", new { entryDate = D(Today), direction = "OUTGOING", kind = "RENEWAL_REQUEST", subject = "Renewal request", bankRef = "R-1", facility = id });
+        var detail = await fo.GetJsonAsync($"/api/v1/facility-files/{fileId}");
+        Assert.Equal(["CAP-IMP-SNB-0001", "CAP-IMP-SNB-0001-02", "CAP-IMP-SNB-0001-03", "LTL-IMP-SNB-0001"],
+            detail.GetProperty("contracts").EnumerateArray().Select(c => c.GetProperty("platformRef").GetString()!).ToArray());
+        var entry = detail.GetProperty("entries").EnumerateArray().Single();
+        Assert.Equal(("RENEWAL_REQUEST", "CAP-IMP-SNB-0001"), (entry.GetProperty("kind").GetString(), entry.GetProperty("facilityRef").GetString()));
     }
 }

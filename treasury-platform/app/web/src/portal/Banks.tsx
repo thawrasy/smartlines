@@ -70,10 +70,10 @@ export function Institutions() {
           nav(`/institutions/${r.id}`);
         }}>
           <Field label="Code" value={draft.code} onChange={v => setDraft({ ...draft, code: v.toUpperCase() })} />
-          <Field label="Reference code" value={draft.refCode} onChange={v => setDraft({ ...draft, refCode: v.toUpperCase() })} required={false}
-            hint="Three capital letters in the facility references (IMP-SNB-CAP-26); left empty, the code when it has that shape." />
+          <Field label="Bank code" value={draft.refCode} onChange={v => setDraft({ ...draft, refCode: v.toUpperCase() })}
+            hint="The three capital letters of the bank in the facility references, such as ANB in CAP-SA05-ANB-26." />
           <Field label="Name (Arabic)" value={draft.nameAr} onChange={v => setDraft({ ...draft, nameAr: v })} />
-          <Field label="Name (English)" value={draft.nameEn} onChange={v => setDraft({ ...draft, nameEn: v })} required={false} />
+          <Field label="Name (English)" value={draft.nameEn} onChange={v => setDraft({ ...draft, nameEn: v })} />
           <Select label="Type" value={draft.type} onChange={v => setDraft({ ...draft, type: v })}
             options={['BANK', 'FINANCE_CO', 'INVESTMENT_CO', 'FINANCIAL_CO'].map(x => ({ value: x, label: x }))} />
           <Field label="Country" value={draft.country} onChange={v => setDraft({ ...draft, country: v.toUpperCase() })} />
@@ -111,7 +111,7 @@ export function InstitutionDetail() {
       <section className="card">
         <h1><span dir="ltr">{i.code}</span> {i.nameAr}</h1>
         <p>{t(i.type)} · {i.country} · {t(i.locality)} · {t(i.status)} {i.swiftBic && <span dir="ltr">· {i.swiftBic}</span>}
-          {' · '}{t('Reference code')}: <span dir="ltr">{i.refCode ?? '—'}</span></p>
+          {' · '}{t('Bank code')}: <span dir="ltr">{i.refCode ?? '—'}</span></p>
         {can(me, 'ins.manage') && i.status !== 'INACTIVE' && (
           <form className="row" onSubmit={e => {
             e.preventDefault();
@@ -121,7 +121,7 @@ export function InstitutionDetail() {
               catch (x) { setNotice({ error: message(x) }); }
             })();
           }}>
-            <label><span>{t('Reference code')}</span><input name="refCode" defaultValue={i.refCode ?? ''} maxLength={3} dir="ltr" /></label>
+            <label><span>{t('Bank code')}</span><input name="refCode" defaultValue={i.refCode ?? ''} maxLength={3} dir="ltr" /></label>
             <button type="submit">{t('Save')}</button>
           </form>
         )}
@@ -297,10 +297,10 @@ export function BankSetup() {
       <p className="muted">{t('Step {n} of 5', { n: String(step) })}</p>
       {step === 1 && <>
         <Field label="Code" value={institution.code} onChange={v => setInstitution({ ...institution, code: v.toUpperCase() })} />
-        <Field label="Reference code" value={institution.refCode} onChange={v => setInstitution({ ...institution, refCode: v.toUpperCase() })} required={false}
+        <Field label="Bank code" value={institution.refCode} onChange={v => setInstitution({ ...institution, refCode: v.toUpperCase() })}
           hint="Three capital letters in the facility references." />
         <Field label="Name (Arabic)" value={institution.nameAr} onChange={v => setInstitution({ ...institution, nameAr: v })} />
-        <Field label="Name (English)" value={institution.nameEn} onChange={v => setInstitution({ ...institution, nameEn: v })} required={false} />
+        <Field label="Name (English)" value={institution.nameEn} onChange={v => setInstitution({ ...institution, nameEn: v })} />
         <Field label="Country" value={institution.country} onChange={v => setInstitution({ ...institution, country: v.toUpperCase() })} />
         <Field label="BIC" value={institution.swiftBic} onChange={v => setInstitution({ ...institution, swiftBic: v.toUpperCase() })} required={false} />
       </>}

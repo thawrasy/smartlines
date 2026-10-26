@@ -309,11 +309,13 @@ erDiagram
 | SignatoryAuthority | SourceDocumentId | doc.Document |
 | SignatoryAuthorityJointClass | SignatureClassId | cat.LookupItem |
 
-## مخطط `fac` (14 جدولًا)
+## مخطط `fac` (17 جدولًا)
 
 ```mermaid
 erDiagram
   Facility ||--o{ FacilityDocument : "FacilityId"
+  Facility ||--o{ FacilityFileEntry : "FacilityId"
+  Facility ||--o{ FacilityFileFacility : "FacilityId"
   Facility ||--o{ FacilityLender : "FacilityId"
   Facility ||--o{ FacilityLenderDecision : "FacilityId"
   Facility ||--o{ FacilityRevision : "FacilityId"
@@ -327,6 +329,8 @@ erDiagram
   Facility ||--o{ Utilization : "FacilityId"
   Facility ||--o{ Utilization : "TransferredToFacilityId"
   Facility ||--o{ ValueConflict : "FacilityId"
+  FacilityFile ||--o{ FacilityFileEntry : "FacilityFileId"
+  FacilityFile ||--o{ FacilityFileFacility : "FacilityFileId"
   Limit ||--o{ LimitCompanyRule : "LimitId"
   Limit ||--o{ LimitProductLine : "LimitId"
   Limit ||--o{ LimitReservation : "LimitId"
@@ -353,6 +357,9 @@ erDiagram
 | Facility | FacilityClassId | cat.LookupItem |
 | Facility | FacilityTypeId | cat.FacilityType |
 | FacilityDocument | DocumentId | doc.Document |
+| FacilityFile | CompanyId | org.Company |
+| FacilityFile | InstitutionId | ins.Institution |
+| FacilityFileEntry | DocumentId | doc.Document |
 | FacilityLender | ContactId | ins.Contact |
 | FacilityLender | InstitutionId | ins.Institution |
 | FacilityLenderDecision | LenderInstitutionId | ins.Institution |

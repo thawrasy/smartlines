@@ -157,7 +157,9 @@ test('an operator onboards a tenant and its first administrator signs in', async
   // The list page has a form with the same labels: type only once the wizard has replaced it.
   await expect(page.getByRole('heading', { name: 'Bank set-up wizard' })).toBeVisible();
   await page.getByLabel(/^Code/).fill('BNK1');
+  await page.getByLabel(/^Bank code/).fill('BKA');
   await page.getByLabel(/^Name \(Arabic\)/).fill('البنك الأول');
+  await page.getByLabel(/^Name \(English\)/).fill('First Bank');
   await page.getByLabel(/^Country/).fill('AE');
   await page.getByRole('button', { name: 'Next' }).click();
   await page.getByRole('checkbox', { name: /First Company/ }).check();

@@ -239,6 +239,12 @@ GRANT SELECT, INSERT, UPDATE ON [acc].[SignatoryAuthorityJointClass] TO [tp_app]
 GRANT SELECT, INSERT, UPDATE ON [acc].[AuthorityConflict] TO [tp_app];
 -- fac.Facility
 GRANT SELECT, INSERT, UPDATE ON [fac].[Facility] TO [tp_app];
+-- fac.FacilityFile
+GRANT SELECT, INSERT, UPDATE ON [fac].[FacilityFile] TO [tp_app];
+-- fac.FacilityFileFacility
+GRANT SELECT, INSERT, UPDATE ON [fac].[FacilityFileFacility] TO [tp_app];
+-- fac.FacilityFileEntry
+GRANT SELECT, INSERT, UPDATE ON [fac].[FacilityFileEntry] TO [tp_app];
 -- fac.FacilityRevision
 GRANT SELECT, INSERT, UPDATE ON [fac].[FacilityRevision] TO [tp_app];
 -- fac.FacilityDocument

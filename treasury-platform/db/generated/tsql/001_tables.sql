@@ -1171,7 +1171,7 @@ CREATE TABLE [org].[Company] (
     [TenantId] INT NOT NULL,
     [CompanyId] BIGINT IDENTITY(1,1) NOT NULL,
     [CompanyCode] VARCHAR(20) NOT NULL,
-    [RefCode] VARCHAR(3) NULL,
+    [RefCode] VARCHAR(6) NULL,
     [NameAr] NVARCHAR(200) NOT NULL,
     [NameEn] NVARCHAR(200) NOT NULL,
     [PartyKind] VARCHAR(12) NOT NULL CONSTRAINT [DF_Company_PartyKind] DEFAULT 'ORGANIZATION',
@@ -1204,7 +1204,7 @@ CREATE TABLE [org].[Company] (
     CONSTRAINT [UQ_Company_CompanyCode] UNIQUE ([TenantId], [CompanyCode]),
     CONSTRAINT [UQ_Company_PartyId] UNIQUE ([TenantId], [PartyId]),
     CONSTRAINT [CK_Company_1] CHECK (FiscalYearEndMonth BETWEEN 1 AND 12),
-    CONSTRAINT [CK_Company_2] CHECK (RefCode IS NULL OR RefCode COLLATE Arabic_100_BIN2 LIKE '[A-Z][A-Z0-9]' OR RefCode COLLATE Arabic_100_BIN2 LIKE '[A-Z][A-Z0-9][A-Z0-9]'),
+    CONSTRAINT [CK_Company_2] CHECK (RefCode IS NULL OR (LEN(RefCode) >= 2 AND RefCode COLLATE Arabic_100_BIN2 LIKE '[A-Z]%' AND RefCode COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9]%')),
     CONSTRAINT [CK_Company_3] CHECK (FiscalYearEndDay IS NULL OR FiscalYearEndDay BETWEEN 1 AND 31),
     CONSTRAINT [CK_Company_4] CHECK (ParentCompanyId IS NULL OR ParentCompanyId <> CompanyId),
     CONSTRAINT [CK_Company_5] CHECK (ErpCompanyCode IS NULL OR LEN(ErpCompanyCode) > 0),
@@ -3159,6 +3159,77 @@ CREATE TABLE [fac].[Facility] (
     CONSTRAINT [CK_Facility_LifecycleStatus] CHECK ([LifecycleStatus] IS NULL OR [LifecycleStatus] IN ('DRAFT', 'ACTIVE', 'SUSPENDED', 'EXPIRED', 'TERMINATED', 'SUPERSEDED')),
     CONSTRAINT [CK_Facility_BankUnilateralRights] CHECK ([BankUnilateralRights] IS NULL OR LEN([BankUnilateralRights]) + 1 = CASE WHEN CHARINDEX(',EXTEND,', (',' + [BankUnilateralRights] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 7 ELSE 0 END + CASE WHEN CHARINDEX(',CHANGE_PRICING,', (',' + [BankUnilateralRights] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 15 ELSE 0 END + CASE WHEN CHARINDEX(',CANCEL,', (',' + [BankUnilateralRights] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 7 ELSE 0 END + CASE WHEN CHARINDEX(',REDUCE_LIMITS,', (',' + [BankUnilateralRights] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 14 ELSE 0 END),
     CONSTRAINT [CK_Facility_AlertLeadDays] CHECK ([AlertLeadDays] IS NULL OR LEN([AlertLeadDays]) + 1 = CASE WHEN CHARINDEX(',90,', (',' + [AlertLeadDays] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 3 ELSE 0 END + CASE WHEN CHARINDEX(',60,', (',' + [AlertLeadDays] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 3 ELSE 0 END + CASE WHEN CHARINDEX(',30,', (',' + [AlertLeadDays] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 3 ELSE 0 END + CASE WHEN CHARINDEX(',15,', (',' + [AlertLeadDays] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 3 ELSE 0 END + CASE WHEN CHARINDEX(',7,', (',' + [AlertLeadDays] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 2 ELSE 0 END + CASE WHEN CHARINDEX(',0,', (',' + [AlertLeadDays] + ',') COLLATE Arabic_100_BIN2) > 0 THEN 2 ELSE 0 END)
+);
+GO
+-- The facility file of a company with a bank (docs/31 row 75): COMPANY-BANK-NNNN, such as SA05-ANB-0001; it holds every facility of the relation over its life (each contract by its class, CAP-SA05-ANB-0001, and its renewals), and the correspondence and renewal requests with the bank
+CREATE TABLE [fac].[FacilityFile] (
+    [TenantId] INT NOT NULL,
+    [FacilityFileId] BIGINT IDENTITY(1,1) NOT NULL,
+    [FileRef] VARCHAR(20) NOT NULL,
+    [CompanyId] BIGINT NOT NULL,
+    [InstitutionId] BIGINT NOT NULL,
+    [Serial] INT NOT NULL,
+    [Status] VARCHAR(10) NOT NULL CONSTRAINT [DF_FacilityFile_Status] DEFAULT 'OPEN',
+    [OpenedOn] DATE NOT NULL,
+    [Notes] NVARCHAR(1000) NULL,
+    [PublicId] UNIQUEIDENTIFIER NOT NULL CONSTRAINT [DF_FacilityFile_PublicId] DEFAULT NEWSEQUENTIALID(),
+    [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_FacilityFile_CreatedAt] DEFAULT SYSUTCDATETIME(),
+    [CreatedBy] BIGINT NULL,
+    [UpdatedAt] DATETIME2(3) NULL,
+    [UpdatedBy] BIGINT NULL,
+    [RowVersion] ROWVERSION NOT NULL,
+    CONSTRAINT [PK_FacilityFile] PRIMARY KEY CLUSTERED ([FacilityFileId]),
+    CONSTRAINT [UQ_FacilityFile_Tenant] UNIQUE ([TenantId], [FacilityFileId]),
+    CONSTRAINT [UQ_FacilityFile_PublicId] UNIQUE ([PublicId]),
+    CONSTRAINT [UQ_FacilityFile_FileRef] UNIQUE ([TenantId], [FileRef]),
+    CONSTRAINT [UQ_FacilityFile_CompanyId_InstitutionId_Serial] UNIQUE ([TenantId], [CompanyId], [InstitutionId], [Serial]),
+    CONSTRAINT [CK_FacilityFile_1] CHECK (Serial >= 1 AND Serial <= 9999),
+    CONSTRAINT [CK_FacilityFile_2] CHECK (FileRef COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9-]%'),
+    CONSTRAINT [CK_FacilityFile_Status] CHECK ([Status] IS NULL OR [Status] IN ('OPEN', 'CLOSED'))
+);
+GO
+-- A facility (a contract) in its facility file: its class and its order among the contracts of that class in the file; the reference is CLASS-FILE (CAP-SA05-ANB-0001) for the first, CLASS-FILE-NN for each renewal (CAP-SA05-ANB-0001-02)
+CREATE TABLE [fac].[FacilityFileFacility] (
+    [TenantId] INT NOT NULL,
+    [FacilityFileFacilityId] BIGINT IDENTITY(1,1) NOT NULL,
+    [FacilityFileId] BIGINT NOT NULL,
+    [FacilityId] BIGINT NOT NULL,
+    [ClassCode] VARCHAR(3) NOT NULL,
+    [SeqInClass] INT NOT NULL,
+    [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_FacilityFileFacility_CreatedAt] DEFAULT SYSUTCDATETIME(),
+    [CreatedBy] BIGINT NULL,
+    [UpdatedAt] DATETIME2(3) NULL,
+    [UpdatedBy] BIGINT NULL,
+    [RowVersion] ROWVERSION NOT NULL,
+    CONSTRAINT [PK_FacilityFileFacility] PRIMARY KEY CLUSTERED ([FacilityFileFacilityId]),
+    CONSTRAINT [UQ_FacilityFileFacility_Tenant] UNIQUE ([TenantId], [FacilityFileFacilityId]),
+    CONSTRAINT [UQ_FacilityFileFacility_FacilityId] UNIQUE ([TenantId], [FacilityId]),
+    CONSTRAINT [UQ_FacilityFileFacility_FacilityFileId_ClassCode_SeqInClass] UNIQUE ([TenantId], [FacilityFileId], [ClassCode], [SeqInClass]),
+    CONSTRAINT [CK_FacilityFileFacility_1] CHECK (SeqInClass >= 1 AND SeqInClass <= 99),
+    CONSTRAINT [CK_FacilityFileFacility_2] CHECK (ClassCode COLLATE Arabic_100_BIN2 LIKE '[A-Z][A-Z][A-Z]')
+);
+GO
+-- The correspondence of a facility file: letters, e-mails, offers and renewal requests to and from the bank, with their date, direction and document (docs/31 row 75)
+CREATE TABLE [fac].[FacilityFileEntry] (
+    [TenantId] INT NOT NULL,
+    [FacilityFileEntryId] BIGINT IDENTITY(1,1) NOT NULL,
+    [FacilityFileId] BIGINT NOT NULL,
+    [EntryDate] DATE NOT NULL,
+    [Direction] VARCHAR(10) NOT NULL,
+    [Kind] VARCHAR(15) NOT NULL,
+    [Subject] NVARCHAR(300) NOT NULL,
+    [BankRef] NVARCHAR(80) NULL,
+    [DocumentId] BIGINT NULL,
+    [FacilityId] BIGINT NULL,
+    [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_FacilityFileEntry_CreatedAt] DEFAULT SYSUTCDATETIME(),
+    [CreatedBy] BIGINT NULL,
+    [UpdatedAt] DATETIME2(3) NULL,
+    [UpdatedBy] BIGINT NULL,
+    [RowVersion] ROWVERSION NOT NULL,
+    CONSTRAINT [PK_FacilityFileEntry] PRIMARY KEY CLUSTERED ([FacilityFileEntryId]),
+    CONSTRAINT [UQ_FacilityFileEntry_Tenant] UNIQUE ([TenantId], [FacilityFileEntryId]),
+    CONSTRAINT [CK_FacilityFileEntry_Direction] CHECK ([Direction] IS NULL OR [Direction] IN ('INCOMING', 'OUTGOING')),
+    CONSTRAINT [CK_FacilityFileEntry_Kind] CHECK ([Kind] IS NULL OR [Kind] IN ('LETTER', 'EMAIL', 'OFFER', 'RENEWAL_REQUEST', 'OTHER'))
 );
 GO
 -- Preparer and approver revision of facility terms (FR-FAC-024, BR-FAC-003/004, section 8)

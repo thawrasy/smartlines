@@ -34,6 +34,9 @@ const Catalogs = lazyNamed(loadCatalogs, 'Catalogs');
 const loadFacilities = () => import('./Facilities');
 const Facilities = lazyNamed(loadFacilities, 'Facilities');
 const FacilityDetail = lazyNamed(loadFacilities, 'FacilityDetail');
+const loadFacilityFiles = () => import('./FacilityFiles');
+const FacilityFiles = lazyNamed(loadFacilityFiles, 'FacilityFiles');
+const FacilityFileDetail = lazyNamed(loadFacilityFiles, 'FacilityFileDetail');
 const loadCollateral = () => import('./Collateral');
 const CollateralDetail = lazyNamed(loadCollateral, 'CollateralDetail');
 const Collaterals = lazyNamed(loadCollateral, 'Collaterals');
@@ -142,6 +145,7 @@ const menu: { group: string; items: MenuItem[] }[] = [
   ] },
   { group: 'Credit facilities', items: [
     { to: '/facilities', label: 'Facilities', permission: 'fac.view' },
+    { to: '/facility-files', label: 'Facility files', permission: 'fac.view' },
     { to: '/tariff-schedules', label: 'Tariff schedules', permission: 'prc.view' },
     { to: '/collaterals', label: 'Collateral', permission: 'col.view' },
     { to: '/breaches', label: 'Breaches', permission: 'obl.view' },
@@ -312,6 +316,8 @@ function Shell() {
               <Route path="/base-rates" element={<BaseRates />} />
               <Route path="/facilities" element={<Facilities />} />
               <Route path="/facilities/:id" element={<FacilityDetail />} />
+              <Route path="/facility-files" element={<FacilityFiles />} />
+              <Route path="/facility-files/:id" element={<FacilityFileDetail />} />
               <Route path="/tariff-schedules" element={<TariffSchedules />} />
               <Route path="/collaterals" element={<Collaterals />} />
               <Route path="/collaterals/:id" element={<CollateralDetail />} />

@@ -622,10 +622,16 @@ public static class FacilityEndpoints
     private static async Task<object> ReferencePartsAsync(BoundUser u, FacilityRow f, CancellationToken ct)
     {
         var p = await FacilityRefs.PartsAsync(u.Connection, null, f.FacilityId, ct);
+        var preview = await FacilityRefs.PreviewAsync(u.Connection, null, p, ct);
+        var inFile = await u.Connection.QuerySingleOrDefaultAsync<(Guid Id, string Ref)?>(new CommandDefinition(
+            """
+            SELECT ff.PublicId, ff.FileRef FROM fac.FacilityFileFacility AS m JOIN fac.FacilityFile AS ff ON ff.FacilityFileId = m.FacilityFileId
+             WHERE m.FacilityId = @f;
+            """, new { f = f.FacilityId }, cancellationToken: ct));
         return new
         {
-            company = p.Company, bank = p.Bank, facilityClass = p.Class, stem = p.Stem,
-            preview = p.Stem is null ? null : BankFas.Core.Facilities.FacilityReference.Compose(p.Stem, f.EffectiveFrom.Year), missing = FacilityRefs.Missing(p).ToArray(),
+            company = p.Company, bank = p.Bank, facilityClass = p.Class, stem = p.Stem, file = inFile?.Ref ?? preview?.FileRef, fileId = inFile?.Id,
+            preview = preview?.Reference, missing = FacilityRefs.Missing(p).ToArray(),
         };
     }
 

@@ -329,6 +329,10 @@ CREATE NONCLUSTERED INDEX [IX_Facility_LifecycleStatus_ExpiryDate] ON [fac].[Fac
 CREATE NONCLUSTERED INDEX [IX_Facility_BankReferenceNo] ON [fac].[Facility] ([TenantId], [BankReferenceNo]) WHERE BankReferenceNo IS NOT NULL;
 CREATE NONCLUSTERED INDEX [IX_Facility_FacilityTypeId] ON [fac].[Facility] ([TenantId], [FacilityTypeId]);
 CREATE NONCLUSTERED INDEX [IX_Facility_CurrencyId] ON [fac].[Facility] ([TenantId], [CurrencyId]);
+CREATE NONCLUSTERED INDEX [IX_FacilityFile_InstitutionId] ON [fac].[FacilityFile] ([TenantId], [InstitutionId]);
+CREATE NONCLUSTERED INDEX [IX_FacilityFileEntry_FacilityFileId_EntryDate] ON [fac].[FacilityFileEntry] ([TenantId], [FacilityFileId], [EntryDate]);
+CREATE NONCLUSTERED INDEX [IX_FacilityFileEntry_DocumentId] ON [fac].[FacilityFileEntry] ([TenantId], [DocumentId]) WHERE DocumentId IS NOT NULL;
+CREATE NONCLUSTERED INDEX [IX_FacilityFileEntry_FacilityId] ON [fac].[FacilityFileEntry] ([TenantId], [FacilityId]) WHERE FacilityId IS NOT NULL;
 CREATE UNIQUE NONCLUSTERED INDEX [UQ_FacilityRevision_FacilityId] ON [fac].[FacilityRevision] ([TenantId], [FacilityId]) WHERE Status IN ('DRAFT','SUBMITTED','REJECTED');
 CREATE NONCLUSTERED INDEX [IX_FacilityRevision_Status_SubmittedOn] ON [fac].[FacilityRevision] ([TenantId], [Status], [SubmittedOn]);
 CREATE NONCLUSTERED INDEX [IX_FacilityRevision_SubmittedBy] ON [fac].[FacilityRevision] ([TenantId], [SubmittedBy]);

@@ -2,7 +2,7 @@
 
 > مُولَّد آليًا من نموذج البيانات بـ `tools/dbgen` — لا يُعدَّل يدويًا. الأعمدة المشتركة التي تضيفها اصطلاحات التوليد (TenantId، المعرّف، التدقيق) تظهر في كل جدول.
 
-**عدد الجداول: 259**
+**عدد الجداول: 262**
 
 | الوحدة | عدد الجداول |
 |---|---|
@@ -17,7 +17,7 @@
 | CAT | 27 |
 | INS | 6 |
 | ACC | 6 |
-| FAC | 14 |
+| FAC | 17 |
 | PRC | 5 |
 | CMP | 2 |
 | COL | 7 |
@@ -1215,7 +1215,7 @@
 | TenantId | INT | لا | | plat.Tenant | عزل المشترك |
 | **CompanyId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
 | CompanyCode | VARCHAR(20) | لا |  |  | رمز داخلي فريد في المشترك (BR-ORG-001) |
-| RefCode | VARCHAR(3) | نعم |  |  | رمز الشركة في مرجع التسهيل: حرفان أو ثلاثة، فريد في المشترك (BR-FAC-021، طلب المالك 2026-10-23) |
+| RefCode | VARCHAR(6) | نعم |  |  | كود الشركة في مرجع التسهيل: من حرفين إلى ستة، أولها حرف، فريد في المشترك، مثل SA05 (BR-FAC-021، طلبا المالك 2026-10-23 و2026-10-26) |
 | NameAr | NVARCHAR(200) | لا |  |  |  |
 | NameEn | NVARCHAR(200) | لا |  |  |  |
 | PartyKind | VARCHAR(12) | لا | ORGANIZATION |  | ثابت: المرآة جهة اعتبارية (DR-24) enum: ORGANIZATION |
@@ -1244,7 +1244,7 @@
 
 **المفاتيح:** PK(CompanyId) · UQ(PublicId) · UQ(TenantId, CompanyCode) · UQ(TenantId, RefCode) WHERE RefCode IS NOT NULL · UQ(TenantId, PartyId) · UQ(TenantId, CountryId, CrNumber) WHERE CrNumber IS NOT NULL AND Status <> 'ARCHIVED' · UQ(TenantId, ErpCodeNormalized) WHERE ErpCompanyCode IS NOT NULL AND Status <> 'ARCHIVED'
 
-**قيود:** `FiscalYearEndMonth BETWEEN 1 AND 12` · `RefCode IS NULL OR RefCode COLLATE Arabic_100_BIN2 LIKE '[A-Z][A-Z0-9]' OR RefCode COLLATE Arabic_100_BIN2 LIKE '[A-Z][A-Z0-9][A-Z0-9]'` · `FiscalYearEndDay IS NULL OR FiscalYearEndDay BETWEEN 1 AND 31` · `ParentCompanyId IS NULL OR ParentCompanyId <> CompanyId` · `ErpCompanyCode IS NULL OR LEN(ErpCompanyCode) > 0`
+**قيود:** `FiscalYearEndMonth BETWEEN 1 AND 12` · `RefCode IS NULL OR (LEN(RefCode) >= 2 AND RefCode COLLATE Arabic_100_BIN2 LIKE '[A-Z]%' AND RefCode COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9]%')` · `FiscalYearEndDay IS NULL OR FiscalYearEndDay BETWEEN 1 AND 31` · `ParentCompanyId IS NULL OR ParentCompanyId <> CompanyId` · `ErpCompanyCode IS NULL OR LEN(ErpCompanyCode) > 0`
 
 ### `org.CompanyTaxRate` — Tax rate with an effective date; NULL CompanyId = tenant default (FR-ORG-007, BR-ORG-005)
 
@@ -3036,7 +3036,7 @@
 | FacilityNo | VARCHAR(40) | لا |  |  | FAC-YY-NNN من NumberSequence (BR-FAC-001) |
 | BankReferenceNo | NVARCHAR(80) | نعم |  |  | مرجع البنك: نص حر بلا صيغة (Q-FAC-01) |
 | BankStructureNo | NVARCHAR(80) | نعم |  |  | رقم هيكل البنك: نص حر (Q-FAC-01) |
-| PlatformRef | VARCHAR(30) | نعم |  |  | مرجع المنصة: الشركة-البنك-الفئة-السنة، مثل IMP-SNB-CAP-26؛ يُخصَّص عند الاعتماد الأول ولا يتغير، والتجديد بسنته (BR-FAC-021) |
+| PlatformRef | VARCHAR(30) | نعم |  |  | مرجع المنصة: الفئة-ملف التسهيلات، مثل CAP-SA05-ANB-0001، والتجديد بترتيبه CAP-SA05-ANB-0001-02؛ يُخصَّص عند الاعتماد الأول ولا يتغير (BR-FAC-021، docs/31 الصف 75) |
 | FacilityClassId | INT | نعم |  | cat.LookupItem | فئة التسهيل في المرجع: قائمة FACILITY_CLASS (CAP وSTL وMTL وLTL ...) (BR-FAC-021) |
 | BorrowerCompanyId | BIGINT | لا |  | org.Company |  |
 | FacilityTypeId | INT | لا |  | cat.FacilityType |  |
@@ -3072,6 +3072,75 @@
 **المفاتيح:** PK(FacilityId) · UQ(PublicId) · UQ(TenantId, FacilityNo) · UQ(TenantId, PlatformRef) WHERE PlatformRef IS NOT NULL · UQ(TenantId, PreviousFacilityId) WHERE PreviousFacilityId IS NOT NULL
 
 **قيود:** `ExpiryDate >= EffectiveFrom` · `AgreementDate IS NULL OR AgreementDate <= EffectiveFrom` · `TotalAmount > 0` · `PlatformRef IS NULL OR PlatformRef COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9-]%'` · `LifecycleStatus = 'DRAFT' OR PlatformRef IS NOT NULL` · `PreviousFacilityId IS NULL OR PreviousFacilityId <> FacilityId` · `NoticeDays IS NULL OR NoticeDays >= 0` · `BankUnilateralRights IS NULL OR BankUnilateralRights NOT LIKE '%CHANGE_PRICING%' OR NoticeDays IS NOT NULL` · `HijriAdjusted = 0 OR HijriAdjustReason IS NOT NULL` · `LifecycleStatus NOT IN ('SUSPENDED','EXPIRED','TERMINATED') OR LifecycleReason IS NOT NULL` · `ApprovedRevisionNo >= 0` · `LifecycleStatus = 'DRAFT' OR ApprovedRevisionNo >= 1` · `AlertLeadDays IS NULL OR AlertLeadDays NOT LIKE '%[^0-9,]%'`
+
+### `fac.FacilityFile` — The facility file of a company with a bank (docs/31 row 75): COMPANY-BANK-NNNN, such as SA05-ANB-0001; it holds every facility of the relation over its life (each contract by its class, CAP-SA05-ANB-0001, and its renewals), and the correspondence and renewal requests with the bank
+
+*مملوك للمشترك*
+
+| العمود | النوع | NULL | الافتراضي | المرجع | ملاحظة |
+|---|---|---|---|---|---|
+| TenantId | INT | لا | | plat.Tenant | عزل المشترك |
+| **FacilityFileId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
+| FileRef | VARCHAR(20) | لا |  |  | الشركة-البنك-تسلسل من أربعة أرقام لكل شركة وبنك |
+| CompanyId | BIGINT | لا |  | org.Company |  |
+| InstitutionId | BIGINT | لا |  | ins.Institution |  |
+| Serial | INT | لا |  |  |  |
+| Status | VARCHAR(10) | لا | OPEN |  | المغلق لا تنضم إليه تسهيلات جديدة enum: OPEN, CLOSED |
+| OpenedOn | DATE | لا |  |  |  |
+| Notes | NVARCHAR(1000) | نعم |  |  |  |
+| PublicId | UNIQUEIDENTIFIER | لا | NEWSEQUENTIALID() |  |  |
+| CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
+| CreatedBy | BIGINT | نعم |  |  |  |
+| UpdatedAt | DATETIME2(3) | نعم |  |  |  |
+| UpdatedBy | BIGINT | نعم |  |  |  |
+
+**المفاتيح:** PK(FacilityFileId) · UQ(PublicId) · UQ(TenantId, FileRef) · UQ(TenantId, CompanyId, InstitutionId, Serial)
+
+**قيود:** `Serial >= 1 AND Serial <= 9999` · `FileRef COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9-]%'`
+
+### `fac.FacilityFileFacility` — A facility (a contract) in its facility file: its class and its order among the contracts of that class in the file; the reference is CLASS-FILE (CAP-SA05-ANB-0001) for the first, CLASS-FILE-NN for each renewal (CAP-SA05-ANB-0001-02)
+
+*مملوك للمشترك*
+
+| العمود | النوع | NULL | الافتراضي | المرجع | ملاحظة |
+|---|---|---|---|---|---|
+| TenantId | INT | لا | | plat.Tenant | عزل المشترك |
+| **FacilityFileFacilityId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
+| FacilityFileId | BIGINT | لا |  | fac.FacilityFile |  |
+| FacilityId | BIGINT | لا |  | fac.Facility |  |
+| ClassCode | VARCHAR(3) | لا |  |  |  |
+| SeqInClass | INT | لا |  |  | 1 للعقد الأول من الفئة في الملف، ثم 2 لتجديده وهكذا |
+| CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
+| CreatedBy | BIGINT | نعم |  |  |  |
+| UpdatedAt | DATETIME2(3) | نعم |  |  |  |
+| UpdatedBy | BIGINT | نعم |  |  |  |
+
+**المفاتيح:** PK(FacilityFileFacilityId) · UQ(TenantId, FacilityId) · UQ(TenantId, FacilityFileId, ClassCode, SeqInClass)
+
+**قيود:** `SeqInClass >= 1 AND SeqInClass <= 99` · `ClassCode COLLATE Arabic_100_BIN2 LIKE '[A-Z][A-Z][A-Z]'`
+
+### `fac.FacilityFileEntry` — The correspondence of a facility file: letters, e-mails, offers and renewal requests to and from the bank, with their date, direction and document (docs/31 row 75)
+
+*مملوك للمشترك*
+
+| العمود | النوع | NULL | الافتراضي | المرجع | ملاحظة |
+|---|---|---|---|---|---|
+| TenantId | INT | لا | | plat.Tenant | عزل المشترك |
+| **FacilityFileEntryId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
+| FacilityFileId | BIGINT | لا |  | fac.FacilityFile |  |
+| EntryDate | DATE | لا |  |  |  |
+| Direction | VARCHAR(10) | لا |  |  | enum: INCOMING, OUTGOING |
+| Kind | VARCHAR(15) | لا |  |  | enum: LETTER, EMAIL, OFFER, RENEWAL_REQUEST, OTHER |
+| Subject | NVARCHAR(300) | لا |  |  |  |
+| BankRef | NVARCHAR(80) | نعم |  |  | مرجع البنك للمخاطبة إن وُجد |
+| DocumentId | BIGINT | نعم |  | doc.Document | المستند المرفق من مستندات الشركة |
+| FacilityId | BIGINT | نعم |  | fac.Facility | التسهيل الذي تخصه المخاطبة إن كانت لتسهيل بعينه |
+| CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
+| CreatedBy | BIGINT | نعم |  |  |  |
+| UpdatedAt | DATETIME2(3) | نعم |  |  |  |
+| UpdatedBy | BIGINT | نعم |  |  |  |
+
+**المفاتيح:** PK(FacilityFileEntryId)
 
 ### `fac.FacilityRevision` — Preparer and approver revision of facility terms (FR-FAC-024, BR-FAC-003/004, section 8)
 

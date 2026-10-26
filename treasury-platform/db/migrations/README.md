@@ -11,4 +11,4 @@ Versioned schema changes for a database that is already deployed (tools/deploy/m
 - A script runs inside the transaction migrate.sh opens for it: it neither commits nor opens another one.
 - An applied script is never edited. A correction is a new script.
 
-V0001 (after release 1.0.7): the company number of a request, wfl.RequestCompanyNumber. A database deployed with 1.0.7 or earlier reaches the current schema with `migrate.sh apply`.
+After release 1.0.7: V0001 the company number of a request (wfl.RequestCompanyNumber); V0002 the facility file of a company with a bank and the company code of a facility reference up to six characters. A database deployed with 1.0.7 reaches the current schema with `migrate.sh apply`.

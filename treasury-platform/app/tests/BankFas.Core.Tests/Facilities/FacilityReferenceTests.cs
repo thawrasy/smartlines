@@ -7,11 +7,13 @@ public sealed class FacilityReferenceTests
     [Fact]
     public void A_working_capital_facility_of_2026_and_its_renewal()
     {
-        var stem = FacilityReference.Stem("IMP", "SNB", "CAP");
-        Assert.Equal("IMP-SNB-CAP-26", FacilityReference.Compose(stem, 2026));
+        var stem = FacilityReference.Stem("SA05", "ANB", "CAP");
+        Assert.Equal("CAP-SA05-ANB-26", FacilityReference.Compose(stem, 2026));
+        Assert.Equal("CAP-SA05-ANB", FacilityReference.StemOf("CAP-SA05-ANB-26"));
+        Assert.Equal("CAP-SA05-ANB-27", FacilityReference.Compose(FacilityReference.StemOf("CAP-SA05-ANB-26")!, 2027));
+        Assert.Equal("LTL-C1-ANB-30", FacilityReference.Compose(FacilityReference.Stem("C1", "ANB", "LTL"), 2030));
+        // A facility approved in the earlier order keeps its stem for its renewals.
         Assert.Equal("IMP-SNB-CAP", FacilityReference.StemOf("IMP-SNB-CAP-26"));
-        Assert.Equal("IMP-SNB-CAP-27", FacilityReference.Compose(FacilityReference.StemOf("IMP-SNB-CAP-26")!, 2027));
-        Assert.Equal("C1-ANB-LTL-30", FacilityReference.Compose(FacilityReference.Stem("C1", "ANB", "LTL"), 2030));
     }
 
     [Fact]
@@ -29,9 +31,11 @@ public sealed class FacilityReferenceTests
     [InlineData("IMP", true)]
     [InlineData("C1", true)]
     [InlineData("1C", false)]
-    [InlineData("IMPO", false)]
+    [InlineData("SA05", true)]
+    [InlineData("ABCDEF", true)]
+    [InlineData("ABCDEFG", false)]
     [InlineData("imp", false)]
-    public void The_company_code_is_two_or_three_characters_a_letter_first(string code, bool ok) => Assert.Equal(ok, FacilityReference.IsCompanyCode(code));
+    public void The_company_code_is_two_to_six_characters_a_letter_first(string code, bool ok) => Assert.Equal(ok, FacilityReference.IsCompanyCode(code));
 
     [Theory]
     [InlineData("SNB", true)]
@@ -48,6 +52,19 @@ public sealed class FacilityReferenceTests
         Assert.Null(FacilityReference.StemOf("FAC-26-001"));
         Assert.Null(FacilityReference.BankDefault("BNKC"));
         Assert.Equal("SNB", FacilityReference.BankDefault("SNB"));
-        Assert.Null(FacilityReference.CompanyDefault("HOLD"));
+        Assert.Null(FacilityReference.CompanyDefault("HOLDING"));
+        Assert.Equal("SA05", FacilityReference.CompanyDefault("SA05"));
+    }
+
+    [Fact]
+    public void The_facility_file_and_its_contracts()
+    {
+        var file = FacilityReference.FileRef("SA05", "ANB", 1);
+        Assert.Equal("SA05-ANB-0001", file);
+        Assert.Equal("CAP-SA05-ANB-0001", FacilityReference.ContractRef("CAP", file, 1));
+        Assert.Equal("CAP-SA05-ANB-0001-02", FacilityReference.ContractRef("CAP", file, 2));
+        Assert.Equal("LTL-SA05-ANB-0001", FacilityReference.ContractRef("LTL", file, 1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => FacilityReference.FileRef("SA05", "ANB", 10000));
+        Assert.Throws<ArgumentException>(() => FacilityReference.ContractRef("CA", file, 1));
     }
 }

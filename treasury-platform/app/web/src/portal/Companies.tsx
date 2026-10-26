@@ -77,7 +77,7 @@ export function Companies() {
       }}>
         <Field label="Company code" value={draft.companyCode} onChange={v => setDraft({ ...draft, companyCode: v.toUpperCase() })} hint="Capital letters, digits, - and _; it cannot change later." />
         <Field label="Reference code" value={draft.refCode} onChange={v => setDraft({ ...draft, refCode: v.toUpperCase() })} required={false}
-          hint="Two or three characters in the facility references (IMP-SNB-CAP-26); left empty, the company code when it has that shape." />
+          hint="Two to six characters in the facility references, such as SA05 in CAP-SA05-ANB-26; left empty, the company code when it has that shape." />
         <Field label="Name (Arabic)" value={draft.nameAr} onChange={v => setDraft({ ...draft, nameAr: v })} />
         <Field label="Name (English)" value={draft.nameEn} onChange={v => setDraft({ ...draft, nameEn: v })} />
         <Select label="Legal form" value={draft.legalForm} onChange={v => setDraft({ ...draft, legalForm: v })} options={forms.map(f => ({ value: f.code, label: name(lang, f) }))} />
@@ -150,7 +150,7 @@ function General({ c, etag, onSaved }: { c: Company; etag: string; onSaved: () =
         <Field label="Registration date (Hijri, as written)" value={d.crDateHijri} onChange={v => setD({ ...d, crDateHijri: v })} required={false} />
         <Field label="ERP company code" value={d.erpCompanyCode} onChange={v => setD({ ...d, erpCompanyCode: v })} required={false} />
         <Field label="Reference code" value={d.refCode} onChange={v => setD({ ...d, refCode: v.toUpperCase() })} required={false}
-          hint="Two or three characters in the facility references; a reference already written does not change." />
+          hint="Two to six characters in the facility references; a reference already written does not change." />
         <Field label="Established on" type="date" value={d.establishedOn} onChange={v => setD({ ...d, establishedOn: v })} required={false} />
         <Select label="Status" value={d.status} onChange={v => setD({ ...d, status: v })}
           options={['ACTIVE', 'DORMANT', 'LIQUIDATED'].map(s => ({ value: s, label: s })).concat(c.status === 'ARCHIVED' ? [{ value: 'ARCHIVED', label: 'ARCHIVED' }] : [])} />

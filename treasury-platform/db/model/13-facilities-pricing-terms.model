@@ -24,7 +24,7 @@ table fac.Facility public  # Facility agreement package: root of the aggregate (
   FacilityNo               ascii(40)  req   # FAC-YY-NNN من NumberSequence (BR-FAC-001)
   BankReferenceNo          str(80)          # مرجع البنك: نص حر بلا صيغة (Q-FAC-01)
   BankStructureNo          str(80)          # رقم هيكل البنك: نص حر (Q-FAC-01)
-  PlatformRef              ascii(30)        # مرجع المنصة: الشركة-البنك-الفئة-السنة، مثل IMP-SNB-CAP-26؛ يُخصَّص عند الاعتماد الأول ولا يتغير، والتجديد بسنته (BR-FAC-021)
+  PlatformRef              ascii(30)        # مرجع المنصة: الفئة-ملف التسهيلات، مثل CAP-SA05-ANB-0001، والتجديد بترتيبه CAP-SA05-ANB-0001-02؛ يُخصَّص عند الاعتماد الأول ولا يتغير (BR-FAC-021، docs/31 الصف 75)
   FacilityClassId          ->cat.LookupItem   # فئة التسهيل في المرجع: قائمة FACILITY_CLASS (CAP وSTL وMTL وLTL ...) (BR-FAC-021)
   BorrowerCompanyId        ->org.Company req
   FacilityTypeId           ->cat.FacilityType req
@@ -72,6 +72,43 @@ table fac.Facility public  # Facility agreement package: root of the aggregate (
   check  ApprovedRevisionNo >= 0
   check  LifecycleStatus = 'DRAFT' OR ApprovedRevisionNo >= 1   # DRAFT→ACTIVE باعتماد أول مراجعة (§8)
   check  AlertLeadDays IS NULL OR AlertLeadDays NOT LIKE '%[^0-9,]%'
+
+table fac.FacilityFile public  # The facility file of a company with a bank (docs/31 row 75): COMPANY-BANK-NNNN, such as SA05-ANB-0001; it holds every facility of the relation over its life (each contract by its class, CAP-SA05-ANB-0001, and its renewals), and the correspondence and renewal requests with the bank
+  FileRef            ascii(20)  req   # الشركة-البنك-تسلسل من أربعة أرقام لكل شركة وبنك
+  CompanyId          ->org.Company req
+  InstitutionId      ->ins.Institution req
+  Serial             int        req
+  Status             enum{OPEN,CLOSED} req =OPEN   # المغلق لا تنضم إليه تسهيلات جديدة
+  OpenedOn           date       req
+  Notes              str(1000)
+  unique FileRef
+  unique CompanyId,InstitutionId,Serial
+  index InstitutionId
+  check Serial >= 1 AND Serial <= 9999
+  check FileRef COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9-]%'
+
+table fac.FacilityFileFacility  # A facility (a contract) in its facility file: its class and its order among the contracts of that class in the file; the reference is CLASS-FILE (CAP-SA05-ANB-0001) for the first, CLASS-FILE-NN for each renewal (CAP-SA05-ANB-0001-02)
+  FacilityFileId     ->fac.FacilityFile req
+  FacilityId         ->fac.Facility req
+  ClassCode          ascii(3)   req
+  SeqInClass         int        req   # 1 للعقد الأول من الفئة في الملف، ثم 2 لتجديده وهكذا
+  unique FacilityId
+  unique FacilityFileId,ClassCode,SeqInClass
+  check SeqInClass >= 1 AND SeqInClass <= 99
+  check ClassCode COLLATE Arabic_100_BIN2 LIKE '[A-Z][A-Z][A-Z]'
+
+table fac.FacilityFileEntry  # The correspondence of a facility file: letters, e-mails, offers and renewal requests to and from the bank, with their date, direction and document (docs/31 row 75)
+  FacilityFileId     ->fac.FacilityFile req
+  EntryDate          date       req
+  Direction          enum{INCOMING,OUTGOING} req
+  Kind               enum{LETTER,EMAIL,OFFER,RENEWAL_REQUEST,OTHER} req
+  Subject            str(300)   req
+  BankRef            str(80)          # مرجع البنك للمخاطبة إن وُجد
+  DocumentId         ->doc.Document   # المستند المرفق من مستندات الشركة
+  FacilityId         ->fac.Facility   # التسهيل الذي تخصه المخاطبة إن كانت لتسهيل بعينه
+  index FacilityFileId,EntryDate
+  index DocumentId where DocumentId IS NOT NULL
+  index FacilityId where FacilityId IS NOT NULL
 
 table fac.FacilityRevision  # Preparer and approver revision of facility terms (FR-FAC-024, BR-FAC-003/004, section 8)
   FacilityId       ->fac.Facility req
