@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../api";
 import { useI18n } from "../../i18n";
 import { Empty, ErrorBox, Field, Icon, Loaded, Modal, useErrorText, useLoad, useToast } from "../../components/ui";
@@ -22,6 +22,41 @@ type Step = "load" | "receive" | "dispatch" | "arrive";
 const STEPS: { step: Step; icon: "local_shipping" | "inventory_2" | "route" | "location_on" }[] = [
   { step: "load", icon: "local_shipping" }, { step: "receive", icon: "inventory_2" }, { step: "dispatch", icon: "route" }, { step: "arrive", icon: "location_on" }];
 
+interface Detector { detect(source: HTMLVideoElement): Promise<{ rawValue: string }[]> }
+const detectorClass = (): (new (o: { formats: string[] }) => Detector) | null =>
+  (window as unknown as { BarcodeDetector?: new (o: { formats: string[] }) => Detector }).BarcodeDetector ?? null;
+
+/** The phone's back camera reading labels one after another: the same label is not read twice within a few seconds. */
+function LabelCamera({ onRead }: { onRead: (code: string) => void }) {
+  const { t } = useI18n();
+  const video = useRef<HTMLVideoElement>(null);
+  const [error, setError] = useState(false);
+  useEffect(() => {
+    const Klass = detectorClass();
+    if (!Klass || !navigator.mediaDevices) { setError(true); return; }
+    const detector = new Klass({ formats: ["qr_code"] });
+    let stream: MediaStream | null = null, timer = 0, stopped = false;
+    let last = "", lastAt = 0;
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }).then((st) => {
+      if (stopped) { st.getTracks().forEach((tr) => tr.stop()); return; }
+      stream = st;
+      if (video.current) { video.current.srcObject = st; void video.current.play(); }
+      const tick = async () => {
+        if (stopped || !video.current) return;
+        try {
+          const code = (await detector.detect(video.current)).map((f) => f.rawValue).find((v) => v.length > 40);
+          if (code && (code !== last || Date.now() - lastAt > 4000)) { last = code; lastAt = Date.now(); onRead(code); }
+        } catch { /* the frame was not ready */ }
+        timer = window.setTimeout(tick, 300);
+      };
+      void tick();
+    }).catch(() => setError(true));
+    return () => { stopped = true; window.clearTimeout(timer); stream?.getTracks().forEach((tr) => tr.stop()); };
+  }, [onRead]);
+  if (error) return <div className="alert info small"><Icon name="info" /><span>{t("parcel.journey.noCamera")}</span></div>;
+  return <video ref={video} muted playsInline aria-label={t("parcel.journey.cameraView")} style={{ width: "100%", maxHeight: 320, borderRadius: 16, background: "#000", objectFit: "cover" }} />;
+}
+
 /** What the scanner read: a label's signed code is long, a typed tracking number is short. */
 const scanned = (v: string) => (v.trim().length > 40 ? { code: v.trim() } : { tracking_no: v.trim().toUpperCase() });
 
@@ -38,21 +73,26 @@ export function ParcelScan() {
   const [value, setValue] = useState("");
   const [log, setLog] = useState<{ ok: boolean; text: string }[]>([]);
   const [busy, setBusy] = useState(false);
+  const [camera, setCamera] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const active = (points.data?.points ?? []).filter((p) => p.status === "ACTIVE");
-  const go = async () => {
-    if (!value.trim()) return;
+  const send = useRef<(raw?: string) => Promise<void>>(async () => undefined);
+  const go = async (raw?: string) => {
+    const read = raw ?? value;
+    if (!read.trim()) return;
     setBusy(true);
     try {
       const extra = step === "receive" ? { point_uid: here } : step === "dispatch" && next ? { next_point_uid: next } : {};
       const r = await api.post<{ tracking_no: string; recipient_name?: string; location?: string; to?: string | null }>(
-        `/api/carrier/parcels/scan/${step}`, { ...scanned(value), ...extra });
+        `/api/carrier/parcels/scan/${step}`, { ...scanned(read), ...extra });
       setLog((l) => [{ ok: true, text: t(`parcel.journey.done.${step}`, { no: r.tracking_no, name: r.recipient_name ?? "", place: r.location ?? r.to ?? "" }) }, ...l].slice(0, 30));
     } catch (e) {
-      setLog((l) => [{ ok: false, text: `${value.trim().slice(0, 24)} — ${errorText(e)}` }, ...l].slice(0, 30));
-    } finally { setValue(""); setBusy(false); input.current?.focus(); }
+      setLog((l) => [{ ok: false, text: `${read.trim().slice(0, 24)} — ${errorText(e)}` }, ...l].slice(0, 30));
+    } finally { setValue(""); setBusy(false); if (!camera) input.current?.focus(); }
   };
   const blocked = step === "receive" && !here;
+  send.current = async (raw?: string) => { if (!blocked) await go(raw); };
+  const onCamera = useCallback((code: string) => { void send.current(code); }, []);
   return (
     <div className="card stack">
       <div className="segmented" role="radiogroup" aria-label={t("parcel.journey.step")} style={{ alignSelf: "flex-start", flexWrap: "wrap" }}>
@@ -79,7 +119,10 @@ export function ParcelScan() {
           <input ref={input} className="input ltr mono" autoFocus autoComplete="off" value={value} onChange={(e) => setValue(e.target.value)} />
         </Field>
         <button className="btn" style={{ alignSelf: "end" }} disabled={busy || blocked || value.trim().length < 4}><Icon name="qr_code_scanner" />{t(`parcel.journey.${step}`)}</button>
+        <button type="button" className="btn tonal" style={{ alignSelf: "end" }} aria-pressed={camera} onClick={() => setCamera(!camera)}>
+          <Icon name="qr_code_scanner" />{t(camera ? "parcel.journey.cameraOff" : "parcel.journey.cameraOn")}</button>
       </form>
+      {camera && !blocked && <LabelCamera onRead={onCamera} />}
       {log.length > 0 && (
         <ul className="stack" style={{ listStyle: "none", padding: 0, margin: 0, gap: 4 }} aria-live="polite">
           {log.map((x, i) => (

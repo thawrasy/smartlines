@@ -1534,6 +1534,7 @@ const en = {
     journey: { step: "Step", load: "On board", arrive: "Arrived", scanField: "Label code or tracking number",
       loadHint: "Scan each parcel's label as it goes into the hold. A parcel booked on another trip is refused.",
       arriveHint: "Scan each parcel taken off at this station. The sender and the recipient receive the pickup code at once.",
+      cameraOn: "Use the camera", cameraOff: "Stop the camera", cameraView: "Camera reading parcel labels", noCamera: "This browser cannot read codes with the camera: use the scanner or type the tracking number.",
       receive: "At a location", dispatch: "Send on",
       receiveHint: "Scan each parcel arriving at this location on the way. It stays here until it is sent on.",
       dispatchHint: "Scan each parcel leaving this location: choose the next location, or none when it goes on to its destination.",
