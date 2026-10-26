@@ -920,7 +920,7 @@ jobs:
         run: |
           bandit -q -c backend/pyproject.toml -r backend/app -ll
           bandit -q -r hub/masslak_hub -ll
-      - name: Station display hub on the station's network (N46): player checks, offline board, served pages
+      - name: Station display hub on the station network (N46) - player checks, offline board, served pages
         run: |
           python -m venv /tmp/hub-venv
           /tmp/hub-venv/bin/pip install -q -r hub/requirements.txt pytest
