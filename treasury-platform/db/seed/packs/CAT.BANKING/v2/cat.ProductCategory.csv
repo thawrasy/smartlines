@@ -1,0 +1,11 @@
+Code,NameAr,NameEn,Description,IsActive,IsSystem,IsLocked,SortOrder,SeedKey
+TRADE_FINANCE,التمويل التجاري,Trade finance,,1,1,0,1,CAT.BANKING.TRADE_FINANCE
+FINANCING,التمويل,Financing,,1,1,0,2,CAT.BANKING.FINANCING
+GUARANTEES,خطابات الضمان,Guarantees,,1,1,0,3,CAT.BANKING.GUARANTEES
+COLLECTIONS,التحصيل المستندي,Documentary collections,,1,1,0,4,CAT.BANKING.COLLECTIONS
+FX_TREASURY,الصرف الأجنبي والخزينة,Foreign exchange and treasury,,1,1,0,5,CAT.BANKING.FX_TREASURY
+PAYMENTS_PAYROLL,المدفوعات والرواتب,Payments and payroll,,1,1,0,6,CAT.BANKING.PAYMENTS_PAYROLL
+CARDS_POS,البطاقات ونقاط البيع,Cards and point of sale,,1,1,0,7,CAT.BANKING.CARDS_POS
+ACCOUNTS_CASH_MGMT,الحسابات وإدارة النقد,Accounts and cash management,,1,1,0,8,CAT.BANKING.ACCOUNTS_CASH_MGMT
+DEPOSITS_INVESTMENT,الودائع والاستثمار,Deposits and investment,,1,1,0,9,CAT.BANKING.DEPOSITS_INVESTMENT
+WEALTH_PRIVATE,الثروات والمصرفية الخاصة,Wealth and private banking,,1,1,0,10,CAT.BANKING.WEALTH_PRIVATE

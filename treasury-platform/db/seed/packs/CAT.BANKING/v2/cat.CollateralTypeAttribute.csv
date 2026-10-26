@@ -1,0 +1,8 @@
+CollateralTypeSeedKey,AttrKey,LabelAr,LabelEn,DataType,IsRequired,ListOptions,SortOrder,IsRetired
+CAT.BANKING.REAL_ESTATE,DEED_NO,رقم الصك,Title deed number,TEXT,1,,1,0
+CAT.BANKING.REAL_ESTATE,AREA_SQM,المساحة (م²),Area (m²),NUMBER,0,,2,0
+CAT.BANKING.REAL_ESTATE,CITY,المدينة,City,TEXT,0,,3,0
+CAT.BANKING.REAL_ESTATE,DISTRICT,الحي,District,TEXT,0,,4,0
+CAT.BANKING.REAL_ESTATE,OWNER_NAME,اسم المالك,Owner name,TEXT,0,,5,0
+CAT.BANKING.REAL_ESTATE,ESTIMATED_VALUE,القيمة التقديرية,Estimated value,AMOUNT,0,,6,0
+CAT.BANKING.REAL_ESTATE,VALUATION_DATE,تاريخ التقييم,Valuation date,DATE,0,,7,0

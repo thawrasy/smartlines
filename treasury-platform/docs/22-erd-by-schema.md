@@ -242,7 +242,7 @@ erDiagram
 | LegalEntityType | CountryId | ref.Country |
 | TenantCurrency | CurrencyId | ref.Currency |
 
-## مخطط `ins` (6 جدولًا)
+## مخطط `ins` (8 جدولًا)
 
 ```mermaid
 erDiagram
@@ -256,6 +256,8 @@ erDiagram
   InstitutionUnit ||--o{ Contact : "UnitId"
   Relationship ||--o{ RelationshipContact : "RelationshipId"
   Relationship ||--o{ RelationshipProduct : "RelationshipId"
+  RelationshipProduct ||--o{ RelationshipProductRate : "RelationshipProductId"
+  RelationshipProduct ||--o{ RelationshipProductVolume : "RelationshipProductId"
 ```
 
 | الجدول | العمود | يشير إلى |
@@ -268,6 +270,9 @@ erDiagram
 | Relationship | CompanyId | org.Company |
 | RelationshipContact | RoleId | cat.LookupItem |
 | RelationshipProduct | ProductId | cat.Product |
+| RelationshipProductRate | ChargeItemId | cat.LookupItem |
+| RelationshipProductRate | CurrencyId | ref.Currency |
+| RelationshipProductVolume | CurrencyId | ref.Currency |
 
 ## مخطط `acc` (6 جدولًا)
 

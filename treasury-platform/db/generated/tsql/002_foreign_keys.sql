@@ -280,6 +280,13 @@ ALTER TABLE [ins].[RelationshipProduct] ADD CONSTRAINT [FK_RelationshipProduct_I
 ALTER TABLE [ins].[RelationshipProduct] ADD CONSTRAINT [FK_RelationshipProduct_RelationshipId] FOREIGN KEY ([TenantId], [InstitutionId], [RelationshipId]) REFERENCES [ins].[Relationship] ([TenantId], [InstitutionId], [RelationshipId]);
 ALTER TABLE [ins].[RelationshipProduct] ADD CONSTRAINT [FK_RelationshipProduct_ProductId] FOREIGN KEY ([TenantId], [ProductId]) REFERENCES [cat].[Product] ([TenantId], [ProductId]);
 ALTER TABLE [ins].[RelationshipProduct] ADD CONSTRAINT [FK_RelationshipProduct_DefaultContactId] FOREIGN KEY ([TenantId], [InstitutionId], [DefaultContactId]) REFERENCES [ins].[Contact] ([TenantId], [InstitutionId], [ContactId]);
+ALTER TABLE [ins].[RelationshipProductRate] ADD CONSTRAINT [FK_RelationshipProductRate_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
+ALTER TABLE [ins].[RelationshipProductRate] ADD CONSTRAINT [FK_RelationshipProductRate_RelationshipProductId] FOREIGN KEY ([TenantId], [RelationshipProductId]) REFERENCES [ins].[RelationshipProduct] ([TenantId], [RelationshipProductId]);
+ALTER TABLE [ins].[RelationshipProductRate] ADD CONSTRAINT [FK_RelationshipProductRate_ChargeItemId] FOREIGN KEY ([TenantId], [ChargeItemId]) REFERENCES [cat].[LookupItem] ([TenantId], [LookupItemId]);
+ALTER TABLE [ins].[RelationshipProductRate] ADD CONSTRAINT [FK_RelationshipProductRate_CurrencyId] FOREIGN KEY ([CurrencyId]) REFERENCES [ref].[Currency] ([CurrencyId]);
+ALTER TABLE [ins].[RelationshipProductVolume] ADD CONSTRAINT [FK_RelationshipProductVolume_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
+ALTER TABLE [ins].[RelationshipProductVolume] ADD CONSTRAINT [FK_RelationshipProductVolume_RelationshipProductId] FOREIGN KEY ([TenantId], [RelationshipProductId]) REFERENCES [ins].[RelationshipProduct] ([TenantId], [RelationshipProductId]);
+ALTER TABLE [ins].[RelationshipProductVolume] ADD CONSTRAINT [FK_RelationshipProductVolume_CurrencyId] FOREIGN KEY ([CurrencyId]) REFERENCES [ref].[Currency] ([CurrencyId]);
 ALTER TABLE [acc].[BankAccount] ADD CONSTRAINT [FK_BankAccount_Tenant] FOREIGN KEY ([TenantId]) REFERENCES [plat].[Tenant] ([TenantId]);
 ALTER TABLE [acc].[BankAccount] ADD CONSTRAINT [FK_BankAccount_CompanyId] FOREIGN KEY ([TenantId], [CompanyId]) REFERENCES [org].[Company] ([TenantId], [CompanyId]);
 ALTER TABLE [acc].[BankAccount] ADD CONSTRAINT [FK_BankAccount_InstitutionId] FOREIGN KEY ([TenantId], [InstitutionId]) REFERENCES [ins].[Institution] ([TenantId], [InstitutionId]);

@@ -132,7 +132,7 @@ table cat.ProductCategory catalog int  # Product category: flat list (FR-CAT-007
 
 table cat.Product catalog int  # Bank product with its flags (FR-CAT-007, BR-CAT-004)
   ProductCategoryId    ->cat.ProductCategory req
-  ProductFamily        enum{LC,GUARANTEE,FINANCING,COLLECTION,FX,PAYMENT,CARD,ACCOUNT_SERVICE,OTHER} req
+  ProductFamily        enum{LC,GUARANTEE,FINANCING,COLLECTION,FX,PAYMENT,CARD,ACCOUNT_SERVICE,DEPOSIT,INVESTMENT,DERIVATIVE,WEALTH,OTHER} req   # DEPOSIT..WEALTH: the relation's other business with the bank (docs/31 row 76)
   ConsumesCreditLimit  bool    req   # يدخل فحص التسهيلات؛ تغييره بعد الاستخدام يتطلب تأكيد TM (BR-CAT-004، FR-CAT-022)
   IsTradeFinance       bool    req =0
   Compliance           enum{CONVENTIONAL,ISLAMIC,NEUTRAL} req
@@ -389,6 +389,41 @@ table ins.RelationshipProduct  # Product handled within a relationship, with a d
   unique RelationshipId,ProductId   # BR-INS-010
   index  ProductId,IsActive
   index  DefaultContactId,RelationshipId   # تعطيل جهة افتراضية يطلب بديلًا (FR-INS-016، AC-INS-2)
+
+table ins.RelationshipProductRate  # A rate the company agreed with the bank for a product of the relationship: a charge of the product (PRODUCT_CHARGE list, by the product's nature: mada, Visa and Mastercard, GCC network for POS; transfer within the bank, to other banks, to payroll cards for payroll) as a percent with a minimum and a cap, or a fixed amount, from a date (docs/31 row 76)
+  RelationshipProductId  ->ins.RelationshipProduct req
+  ChargeItemId           ->cat.LookupItem req   # قائمة PRODUCT_CHARGE؛ السمة product تربط البند بمنتج من الدليل
+  Basis                  enum{PERCENT,FIXED} req
+  RatePct                dec(9,4)          # النسبة المئوية: 0.4 تعني 0.4%
+  FixedAmount            dec(19,4)
+  MinAmount              dec(19,4)
+  MaxAmount              dec(19,4)         # الحد الأعلى للعمولة؛ فارغ = بلا حد
+  CurrencyId             ->ref.Currency req
+  ValidFrom              date       req
+  ValidTo                date
+  Notes                  str(500)
+  unique RelationshipProductId,ChargeItemId,ValidFrom
+  index  ChargeItemId
+  check  (Basis = 'PERCENT' AND RatePct IS NOT NULL AND RatePct >= 0 AND RatePct <= 100) OR (Basis = 'FIXED' AND FixedAmount IS NOT NULL AND FixedAmount >= 0)
+  check  MinAmount IS NULL OR MaxAmount IS NULL OR MaxAmount >= MinAmount
+  check  ValidTo IS NULL OR ValidTo >= ValidFrom
+
+table ins.RelationshipProductVolume  # The business of a product of the relationship over a period, entered by the company: the volume and the number of transactions, the commissions and charges the bank took, the bank's profit or interest, the company's return, and the balance at the end (deposits, funds, portfolios); the cross-sale view of the bank sums it (docs/31 row 76)
+  RelationshipProductId  ->ins.RelationshipProduct req
+  PeriodStart            date       req
+  PeriodEnd              date       req
+  CurrencyId             ->ref.Currency req
+  Volume                 dec(19,4)  req   # حجم التعامل
+  TxnCount               int
+  FeesPaid               dec(19,4)        # العمولات والمصاريف التي تقاضاها البنك
+  BankProfit             dec(19,4)        # أرباح البنك من المنتج (فوائد أو هامش تمويل)
+  CompanyReturn          dec(19,4)        # عائد الشركة (ودائع، صناديق، محافظ)
+  EndBalance             dec(19,4)        # الرصيد في نهاية الفترة (ودائع، صناديق، محافظ)
+  Notes                  str(500)
+  unique RelationshipProductId,PeriodStart,CurrencyId
+  index  RelationshipProductId,PeriodEnd
+  check  PeriodEnd >= PeriodStart
+  check  Volume >= 0 AND (TxnCount IS NULL OR TxnCount >= 0) AND (FeesPaid IS NULL OR FeesPaid >= 0)
 
 # =============================================================================
 module ACC

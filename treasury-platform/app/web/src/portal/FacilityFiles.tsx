@@ -4,6 +4,7 @@ import { api } from '../api';
 import { useI18n } from '../i18n';
 import { Field, Form, Select, Table } from '../ui';
 import { Chip } from '../brand';
+import { CrossSale } from './BankBusiness';
 
 // The facility file of a company with a bank (docs/31 row 75): COMPANY-BANK-NNNN, with every contract of the relation
 // by class and renewal, and the correspondence with the bank (letters, e-mails, offers, renewal requests).
@@ -65,6 +66,7 @@ export function FacilityFileDetail() {
           ]} />
         </section>
       ))}
+      <CrossSale url={`/institutions/${data.file.bank.id}/business?company=${data.file.company.id}`} />
       <section className="card">
         <h2>{t('Correspondence')}</h2>
         <Table rows={data.entries} columns={[

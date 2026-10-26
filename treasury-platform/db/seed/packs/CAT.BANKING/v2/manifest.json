@@ -1,0 +1,124 @@
+{
+  "PackKey": "CAT.BANKING",
+  "SeedVersion": 2,
+  "Slice": "Row 76",
+  "Status": "Version 2 keeps every row of version 1 and adds the bank relationship's other business, at the owner's request of 2026-10-26 (docs/31 row 76): the categories DEPOSITS_INVESTMENT and WEALTH_PRIVATE, and deposits, FX deals, rate and currency swaps, treasury, money market and investment funds, equities, private equity, wealth management, private banking and prepaid cards. Proposed default written by an AI agent from spec 11 §6.4 (🟡 items to be reviewed by a specialist); the tenant may edit or deactivate non-locked rows",
+  "Tables": [
+    "cat.InstitutionType.csv",
+    "cat.AccountType.csv",
+    "cat.OperationType.csv",
+    "cat.OperationTypePowerType.csv",
+    "cat.ProductCategory.csv",
+    "cat.Product.csv",
+    "cat.FeeType.csv",
+    "cat.FinancingType.csv",
+    "cat.ProductFeeType.csv",
+    "cat.ProductFinancingType.csv",
+    "cat.FacilityType.csv",
+    "cat.LimitType.csv",
+    "cat.LimitTypeProduct.csv",
+    "cat.CollateralType.csv",
+    "cat.CollateralTypeAttribute.csv",
+    "cat.ObligationType.csv",
+    "cat.BaseRate.csv",
+    "cat.BaseRateAlias.csv"
+  ],
+  "DependsOn": [
+    "CAT.ORG"
+  ],
+  "References": {
+    "cat.OperationTypePowerType.csv": {
+      "OperationTypeSeedKey": {
+        "Column": "OperationTypeId",
+        "Table": "cat.OperationType",
+        "Key": "SeedKey"
+      },
+      "PowerTypeSeedKey": {
+        "Column": "PowerTypeId",
+        "Table": "cat.PowerType",
+        "Key": "SeedKey"
+      }
+    },
+    "cat.Product.csv": {
+      "ProductCategorySeedKey": {
+        "Column": "ProductCategoryId",
+        "Table": "cat.ProductCategory",
+        "Key": "SeedKey"
+      }
+    },
+    "cat.ProductFeeType.csv": {
+      "ProductSeedKey": {
+        "Column": "ProductId",
+        "Table": "cat.Product",
+        "Key": "SeedKey"
+      },
+      "FeeTypeSeedKey": {
+        "Column": "FeeTypeId",
+        "Table": "cat.FeeType",
+        "Key": "SeedKey"
+      }
+    },
+    "cat.ProductFinancingType.csv": {
+      "ProductSeedKey": {
+        "Column": "ProductId",
+        "Table": "cat.Product",
+        "Key": "SeedKey"
+      },
+      "FinancingTypeSeedKey": {
+        "Column": "FinancingTypeId",
+        "Table": "cat.FinancingType",
+        "Key": "SeedKey"
+      }
+    },
+    "cat.LimitType.csv": {
+      "ParentLimitTypeSeedKey": {
+        "Column": "ParentLimitTypeId",
+        "Table": "cat.LimitType",
+        "Key": "SeedKey"
+      }
+    },
+    "cat.LimitTypeProduct.csv": {
+      "LimitTypeSeedKey": {
+        "Column": "LimitTypeId",
+        "Table": "cat.LimitType",
+        "Key": "SeedKey"
+      },
+      "ProductSeedKey": {
+        "Column": "ProductId",
+        "Table": "cat.Product",
+        "Key": "SeedKey"
+      }
+    },
+    "cat.CollateralTypeAttribute.csv": {
+      "CollateralTypeSeedKey": {
+        "Column": "CollateralTypeId",
+        "Table": "cat.CollateralType",
+        "Key": "SeedKey"
+      }
+    },
+    "cat.BaseRate.csv": {
+      "CurrencyCode": {
+        "Column": "CurrencyId",
+        "Table": "ref.Currency",
+        "Key": "Code"
+      }
+    },
+    "cat.BaseRateAlias.csv": {
+      "BaseRateSeedKey": {
+        "Column": "BaseRateId",
+        "Table": "cat.BaseRate",
+        "Key": "SeedKey"
+      }
+    }
+  },
+  "Sources": [
+    "docs/10-detailed-analysis/11-m2-m4-institutions-accounts-catalogs.md section 6.4 (InstitutionType to BaseRate) and the row ProductFeeType / ProductFinancingType",
+    "docs/30-readiness/DOC-B05-seed-and-initial-migration-plan.md section 5.1 (CAT.BANKING)"
+  ],
+  "Notes": {
+    "cat.ProductFeeType": "The links follow spec 11 section 6.4 for letters of credit, guarantees and financing; the payroll, point-of-sale, cash management, cards and FX links are a reasonable mapping (proposed).",
+    "cat.ProductFinancingType": "Conventional products take CONVENTIONAL; neutral products have no financing type.",
+    "cat.LimitTypeProduct": "TOTAL_FACILITY has no rows: any product (BR-CAT-008). The products of each sub-limit are a proposed mapping.",
+    "cat.BaseRate": "No values: cat.BaseRateValue is entered by the tenant. StaleAfterDays 35 is the proposed default."
+  }
+}

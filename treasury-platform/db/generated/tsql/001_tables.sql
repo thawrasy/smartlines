@@ -2308,7 +2308,7 @@ CREATE TABLE [cat].[Product] (
     CONSTRAINT [UQ_Product_Code] UNIQUE ([TenantId], [Code]),
     CONSTRAINT [CK_Product_1] CHECK (Code COLLATE Arabic_100_BIN2 NOT LIKE '%[^A-Z0-9_]%' AND Code NOT LIKE '[0-9_]%'),
     CONSTRAINT [CK_Product_2] CHECK ((IsLocked = 0 OR (IsSystem = 1 AND IsActive = 1)) AND (IsSystem = 0 OR NameEn IS NOT NULL)),
-    CONSTRAINT [CK_Product_ProductFamily] CHECK ([ProductFamily] IS NULL OR [ProductFamily] IN ('LC', 'GUARANTEE', 'FINANCING', 'COLLECTION', 'FX', 'PAYMENT', 'CARD', 'ACCOUNT_SERVICE', 'OTHER')),
+    CONSTRAINT [CK_Product_ProductFamily] CHECK ([ProductFamily] IS NULL OR [ProductFamily] IN ('LC', 'GUARANTEE', 'FINANCING', 'COLLECTION', 'FX', 'PAYMENT', 'CARD', 'ACCOUNT_SERVICE', 'DEPOSIT', 'INVESTMENT', 'DERIVATIVE', 'WEALTH', 'OTHER')),
     CONSTRAINT [CK_Product_Compliance] CHECK ([Compliance] IS NULL OR [Compliance] IN ('CONVENTIONAL', 'ISLAMIC', 'NEUTRAL'))
 );
 GO
@@ -2888,6 +2888,62 @@ CREATE TABLE [ins].[RelationshipProduct] (
     CONSTRAINT [UQ_RelationshipProduct_Tenant] UNIQUE ([TenantId], [RelationshipProductId]),
     CONSTRAINT [UQ_RelationshipProduct_RelationshipId_ProductId] UNIQUE ([TenantId], [RelationshipId], [ProductId]),
     CONSTRAINT [CK_RelationshipProduct_PreferredChannel] CHECK ([PreferredChannel] IS NULL OR [PreferredChannel] IN ('BANK_PORTAL', 'MANUAL_FORM', 'DIRECT_INTEGRATION'))
+);
+GO
+-- A rate the company agreed with the bank for a product of the relationship: a charge of the product (PRODUCT_CHARGE list, by the product's nature: mada, Visa and Mastercard, GCC network for POS; transfer within the bank, to other banks, to payroll cards for payroll) as a percent with a minimum and a cap, or a fixed amount, from a date (docs/31 row 76)
+CREATE TABLE [ins].[RelationshipProductRate] (
+    [TenantId] INT NOT NULL,
+    [RelationshipProductRateId] BIGINT IDENTITY(1,1) NOT NULL,
+    [RelationshipProductId] BIGINT NOT NULL,
+    [ChargeItemId] INT NOT NULL,
+    [Basis] VARCHAR(10) NOT NULL,
+    [RatePct] DECIMAL(9,4) NULL,
+    [FixedAmount] DECIMAL(19,4) NULL,
+    [MinAmount] DECIMAL(19,4) NULL,
+    [MaxAmount] DECIMAL(19,4) NULL,
+    [CurrencyId] INT NOT NULL,
+    [ValidFrom] DATE NOT NULL,
+    [ValidTo] DATE NULL,
+    [Notes] NVARCHAR(500) NULL,
+    [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_RelationshipProductRate_CreatedAt] DEFAULT SYSUTCDATETIME(),
+    [CreatedBy] BIGINT NULL,
+    [UpdatedAt] DATETIME2(3) NULL,
+    [UpdatedBy] BIGINT NULL,
+    [RowVersion] ROWVERSION NOT NULL,
+    CONSTRAINT [PK_RelationshipProductRate] PRIMARY KEY CLUSTERED ([RelationshipProductRateId]),
+    CONSTRAINT [UQ_RelationshipProductRate_Tenant] UNIQUE ([TenantId], [RelationshipProductRateId]),
+    CONSTRAINT [UQ_RelationshipProductRate_RelationshipProductId_ChargeItemId_ValidFrom] UNIQUE ([TenantId], [RelationshipProductId], [ChargeItemId], [ValidFrom]),
+    CONSTRAINT [CK_RelationshipProductRate_1] CHECK ((Basis = 'PERCENT' AND RatePct IS NOT NULL AND RatePct >= 0 AND RatePct <= 100) OR (Basis = 'FIXED' AND FixedAmount IS NOT NULL AND FixedAmount >= 0)),
+    CONSTRAINT [CK_RelationshipProductRate_2] CHECK (MinAmount IS NULL OR MaxAmount IS NULL OR MaxAmount >= MinAmount),
+    CONSTRAINT [CK_RelationshipProductRate_3] CHECK (ValidTo IS NULL OR ValidTo >= ValidFrom),
+    CONSTRAINT [CK_RelationshipProductRate_Basis] CHECK ([Basis] IS NULL OR [Basis] IN ('PERCENT', 'FIXED'))
+);
+GO
+-- The business of a product of the relationship over a period, entered by the company: the volume and the number of transactions, the commissions and charges the bank took, the bank's profit or interest, the company's return, and the balance at the end (deposits, funds, portfolios); the cross-sale view of the bank sums it (docs/31 row 76)
+CREATE TABLE [ins].[RelationshipProductVolume] (
+    [TenantId] INT NOT NULL,
+    [RelationshipProductVolumeId] BIGINT IDENTITY(1,1) NOT NULL,
+    [RelationshipProductId] BIGINT NOT NULL,
+    [PeriodStart] DATE NOT NULL,
+    [PeriodEnd] DATE NOT NULL,
+    [CurrencyId] INT NOT NULL,
+    [Volume] DECIMAL(19,4) NOT NULL,
+    [TxnCount] INT NULL,
+    [FeesPaid] DECIMAL(19,4) NULL,
+    [BankProfit] DECIMAL(19,4) NULL,
+    [CompanyReturn] DECIMAL(19,4) NULL,
+    [EndBalance] DECIMAL(19,4) NULL,
+    [Notes] NVARCHAR(500) NULL,
+    [CreatedAt] DATETIME2(3) NOT NULL CONSTRAINT [DF_RelationshipProductVolume_CreatedAt] DEFAULT SYSUTCDATETIME(),
+    [CreatedBy] BIGINT NULL,
+    [UpdatedAt] DATETIME2(3) NULL,
+    [UpdatedBy] BIGINT NULL,
+    [RowVersion] ROWVERSION NOT NULL,
+    CONSTRAINT [PK_RelationshipProductVolume] PRIMARY KEY CLUSTERED ([RelationshipProductVolumeId]),
+    CONSTRAINT [UQ_RelationshipProductVolume_Tenant] UNIQUE ([TenantId], [RelationshipProductVolumeId]),
+    CONSTRAINT [UQ_RelationshipProductVolume_RelationshipProductId_PeriodStart_CurrencyId] UNIQUE ([TenantId], [RelationshipProductId], [PeriodStart], [CurrencyId]),
+    CONSTRAINT [CK_RelationshipProductVolume_1] CHECK (PeriodEnd >= PeriodStart),
+    CONSTRAINT [CK_RelationshipProductVolume_2] CHECK (Volume >= 0 AND (TxnCount IS NULL OR TxnCount >= 0) AND (FeesPaid IS NULL OR FeesPaid >= 0))
 );
 GO
 

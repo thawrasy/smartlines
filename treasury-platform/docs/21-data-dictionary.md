@@ -2,7 +2,7 @@
 
 > مُولَّد آليًا من نموذج البيانات بـ `tools/dbgen` — لا يُعدَّل يدويًا. الأعمدة المشتركة التي تضيفها اصطلاحات التوليد (TenantId، المعرّف، التدقيق) تظهر في كل جدول.
 
-**عدد الجداول: 262**
+**عدد الجداول: 264**
 
 | الوحدة | عدد الجداول |
 |---|---|
@@ -15,7 +15,7 @@
 | PTY | 11 |
 | REF | 2 |
 | CAT | 27 |
-| INS | 6 |
+| INS | 8 |
 | ACC | 6 |
 | FAC | 17 |
 | PRC | 5 |
@@ -2271,7 +2271,7 @@
 | SeedKey | VARCHAR(80) | نعم |  |  |  |
 | ExternalCode | VARCHAR(80) | نعم |  |  |  |
 | ProductCategoryId | INT | لا |  | cat.ProductCategory |  |
-| ProductFamily | VARCHAR(15) | لا |  |  | enum: LC, GUARANTEE, FINANCING, COLLECTION, FX, PAYMENT, CARD, ACCOUNT_SERVICE, OTHER |
+| ProductFamily | VARCHAR(15) | لا |  |  | DEPOSIT..WEALTH: the relation's other business with the bank (docs/31 row 76) enum: LC, GUARANTEE, FINANCING, COLLECTION, FX, PAYMENT, CARD, ACCOUNT_SERVICE, DEPOSIT, INVESTMENT, DERIVATIVE, WEALTH, OTHER |
 | ConsumesCreditLimit | BIT | لا |  |  | يدخل فحص التسهيلات؛ تغييره بعد الاستخدام يتطلب تأكيد TM (BR-CAT-004، FR-CAT-022) |
 | IsTradeFinance | BIT | لا | 0 |  |  |
 | Compliance | VARCHAR(12) | لا |  |  | enum: CONVENTIONAL, ISLAMIC, NEUTRAL |
@@ -2842,6 +2842,62 @@
 | UpdatedBy | BIGINT | نعم |  |  |  |
 
 **المفاتيح:** PK(RelationshipProductId) · UQ(TenantId, RelationshipId, ProductId)
+
+### `ins.RelationshipProductRate` — A rate the company agreed with the bank for a product of the relationship: a charge of the product (PRODUCT_CHARGE list, by the product's nature: mada, Visa and Mastercard, GCC network for POS; transfer within the bank, to other banks, to payroll cards for payroll) as a percent with a minimum and a cap, or a fixed amount, from a date (docs/31 row 76)
+
+*مملوك للمشترك*
+
+| العمود | النوع | NULL | الافتراضي | المرجع | ملاحظة |
+|---|---|---|---|---|---|
+| TenantId | INT | لا | | plat.Tenant | عزل المشترك |
+| **RelationshipProductRateId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
+| RelationshipProductId | BIGINT | لا |  | ins.RelationshipProduct |  |
+| ChargeItemId | INT | لا |  | cat.LookupItem | قائمة PRODUCT_CHARGE؛ السمة product تربط البند بمنتج من الدليل |
+| Basis | VARCHAR(10) | لا |  |  | enum: PERCENT, FIXED |
+| RatePct | DECIMAL(9,4) | نعم |  |  | النسبة المئوية: 0.4 تعني 0.4% |
+| FixedAmount | DECIMAL(19,4) | نعم |  |  |  |
+| MinAmount | DECIMAL(19,4) | نعم |  |  |  |
+| MaxAmount | DECIMAL(19,4) | نعم |  |  | الحد الأعلى للعمولة؛ فارغ = بلا حد |
+| CurrencyId | INT | لا |  | ref.Currency |  |
+| ValidFrom | DATE | لا |  |  |  |
+| ValidTo | DATE | نعم |  |  |  |
+| Notes | NVARCHAR(500) | نعم |  |  |  |
+| CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
+| CreatedBy | BIGINT | نعم |  |  |  |
+| UpdatedAt | DATETIME2(3) | نعم |  |  |  |
+| UpdatedBy | BIGINT | نعم |  |  |  |
+
+**المفاتيح:** PK(RelationshipProductRateId) · UQ(TenantId, RelationshipProductId, ChargeItemId, ValidFrom)
+
+**قيود:** `(Basis = 'PERCENT' AND RatePct IS NOT NULL AND RatePct >= 0 AND RatePct <= 100) OR (Basis = 'FIXED' AND FixedAmount IS NOT NULL AND FixedAmount >= 0)` · `MinAmount IS NULL OR MaxAmount IS NULL OR MaxAmount >= MinAmount` · `ValidTo IS NULL OR ValidTo >= ValidFrom`
+
+### `ins.RelationshipProductVolume` — The business of a product of the relationship over a period, entered by the company: the volume and the number of transactions, the commissions and charges the bank took, the bank's profit or interest, the company's return, and the balance at the end (deposits, funds, portfolios); the cross-sale view of the bank sums it (docs/31 row 76)
+
+*مملوك للمشترك*
+
+| العمود | النوع | NULL | الافتراضي | المرجع | ملاحظة |
+|---|---|---|---|---|---|
+| TenantId | INT | لا | | plat.Tenant | عزل المشترك |
+| **RelationshipProductVolumeId** | BIGINT IDENTITY | لا | | | مفتاح أساسي |
+| RelationshipProductId | BIGINT | لا |  | ins.RelationshipProduct |  |
+| PeriodStart | DATE | لا |  |  |  |
+| PeriodEnd | DATE | لا |  |  |  |
+| CurrencyId | INT | لا |  | ref.Currency |  |
+| Volume | DECIMAL(19,4) | لا |  |  | حجم التعامل |
+| TxnCount | INT | نعم |  |  |  |
+| FeesPaid | DECIMAL(19,4) | نعم |  |  | العمولات والمصاريف التي تقاضاها البنك |
+| BankProfit | DECIMAL(19,4) | نعم |  |  | أرباح البنك من المنتج (فوائد أو هامش تمويل) |
+| CompanyReturn | DECIMAL(19,4) | نعم |  |  | عائد الشركة (ودائع، صناديق، محافظ) |
+| EndBalance | DECIMAL(19,4) | نعم |  |  | الرصيد في نهاية الفترة (ودائع، صناديق، محافظ) |
+| Notes | NVARCHAR(500) | نعم |  |  |  |
+| CreatedAt | DATETIME2(3) | لا | SYSUTCDATETIME() |  |  |
+| CreatedBy | BIGINT | نعم |  |  |  |
+| UpdatedAt | DATETIME2(3) | نعم |  |  |  |
+| UpdatedBy | BIGINT | نعم |  |  |  |
+
+**المفاتيح:** PK(RelationshipProductVolumeId) · UQ(TenantId, RelationshipProductId, PeriodStart, CurrencyId)
+
+**قيود:** `PeriodEnd >= PeriodStart` · `Volume >= 0 AND (TxnCount IS NULL OR TxnCount >= 0) AND (FeesPaid IS NULL OR FeesPaid >= 0)`
 
 ## ACC
 

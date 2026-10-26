@@ -1,0 +1,7 @@
+Code,NameAr,NameEn,Description,IsActive,IsSystem,IsLocked,SortOrder,SeedKey,Compliance
+CREDIT_FACILITIES,اتفاقية تسهيلات ائتمانية,Credit facilities,,1,1,0,1,CAT.BANKING.CREDIT_FACILITIES,CONVENTIONAL
+ISLAMIC_FINANCING,اتفاقية تمويل إسلامي,Islamic financing,,1,1,0,2,CAT.BANKING.ISLAMIC_FINANCING,ISLAMIC
+MURABAHA_FRAMEWORK,اتفاقية إطارية للمرابحة,Murabaha framework,,1,1,0,3,CAT.BANKING.MURABAHA_FRAMEWORK,ISLAMIC
+TRADE_FINANCE,تسهيلات التمويل التجاري,Trade finance,,1,1,0,4,CAT.BANKING.TRADE_FINANCE,NEUTRAL
+SYNDICATED,تمويل مشترك (مجمّع),Syndicated facility,,1,1,0,5,CAT.BANKING.SYNDICATED,NEUTRAL
+FX_TREASURY_LINE,خط الصرف الأجنبي والخزينة,Foreign exchange and treasury line,,1,1,0,6,CAT.BANKING.FX_TREASURY_LINE,NEUTRAL

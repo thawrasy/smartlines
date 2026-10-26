@@ -283,6 +283,10 @@ CREATE NONCLUSTERED INDEX [IX_RelationshipProduct_ProductId_IsActive] ON [ins].[
 CREATE NONCLUSTERED INDEX [IX_RelationshipProduct_DefaultContactId_RelationshipId] ON [ins].[RelationshipProduct] ([TenantId], [DefaultContactId], [RelationshipId]);
 CREATE NONCLUSTERED INDEX [IX_RelationshipProduct_RelationshipId] ON [ins].[RelationshipProduct] ([TenantId], [InstitutionId], [RelationshipId]);
 CREATE NONCLUSTERED INDEX [IX_RelationshipProduct_DefaultContactId] ON [ins].[RelationshipProduct] ([TenantId], [InstitutionId], [DefaultContactId]);
+CREATE NONCLUSTERED INDEX [IX_RelationshipProductRate_ChargeItemId] ON [ins].[RelationshipProductRate] ([TenantId], [ChargeItemId]);
+CREATE NONCLUSTERED INDEX [IX_RelationshipProductRate_CurrencyId] ON [ins].[RelationshipProductRate] ([TenantId], [CurrencyId]);
+CREATE NONCLUSTERED INDEX [IX_RelationshipProductVolume_RelationshipProductId_PeriodEnd] ON [ins].[RelationshipProductVolume] ([TenantId], [RelationshipProductId], [PeriodEnd]);
+CREATE NONCLUSTERED INDEX [IX_RelationshipProductVolume_CurrencyId] ON [ins].[RelationshipProductVolume] ([TenantId], [CurrencyId]);
 CREATE UNIQUE NONCLUSTERED INDEX [UQ_BankAccount_IbanHash] ON [acc].[BankAccount] ([TenantId], [IbanHash]) WHERE IbanHash IS NOT NULL;
 CREATE NONCLUSTERED INDEX [IX_BankAccount_CompanyId_Status] ON [acc].[BankAccount] ([TenantId], [CompanyId], [Status]);
 CREATE NONCLUSTERED INDEX [IX_BankAccount_InstitutionId_Status] ON [acc].[BankAccount] ([TenantId], [InstitutionId], [Status]);

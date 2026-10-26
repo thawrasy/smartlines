@@ -1,0 +1,7 @@
+Code,NameAr,NameEn,Description,IsActive,IsSystem,IsLocked,SortOrder,SeedKey,IsIslamic,ReturnLabel
+MURABAHA,مرابحة,Murabaha,,1,1,0,1,CAT.BANKING.MURABAHA,1,PROFIT
+DECLINING_MURABAHA,مرابحة متناقصة,Declining murabaha,,1,1,0,2,CAT.BANKING.DECLINING_MURABAHA,1,PROFIT
+TAYSEER_TAWARRUQ,تيسير (تورّق),Tayseer (tawarruq),,1,1,0,3,CAT.BANKING.TAYSEER_TAWARRUQ,1,PROFIT
+IJARA,إجارة,Ijara,,1,1,0,4,CAT.BANKING.IJARA,1,PROFIT
+WAKALA,وكالة (عمولة وكالة),Wakala (agency fee),,1,1,0,5,CAT.BANKING.WAKALA,1,PROFIT
+CONVENTIONAL,تمويل تقليدي,Conventional financing,,1,1,0,6,CAT.BANKING.CONVENTIONAL,0,INTEREST

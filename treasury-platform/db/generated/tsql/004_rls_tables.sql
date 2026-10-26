@@ -95,6 +95,8 @@ INSERT #rls_tables VALUES (N'ins', N'Contact', 0);
 INSERT #rls_tables VALUES (N'ins', N'Relationship', 0);
 INSERT #rls_tables VALUES (N'ins', N'RelationshipContact', 0);
 INSERT #rls_tables VALUES (N'ins', N'RelationshipProduct', 0);
+INSERT #rls_tables VALUES (N'ins', N'RelationshipProductRate', 0);
+INSERT #rls_tables VALUES (N'ins', N'RelationshipProductVolume', 0);
 INSERT #rls_tables VALUES (N'acc', N'BankAccount', 0);
 INSERT #rls_tables VALUES (N'acc', N'FacilityAccount', 0);
 INSERT #rls_tables VALUES (N'acc', N'Signatory', 0);

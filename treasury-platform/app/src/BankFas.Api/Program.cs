@@ -146,6 +146,7 @@ NotificationEndpoints.Map(portal);
 CalendarEndpoints.MapPortal(portal);
 FacilityEndpoints.Map(portal);
 FacilityFileEndpoints.Map(portal);
+RelationshipBusinessEndpoints.Map(portal);
 FacilityRevisionEndpoints.Map(portal);
 LimitEndpoints.Map(portal);
 TariffEndpoints.Map(portal);

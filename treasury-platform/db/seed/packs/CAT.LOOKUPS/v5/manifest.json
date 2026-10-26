@@ -1,0 +1,36 @@
+{
+  "PackKey": "CAT.LOOKUPS",
+  "SeedVersion": 5,
+  "Slice": "Row 76",
+  "Status": "Proposed default written by an AI agent from spec 11 §6.4 (🟡 items to be reviewed by a specialist); the tenant may edit or deactivate non-locked rows. v2 (S2-b) adds FLOW_KIND, the kinds of the monthly flows routed to a bank (fin.BankFlowEntry), closed to tenant items: TRANSFERRED_TO_BANK (S2-b brief S2B-GAP-5). v3 (S3) adds the lists of letters of credit that are not model enums: TRANSPORT_MODE (the 7 codes of lc.LcTerms.TransportMode, closed), SWIFT_MESSAGE_KIND, LC_DOCREQ_KIND and GOODS_CATEGORY (open to tenant items; S3 brief S3-GAP-3). The goods categories are examples for the treasury to review. v4 adds FACILITY_CLASS, the class part of the platform reference of a facility (CAP, STL, MTL, LTL, RCF, TRF, GTE, PRJ, FXL; open to tenant items of three capital letters; the owner's request of 2026-10-23, BR-FAC-021). v5 adds PRODUCT_CHARGE, the charges of a product whose rate the company agrees with a bank (ins.RelationshipProductRate), by the product's nature: the attribute product or family ties an item to a product of the catalogue or a product family, and an item without either fits any product; open to tenant items, so the treasury adds the networks and charges it meets (docs/31 row 76).",
+  "Tables": [
+    "cat.LookupList.csv",
+    "cat.LookupItem.csv"
+  ],
+  "DependsOn": [],
+  "References": {
+    "cat.LookupItem.csv": {
+      "LookupListSeedKey": {
+        "Column": "LookupListId",
+        "Table": "cat.LookupList",
+        "Key": "SeedKey"
+      }
+    }
+  },
+  "Sources": [
+    "docs/10-detailed-analysis/11-m2-m4-institutions-accounts-catalogs.md section 6.4 (UNIT_TYPE, CONTACT_ROLE, ACCOUNT_PURPOSE, SIGNATURE_CLASS)",
+    "db/model/12-institutions-accounts-catalogs.model (acc.Signatory.AuthorisationBasisId: the AUTHORISATION_BASIS values)",
+    "docs/20-database-design.md section 13 (AUTHORISATION_BASIS)",
+    "docs/10-detailed-analysis/10-m0-m1-platform-organization.md FR-PTY-010 and section 9.1",
+    "db/model/11-organization-party.model (pty.IdentityDocument.DocKind)",
+    "docs/30-readiness/DOC-B05-seed-and-initial-migration-plan.md section 5.1 (CAT.LOOKUPS)",
+    "db/model/14-collateral-obligations-financials.model (fin.BankFlowEntry.FlowKindId, default TRANSFERRED_TO_BANK)",
+    "docs/10-detailed-analysis/12-m5-facilities-pricing-collateral-obligations.md FR-FIN-009 and BR-FIN-016",
+    "docs/10-detailed-analysis/14-m7-m8-letters-of-credit.md section 6.5 (TRANSPORT_MODE, SWIFT_MESSAGE_KIND, LC_DOCREQ_KIND, GOODS_CATEGORY)",
+    "db/model/16-letters-of-credit.model (lc.LcTerms.TransportMode, GoodsCategory)",
+    "docs/31-owner-decisions.md row 43 (the platform reference of a facility)"
+  ],
+  "Notes": {
+    "cat.LookupItem": "The other values of letters of credit (LC type, confirmation, presentation basis, charge category and payer) are enums of db/model/16. ID_NUMBER_FORMAT holds the Saudi patterns of FR-PTY-010 (mode WARN by default); GCC_ID and OTHER_ORG have no Saudi pattern."
+  }
+}

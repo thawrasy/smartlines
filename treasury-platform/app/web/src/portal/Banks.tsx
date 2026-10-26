@@ -6,6 +6,7 @@ import { Field, Form, Notice, Select, Table } from '../ui';
 import { Chip } from '../brand';
 import { can, useMe } from './Portal';
 import { SignatoriesPanel } from './Signatories';
+import { CrossSale, ProductBusiness } from './BankBusiness';
 
 // The screens of spec 11 in S1: institutions (SCR-INS-01/02), the relationship with its coverage, products and
 // channels (SCR-INS-05), the bank set-up wizard (SCR-INS-06, FR-INS-014), bank accounts masked with the audited reveal
@@ -137,6 +138,7 @@ export function InstitutionDetail() {
           { header: 'Status', cell: r => <Chip s={r.status} /> },
         ]} />
       </section>
+      <CrossSale url={`/institutions/${id}/business`} showCompany />
       <section className="card">
         <h2>{t('Contacts')}</h2>
         <Table rows={d.contacts} columns={[
@@ -198,13 +200,17 @@ interface RelationshipData {
 
 export function RelationshipDetail() {
   const { id } = useParams();
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const me = useMe();
   const [d, setD] = useState<RelationshipData | null>(null);
   const [notice, setNotice] = useState<{ ok?: string; error?: string }>({});
   const [reason, setReason] = useState('');
   const [sheet, setSheet] = useState<{ rank: number; role: string; name: string; contactMethods?: string }[] | null>(null);
+  const [selected, setSelected] = useState('');
+  const [catalog, setCatalog] = useState<Named[]>([]);
+  const [adding, setAdding] = useState('');
   const load = useCallback(async () => setD((await apiWithETag<RelationshipData>(`/relationships/${id}`)).data), [id]);
+  useEffect(() => { void api<{ items: Named[] }>('GET', '/catalogs/products').then(r => setCatalog(r.items)).catch(() => setCatalog([])); }, []);
   useEffect(() => { void load(); }, [load]);
   if (!d) return null;
   const r = d.relationship;
@@ -230,12 +236,24 @@ export function RelationshipDetail() {
       <section className="card">
         <h2>{t('Products and channels')}</h2>
         <Table rows={d.products} columns={[
-          { header: 'Product', cell: p => p.productName },
+          { header: 'Product', cell: p => <button type="button" className="link" onClick={() => setSelected(p.product)}>{p.productName}</button> },
           { header: 'Default contact', cell: p => p.defaultContactName ?? t('The relationship manager') },
           { header: 'Channel', cell: p => t(p.channel) },
           { header: 'Status', cell: p => <Chip s={p.isActive ? 'ACTIVE' : 'DISABLED'} /> },
         ]} />
       </section>
+      {can(me, 'ins.relationship.manage') && r.status !== 'CLOSED' && (
+        <Form title="Add a product dealt in with the bank" submit="Add" onSubmit={async () => {
+          await api('PUT', `/relationships/${id}/products/${adding}`, {});
+          setSelected(adding); setAdding(''); await load();
+        }}>
+          <Select label="Product" value={adding} onChange={setAdding}
+            options={[{ value: '', label: '—' }, ...catalog.filter(c => !d.products.some(p => p.product === c.code)).map(c => ({ value: c.code ?? '', label: name(lang, c) }))]} />
+        </Form>
+      )}
+      {selected && <ProductBusiness key={selected} relationship={id!} product={selected} productName={d.products.find(p => p.product === selected)?.productName ?? selected}
+        canEdit={can(me, 'ins.relationship.manage') && r.status !== 'CLOSED'} />}
+      <CrossSale url={`/relationships/${id}/business`} />
       {can(me, 'ins.deactivate') && r.status !== 'CLOSED' && (
         <Form title="Close the relationship" submit="Close" onSubmit={async () => {
           await api('POST', `/relationships/${id}/actions/close`, { reason });

@@ -1,0 +1,9 @@
+Code,NameAr,NameEn,Description,IsActive,IsSystem,IsLocked,SortOrder,SeedKey,IsVirtual
+CURRENT,حساب جارٍ,Current account,,1,1,0,1,CAT.BANKING.CURRENT,0
+PAYROLL,حساب رواتب,Payroll account,,1,1,0,2,CAT.BANKING.PAYROLL,0
+VIRTUAL,حساب افتراضي,Virtual account,Locked: the virtual-account flag (BR-ACC-004).,1,1,1,3,CAT.BANKING.VIRTUAL,1
+POS,حساب نقاط البيع,Point-of-sale account,,1,1,0,4,CAT.BANKING.POS,0
+LOAN,حساب تمويل,Loan account,,1,1,0,5,CAT.BANKING.LOAN,0
+LC_COLLECTION,حساب تحصيل الاعتمادات المستندية,Letter of credit collection account,,1,1,0,6,CAT.BANKING.LC_COLLECTION,0
+MARGIN,حساب تأمين نقدي,Cash margin account,,1,1,0,7,CAT.BANKING.MARGIN,0
+DEPOSIT,حساب وديعة,Deposit account,,1,1,0,8,CAT.BANKING.DEPOSIT,0

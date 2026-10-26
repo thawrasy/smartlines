@@ -1,0 +1,6 @@
+Code,NameAr,NameEn,Description,IsActive,IsSystem,IsLocked,SortOrder,SeedKey,RequiresParty
+BANK,بنك,Bank,,1,1,0,1,CAT.BANKING.BANK,0
+FINANCE_CO,شركة تمويل,Finance company,,1,1,0,2,CAT.BANKING.FINANCE_CO,0
+INVESTMENT_CO,شركة استثمار,Investment company,,1,1,0,3,CAT.BANKING.INVESTMENT_CO,0
+FINANCIAL_CO,شركة مالية,Financial company,,1,1,0,4,CAT.BANKING.FINANCIAL_CO,0
+INDIVIDUAL,فرد,Individual,A natural person as lender; requires a party (BR-INS-003).,1,1,0,5,CAT.BANKING.INDIVIDUAL,1

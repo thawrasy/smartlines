@@ -225,6 +225,10 @@ GRANT SELECT, INSERT, UPDATE ON [ins].[Relationship] TO [tp_app];
 GRANT SELECT, INSERT, UPDATE ON [ins].[RelationshipContact] TO [tp_app];
 -- ins.RelationshipProduct
 GRANT SELECT, INSERT, UPDATE ON [ins].[RelationshipProduct] TO [tp_app];
+-- ins.RelationshipProductRate
+GRANT SELECT, INSERT, UPDATE ON [ins].[RelationshipProductRate] TO [tp_app];
+-- ins.RelationshipProductVolume
+GRANT SELECT, INSERT, UPDATE ON [ins].[RelationshipProductVolume] TO [tp_app];
 -- acc.BankAccount
 GRANT SELECT, INSERT, UPDATE ON [acc].[BankAccount] TO [tp_app];
 -- acc.FacilityAccount
