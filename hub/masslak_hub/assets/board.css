@@ -1,0 +1,23 @@
+/* the station board on a display hub: large type, high contrast, readable across a hall */
+:root { --bg: #0b1f3f; --fg: #f5f7fb; --muted: #9fb0cc; --line: #1e3866; --ok: #43c37a; --warn: #f2b84b; --bad: #ff6b6b; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); font-family: system-ui, "Noto Sans Arabic", "Segoe UI", sans-serif; }
+main { padding: 2.2vw 2.6vw; }
+header { display: flex; justify-content: space-between; align-items: baseline; border-bottom: .3vw solid var(--line); padding-bottom: 1vw; }
+h1 { margin: 0; font-size: 4.4vw; letter-spacing: .02em; }
+.clock { font-size: 3.4vw; font-variant-numeric: tabular-nums; }
+.where { color: var(--muted); font-size: 1.6vw; }
+table { width: 100%; border-collapse: collapse; margin-top: 1.2vw; font-size: 2.3vw; }
+th { color: var(--muted); font-weight: 600; text-align: start; padding: .6vw .8vw; font-size: 1.6vw; }
+td { padding: .9vw .8vw; border-top: .12vw solid var(--line); }
+td.time { font-variant-numeric: tabular-nums; font-weight: 700; }
+.via { display: block; color: var(--muted); font-size: 1.4vw; }
+tr.CANCELLED td { color: var(--bad); }
+tr.BOARDING td.status, tr.CHECK_IN td.status { color: var(--ok); font-weight: 700; }
+tr.SEE_COUNTER td.status { color: var(--warn); font-weight: 700; }
+tr.DEPARTED td, tr.ARRIVED td { color: var(--muted); }
+.empty { color: var(--muted); font-size: 2.4vw; margin-top: 4vw; text-align: center; }
+.stale { position: fixed; bottom: 1vw; inset-inline-end: 1.4vw; background: var(--warn); color: #1b1300; padding: .5vw 1vw; border-radius: .6vw; font-size: 1.4vw; }
+.notice { display: grid; place-content: center; min-height: 100vh; text-align: center; font-size: 2.6vw; gap: 1vw; }
+.notice p { margin: .4vw 0; }
+.notice .address { color: var(--muted); font-family: ui-monospace, monospace; direction: ltr; font-size: 2vw; }

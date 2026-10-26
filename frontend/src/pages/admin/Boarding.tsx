@@ -7,6 +7,7 @@ import { PageHead } from "../../components/layout";
 import { CarrierName, Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, useToast, PasswordInput } from "../../components/ui";
 import { BaysPanel, platformBaysApi } from "../station/Bays";
 import { SCREEN_KINDS, ScreensPanel, platformScreensApi, type ScreenKind } from "../station/Screens";
+import { HubsPanel, platformHubsApi } from "../station/Hubs";
 
 // Boarding stations in the platform portal (1097-1112, build step 4): the switches and the check-in window, each
 // station's boarding, screens, counters and bays, the station operating companies, and the rights the platform gives a
@@ -96,6 +97,7 @@ function Stations() {
           actions={<button className="btn text" onClick={() => { setScreens(null); list.reload(); }}>{t("common.close")}</button>}>
           <p className="small muted" style={{ marginTop: 0 }}>{t("scr.platformHint")}</p>
           <ScreensPanel calls={platformScreensApi(screens.uid)} />
+          <HubsPanel calls={platformHubsApi(screens.uid)} />
         </Modal>
       )}
     </div>

@@ -5318,4 +5318,60 @@ SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM ref.currency WHERE decimals > minor_
 SELECT pg_temp.expect_error($$UPDATE ref.currency SET decimals = 5 WHERE code = 'USD'$$, 'currency_decimals_check',
   'New pound (1176): decimals stay within ISO 4217 and the stored scale');
 
+-- Station display hubs on a closed network (1179): one-time pairing, players by MAC and fixed IP, kept reports
+BEGIN;
+RESET ROLE;
+SELECT sys.set_context(:uadmin, NULL, 'SYSTEM');
+SELECT ts.station_id AS hs FROM sales.booking b JOIN ops.trip_stop ts ON ts.trip_id = b.trip_id AND ts.seq = 0
+ WHERE b.booking_ref = 'ABC123' \gset
+INSERT INTO iam.party (party_type, legal_name) VALUES ('COMPANY', 'Hub Administration Test') RETURNING id AS hop \gset
+INSERT INTO iam.company (id, company_type, approval_status) VALUES (:hop, 'STATION_OPERATOR', 'APPROVED');
+INSERT INTO net.station_boarding (station_id, manager_company_id, displays) VALUES (:hs, :hop, true)
+  ON CONFLICT (station_id) DO UPDATE SET manager_company_id = excluded.manager_company_id, displays = true,
+                                         display_kinds = '{DEPARTURES,ARRIVALS,COMBINED}';
+SELECT net.set_boarding_setting('boarding.stations.enabled', 'true'::jsonb);
+SET LOCAL ROLE masslak_app;
+SELECT sys.set_context(NULL, :hop, 'COMPANY');
+SELECT net.add_station_screen(:hs, 'DEPARTURES', 'Hub hall') AS hsc \gset
+SELECT net.start_hub_pairing(:hs, 'Main hall', sha256('PAIR1179'::bytea)) IS NOT NULL AS started \gset
+SELECT net.claim_hub(sha256('PAIR1179'::bytea), sha256('hub-key-1179'::bytea), '1.0.0') ->> 'label' AS hlabel \gset
+SELECT pg_temp.ok(:'hlabel' = 'Main hall', 'Display hub (1179): a hub joins its station with the code made in the portal');
+SELECT pg_temp.expect_error($$SELECT net.claim_hub(sha256('PAIR1179'::bytea), sha256('other-key'::bytea), '1.0.0')$$,
+  'HUB_CODE_UNKNOWN', 'Display hub (1179): a pairing code is used once');
+SELECT net.hub_by_key(sha256('hub-key-1179'::bytea), '1.0.1') AS hid \gset
+SELECT pg_temp.ok(:hid IS NOT NULL AND net.hub_by_key(sha256('wrong'::bytea), NULL) IS NULL,
+  'Display hub (1179): the hub is known by the hash of its key, a wrong key by nothing');
+SELECT net.set_screen_network(:'hsc', 'DEP-1', 'Hall', NULL);
+SELECT pg_temp.expect_error(format($$SELECT net.set_screen_network(%L, 'dep 1', NULL, NULL)$$, :'hsc'),
+  'SCREEN_CODE_INVALID', 'Display hub (1179): a screen code is letters, digits and hyphens');
+SELECT pg_temp.ok((SELECT jsonb_array_length(v -> 'screens') = 1 AND v -> 'screens' -> 0 ->> 'code' = 'DEP-1'
+                     FROM (SELECT net.hub_sync(:hid) AS v) x),
+  'Display hub (1179): the hub''s pull lists the station''s coded screens a new player may open');
+SELECT pg_temp.expect_error(format($$SELECT net.hub_report(%s, '"x"'::jsonb, 0)$$, :hid),
+  'HUB_REPORT_INVALID', 'Display hub (1179): a report is a list of players');
+SELECT pg_temp.ok((SELECT r = '{"seen":0,"waiting":1,"mismatch":0}'::jsonb
+                     FROM (SELECT net.hub_report(:hid, '[{"mac":"aa:bb:cc:00:11:79","ip":"10.20.0.21"},{"mac":"junk","ip":"x"}]'::jsonb, 300) AS r) x),
+  'Display hub (1179): an unknown player waits for approval; a malformed entry is skipped');
+SELECT pg_temp.ok((SELECT array_agg(kind ORDER BY kind) = '{UNKNOWN_DEVICE,UPLINK_RESTORED}' FROM net.station_hubs(:hs) h,
+                          jsonb_to_recordset(h -> 'events') AS e(kind text)),
+  'Display hub (1179): the administration sees the unknown device and the cut uplink');
+SELECT p ->> 'uid' AS hpl FROM jsonb_array_elements(net.station_hubs(:hs) -> 'players') p LIMIT 1 \gset
+SELECT net.decide_hub_player(:'hpl', :'hsc', true);
+SELECT pg_temp.ok((SELECT r ->> 'seen' = '1' FROM (SELECT net.hub_report(:hid, '[{"mac":"aa:bb:cc:00:11:79","ip":"10.20.0.21"}]'::jsonb, 0) AS r) x),
+  'Display hub (1179): an approved player at its fixed address is seen');
+SELECT pg_temp.ok((SELECT r ->> 'mismatch' = '1' FROM (SELECT net.hub_report(:hid, '[{"mac":"aa:bb:cc:00:11:79","ip":"10.20.0.99"}]'::jsonb, 0) AS r) x),
+  'Display hub (1179): the same player at another address is reported, not shown');
+RESET ROLE;
+SELECT pg_temp.expect_error(format($$UPDATE net.station_screen SET fixed_ip = NULL WHERE uid = %L$$, :'hsc'),
+  'station_screen_network_ck', 'Display hub (1179): a screen''s MAC and fixed IP are kept together');
+SELECT pg_temp.expect_error(format('UPDATE net.hub_event SET seconds = 1 WHERE hub_id = %s', :hid),
+  'HUB_EVENT_KEPT', 'Display hub (1179): what a hub reported is never changed');
+SELECT pg_temp.expect_error(format('DELETE FROM net.hub_event WHERE hub_id = %s', :hid),
+  'HUB_EVENT_KEPT', 'Display hub (1179): what a hub reported is never deleted');
+DELETE FROM net.station_screen WHERE uid = :'hsc';
+SELECT pg_temp.ok((SELECT count(*) = 3 AND bool_and(screen_id IS NULL) FROM net.hub_event WHERE hub_id = :hid),
+  'Display hub (1179): a screen taken down leaves the hub''s reports, without the link');
+ROLLBACK;
+SET ROLE masslak_app;
+
 \echo '=== ALL TESTS PASSED ==='

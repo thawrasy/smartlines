@@ -1,0 +1,11 @@
+[project]
+name = "masslak-hub"
+version = "1.0.0"
+description = "Masslak station display hub: the station's boards on its own network"
+requires-python = ">=3.11"
+
+[tool.setuptools]
+packages = ["masslak_hub"]
+
+[tool.setuptools.package-data]
+masslak_hub = ["assets/*"]

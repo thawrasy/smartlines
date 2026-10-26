@@ -1614,6 +1614,47 @@
   "ops.free_schedule_numbers(bigint,text,text,daterange,bigint,integer)": [
    "masslak_api",
    "masslak_app"
+  ],
+  "brd.screen_board_data(bigint)": [],
+  "net.claim_hub(bytea,bytea,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "net.decide_hub_player(uuid,uuid,boolean)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "net.hub_by_key(bytea,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "net.hub_report(bigint,jsonb,integer)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "net.hub_sync(bigint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "net.release_screen_player(uuid)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "net.revoke_hub(uuid,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "net.set_screen_network(uuid,text,text,inet)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "net.start_hub_pairing(bigint,text,bytea)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "net.station_hubs(bigint)": [
+   "masslak_api",
+   "masslak_app"
   ]
  }
 }

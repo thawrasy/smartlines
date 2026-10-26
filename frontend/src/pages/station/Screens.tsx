@@ -5,6 +5,7 @@ import { useI18n } from "../../i18n";
 import { PageHead } from "../../components/layout";
 import { Empty, Field, Icon, Loaded, Modal, useErrorText, useLoad, useToast } from "../../components/ui";
 import type { IconName } from "../../components/icons";
+import { HubsPanel, stationHubsApi } from "./Hubs";
 
 // Display screens (owner's decision, October 2026; migration 1120). The station shows its departures and its arrivals
 // on separate screens, each headed with its word. The platform decides which kinds a station may show; the station's
@@ -286,6 +287,7 @@ export function StationScreens() {
               </Field></div>
             )}
             <ScreensPanel key={uid} calls={stationScreensApi(uid)} />
+            <HubsPanel key={`${uid}-hubs`} calls={stationHubsApi(uid)} />
           </>
         );
       }}</Loaded>

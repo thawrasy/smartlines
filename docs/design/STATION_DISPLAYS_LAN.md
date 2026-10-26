@@ -63,12 +63,41 @@ screen raises the "screen not seen" alert of 1129 through the hub.
 
 ## Security
 
-* The hub accepts nothing from the internet. Its outbound connection uses TLS with the platform's pinned key and the
-  hub's own key, which the platform can revoke.
+* The hub accepts nothing from the internet. Its outbound connection uses TLS (verified against the system's
+  certificate authorities, or the station's own with `MASSLAK_HUB_CA`) and the hub's own key, which the platform can
+  revoke.
 * The screens VLAN carries no other traffic; players are locked in kiosk mode and accept only the hub's push.
 * The hub shows only public board data (trip number, destination, time, bay, status): no passenger data is on it.
 
-## Build order
+## What is built (1179)
+
+| Part | Where | What it does |
+|---|---|---|
+| Database | `db/schema/1179_station_display_hub.sql` | `net.display_hub` (station, name, SHA-256 of the hub's key, last contact, version, revocation with reason), `net.hub_pairing` (one-time code kept as a hash, one hour, used once), `net.hub_player` (players waiting, approved or rejected), `net.hub_event` (unknown device, player at another address at most once an hour, rejected device asking again, uplink back after a cut of 60 s or more; never changed). `net.station_screen` gains its hub, screen code, group, MAC and fixed IP (MAC and IP set together, only with a hub). |
+| Platform API | `backend/app/modules/boarding/hubs.py` | Station portal `/api/station/hubs` and platform `/api/admin/boarding/stations/{station}/hubs`: hubs, pairing code, revoke, waiting players (approve for a screen or reject), a screen's code, group and fixed IP, release of a player. The hub's own door `/api/hub` (`pair`, `sync`, `report`), authenticated by the `X-Hub-Key` header only. |
+| Screens in the portals | `frontend/src/pages/station/Hubs.tsx` | Under Screens in the station portal and in the platform's Boarding page: add a hub (shows the code once), the waiting players with MAC and IP, the screens' network identity, the hub's reports. |
+| The hub | `hub/` (container image), `deploy/hub-install.sh` | Pairs with the code (the key is made on the hub; only its hash leaves it), pulls the boards every 15 s, reports the players it sees every 30 s, serves `/screen/<code>` to the players with a WebSocket push and polling as fallback, strict CSP. A player is shown a board only when its MAC (from the hub's ARP table), fixed IP and device key cookie all match; a new player sees a "waiting for approval" page with its MAC and IP. Board labels and city names in both languages come from the platform with each pull. |
+| Offline | `hub/masslak_hub/board.py` | Without news for 120 s the board shows "Connection lost · last updated hh:mm"; a trip past its time that is not final is shown as "See the counter". When the uplink returns the hub reports how long it was cut. |
+| Tests | `db/tests/run_tests.sql` (1179), `backend/tests/test_display_hub.py`, `hub/tests` (CI security job) | Pairing once, key by hash, report checks, address mismatch, kept events, the API end to end, the hub's player checks and offline board. |
+
+Install on the station's box (Docker, outbound HTTPS to the platform):
+
+```
+sudo ./deploy/hub-install.sh --platform https://<platform> --code <code from the portal> --listen <hub's IP on the screens VLAN> [--port 8080]
+```
+
+Each player then opens `http://<hub>:8080/screen/<screen code>` in kiosk mode. The station's IT person reserves a fixed
+IP for each player's MAC in the hub's or router's DHCP.
+
+### Not built yet
+
+* Layouts from templates, groups driving layouts, and advertising playlists (the CMS of "The parts", point 4).
+* The IPTV multicast channel for screens without a browser.
+* Counter changes reaching the hub over the station's network while the uplink is down (the hub shows its last boards).
+* A DHCP reservation helper on the hub (the reservation is set by the station's IT person).
+
+## Build order (as planned)
+
 
 1. Database: hubs (paired with a station, key, last contact), the screen registry gains group, MAC, fixed IP and device
    key, and the waiting list of players; layouts, groups and playlists.

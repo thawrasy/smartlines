@@ -1117,11 +1117,37 @@ erDiagram
     character country_code FK
     text status
   }
+  net_display_hub {
+    bigint id PK
+    uuid uid
+    bigint station_id FK
+    bigint created_by FK
+    bigint revoked_by FK
+  }
   net_geofence {
     bigint id PK
     text code
     bigint station_id FK
     text status
+  }
+  net_hub_event {
+    bigint id PK
+    bigint hub_id FK
+    bigint screen_id FK
+  }
+  net_hub_pairing {
+    bigint id PK
+    bigint station_id FK
+    bigint created_by FK
+    bigint hub_id FK
+  }
+  net_hub_player {
+    bigint id PK
+    uuid uid
+    bigint hub_id FK
+    text status
+    bigint screen_id FK
+    bigint decided_by FK
   }
   net_line {
     bigint id PK
@@ -1373,6 +1399,7 @@ erDiagram
     bigint station_id FK
     bigint created_by_user_id FK
     bigint updated_by_user_id FK
+    bigint hub_id FK
   }
   net_timetable_template {
     bigint id PK
@@ -1434,6 +1461,10 @@ erDiagram
   net_code_history }o--|| net_code_change : "change_id"
   net_station }o..o| net_compliance_profile : "compliance_profile_id"
   net_approved_rest_stop }o--|| net_corridor : "corridor_id"
+  net_hub_event }o--|| net_display_hub : "hub_id"
+  net_hub_player }o--|| net_display_hub : "hub_id"
+  net_hub_pairing }o..o| net_display_hub : "hub_id"
+  net_station_screen }o..o| net_display_hub : "hub_id"
   net_line_version }o--|| net_line : "line_id"
   net_line_permit }o--|| net_line : "line_id"
   net_line_tariff }o--|| net_line : "line_id"
@@ -1468,11 +1499,13 @@ erDiagram
   net_station_gate }o--|| net_station : "station_id"
   net_station_display }o--|| net_station : "station_id"
   net_station_change }o--|| net_station : "station_id"
+  net_hub_pairing }o--|| net_station : "station_id"
   net_route_stop }o--|| net_station : "station_id"
   net_line_stop }o--|| net_station : "station_id"
   net_line_fare }o..o| net_station : "from_station_id"
   net_station_screen }o--|| net_station : "station_id"
   net_network_route_stop }o--|| net_station : "station_id"
+  net_display_hub }o--|| net_station : "station_id"
   net_line_fare }o..o| net_station : "to_station_id"
   net_geofence }o..o| net_station : "station_id"
   net_route_request }o--|| net_station : "from_station_id"
@@ -1488,6 +1521,8 @@ erDiagram
   net_station_display }o..o| net_station_gate : "gate_id"
   net_station_carrier_bay }o--|| net_station_gate : "gate_id"
   net_screen_pairing }o..o| net_station_screen : "screen_id"
+  net_hub_event }o..o| net_station_screen : "screen_id"
+  net_hub_player }o..o| net_station_screen : "screen_id"
   net_code_history }o..o| ref_admin_area : "area_id"
   net_code_change }o..o| ref_admin_area : "area_id"
   net_port_of_entry }o--|| ref_admin_area : "area_id"

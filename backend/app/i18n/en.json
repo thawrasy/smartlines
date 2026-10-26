@@ -1387,5 +1387,34 @@
     "rear": "Rear window",
     "keep": "Keep this placard visible and undamaged. A lost or copied placard is revoked and a new one printed.",
     "brand": "Masslak, the transport platform"
+  },
+  "board": {
+    "departures": "Departures",
+    "arrivals": "Arrivals",
+    "time": "Time",
+    "to": "To",
+    "from": "From",
+    "carrier": "Carrier",
+    "trip": "Trip",
+    "bay": "Bay",
+    "state": "Status",
+    "via": "via",
+    "noDepartures": "No departures in the coming hours",
+    "noArrivals": "No arrivals in the coming hours",
+    "offline": "Connection lost · last updated {time}",
+    "screenOff": "This screen shows nothing at the moment",
+    "waiting": "This screen is waiting to be approved by the station's administration",
+    "waitingHint": "Give the station's administration this player's address",
+    "refused": "This device may not show the station's boards",
+    "status": {
+      "SCHEDULED": "On time",
+      "CHECK_IN": "Check-in open",
+      "BOARDING": "Boarding",
+      "DEPARTED": "Departed",
+      "CANCELLED": "Cancelled",
+      "ARRIVED": "Arrived",
+      "EXPECTED": "Expected",
+      "SEE_COUNTER": "See the counter"
+    }
   }
 }

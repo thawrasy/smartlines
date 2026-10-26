@@ -38,6 +38,7 @@ from .modules.photo import api as photo_api
 from .modules.boarding import api as boarding_api
 from .modules.boarding import bays as boarding_bays
 from .modules.boarding import displays as boarding_displays
+from .modules.boarding import hubs as boarding_hubs
 from .modules.geo import api as geo_api
 from .modules.geo import codes as geo_codes
 from .modules.geo import roads_api as geo_roads
@@ -169,7 +170,7 @@ for r in (metrics.router, auth.router, public.router, bookings.router, wallet.ro
           support_api.router, support_api.admin, cash_api.router, payment_activation.router, seo_pages.router, parcels_api.customer, parcels_api.carrier, trip_parcels.customer, trip_parcels.carrier, trip_parcels.platform,
           loyalty_api.router, loyalty_admin.router, loyalty_miles.public, loyalty_miles.platform, station_sales.router, boarding_screens.platform, boarding_screens.carrier,
           boarding_screens.public, boarding_bays.station, boarding_bays.platform,
-          boarding_displays.station, boarding_displays.platform, boarding_displays.public, schedules_api.carrier, schedules_api.platform, schedule_numbers.carrier, schedule_numbers.platform,
+          boarding_displays.station, boarding_displays.platform, boarding_displays.public, boarding_hubs.station, boarding_hubs.platform, boarding_hubs.hub, schedules_api.carrier, schedules_api.platform, schedule_numbers.carrier, schedule_numbers.platform,
           kyc_api.carrier, kyc_api.agency, kyc_api.station, kyc_api.platform, kyc_persons.person, kyc_persons.platform, journeys_api.passenger, journeys_api.agency,
           charter_api.carrier, charter_api.agency, charter_api.passenger, charter_api.platform,
           geo_api.public, geo_api.platform, geo_codes.router, geo_roads.public, geo_roads.platform, geo_roads.carrier, geo_ports.public, geo_ports.platform, roadside_api.platform, roadside_api.carrier, roadside_api.inspector, network_routes.public, network_routes.platform, network_routes.carrier, fare_matrix.carrier, fare_matrix.platform, connections_api.carrier, connections_api.platform,

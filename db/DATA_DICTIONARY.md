@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**622 tables, 6813 columns, in 26 schemas.**
+**626 tables, 6858 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -11,7 +11,7 @@ Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant i
 - [`iam` — Identity, parties, users, permissions and API clients](#iam) (53 tables)
 - [`ref` — Reference data, locales and files](#ref) (32 tables)
 - [`sys` — Settings, outbox and webhooks](#sys) (27 tables)
-- [`net` — Network: stations, routes, lines, corridors and geofences](#net) (45 tables)
+- [`net` — Network: stations, routes, lines, corridors and geofences](#net) (49 tables)
 - [`fleet` — Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance](#fleet) (28 tables)
 - [`pricing` — Pricing, taxes, commissions, campaigns and loyalty](#pricing) (41 tables)
 - [`ops` — Trips, inventory, operations, shuttle rides, tracking and incidents](#ops) (40 tables)
@@ -2196,6 +2196,25 @@ Approved transit corridor: route and tolerance; leaving it raises a tracking ale
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `path_geo` | `gis.geography` |  | `sys.geo_line(path)` |
 
+### `net.display_hub` 🛡️
+
+A station display hub: the one server inside a station that talks to the platform (outbound only) and serves the boards to the screens on the station's own network (1179, N46)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `station_id` | `bigint` | 🔗 `net.station` ✱ |  |
+| `label` | `text` | ✱ |  |
+| `key_hash` | `bytea` | ✱ |  |
+| `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `last_contact_at` | `timestamp with time zone` |  |  |
+| `version` | `text` |  |  |
+| `revoked_at` | `timestamp with time zone` |  |  |
+| `revoked_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `revoke_reason` | `text` |  |  |
+
 ### `net.geofence` 🛡️
 
 Geofenced areas (ports, borders, depots, restricted zones) that raise arrival, departure and violation events
@@ -2211,6 +2230,55 @@ Geofenced areas (ports, borders, depots, restricted zones) that raise arrival, d
 | `center_lng` | `numeric(9,6)` |  |  |
 | `radius_m` | `integer` |  |  |
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
+
+### `net.hub_event` 🛡️
+
+What a display hub reported for the administration: an unknown device, a player at another address, a rejected device asking again, the uplink back after a cut and for how long (1179); never changed
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `hub_id` | `bigint` | 🔗 `net.display_hub` ✱ |  |
+| `kind` | `text` | ✱ |  |
+| `mac` | `macaddr` |  |  |
+| `ip` | `inet` |  |  |
+| `screen_id` | `bigint` | 🔗 `net.station_screen`  |  |
+| `seconds` | `integer` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `net.hub_pairing` 🛡️
+
+A one-time code with which a new display hub joins its station; valid one hour, used once, kept as a hash (1179)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `station_id` | `bigint` | 🔗 `net.station` ✱ |  |
+| `label` | `text` | ✱ |  |
+| `code_hash` | `bytea` | ✱ |  |
+| `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `expires_at` | `timestamp with time zone` | ✱ |  |
+| `hub_id` | `bigint` | 🔗 `net.display_hub`  |  |
+| `used_at` | `timestamp with time zone` |  |  |
+
+### `net.hub_player` 🛡️
+
+A screen player that announced itself to a display hub: waiting for the station's administration, approved for a screen, or rejected (1179)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `hub_id` | `bigint` | 🔗 `net.display_hub` ✱ |  |
+| `mac` | `macaddr` | ✱ |  |
+| `ip` | `inet` | ✱ |  |
+| `first_seen` | `timestamp with time zone` | ✱ | `now()` |
+| `last_seen` | `timestamp with time zone` | ✱ | `now()` |
+| `status` | `text` | ✱ | `'WAITING'::text` |
+| `screen_id` | `bigint` | 🔗 `net.station_screen`  |  |
+| `decided_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `decided_at` | `timestamp with time zone` |  |  |
 
 ### `net.line` 🛡️
 
@@ -2848,6 +2916,11 @@ A display screen of a station: its kind (departures, arrivals or both), its plac
 | `bays` | `text[]` | ✱ | `'{}'::text[]` |
 | `carrier_ids` | `bigint[]` | ✱ | `'{}'::bigint[]` |
 | `unseen_told_at` | `timestamp with time zone` |  |  |
+| `hub_id` | `bigint` | 🔗 `net.display_hub`  |  |
+| `screen_code` | `text` |  |  |
+| `group_name` | `text` |  |  |
+| `mac` | `macaddr` |  |  |
+| `fixed_ip` | `inet` |  |  |
 
 ### `net.timetable_template` 🛡️
 

@@ -914,10 +914,18 @@ jobs:
         run: python scripts/check_release.py
       - name: Visual identity (contrast of the promised colour pairs in both themes; web and mobile themes use the tokens)
         run: python scripts/check_design_tokens.py
-      - name: Lint the API and its tests (ruff)
-        run: ruff check backend/app backend/tests
-      - name: Static analysis of the API (bandit)
-        run: bandit -q -c backend/pyproject.toml -r backend/app -ll
+      - name: Lint the API, the station display hub and their tests (ruff)
+        run: ruff check backend/app backend/tests hub
+      - name: Static analysis of the API and the station display hub (bandit)
+        run: |
+          bandit -q -c backend/pyproject.toml -r backend/app -ll
+          bandit -q -r hub/masslak_hub -ll
+      - name: Station display hub on the station's network (N46): player checks, offline board, served pages
+        run: |
+          python -m venv /tmp/hub-venv
+          /tmp/hub-venv/bin/pip install -q -r hub/requirements.txt pytest
+          cd hub && /tmp/hub-venv/bin/python -m pytest tests -q
+          /tmp/hub-venv/bin/pip install -q pip-audit && /tmp/hub-venv/bin/pip-audit -r requirements.txt
       - name: Known vulnerabilities in Python dependencies
         run: |
           pip-audit --require-hashes -r backend/requirements.lock   # every package of the image, transitive ones too
