@@ -68,7 +68,7 @@ export default function ScreenPair() {
         <div>{tr.t("pair.title")}</div>
         {pairing ? (
           <>
-            <div className="mono ltr" aria-label={tr.t("pair.code")} style={{ fontSize: "min(18vw, 12rem)", letterSpacing: "0.15em", fontWeight: 700 }}>{pairing.code}</div>
+            <div className="mono ltr" aria-label={tr.t("pair.code")} style={{ fontSize: "min(13vw, 12rem)", letterSpacing: "0.1em", fontWeight: 700, maxWidth: "100%", overflowWrap: "anywhere" }}>{pairing.code}</div>
             <div style={{ fontSize: "1.4rem", maxWidth: 900, textAlign: "center" }}>{tr.t("pair.hint")}</div>
           </>
         ) : <div style={{ fontSize: "1.4rem" }}>{tr.t(failed ? "pair.failed" : "pair.waiting")}</div>}
