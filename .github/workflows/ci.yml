@@ -844,7 +844,11 @@ jobs:
           for i in $(seq 300); do
             roles="$(./deploy/production/ci/roles.sh 0 2>/dev/null)" && break
             now="$(curl -s --max-time 3 --cacert deploy/production/tls/ca.crt "https://$(test "$PRIMARY_BEFORE" = db1 && echo 10.77.0.11 || echo 10.77.0.12):8008/patroni" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("state"), d.get("xlog", {}).get("replayed_location"), d.get("xlog", {}).get("received_location"))' 2>/dev/null || echo unreachable)"
-            if [ "$now" = "$last" ]; then still=$((still + 1)); else still=0; last="$now"; echo "old primary: $now"; fi
+            # while pg_rewind runs PostgreSQL is down and Patroni says "stopped" with no position; a slow runner can take
+            # more than two minutes over it, so a live pg_rewind counts as progress
+            rewinding=no; sudo docker exec "masslak-$PRIMARY_BEFORE-patroni-1" pgrep -f pg_rewind > /dev/null 2>&1 && rewinding=yes
+            if [ "$rewinding" = yes ]; then still=0; [ "$last" = "rewinding" ] || { last="rewinding"; echo "old primary: pg_rewind running"; }
+            elif [ "$now" = "$last" ]; then still=$((still + 1)); else still=0; last="$now"; echo "old primary: $now"; fi
             [ "$still" -lt 60 ] || { echo "the old primary made no progress for 120 s: $now"; exit 1; }
             sleep 2
           done
