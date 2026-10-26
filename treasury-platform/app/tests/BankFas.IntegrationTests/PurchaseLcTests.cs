@@ -568,6 +568,7 @@ namespace BankFas.IntegrationTests
             Assert.Contains("<span class=\"tag\" dir=\"ltr\">39A</span>", html, StringComparison.Ordinal);
             Assert.DoesNotContain("UCP 600", html, StringComparison.Ordinal);   // 40E still reads UCP LATEST VERSION, as in the message
             Assert.Contains("Plus or minus", html, StringComparison.Ordinal);
+            Assert.Contains("Steel and pipes", html, StringComparison.Ordinal);   // in English, a list item's English name (the owner, docs/31 row 69)
             var arabicPrint = await (await b.Rq.SendAsync(HttpMethod.Get, $"/api/v1/requests/{id}/terms/print?lang=ar")).Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
             Assert.Contains("<h2>المبلغ</h2>", arabicPrint, StringComparison.Ordinal);
             Assert.Contains("زيادة ونقص", arabicPrint, StringComparison.Ordinal);
