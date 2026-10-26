@@ -41,7 +41,7 @@ public sealed class NotificationDispatchJob(SqlConnectionFactory db, IMailSender
         {
             try
             {
-                var (subject, body) = await Notifier.EmailAsync(c, d.NotificationId, d.PreferredLanguage == "en" ? "en" : "ar", ct).ConfigureAwait(false);
+                var (subject, body) = await Notifier.EmailAsync(c, d.NotificationId, d.PreferredLanguage == "ar" ? "ar" : "en", ct).ConfigureAwait(false);
                 await mail.SendAsync(new OutgoingMail(d.Email, subject, body), ct).ConfigureAwait(false);
                 await c.ExecuteAsync(new CommandDefinition(
                     "UPDATE ntf.NotificationDelivery SET Status = 'SENT', SentAt = SYSUTCDATETIME(), NextAttemptAt = NULL, LastError = NULL WHERE NotificationDeliveryId = @id;",

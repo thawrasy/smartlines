@@ -135,7 +135,7 @@ public static partial class Notifier
         var created = 0;
         foreach (var r in recipients)
         {
-            var lang = r.PreferredLanguage == "en" ? "en" : "ar";
+            var lang = r.PreferredLanguage == "ar" ? "ar" : "en";   // English unless Arabic is chosen (the owner, docs/31 row 69)
             var (subject, body) = Render(templates, "IN_APP", lang, values, ev);
             // In-app always for a mandatory event; otherwise unless the user switched the group off (BR-NTF-003).
             var inApp = ev.IsMandatory || Mode(r.AppUserId, "IN_APP") != "OFF";

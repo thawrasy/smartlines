@@ -21,7 +21,7 @@ const str = (v: unknown) => v == null ? '' : String(v);
 // deferral, a confirming bank only when confirmation is asked, the airports only by air...); bool and long are a yes/no
 // list and a text box.
 type Edit = Record<string, string>;
-type Def = { key: string; label: string; type?: 'text' | 'number' | 'date' | 'bool' | 'long'; options?: string[]; when?: (e: Edit) => boolean };
+type Def = { key: string; label: string; type?: 'text' | 'number' | 'date' | 'bool' | 'long'; options?: string[]; list?: string; when?: (e: Edit) => boolean };
 const deferred = (e: Edit) => ['DEFERRED_PAYMENT', 'ACCEPTANCE', 'MIXED'].includes(e.lcType ?? '');
 const byAir = (e: Edit) => e.transportMode === 'AIR';
 const FIELDS: Def[] = [
@@ -57,6 +57,7 @@ const FIELDS: Def[] = [
   { key: 'latestShipmentDate', label: 'Latest shipment date', type: 'date', when: e => e.latestShipmentRule !== 'DAYS_AFTER_ISSUE' },
   { key: 'latestShipmentDaysAfterIssue', label: 'Days from issue to latest shipment', type: 'number', when: e => e.latestShipmentRule === 'DAYS_AFTER_ISSUE' },
   { key: 'installmentShipments', label: 'Instalment shipments', type: 'long' },
+  { key: 'goodsCategory', label: 'Goods category', list: 'GOODS_CATEGORY' },
   { key: 'goodsDescription', label: 'Goods', type: 'long' },
   { key: 'incotermId', label: 'Incoterm' },
   { key: 'incotermPlace', label: 'Incoterm place' },
@@ -96,6 +97,7 @@ export function TermsEditor() {
   const [edit, setEdit] = useState<Record<string, string>>({});
   const [clauses, setClauses] = useState<Row[]>([]);
   const [tags, setTags] = useState<Record<string, string>>({});
+  const [lists, setLists] = useState<Record<string, { code: string; nameAr: string; nameEn: string }[]>>({});
   const [docs, setDocs] = useState<{ clause: string; originals: string; copies: string }[]>([]);
   const [suppliers, setSuppliers] = useState<Row[]>([]);
   const [q, setQ] = useState('');
@@ -111,6 +113,15 @@ export function TermsEditor() {
     setDocs((r.documents ?? []).map(d => ({ clause: str(d.clause), originals: str(d.originals), copies: str(d.copies) })));
   }, [id]);
   useEffect(() => { void load().catch(e => setError(message(e))); }, [load]);
+  useEffect(() => {
+    for (const list of new Set(FIELDS.flatMap(d => d.list ? [d.list] : [])))
+      api<{ items: { code: string; nameAr: string; nameEn: string }[] }>('GET', `/lc/lists/${list}`).then(r => setLists(l => ({ ...l, [list]: r.items }))).catch(() => undefined);
+  }, []);
+  // A value from a catalogue list shows the item's name; a list value of the terms, its word.
+  const word = (d: Def | undefined, v: unknown) => {
+    const item = d?.list ? lists[d.list]?.find(i => i.code === v) : undefined;
+    return item ? (lang === 'ar' ? item.nameAr : item.nameEn) : t(v === true ? 'Yes' : v === false ? 'No' : str(v));
+  };
   useEffect(() => { api<{ fields: Record<string, string> }>('GET', '/lc/swift-tags').then(r => setTags(r.fields)).catch(() => setTags({})); }, []);
   useEffect(() => { api<{ items: Row[] }>('GET', '/document-clauses').then(r => setClauses(r.items)).catch(() => setClauses([])); }, []);
   useEffect(() => {
@@ -167,9 +178,9 @@ export function TermsEditor() {
           </>}
           <Form title="Terms" submit="Save" onSubmit={save}>
             {FIELDS.filter(d => shown(d, edit)).map(d => <div key={d.key} className="with-tag">
-              {d.options || d.type === 'bool'
+              {d.options || d.list || d.type === 'bool'
                 ? <Select label={d.label} value={edit[d.key] ?? ''} onChange={v => setEdit({ ...edit, [d.key]: v })}
-                    options={[{ value: '', label: '—' }, ...(d.options ?? ['true', 'false']).map(o => ({ value: o, label: t(o === 'true' ? 'Yes' : o === 'false' ? 'No' : o) }))]} />
+                    options={[{ value: '', label: '—' }, ...(d.options ?? (d.list ? (lists[d.list] ?? []).map(i => i.code) : ['true', 'false'])).map(o => ({ value: o, label: d.list ? word(d, o) : t(o === 'true' ? 'Yes' : o === 'false' ? 'No' : o) }))]} />
                 : d.type === 'long'
                   ? <label>{t(d.label)}<textarea rows={3} value={edit[d.key] ?? ''} onChange={e => setEdit({ ...edit, [d.key]: e.target.value })} /></label>
                   : <Field label={d.label} type={d.type ?? 'text'} value={edit[d.key] ?? ''} onChange={v => setEdit({ ...edit, [d.key]: v })} required={false} />}
@@ -194,7 +205,7 @@ export function TermsEditor() {
         </>
       ) : (
         <Table rows={FIELDS.filter(d => terms.fields?.[d.key] != null).map(d => ({ key: d.key, label: d.label, value: terms.fields?.[d.key] }))} empty="No field." columns={[
-          { header: 'Field', cell: r => t(str(r.label)) }, { header: 'Value', cell: r => <span dir="auto">{t(r.value === true ? 'Yes' : r.value === false ? 'No' : str(r.value))}</span> },
+          { header: 'Field', cell: r => t(str(r.label)) }, { header: 'Value', cell: r => <span dir="auto">{word(FIELDS.find(d => d.key === r.key), r.value)}</span> },
           { header: 'SWIFT', cell: r => <Tag tag={tags[str(r.key)]} lcType={str(terms.fields?.lcType)} /> },
         ]} />
       )}

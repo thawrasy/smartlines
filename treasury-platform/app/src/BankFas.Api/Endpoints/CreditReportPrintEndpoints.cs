@@ -83,7 +83,7 @@ public static class CreditReportPrintEndpoints
         if (lang is not ("" or "ar" or "en")) throw ApiProblemException.Invalid("VALIDATION_FAILED", "The language is ar or en.");
         var userLang = await u.Connection.ExecuteScalarAsync<string?>(new CommandDefinition("SELECT PreferredLanguage FROM sec.AppUser WHERE AppUserId = @u;", new { u = u.UserId },
             cancellationToken: ct));
-        var ar = lang.Length > 0 ? lang == "ar" : userLang != "en";
+        var ar = lang.Length > 0 ? lang == "ar" : userLang == "ar";
         var r = (IDictionary<string, object?>)await u.Connection.QuerySingleAsync(new CommandDefinition(
             "SELECT * FROM fin.v_CreditAssessmentReport WHERE CreditAssessmentId = @a;", new { a = a.CreditAssessmentId }, cancellationToken: ct));
         var factors = (await u.Connection.QueryAsync(new CommandDefinition(

@@ -14,7 +14,7 @@ function initial(): Lang {
     const saved = localStorage.getItem('bf.lang');
     if (saved === 'ar' || saved === 'en') return saved;
   } catch { /* storage may be unavailable */ }
-  return navigator.language.startsWith('ar') ? 'ar' : 'en';
+  return 'en';   // English is the default; Arabic is the second choice, kept once chosen (the owner, docs/31 row 69)
 }
 
 export function I18nProvider({ children }: { children: ReactNode }) {

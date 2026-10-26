@@ -572,6 +572,12 @@ namespace BankFas.IntegrationTests
             Assert.Contains("<h2>المبلغ</h2>", arabicPrint, StringComparison.Ordinal);
             Assert.Contains("زيادة ونقص", arabicPrint, StringComparison.Ordinal);
             Assert.DoesNotContain("PLUS_MINUS", arabicPrint, StringComparison.Ordinal);
+            // A catalogue list value prints with its item's name, and the screen gets the list (GOODS_CATEGORY: أنابيب وحديد).
+            Assert.Contains("أنابيب وحديد", arabicPrint, StringComparison.Ordinal);
+            Assert.DoesNotContain("STEEL_PIPES", arabicPrint, StringComparison.Ordinal);
+            Assert.Contains((await b.Rq.GetJsonAsync("/api/v1/lc/lists/GOODS_CATEGORY")).GetProperty("items").EnumerateArray(),
+                x => x.GetProperty("code").GetString() == "STEEL_PIPES" && x.GetProperty("nameAr").GetString() == "أنابيب وحديد");
+            Assert.Empty((await b.Rq.GetJsonAsync("/api/v1/lc/lists/COUNTRY_GROUP")).GetProperty("items").EnumerateArray());
             Assert.Equal((422, "V-LCT-UCP-FOOTNOTE"),
                 await b.T.Portal.ProblemAsync(HttpMethod.Patch, "/api/v1/settings", new { values = new Dictionary<string, object> { ["lc.print.ucp_disclaimer"] = false } }));
 

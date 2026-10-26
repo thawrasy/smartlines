@@ -74,7 +74,7 @@ public sealed class NotificationDigestJob(SqlConnectionFactory db, IMailSender m
         {
             var items = user.ToList();
             var first = items[0];
-            var ar = first.PreferredLanguage != "en";
+            var ar = first.PreferredLanguage == "ar";
             // Per event: its name in the user's language, its count and its five latest titles (BR-NTF-004).
             var groups = items.GroupBy(i => (ar ? i.GroupNameAr : i.GroupNameEn) ?? i.GroupKey).OrderBy(g => g.Key, StringComparer.Ordinal)
                 .Select(g => new { group = g.First().GroupKey, name = g.Key, count = g.Count(), latest = g.Take(5).Select(x => x.Title).ToList() })

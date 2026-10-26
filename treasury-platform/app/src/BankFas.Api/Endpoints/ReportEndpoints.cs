@@ -309,7 +309,7 @@ public static class ReportEndpoints
             if (asPdf)
             {
                 var arabic = await u.Connection.ExecuteScalarAsync<string?>(new CommandDefinition("SELECT PreferredLanguage FROM sec.AppUser WHERE AppUserId = @u;",
-                    new { u = u.UserId }, cancellationToken: http.RequestAborted)) != "en";
+                    new { u = u.UserId }, cancellationToken: http.RequestAborted)) == "ar";
                 await AuditWriter.WriteAsync(u.Connection, null, new AuditEntry("REPORT_EXPORTED", "TREASURY", "report", null,
                     AfterJson: JsonSerializer.Serialize(new { report = report.Code, format = "pdf", company = f.Company, from = f.From, to = f.To, days = f.Days, status = f.Status, rows = rows.Count })),
                     null, http.RequestAborted);

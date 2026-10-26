@@ -28,6 +28,7 @@ public static class TermsPrint
         public bool VisibleToRequester { get; init; }
         public string Sensitivity { get; init; } = "NORMAL";
         public string? SwiftTagHint { get; init; }
+        public string? ListCode { get; init; }
     }
 
     /// <summary>The page's only style, allowed by its hash in the response's Content-Security-Policy (no inline style otherwise).</summary>
@@ -56,7 +57,7 @@ public static class TermsPrint
                   FROM wfl.Request AS r JOIN org.Company AS co ON co.CompanyId = r.CompanyId JOIN lc.LcTerms AS t ON t.LcTermsId = @t WHERE r.RequestId = @r;
                 """, new { r = requestId, t = t.LcTermsId }, tx, cancellationToken: ct)).ConfigureAwait(false);
         var defs = (await c.QueryAsync<FieldDef>(new CommandDefinition(
-            "SELECT LcFieldDefinitionId, FieldKey, SectionKey, LabelAr, LabelEn, VisibleToRequester, Sensitivity, SwiftTagHint FROM lc.LcFieldDefinition ORDER BY SectionKey, SortOrder, FieldKey;",
+            "SELECT LcFieldDefinitionId, FieldKey, SectionKey, LabelAr, LabelEn, VisibleToRequester, Sensitivity, SwiftTagHint, ListCode FROM lc.LcFieldDefinition ORDER BY SectionKey, SortOrder, FieldKey;",
             transaction: tx, cancellationToken: ct)).ConfigureAwait(false)).ToList();
         var docs = (await c.QueryAsync<(long ClauseId, string Code, string NameAr, string NameEn, string TextAr, string TextEn, string Review, int? Originals, int? Copies, string? Params,
             bool IsFree, string? FreeText)>(new CommandDefinition(
@@ -68,6 +69,16 @@ public static class TermsPrint
             "SELECT ChargeCategory, Payer, ApplicantSharePct FROM lc.LcChargesMatrix WHERE LcTermsId = @t ORDER BY ChargeCategory;", new { t = t.LcTermsId }, tx,
             cancellationToken: ct)).ConfigureAwait(false);
         var lcType = values.TryGetValue("lcType", out var type) ? type as string : null;
+        // A value from a catalogue list (goods category...) prints with the list item's name.
+        var listNames = (await c.QueryAsync<(string List, string Code, string NameAr, string? NameEn)>(new CommandDefinition(
+            """
+            SELECT l.Code, i.Code, i.NameAr, i.NameEn
+              FROM cat.LookupItem AS i JOIN cat.LookupList AS l ON l.LookupListId = i.LookupListId
+             WHERE l.Code IN (SELECT ListCode FROM lc.LcFieldDefinition WHERE ListCode IS NOT NULL);
+            """, transaction: tx, cancellationToken: ct)).ConfigureAwait(false))
+            .ToDictionary(x => (x.List, x.Code), x => arabic ? x.NameAr : x.NameEn ?? x.NameAr);
+        string Word(FieldDef d, string value) =>
+            d.ListCode is { } list && listNames.TryGetValue((list, value), out var name) ? name : TermsLabels.Of(value, arabic);
         string Tag(string? code) => code is null ? "" : " <span class=\"tag\" dir=\"ltr\">" + H(code) + "</span>";
 
         var b = new StringBuilder();
@@ -85,7 +96,7 @@ public static class TermsPrint
             {
                 var v = values[d.FieldKey];
                 b.Append("<tr><th class=\"label\">").Append(H(arabic ? d.LabelAr : d.LabelEn)).Append(Tag(TermsLabels.Tag(d.SwiftTagHint, lcType))).Append("</th><td>")
-                    .Append(v is string word ? H(TermsLabels.Of(word, arabic)) : H(v)).Append("</td></tr>");
+                    .Append(v is string word ? H(Word(d, word)) : H(v)).Append("</td></tr>");
             }
             b.Append("</table>");
         }

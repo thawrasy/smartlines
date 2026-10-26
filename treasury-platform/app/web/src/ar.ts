@@ -3035,4 +3035,5 @@ export const ar: Record<string, string> = {
   'Minimum insurance cover %': 'نسبة التأمين الدنيا %', 'Insurance clauses': 'شروط التغطية التأمينية', 'The bank may arrange the insurance': 'يجوز للبنك ترتيب التأمين',
   'Additional conditions': 'الشروط الإضافية', 'Confirming bank': 'البنك المعزِّز', 'Confirming bank BIC': 'رمز BIC للبنك المعزِّز', 'Assignment of proceeds': 'التنازل عن العائدات',
   CONFIRMING_BANK: 'البنك المعزِّز',
+  'Goods category': 'تصنيف البضاعة',
 };

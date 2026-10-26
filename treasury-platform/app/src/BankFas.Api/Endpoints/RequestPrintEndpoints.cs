@@ -60,7 +60,7 @@ public static class RequestPrintEndpoints
         if (!visible) throw ApiProblemException.NotFound();
         var me = await u.Connection.QuerySingleAsync<(string? Lang, string? NameAr, string? NameEn, string Email)>(new CommandDefinition(
             "SELECT PreferredLanguage, DisplayNameAr, DisplayNameEn, Email FROM sec.AppUser WHERE AppUserId = @u;", new { u = u.UserId }, tx, cancellationToken: ct));
-        var ar = lang is { Length: > 0 } ? lang == "ar" : me.Lang != "en";
+        var ar = lang is { Length: > 0 } ? lang == "ar" : me.Lang == "ar";
         string T(string a, string e) => ar ? a : e;
         var head = await u.Connection.QuerySingleAsync<(string TypeAr, string? TypeEn, string CompanyAr, string? CompanyEn, string PhaseAr, string? PhaseEn, string? ReqAr, string? ReqEn,
             DateTime CreatedAt, DateTime? SubmittedAt, DateTime? CompletedAt, string? Stage)>(new CommandDefinition(

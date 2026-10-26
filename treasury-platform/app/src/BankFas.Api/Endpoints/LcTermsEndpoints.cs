@@ -35,6 +35,7 @@ public static class LcTermsEndpoints
         api.MapGet("/document-clauses", ClausesAsync);
         api.MapGet("/lc/ucp-references", UcpReferencesAsync);
         api.MapGet("/lc/swift-tags", SwiftTagsAsync);
+        api.MapGet("/lc/lists/{list}", TermsListAsync);
         api.MapGet("/requests/{id:guid}/terms", GetTermsAsync);
         api.MapPut("/requests/{id:guid}/terms", PutTermsAsync);
         api.MapPut("/requests/{id:guid}/terms/documents", PutDocumentsAsync);
@@ -284,6 +285,24 @@ public static class LcTermsEndpoints
              ORDER BY c.Code;
             """, cancellationToken: http.RequestAborted));
         return Results.Ok(new { items = rows });
+    }
+
+    /// <summary>
+    /// The items of a catalogue list a term takes its value from (the field dictionary's ListCode, such as GOODS_CATEGORY),
+    /// with their Arabic and English names, for the terms screen's list; only lists the dictionary names are served.
+    /// </summary>
+    private static async Task<IResult> TermsListAsync(string list, HttpContext http, SqlConnectionFactory db)
+    {
+        await using var u = await OpenAsync(http, db);
+        var rows = await u.Connection.QueryAsync<(string Code, string NameAr, string? NameEn)>(new CommandDefinition(
+            """
+            SELECT i.Code, i.NameAr, i.NameEn
+              FROM cat.LookupItem AS i JOIN cat.LookupList AS l ON l.LookupListId = i.LookupListId
+             WHERE l.Code = @list AND i.IsActive = 1 AND i.Status = 'ACTIVE'
+               AND EXISTS (SELECT 1 FROM lc.LcFieldDefinition AS f WHERE f.ListCode = @list AND f.IsActive = 1)
+             ORDER BY i.SortOrder, i.Code;
+            """, new { list }, cancellationToken: http.RequestAborted));
+        return Results.Ok(new { items = rows.Select(r => new { code = r.Code, nameAr = r.NameAr, nameEn = r.NameEn ?? r.NameAr }) });
     }
 
     /// <summary>
