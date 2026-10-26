@@ -436,6 +436,13 @@ test('an operator onboards a tenant and its first administrator signs in', async
       portOfLoading: 'Shanghai', portOfDischarge: 'Dammam', incotermId: 'CFR', incotermPlace: 'Dammam', goodsCategory: 'STEEL_PIPES',
       goodsDescription: 'Seamless steel pipes as per proforma', insuranceResponsibility: 'APPLICANT', lcTextLanguage: 'EN' } });
     expect(failed).toBe('');
+    // English is the default (docs/31 row 69): the terms and their print in English first, then in Arabic.
+    await rq.p.goto(`${requestUrl}/terms`);
+    await rq.p.getByRole('heading').first().waitFor();
+    await rq.p.screenshot({ path: `${shots}/56-terms-en-full.png`, fullPage: true });
+    await rq.p.goto(`${origin}/api/v1/requests/${requestId}/terms/print?lang=en`);
+    await shot(rq.p, '57-terms-print-en');
+    await rq.p.goto(requestUrl);
     await rq.p.getByRole('button', { name: 'العربية' }).click();
     await rq.p.goto(requestUrl);
     await rq.p.getByRole('heading').first().waitFor();
