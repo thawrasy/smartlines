@@ -53,6 +53,11 @@ on:
       - 'treasury-platform/docs/57-RELEASE.docx'
       - '.github/workflows/treasury-db-ci.yml'
   workflow_dispatch:
+    inputs:
+      bundle:
+        description: 'A released version to add its one-file package to (e.g. 1.0.6); empty runs the checks'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -63,6 +68,7 @@ defaults:
 
 jobs:
   database:
+    if: ${{ !inputs.bundle }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     services:
@@ -213,3 +219,34 @@ jobs:
           bash tools/release/make_release.sh "$V" bankfas-api:ci bankfas-worker:ci "$RUNNER_TEMP/release"
           gh release create "bankfas-v$V" "$RUNNER_TEMP"/release/* --target "$GITHUB_SHA" --prerelease \
             --title "BankFas $V (pilot)" --notes "The pilot release $V. Install: INSTALL-AR.md (docs/57). Check the files first: sha256sum -c SHA256SUMS."
+
+  # The one-file package of a release already published (docs/61): its files as released, checked against its
+  # SHA256SUMS, with the beginner's guide of docs/61 beside them, in one tar added to the same release. Nothing is
+  # rebuilt and no release is created; a release that already has the file keeps it.
+  bundle:
+    if: ${{ inputs.bundle }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: The one-file package
+        env:
+          GH_TOKEN: ${{ github.token }}
+          V: ${{ inputs.bundle }}
+        run: |
+          set -euo pipefail
+          [[ "$V" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "not a version: $V" >&2; exit 1; }
+          TAG="bankfas-v$V"; NAME="bankfas-$V-complete.tar"
+          if gh release view "$TAG" --json assets -q '.assets[].name' | grep -qxF "$NAME"; then echo "$TAG already has $NAME"; exit 0; fi
+          D="$RUNNER_TEMP/bankfas-$V"; mkdir -p "$D"
+          gh release download "$TAG" --dir "$D"
+          (cd "$D" && sha256sum -c SHA256SUMS)
+          cp docs/61-beginner-server-install.md "$D/BEGINNER-GUIDE-AR.md"
+          cp docs/61-BEGINNER-SERVER-INSTALL.docx "$D/BEGINNER-GUIDE-AR.docx"
+          (cd "$D" && sha256sum BEGINNER-GUIDE-AR.md BEGINNER-GUIDE-AR.docx > GUIDE-SHA256SUMS)
+          tar -C "$RUNNER_TEMP" -cf "$RUNNER_TEMP/$NAME" "bankfas-$V"
+          (cd "$RUNNER_TEMP" && sha256sum "$NAME" > "$NAME.sha256" && cat "$NAME.sha256")
+          gh release upload "$TAG" "$RUNNER_TEMP/$NAME" "$RUNNER_TEMP/$NAME.sha256"
