@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { api } from "../../api";
-import { useI18n } from "../../i18n";
+import { toMinor, useI18n } from "../../i18n";
 import { PageHead } from "../../components/layout";
 import { Empty, ErrorBox, Field, Icon, Loaded, Modal, useLoad, useToast } from "../../components/ui";
 
@@ -34,7 +34,7 @@ export function AdminCarrierClasses() {
     setBusy(true); setError(null);
     try { await fn(); setForm(null); toast(t("common.saved")); state.reload(); } catch (e) { setError(e); } finally { setBusy(false); }
   };
-  const perKm = (v: string) => (v === "" ? undefined : Math.round(Number(v) * 100));
+  const perKm = (v: string) => (v === "" ? undefined : toMinor(v));
   const submit = () => run(() => {
     if (form === "class") return api.post("/api/admin/carrier-classes", { ...cls, criteria: cls.criteria || undefined });
     if (form === "assign") return api.post("/api/admin/carrier-classes/assign", { ...asg, assigned_on: asg.assigned_on || undefined, valid_until: asg.valid_until || undefined });

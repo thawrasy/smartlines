@@ -216,7 +216,7 @@ export function AgencyStaff() {
             <Field label={t("common.name")}><input className="input" value={f.full_name} onChange={set("full_name")} /></Field>
             <div className="grid cols-2">
               <Field label={t("common.email")}><input className="input ltr" type="email" value={f.email} onChange={set("email")} /></Field>
-              <Field label={`${t("common.mobile")} (${t("common.optional")})`}><input className="input ltr" inputMode="tel" value={f.mobile} onChange={set("mobile")} /></Field>
+              <Field label={t("common.mobile")} optional><input className="input ltr" inputMode="tel" value={f.mobile} onChange={set("mobile")} /></Field>
             </div>
             <Field label={t("agency.role")}>
               <select className="input" value={f.role} onChange={set("role")}>

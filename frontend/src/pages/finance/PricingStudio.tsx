@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { api } from "../../api";
-import { useI18n } from "../../i18n";
+import { fromMinor, toMinor, useI18n } from "../../i18n";
 import { useAuth } from "../../auth";
 import { PageHead } from "../../components/layout";
 import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, useLoad, useToast } from "../../components/ui";
@@ -169,17 +169,17 @@ function SchemeForm({ from, jurisdictions, known, onClose, onDone }: { from?: Sc
     products: from?.scope.products ?? [], sellers: from?.scope.sellers ?? [], origin_cities: (from?.scope.origin_cities ?? []).join(", "),
   });
   const [rules, setRules] = useState<RuleDraft[]>(from?.rules.length ? from.rules.map((r) => ({
-    calc_method: r.calc_method, rate: r.rate != null ? String(r.rate) : "", amount: r.amount != null ? String(r.amount / 100) : "", base_type: r.base_type,
-    base_include: r.base_include, applies_per: r.applies_per, min_amount: r.min_amount != null ? String(r.min_amount / 100) : "",
-    max_amount: r.max_amount != null ? String(r.max_amount / 100) : "", rounding: r.rounding_rule,
-    bands: r.bands.length ? r.bands.map((b) => ({ from_value: String(b.dimension === "AMOUNT" ? b.from_value / 100 : b.from_value),
-      to_value: b.to_value != null ? String(b.dimension === "AMOUNT" ? b.to_value / 100 : b.to_value) : "", rate: b.rate != null ? String(b.rate) : "" }))
+    calc_method: r.calc_method, rate: r.rate != null ? String(r.rate) : "", amount: r.amount != null ? String(fromMinor(r.amount)) : "", base_type: r.base_type,
+    base_include: r.base_include, applies_per: r.applies_per, min_amount: r.min_amount != null ? String(fromMinor(r.min_amount)) : "",
+    max_amount: r.max_amount != null ? String(fromMinor(r.max_amount)) : "", rounding: r.rounding_rule,
+    bands: r.bands.length ? r.bands.map((b) => ({ from_value: String(b.dimension === "AMOUNT" ? fromMinor(b.from_value) : b.from_value),
+      to_value: b.to_value != null ? String(b.dimension === "AMOUNT" ? fromMinor(b.to_value) : b.to_value) : "", rate: b.rate != null ? String(b.rate) : "" }))
       : [{ from_value: "0", to_value: "", rate: "" }], band_dimension: r.bands[0]?.dimension ?? "AMOUNT", band_mode: r.bands[0]?.mode ?? "WHOLE" })) : [emptyRule()]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const set = (k: string, v: unknown) => setF((x) => ({ ...x, [k]: v }));
   const setRule = (i: number, k: keyof RuleDraft, v: unknown) => setRules((rs) => rs.map((r, j) => j === i ? { ...r, [k]: v } : r));
-  const minor = (v: string) => (v.trim() ? Math.round(Number(v) * 100) : null);
+  const minor = (v: string) => (v.trim() ? toMinor(v) : null);
   const otherCodes = useMemo(() => [...new Set(known.filter((s) => s.status !== "RETIRED" && s.code !== f.code).map((s) => s.code))], [known, f.code]);
   const body = () => ({
     code: f.code.trim().toUpperCase(), name: f.name.trim(), jurisdiction_id: Number(f.jurisdiction_id), tax_type: f.tax_type, treatment: f.treatment,
@@ -226,7 +226,7 @@ function SchemeForm({ from, jurisdictions, known, onClose, onDone }: { from?: Sc
           <Field label={t("ps.collectedBy")}><select className="input" value={f.collected_by} onChange={(e) => set("collected_by", e.target.value)}>
             {["PLATFORM", "CARRIER", "AUTHORITY"].map((x) => <option key={x} value={x}>{t(`ps.collector.${x}`)}</option>)}</select></Field>
           <Field label={t("ps.validFrom")} hint={from ? t("ps.versionHint") : undefined}><input className="input ltr" type="date" min={new Date().toISOString().slice(0, 10)} value={f.valid_from} onChange={(e) => set("valid_from", e.target.value)} /></Field>
-          <Field label={`${t("ps.validTo")} (${t("common.optional")})`}><input className="input ltr" type="date" value={f.valid_to} onChange={(e) => set("valid_to", e.target.value)} /></Field>
+          <Field label={t("ps.validTo")} optional><input className="input ltr" type="date" value={f.valid_to} onChange={(e) => set("valid_to", e.target.value)} /></Field>
         </div>}
         {step === 1 && <div className="stack">
           <p className="small muted">{t("ps.scopeHint")}</p>
@@ -254,8 +254,8 @@ function SchemeForm({ from, jurisdictions, known, onClose, onDone }: { from?: Sc
                     <button key={c} type="button" aria-pressed={r.base_include.includes(c)} className={`chip chip-select ltr${r.base_include.includes(c) ? " on" : ""}`}
                             onClick={() => setRule(i, "base_include", r.base_include.includes(c) ? r.base_include.filter((x) => x !== c) : [...r.base_include, c])}>{c}</button>))}
                     {otherCodes.length === 0 && <span className="small muted">{t("ps.noOtherTaxes")}</span>}</div></div>}
-                <Field label={`${t("ps.min")} (${t("common.optional")})`}><input className="input ltr" inputMode="decimal" value={r.min_amount} onChange={(e) => setRule(i, "min_amount", e.target.value)} /></Field>
-                <Field label={`${t("ps.max")} (${t("common.optional")})`}><input className="input ltr" inputMode="decimal" value={r.max_amount} onChange={(e) => setRule(i, "max_amount", e.target.value)} /></Field>
+                <Field label={t("ps.min")} optional><input className="input ltr" inputMode="decimal" value={r.min_amount} onChange={(e) => setRule(i, "min_amount", e.target.value)} /></Field>
+                <Field label={t("ps.max")} optional><input className="input ltr" inputMode="decimal" value={r.max_amount} onChange={(e) => setRule(i, "max_amount", e.target.value)} /></Field>
                 <Field label={t("ps.rounding")}><select className="input" value={r.rounding} onChange={(e) => setRule(i, "rounding", e.target.value)}>
                   {["HALF_UP", "HALF_EVEN", "DOWN", "UP"].map((x) => <option key={x} value={x}>{t(`ps.round.${x}`)}</option>)}</select></Field>
               </div>
@@ -314,7 +314,7 @@ function Preview({ schemes, tryIds, setTryIds, commissions, tryC, setTryC }: { s
     setBusy(true); setError(null);
     try {
       setR(await api.post<Receipt>("/api/admin/pricing/preview", {
-        fare: Math.round(Number(f.fare) * 100), passengers: Number(f.passengers) || 1, country: f.country, origin_city: f.origin_city || null,
+        fare: toMinor(f.fare), passengers: Number(f.passengers) || 1, country: f.country, origin_city: f.origin_city || null,
         distance_km: f.distance_km ? Number(f.distance_km) : null, at: f.at || null, method: f.method || null,
         agency_commission_bp: Math.round(Number(f.commission || 0) * 100), try_ids: tryIds,
         channel: f.channel || null, try_commission_ids: tryC }));
@@ -489,14 +489,14 @@ function CommissionForm({ from, onClose, onDone }: { from?: Commission; onClose:
   const [f, setF] = useState({ code: from?.code ?? "", name: from?.name ?? "", type: from?.type ?? "INTERMEDIARY", funded_by: from?.funded_by ?? "CARRIER",
     base_type: from?.base_type ?? "FARE", channels: from?.scope.channels ?? [] as string[], valid_from: from ? tomorrow : new Date().toISOString().slice(0, 10), valid_to: "" });
   const [rules, setRules] = useState(from?.rules.length ? from.rules.map((r) => ({ calc_method: r.calc_method, rate: r.rate != null ? String(r.rate) : "",
-    amount: r.amount != null ? String(r.amount / 100) : "", min: r.min_amount != null ? String(r.min_amount / 100) : "", max: r.max_amount != null ? String(r.max_amount / 100) : "",
-    mode: r.bands[0]?.mode ?? "WHOLE", bands: r.bands.map((b) => ({ from: String(b.from_value / 100), to: b.to_value != null ? String(b.to_value / 100) : "", rate: b.rate != null ? String(b.rate) : "" })) }))
+    amount: r.amount != null ? String(fromMinor(r.amount)) : "", min: r.min_amount != null ? String(fromMinor(r.min_amount)) : "", max: r.max_amount != null ? String(fromMinor(r.max_amount)) : "",
+    mode: r.bands[0]?.mode ?? "WHOLE", bands: r.bands.map((b) => ({ from: String(fromMinor(b.from_value)), to: b.to_value != null ? String(fromMinor(b.to_value)) : "", rate: b.rate != null ? String(b.rate) : "" })) }))
     : [{ calc_method: "PERCENT", rate: "", amount: "", min: "", max: "", mode: "WHOLE", bands: [{ from: "0", to: "", rate: "" }] }]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const set = (k: string, v: unknown) => setF((x) => ({ ...x, [k]: v }));
   const setRule = (i: number, k: string, v: unknown) => setRules((rs) => rs.map((r, j) => j === i ? { ...r, [k]: v } : r));
-  const minor = (v: string) => (v.trim() ? Math.round(Number(v) * 100) : null);
+  const minor = (v: string) => (v.trim() ? toMinor(v) : null);
   const same = RECEIVER_OF[f.type] === PAYER_OF[f.funded_by];
   const ok = /^[A-Z][A-Z0-9_-]{1,29}$/.test(f.code) && f.name.trim().length >= 2 && !same && rules.every((r) =>
     r.calc_method === "PERCENT" ? r.rate !== "" : r.calc_method === "FIXED" ? r.amount !== "" : r.bands.every((b) => b.rate !== ""));
@@ -544,8 +544,8 @@ function CommissionForm({ from, onClose, onDone }: { from?: Commission; onClose:
               {r.calc_method === "FIXED" && <Field label={t("pc.perBooking")}><input className="input ltr" inputMode="decimal" value={r.amount} onChange={(e) => setRule(i, "amount", e.target.value)} /></Field>}
               {r.calc_method === "TIERED" && <Field label={t("ps.bandMode")} hint={t(`ps.bandModeHint.${r.mode}`)}><select className="input" value={r.mode} onChange={(e) => setRule(i, "mode", e.target.value)}>
                 <option value="WHOLE">{t("ps.bandWhole")}</option><option value="MARGINAL">{t("ps.bandMarginal")}</option></select></Field>}
-              <Field label={`${t("ps.min")} (${t("common.optional")})`}><input className="input ltr" inputMode="decimal" value={r.min} onChange={(e) => setRule(i, "min", e.target.value)} /></Field>
-              <Field label={`${t("ps.max")} (${t("common.optional")})`}><input className="input ltr" inputMode="decimal" value={r.max} onChange={(e) => setRule(i, "max", e.target.value)} /></Field>
+              <Field label={t("ps.min")} optional><input className="input ltr" inputMode="decimal" value={r.min} onChange={(e) => setRule(i, "min", e.target.value)} /></Field>
+              <Field label={t("ps.max")} optional><input className="input ltr" inputMode="decimal" value={r.max} onChange={(e) => setRule(i, "max", e.target.value)} /></Field>
             </div>
             {r.calc_method === "TIERED" && <div className="stack" style={{ marginTop: 8 }}>
               <div className="table-wrap" tabIndex={0}><table className="table"><thead><tr><th>{t("ps.from")}</th><th>{t("ps.to")}</th><th>{t("ps.rate")}</th><th /></tr></thead>

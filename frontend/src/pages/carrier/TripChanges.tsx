@@ -64,7 +64,7 @@ function Why({ reasons, value, onChange }: { reasons: Reasons; value: { reason: 
           {reasons.reasons.map((r) => <option key={r.code} value={r.code}>{label(r.code)}</option>)}
         </select>
       </Field>
-      <Field label={value.reason === "OTHER" ? t("tripChange.noteRequired") : `${t("tripChange.note")} (${t("common.optional")})`}>
+      <Field label={value.reason === "OTHER" ? t("tripChange.noteRequired") : t("tripChange.note")} optional={!(value.reason === "OTHER")}>
         <input className="input" maxLength={500} value={value.note} onChange={(e) => onChange({ ...value, note: e.target.value })} />
       </Field>
     </div>
@@ -112,7 +112,7 @@ function ChangeVehicle({ trip, reasons, onDone }: { trip: CarrierTrip; reasons: 
               <option key={v.uid} value={v.uid}>{v.plate_no} · {v.passenger_seats} {t("common.seats")}</option>)}
           </select>
         </Field>
-        <Field label={`${t("tripChange.newDriver")} (${t("common.optional")})`}>
+        <Field label={t("tripChange.newDriver")} optional>
           <select className="input" value={form.driver_uid} onChange={(e) => setForm({ ...form, driver_uid: e.target.value })}>
             <option value="">{t("tripChange.sameDriver")}</option>
             {crew.data?.crew.filter((c) => c.status === "ACTIVE").map((c) => <option key={c.uid} value={c.uid}>{c.full_name}</option>)}

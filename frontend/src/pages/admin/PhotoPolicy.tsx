@@ -289,7 +289,7 @@ function PolicyChanges() {
                actions={<button className="btn filled" disabled={busy}
                                 onClick={() => run(() => api.post(`/api/admin/photos/policy-changes/${approving.uid}/approve`, doc ? { document_no: doc } : {}), () => { setApproving(null); state.reload(); })}>{t("photo.approve")}</button>}>
           <div className="stack"><ErrorBox error={error} /><p className="small muted" style={{ margin: 0 }}>{t("photo.docHint")}</p>
-            <Field label={`${t("photo.docNo")} (${t("common.optional")})`}><input className="input" value={doc} onChange={(e) => setDoc(e.target.value)} /></Field></div>
+            <Field label={t("photo.docNo")} optional><input className="input" value={doc} onChange={(e) => setDoc(e.target.value)} /></Field></div>
         </Modal>
       )}
     </div>

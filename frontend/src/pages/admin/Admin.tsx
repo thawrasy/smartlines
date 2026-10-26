@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { RecordEditor, type EditField } from "../../components/RecordEditor";
 import { api, newKey } from "../../api";
-import { useI18n } from "../../i18n";
+import { fromMinor, toMinor, useI18n } from "../../i18n";
 import { useAuth } from "../../auth";
 import { PageHead } from "../../components/layout";
 import { PlacePicker, type PickedPlace } from "../../components/PlacePicker";
@@ -119,8 +119,8 @@ export function AdminCompanies() {
             <Field label={t("admin.legalName")}><input className="input" value={f.legal_name} onChange={set("legal_name")} /></Field>
             <div className="grid cols-2">
               <Field label={t("admin.code3")}><input className="input ltr mono" maxLength={3} value={f.code3} onChange={set("code3")} /></Field>
-              <Field label={`${t("company.code2")} (${t("common.optional")})`} hint={t("company.code2Hint")}><input className="input ltr mono" maxLength={2} value={f.code2} onChange={set("code2")} /></Field>
-              <Field label={`${t("admin.license")} (${t("common.optional")})`}><input className="input ltr" value={f.transport_license_no} onChange={set("transport_license_no")} /></Field>
+              <Field label={t("company.code2")} optional hint={t("company.code2Hint")}><input className="input ltr mono" maxLength={2} value={f.code2} onChange={set("code2")} /></Field>
+              <Field label={t("admin.license")} optional><input className="input ltr" value={f.transport_license_no} onChange={set("transport_license_no")} /></Field>
               <Field label={t("admin.ownerName")}><input className="input" value={f.owner_name} onChange={set("owner_name")} /></Field>
               <Field label={t("admin.ownerEmail")}><input className="input ltr" type="email" value={f.owner_email} onChange={set("owner_email")} /></Field>
             </div>
@@ -319,10 +319,10 @@ export function AdminStations() {
               <Field label={t("admin.number")}><input className="input ltr" type="number" min={1} max={999} value={f.number} onChange={set("number")} /></Field>
             </div>
             <Field label={`${t("common.name")} (English)`}><input className="input ltr" value={f.name} onChange={set("name")} /></Field>
-            <Field label={`${t("admin.address")} (${t("common.optional")})`}><input className="input" value={f.address} onChange={set("address")} /></Field>
+            <Field label={t("admin.address")} optional><input className="input" value={f.address} onChange={set("address")} /></Field>
             <div className="grid cols-2">
-              <Field label={`${t("admin.lat")} (${t("common.optional")})`}><input className="input ltr" type="number" step="0.0001" value={f.lat} placeholder={place ? String(place.lat) : ""} onChange={set("lat")} /></Field>
-              <Field label={`${t("admin.lng")} (${t("common.optional")})`}><input className="input ltr" type="number" step="0.0001" value={f.lng} placeholder={place ? String(place.lng) : ""} onChange={set("lng")} /></Field>
+              <Field label={t("admin.lat")} optional><input className="input ltr" type="number" step="0.0001" value={f.lat} placeholder={place ? String(place.lat) : ""} onChange={set("lat")} /></Field>
+              <Field label={t("admin.lng")} optional><input className="input ltr" type="number" step="0.0001" value={f.lng} placeholder={place ? String(place.lng) : ""} onChange={set("lng")} /></Field>
             </div>
           </div>
         </Modal>
@@ -350,14 +350,13 @@ interface AdminAgency {
 }
 
 // Amounts are typed in whole Syrian pounds and sent in minor units
-const toMinor = (v: string) => Math.round(Number(v || 0) * 100);
 
 export function AdminAgencies() {
   const { t, money } = useI18n();
   const { can } = useAuth();
   const toast = useToast();
   const state = useLoad(() => api.get<{ agencies: AdminAgency[] }>("/api/admin/agencies"));
-  const blank = { legal_name: "", license_no: "", owner_name: "", owner_email: "", owner_password: "", commission_pct: "5", daily_limit: "500000" };
+  const blank = { legal_name: "", license_no: "", owner_name: "", owner_email: "", owner_password: "", commission_pct: "5", daily_limit: "5000" };
   const [f, setF] = useState(blank);
   const [editing, setEditing] = useState<{ uid: string; legal_name: string } | null>(null);
   const [mode, setMode] = useState<null | "new" | { terms: AdminAgency } | { deposit: AdminAgency }>(null);
@@ -384,7 +383,7 @@ export function AdminAgencies() {
     amount: toMinor(dep.amount), bank_reference: dep.bank_reference.trim(), idempotency_key: dep.key,
   }));
   const openTerms = (a: AdminAgency) => {
-    setTerms({ commission_pct: String((a.commission_bp ?? 0) / 100), daily_limit: String((a.daily_limit ?? 0) / 100), status: a.agreement_status === "SUSPENDED" ? "SUSPENDED" : "ACTIVE", reason: "" });
+    setTerms({ commission_pct: String((a.commission_bp ?? 0) / 100), daily_limit: String(fromMinor(a.daily_limit ?? 0)), status: a.agreement_status === "SUSPENDED" ? "SUSPENDED" : "ACTIVE", reason: "" });
     setMode({ terms: a });
   };
   const openDeposit = (a: AdminAgency) => { setDep({ amount: "", bank_reference: "", key: newKey() }); setMode({ deposit: a }); };
@@ -429,7 +428,7 @@ export function AdminAgencies() {
             <ErrorBox error={error} />
             <Field label={t("admin.legalName")}><input className="input" value={f.legal_name} onChange={set("legal_name")} /></Field>
             <div className="grid cols-2">
-              <Field label={`${t("admin.license")} (${t("common.optional")})`}><input className="input ltr" value={f.license_no} onChange={set("license_no")} /></Field>
+              <Field label={t("admin.license")} optional><input className="input ltr" value={f.license_no} onChange={set("license_no")} /></Field>
               <Field label={t("admin.commissionPct")} hint={t("admin.commissionHint")}><input className="input ltr" type="number" min={0} max={20} step={0.25} value={f.commission_pct} onChange={set("commission_pct")} /></Field>
               <Field label={t("admin.dailyLimitSyp")}><input className="input ltr" type="number" min={1} value={f.daily_limit} onChange={set("daily_limit")} /></Field>
               <Field label={t("admin.ownerName")}><input className="input" value={f.owner_name} onChange={set("owner_name")} /></Field>

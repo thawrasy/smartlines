@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { api } from "../../api";
-import { useI18n } from "../../i18n";
+import { fromMinor, toMinor, useI18n } from "../../i18n";
 import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Status, useLoad, useToast } from "../../components/ui";
 
 interface MarketLoad {
@@ -23,7 +23,7 @@ export function FreightMarket() {
     if (!pick) return;
     setError(null);
     try {
-      await api.post(`/api/w/freight/requests/${pick.uid}/bid`, { price: Math.round(Number(price) * 100), valid_hours: Number(hours),
+      await api.post(`/api/w/freight/requests/${pick.uid}/bid`, { price: toMinor(price), valid_hours: Number(hours),
                                                                   truck_vehicle_id: truck ? Number(truck) : null });
       toast(t("wf.market.done")); setPick(null); state.reload();
     } catch (e) { setError(e); }
@@ -53,7 +53,7 @@ export function FreightMarket() {
                   <span className="small">{money(r.my_bid.price)}</span><Status value={r.my_bid.status} />
                   {r.my_bid.status === "SUBMITTED" && <button className="btn text small" onClick={() => withdraw(r.my_bid!.id)}>{t("wf.market.withdraw")}</button>}
                 </div>
-              ) : <button className="btn small" onClick={() => { setPick(r); setPrice(r.target_price ? String(r.target_price / 100) : ""); setError(null); }}>{t("wf.market.bid")}</button>}</td>
+              ) : <button className="btn small" onClick={() => { setPick(r); setPrice(r.target_price ? String(fromMinor(r.target_price)) : ""); setError(null); }}>{t("wf.market.bid")}</button>}</td>
             </tr>
           ))}</tbody>
         </table></div>
@@ -64,12 +64,12 @@ export function FreightMarket() {
                  <button className="btn" disabled={!(Number(price) > 0)} onClick={bid}>{t("wf.market.send")}</button></>}>
           <p className="muted">{pick.cargo_description} · {num(pick.declared_weight_kg)} {t("wf.kg")}</p>
           <div className="grid cols-2">
-            <Field label={t("wf.market.price")}><input type="number" min="1" step="1000" value={price} onChange={(e) => setPrice(e.target.value)} autoFocus /></Field>
+            <Field label={t("wf.market.price")}><input type="number" min="1" step="10" value={price} onChange={(e) => setPrice(e.target.value)} autoFocus /></Field>
             <Field label={t("wf.market.validFor")}>
               <select value={hours} onChange={(e) => setHours(e.target.value)}>{[12, 24, 48, 72, 168].map((h) => <option key={h} value={h}>{t("wf.market.hours", { n: h })}</option>)}</select>
             </Field>
           </div>
-          <Field label={t("wf.market.truck")} hint={t("common.optional")}>
+          <Field label={t("wf.market.truck")} optional>
             <select value={truck} onChange={(e) => setTruck(e.target.value)}><option value="">—</option>
               {(state.data?.trucks ?? []).map((x) => <option key={x.id} value={x.id}>{x.plate_no}</option>)}</select>
           </Field>

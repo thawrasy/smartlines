@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { ParcelPolicy } from "../carrier/ParcelDesk";
 import { TripChangePolicy } from "../carrier/TripChanges";
 import { api, newKey, type TripResult } from "../../api";
-import { useI18n } from "../../i18n";
+import { fromMinor, toMinor, useI18n } from "../../i18n";
 import { useAuth } from "../../auth";
 import { PageHead } from "../../components/layout";
 import { CarrierName, Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, useToast } from "../../components/ui";
@@ -41,7 +41,6 @@ export interface CharterRequest {
   seats_held: number; estimate: number | null;
 }
 
-const toMinor = (v: string | number) => Math.round(Number(v || 0) * 100);
 const iso = (local: string) => (local ? new Date(local).toISOString() : "");
 
 /** What the request is for, in one line. */
@@ -447,8 +446,8 @@ function TravellersModal({ r, load, name, unname, onClose }: { r: CharterRequest
                 </div>
                 <div className="grid cols-4">
                   <Field label={t("chr.firstName")}><input className="input" value={p.first_name} onChange={set("first_name")} /></Field>
-                  <Field label={syrian ? t("chr.fatherName") : `${t("chr.fatherName")} (${t("common.optional")})`}><input className="input" value={p.father_name} onChange={set("father_name")} /></Field>
-                  <Field label={syrian ? t("chr.grandfatherName") : `${t("chr.grandfatherName")} (${t("common.optional")})`}><input className="input" value={p.grandfather_name} onChange={set("grandfather_name")} /></Field>
+                  <Field label={t("chr.fatherName")} optional={!(syrian)}><input className="input" value={p.father_name} onChange={set("father_name")} /></Field>
+                  <Field label={t("chr.grandfatherName")} optional={!(syrian)}><input className="input" value={p.grandfather_name} onChange={set("grandfather_name")} /></Field>
                   <Field label={t("chr.lastName")}><input className="input" value={p.last_name} onChange={set("last_name")} /></Field>
                 </div>
                 <div className="row" style={{ justifyContent: "flex-end" }}>
@@ -536,7 +535,7 @@ function CarrierOffers() {
               <td><Refunds o={o} /><div><Deposit o={o} /></div><div className="small muted">{t("chr.notice", { h: o.notice_hours })}</div></td>
               <td><Status value={o.status} /></td>
               <td className="row" style={{ gap: 6, justifyContent: "flex-end" }}>
-                <button className="btn text small" onClick={() => { setEditing(o); setF({ ...BLANK, ...o, price: o.price != null ? String(o.price / 100) : "", vehicle_type: o.vehicle_type ?? "COACH",
+                <button className="btn text small" onClick={() => { setEditing(o); setF({ ...BLANK, ...o, price: o.price != null ? String(fromMinor(o.price)) : "", vehicle_type: o.vehicle_type ?? "COACH",
                   seats: o.seats ?? 45, min_seats: o.min_seats ?? 10, base_city: o.base_city ?? "" }); }}>{t("common.edit")}</button>
                 {o.status === "ACTIVE" ? <button className="btn text small" onClick={() => status(o, "PAUSED")}>{t("chr.pause")}</button>
                   : <button className="btn text small" onClick={() => status(o, "ACTIVE")}>{t("chr.resume")}</button>}
@@ -668,7 +667,7 @@ function CarrierRequests() {
               <td><Price r={r} /></td>
               <td className="row" style={{ gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }}>
                 {["REQUESTED", "QUOTED"].includes(r.status) && <>
-                  <button className="btn filled small" onClick={() => { setPricing(r); setQ({ price: r.price != null ? String(r.price / 100) : r.estimate != null ? String(r.estimate / 100) : "", valid_hours: 48, note: "", vehicle_uid: "" }); }}>
+                  <button className="btn filled small" onClick={() => { setPricing(r); setQ({ price: r.price != null ? String(fromMinor(r.price)) : r.estimate != null ? String(fromMinor(r.estimate)) : "", valid_hours: 48, note: "", vehicle_uid: "" }); }}>
                     <Icon name="request_quote" />{t(r.status === "QUOTED" ? "chr.reprice" : "chr.priceIt")}</button>
                   <button className="btn text small" onClick={() => { setClosing({ r, how: "decline" }); setReason(""); }}>{t("chr.decline")}</button>
                 </>}

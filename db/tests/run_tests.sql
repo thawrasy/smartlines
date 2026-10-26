@@ -5301,4 +5301,12 @@ SELECT pg_temp.expect_error(format($$INSERT INTO pricing.commission_rule (scheme
   'COMMISSION_FROZEN', 'Commissions (1175): no rule is added to a scheme in force');
 ROLLBACK;
 
+-- The new Syrian pound (1176): amounts kept their integers, the currency counts them in ten-thousandths of a new pound
+SELECT pg_temp.ok((SELECT minor_unit = 4 AND decimals = 2 FROM ref.currency WHERE code = 'SYP'),
+  'New pound (1176): SYP amounts are stored in 1/10000 of a new pound and shown with two decimals');
+SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM ref.currency WHERE decimals > minor_unit),
+  'New pound (1176): no currency shows more decimals than it stores');
+SELECT pg_temp.expect_error($$UPDATE ref.currency SET decimals = 5 WHERE code = 'USD'$$, 'currency_decimals_check',
+  'New pound (1176): decimals stay within ISO 4217 and the stored scale');
+
 \echo '=== ALL TESTS PASSED ==='

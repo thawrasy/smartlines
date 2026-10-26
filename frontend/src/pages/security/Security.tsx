@@ -94,7 +94,7 @@ export function SecurityRules() {
               <Field label={t("security.action")}><select className="input" value={f.action} onChange={set("action")}>{["BLOCK", "THROTTLE", "CHALLENGE"].map((k) => <option key={k} value={k}>{t(`security.actions.${k}`)}</option>)}</select></Field>
               <Field label={t("security.scope")}><select className="input" value={f.scope} onChange={set("scope")}>{["ALL", "PASSENGER", "OPERATOR", "AGENCY", "ADMIN", "API", "PAYMENT_WEBHOOK", "DRIVER"].map((k) => <option key={k} value={k}>{t(`security.scopes.${k}`)}</option>)}</select></Field>
               <Field label={t("security.priority")}><input className="input ltr" type="number" min={0} max={1000} value={f.priority} onChange={set("priority")} /></Field>
-              <Field label={`${t("security.expires")} (${t("common.optional")})`}><input className="input ltr" type="number" min={1} value={f.expires_hours} onChange={set("expires_hours")} /></Field>
+              <Field label={t("security.expires")} optional><input className="input ltr" type="number" min={1} value={f.expires_hours} onChange={set("expires_hours")} /></Field>
             </div>
             <Field label={t("common.reason")}><input className="input" value={f.reason} onChange={set("reason")} /></Field>
             <p className="small muted">{t("security.allowNote")}</p>
@@ -193,7 +193,7 @@ function ExceptionsCard({ onChange }: { onChange: () => void }) {
           <Modal title={`${t(`security.exceptions.${step.action}`)} · ${step.e.target}`} onClose={() => setStep(null)}
                  actions={<><button className="btn text" onClick={() => setStep(null)}>{t("common.cancel")}</button><button className="btn" disabled={busy} onClick={decide}>{t("common.confirm")}</button></>}>
             <div className="stack"><ErrorBox error={error} /><p className="small">{step.e.reason}</p>
-              <Field label={`${t("security.exceptions.note")} (${t("common.optional")})`}><input className="input" value={note} onChange={(ev) => setNote(ev.target.value)} /></Field></div>
+              <Field label={t("security.exceptions.note")} optional><input className="input" value={note} onChange={(ev) => setNote(ev.target.value)} /></Field></div>
           </Modal>
         )}
       </>)}</Loaded>

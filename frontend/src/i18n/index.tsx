@@ -14,8 +14,14 @@ export type Locale = keyof typeof LOCALES;
 export const DEFAULT_LOCALE: Locale = import.meta.env.VITE_DEFAULT_LOCALE === "ar" ? "ar" : "en";
 // Until the server names the market (GET /api/markets, the user's own on sign-in), times and money follow the
 // platform's first market; every other market's screens switch as soon as it is known (1061)
-const FIRST_MARKET: Market = { country: "SY", time_zone: "Asia/Damascus", currency: "SYP", locale: "ar", minor_unit: 2 };
+// The new Syrian pound (1 January 2026, two zeros removed): amounts count ten-thousandths of a pound, shown with two decimals (1176)
+const FIRST_MARKET: Market = { country: "SY", time_zone: "Asia/Damascus", currency: "SYP", locale: "ar", minor_unit: 4, decimals: 2 };
 let currentZone = FIRST_MARKET.time_zone;
+let currentScale: [number, number] = [FIRST_MARKET.minor_unit, FIRST_MARKET.decimals ?? 2];
+/** An amount people typed in whole units of the market's currency ("290.50") as the minor units it travels in (1176). */
+export const toMinor = (value: string | number) => Math.round(Number(value || 0) * 10 ** currentScale[0]);
+/** Minor units of the market's currency as the whole-unit number a form field shows, rounded to the decimals people pay in. */
+export const fromMinor = (minor: number) => Math.round(minor / 10 ** (currentScale[0] - currentScale[1])) / 10 ** currentScale[1];
 /** The time zone of the market on screen, for code outside React (calendar dates in dates.ts). */
 export const zone = () => currentZone;
 
@@ -75,6 +81,10 @@ interface I18n {
   has: (key: string) => boolean;
   /** Minor units as money of the market on screen, or of the currency given (a booking's own). */
   money: (minor: number, withCurrency?: boolean, currency?: string) => string;
+  /** An amount people typed, in whole units ("290.50"), as the minor units it travels in; empty stays empty. */
+  toMinor: (value: string | number, currency?: string) => number;
+  /** Minor units as the whole-unit number a form field shows ("290.5"). */
+  fromMinor: (minor: number, currency?: string) => number;
   /** The market on screen and how to change it (sign-in sets the user's). */
   /** The name of a currency (the market's when none is given). */
   currency: (code?: string) => string;
@@ -120,15 +130,16 @@ function hasChoice(): boolean {
 export function I18nProvider({ children }: { children: ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>(initialLocale);
   const [market, setMarketState] = useState<Market>(FIRST_MARKET);
-  const [known, setKnown] = useState<Record<string, number>>({ [FIRST_MARKET.currency]: FIRST_MARKET.minor_unit });
+  const [known, setKnown] = useState<Record<string, [number, number]>>({ [FIRST_MARKET.currency]: [FIRST_MARKET.minor_unit, FIRST_MARKET.decimals ?? 2] });
   const [namesVersion, setNamesVersion] = useState(0);
   const userMarket = useRef(false);                 // the signed-in user's market wins over the default
   const chosen = useRef(hasChoice());               // the visitor's own language wins over their country's
   const cfg = LOCALES[locale];
   const apply = useCallback((m: Market) => {
     currentZone = m.time_zone;
+    currentScale = [m.minor_unit, m.decimals ?? Math.min(m.minor_unit, 3)];
     setMarketState(m);
-    setKnown((k) => ({ ...k, [m.currency]: m.minor_unit }));
+    setKnown((k) => ({ ...k, [m.currency]: [m.minor_unit, m.decimals ?? Math.min(m.minor_unit, 3)] }));
   }, []);
   const setMarket = useCallback((m: Market) => { userMarket.current = true; apply(m); }, [apply]);
   // the default market and the minor units of every open market's currency, for visitors and for amounts in another currency
@@ -136,7 +147,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     let live = true;
     fetch("/api/markets", { headers: { "X-Masslak-Client": "web" } }).then((r) => (r.ok ? r.json() : null)).then((d) => {
       if (!live || !d) return;
-      setKnown((k) => ({ ...k, ...Object.fromEntries((d.markets as Market[]).map((x) => [x.currency, x.minor_unit])) }));
+      setKnown((k) => ({ ...k, ...Object.fromEntries((d.markets as Market[]).map((x) => [x.currency, [x.minor_unit, x.decimals ?? Math.min(x.minor_unit, 3)]])) }));
       if (!userMarket.current) apply(d.default as Market);
       const first = d.visitor?.locale as string | undefined;
       if (!chosen.current && first && first in LOCALES) setLocaleState(first as Locale);
@@ -174,14 +185,23 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     return {
       locale, dir: cfg.dir, intl: cfg.intl, setLocale, t,
       has: (key) => lookup(cfg.messages, key) !== undefined,
-      // Amounts travel in minor units (100 to the pound, 1,000 to the dinar); whole amounts show no decimals
+      // Amounts travel in minor units (10,000 to the new pound, 1,000 to the dinar); they show rounded to the decimals
+      // people pay in, and whole amounts show none
       money: (minor, withCurrency = true, currency) => {
         const code = currency ?? market.currency;
-        const unit = 10 ** (known[code] ?? 2);
-        const amount = minor / unit;
+        const [scale, places] = known[code] ?? [2, 2];
+        const amount = Math.round(minor / 10 ** (scale - places)) / 10 ** places;
         const shown = Number.isInteger(amount) ? nf.format(amount)
-          : new Intl.NumberFormat(cfg.intl, { maximumFractionDigits: Math.log10(unit) }).format(amount);
+          : new Intl.NumberFormat(cfg.intl, { minimumFractionDigits: places, maximumFractionDigits: places }).format(amount);
         return shown + (withCurrency ? ` ${lookup(cfg.messages, `currencies.${code}`) ?? code}` : "");
+      },
+      toMinor: (value, currency) => {
+        const [scale] = known[currency ?? market.currency] ?? [2, 2];
+        return Math.round(Number(value || 0) * 10 ** scale);
+      },
+      fromMinor: (minor, currency) => {
+        const [scale, places] = known[currency ?? market.currency] ?? [2, 2];
+        return Math.round(minor / 10 ** (scale - places)) / 10 ** places;
       },
       currency: (code) => lookup(cfg.messages, `currencies.${code ?? market.currency}`) ?? code ?? market.currency,
       market, setMarket,

@@ -69,7 +69,8 @@ export function newKey() {
 export type Portal = "PASSENGER" | "OPERATOR" | "DRIVER" | "AGENCY" | "PLATFORM" | "STATION";
 
 // The market a user sees times and money in (1061): the company's, or the person's; the default market for visitors
-export interface Market { country: string; time_zone: string; currency: string; locale: string; minor_unit: number }
+/** minor_unit: the scale amounts travel in (10^-minor_unit of the currency); decimals: the places people see and pay in (1176). */
+export interface Market { country: string; time_zone: string; currency: string; locale: string; minor_unit: number; decimals?: number }
 
 export interface Me {
   uid: string; name: string; email: string; portal: Portal; locale: string; is_owner: boolean;

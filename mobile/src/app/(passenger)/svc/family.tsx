@@ -3,7 +3,7 @@ import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
 import * as Device from "expo-device";
 import { randomUUID } from "expo-crypto";
-import { useI18n } from "../../../i18n";
+import { fromMinor as fromMinorUnits, toMinor as toMinorUnits, useI18n } from "../../../i18n";
 import { api } from "../../../platform/api";
 import { deviceId } from "../../../platform/secure";
 import { Button, Card, Chip, Choice, ErrorText, Field, Loading, Notice, Pill, Row, Screen, SvcHeader, s } from "../../../ui/kit";
@@ -124,7 +124,7 @@ function HeadView({ d, run, busy, money }: { d: View_; run: Run; busy: boolean; 
   const [code, setCode] = useState<{ name: string; code: string } | null>(null);
   const [open, setOpen] = useState<{ member?: Member } | null>(null);   // the member being added (no member) or edited
   const idem = useRef(randomUUID());
-  const minor = Math.round(Number(amount) * 100);
+  const minor = toMinorUnits(amount);
   const move = (dir: "topup" | "withdraw") => run(async () => {
     await api.post(`/api/family/account/${dir}`, { amount: minor, idempotency_key: idem.current });
     idem.current = randomUUID(); setAmount("");
@@ -183,8 +183,8 @@ function HeadView({ d, run, busy, money }: { d: View_; run: Run; busy: boolean; 
 const RELATIONS = ["SPOUSE", "SON", "DAUGHTER", "FATHER", "MOTHER", "BROTHER", "SISTER", "GRANDCHILD", "GRANDPARENT", "OTHER"];
 const DOCS = ["NATIONAL_ID", "PASSPORT", "RESIDENCE", "LAISSEZ_PASSER", "TRAVEL_DOCUMENT", "OTHER"];
 const isDate = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v));
-const toMinor = (v: string) => (v.trim() ? Math.round(Number(v) * 100) : null);
-const fromMinor = (n: number | null | undefined) => (n ? String(n / 100) : "");
+const toMinor = (v: string) => (v.trim() ? toMinorUnits(v) : null);
+const fromMinor = (n: number | null | undefined) => (n ? String(fromMinorUnits(n)) : "");
 
 /** Adds a member, or edits one: contact, document, how their own purchases are paid, limits; and their times and routes. */
 function MemberEditor({ member, onClose, run, busy }: { member?: Member; onClose: () => void; run: Run; busy: boolean }) {

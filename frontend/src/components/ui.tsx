@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useId, useRef, useState, type InputHTMLAttributes, type ReactNode } from "react";
+import { cloneElement, createContext, isValidElement, useCallback, useContext, useEffect, useId, useRef, useState, type InputHTMLAttributes, type ReactElement, type ReactNode } from "react";
 import { ICONS, type IconName } from "./icons";
 import { useI18n } from "../i18n";
 import { ApiError } from "../api";
@@ -89,11 +89,22 @@ export function useErrorText() {
   }, [t, has]);
 }
 
-export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+/** A labelled control. A required field carries an asterisk after its label (explicitly, or when its control has
+ *  `required`); next to optional fields, the other fields of the same form carry it too. An optional field says so
+ *  inside the control, as its placeholder, instead of in the label (owner's note, October 2026). */
+export function Field({ label, hint, required, optional, children }: {
+  label: string; hint?: string; required?: boolean; optional?: boolean; children: ReactNode;
+}) {
+  const { t } = useI18n();
+  const props = isValidElement(children) ? (children.props as { required?: boolean; placeholder?: string; type?: string }) : null;
+  const marked = required ?? props?.required === true;
+  const typed = props && (props.type === undefined || ["text", "email", "tel", "number", "search", "url"].includes(props.type));
+  const control = optional && isValidElement(children) && typed && !props?.placeholder
+    ? cloneElement(children as ReactElement<{ placeholder?: string }>, { placeholder: t("common.optional") }) : children;
   return (
-    <label className="field">
-      <span>{label}</span>
-      {children}
+    <label className={`field${marked ? " is-required" : ""}${optional ? " is-optional" : ""}`}>
+      <span className="field-label">{label}</span>
+      {control}
       {hint && <small className="hint">{hint}</small>}
     </label>
   );

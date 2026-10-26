@@ -78,6 +78,9 @@ async def lifespan(_: FastAPI):
     from . import profile
     profile.require_in_production()       # TLS to the database, the key service, no owner secret (package 2, H-05, H-06)
     await db.open_pools()
+    from . import money
+    async with db.raw_connection() as conn:
+        await money.load(conn)            # how many stored units make a pound, and the decimals people see (1176)
     from . import egress
     egress.require_in_production()        # outbound traffic only through the egress proxy (T3-02)
     from .modules.notify import providers

@@ -168,7 +168,7 @@ export function PassengerFields({ value, onChange, countries, docs, bands, trave
     const v = value[key];
     const bad = v.trim() !== "" && !validPart(v);
     return (
-      <Field label={required ? label : `${label} (${t("common.optional")})`}>
+      <Field label={required ? label : label} optional={!(required)}>
         <input className="input" value={v} required={required} maxLength={60} autoComplete="off" aria-invalid={bad} readOnly={locked}
                style={bad ? { borderColor: "var(--error)" } : undefined} onChange={(e) => set({ [key]: e.target.value } as Partial<PassengerDraft>)} />
       </Field>
@@ -180,7 +180,7 @@ export function PassengerFields({ value, onChange, countries, docs, bands, trave
     const v = value[key] ?? "";
     const bad = v.trim() !== "" && !validLatin(v);
     return (
-      <Field label={intl ? label : `${label} (${t("common.optional")})`}>
+      <Field label={intl ? label : label} optional={!(intl)}>
         <input className="input ltr" dir="ltr" lang="en" value={v} required={intl} maxLength={60} autoComplete="off" aria-invalid={bad}
                style={bad ? { borderColor: "var(--error)" } : undefined} onChange={(e) => set({ [key]: e.target.value } as Partial<PassengerDraft>)} />
       </Field>
@@ -229,7 +229,7 @@ export function PassengerFields({ value, onChange, countries, docs, bands, trave
                    onChange={(e) => set({ id_no: e.target.value })} />
           </Field>
         ) : (
-          <Field label={`${t("checkout.idLast4")} (${t("common.optional")})`}>
+          <Field label={t("checkout.idLast4")} optional>
             <input className="input ltr" inputMode="numeric" maxLength={4} value={value.id_last4} onChange={(e) => set({ id_last4: e.target.value.trim() })} />
           </Field>
         )}

@@ -111,7 +111,8 @@ def fmt(template: str, **kw) -> str:
 def money(lang: str, minor: Optional[int]) -> str:
     if minor is None:
         return "—"
-    return f"{round(minor / 100):,} {words(lang)['common']['currency']}"
+    from ...money import text
+    return f"{text(minor)} {words(lang)['common']['currency']}"
 
 
 def duration(lang: str, minutes: Optional[int]) -> str:

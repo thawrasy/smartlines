@@ -97,7 +97,7 @@ export function VehicleEditor({ uid, onClose }: { uid: string; onClose: () => vo
             </div>
             <div className="field"><span>{t("fl.colour")}</span>
               <ColourPicker value={form.colour_code} onChange={(c) => setF({ ...form, colour_code: c })} colours={lists.data?.colours ?? []} label={t("fl.colour")} /></div>
-            <Field label={needsReason ? t("edit.reasonRequired") : `${t("edit.reason")} (${t("common.optional")})`} hint={t("edit.reasonHint")}>
+            <Field label={needsReason ? t("edit.reasonRequired") : t("edit.reason")} optional={!(needsReason)} hint={t("edit.reasonHint")}>
               <input className="input" maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
           </>)}
           {tab === "licences" && (<>
@@ -225,7 +225,7 @@ export function CrewEditor({ uid, onClose }: { uid: string; onClose: () => void 
             <Field label={t("crew.birthDate")}><input className="input ltr" type="date" value={form.birth_date} onChange={set("birth_date")} /></Field>
             <Field label={t("crew.nationalId")} hint={d.id_no_last4 ? t("edit.nationalIdKept", { last4: d.id_no_last4 }) : t("crew.nationalIdHint")}>
               <input className="input ltr" autoComplete="off" value={form.national_id} onChange={set("national_id")} /></Field>
-            <Field label={`${t("common.mobile")} (${t("common.optional")})`}><input className="input ltr" value={form.mobile} onChange={set("mobile")} /></Field>
+            <Field label={t("common.mobile")} optional><input className="input ltr" value={form.mobile} onChange={set("mobile")} /></Field>
             <Field label={t("crew.kind")}>
               <select className="input" value={form.crew_type} onChange={set("crew_type")}>
                 {["DRIVER", "HOST", "ASSISTANT"].map((k) => <option key={k} value={k}>{t(`crew.kinds.${k}`)}</option>)}
@@ -236,7 +236,7 @@ export function CrewEditor({ uid, onClose }: { uid: string; onClose: () => void 
                 {(d.status === "BLOCKED" ? ["BLOCKED"] : ["ACTIVE", "LEFT"]).map((k) => <option key={k} value={k}>{t(`edit.cstatus.${k}`)}</option>)}
               </select></Field>
           </div>
-          <Field label={needsReason ? t("edit.reasonRequired") : `${t("edit.reason")} (${t("common.optional")})`} hint={t("edit.crewReasonHint")}>
+          <Field label={needsReason ? t("edit.reasonRequired") : t("edit.reason")} optional={!(needsReason)} hint={t("edit.crewReasonHint")}>
             <input className="input" maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
         </>)}</Loaded>
       </div>

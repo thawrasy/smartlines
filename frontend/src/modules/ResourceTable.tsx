@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { api } from "../api";
-import { useI18n } from "../i18n";
+import { fromMinor, toMinor, useI18n } from "../i18n";
 import { Empty, ErrorBox, Field, Icon, Modal, Spinner, Status, useLoad, useToast } from "../components/ui";
 import { useLabels } from "./labels";
 
@@ -105,8 +105,8 @@ export function FieldInput({ res, col, value, label, onChange }: { res: string; 
   if (t.startsWith("timestamp")) return <input type="datetime-local" value={value ? String(value).slice(0, 16) : ""} onChange={(e) => onChange(e.target.value ? new Date(e.target.value).toISOString() : null)} />;
   if (t.startsWith("time")) return <input type="time" value={value ? String(value).slice(0, 5) : ""} onChange={(e) => onChange(e.target.value || null)} />;
   if (col.money) {
-    return <input type="number" min={0} step="0.01" dir="ltr" value={typeof value === "number" ? value / 100 : ""}
-                  onChange={(e) => onChange(e.target.value === "" ? null : Math.round(Number(e.target.value) * 100))} />;
+    return <input type="number" min={0} step="0.01" dir="ltr" value={typeof value === "number" ? fromMinor(value) : ""}
+                  onChange={(e) => onChange(e.target.value === "" ? null : toMinor(e.target.value))} />;
   }
   if (isNum(t)) return <input type="number" dir="ltr" step={isInt(t) ? 1 : "any"} value={value === null || value === undefined ? "" : String(value)} onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))} />;
   if (t.endsWith("[]")) {

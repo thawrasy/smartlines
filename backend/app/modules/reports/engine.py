@@ -8,6 +8,7 @@ top of row-level security, and readers who hold only the regulator role get grou
 import time
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
+from contextvars import ContextVar
 from decimal import Decimal
 from typing import Any, Optional
 from zoneinfo import ZoneInfo
@@ -18,6 +19,9 @@ from ... import markets
 from ...errors import ApiError
 from .catalog import BY_CODE, CATEGORY_OF, Report
 from .datasets import BOOL, DATASETS, DATE, INT, MONEY, NUM, PCT, TIME, Col, Dataset
+
+# the minor units of the market a report is read in, for money filters typed in pounds (1176)
+v_minor: ContextVar[int] = ContextVar("report_filter_minor", default=2)
 
 OPS = {"eq": "=", "ne": "<>", "gt": ">", "gte": ">=", "lt": "<", "lte": "<=", "in": "IN", "not_in": "NOT IN",
        "contains": "ILIKE", "starts": "ILIKE", "is_null": "IS NULL", "not_null": "IS NOT NULL", "between": "BETWEEN"}
@@ -38,6 +42,7 @@ class Viewer:
     time_zone: str = "UTC"
     currency: str = ""
     minor_unit: int = 2
+    decimals: int = 2
     market_filter: bool = False         # the platform reads one market's companies when more than one market is open
 
     def today(self) -> date:
@@ -71,6 +76,7 @@ class Result:
     time_zone: str = "UTC"                    # the market's time zone and currency (1061), for exports
     currency: str = ""
     minor_unit: int = 2
+    decimals: int = 2
 
 
 def can_read(ds: Dataset, v: Viewer) -> bool:
@@ -107,7 +113,7 @@ def _value(col: Col, raw: Any) -> Any:
         if col.type in (INT,):
             return int(raw)
         if col.type == MONEY:                         # filters on money are entered in pounds
-            return int(Decimal(str(raw)) * 100)
+            return int(Decimal(str(raw)).scaleb(v_minor.get()))
         if col.type in (NUM, PCT):
             return Decimal(str(raw))
         if col.type == DATE:
@@ -135,7 +141,8 @@ async def locate(conn: asyncpg.Connection, v: Viewer, market: Optional[str] = No
         v.market_filter = len(await markets.active(conn)) > 1
     else:
         m = await markets.of_party(conn, v.company_id)
-    v.market, v.time_zone, v.currency, v.minor_unit = m.country, m.time_zone, m.currency, m.minor_unit
+    v.market, v.time_zone, v.currency, v.minor_unit, v.decimals = m.country, m.time_zone, m.currency, m.minor_unit, m.decimals
+    v_minor.set(m.minor_unit)
     return v
 
 
@@ -296,7 +303,8 @@ async def run(conn: asyncpg.Connection, v: Viewer, *, dataset: str, spec: dict, 
         if c.type in (MONEY, INT, NUM) and (c.agg in ("count", "sum", "count_distinct") or (not c.agg and DATASETS[dataset].col(c.key).agg)):
             totals[c.key] = sum((r[c.key] or 0) for r in rows)
     return Result(dataset, cols, rows, totals, truncated, int((time.monotonic() - t0) * 1000),
-                  time_zone=v.time_zone, currency=v.currency, minor_unit=v.minor_unit)
+                  time_zone=v.time_zone, currency=v.currency, minor_unit=v.minor_unit,
+                  decimals=v.decimals)
 
 
 def resolve(code: Optional[str], v: Viewer) -> Report:

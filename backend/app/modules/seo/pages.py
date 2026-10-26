@@ -19,6 +19,7 @@ from html import escape
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse, PlainTextResponse, Response
 
+from ... import money as amounts
 from ...config import get_settings, is_test_server
 from . import data, images, render
 from .render import (base, breadcrumbs, city_name, day_label, distance, duration, faq, local, money, page, search_form,
@@ -203,7 +204,7 @@ async def route(lang: str, slug: str):
                              "departureTime": x.departs.isoformat(), **({"arrivalTime": x.arrives.isoformat()} if x.arrives else {}),
                              "departureBusStop": {"@type": "BusStation", "name": station_name(lang, x.origin_code, x.origin_station)},
                              "arrivalBusStop": {"@type": "BusStation", "name": station_name(lang, x.dest_code, x.dest_station)},
-                             "offers": {"@type": "Offer", "price": round(x.price / 100), "priceCurrency": x.currency,
+                             "offers": {"@type": "Offer", "price": str(amounts.major(x.price, x.currency)), "priceCurrency": x.currency,
                                         "url": f"{base()}{search_url(r.a, r.b, lang, d.date().isoformat())}",
                                         "availability": "https://schema.org/InStock"}})
         body.append(f"<table><thead><tr><th>{escape(c['date'])}</th><th>{escape(c['time'])}</th><th>{escape(c['carrier'])}</th>"

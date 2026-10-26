@@ -54,7 +54,7 @@ export function MyDocumentCard() {
               <input className="input ltr" maxLength={24} autoComplete="off" value={f.id_no} aria-invalid={f.id_no !== "" && !DOC.test(f.id_no.trim())}
                      onChange={(e) => set({ id_no: e.target.value })} />
             </Field>
-            <Field label={`${t("trav.expiry")} (${t("common.optional")})`}>
+            <Field label={t("trav.expiry")} optional>
               <input className="input ltr" type="date" value={f.id_expiry} onChange={(e) => set({ id_expiry: e.target.value })} />
             </Field>
           </div>
@@ -124,13 +124,13 @@ export function SavedTravellersCard() {
                      : api.post("/api/account/travellers", body(d))), () => setEdit(null))}>{t("common.save")}</button></>}>
             <div className="stack">
               <ErrorBox error={error} />
-              <Field label={`${t("trav.label")} (${t("common.optional")})`}>
+              <Field label={t("trav.label")} optional>
                 <input className="input" maxLength={40} value={d.label} onChange={(e) => set({ label: e.target.value })} />
               </Field>
               <NameFields value={d.name} onChange={(name) => set({ name })} />
               <div className="grid cols-3">
-                <Field label={`${t("pax.birthDate")} (${t("common.optional")})`}><input className="input ltr" type="date" value={d.birth_date} onChange={(e) => set({ birth_date: e.target.value })} /></Field>
-                <Field label={`${t("trav.gender")} (${t("common.optional")})`}>
+                <Field label={t("pax.birthDate")} optional><input className="input ltr" type="date" value={d.birth_date} onChange={(e) => set({ birth_date: e.target.value })} /></Field>
+                <Field label={t("trav.gender")} optional>
                   <select className="input" value={d.gender} onChange={(e) => set({ gender: e.target.value })}>
                     <option value="">—</option><option value="M">{t("trav.male")}</option><option value="F">{t("trav.female")}</option>
                   </select>
@@ -140,10 +140,10 @@ export function SavedTravellersCard() {
                     {DOC_TYPES.map((k) => <option key={k} value={k}>{t(`checkout.idTypes.${k}`)}</option>)}
                   </select>
                 </Field>
-                <Field label={`${t("checkout.docNumber")} (${t("common.optional")})`} hint={edit.uid ? t("trav.docAgain") : undefined}>
+                <Field label={t("checkout.docNumber")} optional hint={edit.uid ? t("trav.docAgain") : undefined}>
                   <input className="input ltr" maxLength={24} autoComplete="off" value={d.id_no} onChange={(e) => set({ id_no: e.target.value })} />
                 </Field>
-                <Field label={`${t("trav.expiry")} (${t("common.optional")})`}><input className="input ltr" type="date" value={d.id_expiry} onChange={(e) => set({ id_expiry: e.target.value })} /></Field>
+                <Field label={t("trav.expiry")} optional><input className="input ltr" type="date" value={d.id_expiry} onChange={(e) => set({ id_expiry: e.target.value })} /></Field>
               </div>
               <label className="check small"><input type="checkbox" checked={d.consent} onChange={(e) => set({ consent: e.target.checked })} />{t("trav.consent")}</label>
             </div>

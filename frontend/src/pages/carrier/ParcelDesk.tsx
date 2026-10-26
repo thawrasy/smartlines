@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import QRCode from "qrcode";
 import { api, newKey } from "../../api";
-import { useI18n } from "../../i18n";
+import { fromMinor, toMinor, useI18n } from "../../i18n";
 import { useAuth } from "../../auth";
 import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Status, useLoad, useToast } from "../../components/ui";
 
@@ -223,8 +223,8 @@ export function ParcelSettings() {
             <Field label={t("parcel.handoverMinutes")} hint={t("parcel.handoverMin", { n: s.min_handover_minutes })}>
               <input className="input ltr" type="number" min={s.min_handover_minutes} max={2880} value={f.handover_minutes} onChange={(e) => setF({ ...f, handover_minutes: Number(e.target.value) })} />
             </Field>
-            <Field label={t("parcel.cancelFee")}><input className="input ltr" type="number" min={0} value={f.cancel_fee / 100} onChange={(e) => setF({ ...f, cancel_fee: Math.round(Number(e.target.value) * 100) })} /></Field>
-            <Field label={t("parcel.noShowFee")}><input className="input ltr" type="number" min={0} value={f.no_show_fee / 100} onChange={(e) => setF({ ...f, no_show_fee: Math.round(Number(e.target.value) * 100) })} /></Field>
+            <Field label={t("parcel.cancelFee")}><input className="input ltr" type="number" min={0} value={fromMinor(f.cancel_fee)} onChange={(e) => setF({ ...f, cancel_fee: toMinor(e.target.value) })} /></Field>
+            <Field label={t("parcel.noShowFee")}><input className="input ltr" type="number" min={0} value={fromMinor(f.no_show_fee)} onChange={(e) => setF({ ...f, no_show_fee: toMinor(e.target.value) })} /></Field>
           </div>
           <p className="small muted">{t(`parcel.feePolicy.${s.fee_policy}`)}</p>
           {s.pending_fees && <div className="alert info small">{t("parcel.feesPending", { cancel: money(s.pending_fees.cancel_fee), noShow: money(s.pending_fees.no_show_fee) })}</div>}

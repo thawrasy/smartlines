@@ -508,14 +508,14 @@ function RequestModal({ meta, onClose, onDone }: { meta: Meta; onClose: () => vo
         </fieldset>
         <div className="grid cols-3">
           <Field label={t("api.system")}><input className="input" maxLength={120} value={f.system_name} onChange={set("system_name")} /></Field>
-          <Field label={`${t("api.vendor")} (${t("common.optional")})`}><input className="input" maxLength={120} value={f.system_vendor} onChange={set("system_vendor")} /></Field>
-          <Field label={`${t("api.host")} (${t("common.optional")})`}><input className="input ltr" maxLength={253} value={f.system_host} onChange={set("system_host")} /></Field>
+          <Field label={t("api.vendor")} optional><input className="input" maxLength={120} value={f.system_vendor} onChange={set("system_vendor")} /></Field>
+          <Field label={t("api.host")} optional><input className="input ltr" maxLength={253} value={f.system_host} onChange={set("system_host")} /></Field>
         </div>
-        <Field label={`${t("api.ips")} (${t("common.optional")})`} hint={t("api.ipsHint")}><input className="input ltr" value={f.ips} onChange={set("ips")} /></Field>
+        <Field label={t("api.ips")} optional hint={t("api.ipsHint")}><input className="input ltr" value={f.ips} onChange={set("ips")} /></Field>
         <div className="grid cols-3">
           <Field label={t("api.contactName")}><input className="input" maxLength={120} value={f.contact_name} onChange={set("contact_name")} /></Field>
           <Field label={t("common.email")}><input className="input ltr" type="email" value={f.contact_email} onChange={set("contact_email")} /></Field>
-          <Field label={`${t("common.mobile")} (${t("common.optional")})`}><input className="input ltr" inputMode="tel" value={f.contact_mobile} onChange={set("contact_mobile")} /></Field>
+          <Field label={t("common.mobile")} optional><input className="input ltr" inputMode="tel" value={f.contact_mobile} onChange={set("contact_mobile")} /></Field>
         </div>
       </div>
     </Modal>
@@ -551,7 +551,7 @@ function BuildModal({ request, meta, onClose, onDone }: { request: ConnRequest; 
           <label key={sc} className="check small"><input type="checkbox" checked={scopes.includes(sc)} onChange={(e) => setScopes(e.target.checked ? [...scopes, sc] : scopes.filter((x) => x !== sc))} />
             <span className="mono ltr">{sc}</span></label>
         ))}</div>
-        <Field label={`${t("api.note")} (${t("common.optional")})`}><input className="input" maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} /></Field>
+        <Field label={t("api.note")} optional><input className="input" maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} /></Field>
       </div>
     </Modal>
   );

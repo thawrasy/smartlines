@@ -124,7 +124,7 @@ export function FieldSurveys({ waiting, onChange }: { waiting: number; onChange:
                 <button type="button" className="btn outlined" disabled={!f.lat || !f.lng} onClick={locate}><Icon name="my_location" />{t("geo.fromPosition")}</button>
               </div>
             ) : <PlacePicker label={t("geo.cityOfNeighbourhood")} value={city} onPick={setCity} />}
-            <Field label={`${t("geo.surveyNote")} (${t("common.optional")})`}><textarea className="input" rows={2} maxLength={1000} value={f.note} onChange={set("note")} /></Field>
+            <Field label={t("geo.surveyNote")} optional><textarea className="input" rows={2} maxLength={1000} value={f.note} onChange={set("note")} /></Field>
             <label className="row small" style={{ gap: 6 }}><input type="checkbox" checked={f.not_duplicate} onChange={set("not_duplicate")} />{t("geo.notDuplicate")}</label>
           </div>
         </Modal>
@@ -136,7 +136,7 @@ export function FieldSurveys({ waiting, onChange }: { waiting: number; onChange:
           <div className="stack">
             <ErrorBox error={error} />
             <p className="small muted" style={{ margin: 0 }}>{t(reviewing.accept ? "geo.acceptHint" : "geo.rejectHint")}</p>
-            <Field label={reviewing.accept ? `${t("geo.reviewNote")} (${t("common.optional")})` : t("geo.reviewNote")}>
+            <Field label={t("geo.reviewNote")} optional={reviewing.accept}>
               <textarea className="input" rows={2} maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} />
             </Field>
           </div>

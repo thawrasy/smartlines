@@ -70,7 +70,7 @@ export function RecordEditor({ title, url, record, fields, regulated, onClose }:
                            value={form[x.key]} onChange={(e) => setF({ ...form, [x.key]: e.target.value })} />}
               </Field>))}
             </div>
-            <Field label={needsReason ? t("edit.reasonRequired") : `${t("edit.reason")} (${t("common.optional")})`} hint={t("edit.regulatedHint")}>
+            <Field label={needsReason ? t("edit.reasonRequired") : t("edit.reason")} optional={!(needsReason)} hint={t("edit.regulatedHint")}>
               <input className="input" maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
           </>)}
           {tab === "history" && (history.length === 0 ? <Empty icon="history" title={t("edit.noHistory")} /> : (

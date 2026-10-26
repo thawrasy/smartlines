@@ -67,7 +67,7 @@ export function NameCorrections({ onChange }: { onChange: () => void }) {
               <Field label={t("geo.nameLang")}>
                 <select className="input" value={f.lang} onChange={set("lang")}><option value="en">{t("geo.langEn")}</option><option value="ar">{t("geo.langAr")}</option></select>
               </Field>
-              <Field label={`${t("geo.scope")} (${t("common.optional")})`} hint={t("geo.scopeHint")}>
+              <Field label={t("geo.scope")} optional hint={t("geo.scopeHint")}>
                 <input className="input mono ltr" placeholder="SY0405" value={f.scope} onChange={(e) => setF({ ...f, scope: e.target.value.toUpperCase() })} />
               </Field>
             </div>

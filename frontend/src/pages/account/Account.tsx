@@ -134,7 +134,7 @@ export function AccountPage() {
           <div className="stack">
             <ErrorBox error={error} />
             <div className="alert warn"><Icon name="warning" /><span>{t("account.eraseNote")}</span></div>
-            <Field label={`${t("common.reason")} (${t("common.optional")})`}><textarea className="input" value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
+            <Field label={t("common.reason")} optional><textarea className="input" value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
           </div>
         </Modal>
       )}

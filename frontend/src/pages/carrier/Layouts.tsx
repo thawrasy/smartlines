@@ -91,8 +91,8 @@ function Editor({ onClose, onSaved }: { onClose: () => void; onSaved: () => void
               </select>
             </Field>
             <Field label={t("layout.rows")}><input className="input ltr" type="number" min={1} max={25} value={preset.rows} onChange={(e) => setPreset({ ...preset, rows: e.target.value })} /></Field>
-            <Field label={`${t("layout.doorRow")} (${t("common.optional")})`}><input className="input ltr" type="number" min={1} max={25} value={preset.door_row} onChange={(e) => setPreset({ ...preset, door_row: e.target.value })} /></Field>
-            <Field label={`${t("layout.wcRow")} (${t("common.optional")})`}><input className="input ltr" type="number" min={1} max={25} value={preset.wc_row} onChange={(e) => setPreset({ ...preset, wc_row: e.target.value })} /></Field>
+            <Field label={t("layout.doorRow")} optional><input className="input ltr" type="number" min={1} max={25} value={preset.door_row} onChange={(e) => setPreset({ ...preset, door_row: e.target.value })} /></Field>
+            <Field label={t("layout.wcRow")} optional><input className="input ltr" type="number" min={1} max={25} value={preset.wc_row} onChange={(e) => setPreset({ ...preset, wc_row: e.target.value })} /></Field>
           </div>
           <div className="row between">
             <label className="check"><input type="checkbox" checked={preset.back_row_full} onChange={(e) => setPreset({ ...preset, back_row_full: e.target.checked })} />{t("layout.backRow")}</label>

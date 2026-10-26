@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { api, newKey, type FamilyMember, type FamilyRule, type FamilyView } from "../../api";
-import { useI18n } from "../../i18n";
+import { fromMinor, toMinor, useI18n } from "../../i18n";
 import { PageHead } from "../../components/layout";
 import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Status, useLoad, useToast } from "../../components/ui";
 
@@ -139,7 +139,7 @@ function HeadView({ f, reload }: { f: FamilyView; reload: () => void }) {
     try { await fn(); if (ok) toast(ok); reload(); spend.reload(); } catch (e) { setError(e); }
   };
   const move = (to: boolean) => run(() => api.post(`/api/family/account/${to ? "topup" : "withdraw"}`,
-    { amount: Math.round(Number(amount) * 100), idempotency_key: newKey() }), t("family.moved"));
+    { amount: toMinor(amount), idempotency_key: newKey() }), t("family.moved"));
   const invite = async (m: FamilyMember) => {
     setError(null);
     try { const r = await api.post<{ code: string; expires_at: string }>(`/api/family/members/${m.uid}/invite`); setCode({ member: m.full_name, ...r }); reload(); }
@@ -261,12 +261,12 @@ function MemberForm({ member, onClose, onSaved }: { member?: FamilyMember; onClo
   const [v, setV] = useState({
     relation: "SON", first_name: "", father_name: "", grandfather_name: "", last_name: "", nationality: "SY", birth_date: "",
     gender: "", id_type: member?.id_type ?? "NATIONAL_ID", id_no: "", passport_expiry: member?.passport_expiry ?? "", mobile: "",
-    funding: member?.funding ?? "HEAD_WALLET", per_trip_limit: member?.per_trip_limit ? String(member.per_trip_limit / 100) : "",
-    daily_limit: member?.daily_limit ? String(member.daily_limit / 100) : "", monthly_limit: member?.monthly_limit ? String(member.monthly_limit / 100) : "",
+    funding: member?.funding ?? "HEAD_WALLET", per_trip_limit: member?.per_trip_limit ? String(fromMinor(member.per_trip_limit)) : "",
+    daily_limit: member?.daily_limit ? String(fromMinor(member.daily_limit)) : "", monthly_limit: member?.monthly_limit ? String(fromMinor(member.monthly_limit)) : "",
   });
   const [error, setError] = useState<unknown>(null);
   const set = (k: keyof typeof v, val: string) => setV((x) => ({ ...x, [k]: val }));
-  const minor = (s: string) => (s.trim() ? Math.round(Number(s) * 100) : null);
+  const minor = (s: string) => (s.trim() ? toMinor(s) : null);
   const save = async () => {
     setError(null);
     const limits = { funding: v.funding, per_trip_limit: minor(v.per_trip_limit), daily_limit: minor(v.daily_limit), monthly_limit: minor(v.monthly_limit) };
@@ -284,8 +284,8 @@ function MemberForm({ member, onClose, onSaved }: { member?: FamilyMember; onClo
       onSaved();
     } catch (e) { setError(e); }
   };
-  const text = (k: keyof typeof v, label: string, extra = {}) => (
-    <Field label={label}><input className="input" value={v[k]} onChange={(e) => set(k, e.target.value)} {...extra} /></Field>
+  const text = (k: keyof typeof v, label: string, extra = {}, optional = false) => (
+    <Field label={label} optional={optional}><input className="input" value={v[k]} onChange={(e) => set(k, e.target.value)} {...extra} /></Field>
   );
   return (
     <Modal wide title={edit ? member!.full_name : t("family.addMember")} onClose={onClose}
@@ -320,8 +320,8 @@ function MemberForm({ member, onClose, onSaved }: { member?: FamilyMember; onClo
             </select>
           </Field>
           {text("id_no", edit && member!.id_last4 ? `${t("checkout.docNumber")} (•••• ${member!.id_last4})` : t("checkout.docNumber"), { className: "input ltr", maxLength: 24 })}
-          {text("mobile", `${t("family.mobile")} (${t("common.optional")})`, { className: "input ltr", inputMode: "tel",
-            placeholder: member?.mobile ?? "" })}
+          {text("mobile", t("family.mobile"), { className: "input ltr", inputMode: "tel",
+            placeholder: member?.mobile || t("common.optional") }, true)}
         </div>
         <p className="small muted"><Icon name="lock" size={16} /> {t("family.docPrivacy")}</p>
         <div className="divider" />

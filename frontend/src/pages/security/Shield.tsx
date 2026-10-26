@@ -232,7 +232,7 @@ function LevelModal({ level, onClose, onSave }: { level: Level; onClose: () => v
         <ErrorBox error={error} />
         {level === "LOCKDOWN" && <div className="alert warn"><Icon name="warning" /> <span>{t("shield.lockdownWarn")}</span></div>}
         <Field label={t("common.reason")} hint={t("shield.reasonHint")}><input className="input" value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
-        {raised && <Field label={`${t("shield.autoEndAfter")} (${t("common.optional")})`} hint={t("shield.autoEndHint")}>
+        {raised && <Field label={t("shield.autoEndAfter")} optional hint={t("shield.autoEndHint")}>
           <input className="input ltr" type="number" min={5} max={10080} value={minutes} onChange={(e) => setMinutes(e.target.value)} /></Field>}
       </div>
     </Modal>

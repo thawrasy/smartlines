@@ -2,7 +2,7 @@ import { MilesCorner } from "./Miles";
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api, newKey } from "../../api";
-import { useI18n } from "../../i18n";
+import { fromMinor, toMinor, useI18n } from "../../i18n";
 import { PageHead } from "../../components/layout";
 import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Spinner, useLoad, useToast } from "../../components/ui";
 import type { IconName } from "../../components/icons";
@@ -151,14 +151,14 @@ function TopupModal({ onClose, onDone }: { onClose: () => void; onDone: () => vo
   const navigate = useNavigate();
   const methods = useLoad(() => api.get<{ methods: Method[] }>("/api/payments/methods"));
   const [method, setMethod] = useState<Method | null>(null);
-  const [amount, setAmount] = useState(100000);
+  const [amount, setAmount] = useState(1000);
   const [mobile, setMobile] = useState("");
   const [started, setStarted] = useState<Started | null>(null);
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [key] = useState(newKey);
-  const minor = amount * 100;
+  const minor = toMinor(amount);
   const inRange = method ? minor >= method.min_amount && minor <= method.max_amount : false;
   // what the payer will be asked for, the platform's fee included, before paying (owner's decision 4)
   const priced = method && inRange && !["BANK_TRANSFER", "CASH_AGENT", "SANDBOX"].includes(method.adapter);
@@ -235,10 +235,10 @@ function TopupModal({ onClose, onDone }: { onClose: () => void; onDone: () => vo
         ) : method && (
           <>
             <Field label={t("wallet.amount")} hint={t("pay.limits", { min: money(method.min_amount), max: money(method.max_amount) })}>
-              <input className="input ltr" type="number" min={method.min_amount / 100} step={1000} value={amount} onChange={(e) => setAmount(Number(e.target.value))} />
+              <input className="input ltr" type="number" min={fromMinor(method.min_amount)} step={10} value={amount} onChange={(e) => setAmount(Number(e.target.value))} />
             </Field>
-            <div className="row">{[50000, 100000, 250000, 500000].map((v) => (
-              <button key={v} type="button" className={`chip chip-select${amount === v ? " on" : ""}`} onClick={() => setAmount(v)}>{money(v * 100)}</button>
+            <div className="row">{[500, 1000, 2500, 5000].map((v) => (
+              <button key={v} type="button" className={`chip chip-select${amount === v ? " on" : ""}`} onClick={() => setAmount(v)}>{money(toMinor(v))}</button>
             ))}</div>
             {method.adapter === "PARTNER_WALLET" && (
               <Field label={t("pay.mobile")} hint={t("pay.mobileHint")}><input className="input ltr" inputMode="tel" placeholder="+9639…" value={mobile} onChange={(e) => setMobile(e.target.value.trim())} /></Field>

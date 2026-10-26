@@ -95,10 +95,10 @@ export function CompanyDocuments() {
                 </select>
               </Field>
             )}
-            <Field label={`${t("documents.issuer")} (${t("common.optional")})`}><input className="input" value={f.issuer} onChange={set("issuer")} /></Field>
+            <Field label={t("documents.issuer")} optional><input className="input" value={f.issuer} onChange={set("issuer")} /></Field>
             <div className="grid cols-2">
-              <Field label={`${t("documents.issued")} (${t("common.optional")})`}><input className="input ltr" type="date" value={f.issue_date} onChange={set("issue_date")} /></Field>
-              <Field label={`${t("documents.expiry")} (${t("common.optional")})`}><input className="input ltr" type="date" value={f.expiry_date} onChange={set("expiry_date")} /></Field>
+              <Field label={t("documents.issued")} optional><input className="input ltr" type="date" value={f.issue_date} onChange={set("issue_date")} /></Field>
+              <Field label={t("documents.expiry")} optional><input className="input ltr" type="date" value={f.expiry_date} onChange={set("expiry_date")} /></Field>
             </div>
             <Field label={t("documents.file")} hint={t("documents.fileHint")}>
               <input className="input" type="file" accept="application/pdf,image/png,image/jpeg" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />

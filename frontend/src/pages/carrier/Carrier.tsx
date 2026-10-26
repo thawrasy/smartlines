@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { CrewEditor, LicenceCorrection, VehicleEditor } from "./Edits";
 import { api } from "../../api";
-import { useI18n } from "../../i18n";
+import { toMinor, useI18n } from "../../i18n";
 import type { VMake } from "../registry/VehicleModels";
 import { useAuth } from "../../auth";
 import { PageHead } from "../../components/layout";
@@ -151,7 +151,7 @@ function NewTrip({ onClose, onDone }: { onClose: () => void; onDone: () => void 
               {vehicles.data?.vehicles.filter((v) => v.status === "ACTIVE").map((v) => <option key={v.uid} value={v.uid}>{v.plate_no} · {v.passenger_seats} {t("common.seats")}</option>)}
             </select>
           </Field>
-          <Field label={`${t("carrier.driver")} (${t("common.optional")})`}>
+          <Field label={t("carrier.driver")} optional>
             <select className="input" value={form.driver_uid} onChange={(e) => setForm({ ...form, driver_uid: e.target.value })}>
               <option value="">{t("carrier.noDriver")}</option>
               {crew.data?.crew.filter((c) => c.status === "ACTIVE").map((c) => <option key={c.uid} value={c.uid}>{c.full_name}</option>)}
@@ -583,7 +583,7 @@ export function CarrierRoutes() {
     try {
       await api.post("/api/carrier/routes", { network_route_uid: netUid, stops: served.map((s, i) => ({
         station_uid: s.station_uid, arr_offset_min: i === 0 ? 0 : Number(s.arr), dep_offset_min: i === 0 ? 0 : Number(s.dep || s.arr),
-        fare_from_origin: i === 0 ? 0 : Number(s.fare) * 100 })) });
+        fare_from_origin: i === 0 ? 0 : toMinor(s.fare) })) });
       setOpen(false); setNetUid(""); setRows([]); toast(t("common.saved")); state.reload();
     } catch (e) { setError(e); } finally { setBusy(false); }
   };
@@ -748,17 +748,17 @@ export function CarrierCrew() {
             <div className="grid cols-3">
               <Field label={t("crew.first")}><input className="input" value={f.first_name} onChange={set("first_name")} /></Field>
               <Field label={t("crew.father")}><input className="input" value={f.father_name} onChange={set("father_name")} /></Field>
-              <Field label={`${t("crew.grandfather")} (${t("common.optional")})`}><input className="input" value={f.grandfather_name} onChange={set("grandfather_name")} /></Field>
+              <Field label={t("crew.grandfather")} optional><input className="input" value={f.grandfather_name} onChange={set("grandfather_name")} /></Field>
               <Field label={t("crew.last")}><input className="input" value={f.last_name} onChange={set("last_name")} /></Field>
-              <Field label={`${t("crew.mother")} (${t("common.optional")})`}><input className="input" value={f.mother_name} onChange={set("mother_name")} /></Field>
+              <Field label={t("crew.mother")} optional><input className="input" value={f.mother_name} onChange={set("mother_name")} /></Field>
               <Field label={t("crew.nationalId")} hint={t("crew.nationalIdHint")}><input className="input ltr" autoComplete="off" value={f.national_id} onChange={set("national_id")} /></Field>
-              <Field label={`${t("crew.birthDate")} (${t("common.optional")})`}><input className="input ltr" type="date" value={f.birth_date} onChange={set("birth_date")} /></Field>
+              <Field label={t("crew.birthDate")} optional><input className="input ltr" type="date" value={f.birth_date} onChange={set("birth_date")} /></Field>
               {f.crew_type === "DRIVER" && <Field label={t("carrier.licenseClass")}><input className="input ltr" value={f.license_class} onChange={set("license_class")} /></Field>}
             </div>
             <p className="small muted">{f.crew_type === "DRIVER" ? t("crew.driverSignIn") : t("crew.otherSignIn")}</p>
             <div className="grid cols-3">
-              <Field label={f.crew_type === "DRIVER" ? t("common.email") : `${t("common.email")} (${t("common.optional")})`}><input className="input ltr" type="email" value={f.email} onChange={set("email")} /></Field>
-              <Field label={`${t("common.mobile")} (${t("common.optional")})`}><input className="input ltr" value={f.mobile} onChange={set("mobile")} /></Field>
+              <Field label={f.crew_type === "DRIVER" ? t("common.email") : t("common.email")} optional={!(f.crew_type === "DRIVER")}><input className="input ltr" type="email" value={f.email} onChange={set("email")} /></Field>
+              <Field label={t("common.mobile")} optional><input className="input ltr" value={f.mobile} onChange={set("mobile")} /></Field>
               <Field label={t("common.password")} hint={t("auth.passwordHint")}><PasswordInput value={f.password} onChange={set("password")} /></Field>
             </div>
           </div>

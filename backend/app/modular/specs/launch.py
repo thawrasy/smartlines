@@ -364,7 +364,7 @@ RESOURCES = [
              readonly_portals=(P,), group="compliance"),
 
     # ------------------------------------------------------------- reference data
-    Resource("currency", "reference_data", "ref.currency", c("code name minor_unit is_active"), c("code name minor_unit is_active"),
+    Resource("currency", "reference_data", "ref.currency", c("code name minor_unit decimals is_active"), c("code name minor_unit decimals is_active"),
              {P: "reference.manage"}, order="code", group="money"),
     Resource("exchange-rate", "reference_data", "ref.exchange_rate", c("base_currency quote_currency rate source valid_from created_at"),
              c("base_currency quote_currency rate source valid_from"), {P: "reference.manage"}, order="valid_from DESC", group="money"),

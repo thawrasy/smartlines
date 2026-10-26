@@ -15,9 +15,16 @@ type Vars = Record<string, string | number>;
 
 // The market whose time and money the screens show (1061): the user's, from GET /api/auth/me; until then the
 // platform's first market. Kept on the phone so offline screens show the same.
-export interface Market { country: string; time_zone: string; currency: string; locale: string; minor_unit: number }
-const FIRST_MARKET: Market = { country: "SY", time_zone: "Asia/Damascus", currency: "SYP", locale: "ar", minor_unit: 2 };
+// minor_unit: the scale amounts travel in; decimals: the places people see and pay in. The new Syrian pound (1 January 2026,
+// two zeros removed) counts ten-thousandths of a pound and shows two decimals (1176).
+export interface Market { country: string; time_zone: string; currency: string; locale: string; minor_unit: number; decimals?: number }
+const FIRST_MARKET: Market = { country: "SY", time_zone: "Asia/Damascus", currency: "SYP", locale: "ar", minor_unit: 4, decimals: 2 };
 let currentZone = FIRST_MARKET.time_zone;
+let currentScale: [number, number] = [FIRST_MARKET.minor_unit, FIRST_MARKET.decimals ?? 2];
+/** An amount people typed in whole units of the market's currency as the minor units it travels in. */
+export const toMinor = (value: string | number) => Math.round(Number(value || 0) * 10 ** currentScale[0]);
+/** Minor units as the whole-unit number a field shows, rounded to the decimals people pay in. */
+export const fromMinor = (minor: number) => Math.round(minor / 10 ** (currentScale[0] - currentScale[1])) / 10 ** currentScale[1];
 /** The market's time zone, for code outside React (calendar days of the search). */
 export const zone = () => currentZone;
 
@@ -69,11 +76,12 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   }, []);
   useEffect(() => {
     void get("market").then((v) => {
-      try { if (v) { const m = JSON.parse(v) as Market; currentZone = m.time_zone; setMarketState(m); } } catch { /* ignore a bad copy */ }
+      try { if (v) { const m = JSON.parse(v) as Market; currentZone = m.time_zone; currentScale = [m.minor_unit, m.decimals ?? Math.min(m.minor_unit, 3)]; setMarketState(m); } } catch { /* ignore a bad copy */ }
     });
   }, []);
   const setMarket = useCallback((m: Market) => {
     currentZone = m.time_zone;
+    currentScale = [m.minor_unit, m.decimals ?? Math.min(m.minor_unit, 3)];
     setMarketState(m);
     void put("market", JSON.stringify(m));
   }, []);
@@ -108,13 +116,14 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       },
       dateTime: (iso) => new Intl.DateTimeFormat(intl, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: false,
                                                          timeZone: market.time_zone }).format(new Date(iso)),
-      // amounts travel in minor units (100 to the pound, 1,000 to the dinar); another currency than the market's is
-      // shown with its own code and two decimals at most
+      // amounts travel in minor units (10,000 to the new pound, 1,000 to the dinar) and show rounded to the decimals people
+      // pay in; another currency than the market's is shown with its own code and two decimals
       money: (minor, currency) => {
         const code = currency ?? market.currency;
-        const unit = 10 ** (code === market.currency ? market.minor_unit : 2);
-        const amount = minor / unit;
-        const shown = Number.isInteger(amount) ? amount.toLocaleString("en-US") : amount.toLocaleString("en-US", { maximumFractionDigits: Math.log10(unit) });
+        const [scale, places] = code === market.currency ? [market.minor_unit, market.decimals ?? Math.min(market.minor_unit, 3)] : [2, 2];
+        const amount = Math.round(minor / 10 ** (scale - places)) / 10 ** places;
+        const shown = Number.isInteger(amount) ? amount.toLocaleString("en-US")
+          : amount.toLocaleString("en-US", { minimumFractionDigits: places, maximumFractionDigits: places });
         return `${shown} ${has(`currencies.${code}`) ? t(`currencies.${code}`) : code}`;
       },
       time: (iso) => new Intl.DateTimeFormat(intl, { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: market.time_zone }).format(new Date(iso)),

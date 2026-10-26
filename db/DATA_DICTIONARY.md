@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**622 tables, 6810 columns, in 26 schemas.**
+**622 tables, 6811 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -1298,6 +1298,7 @@ Currencies; every amount in the system is a BIGINT in the minor unit of its curr
 | `name` | `text` | ✱ |  |
 | `minor_unit` | `smallint` | ✱ | `2` |
 | `is_active` | `boolean` | ✱ | `true` |
+| `decimals` | `smallint` | ✱ |  |
 
 ### `ref.exchange_rate` 🛡️
 

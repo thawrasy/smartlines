@@ -160,6 +160,13 @@ td.ltr, th.ltr { display: table-cell; text-align: start; }
 /* ---------- Forms ---------- */
 .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .field > span { font-size: 13px; color: var(--on-surface-variant); font-weight: 500; }
+/* Fields side by side line up: in a grid each field spans three rows of its row group (label, control, hint), so
+   a label that wraps to two lines moves its neighbours' controls down with it instead of out of line */
+.grid:not(:has(> :not(.field))) > .field:not(:has(> :nth-child(4))) { display: grid; grid-row: span 3; grid-template-rows: subgrid; grid-template-columns: minmax(0, 1fr); row-gap: 6px; align-content: start; }
+.grid:not(:has(> :not(.field))) > .field > .field-label { align-self: end; }
+/* Required fields carry an asterisk; in a form that has optional fields, every field not marked optional is required */
+.field.is-required > .field-label::after,
+:is(form, [role="dialog"], .card):has(.field.is-optional) .field:not(.is-optional) > .field-label::after { content: " *"; color: var(--error); font-weight: 700; }
 .input, select.input, textarea.input {
   height: 52px; padding: 0 16px; border-radius: var(--radius-s); border: 1px solid var(--outline);
   background: var(--surface); outline: none; width: 100%; transition: border-color .15s, box-shadow .15s;

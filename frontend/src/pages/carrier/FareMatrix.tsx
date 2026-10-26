@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../../api";
-import { useI18n } from "../../i18n";
+import { fromMinor, toMinor, useI18n } from "../../i18n";
 import { ErrorBox, Loaded, Modal, useLoad, useToast } from "../../components/ui";
 
 // A price for every station pair of a route (owner's request N10, migration 1164): any boarding station to any later
@@ -20,12 +20,12 @@ export function FareMatrix({ uid, onClose }: { uid: string; onClose: () => void 
   const [error, setError] = useState<unknown>(null);
   const [dearer, setDearer] = useState<string[]>([]);
   useEffect(() => {
-    if (state.data) setPrices(Object.fromEntries(state.data.cells.map((c) => [`${c.from_seq}-${c.to_seq}`, String(c.price / 100)])));
+    if (state.data) setPrices(Object.fromEntries(state.data.cells.map((c) => [`${c.from_seq}-${c.to_seq}`, String(fromMinor(c.price))])));
   }, [state.data]);
   const save = async () => {
     setBusy(true); setError(null);
     try {
-      const cells = Object.entries(prices).map(([k, v]) => { const [a, b] = k.split("-").map(Number); return { from_seq: a, to_seq: b, price: Math.round(Number(v) * 100) }; });
+      const cells = Object.entries(prices).map(([k, v]) => { const [a, b] = k.split("-").map(Number); return { from_seq: a, to_seq: b, price: toMinor(v) }; });
       const r = await api.put<{ pairs: number; dearer_inside_longer: string[] }>(`/api/carrier/routes/${uid}/fares`, { cells });
       setDearer(r.dearer_inside_longer); toast(t("common.saved")); state.reload();
     } catch (e) { setError(e); } finally { setBusy(false); }

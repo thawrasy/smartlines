@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Alert, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
 import { randomUUID } from "expo-crypto";
-import { useI18n } from "../../../i18n";
+import { toMinor, useI18n } from "../../../i18n";
 import { api } from "../../../platform/api";
 import { Button, Card, Chip, Choice, Empty, ErrorText, Field, ListCard, Loading, Notice, Screen, SvcHeader, s } from "../../../ui/kit";
 import { TripLine } from "../../../ui/brand";
@@ -28,7 +28,7 @@ export default function Parcels() {
   const cities = useMemo(() => [...new Set((opts.data?.stations ?? []).map((x) => x.city))], [opts.data]);
   const stationsIn = (c: string | null) => (opts.data?.stations ?? []).filter((x) => x.city === c);
   const body = () => ({ service_id: f.service, origin_station_id: f.from, dest_station_id: f.to, weight_kg: Number(f.weight),
-                        declared_value: Math.round(Number(f.value || 0) * 100) });
+                        declared_value: toMinor(f.value || 0) });
   const ready = f.service && f.from && f.to && f.from !== f.to && Number(f.weight) > 0;
   const getQuote = async () => {
     setBusy(true); setError(null);

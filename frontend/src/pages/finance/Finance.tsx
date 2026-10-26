@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { api, newKey } from "../../api";
-import { useI18n } from "../../i18n";
+import { toMinor, useI18n } from "../../i18n";
 import { useAuth } from "../../auth";
 import { ClaimsToPay } from "../support/StaffDesk";
 import { PageHead } from "../../components/layout";
@@ -22,7 +22,6 @@ interface Withdrawal {
 interface Settlement { uid: string; period_from: string; period_to: string; gross: number; commission: number; refunds: number; net: number; status: string; trips: number; company_name: string; company_uid?: string; company_logo?: string | null; }
 interface SettlementDetail { uid: string; status: string; from: string; to: string; gross: number; commission: number; refunds: number; net: number; lines: { trip_no: string; gross: number; commission: number; refunds: number; net: number }[] }
 
-const toMinor = (v: string) => Math.round(Number(v || 0) * 100);
 
 function SettlementView({ uid, base, onClose }: { uid: string; base: string; onClose: () => void }) {
   const { t, money, date } = useI18n();

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { api } from "../../api";
-import { useI18n } from "../../i18n";
+import { fromMinor, toMinor, useI18n } from "../../i18n";
 import { useAuth } from "../../auth";
 import { PageHead } from "../../components/layout";
 import { CarrierName, Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, useToast } from "../../components/ui";
@@ -121,11 +121,11 @@ export function CarrierAgencyCash() {
 function RecordReceipt({ account, onClose, onDone }: { account: Account; onClose: () => void; onDone: () => void }) {
   const { t, money } = useI18n();
   const toast = useToast();
-  const [amount, setAmount] = useState(account.owed / 100);
+  const [amount, setAmount] = useState(fromMinor(account.owed));
   const [reference, setReference] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
-  const minor = Math.round(amount * 100);
+  const minor = toMinor(amount);
   const save = async () => {
     setBusy(true); setError(null);
     try {
@@ -138,7 +138,7 @@ function RecordReceipt({ account, onClose, onDone }: { account: Account; onClose
       <button className="btn text" onClick={onClose}>{t("common.cancel")}</button>
       <button className="btn" disabled={busy || minor <= 0 || minor > account.owed || reference.trim().length < 3} onClick={save}>{t("acash.record")}</button></>}>
       <p className="small muted">{t("acash.recordHint", { owed: money(account.owed) })}</p>
-      <Field label={t("common.amount")}><input className="input ltr" type="number" min={0} max={account.owed / 100} value={amount} onChange={(e) => setAmount(Number(e.target.value))} /></Field>
+      <Field label={t("common.amount")}><input className="input ltr" type="number" min={0} max={fromMinor(account.owed)} value={amount} onChange={(e) => setAmount(Number(e.target.value))} /></Field>
       <Field label={t("acash.reference")} hint={t("acash.referenceHint")}><input className="input ltr mono" maxLength={80} value={reference} onChange={(e) => setReference(e.target.value)} /></Field>
       <ErrorBox error={error} />
     </Modal>

@@ -17,7 +17,8 @@ def messages(locale: str) -> dict:
 
 
 def money(minor: int) -> str:
-    return f"{minor // 100:,}"
+    from ...money import text
+    return text(minor)
 
 
 def render(template: str, channel: str, locale: str, values: dict) -> tuple[str, str]:

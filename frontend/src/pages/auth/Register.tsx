@@ -52,7 +52,7 @@ export default function Register() {
             </Field>
           </div>
           {emailDiffers && <p className="small" role="alert" style={{ color: "var(--error)" }}>{t("auth.emailMismatch")}</p>}
-          <Field label={`${t("common.mobile")} (${t("common.optional")})`}><input className="input ltr" inputMode="tel" value={form.mobile} onChange={set("mobile")} pattern="\+?[0-9]{8,15}" autoComplete="tel" /></Field>
+          <Field label={t("common.mobile")} optional><input className="input ltr" inputMode="tel" value={form.mobile} onChange={set("mobile")} pattern="\+?[0-9]{8,15}" autoComplete="tel" /></Field>
           <div className="grid cols-2">
             <Field label={t("common.password")} hint={t("auth.passwordHint")}>
               <PasswordInput value={form.password} onChange={set("password")} required minLength={12} autoComplete="new-password" />

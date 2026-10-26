@@ -62,7 +62,7 @@ export function NameFields({ value, onChange, rules, disabled }: {
     const v = value[key];
     const bad = tidy(v) !== "" && !(latin ? LATIN_PART : NAME_PART).test(tidy(v));
     return (
-      <Field label={required ? label : `${label} (${t("common.optional")})`}>
+      <Field label={required ? label : label} optional={!(required)}>
         <input className={latin ? "input ltr" : "input"} dir={latin ? "ltr" : undefined} lang={latin ? "en" : undefined} value={v}
                required={required} maxLength={60} autoComplete="off" aria-invalid={bad} disabled={disabled}
                onChange={(e) => set({ [key]: e.target.value } as Partial<NameDraft>)} />
@@ -89,10 +89,10 @@ export function NameFields({ value, onChange, rules, disabled }: {
       <fieldset className="stack tight" style={{ border: 0, padding: 0 }}>
         <legend className="small muted">{r.latin_required ? t("names.latinRequired") : t("names.latinOptional")}</legend>
         <div className="grid cols-4">
-          {part("first_name_latin", t("names.firstLatin"), !!r.latin_required, true)}
-          {part("father_name_latin", t("names.fatherLatin"), false, true)}
-          {part("grandfather_name_latin", t("names.grandfatherLatin"), false, true)}
-          {part("last_name_latin", t("names.lastLatin"), !!r.latin_required, true)}
+          {part("first_name_latin", t("checkout.firstName"), !!r.latin_required, true)}
+          {part("father_name_latin", t("checkout.fatherName"), false, true)}
+          {part("grandfather_name_latin", t("checkout.grandfatherName"), false, true)}
+          {part("last_name_latin", t("checkout.lastName"), !!r.latin_required, true)}
         </div>
       </fieldset>
     </div>

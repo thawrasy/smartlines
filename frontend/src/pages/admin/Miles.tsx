@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../../api";
-import { useI18n } from "../../i18n";
+import { toMinor, useI18n } from "../../i18n";
 import { PageHead } from "../../components/layout";
 import { Empty, ErrorBox, Field, Icon, Loaded, Modal, useLoad, useToast } from "../../components/ui";
 
@@ -36,7 +36,7 @@ export function AdminMiles() {
     setBusy(true); setError(null);
     try { await fn(); after?.(); toast(t("common.saved")); state.reload(); } catch (e) { setError(e); } finally { setBusy(false); }
   };
-  const minor = (v: string) => Math.round(Number(v || 0) * 100);
+  const minor = (v: string) => toMinor(v || 0);
   const savePair = () => run(() => form === "chart"
     ? api.post("/api/admin/miles/chart", { from_station: pair.from_station, to_station: pair.to_station, miles: Number(pair.miles) })
     : api.post("/api/admin/miles/awards", { from_station: pair.from_station, to_station: pair.to_station, miles: Number(pair.miles),

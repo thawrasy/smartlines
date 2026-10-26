@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../../api";
-import { useI18n } from "../../i18n";
+import { toMinor, useI18n } from "../../i18n";
 import { PageHead } from "../../components/layout";
 import { CarrierNumberRanges } from "./NumberRanges";
 import { Empty, ErrorBox, Field, Icon, Loaded, Modal, useLoad, useToast } from "../../components/ui";
@@ -39,7 +39,6 @@ interface Overview {
 }
 
 const DAYS = [1, 2, 3, 4, 5, 6, 7];
-const toMinor = (v: string) => Math.round(Number(v || 0) * 100);
 
 /** "Daily", "Mon, Wed, Fri", "On the 1, 15 of each month", in the reader's language. */
 export function usePattern() {

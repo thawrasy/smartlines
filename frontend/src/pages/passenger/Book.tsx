@@ -13,7 +13,7 @@ interface Hold { hold_token: string; expires_at: string }
 // Passenger wallet, the agency's dashboard figures that matter at checkout, or the cash a counter may still take
 interface Funds { balance?: number; remaining_today?: number; agreement?: { commission_bp: number } | null; remaining?: number }
 
-const roundUnit = (minor: number) => Math.round(minor / 100) * 100;
+const roundUnit = (minor: number) => Math.round(minor / 100) * 100;     // whole piastres
 
 export function SeatMap({ seats, map, selected, toggle, max }: { seats: TripDetail["seats"]; map: TripDetail["seat_map"]; selected: number[]; toggle: (n: number) => void; max: number }) {
   const { t } = useI18n();

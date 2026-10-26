@@ -30,7 +30,7 @@ def jordan():
 
 def test_the_default_market_is_named_to_visitors_and_users():
     m = client().get("/api/markets").json()
-    assert m["default"] == {"country": "SY", "time_zone": "Asia/Damascus", "currency": "SYP", "locale": "ar", "minor_unit": 2}
+    assert m["default"] == {"country": "SY", "time_zone": "Asia/Damascus", "currency": "SYP", "locale": "ar", "minor_unit": 4, "decimals": 2}   # the new pound (1176)
     assert [x["country"] for x in m["markets"]] == ["SY"]
     assert login("passenger@masslak.test", "PASSENGER").get("/api/auth/me").json()["market"]["currency"] == "SYP"
 

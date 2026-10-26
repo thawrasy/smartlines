@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { AppState, Linking, Text, View } from "react-native";
 import { usePreventScreenCapture } from "expo-screen-capture";
 import { randomUUID } from "expo-crypto";
-import { useI18n } from "../../i18n";
+import { toMinor, useI18n } from "../../i18n";
 import { api, ApiError } from "../../platform/api";
 import { API_URL } from "../../platform/config";
 import { getJSON, putJSON } from "../../platform/secure";
@@ -17,7 +17,7 @@ interface Method { code: string; adapter: string; min_amount: number; max_amount
 interface Started { uid: string; status: string; action?: string; url?: string | null; test_code?: string; reference?: string; expires_at?: string | null;
                     bank?: { bank_name: string; account_name: string; iban: string }; amount: number }
 
-const AMOUNTS = [50_000, 100_000, 250_000, 500_000];   // pounds
+const AMOUNTS = [500, 1_000, 2_500, 5_000];   // new pounds (1176)
 
 /** Wallet: balance, history and top-up by card (bank page), e-wallet (code), bank transfer (reference) or cash at an agency. */
 export default function WalletScreen() {
@@ -37,7 +37,7 @@ export default function WalletScreen() {
   });
   const methods = useLoad(() => api.get<{ methods: Method[] }>("/api/payments/methods"));
   const [method, setMethod] = useState<string | null>(null);
-  const [amount, setAmount] = useState(100_000);
+  const [amount, setAmount] = useState(1_000);
   const [mobile, setMobile] = useState("");
   const [code, setCode] = useState("");
   const [started, setStarted] = useState<Started | null>(null);
@@ -75,7 +75,7 @@ export default function WalletScreen() {
   };
   const start = () => run(async () => {
     if (!m) return;
-    const minor = amount * 100;
+    const minor = toMinor(amount);
     if (m.adapter === "BANK_TRANSFER") {
       setStarted(await api.post<Started>("/api/payments/bank-transfers", { amount: minor, idempotency_key: randomUUID() }));
       return;
@@ -98,7 +98,7 @@ export default function WalletScreen() {
     const p = await api.get<{ status: string }>(`/api/payments/${started!.uid}`);
     finished(p.status);
   });
-  const valid = m && amount * 100 >= m.min_amount && amount * 100 <= m.max_amount && (m.adapter !== "PARTNER_WALLET" || /^\+?\d{8,15}$/.test(mobile.trim()));
+  const valid = m && toMinor(amount) >= m.min_amount && toMinor(amount) <= m.max_amount && (m.adapter !== "PARTNER_WALLET" || /^\+?\d{8,15}$/.test(mobile.trim()));
 
   return (
     <Screen>
@@ -130,11 +130,11 @@ export default function WalletScreen() {
               {m && m.adapter === "CASH_AGENT" ? <Notice text={t("pay.agentHow")} /> : null}
               {m && m.adapter !== "CASH_AGENT" ? (
                 <>
-                  <Choice label={t("pay.amount")} value={amount} onChange={setAmount} options={AMOUNTS.map((a) => ({ value: a, label: money(a * 100) }))} />
+                  <Choice label={t("pay.amount")} value={amount} onChange={setAmount} options={AMOUNTS.map((a) => ({ value: a, label: money(toMinor(a)) }))} />
                   <Text style={s.small}>{t("pay.limits", { min: money(m.min_amount), max: money(m.max_amount) })}</Text>
                   {m.adapter === "PARTNER_WALLET" ? <Field label={t("pay.mobile")} hint={t("pay.mobileHint")} value={mobile} onChangeText={setMobile} keyboardType="phone-pad" /> : null}
                   {m.fee_pct > 0 && m.fee_borne_by === "PLATFORM" ? <Text style={s.small}>{t("pay.noFee")}</Text> : null}
-                  <Button label={m.adapter === "BANK_TRANSFER" ? t("pay.getReference") : t("pay.continue", { amount: money(amount * 100) })}
+                  <Button label={m.adapter === "BANK_TRANSFER" ? t("pay.getReference") : t("pay.continue", { amount: money(toMinor(amount)) })}
                           busy={busy} disabled={!valid} onPress={start} />
                 </>
               ) : null}

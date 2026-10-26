@@ -28,7 +28,7 @@ from typing import Optional
 
 import asyncpg
 
-from ... import db, markets
+from ... import db, markets, money
 from ...security import einvoice_sign, einvoice_signature_valid, einvoice_signer
 from . import taxes
 from .taxes import LineTax, Sale
@@ -74,7 +74,7 @@ def _tlv(fields: list[tuple[int, str]]) -> str:
 
 
 def qr_payload(doc: dict, digest_hex: str, signature: str) -> str:
-    major = lambda minor: f"{Decimal(minor) / 100:.2f}"            # noqa: E731
+    major = lambda minor: str(money.major(minor, doc.get("currency")))   # noqa: E731
     fields = [(1, doc["seller_name"]), (2, doc["seller_tax_no"] or ""), (3, doc["issued_at"].isoformat()),
               (4, major(doc["total"])), (5, major(doc["tax_total"])), (6, digest_hex), (7, signature)]
     if doc.get("signing_kid"):

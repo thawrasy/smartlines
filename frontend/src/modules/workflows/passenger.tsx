@@ -2,14 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
 import { Link } from "react-router-dom";
 import { api, newKey } from "../../api";
-import { useI18n } from "../../i18n";
+import { toMinor, useI18n } from "../../i18n";
 import { CarrierName, Empty, ErrorBox, Field, Icon, Loaded, Modal, Status, useLoad, useToast } from "../../components/ui";
 import { PLACES } from "./places";
 
 const isoLocal = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 
 /** Pounds typed by people, minor units on the wire. */
-const toMinor = (pounds: string) => Math.round(Number(pounds || 0) * 100);
 
 // ------------------------------------------------------------------ shuttle passes
 
@@ -155,13 +154,13 @@ export function SendParcel() {
             </div>
             <div className="grid cols-2">
               <Field label={t("wf.sendParcel.weight")}><input type="number" min="0.1" step="0.1" required value={f.weight_kg} onChange={set("weight_kg")} /></Field>
-              <Field label={t("wf.sendParcel.value")} hint={t("common.optional")}><input type="number" min="0" step="1000" value={f.declared_value} onChange={set("declared_value")} /></Field>
+              <Field label={t("wf.sendParcel.value")} optional><input type="number" min="0" step="10" value={f.declared_value} onChange={set("declared_value")} /></Field>
             </div>
             <div className="grid cols-2">
               <Field label={t("wf.sendParcel.recipient")}><input required minLength={3} value={f.recipient_name} onChange={set("recipient_name")} /></Field>
               <Field label={t("wf.sendParcel.mobile")}><input required className="ltr" inputMode="tel" pattern="\+?[0-9]{8,15}" value={f.recipient_mobile} onChange={set("recipient_mobile")} /></Field>
             </div>
-            <Field label={t("wf.sendParcel.contents")} hint={t("common.optional")}><input maxLength={200} value={f.contents} onChange={set("contents")} /></Field>
+            <Field label={t("wf.sendParcel.contents")} optional><input maxLength={200} value={f.contents} onChange={set("contents")} /></Field>
             <div className="quote-box">
               <span className="muted">{t("wf.price")}</span>
               <strong>{quote ? money(quote.price) : "—"}</strong>
@@ -460,15 +459,15 @@ export function PostLoad() {
             </div>
             <div className="grid cols-2">
               <Field label={t("wf.load.category")}><select value={f.cargo_category} onChange={set("cargo_category")}>{CARGO.map((c) => <option key={c} value={c}>{t(`wf.load.cat.${c}`)}</option>)}</select></Field>
-              <Field label={t("wf.load.trailer")} hint={t("common.optional")}>
+              <Field label={t("wf.load.trailer")} optional>
                 <select value={f.required_trailer_type} onChange={set("required_trailer_type")}><option value="">—</option>{TRAILERS.map((c) => <option key={c} value={c}>{t(`val.${c}`)}</option>)}</select>
               </Field>
             </div>
             <Field label={t("wf.load.description")}><input required minLength={3} maxLength={300} value={f.cargo_description} onChange={set("cargo_description")} /></Field>
             <div className="grid cols-3">
               <Field label={t("wf.load.weight")}><input type="number" required min="1" value={f.declared_weight_kg} onChange={set("declared_weight_kg")} /></Field>
-              <Field label={t("wf.load.packages")} hint={t("common.optional")}><input type="number" min="1" value={f.packages} onChange={set("packages")} /></Field>
-              <Field label={t("wf.load.target")} hint={t("common.optional")}><input type="number" min="0" step="1000" value={f.target_price} onChange={set("target_price")} /></Field>
+              <Field label={t("wf.load.packages")} optional><input type="number" min="1" value={f.packages} onChange={set("packages")} /></Field>
+              <Field label={t("wf.load.target")} optional><input type="number" min="0" step="10" value={f.target_price} onChange={set("target_price")} /></Field>
             </div>
             <div className="grid cols-2">
               <Field label={t("wf.load.pickupFrom")}><input type="datetime-local" required value={f.pickup_from} onChange={set("pickup_from")} /></Field>

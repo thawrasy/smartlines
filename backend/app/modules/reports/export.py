@@ -14,7 +14,7 @@ import os
 from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import date, datetime
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from functools import lru_cache
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -26,6 +26,7 @@ from .engine import OutCol, Result
 # The market of the report being rendered (1061): its time zone for times, and the minor units of its currency
 _ZONE: ContextVar[ZoneInfo] = ContextVar("report_zone", default=ZoneInfo("UTC"))
 _MINOR: ContextVar[int] = ContextVar("report_minor_unit", default=2)
+_DECIMALS: ContextVar[int] = ContextVar("report_decimals", default=2)
 FONTS = Path(__file__).resolve().parents[2] / "assets" / "fonts"
 NAVY, BLUE, LIGHT_BLUE, GREEN, INK, ROW_ALT, GRID = "#0B1F3F", "#2F7BFF", "#7FB0FF", "#12A06A", "#0F1B2D", "#F3F6FA", "#D5DCE6"
 MIME = {"PDF": "application/pdf", "XLSX": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -66,9 +67,9 @@ def coded(col: OutCol, value, locale: str) -> str:
 
 
 def pounds(minor) -> Decimal:
-    """Minor units in whole currency units (100 a pound, 1,000 a dinar), without trailing zeros for whole amounts."""
-    unit = 10 ** _MINOR.get()
-    return (Decimal(int(minor)) / unit).quantize(Decimal("1")) if int(minor) % unit == 0 else Decimal(int(minor)) / unit
+    """Minor units in whole currency units, rounded to the decimals people see (1176), without trailing zeros for whole amounts."""
+    v = Decimal(int(minor)).scaleb(-_MINOR.get()).quantize(Decimal(1).scaleb(-_DECIMALS.get()), rounding=ROUND_HALF_UP)
+    return v.quantize(Decimal("1")) if v == v.to_integral_value() else v
 
 
 def human(col: OutCol, value, locale: str):
@@ -381,11 +382,13 @@ WRITERS = {"PDF": to_pdf, "XLSX": to_xlsx, "CSV": to_csv, "TXT": to_txt, "JSON":
 def render(fmt: str, res: Result, meta: Meta) -> tuple[bytes, str]:
     """The file and its SHA-256 (kept in the export log so a handed-out file can be checked later)."""
     zone, minor = _ZONE.set(ZoneInfo(getattr(res, "time_zone", None) or "UTC")), _MINOR.set(getattr(res, "minor_unit", 2))
+    decimals = _DECIMALS.set(getattr(res, "decimals", 2))
     try:
         data = WRITERS[fmt](res, meta)
     finally:
         _ZONE.reset(zone)
         _MINOR.reset(minor)
+        _DECIMALS.reset(decimals)
     return data, hashlib.sha256(data).hexdigest()
 
 

@@ -133,7 +133,7 @@ function Users({ perms, roles, single }: { perms: Perm[]; roles: Role[]; single:
             <Field label={t("common.name")}><input className="input" value={f.full_name} onChange={(e) => setF({ ...f, full_name: e.target.value })} /></Field>
             <div className="grid cols-2">
               <Field label={t("common.email")}><input className="input ltr" type="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></Field>
-              <Field label={`${t("common.mobile")} (${t("common.optional")})`}><input className="input ltr" inputMode="tel" value={f.mobile} onChange={(e) => setF({ ...f, mobile: e.target.value })} /></Field>
+              <Field label={t("common.mobile")} optional><input className="input ltr" inputMode="tel" value={f.mobile} onChange={(e) => setF({ ...f, mobile: e.target.value })} /></Field>
             </div>
             {roleSelect(f.roles, (roles) => setF({ ...f, roles }))}
             <Field label={t("people.tempPassword")} hint={t("auth.passwordHint")}>
@@ -282,7 +282,7 @@ function Roles({ perms, roles, reload }: { perms: Perm[]; roles: Role[]; reload:
                 </Field>
               )}
             </div>
-            <Field label={`${t("people.description")} (${t("common.optional")})`}><input className="input" maxLength={300} value={edit.description} onChange={(e) => setEdit({ ...edit, description: e.target.value })} /></Field>
+            <Field label={t("people.description")} optional><input className="input" maxLength={300} value={edit.description} onChange={(e) => setEdit({ ...edit, description: e.target.value })} /></Field>
             <p className="small muted">{t("people.notHeld")}</p>
             {modules.map((m) => (
               <fieldset key={m} className="stack tight" style={{ border: "1px solid var(--outline-variant)", borderRadius: 12, padding: 12 }}>
