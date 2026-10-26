@@ -1,14 +1,22 @@
 // Offline boarding decision for the driver app. The pack is downloaded before departure; scans are kept on the
 // device and uploaded later, and the server's answer is final. Pure module, unit-tested with Node.
 
-export type ScanResult = "OK" | "DUPLICATE" | "INVALID_QR" | "WRONG_TRIP" | "CANCELLED";
+export type ScanResult = "OK" | "DUPLICATE" | "INVALID_QR" | "WRONG_TRIP" | "CANCELLED" | "NOT_FOUND";
 
-export interface PackTicket { uid: string; status: "ISSUED" | "BOARDED" | "CANCELLED"; seat_no: number; name: string; from_seq: number; to_seq: number }
+export interface PackTicket {
+  uid: string; status: "ISSUED" | "BOARDED" | "CANCELLED"; seat_no: number; name: string; from_seq: number; to_seq: number;
+  // a typed ticket (owner's decision O1): its number, and a hash of number and booking reference, never the reference
+  ticket_no?: string; ref_hash?: string;
+}
 export interface OfflinePack {
-  trip_uid: string; trip_no: string; generated_at: string; public_key: string; tickets: PackTicket[];
+  trip_uid: string; trip_no: string; trip_code?: string | null; generated_at: string; public_key: string; tickets: PackTicket[];
   clock_offset_ms?: number;   // server time minus device time when the pack arrived (set by the app)
 }
-export interface LocalScan { scan_id: string; token: string; ticket_uid: string | null; result: ScanResult; scanned_at: string; synced: boolean }
+export interface LocalScan {
+  scan_id: string; token: string; ticket_uid: string | null; result: ScanResult; scanned_at: string; synced: boolean;
+  // typed in, with the identity document checked: uploaded as number and reference rather than a code
+  ticket_no?: string; booking_ref?: string;
+}
 
 export interface Decision { result: ScanResult; ticket?: PackTicket; seat?: string; name?: string }
 
@@ -30,6 +38,25 @@ export function decide(
   const boardedHere = history.some((s) => s.ticket_uid === claims.k && s.result === "OK");
   if (ticket.status === "BOARDED" || boardedHere) return { result: "DUPLICATE", ticket, seat: claims.s, name: claims.n };
   return { result: "OK", ticket, seat: claims.s, name: claims.n };
+}
+
+/** What is hashed to match a typed ticket against the pack, as the server does (number and reference, upper case). */
+export const refKey = (ticketNo: string, bookingRef: string): string => `${ticketNo.trim().toUpperCase()}:${bookingRef.trim().toUpperCase()}`;
+
+/**
+ * Decides a ticket typed in by its number and booking reference, without a connection (owner's decision O1): the pack
+ * names the ticket by its number and a hash of number and reference (refHash, computed with refKey), so a wrong
+ * reference finds nothing. The driver has checked the identity document before boarding.
+ */
+export function decideTyped(pack: OfflinePack, ticketNo: string, refHash: string, history: LocalScan[]): Decision {
+  const no = ticketNo.trim().toUpperCase();
+  const ticket = pack.tickets.find((t) => t.ticket_no?.toUpperCase() === no && t.ref_hash === refHash.toLowerCase());
+  if (!ticket) return { result: "NOT_FOUND" };             // a wrong number or reference, or sold after the pack was made
+  const seat = String(ticket.seat_no);
+  if (ticket.status === "CANCELLED") return { result: "CANCELLED", ticket };
+  const boardedHere = history.some((s) => s.ticket_uid === ticket.uid && s.result === "OK");
+  if (ticket.status === "BOARDED" || boardedHere) return { result: "DUPLICATE", ticket, seat, name: ticket.name };
+  return { result: "OK", ticket, seat, name: ticket.name };
 }
 
 /** Applies the server's answers to the local history after an upload. */

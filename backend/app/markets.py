@@ -17,7 +17,7 @@ import asyncpg
 TTL = 60.0
 _cache: dict = {}
 _ZONE = re.compile(r"^(?:UTC|[A-Za-z]+(?:/[A-Za-z0-9_+\-]+)+)$")
-_COLS = """m.country_code, m.time_zone, m.currency, m.locale, m.status, c.minor_unit"""
+_COLS = """m.country_code, m.time_zone, m.currency, m.locale, m.status, c.minor_unit, c.decimals"""
 
 
 @dataclass(frozen=True)
@@ -28,6 +28,7 @@ class Market:
     locale: str
     minor_unit: int
     status: str = "ACTIVE"
+    decimals: int = 2
 
     @property
     def zone(self) -> ZoneInfo:
@@ -38,7 +39,7 @@ class Market:
 
     def public(self) -> dict:
         return {"country": self.country, "time_zone": self.time_zone, "currency": self.currency, "locale": self.locale,
-                "minor_unit": self.minor_unit}
+                "minor_unit": self.minor_unit, "decimals": self.decimals}
 
 
 def sql_zone(tz: str) -> str:
@@ -55,7 +56,7 @@ async def _get(conn: asyncpg.Connection, key: tuple, sql: str, *args) -> Market:
     r = await conn.fetchrow(sql, *args)
     if r is None:
         raise LookupError("no default market (ref.market)")
-    m = Market(r["country_code"], r["time_zone"], r["currency"], r["locale"], r["minor_unit"], r["status"])
+    m = Market(r["country_code"], r["time_zone"], r["currency"], r["locale"], r["minor_unit"], r["status"], r["decimals"])
     _cache[key] = (time.monotonic() + TTL, m)
     return m
 
@@ -90,7 +91,7 @@ async def station_zone(conn: asyncpg.Connection, station_id: int) -> str:
 async def active(conn: asyncpg.Connection) -> list[Market]:
     rows = await conn.fetch(f"SELECT {_COLS} FROM ref.market m JOIN ref.currency c ON c.code = m.currency "
                             "WHERE m.status = 'ACTIVE' ORDER BY m.is_default DESC, m.country_code")
-    return [Market(r["country_code"], r["time_zone"], r["currency"], r["locale"], r["minor_unit"], r["status"]) for r in rows]
+    return [Market(r["country_code"], r["time_zone"], r["currency"], r["locale"], r["minor_unit"], r["status"], r["decimals"]) for r in rows]
 
 
 def forget() -> None:

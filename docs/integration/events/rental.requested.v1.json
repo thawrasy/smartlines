@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://masslak.com/schemas/events/rental.requested.v1.json",
+  "title": "rental.requested",
+  "description": "A car rental was requested. The data of the envelope (EVENTS.md); fields are only added within a version.",
+  "x-event-type": "rental.requested",
+  "x-schema-version": 1,
+  "type": "object",
+  "properties": {
+    "class": {
+      "type": "string"
+    },
+    "total": {
+      "type": "integer"
+    }
+  },
+  "required": [
+    "class",
+    "total"
+  ],
+  "additionalProperties": true
+}

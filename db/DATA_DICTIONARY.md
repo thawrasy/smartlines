@@ -2,30 +2,30 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**504 tables, 5166 columns, in 26 schemas.**
+**639 tables, 7039 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
 ## Index
 
-- [`iam` — Identity, parties, users, permissions and API clients](#iam) (33 tables)
-- [`ref` — Reference data, locales and files](#ref) (14 tables)
+- [`iam` — Identity, parties, users, permissions and API clients](#iam) (53 tables)
+- [`ref` — Reference data, locales and files](#ref) (32 tables)
 - [`sys` — Settings, outbox and webhooks](#sys) (27 tables)
-- [`net` — Network: stations, routes, lines, corridors and geofences](#net) (22 tables)
-- [`fleet` — Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance](#fleet) (22 tables)
-- [`pricing` — Pricing, taxes, commissions, campaigns and loyalty](#pricing) (35 tables)
-- [`ops` — Trips, inventory, operations, shuttle rides, tracking and incidents](#ops) (35 tables)
-- [`sales` — Channels, bookings, passengers, tickets, subscriptions and travel documents](#sales) (28 tables)
-- [`fin` — Wallets, ledger, payments, allocation, settlement and float](#fin) (35 tables)
-- [`acct` — Simplified accounting, e-invoicing and tax profiles](#acct) (35 tables)
+- [`net` — Network: stations, routes, lines, corridors and geofences](#net) (49 tables)
+- [`fleet` — Fleet: vehicles, trucks, trailers, seats, crew, licenses and insurance](#fleet) (28 tables)
+- [`pricing` — Pricing, taxes, commissions, campaigns and loyalty](#pricing) (41 tables)
+- [`ops` — Trips, inventory, operations, shuttle rides, tracking and incidents](#ops) (40 tables)
+- [`sales` — Channels, bookings, passengers, tickets, subscriptions and travel documents](#sales) (35 tables)
+- [`fin` — Wallets, ledger, payments, allocation, settlement and float](#fin) (37 tables)
+- [`acct` — Simplified accounting, e-invoicing and tax profiles](#acct) (37 tables)
 - [`bill` — Carrier subscriptions, metering and platform invoices](#bill) (7 tables)
 - [`crm` — Complaints, ratings, notifications, the AI assistant and the contact center](#crm) (19 tables)
 - [`gov` — Governance, obligations and data protection](#gov) (15 tables)
-- [`sec` — Security: IP rules, risk, signing, the security hub and government adapters](#sec) (26 tables)
-- [`ptn` — Service partners: fuel stations, rest stops and maintenance](#ptn) (14 tables)
-- [`ship` — Shipments and the integrated shipping network](#ship) (57 tables)
-- [`frt` — Trucking, heavy transport and transit freight](#frt) (14 tables)
-- [`brd` — Border manifest gateway](#brd) (10 tables)
+- [`sec` — Security: IP rules, risk, signing, the security hub and government adapters](#sec) (34 tables)
+- [`ptn` — Service partners: fuel stations, rest stops and maintenance](#ptn) (25 tables)
+- [`ship` — Shipments and the integrated shipping network](#ship) (61 tables)
+- [`frt` — Trucking, heavy transport and transit freight](#frt) (31 tables)
+- [`brd` — Border manifest gateway](#brd) (12 tables)
 - [`ctr` — Contracted transport: universities and employees](#ctr) (6 tables)
 - [`sch` — School transport: schools, operators, pupils and guardians, contracts, routes, runs and attendance](#sch) (11 tables)
 - [`gis` — PostGIS reference data](#gis) (1 tables)
@@ -123,6 +123,12 @@ Login account; the account kind determines the portal: platform, company, agency
 | `preferred_locale` | `text` | 🔗 `ref.locale` ✱ | `'en'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+| `email_verified_at` | `timestamp with time zone` |  |  |
+| `username` | `text` |  |  |
+| `home_company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `password_must_change` | `boolean` | ✱ | `false` |
+| `temp_password_expires_at` | `timestamp with time zone` |  |  |
+| `is_guest` | `boolean` | ✱ | `false` |
 
 ### `iam.auth_token` 🛡️
 
@@ -161,6 +167,15 @@ Bank accounts for withdrawals and settlement (encrypted IBAN)
 | `uid` | `uuid` | ✱ | `gen_random_uuid()` |
 | `verified_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `verified_at` | `timestamp with time zone` |  |  |
+| `bank_id` | `bigint` | 🔗 `ref.bank`  |  |
+| `branch_id` | `bigint` | 🔗 `ref.bank_branch`  |  |
+| `swift_bic` | `text` |  |  |
+| `account_no_enc` | `bytea` |  |  |
+| `account_no_last4` | `text` |  |  |
+| `is_default` | `boolean` | ✱ | `false` |
+| `verification_status` | `text` | ✱ | `'UNVERIFIED'::text` |
+| `verification_source` | `text` |  |  |
+| `verified_holder_name` | `text` |  |  |
 
 ### `iam.beneficial_owner` 🛡️
 
@@ -185,6 +200,22 @@ Facial biometric template, encrypted with a separate key and stored in isolation
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `retain_until` | `timestamp with time zone` | ✱ |  |
 
+### `iam.carrier_class_assignment` 🛡️
+
+The class of a carrier, on the state's document, with its dates; a new class ends the one before, which stays as history (1164, N10)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `class_id` | `bigint` | 🔗 `ref.carrier_class` ✱ |  |
+| `source_document` | `text` | ✱ |  |
+| `assigned_on` | `date` | ✱ |  |
+| `valid_until` | `date` |  |  |
+| `assigned_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `assigned_at` | `timestamp with time zone` | ✱ | `now()` |
+| `ended_at` | `timestamp with time zone` |  |  |
+
 ### `iam.company` 🛡️
 
 Carrier company (tenant): 1:1 profile with party; all company data is isolated by company_id
@@ -204,6 +235,89 @@ Carrier company (tenant): 1:1 profile with party; all company data is isolated b
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
 | `payout_bank_account_id` | `bigint` | 🔗 `iam.bank_account`  |  |
+| `company_no` | `text` | ✱ | `(nextval('iam.company_no_seq'::regcla...` |
+| `change_reason` | `text` |  |  |
+
+### `iam.company_change` 🛡️
+
+Every edit of a company and of its legal name, field by field, with who, when and why (1171); never updated or deleted
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `changed_at` | `timestamp with time zone` | ✱ | `now()` |
+| `changed_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `field` | `text` | ✱ |  |
+| `old_value` | `text` |  |  |
+| `new_value` | `text` |  |  |
+| `reason` | `text` |  |  |
+
+### `iam.company_fleet_line` 🛡️
+
+Lines of business the platform opened for a company under its contract (buses, trucks, car rental, taxis), each for a period (1173)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `line` | `text` | ✱ |  |
+| `contract_ref` | `text` |  |  |
+| `valid` | `daterange` | ✱ | `daterange(CURRENT_DATE, NULL::date)` |
+| `granted_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `ended_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `ended_at` | `timestamp with time zone` |  |  |
+| `note` | `text` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `iam.company_kyc` 🛡️
+
+A company's KYC file in versions: the answers to the form, the review stages it passes, its risk and when it is reviewed again; one open and one approved at a time (1118)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `version` | `smallint` | ✱ |  |
+| `form_id` | `bigint` | 🔗 `iam.kyc_form` ✱ |  |
+| `answers` | `jsonb` | ✱ | `'{}'::jsonb` |
+| `completeness` | `smallint` | ✱ | `0` |
+| `status` | `text` | ✱ | `'DRAFT'::text` |
+| `round` | `smallint` | ✱ | `0` |
+| `review_stages` | `jsonb` | ✱ | `'[]'::jsonb` |
+| `step` | `smallint` | ✱ | `0` |
+| `risk_score` | `integer` |  |  |
+| `risk_level` | `text` |  |  |
+| `risk_factors` | `jsonb` | ✱ | `'[]'::jsonb` |
+| `risk_override` | `text` |  |  |
+| `risk_override_reason` | `text` |  |  |
+| `return_note` | `text` |  |  |
+| `return_fields` | `text[]` | ✱ | `'{}'::text[]` |
+| `submitted_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `submitted_at` | `timestamp with time zone` |  |  |
+| `decided_at` | `timestamp with time zone` |  |  |
+| `approved_at` | `timestamp with time zone` |  |  |
+| `review_due` | `date` |  |  |
+| `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `updated_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `iam.company_logo` 🛡️
+
+A company's logo, set by the platform when it defines the company: a PNG the application re-encodes to its specification, public like the name (1115)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `company_id` | `bigint` | 🔑 🔗 `iam.company` ✱ |  |
+| `image` | `bytea` | ✱ |  |
+| `mime_type` | `text` | ✱ | `'image/png'::text` |
+| `width` | `integer` | ✱ |  |
+| `height` | `integer` | ✱ |  |
+| `sha256` | `bytea` | ✱ |  |
+| `uploaded_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `uploaded_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `iam.company_member` 🛡️
 
@@ -217,6 +331,35 @@ Company users (seats) and their role; one owner per company, not editable from i
 | `is_owner` | `boolean` | ✱ | `false` |
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `iam.contact_code` 🛡️
+
+A code sent to confirm an account's e-mail (or mobile): only its keyed hash is kept, used once, five tries (1149, N35)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `user_id` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `channel` | `text` | ✱ |  |
+| `purpose` | `text` | ✱ |  |
+| `code_hash` | `bytea` | ✱ |  |
+| `attempts` | `smallint` | ✱ | `0` |
+| `expires_at` | `timestamp with time zone` | ✱ |  |
+| `consumed_at` | `timestamp with time zone` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `iam.data_requirement` 🛡️
+
+Which data items a photo change needs: REQUIRED or OPTIONAL, set by the platform until the law says (1091)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `field_code` | `text` | 🔑 ✱ |  |
+| `label` | `text` | ✱ |  |
+| `requirement` | `text` | ✱ | `'OPTIONAL'::text` |
+| `changed_by_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `changed_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `iam.device` 🛡️
 
@@ -436,9 +579,89 @@ Verification adapters: KYC vendor, national registry, telecom, digital identity 
 | `config` | `jsonb` | ✱ | `'{}'::jsonb` |
 | `status` | `text` | ✱ | `'INACTIVE'::text` |
 
+### `iam.integration_request` 🛡️
+
+A company's request for a programmatic connection; platform security builds the client from it and another person approves (1155, N2)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `requested_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `purpose` | `text` | ✱ |  |
+| `connection_type` | `text` | ✱ |  |
+| `data_needed` | `text[]` | ✱ |  |
+| `system_name` | `text` | ✱ |  |
+| `system_vendor` | `text` |  |  |
+| `system_host` | `text` |  |  |
+| `ip_addresses` | `cidr[]` | ✱ | `'{}'::cidr[]` |
+| `contact_name` | `text` | ✱ |  |
+| `contact_email` | `text` | ✱ |  |
+| `contact_mobile` | `text` |  |  |
+| `expected_volume` | `text` | ✱ |  |
+| `environment` | `text` | ✱ | `'SANDBOX'::text` |
+| `status` | `text` | ✱ | `'SUBMITTED'::text` |
+| `api_client_id` | `bigint` | 🔗 `iam.api_client`  |  |
+| `handled_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `handled_at` | `timestamp with time zone` |  |  |
+| `decision_note` | `text` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `iam.kyc_decision` 🛡️ 🔒
+
+Each review stage's decision on a KYC file: approved, returned with what to correct, or rejected; who decided and when; never changed (1118)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `kyc_id` | `bigint` | 🔑 🔗 `iam.company_kyc` ✱ |  |
+| `round` | `smallint` | 🔑 ✱ |  |
+| `step` | `smallint` | 🔑 ✱ |  |
+| `stage` | `jsonb` | ✱ |  |
+| `decision` | `text` | ✱ |  |
+| `note` | `text` |  |  |
+| `fields` | `text[]` | ✱ | `'{}'::text[]` |
+| `risk_override` | `text` |  |  |
+| `decided_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `authority_id` | `bigint` | 🔗 `sec.authority_profile`  |  |
+| `decided_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `iam.kyc_form` 🛡️
+
+The KYC form in versions: its sections, fields, option sets and documents; one version is active, a new one is checked and activated by the platform (1118)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `version` | `integer` | ✱ |  |
+| `definition` | `jsonb` | ✱ |  |
+| `status` | `text` | ✱ | `'DRAFT'::text` |
+| `note` | `text` |  |  |
+| `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `activated_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `activated_at` | `timestamp with time zone` |  |  |
+| `subject_kind` | `text` | ✱ | `'CARRIER'::text` |
+
+### `iam.messenger_link` 🛡️
+
+A one-time link that ties a Telegram chat to a second factor being enrolled: only the keyed hash of its token is kept, it lasts minutes and is used once (1151, N36)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `user_id` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `factor_id` | `bigint` | 🔗 `iam.mfa_factor` ✱ |  |
+| `channel` | `text` | ✱ |  |
+| `token_hash` | `bytea` | ✱ |  |
+| `expires_at` | `timestamp with time zone` | ✱ |  |
+| `linked_at` | `timestamp with time zone` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
 ### `iam.mfa_challenge` 🛡️
 
-A one-time code sent by text or WhatsApp message: only its keyed hash is kept, it expires within minutes and allows five tries (1075, decision 2)
+A one-time code sent by e-mail, Telegram, text or WhatsApp message: only its keyed hash is kept, it expires within minutes and allows five tries (1075, 1151)
 
 | Column | Type | Constraints | Default |
 |---|---|---|---|
@@ -459,7 +682,7 @@ A one-time code sent by text or WhatsApp message: only its keyed hash is kept, i
 
 ### `iam.mfa_factor` 🛡️
 
-Second factors: TOTP (encrypted secret), SMS and WHATSAPP (the encrypted phone number the codes go to, its last four digits in label), passkeys, recovery codes (1075)
+Second factors: TOTP (encrypted secret), SMS and WHATSAPP (encrypted phone number), EMAIL (encrypted address), TELEGRAM (encrypted chat id), passkeys, recovery codes (1075, 1151)
 
 | Column | Type | Constraints | Default |
 |---|---|---|---|
@@ -512,6 +735,33 @@ Unified party: person, company or entity; registered once and holds multiple rol
 | `legal_hold` | `boolean` | ✱ | `false` |
 | `anonymized_at` | `timestamp with time zone` |  |  |
 | `erasure_request_id` | `bigint` | 🔗 `gov.subject_request`  |  |
+| `first_name` | `text` |  |  |
+| `father_name` | `text` |  |  |
+| `grandfather_name` | `text` |  |  |
+| `last_name` | `text` |  |  |
+| `mother_name` | `text` |  |  |
+| `first_name_latin` | `text` |  |  |
+| `father_name_latin` | `text` |  |  |
+| `grandfather_name_latin` | `text` |  |  |
+| `last_name_latin` | `text` |  |  |
+| `names_complete` | `boolean` | ✱ | `false` |
+| `id_expiry` | `date` |  |  |
+| `change_reason` | `text` |  |  |
+
+### `iam.party_photo` 🛡️
+
+The boarding photo of a person (1086): encrypted file, taken at the profile's creation, removed only by an erasure request
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `party_id` | `bigint` | 🔗 `iam.party` ✱ |  |
+| `file_id` | `bigint` | 🔗 `ref.file_object` ✱ |  |
+| `taken_by` | `text` | ✱ |  |
+| `taken_by_user_id` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `taken_at` | `timestamp with time zone` | ✱ | `now()` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `iam.party_role` 🛡️
 
@@ -537,6 +787,161 @@ Permission catalog (section 33)
 | `description` | `text` | ✱ |  |
 | `is_sensitive` | `boolean` | ✱ | `false` |
 
+### `iam.permission_exception` 🛡️
+
+A permission granted or denied to one person beyond their role, with an end date and a reason, active once a second person approves (1154, N1)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `user_id` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `permission_code` | `text` | 🔗 `iam.permission` ✱ |  |
+| `effect` | `text` | ✱ |  |
+| `reason` | `text` | ✱ |  |
+| `valid_from` | `timestamp with time zone` | ✱ | `now()` |
+| `valid_to` | `timestamp with time zone` | ✱ |  |
+| `status` | `text` | ✱ | `'PENDING'::text` |
+| `requested_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `decided_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `decided_at` | `timestamp with time zone` |  |  |
+| `decision_note` | `text` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `iam.person_kyc` 🛡️
+
+A driver's or passenger's KYC file in versions: the answers to the form of their kind, one reviewer's decision and when it is reviewed again; one open and one approved at a time (1159, N14)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `party_id` | `bigint` | 🔗 `iam.party` ✱ |  |
+| `subject_kind` | `text` | ✱ |  |
+| `version` | `smallint` | ✱ |  |
+| `form_id` | `bigint` | 🔗 `iam.kyc_form` ✱ |  |
+| `answers` | `jsonb` | ✱ | `'{}'::jsonb` |
+| `completeness` | `smallint` | ✱ | `0` |
+| `status` | `text` | ✱ | `'DRAFT'::text` |
+| `return_note` | `text` |  |  |
+| `return_fields` | `text[]` | ✱ | `'{}'::text[]` |
+| `decision_note` | `text` |  |  |
+| `submitted_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `submitted_at` | `timestamp with time zone` |  |  |
+| `decided_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `decided_at` | `timestamp with time zone` |  |  |
+| `approved_at` | `timestamp with time zone` |  |  |
+| `review_due` | `date` |  |  |
+| `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `updated_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `iam.photo_approval` 🛡️
+
+The approvals of a change of a photo on file or of the photo policy, one row per stage (1091)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `subject_type` | `text` | 🔑 ✱ |  |
+| `subject_id` | `bigint` | 🔑 ✱ |  |
+| `step` | `integer` | 🔑 ✱ |  |
+| `stage_kind` | `text` | ✱ |  |
+| `approver_user_id` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `approved_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `iam.photo_change_request` 🛡️
+
+A platform request to change a boarding photo on file, with its evidence; applied by a second person (1087)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `party_id` | `bigint` | 🔗 `iam.party` ✱ |  |
+| `requested_by_user_id` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `reason` | `text` | ✱ |  |
+| `evidence_kind` | `text` | 🔗 `iam.photo_evidence_kind` ✱ |  |
+| `evidence_file_id` | `bigint` | 🔗 `ref.file_object`  |  |
+| `photo_file_id` | `bigint` | 🔗 `ref.file_object`  |  |
+| `status` | `text` | ✱ | `'PENDING'::text` |
+| `decided_by_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `decided_at` | `timestamp with time zone` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `approval_stages` | `jsonb` | ✱ | `'["CHECK", "APPROVE"]'::jsonb` |
+
+### `iam.photo_evidence_kind` 🛡️
+
+The documents accepted as evidence for a change of the boarding photo; a platform setting (1088)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `code` | `text` | ✱ |  |
+| `label` | `text` | ✱ |  |
+| `active` | `boolean` | ✱ | `true` |
+| `changed_by_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `changed_at` | `timestamp with time zone` | ✱ | `now()` |
+| `age_rule` | `boolean` | ✱ | `false` |
+
+### `iam.photo_policy_change` 🛡️
+
+A change to the accepted evidence or the identity age rule of a photo change; two people (1089)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `change_type` | `text` | ✱ |  |
+| `evidence_code` | `text` | 🔗 `iam.photo_evidence_kind`  |  |
+| `new_active` | `boolean` |  |  |
+| `new_min_age` | `integer` |  |  |
+| `reason` | `text` | ✱ |  |
+| `requested_by_user_id` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `requested_at` | `timestamp with time zone` | ✱ | `now()` |
+| `status` | `text` | ✱ | `'PENDING'::text` |
+| `decided_by_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `decided_at` | `timestamp with time zone` |  |  |
+| `approval_stages` | `jsonb` | ✱ | `'["CHECK", "APPROVE"]'::jsonb` |
+| `field_code` | `text` | 🔗 `iam.data_requirement`  |  |
+| `new_requirement` | `text` |  |  |
+| `legal_basis` | `text` |  |  |
+| `legal_document_no` | `text` |  |  |
+| `setting_key` | `text` |  |  |
+| `setting_value` | `jsonb` |  |  |
+
+### `iam.photo_rule` 🛡️
+
+When a boarding photo is required, by market, trip scope, traveller class and category; four eyes; the legal basis (1087)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `market` | `character(2)` | 🔗 `ref.market`  |  |
+| `trip_scope` | `text` |  |  |
+| `traveller_class` | `text` |  |  |
+| `passenger_category` | `text` |  |  |
+| `requirement` | `text` | ✱ |  |
+| `effective_from` | `date` | ✱ |  |
+| `effective_to` | `date` |  |  |
+| `legal_basis` | `text` | ✱ |  |
+| `status` | `text` | ✱ | `'PROPOSED'::text` |
+| `proposed_by_user_id` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `proposed_at` | `timestamp with time zone` | ✱ | `now()` |
+| `approved_by_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `approved_at` | `timestamp with time zone` |  |  |
+| `retired_by_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `retired_at` | `timestamp with time zone` |  |  |
+| `approval_stages` | `jsonb` | ✱ | `'["CHECK", "APPROVE"]'::jsonb` |
+| `retirement_request_id` | `bigint` |  |  |
+| `retirement_requested_by_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `retirement_reason` | `text` |  |  |
+| `retirement_stages` | `jsonb` |  |  |
+| `retirement_requested_at` | `timestamp with time zone` |  |  |
+
 ### `iam.push_token` 🛡️
 
 
@@ -561,6 +966,12 @@ Roles: platform roles, company role templates, and roles each company defines fo
 | `company_id` | `bigint` | 🔗 `iam.company`  |  |
 | `is_system` | `boolean` | ✱ | `false` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `company_kind` | `text` |  |  |
+| `description` | `text` |  |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `iam.role_permission` 🛡️
 
@@ -581,6 +992,38 @@ Limits a role to some stations, routes, lines, cities, countries or trip types
 | `role_id` | `bigint` | 🔗 `iam.role` ✱ |  |
 | `scope_type` | `text` | ✱ |  |
 | `scope_value` | `text` | ✱ |  |
+
+### `iam.saved_traveller` 🛡️
+
+Companions a passenger books for again, kept with the passenger's consent; the document number encrypted with a blind index and the last four shown (1153, N18)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `owner_user_id` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `label` | `text` |  |  |
+| `nationality` | `character(2)` | 🔗 `ref.country` ✱ | `'SY'::bpchar` |
+| `first_name` | `text` | ✱ |  |
+| `father_name` | `text` |  |  |
+| `grandfather_name` | `text` |  |  |
+| `last_name` | `text` | ✱ |  |
+| `first_name_latin` | `text` |  |  |
+| `father_name_latin` | `text` |  |  |
+| `grandfather_name_latin` | `text` |  |  |
+| `last_name_latin` | `text` |  |  |
+| `birth_date` | `date` |  |  |
+| `gender` | `text` |  |  |
+| `id_type` | `text` |  |  |
+| `id_no_enc` | `bytea` |  |  |
+| `id_no_bidx` | `bytea` |  |  |
+| `id_no_last4` | `text` |  |  |
+| `id_expiry` | `date` |  |  |
+| `enc_key_id` | `integer` | 🔗 `sec.key_registry`  |  |
+| `consent_at` | `timestamp with time zone` | ✱ | `now()` |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `iam.user_role` 🛡️
 
@@ -619,6 +1062,7 @@ Active sessions; revoking one ends the login immediately
 | `access_expires_at` | `timestamp with time zone` |  |  |
 | `prev_refresh_hash` | `bytea` |  |  |
 | `client` | `text` | ✱ | `'web'::text` |
+| `mfa_at` | `timestamp with time zone` |  |  |
 
 ### `iam.user_station_scope` 🛡️
 
@@ -662,6 +1106,128 @@ Record of every verification (identity levels L0..L3, company, vehicle, document
 <a id="ref"></a>
 ## `ref` — Reference data, locales and files
 
+### `ref.admin_area` 🛡️
+
+Governorates (1), districts (2) and sub-districts (3), with their United Nations codes and Arabic and English names (1124)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `pcode` | `text` | ✱ |  |
+| `country_code` | `character(2)` | 🔗 `ref.country` ✱ |  |
+| `level` | `smallint` | ✱ |  |
+| `parent_id` | `bigint` | 🔗 `ref.admin_area`  |  |
+| `name_en` | `text` | ✱ |  |
+| `name_ar` | `text` | ✱ |  |
+| `ref_name` | `text` |  |  |
+| `valid_on` | `date` |  |  |
+| `source_id` | `bigint` | 🔗 `ref.geo_source`  |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+| `boundary` | `gis.geometry(MultiPolygon,4326)` |  |  |
+| `boundary_source_id` | `bigint` | 🔗 `ref.geo_source`  |  |
+| `published_en` | `text` |  |  |
+| `published_ar` | `text` |  |  |
+
+### `ref.axle_config` 🛡️
+
+Axle arrangements chosen from a list (1174): wheel formulas of powered vehicles and axle groups of trailers
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | ✱ | `identity` |
+| `code` | `text` | 🔑 ✱ |  |
+| `kind` | `text` | ✱ |  |
+| `axles` | `smallint` |  |  |
+| `driven_axles` | `smallint` |  |  |
+| `name_en` | `text` | ✱ |  |
+| `name_ar` | `text` | ✱ |  |
+| `sort_order` | `smallint` | ✱ | `100` |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `source` | `text` | ✱ | `'STANDARD'::text` |
+| `change_reason` | `text` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ref.axle_config_change` 🛡️
+
+Every edit of an axle arrangement in the list, field by field, with who, when and why (1174); never changed
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `axle_id` | `bigint` | 🔗 `ref.axle_config` ✱ |  |
+| `changed_at` | `timestamp with time zone` | ✱ | `now()` |
+| `changed_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `field` | `text` | ✱ |  |
+| `old_value` | `text` |  |  |
+| `new_value` | `text` |  |  |
+| `reason` | `text` |  |  |
+
+### `ref.bank` 🛡️
+
+Banks entered by platform staff and reviewed by another person before companies see them; UNVERIFIED until fully verified (1156, N6)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `code` | `text` | ✱ |  |
+| `name_ar` | `text` | ✱ |  |
+| `name_en` | `text` | ✱ |  |
+| `short_name` | `text` |  |  |
+| `bank_type` | `text` | ✱ | `'PRIVATE'::text` |
+| `swift_bic` | `text` |  |  |
+| `swift_status` | `text` | ✱ | `'TO_VERIFY'::text` |
+| `swift_reported` | `text` |  |  |
+| `iban_bank_code` | `text` |  |  |
+| `address` | `jsonb` | ✱ | `'{}'::jsonb` |
+| `phone` | `text` |  |  |
+| `fax` | `text` |  |  |
+| `email` | `text` |  |  |
+| `website` | `text` |  |  |
+| `hidden_from_companies` | `boolean` | ✱ | `false` |
+| `notes` | `text` |  |  |
+| `status` | `text` | ✱ | `'PENDING_REVIEW'::text` |
+| `verification_status` | `text` | ✱ | `'UNVERIFIED'::text` |
+| `source` | `text` | ✱ | `'MANUAL'::text` |
+| `entered_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `reviewed_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `reviewed_at` | `timestamp with time zone` |  |  |
+| `pending_changes` | `jsonb` |  |  |
+| `pending_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `pending_at` | `timestamp with time zone` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ref.bank_branch` 🛡️
+
+Branches of a bank with their own codes and addresses (phase 2); reviewed by a second person (1156, N6)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `bank_id` | `bigint` | 🔗 `ref.bank` ✱ |  |
+| `name_ar` | `text` | ✱ |  |
+| `name_en` | `text` | ✱ |  |
+| `branch_code` | `text` |  |  |
+| `swift_bic` | `text` |  |  |
+| `is_head_office` | `boolean` | ✱ | `false` |
+| `area_id` | `bigint` | 🔗 `ref.admin_area`  |  |
+| `address` | `jsonb` | ✱ | `'{}'::jsonb` |
+| `lat` | `numeric(9,6)` |  |  |
+| `lng` | `numeric(9,6)` |  |  |
+| `phone` | `text` |  |  |
+| `email` | `text` |  |  |
+| `status` | `text` | ✱ | `'PENDING_REVIEW'::text` |
+| `verification_status` | `text` | ✱ | `'UNVERIFIED'::text` |
+| `entered_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `reviewed_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `reviewed_at` | `timestamp with time zone` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+
 ### `ref.cargo_category` 🛡️
 
 Cargo categories as additional information for transit and freight (annex D.3)
@@ -678,6 +1244,20 @@ Cargo categories as additional information for transit and freight (annex D.3)
 | `dangerous` | `boolean` | ✱ | `false` |
 | `needs_temperature` | `boolean` | ✱ | `false` |
 
+### `ref.carrier_class` 🛡️
+
+The classes the state gives carriers (A, B, C or another scheme), with their criteria (1164, N10)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `code` | `text` | ✱ |  |
+| `name_en` | `text` | ✱ |  |
+| `name_ar` | `text` | ✱ |  |
+| `criteria` | `text` |  |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
 ### `ref.city` 🛡️
 
 Cities (domestic and international)
@@ -693,6 +1273,8 @@ Cities (domestic and international)
 | `lng` | `numeric(9,6)` |  |  |
 | `timezone` | `text` | ✱ |  |
 | `is_active` | `boolean` | ✱ | `true` |
+| `place_id` | `bigint` | 🔗 `ref.place`  |  |
+| `city_class` | `text` | ✱ | `'SECONDARY'::text` |
 
 ### `ref.country` 🛡️
 
@@ -716,6 +1298,7 @@ Currencies; every amount in the system is a BIGINT in the minor unit of its curr
 | `name` | `text` | ✱ |  |
 | `minor_unit` | `smallint` | ✱ | `2` |
 | `is_active` | `boolean` | ✱ | `true` |
+| `decimals` | `smallint` | ✱ |  |
 
 ### `ref.exchange_rate` 🛡️
 
@@ -756,6 +1339,59 @@ Metadata for every uploaded file (documents, images, signed PDFs); content is in
 | `scan_detail` | `text` |  |  |
 | `scan_attempts` | `integer` | ✱ | `0` |
 
+### `ref.geo_source` 🛡️
+
+Each load of the administrative geography: the publisher, the file and its hash, and what it held (1124)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `publisher` | `text` | ✱ |  |
+| `dataset` | `text` | ✱ |  |
+| `file_name` | `text` |  |  |
+| `sha256` | `text` |  |  |
+| `valid_on` | `date` |  |  |
+| `counts` | `jsonb` | ✱ | `'{}'::jsonb` |
+| `imported_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `imported_at` | `timestamp with time zone` | ✱ | `now()` |
+| `content` | `text` | ✱ | `'PLACES'::text` |
+
+### `ref.insurer` 🛡️
+
+Insurance companies entered by platform staff and reviewed by another person; carriers pick their insurer from it (1156, N9)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `code` | `text` | ✱ |  |
+| `name_ar` | `text` | ✱ |  |
+| `name_en` | `text` | ✱ |  |
+| `ownership` | `text` | ✱ | `'PRIVATE'::text` |
+| `insurance_kind` | `text` | ✱ | `'CONVENTIONAL'::text` |
+| `licence_no` | `text` |  |  |
+| `address` | `jsonb` | ✱ | `'{}'::jsonb` |
+| `lat` | `numeric(9,6)` |  |  |
+| `lng` | `numeric(9,6)` |  |  |
+| `phone` | `text` |  |  |
+| `fax` | `text` |  |  |
+| `email` | `text` |  |  |
+| `website` | `text` |  |  |
+| `hidden_from_companies` | `boolean` | ✱ | `false` |
+| `notes` | `text` |  |  |
+| `status` | `text` | ✱ | `'PENDING_REVIEW'::text` |
+| `verification_status` | `text` | ✱ | `'UNVERIFIED'::text` |
+| `source` | `text` | ✱ | `'MANUAL'::text` |
+| `entered_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `reviewed_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `reviewed_at` | `timestamp with time zone` |  |  |
+| `pending_changes` | `jsonb` |  |  |
+| `pending_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `pending_at` | `timestamp with time zone` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+
 ### `ref.locale` 🛡️
 
 Supported UI locales with text direction; English is the system default, other locales are UI-only
@@ -784,6 +1420,22 @@ Countries the platform operates in: time zone, currency and default language of 
 | `opened_at` | `timestamp with time zone` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
+### `ref.name_correction` 🛡️
+
+Words of the published names the platform writes otherwise, in the areas under a code (1127)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `lang` | `text` | ✱ |  |
+| `wrong` | `text` | ✱ |  |
+| `correct` | `text` | ✱ |  |
+| `scope_pcode` | `text` |  |  |
+| `reason` | `text` | ✱ |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `set_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `set_at` | `timestamp with time zone` | ✱ | `now()` |
+
 ### `ref.party_role_type` 🛡️
 
 Party roles (2.1); rows replace the former fixed list
@@ -797,6 +1449,39 @@ Party roles (2.1); rows replace the former fixed list
 | `is_active` | `boolean` | ✱ | `true` |
 | `sort` | `integer` | ✱ | `100` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ref.place` 🛡️
+
+Communities (cities, towns, villages) and the neighbourhoods of cities, with their United Nations codes, names and positions (1124)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `pcode` | `text` | ✱ |  |
+| `kind` | `text` | ✱ |  |
+| `area_id` | `bigint` | 🔗 `ref.admin_area` ✱ |  |
+| `parent_place_id` | `bigint` | 🔗 `ref.place`  |  |
+| `city_area_code` | `text` |  |  |
+| `city_area_en` | `text` |  |  |
+| `city_area_ar` | `text` |  |  |
+| `name_en` | `text` | ✱ |  |
+| `name_ar` | `text` | ✱ |  |
+| `lat` | `numeric(9,6)` | ✱ |  |
+| `lng` | `numeric(9,6)` | ✱ |  |
+| `previous_pcode` | `text` |  |  |
+| `updated_on` | `date` |  |  |
+| `source_id` | `bigint` | 🔗 `ref.geo_source`  |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+| `proposed_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `proposed_at` | `timestamp with time zone` |  |  |
+| `surveyed_on` | `date` |  |  |
+| `survey_note` | `text` |  |  |
+| `reviewed_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `reviewed_at` | `timestamp with time zone` |  |  |
+| `review_note` | `text` |  |  |
+| `published_en` | `text` |  |  |
+| `published_ar` | `text` |  |  |
 
 ### `ref.seed_version` 🛡️
 
@@ -869,6 +1554,156 @@ Vehicle classes
 | `is_active` | `boolean` | ✱ | `true` |
 | `sort` | `integer` | ✱ | `100` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ref.vehicle_colour` 🛡️
+
+Vehicle colours chosen from a list, never typed, so one colour is not entered under several spellings (1174)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | ✱ | `identity` |
+| `code` | `text` | 🔑 ✱ |  |
+| `name_en` | `text` | ✱ |  |
+| `name_ar` | `text` | ✱ |  |
+| `hex` | `text` |  |  |
+| `sort_order` | `smallint` | ✱ | `100` |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `change_reason` | `text` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ref.vehicle_colour_change` 🛡️
+
+Every edit of a colour in the list, field by field, with who, when and why (1174); never changed
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `colour_id` | `bigint` | 🔗 `ref.vehicle_colour` ✱ |  |
+| `changed_at` | `timestamp with time zone` | ✱ | `now()` |
+| `changed_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `field` | `text` | ✱ |  |
+| `old_value` | `text` |  |  |
+| `new_value` | `text` |  |  |
+| `reason` | `text` |  |  |
+
+### `ref.vehicle_make` 🛡️
+
+Vehicle makes kept by the platform and reviewed by a second person (1157, N8)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `code` | `text` | ✱ |  |
+| `name_en` | `text` | ✱ |  |
+| `name_ar` | `text` | ✱ |  |
+| `country_code` | `character(2)` | 🔗 `ref.country`  |  |
+| `status` | `text` | ✱ | `'PENDING_REVIEW'::text` |
+| `source` | `text` | ✱ | `'MANUAL'::text` |
+| `entered_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `reviewed_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `reviewed_at` | `timestamp with time zone` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+| `change_reason` | `text` |  |  |
+
+### `ref.vehicle_make_change` 🛡️
+
+Every edit of a vehicle make, field by field, with who, when and why (1172); goes only with its make
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `make_id` | `bigint` | 🔗 `ref.vehicle_make` ✱ |  |
+| `changed_at` | `timestamp with time zone` | ✱ | `now()` |
+| `changed_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `field` | `text` | ✱ |  |
+| `old_value` | `text` |  |  |
+| `new_value` | `text` |  |  |
+| `reason` | `text` |  |  |
+
+### `ref.vehicle_model` 🛡️
+
+Vehicle models of a make: kind, approximate seats or truck weight class, whether still made and how sure the name is; reviewed by a second person (1157, N8)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `make_id` | `bigint` | 🔗 `ref.vehicle_make` ✱ |  |
+| `name` | `text` | ✱ |  |
+| `vehicle_class` | `text` | ✱ | `'BUS'::text` |
+| `vehicle_type` | `text` | ✱ |  |
+| `seats_from` | `smallint` |  |  |
+| `seats_to` | `smallint` |  |  |
+| `weight_class` | `text` |  |  |
+| `production` | `text` | ✱ | `'CURRENT'::text` |
+| `confidence` | `text` | ✱ | `'VERIFY'::text` |
+| `notes` | `text` |  |  |
+| `status` | `text` | ✱ | `'PENDING_REVIEW'::text` |
+| `source` | `text` | ✱ | `'MANUAL'::text` |
+| `entered_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `reviewed_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `reviewed_at` | `timestamp with time zone` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+| `name_ar` | `text` |  |  |
+| `body_type` | `text` |  |  |
+| `year_from` | `smallint` |  |  |
+| `year_to` | `smallint` |  |  |
+| `change_reason` | `text` |  |  |
+
+### `ref.vehicle_model_change` 🛡️
+
+Every edit of a vehicle model, field by field, with who, when and why (1172); goes only with its model
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `model_id` | `bigint` | 🔗 `ref.vehicle_model` ✱ |  |
+| `changed_at` | `timestamp with time zone` | ✱ | `now()` |
+| `changed_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `field` | `text` | ✱ |  |
+| `old_value` | `text` |  |  |
+| `new_value` | `text` |  |  |
+| `reason` | `text` |  |  |
+
+### `ref.vehicle_trim` 🛡️
+
+Trims of a vehicle model with their fuel and years (1172): part of the model, which a second person reviewed
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `model_id` | `bigint` | 🔗 `ref.vehicle_model` ✱ |  |
+| `name` | `text` | ✱ |  |
+| `name_ar` | `text` |  |  |
+| `fuel` | `text` | ✱ | `'PETROL'::text` |
+| `year_from` | `smallint` |  |  |
+| `year_to` | `smallint` |  |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `source` | `text` | ✱ | `'MANUAL'::text` |
+| `entered_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `change_reason` | `text` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ref.vehicle_trim_change` 🛡️
+
+Every edit of a vehicle trim, field by field, with who, when and why (1172); goes only with its trim
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `trim_id` | `bigint` | 🔗 `ref.vehicle_trim` ✱ |  |
+| `changed_at` | `timestamp with time zone` | ✱ | `now()` |
+| `changed_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `field` | `text` | ✱ |  |
+| `old_value` | `text` |  |  |
+| `new_value` | `text` |  |  |
+| `reason` | `text` |  |  |
 
 <a id="sys"></a>
 ## `sys` — Settings, outbox and webhooks
@@ -1272,6 +2107,51 @@ Three-letter carrier code (optional two-character code), unique platform-wide an
 | `valid_from` | `date` |  |  |
 | `retired_at` | `date` |  |  |
 
+### `net.code_change` 🛡️
+
+Requests to change the code of an area, place, city or station: the codes they touch, a second person's decision, the date they take effect (1161, N39)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `entity_kind` | `text` | ✱ |  |
+| `area_id` | `bigint` | 🔗 `ref.admin_area`  |  |
+| `place_id` | `bigint` | 🔗 `ref.place`  |  |
+| `city_id` | `bigint` | 🔗 `ref.city`  |  |
+| `station_id` | `bigint` | 🔗 `net.station`  |  |
+| `old_code` | `text` | ✱ |  |
+| `new_code` | `text` | ✱ |  |
+| `reason` | `text` | ✱ |  |
+| `source_document` | `text` |  |  |
+| `effective_on` | `date` | ✱ |  |
+| `plan` | `jsonb` | ✱ |  |
+| `status` | `text` | ✱ | `'PENDING'::text` |
+| `requested_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `requested_at` | `timestamp with time zone` | ✱ | `now()` |
+| `decided_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `decided_at` | `timestamp with time zone` |  |  |
+| `decision_note` | `text` |  |  |
+| `applied_at` | `timestamp with time zone` |  |  |
+| `failure` | `text` |  |  |
+
+### `net.code_history` 🛡️
+
+The codes a thing had before: kept as aliases, so an old code still finds it, and dated, so a report shows the code of its day (1161, N39)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `entity_kind` | `text` | ✱ |  |
+| `area_id` | `bigint` | 🔗 `ref.admin_area`  |  |
+| `place_id` | `bigint` | 🔗 `ref.place`  |  |
+| `city_id` | `bigint` | 🔗 `ref.city`  |  |
+| `station_id` | `bigint` | 🔗 `net.station`  |  |
+| `code` | `text` | ✱ |  |
+| `valid_from` | `timestamp with time zone` |  |  |
+| `valid_to` | `timestamp with time zone` | ✱ |  |
+| `change_id` | `bigint` | 🔗 `net.code_change` ✱ |  |
+
 ### `net.code_reservation` 🛡️
 
 Reserved, prohibited or temporarily withdrawn codes
@@ -1316,6 +2196,25 @@ Approved transit corridor: route and tolerance; leaving it raises a tracking ale
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `path_geo` | `gis.geography` |  | `sys.geo_line(path)` |
 
+### `net.display_hub` 🛡️
+
+A station display hub: the one server inside a station that talks to the platform (outbound only) and serves the boards to the screens on the station's own network (1179, N46)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `station_id` | `bigint` | 🔗 `net.station` ✱ |  |
+| `label` | `text` | ✱ |  |
+| `key_hash` | `bytea` | ✱ |  |
+| `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `last_contact_at` | `timestamp with time zone` |  |  |
+| `version` | `text` |  |  |
+| `revoked_at` | `timestamp with time zone` |  |  |
+| `revoked_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `revoke_reason` | `text` |  |  |
+
 ### `net.geofence` 🛡️
 
 Geofenced areas (ports, borders, depots, restricted zones) that raise arrival, departure and violation events
@@ -1331,6 +2230,55 @@ Geofenced areas (ports, borders, depots, restricted zones) that raise arrival, d
 | `center_lng` | `numeric(9,6)` |  |  |
 | `radius_m` | `integer` |  |  |
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
+
+### `net.hub_event` 🛡️
+
+What a display hub reported for the administration: an unknown device, a player at another address, a rejected device asking again, the uplink back after a cut and for how long (1179); never changed
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `hub_id` | `bigint` | 🔗 `net.display_hub` ✱ |  |
+| `kind` | `text` | ✱ |  |
+| `mac` | `macaddr` |  |  |
+| `ip` | `inet` |  |  |
+| `screen_id` | `bigint` | 🔗 `net.station_screen`  |  |
+| `seconds` | `integer` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `net.hub_pairing` 🛡️
+
+A one-time code with which a new display hub joins its station; valid one hour, used once, kept as a hash (1179)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `station_id` | `bigint` | 🔗 `net.station` ✱ |  |
+| `label` | `text` | ✱ |  |
+| `code_hash` | `bytea` | ✱ |  |
+| `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `expires_at` | `timestamp with time zone` | ✱ |  |
+| `hub_id` | `bigint` | 🔗 `net.display_hub`  |  |
+| `used_at` | `timestamp with time zone` |  |  |
+
+### `net.hub_player` 🛡️
+
+A screen player that announced itself to a display hub: waiting for the station's administration, approved for a screen, or rejected (1179)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `hub_id` | `bigint` | 🔗 `net.display_hub` ✱ |  |
+| `mac` | `macaddr` | ✱ |  |
+| `ip` | `inet` | ✱ |  |
+| `first_seen` | `timestamp with time zone` | ✱ | `now()` |
+| `last_seen` | `timestamp with time zone` | ✱ | `now()` |
+| `status` | `text` | ✱ | `'WAITING'::text` |
+| `screen_id` | `bigint` | 🔗 `net.station_screen`  |  |
+| `decided_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `decided_at` | `timestamp with time zone` |  |  |
 
 ### `net.line` 🛡️
 
@@ -1458,6 +2406,249 @@ Four-eyes approval of a line version (approved_by[] in 4.15), one row per approv
 | `role` | `text` | ✱ |  |
 | `approved_at` | `timestamp with time zone` | ✱ | `now()` |
 
+### `net.network_route` 🛡️
+
+A route of the network from one station to another, defined by the platform in versions; carriers run their services on it (1163, N11)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `code` | `text` | ✱ |  |
+| `name_en` | `text` | ✱ |  |
+| `name_ar` | `text` | ✱ |  |
+| `origin_station_id` | `bigint` | 🔗 `net.station` ✱ |  |
+| `dest_station_id` | `bigint` | 🔗 `net.station` ✱ |  |
+| `status` | `text` | ✱ | `'DRAFT'::text` |
+| `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `net.network_route_segment` 🛡️
+
+The roads a route version follows, in order: a road from one of its points to another (1163, N38)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `version_id` | `bigint` | 🔑 🔗 `net.network_route_version` ✱ |  |
+| `seq` | `smallint` | 🔑 ✱ |  |
+| `road_id` | `bigint` | 🔗 `net.road` ✱ |  |
+| `from_point_id` | `bigint` | 🔗 `net.road_point` ✱ |  |
+| `to_point_id` | `bigint` | 🔗 `net.road_point` ✱ |  |
+| `km` | `numeric(8,1)` | ✱ |  |
+
+### `net.network_route_stop` 🛡️
+
+The stations of a route version in order with their distance from the start; a mandatory one is served by every carrier on the route (1163, N11)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `version_id` | `bigint` | 🔑 🔗 `net.network_route_version` ✱ |  |
+| `seq` | `smallint` | 🔑 ✱ |  |
+| `station_id` | `bigint` | 🔗 `net.station` ✱ |  |
+| `km_from_start` | `numeric(8,1)` | ✱ |  |
+| `mandatory` | `boolean` | ✱ | `false` |
+
+### `net.network_route_version` 🛡️
+
+A version of a network route: its stations and road segments, proposed by one person, approved by another, in effect from its date (1163)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `route_id` | `bigint` | 🔗 `net.network_route` ✱ |  |
+| `version` | `integer` | ✱ |  |
+| `status` | `text` | ✱ | `'PENDING'::text` |
+| `effective_from` | `date` | ✱ |  |
+| `distance_km` | `numeric(8,1)` | ✱ |  |
+| `note` | `text` |  |  |
+| `proposed_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `proposed_at` | `timestamp with time zone` | ✱ | `now()` |
+| `decided_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `decided_at` | `timestamp with time zone` |  |  |
+| `decision_note` | `text` |  |  |
+| `activated_at` | `timestamp with time zone` |  |  |
+
+### `net.number_range` 🛡️
+
+A carrier's range of trip numbers in a block, set by the platform; none means the whole block; a new range ends the one before, which stays as history (1165, N7)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `block` | `text` | ✱ |  |
+| `from_no` | `integer` | ✱ |  |
+| `to_no` | `integer` | ✱ |  |
+| `note` | `text` |  |  |
+| `set_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `set_at` | `timestamp with time zone` | ✱ | `now()` |
+| `ended_at` | `timestamp with time zone` |  |  |
+
+### `net.number_range_request` 🛡️
+
+A carrier asks the platform to widen its range of trip numbers in a block; one open request per block (1165, N7)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `block` | `text` | ✱ |  |
+| `note` | `text` | ✱ |  |
+| `status` | `text` | ✱ | `'OPEN'::text` |
+| `requested_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `requested_at` | `timestamp with time zone` | ✱ | `now()` |
+| `answer` | `text` |  |  |
+| `answered_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `answered_at` | `timestamp with time zone` |  |  |
+
+### `net.operation_reference` 🛡️
+
+Agreement and licence reference numbers of a carrier (1097); optional until the setting boarding.references.required asks for them
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `kind` | `text` | ✱ |  |
+| `licence_type` | `text` |  |  |
+| `reference_no` | `text` | ✱ |  |
+| `issued_by` | `text` |  |  |
+| `issued_on` | `date` |  |  |
+| `expires_on` | `date` |  |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `created_by_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `retired_at` | `timestamp with time zone` |  |  |
+
+### `net.port_of_entry` 🛡️
+
+Border crossings and airports under a fixed code, tied to the administrative geography (owner's note N45, 1168)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `code` | `text` | ✱ |  |
+| `kind` | `text` | ✱ |  |
+| `name_ar` | `text` | ✱ |  |
+| `name_en` | `text` | ✱ |  |
+| `counterpart_name_ar` | `text` |  |  |
+| `counterpart_name_en` | `text` |  |  |
+| `counterpart_country` | `character(2)` | 🔗 `ref.country`  |  |
+| `iata_code` | `character(3)` |  |  |
+| `area_id` | `bigint` | 🔗 `ref.admin_area` ✱ |  |
+| `place_id` | `bigint` | 🔗 `ref.place`  |  |
+| `lat` | `numeric(9,6)` |  |  |
+| `lng` | `numeric(9,6)` |  |  |
+| `position_source` | `text` | ✱ | `'UN_LOCATION'::text` |
+| `match_quality` | `text` | ✱ |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `status_confirmed` | `boolean` | ✱ | `false` |
+| `station_id` | `bigint` | 🔗 `net.station`  |  |
+| `review_note` | `text` |  |  |
+| `source_id` | `bigint` | 🔗 `ref.geo_source`  |  |
+| `edited_by_hand` | `boolean` | ✱ | `false` |
+| `change_reason` | `text` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `net.port_of_entry_change` 🛡️
+
+Every change of a border crossing or airport, field by field, with who, when and why (1168); never updated or deleted
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `port_id` | `bigint` | 🔗 `net.port_of_entry` ✱ |  |
+| `changed_at` | `timestamp with time zone` | ✱ | `now()` |
+| `changed_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `by_file` | `bigint` | 🔗 `ref.geo_source`  |  |
+| `field` | `text` | ✱ |  |
+| `old_value` | `text` |  |  |
+| `new_value` | `text` |  |  |
+| `reason` | `text` |  |  |
+
+### `net.road` 🛡️
+
+A numbered road of the roads guide: class, names, regional number, length, how far it is verified (1162, N38)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `code` | `text` | ✱ |  |
+| `road_class` | `text` | ✱ |  |
+| `name_ar` | `text` | ✱ |  |
+| `name_en` | `text` | ✱ |  |
+| `regional_number` | `text` |  |  |
+| `length_km` | `numeric(8,1)` |  |  |
+| `note` | `text` |  |  |
+| `verification_status` | `text` | ✱ | `'OWNER_FILE'::text` |
+| `source_id` | `bigint` | 🔗 `ref.geo_source`  |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `net.road_correction` 🛡️
+
+A correction of the roads guide proposed by a carrier or the platform, reviewed by another person (1162, N38)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `road_id` | `bigint` | 🔗 `net.road` ✱ |  |
+| `point_id` | `bigint` | 🔗 `net.road_point`  |  |
+| `kind` | `text` | ✱ |  |
+| `place_id` | `bigint` | 🔗 `ref.place`  |  |
+| `km_from_previous` | `numeric(7,1)` |  |  |
+| `remark` | `text` | ✱ |  |
+| `company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `status` | `text` | ✱ | `'PENDING'::text` |
+| `proposed_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `proposed_at` | `timestamp with time zone` | ✱ | `now()` |
+| `reviewed_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `reviewed_at` | `timestamp with time zone` |  |  |
+| `review_note` | `text` |  |  |
+
+### `net.road_point` 🛡️
+
+The places along a road in order, with the distance from the point before and from the start (1162, N38)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `road_id` | `bigint` | 🔗 `net.road` ✱ |  |
+| `seq` | `smallint` | ✱ |  |
+| `place_id` | `bigint` | 🔗 `ref.place` ✱ |  |
+| `lat` | `numeric(9,6)` | ✱ |  |
+| `lng` | `numeric(9,6)` | ✱ |  |
+| `km_from_previous` | `numeric(7,1)` | ✱ | `0` |
+| `km_cumulative` | `numeric(8,1)` | ✱ | `0` |
+| `is_border` | `boolean` | ✱ | `false` |
+| `note` | `text` |  |  |
+
+### `net.road_verification` 🛡️
+
+Each step of a road's verification, on a document, asked by one person of the platform and decided by another (1162, N38)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `road_id` | `bigint` | 🔗 `net.road` ✱ |  |
+| `from_status` | `text` | ✱ |  |
+| `to_status` | `text` | ✱ |  |
+| `document_ref` | `text` | ✱ |  |
+| `note` | `text` |  |  |
+| `status` | `text` | ✱ | `'PENDING'::text` |
+| `requested_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `requested_at` | `timestamp with time zone` | ✱ | `now()` |
+| `decided_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `decided_at` | `timestamp with time zone` |  |  |
+| `decision_note` | `text` |  |  |
+
 ### `net.route` 🛡️
 
 Carrier route template between two stations; its stops are copied to the trip when generated (the approved line catalog 4.15 is added in Phase 2)
@@ -1477,6 +2668,42 @@ Carrier route template between two stations; its stops are copied to the trip wh
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `line_id` | `bigint` | 🔗 `net.line`  |  |
+| `network_route_id` | `bigint` | 🔗 `net.network_route`  |  |
+| `network_version_id` | `bigint` | 🔗 `net.network_route_version`  |  |
+
+### `net.route_pair_fare` 🛡️
+
+The carrier's price for every pair of stations of its route, copied to each trip made from it (1164, N10)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `route_id` | `bigint` | 🔑 🔗 `net.route` ✱ |  |
+| `from_seq` | `smallint` | 🔑 ✱ |  |
+| `to_seq` | `smallint` | 🔑 ✱ |  |
+| `price` | `bigint` | ✱ |  |
+| `updated_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `net.route_request` 🛡️
+
+A carrier's request for a route the network lacks; the platform answers it (1163, N11)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `from_station_id` | `bigint` | 🔗 `net.station` ✱ |  |
+| `to_station_id` | `bigint` | 🔗 `net.station` ✱ |  |
+| `via` | `text` |  |  |
+| `note` | `text` | ✱ |  |
+| `status` | `text` | ✱ | `'OPEN'::text` |
+| `requested_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `requested_at` | `timestamp with time zone` | ✱ | `now()` |
+| `network_route_id` | `bigint` | 🔗 `net.network_route`  |  |
+| `answered_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `answered_at` | `timestamp with time zone` |  |  |
+| `answer` | `text` |  |  |
 
 ### `net.route_stop` 🛡️
 
@@ -1495,9 +2722,24 @@ Ordered route stops, time offsets and the fare ladder from the origin
 | `fare_from_origin` | `bigint` |  |  |
 | `sellable` | `boolean` | ✱ | `true` |
 
+### `net.screen_pairing` 🛡️
+
+A display asking to be paired: the short code it shows, the hash of the secret only it holds, and the screen the station's administration gave it (1129)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `code` | `text` | ✱ |  |
+| `token_hash` | `bytea` | ✱ |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `expires_at` | `timestamp with time zone` | ✱ |  |
+| `screen_id` | `bigint` | 🔗 `net.station_screen`  |  |
+| `paired_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `paired_at` | `timestamp with time zone` |  |  |
+
 ### `net.service_number` 🛡️
 
-Recurring service number from its type block; never repeated for a carrier in an overlapping period
+A carrier's trip number from its type block, four digits, odd outbound and even return; never repeated for a carrier in an overlapping period; may continue the leg before it on the same vehicle (1119)
 
 | Column | Type | Constraints | Default |
 |---|---|---|---|
@@ -1509,6 +2751,7 @@ Recurring service number from its type block; never repeated for a carrier in an
 | `direction` | `text` | ✱ |  |
 | `valid` | `daterange` | ✱ | `daterange(CURRENT_DATE, NULL::date)` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `follows_id` | `bigint` | 🔗 `net.service_number`  |  |
 
 ### `net.station` 🛡️
 
@@ -1548,6 +2791,53 @@ Register of stations and departure/arrival points (central, company point, exter
 | `geo` | `gis.geography` |  | `
 CASE
     WHEN ((lat IS NOT NULL) AND...` |
+| `place_id` | `bigint` | 🔗 `ref.place`  |  |
+| `change_reason` | `text` |  |  |
+
+### `net.station_boarding` 🛡️
+
+Boarding switch, counter system, screens and check-in window of one station (1097); written by the platform
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `station_id` | `bigint` | 🔑 🔗 `net.station` ✱ |  |
+| `enabled` | `boolean` | ✱ | `false` |
+| `counter_system` | `text` | ✱ | `'PLATFORM'::text` |
+| `displays` | `boolean` | ✱ | `false` |
+| `checkin_opens_minutes` | `integer` |  |  |
+| `checkin_closes_minutes` | `integer` |  |  |
+| `updated_by_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+| `manager_company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `bay_mode` | `text` | ✱ | `'TRIP'::text` |
+| `display_kinds` | `text[]` | ✱ | `'{DEPARTURES,ARRIVALS,COMBINED}'::text[]` |
+
+### `net.station_carrier_bay` 🛡️
+
+The permanent bay of a carrier at a station, set and changed by the station's administration (1115); public like the bays
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `station_id` | `bigint` | 🔑 🔗 `net.station` ✱ |  |
+| `carrier_company_id` | `bigint` | 🔑 🔗 `iam.company` ✱ |  |
+| `gate_id` | `bigint` | 🔗 `net.station_gate` ✱ |  |
+| `set_by_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `net.station_change` 🛡️
+
+Every edit of a station, field by field, with who, when and why (1171); never updated or deleted
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `station_id` | `bigint` | 🔗 `net.station` ✱ |  |
+| `changed_at` | `timestamp with time zone` | ✱ | `now()` |
+| `changed_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `field` | `text` | ✱ |  |
+| `old_value` | `text` |  |  |
+| `new_value` | `text` |  |  |
+| `reason` | `text` |  |  |
 
 ### `net.station_contact` 🛡️
 
@@ -1587,6 +2877,50 @@ Departure and arrival boards in stations (phase 7)
 | `code` | `text` | ✱ |  |
 | `gate_type` | `text` | ✱ | `'PLATFORM'::text` |
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `operator_company_id` | `bigint` | 🔗 `iam.company`  |  |
+
+### `net.station_operator_grant` 🛡️
+
+What a station's operating company may do, for which carrier and at which station (1097, step 2); revoked, never deleted
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `carrier_company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `operator_company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `station_id` | `bigint` | 🔗 `net.station`  |  |
+| `permission` | `text` | ✱ |  |
+| `granted_by_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `granted_at` | `timestamp with time zone` | ✱ | `now()` |
+| `revoked_by_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `revoked_at` | `timestamp with time zone` |  |  |
+
+### `net.station_screen` 🛡️
+
+A display screen of a station: its kind (departures, arrivals or both), its place, and when it was last seen; registered by the station's administration (1120)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `station_id` | `bigint` | 🔗 `net.station` ✱ |  |
+| `kind` | `text` | ✱ |  |
+| `label` | `text` | ✱ |  |
+| `active` | `boolean` | ✱ | `true` |
+| `last_seen_at` | `timestamp with time zone` |  |  |
+| `created_by_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `updated_by_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+| `bays` | `text[]` | ✱ | `'{}'::text[]` |
+| `carrier_ids` | `bigint[]` | ✱ | `'{}'::bigint[]` |
+| `unseen_told_at` | `timestamp with time zone` |  |  |
+| `hub_id` | `bigint` | 🔗 `net.display_hub`  |  |
+| `screen_code` | `text` |  |  |
+| `group_name` | `text` |  |  |
+| `mac` | `macaddr` |  |  |
+| `fixed_ip` | `inet` |  |  |
 
 ### `net.timetable_template` 🛡️
 
@@ -1626,6 +2960,21 @@ Gate device on the vehicle that validates QR codes and NFC cards offline
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
+### `fleet.crew_change` 🛡️
+
+Every edit of a crew member's profile, field by field (1170); never updated or deleted
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `party_id` | `bigint` | 🔗 `fleet.crew_profile` ✱ |  |
+| `changed_at` | `timestamp with time zone` | ✱ | `now()` |
+| `changed_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `field` | `text` | ✱ |  |
+| `old_value` | `text` |  |  |
+| `new_value` | `text` |  |  |
+| `reason` | `text` |  |  |
+
 ### `fleet.crew_profile` 🛡️
 
 Drivers and hosts; their licenses and dates live in fleet.license_record
@@ -1643,6 +2992,7 @@ Drivers and hosts; their licenses and dates live in fleet.license_record
 | `heavy_class` | `boolean` | ✱ | `false` |
 | `cross_border` | `boolean` | ✱ | `false` |
 | `hazmat_certified` | `boolean` | ✱ | `false` |
+| `change_reason` | `text` |  |  |
 
 ### `fleet.driving_hours_log` 🛡️
 
@@ -1667,13 +3017,27 @@ Every field query by security officers and authorized bodies
 | Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
-| `inspector_user_id` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `inspector_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
 | `vehicle_id` | `bigint` | 🔗 `fleet.vehicle`  |  |
 | `method` | `text` | ✱ |  |
 | `result` | `text` | ✱ |  |
 | `lat` | `numeric(9,6)` |  |  |
 | `lng` | `numeric(9,6)` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `tag_id` | `bigint` | 🔗 `fleet.vehicle_qr_tag`  |  |
+| `movement_kind` | `text` |  |  |
+| `movement_ref` | `text` |  |  |
+| `trip_id` | `bigint` | 🔗 `ops.trip`  |  |
+| `warnings` | `jsonb` | ✱ | `'[]'::jsonb` |
+| `sample_mode` | `text` | ✱ | `'NONE'::text` |
+| `sample` | `jsonb` | ✱ | `'[]'::jsonb` |
+| `status` | `text` | ✱ | `'OPEN'::text` |
+| `outcome` | `text` |  |  |
+| `note` | `text` |  |  |
+| `closed_at` | `timestamp with time zone` |  |  |
+| `api_client_id` | `bigint` | 🔗 `iam.api_client`  |  |
+| `officer_ref` | `text` |  |  |
 
 ### `fleet.insurance_claim` 🛡️
 
@@ -1699,9 +3063,9 @@ Insurance contract, required to activate the vehicle; later verified with the tr
 | Column | Type | Constraints | Default |
 |---|---|---|---|
 | `id` | `bigint` | 🔑 ✱ | `identity` |
-| `vehicle_id` | `bigint` | 🔗 `fleet.vehicle` ✱ |  |
+| `vehicle_id` | `bigint` | 🔗 `fleet.vehicle`  |  |
 | `insurer_party_id` | `bigint` | 🔗 `iam.party`  |  |
-| `insurer_name` | `text` | ✱ |  |
+| `insurer_name` | `text` |  |  |
 | `policy_no` | `text` | ✱ |  |
 | `coverage_type` | `text` | ✱ |  |
 | `passenger_cover` | `boolean` | ✱ | `false` |
@@ -1714,6 +3078,9 @@ Insurance contract, required to activate the vehicle; later verified with the tr
 | `verified_at` | `timestamp with time zone` |  |  |
 | `status` | `text` | ✱ | `'PENDING'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `insurer_id` | `bigint` | 🔗 `ref.insurer`  |  |
+| `trailer_id` | `bigint` | 🔗 `fleet.trailer`  |  |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
 
 ### `fleet.license_change_request` 🛡️
 
@@ -1763,6 +3130,9 @@ Every expiry date that governs operating eligibility (license, inspection, insur
 | `subject_trailer_id` | `bigint` | 🔗 `fleet.trailer`  |  |
 | `subject_vehicle_id` | `bigint` | 🔗 `fleet.vehicle`  |  |
 | `subject_person_id` | `bigint` | 🔗 `iam.party`  |  |
+| `license_class` | `text` |  |  |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `back_document_id` | `bigint` | 🔗 `iam.document`  |  |
 
 ### `fleet.line_permit_vehicle` 🛡️
 
@@ -1778,6 +3148,31 @@ The vehicles a permit binds to its approved line; a vehicle serves one line at a
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
 | `approved_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `fleet.maintenance_visit` 🛡️
+
+A vehicle sent to the workshop and its return; while open the vehicle is in maintenance and takes no trip or rental (1173)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `vehicle_id` | `bigint` | 🔗 `fleet.vehicle` ✱ |  |
+| `plan_id` | `bigint` | 🔗 `fleet.service_plan`  |  |
+| `kind` | `text` | ✱ |  |
+| `workshop` | `text` |  |  |
+| `sent_at` | `timestamp with time zone` | ✱ | `now()` |
+| `odometer_out` | `integer` |  |  |
+| `expected_back` | `date` |  |  |
+| `returned_at` | `timestamp with time zone` |  |  |
+| `odometer_in` | `integer` |  |  |
+| `cost` | `bigint` |  |  |
+| `currency` | `character(3)` |  |  |
+| `notes` | `text` |  |  |
+| `service_status_id` | `bigint` | 🔗 `fleet.vehicle_service_status`  |  |
+| `opened_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `closed_by` | `bigint` | 🔗 `iam.app_user`  |  |
 
 ### `fleet.seat_layout` 🛡️
 
@@ -1825,6 +3220,30 @@ Premium or discounted seat prices set by the carrier (4.14 a)
 | `label` | `text` | ✱ |  |
 | `active` | `boolean` | ✱ | `true` |
 
+### `fleet.service_plan` 🛡️
+
+When a vehicle is serviced: oil change, periodic service, tyres, inspection, by distance and months, or a maintenance contract (1173)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `vehicle_id` | `bigint` | 🔗 `fleet.vehicle` ✱ |  |
+| `kind` | `text` | ✱ |  |
+| `every_km` | `integer` |  |  |
+| `every_months` | `smallint` |  |  |
+| `last_km` | `integer` |  |  |
+| `last_date` | `date` |  |  |
+| `provider` | `text` |  |  |
+| `contract_no` | `text` |  |  |
+| `contract_until` | `date` |  |  |
+| `notes` | `text` |  |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+
 ### `fleet.tracking_device` 🛡️
 
 A contracted tracking device installed in a vehicle; one active device per vehicle at a time
@@ -1866,6 +3285,26 @@ Trailers with their own plate and licence documents (10.4)
 | `temp_max_c` | `numeric(4,1)` |  |  |
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `change_reason` | `text` |  |  |
+| `make` | `text` |  |  |
+| `manufacture_year` | `smallint` |  |  |
+| `colour_code` | `text` | 🔗 `ref.vehicle_colour`  |  |
+| `axle_config` | `text` | 🔗 `ref.axle_config`  |  |
+
+### `fleet.trailer_change` 🛡️
+
+Every edit of a trailer, field by field, with who, when and why (1173); never updated or deleted
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `trailer_id` | `bigint` | 🔗 `fleet.trailer` ✱ |  |
+| `changed_at` | `timestamp with time zone` | ✱ | `now()` |
+| `changed_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `field` | `text` | ✱ |  |
+| `old_value` | `text` |  |  |
+| `new_value` | `text` |  |  |
+| `reason` | `text` |  |  |
 
 ### `fleet.truck_combination` 🛡️
 
@@ -1888,7 +3327,7 @@ Truck extension of fleet.vehicle (vehicle_class TRUCK); plate, chassis, ownershi
 | Column | Type | Constraints | Default |
 |---|---|---|---|
 | `vehicle_id` | `bigint` | 🔑 🔗 `fleet.vehicle` ✱ |  |
-| `axle_config` | `text` | ✱ |  |
+| `axle_config` | `text` | 🔗 `ref.axle_config` ✱ |  |
 | `gvw_kg` | `integer` | ✱ |  |
 | `tare_kg` | `integer` | ✱ |  |
 | `fuel_type` | `text` | ✱ | `'DIESEL'::text` |
@@ -1930,6 +3369,29 @@ Vehicle: type, seated and standing capacity, ownership and owner, and the status
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
 | `tracking_source` | `text` | ✱ | `'DRIVER_APP'::text` |
+| `model_id` | `bigint` | 🔗 `ref.vehicle_model`  |  |
+| `change_reason` | `text` |  |  |
+| `fleet_use` | `text` | ✱ |  |
+| `odometer_km` | `integer` |  |  |
+| `odometer_at` | `timestamp with time zone` |  |  |
+| `fuel_type` | `text` |  |  |
+| `trim_id` | `bigint` | 🔗 `ref.vehicle_trim`  |  |
+| `colour_code` | `text` | 🔗 `ref.vehicle_colour`  |  |
+
+### `fleet.vehicle_change` 🛡️
+
+Every edit of a vehicle, field by field, with who, when and why (1170); never updated or deleted
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `vehicle_id` | `bigint` | 🔗 `fleet.vehicle` ✱ |  |
+| `changed_at` | `timestamp with time zone` | ✱ | `now()` |
+| `changed_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `field` | `text` | ✱ |  |
+| `old_value` | `text` |  |  |
+| `new_value` | `text` |  |  |
+| `reason` | `text` |  |  |
 
 ### `fleet.vehicle_fuel_profile` 🛡️
 
@@ -1961,6 +3423,30 @@ Vehicle lease contract; one active lessee per vehicle per period (exclusion cons
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
+### `fleet.vehicle_model_request` 🛡️
+
+A carrier's request for a vehicle model missing from the list; platform staff approve, match to an existing model or reject (1157, N8)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `requested_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `make_id` | `bigint` | 🔗 `ref.vehicle_make`  |  |
+| `make_name` | `text` |  |  |
+| `model_name` | `text` | ✱ |  |
+| `vehicle_type` | `text` | ✱ |  |
+| `seats` | `smallint` |  |  |
+| `note` | `text` |  |  |
+| `status` | `text` | ✱ | `'SUBMITTED'::text` |
+| `model_id` | `bigint` | 🔗 `ref.vehicle_model`  |  |
+| `handled_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `handled_at` | `timestamp with time zone` |  |  |
+| `decision_note` | `text` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+
 ### `fleet.vehicle_qr_tag` 🛡️
 
 Signed QR sticker on the vehicle for field verification (4.18 e)
@@ -1972,6 +3458,10 @@ Signed QR sticker on the vehicle for field verification (4.18 e)
 | `token_hash` | `bytea` | ✱ |  |
 | `issued_at` | `timestamp with time zone` | ✱ | `now()` |
 | `revoked_at` | `timestamp with time zone` |  |  |
+| `serial` | `integer` | ✱ | `1` |
+| `issued_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `revoked_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `revoke_reason` | `text` |  |  |
 
 ### `fleet.vehicle_service_status` 🛡️
 
@@ -2043,6 +3533,28 @@ Template of the price allocation tree across beneficiaries (carrier, platform, t
 | `wallet_type` | `text` | ✱ |  |
 | `release_event` | `text` | ✱ | `'TRIP_COMPLETED'::text` |
 | `refundable` | `boolean` | ✱ | `true` |
+
+### `pricing.award_fare` 🛡️
+
+An award ticket between two stations: miles plus a fee and a reduced amount; redeemed only while loyalty.award_redemption is on (1166)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `program_id` | `bigint` | 🔗 `pricing.loyalty_program` ✱ |  |
+| `company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `from_station_id` | `bigint` | 🔗 `net.station` ✱ |  |
+| `to_station_id` | `bigint` | 🔗 `net.station` ✱ |  |
+| `miles` | `bigint` | ✱ |  |
+| `fee` | `bigint` | ✱ | `0` |
+| `reduced_amount` | `bigint` | ✱ | `0` |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `seats_per_trip` | `integer` |  |  |
+| `valid` | `daterange` | ✱ | `daterange(CURRENT_DATE, NULL::date)` |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `pricing.award_seat_rule` 🛡️
 
@@ -2173,6 +3685,7 @@ Commission scheme (platform, intermediary, payment, referral) with funder, benef
 | `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `approved_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `name` | `text` |  |  |
 
 ### `pricing.family_offer` 🛡️
 
@@ -2258,6 +3771,31 @@ Tax jurisdiction (country, region, border crossing, local)
 | `parent_id` | `bigint` | 🔗 `pricing.jurisdiction`  |  |
 | `name` | `text` | ✱ |  |
 
+### `pricing.loyalty_agreement` 🛡️
+
+Agreed redemption price at a partner: points = amount, and the percentage of the amount the platform pays the partner; four eyes, frozen once active (1107)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `loyalty_partner_id` | `bigint` | 🔗 `pricing.loyalty_partner` ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ |  |
+| `points` | `bigint` | ✱ |  |
+| `amount` | `bigint` | ✱ |  |
+| `platform_share_pct` | `numeric(5,2)` | ✱ |  |
+| `min_points` | `bigint` | ✱ |  |
+| `step_points` | `bigint` | ✱ |  |
+| `voucher_days` | `integer` | ✱ | `30` |
+| `valid` | `daterange` | ✱ | `daterange(CURRENT_DATE, NULL::date)` |
+| `contract_ref` | `text` | ✱ |  |
+| `note` | `text` |  |  |
+| `status` | `text` | ✱ | `'DRAFT'::text` |
+| `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `approved_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `approved_at` | `timestamp with time zone` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
 ### `pricing.loyalty_partner` 🛡️
 
 Earn and burn partner of the loyalty program (5.13 f); extends the partner register
@@ -2275,6 +3813,10 @@ Earn and burn partner of the loyalty program (5.13 f); extends the partner regis
 | `settlement_cycle` | `text` | ✱ | `'MONTHLY'::text` |
 | `contract_ref` | `text` |  |  |
 | `status` | `text` | ✱ | `'PENDING'::text` |
+| `api_client_id` | `bigint` | 🔗 `iam.api_client`  |  |
+| `corner_note` | `text` |  |  |
+| `promoted` | `boolean` | ✱ | `false` |
+| `promoted_until` | `date` |  |  |
 
 ### `pricing.loyalty_program` 🛡️
 
@@ -2290,6 +3832,9 @@ Earn and burn partner of the loyalty program (5.13 f); extends the partner regis
 | `expiry_months` | `smallint` | ✱ | `24` |
 | `tax_treatment` | `jsonb` | ✱ | `'{}'::jsonb` |
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `name_ar` | `text` |  | `pricing.default_programme_name_ar()` |
+| `unit_en` | `text` | ✱ | `'miles'::text` |
+| `unit_ar` | `text` |  | `pricing.default_unit_ar()` |
 
 ### `pricing.loyalty_rule` 🛡️
 
@@ -2307,6 +3852,42 @@ Earn and burn partner of the loyalty program (5.13 f); extends the partner regis
 | `version` | `integer` | ✱ | `1` |
 | `active` | `boolean` | ✱ | `true` |
 
+### `pricing.loyalty_settlement` 🛡️
+
+A partner's statement of honoured vouchers for a period: drafted, approved by another person, paid by a third (1107)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `loyalty_partner_id` | `bigint` | 🔗 `pricing.loyalty_partner` ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ |  |
+| `period` | `daterange` | ✱ |  |
+| `redemptions` | `integer` | ✱ |  |
+| `value` | `bigint` | ✱ |  |
+| `payable` | `bigint` | ✱ |  |
+| `status` | `text` | ✱ | `'DRAFT'::text` |
+| `created_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `approved_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `approved_at` | `timestamp with time zone` |  |  |
+| `paid_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `paid_at` | `timestamp with time zone` |  |  |
+| `bank_ref` | `text` |  |  |
+| `ledger_txn_id` | `bigint` | 🔗 `fin.ledger_txn`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `pricing.loyalty_settlement_line` 🛡️
+
+An honoured voucher covered by a partner statement; each redemption is settled once (1107)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `settlement_id` | `bigint` | 🔗 `pricing.loyalty_settlement` ✱ |  |
+| `redemption_id` | `bigint` | 🔗 `pricing.partner_redemption` ✱ |  |
+| `value` | `bigint` | ✱ |  |
+| `payable` | `bigint` | ✱ |  |
+
 ### `pricing.loyalty_tier` 🛡️
 
 
@@ -2319,6 +3900,23 @@ Earn and burn partner of the loyalty program (5.13 f); extends the partner regis
 | `name` | `text` | ✱ |  |
 | `min_points` | `bigint` | ✱ | `0` |
 | `benefits` | `jsonb` | ✱ | `'{}'::jsonb` |
+
+### `pricing.miles_chart` 🛡️
+
+Miles a boarded ticket earns between two stations, in either direction, optionally on a route of the network (1166)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `program_id` | `bigint` | 🔗 `pricing.loyalty_program` ✱ |  |
+| `network_route_id` | `bigint` | 🔗 `net.network_route`  |  |
+| `from_station_id` | `bigint` | 🔗 `net.station` ✱ |  |
+| `to_station_id` | `bigint` | 🔗 `net.station` ✱ |  |
+| `miles` | `bigint` | ✱ |  |
+| `valid` | `daterange` | ✱ | `daterange(CURRENT_DATE, NULL::date)` |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `pricing.override_policy` 🛡️
 
@@ -2354,6 +3952,11 @@ Points spent at a partner; the basis of partner settlement and of the liability 
 | `commission` | `bigint` | ✱ | `0` |
 | `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
 | `redeemed_at` | `timestamp with time zone` | ✱ | `now()` |
+| `agreement_id` | `bigint` | 🔗 `pricing.loyalty_agreement`  |  |
+| `payable` | `bigint` |  |  |
+| `partner_ref` | `text` |  |  |
+| `accepted_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `api_client_id` | `bigint` | 🔗 `iam.api_client`  |  |
 
 ### `pricing.passenger_age_band` 🛡️
 
@@ -2551,6 +4154,11 @@ Single-use temporary token presented at a partner to redeem points
 | `used_at` | `timestamp with time zone` |  |  |
 | `status` | `text` | ✱ | `'ISSUED'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `agreement_id` | `bigint` | 🔗 `pricing.loyalty_agreement`  |  |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `code_enc` | `bytea` |  |  |
+| `code_key_id` | `bigint` | 🔗 `sec.key_registry`  |  |
+| `returned_ledger_id` | `bigint` | 🔗 `pricing.points_ledger`  |  |
 
 ### `pricing.sponsor_account` 🛡️
 
@@ -2565,6 +4173,24 @@ Who funds a discount, and what they owe the platform for it
 | `receivable_balance` | `bigint` | ✱ | `0` |
 | `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
+
+### `pricing.state_price_band` 🛡️
+
+The state's price band per km for a carrier class, for every vehicle or one type, from a date (1164, N10)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `class_id` | `bigint` | 🔗 `ref.carrier_class` ✱ |  |
+| `vehicle_type` | `text` |  |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
+| `min_per_km` | `bigint` |  |  |
+| `max_per_km` | `bigint` |  |  |
+| `valid_from` | `date` | ✱ |  |
+| `source_document` | `text` |  |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `pricing.tax_rule` 🛡️
 
@@ -2611,6 +4237,20 @@ Tax or fee scheme with its treatment, jurisdiction and collecting party, version
 
 <a id="ops"></a>
 ## `ops` — Trips, inventory, operations, shuttle rides, tracking and incidents
+
+### `ops.carrier_connection_policy` 🛡️
+
+A carrier's policy for connections: whether its trips are offered in them, and what it does when a traveller misses its trip (1130)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `company_id` | `bigint` | 🔑 🔗 `iam.company` ✱ |  |
+| `offer_in_connections` | `boolean` | ✱ | `true` |
+| `missed_connection` | `text` | ✱ | `'FARE_RULES'::text` |
+| `change_window_hours` | `smallint` | ✱ | `24` |
+| `note` | `text` |  |  |
+| `updated_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `ops.crew_assignment` 🛡️
 
@@ -2716,6 +4356,7 @@ Incident or breakdown; a serious one takes the vehicle out of service immediatel
 | `reported_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `status` | `text` | ✱ | `'OPEN'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `description` | `text` |  |  |
 
 ### `ops.incident_evidence` 🛡️
 
@@ -2873,6 +4514,48 @@ A deviation from the route the trip must keep to: warning, continuous alarm, cor
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
 | `evidence_trust` | `text` | ✱ | `'HIGH'::text` |
+
+### `ops.schedule_approval` 🛡️ 🔒
+
+Each stage's decision on a request of regular trips: who, for whom (the platform or an authority), and when; never changed (1117)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `request_id` | `bigint` | 🔑 🔗 `ops.schedule_request` ✱ |  |
+| `step` | `smallint` | 🔑 ✱ |  |
+| `stage` | `jsonb` | ✱ |  |
+| `decision` | `text` | ✱ |  |
+| `decided_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `authority_id` | `bigint` | 🔗 `sec.authority_profile`  |  |
+| `assigned_number` | `integer` |  |  |
+| `note` | `text` |  |  |
+| `decided_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ops.schedule_request` 🛡️
+
+A carrier's request for a new regular trip, a change, a stop, or a trip made by hand, with the approval stages in force when it was made (1117)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `kind` | `text` | ✱ |  |
+| `template_id` | `bigint` | 🔗 `ops.trip_template`  |  |
+| `trip_id` | `bigint` | 🔗 `ops.trip`  |  |
+| `proposal` | `jsonb` | ✱ | `'{}'::jsonb` |
+| `effective_from` | `date` |  |  |
+| `proposed_number` | `integer` |  |  |
+| `assigned_number` | `integer` |  |  |
+| `note` | `text` |  |  |
+| `approval_stages` | `jsonb` | ✱ | `'[]'::jsonb` |
+| `step` | `smallint` | ✱ | `0` |
+| `status` | `text` | ✱ | `'PENDING'::text` |
+| `requested_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `requested_at` | `timestamp with time zone` | ✱ | `now()` |
+| `decided_at` | `timestamp with time zone` |  |  |
+| `decision_note` | `text` |  |  |
+| `result` | `jsonb` |  |  |
 
 ### `ops.seat_lock` 🛡️
 
@@ -3046,6 +4729,31 @@ Actual trip (the pivotal entity) with its number, vehicle, capacity, snapshots a
 | `timetable_slot` | `time without time zone` |  |  |
 | `fare_regime` | `text` |  |  |
 | `compliance_source` | `text` | ✱ | `'NONE'::text` |
+| `service_date` | `date` | ✱ |  |
+| `service_no` | `integer` |  |  |
+| `trip_code` | `text` |  |  |
+
+### `ops.trip_cancel_penalty` 🛡️
+
+Penalty charged to a carrier for a cancelled trip under the regulators' rule; DUE until set off from its balance (1106)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `trip_id` | `bigint` | 🔗 `ops.trip` ✱ |  |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ |  |
+| `amount` | `bigint` | ✱ |  |
+| `basis` | `text` | ✱ |  |
+| `rate` | `numeric(12,4)` | ✱ |  |
+| `payee` | `text` | ✱ |  |
+| `payee_party_id` | `bigint` | 🔗 `iam.party`  |  |
+| `shares` | `jsonb` | ✱ | `'[]'::jsonb` |
+| `legal_ref` | `text` | ✱ |  |
+| `status` | `text` | ✱ | `'DUE'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `collected_at` | `timestamp with time zone` |  |  |
 
 ### `ops.trip_change` 🛡️
 
@@ -3061,6 +4769,28 @@ Trip change log with reasons (7.9)
 | `shift_min` | `integer` |  |  |
 | `reason` | `text` | ✱ |  |
 | `by_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `reason_code` | `text` |  |  |
+| `note` | `text` |  |  |
+| `details` | `jsonb` | ✱ | `'{}'::jsonb` |
+| `affected` | `integer` | ✱ | `0` |
+| `notified` | `integer` | ✱ | `0` |
+| `unreachable` | `integer` | ✱ | `0` |
+
+### `ops.trip_change_contact` 🛡️
+
+A booking the system could not tell of a trip change (no account, no mobile): the carrier calls and records it (1148, N42)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `trip_change_id` | `bigint` | 🔗 `ops.trip_change` ✱ |  |
+| `booking_id` | `bigint` | 🔗 `sales.booking` ✱ |  |
+| `contacted_at` | `timestamp with time zone` |  |  |
+| `contacted_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `outcome` | `text` |  |  |
+| `note` | `text` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `ops.trip_crossing_plan` 🛡️
@@ -3107,6 +4837,7 @@ Trip continuity decision: replacement, lease, interline, rescue, cancellation (7
 | `decided_at` | `timestamp with time zone` |  |  |
 | `status` | `text` | ✱ | `'AWAITING_DECISION'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `reason` | `text` |  |  |
 
 ### `ops.trip_pair_fare` 🛡️
 
@@ -3175,6 +4906,16 @@ Recurring trip pattern that generates the actual trips
 | `active` | `daterange` | ✱ |  |
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `recurrence` | `text` | ✱ | `'WEEKLY'::text` |
+| `days_of_month` | `smallint[]` | ✱ | `'{}'::smallint[]` |
+| `skip_dates` | `date[]` | ✱ | `'{}'::date[]` |
+| `trip_type` | `text` | ✱ | `'SCHEDULED'::text` |
+| `auto_publish` | `boolean` | ✱ | `true` |
+| `rolling` | `boolean` | ✱ | `false` |
+| `generated_until` | `date` |  |  |
+| `last_run` | `jsonb` |  |  |
+| `approved_at` | `timestamp with time zone` |  |  |
 
 ### `ops.vehicle_position` 🛡️
 
@@ -3209,6 +4950,12 @@ Swapping the trip vehicle without changing the trip number (4.16 d)
 | `seats_reassigned` | `boolean` | ✱ | `false` |
 | `approved_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `trip_change_id` | `bigint` | 🔗 `ops.trip_change`  |  |
+| `reason_code` | `text` |  |  |
+| `en_route` | `boolean` | ✱ | `false` |
+| `at_stop_seq` | `smallint` |  |  |
+| `seats_moved` | `integer` | ✱ | `0` |
+| `driver_changed` | `boolean` | ✱ | `false` |
 
 ### `ops.violation_report` 🛡️
 
@@ -3306,6 +5053,32 @@ Booking: price snapshot, channel, allocation tree and idempotency key; statuses 
 | `funded_by_party_id` | `bigint` | 🔗 `iam.party`  |  |
 | `funding_source` | `text` |  |  |
 | `pay_option` | `text` | 🔗 `fin.payment_method`  |  |
+| `journey_uid` | `uuid` |  |  |
+| `journey_kind` | `text` |  |  |
+| `journey_leg` | `smallint` |  |  |
+| `charter_request_id` | `bigint` | 🔗 `sales.charter_request`  |  |
+| `risk_ack_at` | `timestamp with time zone` |  |  |
+| `changed_from_id` | `bigint` | 🔗 `sales.booking`  |  |
+
+### `sales.booking_change` 🛡️
+
+A booking changed to another trip of the same carrier: the old and the new booking, why, on what basis and for what fee (1130)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `from_booking_id` | `bigint` | 🔗 `sales.booking` ✱ |  |
+| `to_booking_id` | `bigint` | 🔗 `sales.booking` ✱ |  |
+| `reason` | `text` | ✱ |  |
+| `missed` | `boolean` | ✱ |  |
+| `inbound_late` | `boolean` | ✱ | `false` |
+| `basis` | `text` | ✱ |  |
+| `fee` | `bigint` | ✱ |  |
+| `refunded` | `bigint` | ✱ |  |
+| `paid` | `bigint` | ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ |  |
+| `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `sales.booking_key` 🛡️
 
@@ -3465,6 +5238,137 @@ Debit and credit memos that correct a channel statement (ADM/ACM pattern)
 | `tax` | `bigint` | ✱ | `0` |
 | `net` | `bigint` | ✱ |  |
 
+### `sales.charter_offer` 🛡️
+
+What a carrier hires out: a vehicle apart from the trips, or its scheduled trips whole or in blocks; who may ask, how it prices, its notice, refunds and policy (1123)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `kind` | `text` | ✱ |  |
+| `title` | `text` | ✱ |  |
+| `vehicle_type` | `text` |  |  |
+| `seats` | `smallint` |  |  |
+| `vehicles` | `smallint` | ✱ | `1` |
+| `partial_seats` | `boolean` | ✱ | `true` |
+| `min_seats` | `smallint` |  |  |
+| `audience` | `text[]` | ✱ |  |
+| `price_basis` | `text` | ✱ |  |
+| `price` | `bigint` |  |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ |  |
+| `notice_hours` | `smallint` | ✱ | `48` |
+| `cancel_before_hours` | `smallint` | ✱ | `48` |
+| `cancel_refund_pct` | `smallint` | ✱ | `100` |
+| `with_driver` | `boolean` | ✱ | `true` |
+| `base_city_id` | `bigint` | 🔗 `ref.city`  |  |
+| `policy` | `text` | ✱ |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+| `deposit_pct` | `smallint` | ✱ | `0` |
+| `balance_hours` | `smallint` | ✱ | `48` |
+
+### `sales.charter_request` 🛡️
+
+A customer's request to hire a vehicle or a trip under a carrier's offer: the carrier's price, the payment held in escrow, the service done or cancelled (1123)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `ref` | `text` | ✱ |  |
+| `offer_id` | `bigint` | 🔗 `sales.charter_offer` ✱ |  |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `requester_party_id` | `bigint` | 🔗 `iam.party` ✱ |  |
+| `requester_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `requester_kind` | `text` | ✱ |  |
+| `agency_id` | `bigint` | 🔗 `iam.company`  |  |
+| `contact_name` | `text` | ✱ |  |
+| `contact_mobile` | `text` | ✱ |  |
+| `kind` | `text` | ✱ |  |
+| `terms` | `jsonb` | ✱ |  |
+| `from_city_id` | `bigint` | 🔗 `ref.city`  |  |
+| `to_city_id` | `bigint` | 🔗 `ref.city`  |  |
+| `starts_at` | `timestamp with time zone` |  |  |
+| `ends_at` | `timestamp with time zone` |  |  |
+| `passengers` | `smallint` |  |  |
+| `vehicles` | `smallint` |  |  |
+| `itinerary` | `text` |  |  |
+| `trip_id` | `bigint` | 🔗 `ops.trip`  |  |
+| `from_seq` | `smallint` |  |  |
+| `to_seq` | `smallint` |  |  |
+| `seats` | `smallint` |  |  |
+| `whole` | `boolean` |  |  |
+| `note` | `text` |  |  |
+| `status` | `text` | ✱ | `'REQUESTED'::text` |
+| `price` | `bigint` |  |  |
+| `currency` | `character(3)` | 🔗 `ref.currency`  |  |
+| `valid_until` | `timestamp with time zone` |  |  |
+| `quote_note` | `text` |  |  |
+| `quoted_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `quoted_at` | `timestamp with time zone` |  |  |
+| `vehicle_id` | `bigint` | 🔗 `fleet.vehicle`  |  |
+| `paid_txn_id` | `bigint` | 🔗 `fin.ledger_txn`  |  |
+| `paid_at` | `timestamp with time zone` |  |  |
+| `released_txn_id` | `bigint` | 🔗 `fin.ledger_txn`  |  |
+| `refund_txn_id` | `bigint` | 🔗 `fin.ledger_txn`  |  |
+| `refunded_amount` | `bigint` |  |  |
+| `closed_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `closed_at` | `timestamp with time zone` |  |  |
+| `closed_reason` | `text` |  |  |
+| `idempotency_key` | `text` | ✱ |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+| `paid_amount` | `bigint` |  |  |
+| `balance_due` | `bigint` | ✱ | `0` |
+| `balance_due_at` | `timestamp with time zone` |  |  |
+| `balance_txn_id` | `bigint` | 🔗 `fin.ledger_txn`  |  |
+| `balance_paid_at` | `timestamp with time zone` |  |  |
+
+### `sales.charter_seat` 🛡️
+
+The seats of a scheduled trip a confirmed whole-trip request took off sale (BLOCKED on ops.seat_segment) until released (1123)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `request_id` | `bigint` | 🔑 🔗 `sales.charter_request` ✱ |  |
+| `trip_id` | `bigint` | 🔗 `ops.trip` ✱ |  |
+| `seat_no` | `smallint` | 🔑 ✱ |  |
+| `from_seq` | `smallint` | ✱ |  |
+| `to_seq` | `smallint` | ✱ |  |
+| `released_at` | `timestamp with time zone` |  |  |
+| `ticket_id` | `bigint` | 🔗 `sales.ticket`  |  |
+
+### `sales.charter_vehicle` 🛡️
+
+The vehicles a carrier names on a vehicle hire, one by one (1128)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `request_id` | `bigint` | 🔑 🔗 `sales.charter_request` ✱ |  |
+| `vehicle_id` | `bigint` | 🔑 🔗 `fleet.vehicle` ✱ |  |
+| `named_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `named_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `sales.connection_hold` 🛡️
+
+A connection's booking whose travellers missed the trip, kept open with its escrow held until the carrier's change window ends (1132)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `booking_id` | `bigint` | 🔑 🔗 `sales.booking` ✱ |  |
+| `trip_id` | `bigint` | 🔗 `ops.trip` ✱ |  |
+| `basis` | `text` | ✱ |  |
+| `hold_until` | `timestamp with time zone` | ✱ |  |
+| `amount` | `bigint` | ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ |  |
+| `status` | `text` | ✱ | `'HELD'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `closed_at` | `timestamp with time zone` |  |  |
+
 ### `sales.entry_rule` 🛡️
 
 Data-driven document rules per destination or transit country and nationality, four-eyes approved (11.9)
@@ -3569,6 +5473,10 @@ Passenger data on the booking; document numbers encrypted with a blind index for
 | `erasure_request_id` | `bigint` | 🔗 `gov.subject_request`  |  |
 | `mobile_enc` | `bytea` |  |  |
 | `mobile_last4` | `text` |  |  |
+| `first_name_latin` | `text` |  |  |
+| `father_name_latin` | `text` |  |  |
+| `grandfather_name_latin` | `text` |  |  |
+| `last_name_latin` | `text` |  |  |
 
 ### `sales.passenger_compensation` 🛡️
 
@@ -3755,6 +5663,23 @@ Travel documents of one international ticket; numbers are encrypted (11.9, D.1.4
 | `doc_type` | `text` |  |  |
 | `exception` | `boolean` | ✱ | `false` |
 
+### `sales.ticket_move` 🛡️
+
+A ticket moved by a change of its trip: to another trip (new number) or to another seat (1148, N42)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `ticket_id` | `bigint` | 🔗 `sales.ticket` ✱ |  |
+| `trip_change_id` | `bigint` | 🔗 `ops.trip_change` ✱ |  |
+| `from_trip_id` | `bigint` | 🔗 `ops.trip` ✱ |  |
+| `to_trip_id` | `bigint` | 🔗 `ops.trip` ✱ |  |
+| `old_ticket_no` | `text` | ✱ |  |
+| `new_ticket_no` | `text` | ✱ |  |
+| `old_seat_no` | `smallint` |  |  |
+| `new_seat_no` | `smallint` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
 ### `sales.waitlist_entry` 🛡️
 
 
@@ -3775,6 +5700,23 @@ Travel documents of one international ticket; numbers are encrypted (11.9, D.1.4
 
 <a id="fin"></a>
 ## `fin` — Wallets, ledger, payments, allocation, settlement and float
+
+### `fin.agency_cash_settlement` 🛡️
+
+Cash an agency paid a carrier for its cash sales, as the carrier recorded receiving it (N13, 1145)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `agency_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `carrier_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ |  |
+| `amount` | `bigint` | ✱ |  |
+| `reference` | `text` | ✱ |  |
+| `ledger_txn_id` | `bigint` | 🔗 `fin.ledger_txn`  |  |
+| `confirmed_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `confirmed_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `fin.approval_decision` 🛡️ 🔒
 
@@ -3919,6 +5861,23 @@ Wallet top-up by bank transfer with a unique reference and automatic matching
 | `expires_at` | `timestamp with time zone` |  |  |
 | `matched_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `statement_line_id` | `bigint` | 🔗 `fin.bank_statement_line`  |  |
+
+### `fin.carrier_payment_activation` 🛡️
+
+Gateway payment options the platform opened for each carrier, step by step (N13 phase two, 1145)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `carrier_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `option_code` | `text` | 🔗 `fin.payment_method` ✱ |  |
+| `status` | `text` | ✱ |  |
+| `basis` | `text` | ✱ |  |
+| `contracted_at` | `timestamp with time zone` | ✱ | `now()` |
+| `activated_at` | `timestamp with time zone` |  |  |
+| `changed_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `changed_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `fin.cash_credit_limit` 🛡️
 
@@ -4616,6 +6575,8 @@ Invoice, credit note and debit note; after finalization only the status and the 
 | `source_booking_id` | `bigint` | 🔗 `sales.booking`  |  |
 | `source_shipment_id` | `bigint` | 🔗 `ship.shipment`  |  |
 | `source_subscription_id` | `bigint` | 🔗 `sales.subscription`  |  |
+| `canonical_version` | `smallint` | ✱ | `1` |
+| `signing_kid` | `text` | 🔗 `acct.einvoice_signing_key`  |  |
 
 ### `acct.einvoice_line` 🛡️
 
@@ -4636,6 +6597,35 @@ Invoice, credit note and debit note; after finalization only the status and the 
 | `tax_rate` | `numeric(9,6)` | ✱ | `0` |
 | `tax_amount` | `bigint` | ✱ | `0` |
 | `allocation_line_id` | `bigint` | 🔗 `fin.price_allocation_line`  |  |
+
+### `acct.einvoice_line_tax` 🛡️
+
+Each tax of an e-invoice line: scheme, treatment, rate, base, amount and the authority it is owed to; fixed once the document is final (1108)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `line_id` | `bigint` | 🔗 `acct.einvoice_line` ✱ |  |
+| `seq` | `smallint` | ✱ |  |
+| `tax_scheme_id` | `bigint` | 🔗 `pricing.tax_scheme`  |  |
+| `scheme_code` | `text` | ✱ |  |
+| `tax_type` | `text` | ✱ |  |
+| `treatment` | `text` | ✱ |  |
+| `rate` | `numeric(9,6)` | ✱ | `0` |
+| `base` | `bigint` | ✱ |  |
+| `amount` | `bigint` | ✱ |  |
+| `payable_to_party_id` | `bigint` | 🔗 `iam.party`  |  |
+
+### `acct.einvoice_signing_key` 🛡️
+
+Public key of every key that signed an e-invoice, kept for verification after the private key is retired (1108)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `kid` | `text` | 🔑 ✱ |  |
+| `algorithm` | `text` | ✱ | `'Ed25519'::text` |
+| `public_key` | `text` | ✱ |  |
+| `first_used_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `acct.einvoice_submission` 🛡️ 🔒
 
@@ -5228,6 +7218,7 @@ Every tool executed by the assistant with the customer's permissions and confirm
 | `confirmed_by_user` | `boolean` | ✱ | `false` |
 | `result_status` | `text` | ✱ |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `refusal` | `text` |  |  |
 
 ### `crm.call` 🛡️
 
@@ -5743,6 +7734,17 @@ Official data request with dual authorization; nothing is delivered to any autho
 | `delivery_ref` | `text` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
+### `sec.authority_member` 🛡️
+
+The staff accounts that decide for a government authority, at the approval stages that name it (1117)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `authority_id` | `bigint` | 🔑 🔗 `sec.authority_profile` ✱ |  |
+| `user_id` | `bigint` | 🔑 🔗 `iam.app_user` ✱ |  |
+| `added_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `added_at` | `timestamp with time zone` | ✱ | `now()` |
+
 ### `sec.authority_order` 🛡️
 
 
@@ -5800,6 +7802,9 @@ Security authority definition and its adapter (definition without integration in
 | `fail_policy` | `text` | ✱ | `'ALLOW_QUEUE'::text` |
 | `sla_ms` | `integer` |  |  |
 | `active` | `boolean` | ✱ | `false` |
+| `name_ar` | `text` |  |  |
+| `name_en` | `text` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `sec.authority_scope` 🛡️
 
@@ -5887,6 +7892,16 @@ Every access given to an external auditor or tester: who, for which engagement, 
 | `expires_at` | `timestamp with time zone` | ✱ |  |
 | `revoked_at` | `timestamp with time zone` |  |  |
 | `revoked_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `sec.field_check_body` 🛡️
+
+The government body each roadside check was made for (1169, N47/N48); written with the check, never changed
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `check_id` | `bigint` | 🔑 🔗 `fleet.field_check_log` ✱ |  |
+| `authority_id` | `bigint` | 🔗 `sec.authority_profile` ✱ |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `sec.fraud_case` 🛡️
@@ -6106,6 +8121,60 @@ Security events for the SOC and detection rules (16.20)
 | `ip_rule_id` | `bigint` | 🔗 `sec.ip_rule`  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
+### `sec.shield_event` 🛡️
+
+Every change of the shield level, by whom or by the platform, and why (1142); never rewritten
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `at` | `timestamp with time zone` | ✱ | `now()` |
+| `level` | `text` | ✱ |  |
+| `previous` | `text` | ✱ |  |
+| `reason` | `text` | ✱ |  |
+| `set_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `auto` | `boolean` | ✱ |  |
+| `until` | `timestamp with time zone` |  |  |
+
+### `sec.shield_exception` 🛡️
+
+An address or range let through the shield: requested by one person, approved by another, always with an end date (1167)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `target` | `cidr` | ✱ |  |
+| `scope` | `text` | ✱ | `'ALL'::text` |
+| `reason` | `text` | ✱ |  |
+| `status` | `text` | ✱ | `'PENDING'::text` |
+| `requested_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `requested_at` | `timestamp with time zone` | ✱ | `now()` |
+| `expires_at` | `timestamp with time zone` | ✱ |  |
+| `decided_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `decided_at` | `timestamp with time zone` |  |  |
+| `decision_note` | `text` |  |  |
+| `ip_rule_id` | `bigint` | 🔗 `sec.ip_rule`  |  |
+| `revoked_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `revoked_at` | `timestamp with time zone` |  |  |
+
+### `sec.shield_state` 🛡️
+
+The platform shield: level (normal, elevated, lockdown), thresholds and automatic actions, one-session rule per portal (1142)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `smallint` | 🔑 ✱ | `1` |
+| `level` | `text` | ✱ | `'NORMAL'::text` |
+| `reason` | `text` |  |  |
+| `set_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `set_at` | `timestamp with time zone` | ✱ | `now()` |
+| `until` | `timestamp with time zone` |  |  |
+| `auto` | `boolean` | ✱ | `false` |
+| `policy` | `jsonb` | ✱ | `'{"waf_mode": "BLOCK", "alert_rpm": 2...` |
+| `session_policy` | `jsonb` | ✱ | `'{"AGENCY": "SINGLE", "DRIVER": "SING...` |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+
 ### `sec.sos_event` 🛡️
 
 
@@ -6138,6 +8207,44 @@ Attempts to submit values that contradict the server-side computation (price, da
 | `server_value` | `text` |  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
+### `sec.traffic_alert` 🛡️
+
+An abnormal minute of traffic, open until staff resolve it; one live alert per kind or address (1142)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `alert_key` | `text` | ✱ |  |
+| `kind` | `text` | ✱ |  |
+| `severity` | `text` | ✱ |  |
+| `status` | `text` | ✱ | `'OPEN'::text` |
+| `opened_at` | `timestamp with time zone` | ✱ | `now()` |
+| `last_seen_at` | `timestamp with time zone` | ✱ | `now()` |
+| `metrics` | `jsonb` | ✱ |  |
+| `actions` | `jsonb` | ✱ | `'[]'::jsonb` |
+| `ack_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `ack_at` | `timestamp with time zone` |  |  |
+| `resolved_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `resolved_at` | `timestamp with time zone` |  |  |
+| `note` | `text` |  |  |
+
+### `sec.traffic_sample` 🛡️
+
+Requests each API process saw in a 10-second window, with refusals, errors and its busiest addresses (1142); kept 7 days
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `window_start` | `timestamp with time zone` | 🔑 ✱ |  |
+| `instance` | `text` | 🔑 ✱ |  |
+| `requests` | `integer` | ✱ | `0` |
+| `err_4xx` | `integer` | ✱ | `0` |
+| `err_5xx` | `integer` | ✱ | `0` |
+| `blocked` | `integer` | ✱ | `0` |
+| `limited` | `integer` | ✱ | `0` |
+| `waf_hits` | `integer` | ✱ | `0` |
+| `auth_failures` | `integer` | ✱ | `0` |
+| `top` | `jsonb` | ✱ | `'{}'::jsonb` |
+
 ### `sec.verification_job` 🛡️
 
 
@@ -6161,6 +8268,23 @@ Attempts to submit values that contradict the server-side computation (price, da
 | `subject_vehicle_id` | `bigint` | 🔗 `fleet.vehicle`  |  |
 | `subject_document_id` | `bigint` | 🔗 `iam.document`  |  |
 
+### `sec.waf_hit` 🛡️
+
+A request the application firewall stopped (or noted, in detect mode): rule, where it matched, a short sample (1142); kept 30 days
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `at` | `timestamp with time zone` | ✱ | `now()` |
+| `ip` | `inet` | ✱ |  |
+| `method` | `text` | ✱ |  |
+| `path` | `text` | ✱ |  |
+| `rule` | `text` | ✱ |  |
+| `location` | `text` | ✱ |  |
+| `sample` | `text` |  |  |
+| `user_agent` | `text` |  |  |
+| `action` | `text` | ✱ |  |
+
 ### `sec.watchlist_entry` 🛡️
 
 Watch and ban list with hashed matching, without copying full data
@@ -6180,6 +8304,40 @@ Watch and ban list with hashed matching, without copying full data
 <a id="ptn"></a>
 ## `ptn` — Service partners: fuel stations, rest stops and maintenance
 
+### `ptn.fuel_account` 🛡️
+
+What a carrier, taxi owner or rental company paid in advance to a fuel company, less its fills; the money is the fuel company's, the platform keeps the account (1180)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `fuel_company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `holder_company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ |  |
+| `balance` | `bigint` | ✱ | `0` |
+| `low_balance` | `bigint` |  |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ptn.fuel_account_entry` 🛡️
+
+Each movement of a fuel account: a sum the fuel company received, a fill, a fill given back, an adjustment with its reason; never changed (1180)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `account_id` | `bigint` | 🔗 `ptn.fuel_account` ✱ |  |
+| `kind` | `text` | ✱ |  |
+| `amount` | `bigint` | ✱ |  |
+| `balance_after` | `bigint` | ✱ |  |
+| `sale_id` | `bigint` | 🔗 `ptn.partner_sale`  |  |
+| `reference` | `text` |  |  |
+| `note` | `text` |  |  |
+| `recorded_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
 ### `ptn.fuel_anomaly` 🛡️
 
 Fuel quantity that does not match tank size, distance or expected consumption (14.11 f)
@@ -6198,6 +8356,9 @@ Fuel quantity that does not match tank size, distance or expected consumption (1
 | `status` | `text` | ✱ | `'OPEN'::text` |
 | `resolved_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `resolved_at` | `timestamp with time zone` |  |  |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `note` | `text` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `ptn.fuel_card` 🛡️
 
@@ -6216,6 +8377,83 @@ Virtual fuel card of a carrier, bound to a vehicle or a driver, with limits
 | `fuel_types` | `text[]` | ✱ | `'{DIESEL}'::text[]` |
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `account_id` | `bigint` | 🔗 `ptn.fuel_account`  |  |
+| `card_no` | `text` | ✱ | `upper(substr(md5((gen_random_uuid()):...` |
+| `budget_period` | `text` |  |  |
+| `budget_amount` | `bigint` |  |  |
+| `budget_litres` | `numeric(8,2)` |  |  |
+| `blocked_reason` | `text` |  |  |
+| `blocked_at` | `timestamp with time zone` |  |  |
+| `valid_until` | `date` |  |  |
+| `paused_reason` | `text` |  |  |
+
+### `ptn.fuel_card_tag` 🛡️
+
+The NFC tag of a vehicle's fuel card, as the hash of the random identifier it holds; one tag per card and one card per tag (1180)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `card_id` | `bigint` | 🔗 `ptn.fuel_card` ✱ |  |
+| `tag_hash` | `bytea` | ✱ |  |
+| `partner_id` | `bigint` | 🔗 `ptn.partner`  |  |
+| `bound_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `bound_at` | `timestamp with time zone` | ✱ | `now()` |
+| `unbound_at` | `timestamp with time zone` |  |  |
+| `unbound_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `tag_id` | `bigint` | 🔗 `ptn.fuel_tag`  |  |
+
+### `ptn.fuel_challenge` 🛡️
+
+What one identification at the pump asks of the fill that follows: the pump's QR, the odometer's photo, from the risk worked out; used once, within minutes (1181)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `partner_id` | `bigint` | 🔗 `ptn.partner` ✱ |  |
+| `card_id` | `bigint` | 🔗 `ptn.fuel_card` ✱ |  |
+| `user_id` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `identified_by` | `text` | ✱ |  |
+| `tag_kind` | `text` |  |  |
+| `risk` | `smallint` | ✱ |  |
+| `factors` | `jsonb` | ✱ | `'{}'::jsonb` |
+| `sampled` | `boolean` | ✱ | `false` |
+| `need_pump_qr` | `boolean` | ✱ |  |
+| `need_odometer_photo` | `boolean` | ✱ |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `expires_at` | `timestamp with time zone` | ✱ |  |
+| `used_at` | `timestamp with time zone` |  |  |
+
+### `ptn.fuel_commission` 🛡️
+
+The platform's commission due on a fill, from the carrier (its subscription) and from the fuel company (its terms); void when the fill is given back (1181)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `sale_id` | `bigint` | 🔗 `ptn.partner_sale` ✱ |  |
+| `side` | `text` | ✱ |  |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `pct` | `numeric(5,2)` | ✱ |  |
+| `amount` | `bigint` | ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ |  |
+| `status` | `text` | ✱ | `'DUE'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ptn.fuel_company_terms` 🛡️
+
+The platform's commission on a fuel company's fills, agreed in its contract, from a date (1181)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `fuel_company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `commission_pct` | `numeric(5,2)` | ✱ |  |
+| `valid_from` | `date` | ✱ |  |
+| `note` | `text` |  |  |
+| `set_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `ptn.fuel_price` 🛡️
 
@@ -6229,6 +8467,38 @@ Virtual fuel card of a carrier, bound to a vehicle or a driver, with limits
 | `unit_price` | `bigint` | ✱ |  |
 | `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
 | `valid_from` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ptn.fuel_pump` 🛡️
+
+The pumps of a fuel station; each carries a signed QR sticker beside its meter (1181)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `partner_id` | `bigint` | 🔗 `ptn.partner` ✱ |  |
+| `pump_no` | `smallint` | ✱ |  |
+| `qr_version` | `smallint` | ✱ | `1` |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ptn.fuel_pump_txn` 🛡️
+
+Each delivery the station's pump controller reported: pump, litres, amount, totalizer; matched with the attendant's fill (1181)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `partner_id` | `bigint` | 🔗 `ptn.partner` ✱ |  |
+| `pump_id` | `bigint` | 🔗 `ptn.fuel_pump` ✱ |  |
+| `controller_ref` | `text` | ✱ |  |
+| `fuel_type` | `text` | ✱ |  |
+| `litres` | `numeric(8,2)` | ✱ |  |
+| `amount` | `bigint` |  |  |
+| `totalizer` | `numeric(14,2)` |  |  |
+| `ended_at` | `timestamp with time zone` | ✱ |  |
+| `received_at` | `timestamp with time zone` | ✱ | `now()` |
+| `sale_id` | `bigint` | 🔗 `ptn.partner_sale`  |  |
 
 ### `ptn.fuel_session` 🛡️
 
@@ -6248,6 +8518,61 @@ Refuelling session that precedes the sale and carries the odometer evidence (14.
 | `opened_at` | `timestamp with time zone` | ✱ | `now()` |
 | `closed_at` | `timestamp with time zone` |  |  |
 | `status` | `text` | ✱ | `'OPEN'::text` |
+
+### `ptn.fuel_subscription` 🛡️
+
+A carrier's subscription to the fuel service for its vehicles, paid to the platform in advance; the platform's commission on its fills is agreed here (1181)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `period` | `text` | ✱ |  |
+| `vehicles` | `integer` | ✱ |  |
+| `price_per_vehicle` | `bigint` |  |  |
+| `amount` | `bigint` |  |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ |  |
+| `commission_pct` | `numeric(5,2)` |  |  |
+| `starts_on` | `date` | ✱ |  |
+| `ends_on` | `date` | ✱ |  |
+| `status` | `text` | ✱ | `'REQUESTED'::text` |
+| `requested_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `requested_at` | `timestamp with time zone` | ✱ | `now()` |
+| `paid_reference` | `text` |  |  |
+| `paid_at` | `timestamp with time zone` |  |  |
+| `confirmed_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `note` | `text` |  |  |
+
+### `ptn.fuel_subscription_vehicle` 🛡️
+
+The vehicles a fuel subscription covers (1181)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `subscription_id` | `bigint` | 🔑 🔗 `ptn.fuel_subscription` ✱ |  |
+| `vehicle_id` | `bigint` | 🔑 🔗 `fleet.vehicle` ✱ |  |
+
+### `ptn.fuel_tag` 🛡️
+
+The NFC tags the platform registers and hands to carriers for their vehicles; only the hash of the tag's serial is kept (1181)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `tag_hash` | `bytea` | ✱ |  |
+| `kind` | `text` | ✱ |  |
+| `label` | `text` | ✱ |  |
+| `batch` | `text` |  |  |
+| `status` | `text` | ✱ | `'STOCK'::text` |
+| `issued_to` | `bigint` | 🔗 `iam.company`  |  |
+| `issued_at` | `timestamp with time zone` |  |  |
+| `issued_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `sun_counter` | `integer` |  |  |
+| `last_seen_at` | `timestamp with time zone` |  |  |
+| `registered_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `ptn.odometer_reading` 🛡️ 🔒
 
@@ -6293,6 +8618,9 @@ A contracted service partner, registered on the station pattern (14.11, 4.11)
 | `compliance_state` | `text` | ✱ | `'PENDING'::text` |
 | `status` | `text` | ✱ | `'PENDING'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `pumps` | `smallint` |  |  |
+| `controller_key_hash` | `bytea` |  |  |
+| `controller_since` | `timestamp with time zone` |  |  |
 
 ### `ptn.partner_contract` 🛡️
 
@@ -6388,6 +8716,20 @@ The shared sale transaction for fuel and rest stops, posted through the ledger
 | `status` | `text` | ✱ | `'COMPLETED'::text` |
 | `ledger_txn_id` | `bigint` | 🔗 `fin.ledger_txn`  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `card_id` | `bigint` | 🔗 `ptn.fuel_card`  |  |
+| `meter_photo_file_id` | `bigint` | 🔗 `ref.file_object`  |  |
+| `expected_amount` | `bigint` |  |  |
+| `identified_by` | `text` |  |  |
+| `plate_no` | `text` |  |  |
+| `holder_name` | `text` |  |  |
+| `station_name` | `text` |  |  |
+| `pump_ref` | `text` |  |  |
+| `challenge_id` | `bigint` | 🔗 `ptn.fuel_challenge`  |  |
+| `pump_id` | `bigint` | 🔗 `ptn.fuel_pump`  |  |
+| `pump_by_qr` | `boolean` |  |  |
+| `odometer_photo_file_id` | `bigint` | 🔗 `ref.file_object`  |  |
+| `photo_dhash` | `bigint` |  |  |
+| `risk` | `smallint` |  |  |
 
 ### `ptn.partner_settlement` 🛡️
 
@@ -6868,6 +9210,60 @@ Truck or hold load with capacity by weight, volume and pallet positions; no book
 | `fragile` | `boolean` | ✱ | `false` |
 | `volume_m3` | `numeric(8,4)` |  | `(((length_cm * width_cm) * height_cm)...` |
 
+### `ship.parcel_carrier` 🛡️
+
+A carrier's parcel choices: online with drop-off or counter only, the hand-over time before departure, its fees; stopped by the platform with a reason (N5, 1147)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `company_id` | `bigint` | 🔑 🔗 `iam.company` ✱ |  |
+| `booking_mode` | `text` | ✱ | `'ONLINE_DROPOFF'::text` |
+| `handover_minutes` | `integer` | ✱ | `120` |
+| `cancel_fee` | `bigint` | ✱ | `0` |
+| `no_show_fee` | `bigint` | ✱ | `0` |
+| `pending_fees` | `jsonb` |  |  |
+| `fees_decision` | `text` |  |  |
+| `stopped` | `boolean` | ✱ | `false` |
+| `stopped_reason` | `text` |  |  |
+| `updated_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+| `address_delivery` | `boolean` | ✱ | `false` |
+| `address_fee` | `bigint` | ✱ | `0` |
+
+### `ship.parcel_hop` 🛡️
+
+Each of the carrier's locations a parcel passed through between loading and its destination: received there, then sent on (1183)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `shipment_id` | `bigint` | 🔗 `ship.shipment` ✱ |  |
+| `seq` | `smallint` | ✱ |  |
+| `point_id` | `bigint` | 🔗 `ship.parcel_point` ✱ |  |
+| `received_at` | `timestamp with time zone` | ✱ | `now()` |
+| `received_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `dispatched_at` | `timestamp with time zone` |  |  |
+| `dispatched_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `next_point_id` | `bigint` | 🔗 `ship.parcel_point`  |  |
+
+### `ship.parcel_id_check` 🛡️
+
+The identity document checked when a parcel was handed over: kind, number (encrypted), holder and issuer (1183)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `shipment_id` | `bigint` | 🔑 🔗 `ship.shipment` ✱ |  |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `doc_kind` | `text` | ✱ |  |
+| `doc_no_enc` | `bytea` | ✱ |  |
+| `enc_key_id` | `bigint` | 🔗 `sec.key_registry` ✱ |  |
+| `doc_last4` | `text` | ✱ |  |
+| `holder_name` | `text` | ✱ |  |
+| `issued_by` | `text` |  |  |
+| `checked_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `checked_at` | `timestamp with time zone` | ✱ | `now()` |
+
 ### `ship.parcel_offer` 🛡️
 
 A price agreed between a carrier and a customer for one parcel on one trip (letters and the like): asked, offered, accepted and paid (owner's decision 3, 1078)
@@ -6894,6 +9290,25 @@ A price agreed between a carrier and a customer for one parcel on one trip (lett
 | `offered_at` | `timestamp with time zone` |  |  |
 | `valid_until` | `timestamp with time zone` |  |  |
 | `shipment_id` | `bigint` | 🔗 `ship.shipment`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ship.parcel_point` 🛡️
+
+Where a carrier receives parcels: its stations and offices, with address and opening hours (N5, 1147)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `kind` | `text` | ✱ |  |
+| `station_id` | `bigint` | 🔗 `net.station`  |  |
+| `name` | `text` | ✱ |  |
+| `address` | `text` | ✱ |  |
+| `hours` | `text` | ✱ |  |
+| `phone` | `text` |  |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `created_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `ship.parcel_tariff` 🛡️
@@ -7197,6 +9612,33 @@ A consignment from sender to receiver, independent of the vehicles that carry it
 | `guaranteed` | `boolean` | ✱ | `false` |
 | `tariff_id` | `bigint` | 🔗 `ship.parcel_tariff`  |  |
 | `idempotency_key` | `text` |  |  |
+| `handover_by` | `timestamp with time zone` |  |  |
+| `drop_point_id` | `bigint` | 🔗 `ship.parcel_point`  |  |
+| `handed_over_at` | `timestamp with time zone` |  |  |
+| `handed_over_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `paid_at` | `timestamp with time zone` |  |  |
+| `pay_method` | `text` |  |  |
+| `sold_at_counter` | `boolean` | ✱ | `false` |
+| `sender_name` | `text` |  |  |
+| `release_reason` | `text` |  |  |
+| `loaded_at` | `timestamp with time zone` |  |  |
+| `loaded_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `arrived_at` | `timestamp with time zone` |  |  |
+| `arrived_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `pickup_code_hash` | `bytea` |  |  |
+| `pickup_code_tries` | `smallint` | ✱ | `0` |
+| `delivered_at` | `timestamp with time zone` |  |  |
+| `delivered_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `exception_kind` | `text` |  |  |
+| `exception_note` | `text` |  |  |
+| `returned_at` | `timestamp with time zone` |  |  |
+| `delivery_mode` | `text` | ✱ | `'PICKUP'::text` |
+| `delivery_address` | `text` |  |  |
+| `secure` | `boolean` | ✱ | `false` |
+| `code_issued_at` | `timestamp with time zone` |  |  |
+| `code_sends` | `smallint` | ✱ | `0` |
+| `out_for_delivery_at` | `timestamp with time zone` |  |  |
+| `out_by` | `bigint` | 🔗 `iam.app_user`  |  |
 
 ### `ship.shipment_leg` 🛡️
 
@@ -7376,6 +9818,143 @@ Hold capacity of a passenger trip offered to parcels (9.4)
 <a id="frt"></a>
 ## `frt` — Trucking, heavy transport and transit freight
 
+### `frt.bill_of_lading` 🛡️
+
+The shipping line's bill of lading: its number, line, vessel, ports, how many containers it covers and the customs release number (1131)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `shipping_line_id` | `bigint` | 🔗 `frt.shipping_line` ✱ |  |
+| `bl_no` | `text` | ✱ |  |
+| `direction` | `text` | ✱ | `'IMPORT'::text` |
+| `vessel` | `text` |  |  |
+| `voyage` | `text` |  |  |
+| `port_of_loading` | `text` |  |  |
+| `port_of_discharge` | `text` |  |  |
+| `port_station_id` | `bigint` | 🔗 `net.station`  |  |
+| `consignee_name` | `text` |  |  |
+| `notify_name` | `text` |  |  |
+| `container_count` | `smallint` | ✱ |  |
+| `release_no` | `text` |  |  |
+| `release_date` | `date` |  |  |
+| `cargo_description` | `text` |  |  |
+| `status` | `text` | ✱ | `'OPEN'::text` |
+| `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `frt.bl_container` 🛡️
+
+The containers of a bill of lading, never more than it declares, each under one of its house bills where there are any (1131)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `bl_id` | `bigint` | 🔗 `frt.bill_of_lading` ✱ |  |
+| `house_bill_id` | `bigint` |  |  |
+| `container_no` | `text` | ✱ |  |
+| `size_type` | `text` | ✱ |  |
+| `seal_no` | `text` |  |  |
+| `gross_weight_kg` | `integer` |  |  |
+| `empty_return_depot` | `text` |  |  |
+| `free_time_until` | `date` |  |  |
+| `status` | `text` | ✱ | `'AT_PORT'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `frt.consignment` 🛡️
+
+Goods transported by truck and documented by the platform: seller, buyer, route, borders or port, papers and cargo (1131)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `consignment_no` | `text` | ✱ | `''::text` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `route_kind` | `text` | ✱ |  |
+| `international` | `boolean` |  | `(route_kind <> ALL (ARRAY['DOMESTIC':...` |
+| `load_type` | `text` | ✱ |  |
+| `shipper_party_id` | `bigint` | 🔗 `iam.party`  |  |
+| `shipper_name` | `text` | ✱ |  |
+| `shipper_address` | `text` |  |  |
+| `shipper_country` | `character(2)` | 🔗 `ref.country` ✱ |  |
+| `shipper_tax_no` | `text` |  |  |
+| `consignee_party_id` | `bigint` | 🔗 `iam.party`  |  |
+| `consignee_name` | `text` | ✱ |  |
+| `consignee_address` | `text` |  |  |
+| `consignee_country` | `character(2)` | 🔗 `ref.country` ✱ |  |
+| `consignee_tax_no` | `text` |  |  |
+| `notify_name` | `text` |  |  |
+| `origin_country` | `character(2)` | 🔗 `ref.country` ✱ |  |
+| `origin_city_id` | `bigint` | 🔗 `ref.city`  |  |
+| `origin_station_id` | `bigint` | 🔗 `net.station`  |  |
+| `origin_address` | `text` |  |  |
+| `dest_country` | `character(2)` | 🔗 `ref.country` ✱ |  |
+| `dest_city_id` | `bigint` | 🔗 `ref.city`  |  |
+| `dest_station_id` | `bigint` | 🔗 `net.station`  |  |
+| `dest_address` | `text` |  |  |
+| `port_station_id` | `bigint` | 🔗 `net.station`  |  |
+| `exit_border_id` | `bigint` | 🔗 `brd.border_point`  |  |
+| `entry_border_id` | `bigint` | 🔗 `brd.border_point`  |  |
+| `arrival_port` | `text` |  |  |
+| `bl_id` | `bigint` | 🔗 `frt.bill_of_lading`  |  |
+| `house_bill_id` | `bigint` |  |  |
+| `export_permit_no` | `text` |  |  |
+| `export_permit_date` | `date` |  |  |
+| `customs_declaration_no` | `text` |  |  |
+| `release_no` | `text` |  |  |
+| `tir_carnet_no` | `text` |  |  |
+| `incoterm` | `text` |  |  |
+| `freight_payer` | `text` | ✱ | `'SHIPPER'::text` |
+| `cargo_category` | `text` | 🔗 `ref.cargo_category` ✱ |  |
+| `cargo_description` | `text` | ✱ |  |
+| `hs_code` | `text` |  |  |
+| `packages` | `integer` |  |  |
+| `package_type` | `text` |  |  |
+| `gross_weight_kg` | `numeric(12,1)` | ✱ |  |
+| `net_weight_kg` | `numeric(12,1)` |  |  |
+| `volume_m3` | `numeric(10,2)` |  |  |
+| `un_number` | `text` |  |  |
+| `adr_class` | `text` |  |  |
+| `temp_min_c` | `numeric(4,1)` |  |  |
+| `temp_max_c` | `numeric(4,1)` |  |  |
+| `declared_value` | `bigint` |  |  |
+| `value_currency` | `character(3)` | 🔗 `ref.currency`  |  |
+| `status` | `text` | ✱ | `'DRAFT'::text` |
+| `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `frt.consignment_container` 🛡️
+
+The containers of a consignment, each the same container as on its bill of lading where it comes from one (1131)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `consignment_id` | `bigint` | 🔗 `frt.consignment` ✱ |  |
+| `bl_container_id` | `bigint` | 🔗 `frt.bl_container`  |  |
+| `container_no` | `text` | ✱ |  |
+| `size_type` | `text` | ✱ |  |
+| `seal_no` | `text` |  |  |
+| `gross_weight_kg` | `integer` |  |  |
+| `packages` | `integer` |  |  |
+| `status` | `text` | ✱ | `'PLANNED'::text` |
+
+### `frt.consignment_invoice` 🛡️
+
+The commercial invoices a consignment carries, named on its documents (1131)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `consignment_id` | `bigint` | 🔗 `frt.consignment` ✱ |  |
+| `invoice_no` | `text` | ✱ |  |
+| `invoice_date` | `date` |  |  |
+| `amount` | `bigint` |  |  |
+| `currency` | `character(3)` | 🔗 `ref.currency`  |  |
+
 ### `frt.container` 🛡️
 
 
@@ -7405,6 +9984,24 @@ Hold capacity of a passenger trip offered to parcels (9.4)
 | `amount` | `bigint` | ✱ | `0` |
 | `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
 | `status` | `text` | ✱ | `'OPEN'::text` |
+
+### `frt.document_consignment` 🛡️
+
+The consignments a document covers (1131)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `document_id` | `bigint` | 🔑 🔗 `frt.transport_document` ✱ |  |
+| `consignment_id` | `bigint` | 🔑 🔗 `frt.consignment` ✱ |  |
+
+### `frt.document_vehicle` 🛡️
+
+Every truck and trailer a document lists in its one statement (1131)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `document_id` | `bigint` | 🔑 🔗 `frt.transport_document` ✱ |  |
+| `movement_id` | `bigint` | 🔑 🔗 `frt.truck_movement` ✱ |  |
 
 ### `frt.escort_assignment` 🛡️
 
@@ -7551,6 +10148,20 @@ Handover between carriers in the yard: seal, weight, documents and both signatur
 | `to_signature_file_id` | `bigint` | 🔗 `ref.file_object`  |  |
 | `ts` | `timestamp with time zone` | ✱ | `now()` |
 
+### `frt.house_bill` 🛡️
+
+A freight forwarder's house bill of lading (in-house BL) under a shipping line's bill (1131)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `bl_id` | `bigint` | 🔗 `frt.bill_of_lading` ✱ |  |
+| `hbl_no` | `text` | ✱ |  |
+| `forwarder_name` | `text` | ✱ |  |
+| `forwarder_company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `consignee_name` | `text` |  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
 ### `frt.leg_container` 🛡️
 
 Containers carried on a leg, with the seal and gross weight of that leg
@@ -7561,6 +10172,40 @@ Containers carried on a leg, with the seal and gross weight of that leg
 | `container_id` | `bigint` | 🔑 🔗 `frt.container` ✱ |  |
 | `seal_no` | `text` |  |  |
 | `gross_weight_kg` | `integer` |  |  |
+
+### `frt.movement_container` 🛡️
+
+The containers on a truck: of its consignment, within the trailer's length, each on one active truck (1131)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `movement_id` | `bigint` | 🔑 🔗 `frt.truck_movement` ✱ |  |
+| `consignment_container_id` | `bigint` | 🔑 🔗 `frt.consignment_container` ✱ |  |
+
+### `frt.movement_event` 🛡️
+
+Each step of a truck movement, as it happened; never changed (1131)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `movement_id` | `bigint` | 🔗 `frt.truck_movement` ✱ |  |
+| `status` | `text` | ✱ |  |
+| `station_id` | `bigint` | 🔗 `net.station`  |  |
+| `note` | `text` |  |  |
+| `user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `frt.number_series` 🛡️
+
+The last number given in each series of freight documents and invoices, by year (1131)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `series` | `text` | 🔑 ✱ |  |
+| `company_id` | `bigint` | 🔑 ✱ | `0` |
+| `year` | `smallint` | 🔑 ✱ |  |
+| `last_no` | `integer` | ✱ | `0` |
 
 ### `frt.port_appointment` 🛡️
 
@@ -7574,6 +10219,45 @@ Containers carried on a leg, with the seal and gross weight of that leg
 | `leg_id` | `bigint` | 🔗 `ship.shipment_leg`  |  |
 | `slot` | `tstzrange` | ✱ |  |
 | `status` | `text` | ✱ | `'BOOKED'::text` |
+
+### `frt.rate_card` 🛡️
+
+The truck owner's own prices by lane and unit (a 20, 40 or 45 ft container, a truck, a ton or a bill of lading); one active price per lane and unit at a time (1131)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `route_kind` | `text` |  |  |
+| `from_city_id` | `bigint` | 🔗 `ref.city`  |  |
+| `from_station_id` | `bigint` | 🔗 `net.station`  |  |
+| `to_city_id` | `bigint` | 🔗 `ref.city`  |  |
+| `to_station_id` | `bigint` | 🔗 `net.station`  |  |
+| `to_country` | `character(2)` | 🔗 `ref.country`  |  |
+| `unit` | `text` | ✱ |  |
+| `price` | `bigint` | ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ |  |
+| `includes_empty_return` | `boolean` | ✱ | `false` |
+| `free_waiting_hours` | `smallint` | ✱ | `24` |
+| `waiting_per_day` | `bigint` |  |  |
+| `note` | `text` |  |  |
+| `valid` | `daterange` | ✱ | `daterange(CURRENT_DATE, NULL::date)` |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `lane` | `text` |  | `((((COALESCE(route_kind, '*'::text) \...` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `frt.shipping_line` 🛡️
+
+Shipping lines that issue bills of lading for the containers trucks carry from and to the port (1131)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `code` | `text` | ✱ |  |
+| `name` | `text` | ✱ |  |
+| `country` | `character(2)` | 🔗 `ref.country`  |  |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
 
 ### `frt.transit_declaration` 🛡️
 
@@ -7598,6 +10282,94 @@ Transit across the country on a corridor with a deadline; carries the D.3 cargo 
 | `temp_min_c` | `numeric(4,1)` |  |  |
 | `temp_max_c` | `numeric(4,1)` |  |  |
 | `status` | `text` | ✱ | `'OPEN'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `frt.transport_document` 🛡️
+
+Documents the platform issues: the consignment note of a consignment and, inside Syria, the truck consignment note (TCN) of one or several consignments; a frozen snapshot with its SHA-256 and a verification code (1131)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `doc_type` | `text` | ✱ |  |
+| `doc_no` | `text` | ✱ |  |
+| `scope` | `text` | ✱ |  |
+| `issuer_company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `version` | `smallint` | ✱ | `1` |
+| `supersedes_id` | `bigint` | 🔗 `frt.transport_document`  |  |
+| `snapshot` | `jsonb` | ✱ |  |
+| `sha256` | `bytea` | ✱ |  |
+| `verify_code` | `text` | ✱ |  |
+| `status` | `text` | ✱ | `'ISSUED'::text` |
+| `void_reason` | `text` |  |  |
+| `issued_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `issued_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `frt.transport_invoice` 🛡️
+
+The truck owner's invoice for the transport: the whole bill of lading and its containers, one container, or the consignment (1131)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `invoice_no` | `text` | ✱ |  |
+| `carrier_company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `consignment_id` | `bigint` | 🔗 `frt.consignment` ✱ |  |
+| `bl_id` | `bigint` | 🔗 `frt.bill_of_lading`  |  |
+| `basis` | `text` | ✱ |  |
+| `bill_to_name` | `text` | ✱ |  |
+| `bill_to_party_id` | `bigint` | 🔗 `iam.party`  |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ |  |
+| `total` | `bigint` | ✱ |  |
+| `status` | `text` | ✱ | `'ISSUED'::text` |
+| `void_reason` | `text` |  |  |
+| `issued_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `issued_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `frt.transport_invoice_line` 🛡️
+
+Lines of a transport invoice: a container or a truck movement each (1131)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `invoice_id` | `bigint` | 🔑 🔗 `frt.transport_invoice` ✱ |  |
+| `line_no` | `smallint` | 🔑 ✱ |  |
+| `description` | `text` | ✱ |  |
+| `consignment_container_id` | `bigint` | 🔗 `frt.consignment_container`  |  |
+| `movement_id` | `bigint` | 🔗 `frt.truck_movement`  |  |
+| `amount` | `bigint` | ✱ |  |
+
+### `frt.truck_movement` 🛡️
+
+One truck (and its trailer and driver) carrying part or all of a consignment, at the truck owner's price; a truck or trailer is on one active movement at a time (1131)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `consignment_id` | `bigint` | 🔗 `frt.consignment` ✱ |  |
+| `carrier_company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `truck_vehicle_id` | `bigint` | 🔗 `fleet.vehicle` ✱ |  |
+| `trailer_id` | `bigint` | 🔗 `fleet.trailer`  |  |
+| `driver_party_id` | `bigint` | 🔗 `iam.party`  |  |
+| `truck_plate` | `text` | ✱ |  |
+| `truck_plate_country` | `character(2)` | 🔗 `ref.country` ✱ | `'SY'::bpchar` |
+| `trailer_plate` | `text` |  |  |
+| `trailer_capacity_ft` | `smallint` |  |  |
+| `driver_name` | `text` |  |  |
+| `driver_licence_no` | `text` |  |  |
+| `driver_nationality` | `character(2)` | 🔗 `ref.country`  |  |
+| `driver_mobile` | `text` |  |  |
+| `rate_card_id` | `bigint` | 🔗 `frt.rate_card`  |  |
+| `price` | `bigint` | ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ |  |
+| `status` | `text` | ✱ | `'ASSIGNED'::text` |
+| `loaded_at` | `timestamp with time zone` |  |  |
+| `delivered_at` | `timestamp with time zone` |  |  |
+| `pod_received_by` | `text` |  |  |
+| `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `frt.weighbridge_reading` 🛡️ 🔒
@@ -7828,6 +10600,48 @@ Which authority receives which manifests and how; activated only by a second pla
 | `plate_no` | `text` | ✱ |  |
 | `plate_country` | `character(2)` | 🔗 `ref.country` ✱ |  |
 | `chassis_no` | `text` |  |  |
+
+### `brd.station_checkin` 🛡️
+
+Counter check-ins and their boarding passes at boarding stations: station, counter, operating company, staff member (1105)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `pass_no` | `text` | ✱ |  |
+| `ticket_id` | `bigint` | 🔗 `sales.ticket` ✱ |  |
+| `trip_id` | `bigint` | 🔗 `ops.trip` ✱ |  |
+| `stop_seq` | `smallint` | ✱ |  |
+| `station_id` | `bigint` | 🔗 `net.station` ✱ |  |
+| `counter_gate_id` | `bigint` | 🔗 `net.station_gate`  |  |
+| `bay_gate_id` | `bigint` | 🔗 `net.station_gate`  |  |
+| `operator_company_id` | `bigint` | 🔗 `iam.company`  |  |
+| `carrier_company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `checked_by_user_id` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `document_checked` | `boolean` | ✱ |  |
+| `status` | `text` | ✱ | `'CHECKED_IN'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `cancelled_at` | `timestamp with time zone` |  |  |
+| `cancelled_by_user_id` | `bigint` | 🔗 `iam.app_user`  |  |
+| `cancel_reason` | `text` |  |  |
+
+### `brd.station_sale` 🛡️
+
+A booking sold at a station counter under the carrier's BOOKING right: station, counter, clerk; seen by the operating company and the carrier (1110)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `booking_id` | `bigint` | 🔗 `sales.booking` ✱ |  |
+| `station_id` | `bigint` | 🔗 `net.station` ✱ |  |
+| `counter_gate_id` | `bigint` | 🔗 `net.station_gate`  |  |
+| `operator_company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `carrier_company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `sold_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `total` | `bigint` | ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 <a id="ctr"></a>
 ## `ctr` — Contracted transport: universities and employees
@@ -8409,6 +11223,8 @@ A rental across any company from unified search; a car cannot be double-booked
 | `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
 | `status` | `text` | ✱ | `'CONFIRMED'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `with_driver` | `boolean` | ✱ | `false` |
+| `driver_party_id` | `bigint` | 🔗 `fleet.crew_profile`  |  |
 
 ### `rent.rental_booking_addon` 🛡️
 
@@ -8508,6 +11324,8 @@ Rental extension of fleet.vehicle: its class and home branch
 | `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
 | `valid` | `daterange` | ✱ |  |
 | `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `unlimited_km` | `boolean` | ✱ | `false` |
+| `driver_price_per_day` | `bigint` |  |  |
 
 ### `rent.rental_vehicle_class` 🛡️
 

@@ -77,11 +77,16 @@ def test_topup_replay_is_scoped_to_the_payer():
 def test_readiness_checks_the_database_and_the_schema():
     c = client()
     assert c.get("/api/health").json() == {"ok": True}
-    r = c.get("/api/ready")
+    r = c.get("/api/ready", headers={"X-Forwarded-For": "10.1.2.3"})   # from inside the network: the checks are named
     assert r.status_code == 200, r.text
     assert r.json() == {"ready": True, "checks": {"database": True, "schema": True, "audit_database": True,
                                                     "reports_replica": True, "context": True,
-                                                    "constraints": True}}
+                                                    "settings_guard": True, "constraints": True}}
+    public = c.get("/api/ready", headers={"X-Forwarded-For": "93.184.216.34"})   # through the proxy, from outside
+    assert public.status_code == 200 and public.json() == {"ready": True}
+    from app.readiness import is_internal
+    assert is_internal("127.0.0.1") and is_internal("172.18.0.5") and is_internal("::1")
+    assert not is_internal("93.184.216.34") and not is_internal("203.0.113.9") and not is_internal("testclient")
     from app.readiness import shipped_schema_files
     shipped = shipped_schema_files()
     assert len(shipped) > 60 and shipped <= set(owner_sql("SELECT array_agg(file) FROM sys.schema_file"))
@@ -181,7 +186,7 @@ def test_update_stops_on_an_unapproved_or_unsettled_checkout(tmp_path):
     os.chmod(work / "deploy" / "backup.sh", 0o755)
     (work / "deploy" / "env-split.sh").write_text("#!/bin/sh\nexit 0\n")      # writes deploy/env/*.env on a server
     os.chmod(work / "deploy" / "env-split.sh", 0o755)
-    (work / "deploy" / ".env").write_text("MASSLAK_ENVIRONMENT=development\nMASSLAK_REPLICATION_PASSWORD=x\n")  # untracked
+    (work / "deploy" / ".env").write_text("MASSLAK_ENVIRONMENT=development\nMASSLAK_REPLICATION_PASSWORD=x\nMASSLAK_MONEY_MODE=NO_FUNDS\n")  # untracked
     git("add", "-A")
     git("commit", "-qm", "release")
     git("push", "-q", "-u", "origin", "main")

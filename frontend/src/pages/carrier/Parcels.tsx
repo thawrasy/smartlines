@@ -3,6 +3,9 @@ import { api } from "../../api";
 import { useI18n } from "../../i18n";
 import { PageHead } from "../../components/layout";
 import { ErrorBox, Field, Icon, Loaded, Modal, Status, useLoad, useToast } from "../../components/ui";
+import { useAuth } from "../../auth";
+import { CounterParcel, ParcelAwaiting, ParcelPoints, ParcelSettings } from "./ParcelDesk";
+import { ParcelScan, ParcelWaiting } from "./ParcelJourney";
 
 type Mode = "WEIGHT" | "VOLUME" | "WEIGHT_AND_VOLUME" | "FIXED" | "NEGOTIATED";
 interface Tariff { uid: string; code: string; name: string; pricing_mode: Mode; currency: string; base_price: number; per_kg: number | null;
@@ -12,8 +15,36 @@ interface Offer { uid: string; status: string; trip_no: string; tariff_name: str
 const MODES: Mode[] = ["WEIGHT", "VOLUME", "WEIGHT_AND_VOLUME", "FIXED", "NEGOTIATED"];
 const BLANK = { code: "", name: "", pricing_mode: "WEIGHT" as Mode, currency: "SYP", base_price: 0, per_kg: "", per_m3: "", fixed_price: "", min_charge: 0, max_weight_kg: "" };
 
-/** The carrier's parcel prices and the prices it agrees with customers (owner's decision 3). Amounts in minor units. */
+type Tab = "counter" | "awaiting" | "scan" | "waiting" | "tariffs" | "settings" | "points";
+
+/** The carrier's parcel desk (1147): the counter, parcels awaiting hand-over, on board and arrived, parcels waiting for
+ *  their recipients (1182), tariffs and agreed prices, its choices and its drop-off points. */
 export default function CarrierParcels() {
+  const { t } = useI18n();
+  const { can } = useAuth();
+  const staff = can("parcels.counter") || can("shipping.operate");
+  const tabs: Tab[] = [...(can("parcels.counter") ? ["counter", "awaiting"] as Tab[] : []), ...(staff ? ["scan", "waiting"] as Tab[] : []),
+    "tariffs", "settings", "points"];
+  const [tab, setTab] = useState<Tab>(tabs[0]);
+  return (
+    <div className="stack">
+      <PageHead title={t("parcel.carrierTitle")} sub={t("parcel.carrierSub")} />
+      <div className="segmented" role="tablist" style={{ alignSelf: "flex-start", flexWrap: "wrap" }}>
+        {tabs.map((v) => <button key={v} role="tab" aria-selected={tab === v} className={tab === v ? "on" : ""} onClick={() => setTab(v)}>{t(`parcel.tab.${v}`)}</button>)}
+      </div>
+      {tab === "counter" && <CounterParcel />}
+      {tab === "awaiting" && <ParcelAwaiting />}
+      {tab === "scan" && <ParcelScan />}
+      {tab === "waiting" && <ParcelWaiting />}
+      {tab === "tariffs" && <Tariffs />}
+      {tab === "settings" && <ParcelSettings />}
+      {tab === "points" && <ParcelPoints />}
+    </div>
+  );
+}
+
+/** The carrier's parcel prices and the prices it agrees with customers (owner's decision 3). Amounts in minor units. */
+function Tariffs() {
   const { t, money, num, dateTime } = useI18n();
   const toast = useToast();
   const tariffs = useLoad((signal) => api.get<{ tariffs: Tariff[] }>("/api/carrier/parcels/tariffs", undefined, { signal }));
@@ -46,9 +77,9 @@ export default function CarrierParcels() {
 
   return (
     <div className="stack">
-      <PageHead title={t("parcel.carrierTitle")} sub={t("parcel.carrierSub")}>
+      <div className="row" style={{ justifyContent: "flex-end" }}>
         <button className="btn filled" onClick={() => setAdding(true)}><Icon name="add" />{t("parcel.newTariff")}</button>
-      </PageHead>
+      </div>
       <Loaded state={tariffs}>{({ tariffs: list }) => (
         <div className="table-wrap" tabIndex={0}><table className="table">
           <thead><tr><th>{t("parcel.code")}</th><th>{t("parcel.name")}</th><th>{t("parcel.pricing")}</th><th>{t("parcel.rates")}</th><th>{t("common.status")}</th><th /></tr></thead>

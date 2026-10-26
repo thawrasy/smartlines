@@ -10,6 +10,13 @@ route:
   group_interval: 5m
   repeat_interval: 4h
   routes:
+    # security alerts (area "security", 1167) also go to the security staff's Telegram chats through the API's relay;
+    # "continue" lets them reach the page or ticket receiver below as well
+    - matchers: ['area="security"']
+      receiver: security
+      continue: true
+      group_by: [alertname, rule]
+      repeat_interval: 1h
     # the heartbeat goes to the dead man's switch every minute and nowhere else (R-45)
     - matchers: ['severity="heartbeat"']
       receiver: deadman
@@ -28,6 +35,16 @@ receivers:
     webhook_configs:
       - url_file: /etc/alertmanager/secrets/ticket_webhook_url
         send_resolved: true
+  - name: security
+    webhook_configs:
+      # the API's relay on the alerts network (docker-compose.production.yml); the token is
+      # deploy/production/secrets/alert_relay_token, written by init.sh, and the chats are the platform setting
+      # security.alert_telegram_chats
+      - url: http://app:8000/api/security/relay/alertmanager
+        http_config:
+          authorization: { type: Bearer, credentials_file: /etc/alertmanager/secrets/alert_relay_token }
+        send_resolved: true
+        max_alerts: 20
   - name: deadman
     webhook_configs:
       - url_file: /etc/alertmanager/secrets/deadman_webhook_url

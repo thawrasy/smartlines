@@ -37,6 +37,18 @@ def sent(channel: str, to: str) -> list[str]:
 
 
 # ------------------------------------------------------------------ two-factor sign-in by message (decision 2)
+@pytest.fixture(scope="module", autouse=True)
+def messages_open():
+    """Text and WhatsApp messages are closed by default since 1151 (no provider contracted yet): this module opens them
+    to keep checking them, and closes them again."""
+    sec = login("security@masslak.test", "PLATFORM")
+    before = sec.get("/api/security/mfa-policy").json()["policy"]
+    opened = {**before, "methods": sorted(set(before["methods"]) | {"SMS", "WHATSAPP"})}
+    assert sec.put("/api/security/mfa-policy", json=opened).status_code == 200
+    yield
+    assert login("security@masslak.test", "PLATFORM").put("/api/security/mfa-policy", json=before).status_code == 200
+
+
 def test_a_text_message_number_is_enrolled_and_signs_in():
     email, password = register()
     c, _ = sign_in(email, password)
@@ -102,7 +114,9 @@ def test_the_platform_requires_drivers_to_enrol_and_whatsapp_codes_work(security
     view = sec.get("/api/security/mfa-policy").json()
     assert view["delivery"]["TOTP"] and "PLATFORM" in view["always_required"]
     assert login("finance@masslak.test", "PLATFORM").put("/api/security/mfa-policy", json=before).status_code == 403
-    r = sec.put("/api/security/mfa-policy", json={**before, "required_portals": ["DRIVER"], "enforce_in_sandbox": True})
+    # text and WhatsApp messages are closed by default (1151): opened here to check them while a provider is contracted
+    r = sec.put("/api/security/mfa-policy", json={**before, "methods": ["TOTP", "EMAIL", "TELEGRAM", "SMS", "WHATSAPP"],
+                                                  "required_portals": ["DRIVER"], "enforce_in_sandbox": True})
     assert r.status_code == 200, r.text
     assert r.json()["policy"]["required_portals"] == ["DRIVER"]
     assert owner_sql("SELECT count(*) FROM sys.outbox_event WHERE event_type = 'security.mfa_policy_changed'") >= 1
@@ -199,15 +213,23 @@ def _clients_of(c: httpx.Client, n: int) -> list[httpx.Client]:
 def test_holds_sent_together_cannot_pass_the_limit():
     from app.modules.sales.models import MAX_LOCKED_SEATS
     c = e2e.new_passenger()
-    t = e2e.bookable_trip(c)
+    held_max = max(MAX_LOCKED_SEATS, 2 * c.get("/api/bookings/limits").json()["max_seats"])   # two bookings' worth
+
+    def roomy():                            # a trip with seats for every request, beyond the limit
+        for offset in range(1, 7):
+            r = c.get("/api/trips/search", params={"origin": "DAM", "destination": "HMA", "on": e2e.day(offset), "passengers": 1})
+            found = [x for x in r.json()["trips"] if x["seats_left"] >= held_max + 4]
+            if found:
+                return found[0]
+    t = roomy()
     if t is None:
         e2e.publish_fresh_trip()
-        t = e2e.bookable_trip(c)
-    seats = e2e.free_seats(c, t, MAX_LOCKED_SEATS + 4)
+        t = roomy()
+    seats = e2e.free_seats(c, t, held_max + 4)
     clients = _clients_of(c, len(seats))
     with ThreadPoolExecutor(len(seats)) as pool:
         codes = list(pool.map(lambda cs: e2e.hold(cs[0], t, [cs[1]]).status_code, zip(clients, seats)))
-    assert codes.count(201) == MAX_LOCKED_SEATS and set(codes) == {201, 429}       # the count and the lock are one step
+    assert codes.count(201) == held_max and set(codes) == {201, 429}       # the count and the lock are one step
 
 
 def test_the_same_booking_key_sent_together_answers_with_one_booking(pax_wallet):

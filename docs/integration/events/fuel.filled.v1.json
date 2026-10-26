@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://masslak.com/schemas/events/fuel.filled.v1.json",
+  "title": "fuel.filled",
+  "description": "A vehicle filled at a fuel station, paid from the account its company holds with the fuel company (1180). The data of the envelope (EVENTS.md); fields are only added within a version.",
+  "x-event-type": "fuel.filled",
+  "x-schema-version": 1,
+  "type": "object",
+  "properties": {
+    "sale_uid": {
+      "type": "string"
+    },
+    "station": {
+      "type": "string"
+    },
+    "plate_no": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "fuel_type": {
+      "type": "string"
+    },
+    "litres": {
+      "type": "number"
+    },
+    "amount": {
+      "type": "integer"
+    },
+    "currency": {
+      "type": "string"
+    },
+    "balance": {
+      "type": "integer"
+    },
+    "left_amount": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "held": {
+      "type": "boolean"
+    },
+    "low_balance": {
+      "type": "boolean"
+    },
+    "anomalies": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "sale_uid",
+    "station",
+    "fuel_type",
+    "litres",
+    "amount",
+    "currency",
+    "balance",
+    "held"
+  ],
+  "additionalProperties": true
+}

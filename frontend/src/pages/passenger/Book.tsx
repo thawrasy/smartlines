@@ -1,21 +1,21 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { api, newKey, type BookingOption, type FamilyView, type FareBrand, type PayWith, type Quote, type TripDetail } from "../../api";
+import { api, newKey, type BookingOption, type FamilyView, type FareBrand, type MeTraveller, type PayWith, type Quote, type SavedTraveller, type TripDetail } from "../../api";
 import { useI18n } from "../../i18n";
 import { useAuth } from "../../auth";
 import { minutesBetween } from "../../dates";
-import { ErrorBox, Icon, Spinner, useLoad } from "../../components/ui";
+import { CarrierName, ErrorBox, Icon, Spinner, useLoad } from "../../components/ui";
 import { useChannel } from "../../channel";
 import { SeatGrid } from "../../components/SeatGrid";
-import { PassengerFields, blankPassenger, categoryOf, documentFor, fromMember, namesFor, passengerValid, type PassengerDraft, type TravelDocs } from "./PassengerFields";
+import { PassengerFields, blankPassenger, categoryOf, documentFor, fromMe, fromMember, fromSaved, namesFor, passengerValid, savedBody, type PassengerDraft, type TravelDocs } from "./PassengerFields";
 
 interface Hold { hold_token: string; expires_at: string }
 // Passenger wallet, the agency's dashboard figures that matter at checkout, or the cash a counter may still take
 interface Funds { balance?: number; remaining_today?: number; agreement?: { commission_bp: number } | null; remaining?: number }
 
-const roundUnit = (minor: number) => Math.round(minor / 100) * 100;
+const roundUnit = (minor: number) => Math.round(minor / 100) * 100;     // whole piastres
 
-function SeatMap({ seats, map, selected, toggle, max }: { seats: TripDetail["seats"]; map: TripDetail["seat_map"]; selected: number[]; toggle: (n: number) => void; max: number }) {
+export function SeatMap({ seats, map, selected, toggle, max }: { seats: TripDetail["seats"]; map: TripDetail["seat_map"]; selected: number[]; toggle: (n: number) => void; max: number }) {
   const { t } = useI18n();
   const freeOf = new Map(seats.map((s) => [s.seat_no, s.free]));
   if (map) {
@@ -78,6 +78,12 @@ function useCountdown(until: string | null) {
   return left;
 }
 
+/** Which stored person fills a traveller: "me", a saved companion "s:uid", a family member "f:uid", or typed (""). */
+const pick = (p: PassengerDraft) => (p.self_traveller ? "me" : p.saved_traveller_uid ? `s:${p.saved_traveller_uid}`
+  : p.family_member_uid ? `f:${p.family_member_uid}` : "");
+const stored = (p: PassengerDraft) => (p.self_traveller ? { self_traveller: true } : p.saved_traveller_uid ? { saved_traveller_uid: p.saved_traveller_uid }
+  : p.family_member_uid ? { family_member_uid: p.family_member_uid } : {});
+
 export default function Book() {
   const { uid = "" } = useParams();
   const [params] = useSearchParams();
@@ -94,7 +100,7 @@ export default function Book() {
   // Passengers pay from their wallet; an agency pays from its prepaid balance within its daily limit; a counter takes
   // cash within its carrier's cash limit
   const wallet = useLoad<Funds | null>(() => (me?.portal !== ch.portal ? Promise.resolve(null)
-    : api.get<Funds>(ch.counter ? "/api/carrier/counter/dashboard" : ch.agency ? "/api/agency/dashboard" : "/api/wallet")), [me, ch.portal, ch.counter]);
+    : api.get<Funds>(ch.funds ?? (ch.counter ? "/api/carrier/counter/dashboard" : ch.agency ? "/api/agency/dashboard" : "/api/wallet"))), [me, ch.portal, ch.counter]);
   // The ways of paying platform administration has opened (1056): wallet, pay later at the counter, card, instalments, financing
   const opts = useLoad<BookingOption[] | null>(() => (ch.staff || me?.portal !== "PASSENGER" ? Promise.resolve(null)
     : api.get<{ options: BookingOption[] }>("/api/payments/booking-options").then((r) => r.options)), [me, ch.staff]);
@@ -104,6 +110,12 @@ export default function Book() {
   const family = useLoad<FamilyView | null>(() => (ch.staff || me?.portal !== "PASSENGER" ? Promise.resolve(null)
     : api.get<FamilyView>("/api/family").catch(() => null)), [me, ch.staff]);
   const [payFrom, setPayFrom] = useState<"WALLET" | "FAMILY_ACCOUNT">("WALLET");
+  // The traveller "Me" and saved companions (N18): from a passenger's own full account, not a guest's or a counter's
+  const own = !ch.staff && me?.portal === "PASSENGER" && !me.is_guest;
+  const mine = useLoad<MeTraveller | null>(() => (!own ? Promise.resolve(null)
+    : api.get<MeTraveller>("/api/account/me-traveller").catch(() => null)), [me, ch.staff]);
+  const saved = useLoad<SavedTraveller[]>(() => (!own ? Promise.resolve([])
+    : api.get<{ travellers: SavedTraveller[] }>("/api/account/travellers").then((r) => r.travellers).catch(() => [])), [me, ch.staff]);
   const [quote, setQuote] = useState<Quote | null>(null);
   const [quoteError, setQuoteError] = useState<unknown>(null);
 
@@ -145,13 +157,13 @@ export default function Book() {
   useEffect(() => () => { if (holdRef.current) void api.del(`${ch.api}/holds/${holdRef.current}`).catch(() => {}); }, [ch.api]);
 
   // The server prices every traveller (adult, child, infant) and the family offer; the summary shows its answer
-  const quoteKey = JSON.stringify([hold?.hold_token, brand, pax.map((p) => [p.lap, p.birth_date, p.family_member_uid, p.nationality])]);
+  const quoteKey = JSON.stringify([hold?.hold_token, brand, pax.map((p) => [p.lap, p.birth_date, p.family_member_uid, p.nationality, p.self_traveller, p.saved_traveller_uid])]);
   useEffect(() => {
     if (!hold || ch.staff || pax.length === 0) { setQuote(null); return; }
     const id = setTimeout(() => {
       const body = { trip_uid: uid, from_seq: fromSeq, to_seq: toSeq, fare_brand: brand,
         passengers: pax.map((p, i) => ({ seat_no: p.lap ? null : selected[i] ?? null, nationality: p.nationality,
-          ...(p.birth_date ? { birth_date: p.birth_date } : {}), ...(p.family_member_uid ? { family_member_uid: p.family_member_uid } : {}) })) };
+          ...(p.birth_date ? { birth_date: p.birth_date } : {}), ...stored(p) })) };
       api.post<Quote>("/api/bookings/quote", body).then((q) => { setQuote(q); setQuoteError(null); })
         .catch((e) => { setQuote(null); setQuoteError(e); });
     }, 350);
@@ -176,9 +188,11 @@ export default function Book() {
     if (!me || me.portal !== ch.portal) { nav(`/login?portal=${ch.portal}&next=${encodeURIComponent(loc.pathname + loc.search)}`); return; }
     setBusy(true); setError(null);
     try {
-      const h = await api.post<Hold>(`${ch.api}/holds`, { trip_uid: uid, from_seq: fromSeq, to_seq: toSeq, seat_nos: selected });
+      const h = await api.post<Hold>(`${ch.api}/holds`, { trip_uid: uid, from_seq: fromSeq, to_seq: toSeq, seat_nos: selected, ...ch.extra?.() });
       setHold(h);
-      setPax(selected.map((_, i) => pax[i] ?? blankPassenger()));
+      // the first traveller is the account holder unless the passenger picks someone else ("I am not travelling")
+      const self = mine.data?.names_complete ? fromMe(mine.data) : null;
+      setPax(selected.map((_, i) => pax[i] ?? (i === 0 && self ? self : blankPassenger())));
     } catch (e) {
       setError(e); detail.reload(); setSelected([]);
     } finally { setBusy(false); }
@@ -191,8 +205,11 @@ export default function Book() {
 
   const travellers = () => pax.map((p, i) => ({
     seat_no: p.lap ? null : selected[i], ...namesFor(p), ...documentFor(p, docs[p.nationality]),
-    ...(p.birth_date ? { birth_date: p.birth_date } : {}), ...(p.family_member_uid ? { family_member_uid: p.family_member_uid } : {}),
+    ...(p.birth_date ? { birth_date: p.birth_date } : {}), ...stored(p),
   }));
+  // companions the passenger ticked to keep for next time (N18); a failure here never undoes the booking
+  const keepTravellers = () => Promise.all(pax.filter((p) => p.save && !p.lap && !p.family_member_uid && !p.self_traveller && !p.saved_traveller_uid)
+    .map((p) => api.post("/api/account/travellers", savedBody(p)).catch(() => null)));
 
   const pay = async () => {
     if (!hold) return;
@@ -201,9 +218,10 @@ export default function Book() {
       const r = await api.post<{ booking_ref: string; status?: string }>(`${ch.api}/bookings`, {
         hold_token: hold.hold_token, trip_uid: uid, from_seq: fromSeq, to_seq: toSeq, fare_brand: brand, idempotency_key: idemKey,
         ...(ch.staff ? { contact_mobile: contact.trim() || undefined } : { pay_from: payFrom, pay_with: chosen?.code ?? "WALLET" }),
-        passengers: travellers(),
+        passengers: travellers(), ...ch.extra?.(),
       });
       holdRef.current = null;
+      if (own) await keepTravellers();
       // card, instalments and financing: the seats are reserved, and the passenger goes on to the provider's page
       const provider = chosen?.providers?.[0];
       if (provider && r.status === "PENDING_PAYMENT") {
@@ -227,8 +245,16 @@ export default function Book() {
   const laps = pax.filter((p) => p.lap).length;
   const canAddLap = !!infantBand && !infantBand.seat_required && laps < selected.length;
   const travelDate = from.sched_dep.slice(0, 10);
-  const used = new Set(pax.map((p) => p.family_member_uid).filter(Boolean));
+  const used = new Set(pax.map(pick).filter(Boolean));
   const members = family.data?.role === "HEAD" ? family.data.members ?? [] : family.data?.role === "MEMBER" && family.data.me ? [family.data.me] : [];
+  const self = mine.data?.names_complete ? mine.data : null;
+  const people = saved.data ?? [];
+  const choose = (i: number, v: string) => setPax((ps) => ps.map((x, j) => {
+    if (j !== i) return x;
+    const m = v.startsWith("f:") ? members.find((y) => `f:${y.uid}` === v) : undefined;
+    const sv = v.startsWith("s:") ? people.find((y) => `s:${y.uid}` === v) : undefined;
+    return v === "me" && self ? fromMe(self) : m ? fromMember(m, x.lap) : sv ? fromSaved(sv, x.lap) : blankPassenger(x.lap);
+  }));
   const shownTotal = quote?.total ?? total;
   const tripDocs = docs.SY;
   const commission = ch.agency && wallet.data?.agreement
@@ -251,12 +277,19 @@ export default function Book() {
       {/* Journey header */}
       <div className="card row between">
         <div className="stack tight">
-          <div className="row" style={{ gap: 8 }}><span style={{ fontWeight: 600 }}>{d.trip.carrier_name}</span><span className="chip outline mono">{d.trip.trip_no}</span></div>
+          <div className="row" style={{ gap: 8 }}><CarrierName name={d.trip.carrier_name} uid={d.trip.carrier_uid} logo={d.trip.carrier_logo} strong /><span className="chip outline mono" title={d.trip.trip_no}>{d.trip.trip_code ?? d.trip.trip_no}</span></div>
           <div className="timeline" style={{ marginTop: 16, minWidth: "min(520px, 80vw)" }}>
             <div><div className="time">{time(from.sched_dep)}</div><div className="small muted">{station(from.station_code, from.station_name)}</div></div>
             <div className="line"><span className="dur">{duration(minutesBetween(from.sched_dep, to.sched_arr))}</span></div>
             <div style={{ textAlign: "end" }}><div className="time">{time(to.sched_arr)}</div><div className="small muted">{station(to.station_code, to.station_name)}</div></div>
           </div>
+          {d.return_trip && (
+            <div className="small muted row" style={{ gap: 6, marginTop: 8 }}>
+              <Icon name="swap_calls" size={16} />
+              {t("ret.returnsAs", { code: d.return_trip.trip_code ?? d.return_trip.trip_no, time: time(d.return_trip.departs_at) })}
+              {d.return_trip.same_vehicle !== false ? ` · ${t("ret.sameVehicle")}` : ""}
+            </div>
+          )}
         </div>
         <div className="stack tight" style={{ alignItems: "flex-end" }}>
           <span className="muted">{date(from.sched_dep, { weekday: "long", day: "numeric", month: "long" })}</span>
@@ -338,22 +371,25 @@ export default function Book() {
                 <div className="row between">
                   <h3>{p.lap ? t("pax.lapInfant") : `${t("common.passenger")} ${i + 1}`}</h3>
                   <div className="row">
-                    {members.length > 0 && (
-                      <select className="input" style={{ width: "auto" }} value={p.family_member_uid}
-                              onChange={(e) => { const m = members.find((x) => x.uid === e.target.value);
-                                setPax((ps) => ps.map((x, j) => (j === i ? (m ? fromMember(m, x.lap) : blankPassenger(x.lap)) : x))); }}>
-                        <option value="">{t("family.pickMember")}</option>
-                        {members.filter((m) => m.uid === p.family_member_uid || (!used.has(m.uid)
+                    {(members.length > 0 || people.length > 0 || self) && (
+                      <select className="input" style={{ width: "auto" }} value={pick(p)} aria-label={t("trav.fillFrom")}
+                              onChange={(e) => choose(i, e.target.value)}>
+                        <option value="">{i === 0 && self ? t("trav.someoneElse") : t("trav.fillFrom")}</option>
+                        {self && !p.lap && (pick(p) === "me" || !used.has("me")) && <option value="me">{t("trav.me")}</option>}
+                        {people.filter((x) => pick(p) === `s:${x.uid}` || (!used.has(`s:${x.uid}`)
+                          && (!p.lap || categoryOf(fromSaved(x, true), d.categories, travelDate) === "INFANT"))).map((x) =>
+                          <option key={x.uid} value={`s:${x.uid}`}>{x.label ? `${x.label} · ` : ""}{[x.first_name, x.last_name].join(" ")}</option>)}
+                        {members.filter((m) => pick(p) === `f:${m.uid}` || (!used.has(`f:${m.uid}`)
                           // a lap is for infants only: offer the members who are infants on the travel day
                           && (!p.lap || categoryOf(fromMember(m, true), d.categories, travelDate) === "INFANT"))).map((m) =>
-                          <option key={m.uid} value={m.uid}>{m.full_name} · {t(`family.rel.${m.relation}`)}</option>)}
+                          <option key={m.uid} value={`f:${m.uid}`}>{m.full_name} · {t(`family.rel.${m.relation}`)}</option>)}
                       </select>
                     )}
                     {p.lap ? <button className="btn text" onClick={() => setPax((ps) => ps.filter((_, j) => j !== i))}><Icon name="close" />{t("common.remove")}</button>
                            : <span className="chip green">{t("common.seat")} {seatLabel(selected[i])}</span>}
                   </div>
                 </div>
-                <PassengerFields value={p} countries={countries} docs={docs[p.nationality]} bands={d.categories} travel={travelDate}
+                <PassengerFields value={p} countries={countries} docs={docs[p.nationality]} bands={d.categories} travel={travelDate} offerSave={own}
                                  onChange={(v) => setPax((ps) => ps.map((x, j) => (j === i ? v : x)))} />
               </div>
             ))}

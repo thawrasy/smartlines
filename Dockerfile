@@ -21,8 +21,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends postgresql-clie
     && rm -rf /var/lib/apt/lists/* \
     && useradd --system --uid 10001 --home /app masslak
 WORKDIR /app/backend
-COPY backend/requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+# every package pinned with its hashes, transitive ones included (reviews of October 2026, H-08)
+COPY backend/requirements.lock ./
+RUN pip install --no-cache-dir --require-hashes -r requirements.lock
 COPY backend/ ./
 COPY db/ /app/db/
 COPY deploy/migrate.sh /app/deploy/migrate.sh

@@ -1,30 +1,41 @@
 #!/usr/bin/env bash
 # Raw evidence for the auditors (audit T3 recheck): everything they need to verify the candidate build themselves.
 #   db/tools/evidence_pack.sh <database> <output dir> --db-log <db tests output> --api-log <pytest output> \
-#                             [--tested <commit the logs come from>] [psql connection args]
+#                             [--tested <commit the logs come from>] [--junit <JUnit report>]... [--coverage <coverage.json>]
+#                             [--reviewer] [psql connection args]
 # The pack holds:
 #   source/       the commit, its tree hash and whether the working tree was clean; TESTED.txt proves the test logs belong to
 #                 this commit: either the same commit, or every file changed since the tested commit is documentation
 #   audit_pack/   schema, roles, grants, policies, functions, inventories, OpenAPI (db/tools/audit_pack.sh)
-#   tests/        the full console output of the database checks and the API tests of this build, and the test sources
+#   tests/        the full console output of the database checks and the API tests of this build, every test with its
+#                 result (api_results.csv from the JUnit report), the coverage summary, and the test sources
+#   critical/     the critical controls quoted from the code of this commit with the result of the tests that prove each
+#                 (db/tools/critical_excerpts.py, docs/operations/evidence/critical_controls.json)
 #   evidence/     restore drill, migration rehearsal, load tests (docs/operations/evidence) and the verification summary
 #   monitoring/   alert rules, their unit tests and the promtool result
 #   docs/         the audit responses, runbooks, SLOs, migration plans, release map, event contract, threat model
 # plus SHA256SUMS over every file and a .tar.gz of the whole directory. No business rows, secrets or key material.
+# --reviewer builds the edition handed to an independent reviewer without access to the repository (owner's decision,
+# October 2026): no source files (test sources and the database checks' script are left out) and no audit_pack/ (the
+# schema, grants, policies and function bodies of the built database); the quoted excerpts of the critical controls, the
+# test names and results, the logs and the measurements stay.
 set -euo pipefail
 DB="${1:?database}"; OUT="${2:?output directory}"; shift 2
-DB_LOG=""; API_LOG=""; TESTED=""; ARGS=()
+DB_LOG=""; API_LOG=""; TESTED=""; JUNITS=(); COVERAGE=""; REVIEWER=0; ARGS=()
 while [ $# -gt 0 ]; do
   case "$1" in
     --db-log) DB_LOG="$2"; shift 2 ;;
     --api-log) API_LOG="$2"; shift 2 ;;
     --tested) TESTED="$2"; shift 2 ;;
+    --junit) JUNITS+=("$2"); shift 2 ;;   # repeatable: the suite, and the steps that run after it (live event contracts)
+    --coverage) COVERAGE="$2"; shift 2 ;;
+    --reviewer) REVIEWER=1; shift ;;
     *) ARGS+=("$1"); shift ;;
   esac
 done
 [ -f "$DB_LOG" ] && [ -f "$API_LOG" ] || { echo "give --db-log and --api-log: the console output of this build's test runs" >&2; exit 2; }
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-rm -rf "$OUT"; mkdir -p "$OUT"/{source,tests,evidence,monitoring,docs}
+rm -rf "$OUT"; mkdir -p "$OUT"/{source,tests,evidence,monitoring,docs,critical}
 
 # source: which code this is
 {
@@ -34,6 +45,14 @@ rm -rf "$OUT"; mkdir -p "$OUT"/{source,tests,evidence,monitoring,docs}
   if [ -z "$(git -C "$ROOT" status --porcelain)" ]; then echo "working tree: clean"; else echo "working tree: CHANGED (pack is not of a commit)"; fi
   echo "schema files: $(ls "$ROOT"/db/schema/[0-9]*_*.sql | wc -l), last: $(ls "$ROOT"/db/schema/[0-9]*_*.sql | awk -F/ '{n=$NF; sub(/_.*/,"",n); print n" "$NF}' | sort -n | tail -1 | cut -d' ' -f2)"
 } > "$OUT/source/SOURCE.txt"
+# a pack built by CI names its run, so a reviewer can open the run's log (independent review of 18 October 2026)
+if [ -n "${GITHUB_RUN_ID:-}" ]; then
+  {
+    echo "run:     ${GITHUB_SERVER_URL:-https://github.com}/${GITHUB_REPOSITORY:-}/actions/runs/${GITHUB_RUN_ID} (attempt ${GITHUB_RUN_ATTEMPT:-1})"
+    echo "workflow: ${GITHUB_WORKFLOW:-}  event: ${GITHUB_EVENT_NAME:-}  ref: ${GITHUB_REF:-}"
+    echo "commit:  ${GITHUB_SHA:-}"
+  } > "$OUT/source/CI_RUN.txt"
+fi
 
 # an evidence pack is of a commit, never of uncommitted files
 [ -z "$(git -C "$ROOT" status --porcelain --untracked-files=no)" ] || { echo "refusing: commit or stash the changes first" >&2; exit 4; }
@@ -52,18 +71,68 @@ NOT_DOCS="$(printf '%s\n' "$CHANGED" | grep -v '^$' | grep -Ev '^docs/|\.md$' ||
 } > "$OUT/source/TESTED.txt"
 if [ -n "$NOT_DOCS" ]; then cat "$OUT/source/TESTED.txt" >&2; echo "refusing: run the tests on this commit" >&2; exit 3; fi
 
-# structure and security of the built database (and the API's OpenAPI when it runs)
-"$ROOT/db/tools/audit_pack.sh" "$DB" "$OUT/audit_pack" "${ARGS[@]}" > /dev/null
+# structure and security of the built database (and the API's OpenAPI when it runs); not in the reviewer edition
+if [ "$REVIEWER" = 0 ]; then
+  "$ROOT/db/tools/audit_pack.sh" "$DB" "$OUT/audit_pack" "${ARGS[@]}" > /dev/null
+fi
 
 # tests: the raw output of this build, and the sources that produced it
 cp "$DB_LOG" "$OUT/tests/db_tests.log"; cp "$API_LOG" "$OUT/tests/api_tests.log"
-cp "$ROOT/db/tests/run_tests.sql" "$OUT/tests/"
-mkdir -p "$OUT/tests/api"; cp "$ROOT"/backend/tests/test_*.py "$OUT/tests/api/"
+if [ "$REVIEWER" = 0 ]; then
+  cp "$ROOT/db/tests/run_tests.sql" "$OUT/tests/"
+  mkdir -p "$OUT/tests/api"; cp "$ROOT"/backend/tests/test_*.py "$OUT/tests/api/"
+fi
 grep -c '^PASS ' "$DB_LOG" > "$OUT/tests/db_checks_passed.txt" || true
+# every API test with its result, and the coverage of this run
+if [ "${#JUNITS[@]}" -gt 0 ]; then
+  for i in "${!JUNITS[@]}"; do cp "${JUNITS[$i]}" "$OUT/tests/api_junit$([ "$i" = 0 ] || echo "_$i").xml"; done
+  # one row per test; a test skipped in the suite and run by a later step (MASSLAK_EVENT_CONTRACTS_LIVE) counts once, as run
+  python3 - "$OUT/tests/api_results.csv" "${JUNITS[@]}" <<'PY'
+import csv, sys, xml.etree.ElementTree as ET
+rows = {}
+for path in sys.argv[2:]:
+    for c in ET.parse(path).getroot().iter("testcase"):
+        status = "failed" if c.find("failure") is not None or c.find("error") is not None else "skipped" if c.find("skipped") is not None else "passed"
+        key = (c.get("classname"), c.get("name"))
+        if key not in rows or rows[key][0] == "skipped":
+            rows[key] = (status, c.get("time"))
+with open(sys.argv[1], "w", newline="") as f:
+    w = csv.writer(f); w.writerow(["file", "test", "result", "seconds"])
+    w.writerows((k[0], k[1], v[0], v[1]) for k, v in rows.items())
+PY
+fi
+if [ -n "$COVERAGE" ] && [ -f "$COVERAGE" ]; then
+  python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); json.dump({"totals": d["totals"], "files": {k: round(v["summary"]["percent_covered"], 1) for k, v in d["files"].items()}}, open(sys.argv[2], "w"), indent=1)' \
+    "$COVERAGE" "$OUT/tests/coverage_summary.json"
+fi
+
+# the critical controls: their code as it is in this commit, and the result of the tests that prove each
+JARGS=(); for j in "${JUNITS[@]}"; do JARGS+=(--junit "$j"); done
+python3 "$ROOT/db/tools/critical_excerpts.py" --out "$OUT/critical" --db-log "$DB_LOG" --commit "$TESTED_C" "${JARGS[@]}"
 
 # measurements
 cp "$ROOT"/docs/operations/evidence/*.json "$OUT/evidence/"
-[ -f "$ROOT/docs/database/build/verification.json" ] && cp "$ROOT/docs/database/build/verification.json" "$OUT/evidence/"
+# the verification summary of this build, made now from this database and these logs (never a file left by an earlier build)
+python3 "$ROOT/docs/database/generator/verification.py" "$DB" --db-log "$DB_LOG" --api-log "$API_LOG" --commit "$TESTED_C" \
+  --out "$OUT/evidence/verification.json" "${ARGS[@]}" > /dev/null
+# the settings guard (db/guard, 1084) as this database runs it: loaded, and the settings it protects settable by a
+# superuser only; the source stays out of the reviewer edition, its digests name the exact files (independent review,
+# round 8, T-06)
+{
+  echo "settings guard of the database the pack was built from (db/guard, schema file 1084)"
+  echo "shared_preload_libraries: $(psql "${ARGS[@]}" -d "$DB" -Atc 'SHOW shared_preload_libraries')"
+  echo "sys.guard_status(): $(psql "${ARGS[@]}" -d "$DB" -Atc 'SELECT sys.guard_status()')"
+  echo "protected settings (superuser only): $(psql "${ARGS[@]}" -d "$DB" -Atc "SELECT string_agg(name || '=' || context, ', ' ORDER BY name) FROM pg_settings WHERE name = ANY (sys.guarded_settings())")"
+  echo "source files (SHA-256):"
+  (cd "$ROOT" && sha256sum db/guard/masslak_guard.c db/guard/Makefile db/guard/Dockerfile)
+  # the two parts that do the work, quoted with their line numbers like the critical controls (round 9, Team, recommendation 5): the
+  # list of protected names, and the definition that gives each one the superuser context (PGC_SUSET)
+  echo "excerpt: db/guard/masslak_guard.c, the protected names and their definition"
+  awk '/^static const char \*const guarded\[\]/,/^};/ { printf "%4d  %s\n", NR, $0 } /^_PG_init\(void\)/,/^}/ { printf "%4d  %s\n", NR, $0 }' \
+    "$ROOT/db/guard/masslak_guard.c"
+} > "$OUT/evidence/settings_guard.txt"
+grep -q 'PGC_SUSET' "$OUT/evidence/settings_guard.txt" || { echo "the guard excerpt lost its PGC_SUSET definition" >&2; exit 1; }
+grep -q '^sys.guard_status(): t$' "$OUT/evidence/settings_guard.txt" || { echo "the settings guard is not loaded in $DB" >&2; exit 1; }
 
 # monitoring: rules, their unit tests, and promtool's verdict when promtool is installed
 cp "$ROOT"/deploy/monitoring/*.yml "$ROOT"/deploy/monitoring/*.json "$OUT/monitoring/"
@@ -77,7 +146,7 @@ for f in docs/database/DESIGN_AUDIT_T3.md docs/database/DESIGN_AUDIT_T3_RECHECK.
          docs/operations/PERFORMANCE_BASELINE.md docs/operations/RELEASE_MAP.md docs/integration/EVENTS.md \
          docs/architecture/AI_ASSISTANT_THREAT_MODEL_DPIA.md docs/operations/LAUNCH_GATES.md docs/operations/STAGING.md docs/operations/CAPACITY_MODEL.md \
          docs/security/PENETRATION_TEST_SCOPE.md docs/database/ARCHITECTURE_REVIEW_RESPONSE.md \
-         docs/database/SCHEMA_DEPENDENCIES.md db/schema_dependencies.json deploy/egress/squid.conf deploy/pitr/postgresql.pitr.conf deploy/pitr/pgbackrest.conf \
+         docs/database/SCHEMA_DEPENDENCIES.md docs/database/SHARDING_STUDY.md db/schema_dependencies.json deploy/egress/squid.conf deploy/pitr/postgresql.pitr.conf deploy/pitr/pgbackrest.conf \
          deploy/staging/docker-compose.staging.yml deploy/staging/alertmanager.yml; do
   [ -f "$ROOT/$f" ] && cp "$ROOT/$f" "$OUT/docs/"
 done

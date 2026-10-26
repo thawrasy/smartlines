@@ -1,4 +1,5 @@
-"""Document API: /api/company/documents for carrier and agency staff, /api/admin/documents for platform review."""
+"""Document API: /api/company/documents for carrier, agency and station operating company staff (the documents their KYC
+form asks for, 1159), /api/admin/documents for platform review."""
 import uuid
 from datetime import date
 from typing import Literal, Optional
@@ -16,7 +17,7 @@ from . import service
 
 company = APIRouter(prefix="/api/company/documents", tags=["documents"])
 platform = APIRouter(prefix="/api/admin/documents", tags=["documents"])
-staff = require_portal("OPERATOR", "AGENCY")
+staff = require_portal("OPERATOR", "AGENCY", "STATION")
 reviewer = require_portal("PLATFORM")
 
 

@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from test_e2e import (OWNER_URL, bookable_trip, client, free_seats, login, owner_sql, publish_fresh_trip, syrian)
+from test_e2e import (OWNER_URL, bookable_trip, client, free_seats, login, owner_sql, publish_fresh_trip, settle_password, syrian)
 
 FEE = 100000
 RATE_BP = 500
@@ -168,11 +168,13 @@ def test_statement_lists_the_sales(agency):
 def test_new_agency_staff_must_use_a_second_factor(agency):
     email = f"seller{uuid.uuid4().hex[:8]}@example.com"
     r = agency.post("/api/agency/staff", json={"full_name": "Sami Seller", "email": email,
-                                                "password": "a-long-seller-password", "role": "SELLER"})
+                                                "password": "counter-desk-long-passphrase", "role": "SELLER"})
     assert r.status_code == 201, r.text
     assert any(s["email"] == email and s["role"] == "AGENCY_SELLER" for s in agency.get("/api/agency/staff").json()["staff"])
+    assert r.json()["sign_in"]["username"] == email.split("@")[0]
+    settle_password(email)
     c = client()
-    r = c.post("/api/auth/login", json={"identifier": email, "password": "a-long-seller-password", "portal": "AGENCY"})
+    r = c.post("/api/auth/login", json={"identifier": email, "password": "counter-desk-long-passphrase", "portal": "AGENCY"})
     assert r.status_code == 200 and r.json()["mfa"] == "ENROLL"
     assert c.get("/api/agency/dashboard").json()["error"]["code"] == "MFA_REQUIRED"
 
@@ -190,3 +192,32 @@ def test_commission_is_released_to_the_agency_when_the_trip_completes(agency, tr
     after = agency.get("/api/agency/dashboard").json()
     assert after["balance"] - before["balance"] >= pytest.agency_commission
     assert after["commission_released"] - before["commission_released"] >= pytest.agency_commission
+
+
+def test_the_agent_sees_a_boarding_photo_of_its_sale_only_when_the_platform_allows_it(agency):
+    from test_boarding_photo import change_setting, switch_on, view_access
+    switch_on(enforce=False)
+    trip = bookable_trip(client())            # a trip still open for sale: the trip fixture is spent by the tests above
+    if trip is None:
+        publish_fresh_trip()
+        trip = bookable_trip(client())
+    r = sell(agency, trip, free_seats(agency, trip, 1))
+    assert r.status_code == 201, r.text
+    ticket = str(owner_sql("""SELECT k.uid FROM sales.ticket k JOIN sales.booking b ON b.id = k.booking_id
+                               WHERE b.booking_ref = $1""", r.json()["booking_ref"]))
+    assert agency.get(f"/api/agency/tickets/{ticket}/photo").status_code == 403       # the agent is off at launch
+    access = dict(view_access(), AGENT=True)
+    change_setting("photo.view_access", access)
+    try:
+        r = agency.get(f"/api/agency/tickets/{ticket}/photo")
+        assert r.status_code == 409 and r.json()["error"]["code"] == "NOT_BOARDING", r.text
+        original = owner_sql("SELECT status FROM ops.trip WHERE uid = $1", uuid.UUID(trip["uid"]))
+        owner_sql("UPDATE ops.trip SET status = 'BOARDING' WHERE uid = $1", uuid.UUID(trip["uid"]))
+        try:
+            r = agency.get(f"/api/agency/tickets/{ticket}/photo")
+            assert r.status_code == 404 and r.json()["error"]["code"] == "PHOTO_NONE", r.text     # no photo on file
+            assert agency.get(f"/api/agency/tickets/{uuid.uuid4()}/photo").status_code == 404     # not a ticket of this agency
+        finally:
+            owner_sql("UPDATE ops.trip SET status = $2 WHERE uid = $1", uuid.UUID(trip["uid"]), original)
+    finally:
+        change_setting("photo.view_access", dict(access, AGENT=False))

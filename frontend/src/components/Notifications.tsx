@@ -13,7 +13,8 @@ export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
 
-  const load = () => api.get<{ notifications: Item[]; unread: number }>("/api/notifications").then(setData).catch(() => {});
+  // the bell refreshes itself, which is not the user's activity: it does not keep an idle session alive (1146)
+  const load = () => api.get<{ notifications: Item[]; unread: number }>("/api/notifications", undefined, { background: true }).then(setData).catch(() => {});
   useEffect(() => {
     void load();
     const id = window.setInterval(load, 60000);

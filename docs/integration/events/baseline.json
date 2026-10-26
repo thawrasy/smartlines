@@ -1,0 +1,467 @@
+{
+ "_note": "Frozen shape of each published event version: within a version a property is never removed or retyped and a required field never dropped (tests/test_event_contracts.py). Add new fields to the schema and here; a breaking change needs a new version.",
+ "versions": {
+  "booking.cancelled@1": {
+   "required": [
+    "booking_ref",
+    "refund_amount"
+   ],
+   "properties": {
+    "booking_ref": "string",
+    "refund_amount": "integer",
+    "booker_user_id": [
+     "integer",
+     "null"
+    ],
+    "agency_id": [
+     "integer",
+     "null"
+    ],
+    "contact_mobile": [
+     "string",
+     "null"
+    ]
+   }
+  },
+  "booking.cancelled_by_carrier@1": {
+   "required": [
+    "booking_ref",
+    "trip_no",
+    "refund_amount",
+    "refund_to"
+   ],
+   "properties": {
+    "booking_ref": "string",
+    "trip_no": "string",
+    "trip_code": [
+     "string",
+     "null"
+    ],
+    "refund_amount": "integer",
+    "refund_to": "string",
+    "booker_user_id": [
+     "integer",
+     "null"
+    ],
+    "agency_id": [
+     "integer",
+     "null"
+    ],
+    "counter": [
+     "boolean",
+     "null"
+    ],
+    "contact_mobile": [
+     "string",
+     "null"
+    ]
+   }
+  },
+  "booking.confirmed@1": {
+   "required": [
+    "booking_ref",
+    "trip_no",
+    "from_city",
+    "to_city",
+    "departs_local",
+    "passengers",
+    "total_amount"
+   ],
+   "properties": {
+    "booking_ref": "string",
+    "trip_no": "string",
+    "trip_code": [
+     "string",
+     "null"
+    ],
+    "from_city": "string",
+    "to_city": "string",
+    "departs_local": "string",
+    "passengers": "integer",
+    "total_amount": "integer",
+    "booker_user_id": [
+     "integer",
+     "null"
+    ],
+    "agency_id": [
+     "integer",
+     "null"
+    ],
+    "counter": [
+     "boolean",
+     "null"
+    ],
+    "contact_mobile": [
+     "string",
+     "null"
+    ],
+    "pay_option": [
+     "string",
+     "null"
+    ]
+   }
+  },
+  "border.manifest_submitted@1": {
+   "required": [],
+   "properties": {
+    "manifest_uid": "string"
+   }
+  },
+  "document.approved@1": {
+   "required": [
+    "doc_type"
+   ],
+   "properties": {
+    "doc_type": "string",
+    "note": [
+     "string",
+     "null"
+    ],
+    "uploaded_by": [
+     "integer",
+     "null"
+    ]
+   }
+  },
+  "document.rejected@1": {
+   "required": [
+    "doc_type"
+   ],
+   "properties": {
+    "doc_type": "string",
+    "note": [
+     "string",
+     "null"
+    ],
+    "uploaded_by": [
+     "integer",
+     "null"
+    ]
+   }
+  },
+  "freight.bid_accepted@1": {
+   "required": [
+    "price"
+   ],
+   "properties": {
+    "price": "integer"
+   }
+  },
+  "incident.reported@1": {
+   "required": [
+    "incident_id",
+    "trip_no",
+    "incident_type",
+    "severity"
+   ],
+   "properties": {
+    "incident_id": "integer",
+    "trip_no": "string",
+    "plate_no": "string",
+    "incident_type": "string",
+    "severity": "string",
+    "injuries": "boolean",
+    "out_of_service": "boolean",
+    "platform": "boolean"
+   }
+  },
+  "manifest.available@1": {
+   "required": [
+    "delivery_uid",
+    "manifest_uid",
+    "trip_no",
+    "scope",
+    "type",
+    "version"
+   ],
+   "properties": {
+    "delivery_uid": "string",
+    "manifest_uid": "string",
+    "trip_no": "string",
+    "scope": "string",
+    "type": "string",
+    "version": "integer"
+   }
+  },
+  "manifest.issued@1": {
+   "required": [
+    "manifest_uid",
+    "trip_no",
+    "scope",
+    "type",
+    "version"
+   ],
+   "properties": {
+    "manifest_uid": "string",
+    "trip_no": "string",
+    "scope": "string",
+    "type": "string",
+    "version": "integer",
+    "persons": "integer",
+    "cargo": "integer",
+    "deliveries": "integer"
+   }
+  },
+  "rental.requested@1": {
+   "required": [
+    "class",
+    "total"
+   ],
+   "properties": {
+    "class": "string",
+    "total": "integer"
+   }
+  },
+  "screen.unseen@1": {
+   "required": [
+    "label",
+    "kind",
+    "station",
+    "minutes"
+   ],
+   "properties": {
+    "label": "string",
+    "kind": "string",
+    "station": "string",
+    "station_name": "string",
+    "minutes": "integer"
+   }
+  },
+  "shipment.created@1": {
+   "required": [
+    "tracking_no",
+    "price"
+   ],
+   "properties": {
+    "tracking_no": "string",
+    "price": "integer",
+    "trip_no": "string",
+    "guaranteed": "boolean"
+   }
+  },
+  "sos.raised@1": {
+   "required": [
+    "sos_id",
+    "trip_no",
+    "role"
+   ],
+   "properties": {
+    "sos_id": "integer",
+    "trip_no": "string",
+    "plate_no": "string",
+    "role": "string",
+    "where": "string"
+   }
+  },
+  "subscription.activated@1": {
+   "required": [
+    "plan",
+    "pass_no",
+    "ends_on"
+   ],
+   "properties": {
+    "plan": "string",
+    "pass_no": "string",
+    "ends_on": "string"
+   }
+  },
+  "tracking.alert_escalated@1": {
+   "required": [
+    "alert_id",
+    "trip_no",
+    "minutes"
+   ],
+   "properties": {
+    "alert_id": "integer",
+    "trip_no": "string",
+    "minutes": "integer"
+   }
+  },
+  "tracking.signal_lost@1": {
+   "required": [
+    "alert_id",
+    "trip_no",
+    "minutes"
+   ],
+   "properties": {
+    "alert_id": "integer",
+    "trip_no": "string",
+    "minutes": "integer"
+   }
+  },
+  "trip.cancel_penalty@1": {
+   "required": [
+    "trip_no",
+    "amount",
+    "legal_ref",
+    "collected"
+   ],
+   "properties": {
+    "trip_no": "string",
+    "amount": "integer",
+    "legal_ref": "string",
+    "collected": "boolean"
+   }
+  },
+  "trip.cancelled@1": {
+   "required": [
+    "trip_no",
+    "bookings_refunded",
+    "reservations_cancelled"
+   ],
+   "properties": {
+    "trip_no": "string",
+    "bookings_refunded": "integer",
+    "reservations_cancelled": "integer"
+   }
+  },
+  "wallet.credited@1": {
+   "required": [
+    "payment",
+    "reference",
+    "amount",
+    "currency"
+   ],
+   "properties": {
+    "payment": "string",
+    "reference": "string",
+    "amount": "integer",
+    "currency": "string"
+   }
+  },
+  "webhook.ping@1": {
+   "required": [
+    "endpoint",
+    "message"
+   ],
+   "properties": {
+    "endpoint": "string",
+    "message": "string"
+   }
+  },
+  "withdrawal.paid@1": {
+   "required": [
+    "amount",
+    "bank_ref"
+   ],
+   "properties": {
+    "amount": "integer",
+    "bank_ref": "string",
+    "iban_last4": [
+     "string",
+     "null"
+    ]
+   }
+  },
+  "withdrawal.rejected@1": {
+   "required": [
+    "amount"
+   ],
+   "properties": {
+    "amount": "integer",
+    "reason": [
+     "string",
+     "null"
+    ]
+   }
+  },
+  "booking.trip_changed@1": {
+   "required": [
+    "change",
+    "reason_code",
+    "booking_ref",
+    "trip_no"
+   ],
+   "properties": {
+    "change": "string",
+    "reason_code": "string",
+    "booking_ref": "string",
+    "trip_no": "string",
+    "trip_code": [
+     "string",
+     "null"
+    ],
+    "departs_local": [
+     "string",
+     "null"
+    ],
+    "vehicle_plate": [
+     "string",
+     "null"
+    ],
+    "shift_min": [
+     "integer",
+     "null"
+    ],
+    "free_cancel": [
+     "boolean",
+     "null"
+    ],
+    "new_seats": [
+     "array",
+     "null"
+    ],
+    "new_trip_no": [
+     "string",
+     "null"
+    ],
+    "new_trip_code": [
+     "string",
+     "null"
+    ],
+    "from_trip_code": [
+     "string",
+     "null"
+    ],
+    "booker_user_id": [
+     "integer",
+     "null"
+    ],
+    "agency_id": [
+     "integer",
+     "null"
+    ],
+    "counter": [
+     "boolean",
+     "null"
+    ],
+    "contact_mobile": [
+     "string",
+     "null"
+    ]
+   }
+  },
+  "fuel.filled@1": {
+   "required": [
+    "sale_uid",
+    "station",
+    "fuel_type",
+    "litres",
+    "amount",
+    "currency",
+    "balance",
+    "held"
+   ],
+   "properties": {
+    "sale_uid": "string",
+    "station": "string",
+    "plate_no": [
+     "string",
+     "null"
+    ],
+    "fuel_type": "string",
+    "litres": "number",
+    "amount": "integer",
+    "currency": "string",
+    "balance": "integer",
+    "left_amount": [
+     "integer",
+     "null"
+    ],
+    "held": "boolean",
+    "low_balance": "boolean",
+    "anomalies": "array"
+   }
+  }
+ }
+}

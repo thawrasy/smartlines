@@ -139,7 +139,7 @@ def test_a_claim_is_approved_by_one_person_and_paid_once_by_another(admin):
 # ------------------------------------------------------------------ trip templates and ratings
 def _fresh_vehicle(carrier):
     layout = next(x for x in carrier.get("/api/carrier/seat-layouts").json()["layouts"] if x["total_seats"] == 44)
-    plate = str(100000 + secrets.randbelow(900000))
+    plate = str(1_000_000_000 + secrets.randbelow(9_000_000_000))   # wide enough that two runs never share one
     r = carrier.post("/api/carrier/vehicles", json={
         "plate_no": plate, "chassis_no": f"CHS-G{plate}", "vehicle_type": "COACH", "seat_layout_uid": layout["uid"],
         "insurance_no": f"POL-G{plate}", "insurer": "Test", "insurance_issue": "2026-01-01", "insurance_expiry": "2030-01-01"})
@@ -149,18 +149,23 @@ def _fresh_vehicle(carrier):
 
 def test_a_template_generates_each_departure_once_and_a_traveller_rates_the_trip(carrier):
     vehicle_uid = _fresh_vehicle(carrier)
-    vehicle_id = owner_sql("SELECT id FROM fleet.vehicle WHERE uid = $1", uuid.UUID(vehicle_uid))
-    route_id = owner_sql("SELECT id FROM net.route WHERE code = 'DAM-ALP' ORDER BY id LIMIT 1")
+    route_uid = next(r["uid"] for r in carrier.get("/api/carrier/schedules").json()["routes"] if r["code"] == "DAM-ALP")
     minute = secrets.randbelow(50)
-    r = carrier.post("/api/r/trip-template", json={
-        "route_id": route_id, "default_vehicle_id": vehicle_id, "departure_time": f"05:{minute:02d}",
-        "days_of_week": [1, 2, 3, 4, 5, 6, 7], "base_price": 28000, "currency": "SYP", "active": [day(3), day(30)]})
+    # a regular trip is asked for and approved by the platform (1117); it makes its trips up to the horizon by itself
+    r = carrier.post("/api/carrier/schedules", json={
+        "route_uid": route_uid, "vehicle_uid": vehicle_uid, "departure_time": f"05:{minute:02d}", "recurrence": "DAILY",
+        "base_price": 28000, "from_date": day(3), "until_date": day(60)})
     assert r.status_code == 201, r.text
-    tpl = r.json()["_key"]
-    gen = carrier.post(f"/api/carrier/trip-templates/{tpl}/generate", json={"from_date": day(3), "to_date": day(5), "publish": True})
+    decided = login("admin@masslak.test", "PLATFORM").post(f"/api/admin/schedules/requests/{r.json()['uid']}/decide", json={"approve": True})
+    assert decided.status_code == 200 and decided.json()["status"] == "APPROVED", decided.text
+    tpl = str(owner_sql("SELECT id FROM ops.trip_template WHERE uid = $1", uuid.UUID(decided.json()["result"]["template_uid"])))
+    made = owner_sql("SELECT count(*) FROM ops.trip WHERE template_id = $1", int(tpl))
+    assert made >= 25                                                  # day 3 to the horizon, 30 days ahead
+    # beyond the horizon, the carrier may make days itself: each departure once
+    gen = carrier.post(f"/api/carrier/trip-templates/{tpl}/generate", json={"from_date": day(40), "to_date": day(42), "publish": True})
     assert gen.status_code == 200, gen.text
     assert len(gen.json()["created"]) == 3, gen.json()
-    again = carrier.post(f"/api/carrier/trip-templates/{tpl}/generate", json={"from_date": day(3), "to_date": day(5)}).json()
+    again = carrier.post(f"/api/carrier/trip-templates/{tpl}/generate", json={"from_date": day(40), "to_date": day(42)}).json()
     assert again["created"] == [] and {s["reason"] for s in again["skipped"]} == {"EXISTS"}
     outside = carrier.post(f"/api/carrier/trip-templates/{tpl}/generate", json={"from_date": day(1), "to_date": day(2)}).json()
     assert outside["created"] == [] and outside["skipped"] == []          # before the template's period
@@ -168,9 +173,8 @@ def test_a_template_generates_each_departure_once_and_a_traveller_rates_the_trip
                         json={"from_date": day(3), "to_date": day(90)}).json()["error"]["code"] == "INVALID_RANGE"
     assert carrier.post(f"/api/r/trip-template/{tpl}/do/pause").status_code == 200
     assert carrier.post(f"/api/carrier/trip-templates/{tpl}/generate",
-                        json={"from_date": day(6), "to_date": day(6)}).json()["error"]["code"] == "TEMPLATE_NOT_ACTIVE"
-    # another carrier's template is not found
-    assert owner_sql("SELECT count(*) FROM ops.trip WHERE template_id = $1", int(tpl)) == 3
+                        json={"from_date": day(43), "to_date": day(43)}).json()["error"]["code"] == "TEMPLATE_NOT_ACTIVE"
+    assert owner_sql("SELECT count(*) FROM ops.trip WHERE template_id = $1", int(tpl)) == made + 3
 
     # a passenger books the first generated trip, cannot rate it before travelling, and rates it once after
     trip_uid = str(owner_sql("SELECT uid FROM ops.trip WHERE template_id = $1 ORDER BY departure_at LIMIT 1", int(tpl)))

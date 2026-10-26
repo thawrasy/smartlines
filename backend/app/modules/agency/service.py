@@ -14,6 +14,7 @@ from ...deps import Principal
 from ...errors import ApiError, forbidden, not_found
 from ...ledger import company_wallet
 from ...util import row_dict, rows
+from ..account.doors import temporary_password
 from ..sales import service as sales
 from ..sales.models import AgencyBookingIn
 from . import repository as repo
@@ -61,9 +62,17 @@ async def ensure_can_sell(conn: asyncpg.Connection, pr: Principal) -> None:
     await _active_agreement(conn, require_agency(pr))
 
 
-def buyer_for(pr: Principal, agreement: asyncpg.Record, contact_mobile: str | None = None) -> sales.Buyer:
+def buyer_for(pr: Principal, agreement: asyncpg.Record, contact_mobile: str | None = None, cash: bool = False) -> sales.Buyer:
     return sales.Buyer(party_id=pr.company_id, user_id=pr.user_id, channel="AGENCY", agency_id=pr.company_id,
-                       commission_bp=agreement["commission_bp"], contact_mobile=contact_mobile)
+                       commission_bp=agreement["commission_bp"], contact_mobile=contact_mobile, agency_cash=cash)
+
+
+async def sells_for_cash(conn: asyncpg.Connection) -> bool:
+    """An agency sells for cash while the platform holds no money (N13, 1145): its balance is closed and the cash option
+    open, the traveller pays the agency and the agency settles with the carrier."""
+    rows = {r["code"]: r["enabled"] for r in await conn.fetch(
+        "SELECT code, enabled FROM fin.payment_method WHERE code IN ('AGENCY_BALANCE','AGENCY_CASH')")}
+    return rows.get("AGENCY_CASH", False) and not rows.get("AGENCY_BALANCE", False)
 
 
 async def dashboard(conn: asyncpg.Connection, pr: Principal) -> dict:
@@ -98,7 +107,7 @@ async def sell(conn: asyncpg.Connection, ctx: db.Context, pr: Principal, body: A
             raise ApiError(409, "AGENCY_DAILY_LIMIT", "this sale would pass the agency's daily limit",
                            remaining=max(0, agreement["daily_limit"] - sold))
 
-    return await sales.create_booking(conn, ctx, buyer_for(pr, agreement, body.contact_mobile), body,
+    return await sales.create_booking(conn, ctx, buyer_for(pr, agreement, body.contact_mobile, await sells_for_cash(conn)), body,
                                       before_payment=within_daily_limit)
 
 
@@ -120,7 +129,8 @@ async def cancel(conn: asyncpg.Connection, ctx: db.Context, pr: Principal, ref: 
         raise not_found("booking")
     agreement = await repo.agreement(conn, agency_id)
     buyer = sales.Buyer(party_id=agency_id, user_id=pr.user_id, channel="AGENCY", agency_id=agency_id,
-                        commission_bp=agreement["commission_bp"] if agreement else 0)
+                        commission_bp=agreement["commission_bp"] if agreement else 0,
+                        agency_cash=b["pay_option"] == "AGENCY_CASH")       # a cash sale's refund is cash the agency hands back
     return b["id"], await sales.cancel_booking(conn, ctx, b, buyer)
 
 
@@ -153,7 +163,7 @@ async def staff(conn: asyncpg.Connection, pr: Principal) -> list[dict]:
     agency_id = require_agency(pr)
     recs = await conn.fetch(
         """SELECT p.uid, p.legal_name AS full_name, u.email, m.is_owner, m.status, r.code AS role, u.last_login_at,
-                  EXISTS (SELECT 1 FROM iam.mfa_factor f WHERE f.user_id = u.id AND f.factor_type IN ('TOTP','SMS','WHATSAPP')
+                  EXISTS (SELECT 1 FROM iam.mfa_factor f WHERE f.user_id = u.id AND f.factor_type IN ('TOTP','EMAIL','TELEGRAM','SMS','WHATSAPP')
                              AND f.verified_at IS NOT NULL AND f.disabled_at IS NULL) AS mfa_enrolled
              FROM iam.company_member m JOIN iam.app_user u ON u.id = m.user_id JOIN iam.party p ON p.id = u.party_id
              LEFT JOIN iam.role r ON r.id = m.role_id
@@ -162,7 +172,7 @@ async def staff(conn: asyncpg.Connection, pr: Principal) -> list[dict]:
 
 
 async def add_staff(conn: asyncpg.Connection, pr: Principal, full_name: str, email: str, mobile: str | None,
-                    password: str, role: str) -> tuple[int, str]:
+                    password: str, role: str) -> tuple[int, str, dict]:
     """Adds a seller or accountant. Agency staff always sign in with a second factor."""
     from ...security import hash_password
     agency_id = require_agency(pr)
@@ -177,5 +187,6 @@ async def add_staff(conn: asyncpg.Connection, pr: Principal, full_name: str, ema
         party_id, email, mobile, hash_password(password))
     await conn.execute("INSERT INTO iam.company_member (user_id, company_id, role_id) VALUES ($1, $2, $3)",
                        user_id, agency_id, role_id)
+    door = await temporary_password(conn, user_id)
     uid = await conn.fetchval("SELECT uid FROM iam.party WHERE id = $1", party_id)
-    return party_id, str(uid)
+    return party_id, str(uid), door

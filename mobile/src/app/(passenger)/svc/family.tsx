@@ -1,11 +1,14 @@
-import { useRef, useState } from "react";
-import { Alert, Text, View } from "react-native";
+import { type ReactNode, useRef, useState } from "react";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { router } from "expo-router";
 import * as Device from "expo-device";
 import { randomUUID } from "expo-crypto";
-import { useI18n } from "../../../i18n";
+import { fromMinor as fromMinorUnits, toMinor as toMinorUnits, useI18n } from "../../../i18n";
 import { api } from "../../../platform/api";
 import { deviceId } from "../../../platform/secure";
-import { Button, Card, Chip, Choice, ErrorText, Field, Loading, Notice, Row, Screen, Title, s } from "../../../ui/kit";
+import { Button, Card, Chip, Choice, ErrorText, Field, Loading, Notice, Pill, Row, Screen, SvcHeader, s } from "../../../ui/kit";
+import { Icon } from "../../../ui/brand";
+import { color, font, radius } from "../../../ui/theme";
 import { useLoad } from "../../../ui/useLoad";
 
 type Funding = "OWN" | "HEAD_WALLET" | "FAMILY_ACCOUNT";
@@ -37,7 +40,7 @@ export default function Family() {
   const d = v.data;
   return (
     <Screen>
-      <Title sub={t("family.subtitle")}>{d?.family?.name ?? t("family.title")}</Title>
+      <SvcHeader icon="people" title={d?.family?.name ?? t("family.title")} sub={t("family.subtitle")} onBack={() => router.back()} />
       <ErrorText error={error ?? v.error} />
       {d && !d.role ? <Start run={run} busy={busy} /> : null}
       {d?.role === "MEMBER" && d.me ? <MemberView me={d.me} rules={d.rules ?? []} run={run} busy={busy} /> : null}
@@ -121,7 +124,7 @@ function HeadView({ d, run, busy, money }: { d: View_; run: Run; busy: boolean; 
   const [code, setCode] = useState<{ name: string; code: string } | null>(null);
   const [open, setOpen] = useState<{ member?: Member } | null>(null);   // the member being added (no member) or edited
   const idem = useRef(randomUUID());
-  const minor = Math.round(Number(amount) * 100);
+  const minor = toMinorUnits(amount);
   const move = (dir: "topup" | "withdraw") => run(async () => {
     await api.post(`/api/family/account/${dir}`, { amount: minor, idempotency_key: idem.current });
     idem.current = randomUUID(); setAmount("");
@@ -143,28 +146,26 @@ function HeadView({ d, run, busy, money }: { d: View_; run: Run; busy: boolean; 
           </View>
         </Card>
       ))}
+      <View style={fs.account}>
+        <Text style={fs.accountLabel}>{t("family.account")}</Text>
+        <Text style={fs.accountBalance}>{money(d.account?.balance ?? 0)}</Text>
+      </View>
       <Card>
-        <View style={s.between}>
-          <Text style={s.h2}>{t("family.account")}</Text>
-          <Text style={s.h2}>{money(d.account?.balance ?? 0)}</Text>
-        </View>
         <Field label={t("family.amount")} value={amount} keyboardType="number-pad" onChangeText={(x) => setAmount(x.replace(/[^0-9]/g, ""))} />
-        <View style={s.row}>
-          <Button label={t("family.topup")} busy={busy} disabled={!(minor > 0)} onPress={() => move("topup")} />
-          <Button kind="tonal" label={t("family.withdraw")} disabled={!(minor > 0)} onPress={() => move("withdraw")} />
-        </View>
+        <Button label={t("family.topup")} busy={busy} disabled={!(minor > 0)} onPress={() => move("topup")} />
+        <Button kind="tonal" label={t("family.withdraw")} disabled={!(minor > 0)} onPress={() => move("withdraw")} />
       </Card>
       {code ? (
         <Card>
           <Text style={s.h2}>{t("family.inviteTitle")}</Text>
-          <Text style={[s.title, { letterSpacing: 4, textAlign: "center" }]} selectable>{code.code}</Text>
+          <View style={fs.code}><Text style={fs.codeText} selectable>{code.code}</Text></View>
           <Text style={s.small}>{t("family.inviteHint", { name: code.name })}</Text>
         </Card>
       ) : null}
       <Card>
         <Text style={s.h2}>{t("family.members")}</Text>
         {(d.members ?? []).map((m) => (
-          <Row key={m.uid} title={m.full_name} sub={`${t(`family.rel.${m.relation}`)} · ${t("family.age")} ${m.age} · ${t(`family.funding.${m.funding}`)}`}
+          <MemberRow key={m.uid} name={m.full_name} sub={`${t(`family.rel.${m.relation}`)} · ${t("family.age")} ${m.age} · ${t(`family.funding.${m.funding}`)}`}
                onPress={m.relation === "SELF" ? undefined : () => setOpen({ member: m })}
                right={m.relation === "SELF" ? null : m.account_status === "LINKED" ? <Chip tone="green" label={t("family.linked")} />
                  : <Button kind="text" label={t("family.invite")}
@@ -182,8 +183,8 @@ function HeadView({ d, run, busy, money }: { d: View_; run: Run; busy: boolean; 
 const RELATIONS = ["SPOUSE", "SON", "DAUGHTER", "FATHER", "MOTHER", "BROTHER", "SISTER", "GRANDCHILD", "GRANDPARENT", "OTHER"];
 const DOCS = ["NATIONAL_ID", "PASSPORT", "RESIDENCE", "LAISSEZ_PASSER", "TRAVEL_DOCUMENT", "OTHER"];
 const isDate = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v));
-const toMinor = (v: string) => (v.trim() ? Math.round(Number(v) * 100) : null);
-const fromMinor = (n: number | null | undefined) => (n ? String(n / 100) : "");
+const toMinor = (v: string) => (v.trim() ? toMinorUnits(v) : null);
+const fromMinor = (n: number | null | undefined) => (n ? String(fromMinorUnits(n)) : "");
 
 /** Adds a member, or edits one: contact, document, how their own purchases are paid, limits; and their times and routes. */
 function MemberEditor({ member, onClose, run, busy }: { member?: Member; onClose: () => void; run: Run; busy: boolean }) {
@@ -308,8 +309,8 @@ function Rules({ member, run, busy }: { member: Member; run: Run; busy: boolean 
         <>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
             {[1, 2, 3, 4, 5, 6, 7].map((d) => (
-              <Button key={d} kind={days.includes(d) ? "primary" : "tonal"} label={t(`family.day.${d}`)}
-                      onPress={() => setDays(days.includes(d) ? days.filter((x) => x !== d) : [...days, d])} />
+              <Pill key={d} on={days.includes(d)} label={t(`family.day.${d}`)}
+                    onPress={() => setDays(days.includes(d) ? days.filter((x) => x !== d) : [...days, d])} />
             ))}
           </View>
           <View style={s.row}>
@@ -333,3 +334,31 @@ function Rules({ member, run, busy }: { member: Member; run: Run; busy: boolean 
     </Card>
   );
 }
+
+/** A family member: initials in the brand's circle, name, relation and how they pay, and under them the link state or action. */
+function MemberRow({ name, sub, right, onPress }: { name: string; sub: string; right?: ReactNode; onPress?: () => void }) {
+  const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("");
+  return (
+    <Pressable accessibilityRole={onPress ? "button" : undefined} disabled={!onPress} onPress={onPress}
+               style={({ pressed }) => [fs.member, pressed && { opacity: 0.8 }]}>
+      <View style={fs.initials}><Text style={fs.initialsText}>{initials}</Text></View>
+      <View style={{ flex: 1, gap: 2, alignItems: "flex-start" }}>
+        <Text style={[s.label, { fontFamily: font.semibold }]}>{name}</Text>
+        <Text style={s.small}>{sub}</Text>
+        {right}
+      </View>
+      {onPress ? <Icon name="forward" size={18} tint={color.muted} mirror /> : null}
+    </Pressable>
+  );
+}
+
+const fs = StyleSheet.create({
+  account: { backgroundColor: color.navy, borderRadius: radius.lg, padding: 20, gap: 4 },
+  accountLabel: { fontFamily: font.medium, fontSize: 14, color: "#B8C2CF" },
+  accountBalance: { fontFamily: font.displayBold, fontSize: 30, color: "#fff" },
+  code: { borderWidth: 1.5, borderStyle: "dashed", borderColor: color.primary, borderRadius: radius.md, paddingVertical: 14, alignItems: "center", backgroundColor: "#F3F7FE" },
+  codeText: { fontFamily: font.mono, fontSize: 28, letterSpacing: 6, color: color.navy },
+  member: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderColor: color.outline },
+  initials: { width: 40, height: 40, borderRadius: 20, backgroundColor: color.primarySoft, alignItems: "center", justifyContent: "center" },
+  initialsText: { fontFamily: font.display, fontSize: 15, color: color.primary },
+});

@@ -1,10 +1,13 @@
 import { useState } from "react";
 import { api, newKey } from "../../api";
-import { useI18n } from "../../i18n";
+import { fromMinor, toMinor, useI18n } from "../../i18n";
 import { useAuth } from "../../auth";
 import { PageHead } from "../../components/layout";
-import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, useToast } from "../../components/ui";
+import { CarrierName, Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, useToast } from "../../components/ui";
 import { Approvals, FeeRules } from "./Approvals";
+import { CancelPenalty, LoyaltyDesk } from "./Partners";
+import { useModules } from "../../modules/context";
+import { PaymentActivations } from "./CashAccounts";
 
 interface Provider {
   code: string; name: string; kind: string; adapter: string; status: string; min_amount: number; max_amount: number; fee_pct: number;
@@ -18,9 +21,12 @@ interface Pay { uid: string; created_at: string; method: string; status: string;
 export function PaymentsDesk() {
   const { t } = useI18n();
   const { can } = useAuth();
-  type Tab = "providers" | "bank" | "payments" | "options" | "cash" | "approvals" | "fees";
+  const { on } = useModules();
+  type Tab = "providers" | "bank" | "payments" | "options" | "gateway" | "cash" | "approvals" | "fees" | "penalty" | "loyalty";
   const [tab, setTab] = useState<Tab>(can("ledger.reconcile") ? "bank" : can("payment.methods") ? "options" : "providers");
-  const tabs: Tab[] = ["bank", "approvals", "payments", "providers", "fees", "options", "cash"];
+  const tabs: Tab[] = ["bank", "approvals", "payments", "providers", "fees", "options", "gateway", "cash"];
+  if (can("policy.matrix")) tabs.push("penalty");
+  if (can("loyalty.manage", "payout.run") && on("loyalty_partners")) tabs.push("loyalty");
   return (
     <div className="stack">
       <PageHead title={t("pay.desk")} sub={t("pay.deskSub")} />
@@ -33,9 +39,12 @@ export function PaymentsDesk() {
       {tab === "bank" && <BankStatements />}
       {tab === "payments" && <RecentPayments />}
       {tab === "options" && <PaymentOptions />}
+      {tab === "gateway" && <PaymentActivations />}
       {tab === "cash" && <CounterCash />}
       {tab === "approvals" && <Approvals />}
       {tab === "fees" && <FeeRules />}
+      {tab === "penalty" && <CancelPenalty />}
+      {tab === "loyalty" && <LoyaltyDesk />}
     </div>
   );
 }
@@ -71,7 +80,7 @@ function Providers() {
 
 function ProviderModal({ p, onClose, onDone }: { p: Provider; onClose: () => void; onDone: () => void }) {
   const { t } = useI18n();
-  const [f, setF] = useState({ status: p.status, min: p.min_amount / 100, max: p.max_amount / 100, fee: p.fee_pct, borne: p.fee_borne_by });
+  const [f, setF] = useState({ status: p.status, min: fromMinor(p.min_amount), max: fromMinor(p.max_amount), fee: p.fee_pct, borne: p.fee_borne_by });
   const fields = p.adapter === "BANK_TRANSFER" ? ["bank_name", "account_name", "iban", "valid_days"]
     : ["HOSTED_CARD", "INSTALLMENT", "FINANCING"].includes(p.adapter) ? ["base_url", "merchant_id"]
     : p.adapter === "PARTNER_WALLET" ? ["base_url", "merchant_code"] : [];
@@ -80,7 +89,7 @@ function ProviderModal({ p, onClose, onDone }: { p: Provider; onClose: () => voi
   const save = async () => {
     try {
       const config = Object.fromEntries(Object.entries(cfg).map(([k, v]) => [k, k === "valid_days" ? Number(v || 3) : v]));
-      await api.put(`/api/admin/payments/providers/${p.code}`, { status: f.status, min_amount: Math.round(f.min * 100), max_amount: Math.round(f.max * 100),
+      await api.put(`/api/admin/payments/providers/${p.code}`, { status: f.status, min_amount: toMinor(f.min), max_amount: toMinor(f.max),
         fee_pct: f.fee, fee_borne_by: f.borne, config });
       onDone();
     } catch (e) { setError(e); }
@@ -233,20 +242,20 @@ function RecentPayments() {
 function RefundModal({ p, onClose, onDone }: { p: Pay; onClose: () => void; onDone: (stage: string) => void }) {
   const { t, money } = useI18n();
   const left = p.amount - p.refunded_amount;
-  const [amount, setAmount] = useState(left / 100);
+  const [amount, setAmount] = useState(fromMinor(left));
   const [reason, setReason] = useState("");
   const [key] = useState(newKey);
   const [error, setError] = useState<unknown>(null);
   const save = async () => {
     try {
-      const r = await api.post<{ status: string; stage: string }>(`/api/admin/payments/${p.uid}/refund`, { amount: Math.round(amount * 100), reason, idempotency_key: key });
+      const r = await api.post<{ status: string; stage: string }>(`/api/admin/payments/${p.uid}/refund`, { amount: toMinor(amount), reason, idempotency_key: key });
       onDone(r.stage);
     } catch (e) { setError(e); }
   };
   return (
     <Modal title={t("pay.refundTitle")} onClose={onClose} actions={<><button className="btn text" onClick={onClose}>{t("common.cancel")}</button><button className="btn danger" disabled={reason.length < 5 || amount <= 0} onClick={save}>{t("pay.refund")}</button></>}>
       <p className="small muted">{t("pay.refundHint", { left: money(left) })}</p>
-      <Field label={t("pay.amount")}><input className="input ltr" type="number" max={left / 100} value={amount} onChange={(e) => setAmount(Number(e.target.value))} /></Field>
+      <Field label={t("pay.amount")}><input className="input ltr" type="number" max={fromMinor(left)} value={amount} onChange={(e) => setAmount(Number(e.target.value))} /></Field>
       <Field label={t("pay.reason")}><input className="input" value={reason} maxLength={300} onChange={(e) => setReason(e.target.value)} /></Field>
       <ErrorBox error={error} />
     </Modal>
@@ -259,14 +268,14 @@ export function AgencyTopup() {
   const toast = useToast();
   const list = useLoad(() => api.get<{ topups: { uid: string; amount: number; receipt: string; mobile: string; created_at: string }[] }>("/api/agency/wallet-topups"));
   const [mobile, setMobile] = useState("");
-  const [amount, setAmount] = useState(100000);
+  const [amount, setAmount] = useState(1000);
   const [key, setKey] = useState(newKey);
   const [error, setError] = useState<unknown>(null);
   const [last, setLast] = useState<{ receipt: string; passenger: string; amount: number } | null>(null);
   const save = async () => {
     setError(null);
     try {
-      const r = await api.post<{ receipt: string; passenger: string; amount: number }>("/api/agency/wallet-topups", { mobile, amount: amount * 100, idempotency_key: key });
+      const r = await api.post<{ receipt: string; passenger: string; amount: number }>("/api/agency/wallet-topups", { mobile, amount: toMinor(amount), idempotency_key: key });
       setLast(r); setMobile(""); setKey(newKey()); toast(t("pay.agencyDone")); list.reload();
     } catch (e) { setError(e); }
   };
@@ -275,8 +284,8 @@ export function AgencyTopup() {
       <PageHead title={t("pay.agencyTitle")} sub={t("pay.agencySub")} />
       <div className="card stack" style={{ maxWidth: 560 }}>
         <Field label={t("pay.mobile")} hint={t("pay.agencyMobileHint")}><input className="input ltr" inputMode="tel" placeholder="+9639…" value={mobile} onChange={(e) => setMobile(e.target.value.trim())} /></Field>
-        <Field label={t("wallet.amount")}><input className="input ltr" type="number" step={1000} value={amount} onChange={(e) => setAmount(Number(e.target.value))} /></Field>
-        <button className="btn" style={{ alignSelf: "flex-start" }} disabled={!/^\+?\d{8,15}$/.test(mobile) || amount <= 0} onClick={save}><Icon name="add" />{t("pay.agencyCredit", { amount: money(amount * 100) })}</button>
+        <Field label={t("wallet.amount")}><input className="input ltr" type="number" step={10} value={amount} onChange={(e) => setAmount(Number(e.target.value))} /></Field>
+        <button className="btn" style={{ alignSelf: "flex-start" }} disabled={!/^\+?\d{8,15}$/.test(mobile) || amount <= 0} onClick={save}><Icon name="add" />{t("pay.agencyCredit", { amount: money(toMinor(amount)) })}</button>
         <ErrorBox error={error} />
         {last && <div className="alert ok"><Icon name="check_circle" />{t("pay.agencyReceipt", { receipt: last.receipt, name: last.passenger, amount: money(last.amount) })}</div>}
       </div>
@@ -337,17 +346,17 @@ function MethodModal({ m, tripTypes, onClose, onDone }: { m: Method; tripTypes: 
   const { t } = useI18n();
   const [enabled, setEnabled] = useState(m.enabled);
   const [channels, setChannels] = useState<string[]>(m.channels);
-  const [min, setMin] = useState(m.min_amount / 100);
-  const [max, setMax] = useState(m.max_amount != null ? String(m.max_amount / 100) : "");
+  const [min, setMin] = useState(fromMinor(m.min_amount));
+  const [max, setMax] = useState(m.max_amount != null ? String(fromMinor(m.max_amount)) : "");
   const [cfg, setCfg] = useState<Record<string, number | string[]>>(Object.fromEntries(m.settings.map((k) => [k, m.config[k] ?? (k === "trip_types" ? [] : 0)])));
   const [reason, setReason] = useState("");
   const [error, setError] = useState<unknown>(null);
   const money = (k: string) => k === "default_credit_limit";
   const save = async () => {
     try {
-      const config = Object.fromEntries(Object.entries(cfg).map(([k, v]) => [k, Array.isArray(v) ? v : money(k) ? Math.round(Number(v) * 100) : Number(v)]));
-      await api.put(`/api/admin/payment-methods/${m.code}`, { enabled, channels, min_amount: Math.round(min * 100),
-        max_amount: max.trim() ? Math.round(Number(max) * 100) : null, config, reason: reason.trim() });
+      const config = Object.fromEntries(Object.entries(cfg).map(([k, v]) => [k, Array.isArray(v) ? v : money(k) ? toMinor(v) : Number(v)]));
+      await api.put(`/api/admin/payment-methods/${m.code}`, { enabled, channels, min_amount: toMinor(min),
+        max_amount: max.trim() ? toMinor(max) : null, config, reason: reason.trim() });
       onDone();
     } catch (e) { setError(e); }
   };
@@ -366,8 +375,8 @@ function MethodModal({ m, tripTypes, onClose, onDone }: { m: Method; tripTypes: 
         <Field label={t("cashdesk.maxAmount")}><input className="input ltr" type="number" min={0} value={max} onChange={(e) => setMax(e.target.value)} /></Field>
         {m.settings.filter((k) => k !== "trip_types").map((k) => (
           <Field key={k} label={t(`cashdesk.set.${k}`)}>
-            <input className="input ltr" type="number" min={0} value={money(k) ? Number(cfg[k]) / 100 : Number(cfg[k])}
-                   onChange={(e) => setCfg({ ...cfg, [k]: money(k) ? Number(e.target.value) * 100 : Number(e.target.value) })} />
+            <input className="input ltr" type="number" min={0} value={money(k) ? fromMinor(Number(cfg[k])) : Number(cfg[k])}
+                   onChange={(e) => setCfg({ ...cfg, [k]: money(k) ? toMinor(e.target.value) : Number(e.target.value) })} />
           </Field>
         ))}
       </div>
@@ -390,11 +399,11 @@ function MethodModal({ m, tripTypes, onClose, onDone }: { m: Method; tripTypes: 
 
 // ------------------------------------------------------------------ cash held by carriers, limits and remittances (6.5)
 interface Position {
-  company_id: number; name: string; owed: number; limit_amount: number; own_limit: boolean; pending: number; last_remitted_at: string | null;
+  company_id: number; name: string; company_uid?: string; company_logo?: string | null; owed: number; limit_amount: number; own_limit: boolean; pending: number; last_remitted_at: string | null;
   days_0_7: number; days_8_30: number; days_31_60: number; days_61_90: number; days_over_90: number; overdue: number; oldest_unpaid_at: string | null;
 }
 interface Remittance {
-  id: number; company_id: number; carrier: string; amount: number; method: string; ref: string | null; status: string; note: string | null;
+  id: number; company_id: number; carrier: string; carrier_uid?: string; carrier_logo?: string | null; amount: number; method: string; ref: string | null; status: string; note: string | null;
   created_at: string; confirmed_at: string | null; recorded_by_name: string | null; confirmed_by_name: string | null; mine: boolean;
 }
 
@@ -432,7 +441,7 @@ function CounterCash() {
                   <th className="num">{t("cashdesk.pending")}</th><th>{t("cashdesk.lastRemitted")}</th><th /></tr></thead>
                 <tbody>{positions.map((p) => (
                   <tr key={p.company_id}>
-                    <td>{p.name}</td>
+                    <td><CarrierName name={p.name} uid={p.company_uid} logo={p.company_logo} /></td>
                     <td className="num" style={{ color: p.limit_amount > 0 && p.owed >= p.limit_amount ? "var(--error)" : undefined }}>{money(p.owed)}</td>
                     <td className="num" style={{ color: p.overdue > 0 ? "var(--error)" : undefined }}>
                       {p.overdue ? money(p.overdue) : "—"}
@@ -462,7 +471,7 @@ function CounterCash() {
             <tbody>{remittances.map((r) => (
               <tr key={r.id}>
                 <td className="small">{dateTime(r.created_at)}</td>
-                <td>{r.carrier}</td>
+                <td><CarrierName name={r.carrier} uid={r.carrier_uid} logo={r.carrier_logo} /></td>
                 <td className="num">{money(r.amount)}</td>
                 <td className="small">{t(`cashdesk.rm.${r.method}`)}{r.ref && <div className="mono small">{r.ref}</div>}</td>
                 <td className="small">{r.recorded_by_name ?? "—"}{r.confirmed_by_name && <div className="muted">{t("cashdesk.decidedBy")}: {r.confirmed_by_name}</div>}</td>
@@ -484,11 +493,11 @@ function CounterCash() {
 
 function LimitModal({ p, onClose, onDone }: { p: Position; onClose: () => void; onDone: () => void }) {
   const { t } = useI18n();
-  const [amount, setAmount] = useState(p.limit_amount / 100);
+  const [amount, setAmount] = useState(fromMinor(p.limit_amount));
   const [reason, setReason] = useState("");
   const [error, setError] = useState<unknown>(null);
   const save = async () => {
-    try { await api.put(`/api/admin/cash/limits/${p.company_id}`, { limit_amount: Math.round(amount * 100), reason: reason.trim() }); onDone(); }
+    try { await api.put(`/api/admin/cash/limits/${p.company_id}`, { limit_amount: toMinor(amount), reason: reason.trim() }); onDone(); }
     catch (e) { setError(e); }
   };
   return (
@@ -503,11 +512,11 @@ function LimitModal({ p, onClose, onDone }: { p: Position; onClose: () => void; 
 
 function RemitModal({ p, onClose, onDone }: { p: Position; onClose: () => void; onDone: () => void }) {
   const { t, money } = useI18n();
-  const [f, setF] = useState({ amount: (p.owed - p.pending) / 100, method: "BANK_DEPOSIT", ref: "", note: "" });
+  const [f, setF] = useState({ amount: fromMinor(p.owed - p.pending), method: "BANK_DEPOSIT", ref: "", note: "" });
   const [error, setError] = useState<unknown>(null);
   const save = async () => {
     try {
-      await api.post("/api/admin/cash/remittances", { company_id: p.company_id, amount: Math.round(f.amount * 100), method: f.method,
+      await api.post("/api/admin/cash/remittances", { company_id: p.company_id, amount: toMinor(f.amount), method: f.method,
         ref: f.ref.trim() || undefined, note: f.note.trim() || undefined });
       onDone();
     } catch (e) { setError(e); }

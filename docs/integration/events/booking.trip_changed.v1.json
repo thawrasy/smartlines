@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://masslak.com/schemas/events/booking.trip_changed.v1.json",
+  "title": "booking.trip_changed",
+  "description": "The carrier changed the booking's trip: a new departure time, another vehicle, or the booking moved to another trip (N42, 1148). The data of the envelope (EVENTS.md); fields are only added within a version.",
+  "x-event-type": "booking.trip_changed",
+  "x-schema-version": 1,
+  "type": "object",
+  "properties": {
+    "change": {
+      "type": "string",
+      "enum": [
+        "RESCHEDULE",
+        "VEHICLE_SWAP",
+        "REBOOK"
+      ]
+    },
+    "reason_code": {
+      "type": "string"
+    },
+    "booking_ref": {
+      "type": "string"
+    },
+    "trip_no": {
+      "type": "string"
+    },
+    "trip_code": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "departs_local": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "vehicle_plate": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "shift_min": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "free_cancel": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "new_seats": {
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "new_trip_no": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "new_trip_code": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "from_trip_code": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "booker_user_id": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "agency_id": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "counter": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "contact_mobile": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "change",
+    "reason_code",
+    "booking_ref",
+    "trip_no"
+  ],
+  "additionalProperties": true
+}

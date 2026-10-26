@@ -537,11 +537,12 @@
         "function sys.enforce_app_delete_grants"
       ],
       "application": [
-        "app.modular.engine:delete_row"
+        "app.modular.engine:delete_row",
+        "app.modules.registry.vehicles:delete"
       ],
       "tests": {
         "db": [
-          "Narrower grants: DELETE for the application on exactly the 38 listed tables (36 in 1059, the approval matrix's two in 1074)",
+          "Narrower grants: DELETE for the application on exactly the 46 listed tables (36 in 1059, the approval matrix's two in 1074, the vehicles of a hire in 1128, the shield's samples and hits in 1142, role permissions and platform roles in 1154, unused vehicle makes, models and trims in 1172)",
           "Narrower grants: the application cannot delete a business record, even one row-level security would show it"
         ],
         "api": [

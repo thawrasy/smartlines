@@ -32,7 +32,15 @@ def login(email: str, portal: str, password: str = PASSWORD) -> httpx.Client:
     c = client()
     r = c.post("/api/auth/login", json={"identifier": email, "password": password, "portal": portal})
     assert r.status_code == 200, r.text
+    if r.json().get("password_change_required"):
+        settle_password(email)
     return c
+
+
+def settle_password(email: str) -> None:
+    """Staff made by a test keep the password the test gave them: the first-sign-in change (N16, 1150) is tested on its own
+    in test_signin_doors.py."""
+    owner_sql("UPDATE iam.app_user SET password_must_change = false, temp_password_expires_at = NULL WHERE email = $1", email)
 
 
 def day(offset: int) -> str:
@@ -81,7 +89,7 @@ def bookable_trip(pax):
     return None
 
 
-FRESH_DRIVER_PASSWORD = "fresh-driver-password"
+FRESH_DRIVER_PASSWORD = "fresh-crew-long-passphrase"
 FRESH_DRIVERS: list[str] = []          # drivers created by publish_fresh_trip, tried by the boarding test
 
 
@@ -92,7 +100,7 @@ def publish_fresh_trip() -> None:
     o = login("owner@carrier.test", "OPERATOR")
     route = next(r for r in o.get("/api/carrier/routes").json()["routes"] if r["code"] == "DAM-ALP")
     layout = next(x for x in o.get("/api/carrier/seat-layouts").json()["layouts"] if x["total_seats"] == 44)
-    plate = str(100000 + secrets.randbelow(900000))
+    plate = str(1_000_000_000 + secrets.randbelow(9_000_000_000))   # wide enough that two runs never share one
     r = o.post("/api/carrier/vehicles", json={
         "plate_no": plate, "chassis_no": f"CHS-T{plate}", "vehicle_type": "COACH", "seat_layout_uid": layout["uid"],
         "insurance_no": f"POL-T{plate}", "insurer": "Test", "insurance_issue": "2026-01-01", "insurance_expiry": "2030-01-01"})
@@ -101,6 +109,7 @@ def publish_fresh_trip() -> None:
     email = f"driver{uuid.uuid4().hex[:8]}@example.com"
     r = o.post("/api/carrier/crew", json={"full_name": "Test Driver", "email": email, "password": FRESH_DRIVER_PASSWORD})
     assert r.status_code == 201, r.text
+    settle_password(email)
     FRESH_DRIVERS.append(email)
     driver = r.json()["uid"]
     # Trip numbers carry the route, date and departure minute, so another run may already hold a minute: try others
@@ -344,7 +353,7 @@ def test_admin_onboarding_ip_rules_and_audit():
     code = "".join(chr(65 + (uuid.uuid4().int >> i) % 26) for i in (0, 8, 16))
     r = a.post("/api/admin/companies", json={"legal_name": f"Test Carrier {code}", "code3": code, "owner_name": "Owner",
                                              "owner_email": f"{code.lower()}{uuid.uuid4().hex[:4]}@example.com",
-                                             "owner_password": "test-owner-password"})
+                                             "owner_password": "test-carrier-passphrase"})
     assert r.status_code in (201, 409), r.text
     # Block a range, then a request "from" that range (via the trusted proxy header) is refused at the edge of the API
     rule = a.post("/api/security/ip-rules", json={"target": "203.0.113.0/24", "action": "BLOCK", "reason": "test block",

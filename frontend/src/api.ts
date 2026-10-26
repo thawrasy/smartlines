@@ -11,6 +11,8 @@ export interface RequestOptions {
   signal?: AbortSignal;
   /** Milliseconds before an unanswered request fails with TIMEOUT: 30 s for reads, 60 s for changes by default. */
   timeoutMs?: number;
+  /** A request the screen sends by itself (a refresh on a timer): it does not count as the user's activity (1146). */
+  background?: boolean;
 }
 
 // A request never waits without end (review of 1.47.0, R-35): past its deadline it fails with TIMEOUT, which the
@@ -26,7 +28,8 @@ async function request<T>(method: string, path: string, body?: unknown, opts: Re
     res = await fetch(path, {
       method,
       credentials: "same-origin",
-      headers: { "X-Masslak-Client": "web", ...(body !== undefined && !form ? { "Content-Type": "application/json" } : {}) },
+      headers: { "X-Masslak-Client": "web", ...(opts.background ? { "X-Masslak-Background": "1" } : {}),
+                 ...(body !== undefined && !form ? { "Content-Type": "application/json" } : {}) },
       body: body === undefined ? undefined : form ? body : JSON.stringify(body),
       signal: deadline.signal,
     });
@@ -63,26 +66,51 @@ export function newKey() {
 }
 
 // ---------- Response types ----------
-export type Portal = "PASSENGER" | "OPERATOR" | "DRIVER" | "AGENCY" | "PLATFORM";
+export type Portal = "PASSENGER" | "OPERATOR" | "DRIVER" | "AGENCY" | "PLATFORM" | "STATION" | "FUEL" | "INSPECTOR";
 
 // The market a user sees times and money in (1061): the company's, or the person's; the default market for visitors
-export interface Market { country: string; time_zone: string; currency: string; locale: string; minor_unit: number }
+/** minor_unit: the scale amounts travel in (10^-minor_unit of the currency); decimals: the places people see and pay in (1176). */
+export interface Market { country: string; time_zone: string; currency: string; locale: string; minor_unit: number; decimals?: number }
 
 export interface Me {
   uid: string; name: string; email: string; portal: Portal; locale: string; is_owner: boolean;
-  company: { name: string; uid: string; code: string | null } | null;
+  company: { name: string; uid: string; code: string | null; logo?: string | null } | null;
   market?: Market;
   roles: string[]; permissions: string[];
   mfa?: { enrolled: boolean; required: boolean };
+  /** Minutes without activity after which the session ends (1146). */
+  idle_minutes?: number;
+  /** The name parts still to give (N4), the e-mail still to confirm (N35), the account's verification (KYC). */
+  names_complete?: boolean; email_verified?: boolean; verification_status?: string;
+  /** Booked without an account (N18): signed in by an e-mail code, offered to choose a password. */
+  is_guest?: boolean;
+}
+
+/** The traveller "Me" (N18): the account's names, date of birth, gender and the document's last four, never the number. */
+export interface MeTraveller {
+  nationality: string; first_name: string | null; father_name: string | null; grandfather_name: string | null; last_name: string | null;
+  first_name_latin: string | null; father_name_latin: string | null; grandfather_name_latin: string | null; last_name_latin: string | null;
+  birth_date: string | null; gender: "M" | "F" | null; id_type: string | null; id_no_last4: string | null; id_expiry: string | null;
+  has_document: boolean; names_complete: boolean; ready: boolean;
+}
+/** A companion kept with the passenger's consent to book for again (N18); the document number stays on the server. */
+export interface SavedTraveller {
+  uid: string; label: string | null; nationality: string; first_name: string; father_name: string | null; grandfather_name: string | null;
+  last_name: string; first_name_latin: string | null; father_name_latin: string | null; grandfather_name_latin: string | null;
+  last_name_latin: string | null; birth_date: string | null; gender: "M" | "F" | null; id_type: string | null; id_last4: string | null;
+  id_expiry: string | null;
 }
 
 export type MfaStep = "VERIFY" | "ENROLL";
 
 export interface TripResult {
-  uid: string; trip_no: string; service_type: string; has_rest: boolean; seats_total: number; currency: string;
+  uid: string; trip_no: string; trip_code?: string | null; service_type: string; has_rest: boolean; seats_total: number; currency: string;
   from_seq: number; to_seq: number; departs_at: string; arrives_at: string; from_station: string; to_station: string;
   from_code: string; to_code: string; price: number; carrier_name: string; carrier_code: string | null;
+  carrier_uid?: string; carrier_logo?: string | null;
   stops_between: number; seats_left: number; bookable: boolean;
+  /** The trip that continues this one on the same vehicle that day (1119). */
+  returns_as?: { trip_code: string | null; departs_at: string; same_vehicle: boolean | null } | null;
 }
 
 export interface TripStop {
@@ -91,14 +119,22 @@ export interface TripStop {
 }
 
 export interface TripDetail {
-  trip: { uid: string; trip_no: string; status: string; seats_total: number; currency: string; hold_min: number;
-          service_type: string; trip_type?: string; departure_at: string; arrival_at: string; carrier_name: string; carrier_code: string | null };
+  trip: { uid: string; trip_no: string; trip_code?: string | null; status: string; seats_total: number; currency: string; hold_min: number;
+          service_type: string; trip_type?: string; departure_at: string; arrival_at: string; carrier_name: string; carrier_code: string | null;
+          carrier_uid?: string; carrier_logo?: string | null };
   stops: TripStop[]; price: number; from_seq: number; to_seq: number; seats: { seat_no: number; free: boolean }[];
+  return_trip?: import("./components/ReturnTrip").ReturnInfo | null;
   /** The vehicle's real layout, frozen when the trip was created (null for trips created before layouts existed). */
   seat_map: import("./components/SeatGrid").SeatMapData | null;
   /** Who counts as an adult, a child or an infant on this carrier, and what each pays on this segment (4.19). */
   categories: CategoryFare[];
   family_offers: FamilyOfferBrief[];
+  /** What the carrier does when a traveller of a connection misses this trip (1130). */
+  connection_policy?: ConnectionPolicy;
+}
+
+export interface ConnectionPolicy {
+  offer_in_connections: boolean; missed_connection: "FREE_CHANGE" | "FARE_RULES" | "NONE"; change_window_hours: number; note: string | null;
 }
 
 export type Category = "ADULT" | "CHILD" | "INFANT";
@@ -151,14 +187,24 @@ export interface Ticket {
 }
 
 export interface BookingDetail {
-  booking: { booking_ref: string; status: string; total_amount: number; currency: string; trip_no: string; carrier_name: string;
+  booking: { booking_ref: string; status: string; total_amount: number; currency: string; trip_no: string; trip_code?: string | null; carrier_name: string;
+             carrier_uid?: string | null; carrier_logo?: string | null;
              created_at: string; verify_token: string; contact_mobile?: string; commission?: number | null;
              // how it is paid (1056): a reserved booking waits for its money until pay_by; the counter view says what it may do
              pay_option?: string | null; pay_by?: string | null; pay_method?: string; counter_sale?: boolean; collectable?: boolean;
              refundable_here?: boolean;
+             // a booking changed to another trip (1130): the booking it replaced, and the one that replaced it
+             changed_from?: string | null; changed_to?: string | null;
+             trip_changes?: TripChangeNote[]; free_cancel?: boolean;
+             return_trip?: import("./components/ReturnTrip").ReturnInfo | null;
              price_breakdown: { fare_per_passenger: number; passengers: number; fares_total: number; platform_fee: number; total: number; fare_brand: string;
                                 lines?: Quote["lines"]; family_offer?: Quote["family_offer"] } };
   tickets: Ticket[];
+  invoices?: { uuid: string; doc_type: "INVOICE" | "CREDIT_NOTE"; number: string; total: number; currency: string; finalized_at: string }[];
+  /** The journey the booking belongs to (1121): a round trip, several places or a group, booked together. */
+  journey?: { uid: string; kind: "ONE_WAY" | "ROUND_TRIP" | "MULTI_CITY" | "CONNECTION"; leg: number;
+              bookings: { booking_ref: string; leg: number; status: string; trip_no: string; trip_code: string | null;
+                          way: { from_city: string; to_city: string; departs_at: string } | null }[] } | null;
 }
 
 // A way of paying that platform administration has opened for this channel (1056)
@@ -169,6 +215,13 @@ export interface BookingOption {
 }
 
 export interface BookingRow {
-  booking_ref: string; status: string; total_amount: number; currency: string; created_at: string; trip_no: string; carrier_name: string;
+  booking_ref: string; status: string; total_amount: number; currency: string; created_at: string; trip_no: string; trip_code?: string | null; carrier_name: string;
+  carrier_uid?: string | null; carrier_logo?: string | null;
   journey: { from_station: string; from_code: string; from_city: string; departs_at: string; to_station: string; to_code: string; to_city: string; arrives_at: string } | null;
+}
+
+/** What the carrier changed on a booking's trip (N42, 1148). */
+export interface TripChangeNote {
+  kind: "RESCHEDULE" | "VEHICLE_SWAP" | "REBOOK"; reason_code: string | null; old_departure: string | null; new_departure: string | null;
+  shift_min: number | null; created_at: string; plate: string | null; to_trip_code: string | null;
 }

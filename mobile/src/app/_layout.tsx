@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Text, View } from "react-native";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { useFonts } from "expo-font";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { I18nProvider, useI18n } from "../i18n";
 import { AuthProvider } from "../platform/auth";
@@ -10,7 +11,7 @@ import { checkIntegrity, type Integrity } from "../platform/integrity";
 import { VARIANT } from "../platform/config";
 import { AppLock } from "../ui/AppLock";
 import { Loading } from "../ui/kit";
-import { color } from "../ui/theme";
+import { color, FONT_FILES } from "../ui/theme";
 
 function Gate() {
   const { t } = useI18n();
@@ -23,6 +24,8 @@ function Gate() {
   if (integrity.problem) return <Notice text={t("security.insecure")} />;
   // A driver phone that is rooted could forge boarding records offline.
   if (integrity.rooted && VARIANT === "driver") return <Notice text={t("security.driverRooted")} />;
+  // nor an officer's: it shows passengers' names and records checks for a government body
+  if (integrity.rooted && VARIANT === "officer") return <Notice text={t("security.officerRooted")} />;
   return (
     <AuthProvider>
       <AppLock>
@@ -42,6 +45,9 @@ function Notice({ text }: { text: string }) {
 }
 
 export default function RootLayout() {
+  // the identity's fonts; a failure to load them falls back to the system font rather than blocking the app
+  const [loaded, failed] = useFonts(FONT_FILES);
+  if (!loaded && !failed) return <Loading />;
   return (
     <SafeAreaProvider>
       <I18nProvider>

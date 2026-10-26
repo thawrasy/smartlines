@@ -1,4 +1,5 @@
 """Runtime configuration, read from environment variables (see deploy/.env.example)."""
+import os
 from functools import lru_cache
 from typing import Optional
 
@@ -14,6 +15,9 @@ class Settings(BaseSettings):
     audit_database_url: str = "postgresql://masslak_audit:masslak_audit@localhost:5432/masslak"
     # Optional read replica for reports, so heavy queries never load the booking database (empty: use the main pool)
     reports_database_url: str = ""
+    # where the database runs (H-01): "ha" on two hosts behind HAProxy, whose db-replica sends reports to the primary
+    # while no standby is up; "single" otherwise
+    db_layout: str = "single"
     # Optional telemetry database for the history of vehicle positions (review stage D2, db/telemetry/schema.sql); empty:
     # positions stay in ops.geo_event on the primary
     telemetry_database_url: str = ""
@@ -32,14 +36,22 @@ class Settings(BaseSettings):
 
     # Secret used to sign QR codes and verification tokens (32+ random bytes in production)
     signing_secret: str = "change-me-in-production-0123456789abcdef"
+    # The master key of the fuel service's secure NFC tags (NTAG 424 DNA, 1181), 32 hex characters: the tags are
+    # programmed with keys drawn from it, so it outlives a change of signing_secret. Empty: drawn from signing_secret.
+    fuel_tag_key: str = ""
     session_hours: int = 12
     cookie_secure: bool = True
     # Comma-separated proxy addresses or CIDR ranges whose X-Forwarded-For header is trusted
     trusted_proxies: str = "127.0.0.1,::1"
+    # Header in which the edge proxy names the visitor's country (ISO code); it decides only the first interface
+    # language (sys.setting ui.visitor_locale, 1141). Cloudflare sends CF-IPCountry; nginx GeoIP can set the same header.
+    country_header: str = "cf-ipcountry"
     # Directory of the built web interface served by the API (frontend/dist)
     static_dir: str = "../frontend/dist"
     # Public address of the site, used in canonical links, the sitemap and share cards (no trailing slash)
     public_url: str = "https://masslak.com"
+    # where researchers report a vulnerability (/.well-known/security.txt, RFC 9116)
+    security_contact: str = "mailto:security@masslak.com"
     # Search console ownership tokens (the content of the verification meta tag), optional
     google_site_verification: str = ""
     bing_site_verification: str = ""
@@ -75,6 +87,9 @@ class Settings(BaseSettings):
     max_upload_bytes: int = 4 * 1024 * 1024
     platform_fee: int = 100000            # flat platform fee per booking, minor units (SYP 1,000.00)
     qr_window_seconds: int = 90
+    # When the offline ticket credential opens, in hours before departure (the proposal of 10 October 2026: three). Test
+    # servers open it far ahead (MASSLAK_TICKET_OPENS_HOURS) so that tests of boarding need no clock changes.
+    ticket_opens_hours: int = 3
     # Requests per minute (token buckets, see ratelimit.py). Sign-in, registration and password requests share
     # buckets in the database across every process: one per account identifier (strict) and one per client address
     # (high, because mobile networks put many subscribers behind one address). The other two are per address and
@@ -83,15 +98,40 @@ class Settings(BaseSettings):
     rate_auth_ip_per_minute: int = 300
     rate_public_per_minute: int = 240
     rate_api_per_minute: int = 1200
-    # The API's own OpenAPI document and its page (/api/openapi.json, /api/docs): open in the sandbox, closed elsewhere
-    # unless set to true. The partners' document (/api/v1/openapi.json) is always published.
+    # The API's own OpenAPI document and its page (/api/openapi.json, /api/docs): closed on every server, sandbox included,
+    # unless set to true (MASSLAK_API_DOCS=true, for a developer or the test runner). The partners' document (/api/v1/openapi.json) is always published.
     api_docs: Optional[bool] = None
     # Seconds a request waits for a database connection of its process before it is answered 503 (busy, repeat it)
     db_acquire_timeout: float = 5.0
 
 
+def declared_production() -> bool:
+    """The server declares itself production: its environment says so, or it runs the production profile that
+    deploy/production/docker-compose.production.yml sets (MASSLAK_PROFILE)."""
+    return get_settings().environment.strip().lower() == "production" or os.environ.get("MASSLAK_PROFILE", "").strip() == "production"
+
+
+def declaration_conflicts() -> list[str]:
+    """What contradicts a production declaration. With the sandbox on, the simulated payment gateway and the development
+    fallbacks would run on production data; with a test environment declared, the production checks would be skipped.
+    Such a server does not start (reviews of the 1.50.0 release: the sandbox and environment bypass)."""
+    if not declared_production():
+        return []
+    st = get_settings()
+    environment = st.environment.strip().lower()
+    found = []
+    if st.sandbox:
+        found.append("the sandbox is on (MASSLAK_SANDBOX=true) on a server that declares production")
+    if environment in ("development", "staging"):
+        found.append(f"the environment is {environment} (MASSLAK_ENVIRONMENT) on a server that runs the production profile")
+    return found
+
+
 def is_test_server() -> bool:
-    """A sandbox, or a server declared development or staging; anything else is treated as production."""
+    """A sandbox, or a server declared development or staging; anything else is treated as production. A server that
+    declares production is never a test server, so no other setting can switch its checks off."""
+    if declared_production():
+        return False
     st = get_settings()
     return st.sandbox or st.environment.strip().lower() in ("development", "staging")
 

@@ -93,7 +93,7 @@ def test_two_refreshes_racing_with_one_token_rotate_it_once():
 
 
 def test_signing_out_a_lost_device():
-    email, pw = f"m{uuid.uuid4().hex[:8]}@example.com", "mobile-long-password"
+    email, pw = f"m{uuid.uuid4().hex[:8]}@example.com", "lost-phone-long-passphrase"
     assert e2e.client().post("/api/auth/register", json={"full_name": "Mobile User", "email": email, "password": pw}).status_code == 201
     r, device = mobile_login(email, password=pw)
     tokens = r.json()
@@ -133,7 +133,12 @@ def boarding():
 
 
 def test_offline_credential_verifies_with_the_public_key_alone(boarding):
-    cred = boarding["pax"].get(f"/api/tickets/{boarding['tickets'][0]['uid']}/offline").json()["credential"]
+    out = boarding["pax"].get(f"/api/tickets/{boarding['tickets'][0]['uid']}/offline").json()
+    cred = out["credential"]
+    # the ticket reads the same offline: the cities, the times, the carrier, the class and the seat travel with it
+    shown = out["display"]
+    assert shown["booking_ref"] and shown["from_city"] and shown["to_city"] and shown["carrier_name"] and shown["seat"]
+    assert shown["departs_at"] < shown["arrives_at"] and shown["fare_brand"] in ("SAVER", "STANDARD", "FLEX")
     key = e2e.client().get("/api/public/keys/ticket").json()
     _, payload, sig = cred.split(".")
     def unb64(s):

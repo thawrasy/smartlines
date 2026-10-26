@@ -485,7 +485,7 @@ function SaveModal({ dataset, spec, onClose, onDone, onError }: { dataset: strin
     <Modal title={t("rpt.saveTitle")} onClose={onClose} actions={<><button className="btn text" onClick={onClose}>{t("common.cancel")}</button>
       <button className="btn" disabled={name.trim().length < 3} onClick={save}>{t("rpt.save")}</button></>}>
       <Field label={t("rpt.name")}><input className="input" value={name} maxLength={120} onChange={(e) => setName(e.target.value)} /></Field>
-      <Field label={t("rpt.description")} hint={t("common.optional")}><input className="input" value={description} maxLength={500} onChange={(e) => setDescription(e.target.value)} /></Field>
+      <Field label={t("rpt.description")} optional><input className="input" value={description} maxLength={500} onChange={(e) => setDescription(e.target.value)} /></Field>
       <label className="row" style={{ gap: 8 }}><input type="checkbox" checked={shared} onChange={(e) => setShared(e.target.checked)} />{t("rpt.shareWithTeam")}</label>
       <ErrorBox error={error} />
     </Modal>

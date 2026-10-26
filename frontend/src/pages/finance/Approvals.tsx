@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { api } from "../../api";
-import { useI18n } from "../../i18n";
+import { fromMinor, toMinor, useI18n } from "../../i18n";
 import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Status, useLoad, useToast } from "../../components/ui";
 
 interface Decision { level: number; by: string; decision: "APPROVE" | "REJECT"; note: string | null; at: string }
@@ -96,13 +96,13 @@ export function Approvals() {
 
 function PolicyModal({ p, onClose, onDone }: { p: Policy; onClose: () => void; onDone: () => void }) {
   const { t } = useI18n();
-  const [levels, setLevels] = useState<Level[]>(p.levels.map((l) => ({ ...l, min_amount: l.min_amount / 100 })));
+  const [levels, setLevels] = useState<Level[]>(p.levels.map((l) => ({ ...l, min_amount: fromMinor(l.min_amount) })));
   const [error, setError] = useState<unknown>(null);
   const set = (i: number, patch: Partial<Level>) => setLevels(levels.map((l, j) => (j === i ? { ...l, ...patch } : l)));
   const save = async () => {
     try {
       await api.put(`/api/admin/approvals/policies/${p.action}`, { levels: levels.map((l) => ({
-        name: l.name, permission: l.permission, min_amount: Math.round(l.min_amount * 100), members: l.members.filter(Boolean) })) });
+        name: l.name, permission: l.permission, min_amount: toMinor(l.min_amount), members: l.members.filter(Boolean) })) });
       onDone();
     } catch (e) { setError(e); }
   };
@@ -111,7 +111,7 @@ function PolicyModal({ p, onClose, onDone }: { p: Policy; onClose: () => void; o
       actions={<><button className="btn text" onClick={onClose}>{t("common.cancel")}</button><button className="btn" onClick={save}>{t("common.save")}</button></>}>
       <p className="small muted">{t("approval.editHint")}</p>
       {levels.map((l, i) => (
-        <div key={i} className="grid cols-2" style={{ borderTop: "1px solid var(--line)", paddingTop: 8 }}>
+        <div key={i} className="grid cols-2" style={{ borderTop: "1px solid var(--outline-variant)", paddingTop: 8 }}>
           <Field label={t("approval.levelN", { n: i + 1 })}><input className="input" value={l.name} maxLength={80} onChange={(e) => set(i, { name: e.target.value })} /></Field>
           <Field label={t("approval.permission")}>
             <select value={l.permission} onChange={(e) => set(i, { permission: e.target.value })}>
@@ -178,19 +178,19 @@ function RuleModal({ rule, onClose, onDone }: { rule: Rule | null; onClose: () =
   const { t } = useI18n();
   const [f, setF] = useState({
     label: rule?.label ?? "", provider: rule?.provider ?? "", currency: rule?.currency ?? "SYP", customer_uid: rule?.customer_uid ?? "",
-    kind: rule?.kind ?? "PERCENT", pct: rule?.pct ?? 0, fixed: (rule?.fixed_amount ?? 0) / 100, min: rule?.min_fee != null ? rule.min_fee / 100 : "",
-    max: rule?.max_fee != null ? rule.max_fee / 100 : "", round_to: (rule?.round_to ?? 1) / 100, rounding: rule?.rounding ?? "HALF_UP",
+    kind: rule?.kind ?? "PERCENT", pct: rule?.pct ?? 0, fixed: fromMinor(rule?.fixed_amount ?? 0), min: rule?.min_fee != null ? fromMinor(rule.min_fee) : "",
+    max: rule?.max_fee != null ? fromMinor(rule.max_fee) : "", round_to: fromMinor(rule?.round_to ?? 1), rounding: rule?.rounding ?? "HALF_UP",
     borne_by: rule?.borne_by ?? "PAYER", valid_from: rule?.valid_from?.slice(0, 10) ?? "", valid_to: rule?.valid_to?.slice(0, 10) ?? "",
     status: rule?.status ?? "ACTIVE",
   });
   const [error, setError] = useState<unknown>(null);
-  const minor = (v: number | string) => (v === "" ? null : Math.round(Number(v) * 100));
+  const minor = (v: number | string) => (v === "" ? null : toMinor(v));
   const save = async () => {
     const body = {
       label: f.label, provider: f.provider || null, currency: f.currency || null, customer_uid: f.customer_uid || null, kind: f.kind,
       pct: f.kind === "PERCENT" || f.kind === "PERCENT_PLUS_FIXED" ? f.pct : 0,
       fixed_amount: f.kind === "FIXED" || f.kind === "PERCENT_PLUS_FIXED" ? minor(f.fixed) ?? 0 : 0,
-      min_fee: minor(f.min), max_fee: minor(f.max), round_to: Math.max(1, Math.round(Number(f.round_to) * 100)), rounding: f.rounding,
+      min_fee: minor(f.min), max_fee: minor(f.max), round_to: Math.max(1, toMinor(f.round_to)), rounding: f.rounding,
       borne_by: f.borne_by, valid_from: f.valid_from ? `${f.valid_from}T00:00:00Z` : null, valid_to: f.valid_to ? `${f.valid_to}T00:00:00Z` : null,
       status: f.status,
     };

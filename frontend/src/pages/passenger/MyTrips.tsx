@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { api, type BookingRow } from "../../api";
 import { useI18n } from "../../i18n";
 import { PageHead } from "../../components/layout";
-import { Empty, Icon, Loaded, Status, useLoad } from "../../components/ui";
+import { CarrierName, Empty, Icon, Loaded, Status, useLoad } from "../../components/ui";
 
 export default function MyTrips() {
   const { t, city, time, date, money } = useI18n();
@@ -30,7 +30,8 @@ export default function MyTrips() {
                 </div>
               )}
               <div className="row between small muted" style={{ marginTop: 8 }}>
-                <span>{b.journey ? date(b.journey.departs_at, { weekday: "long", day: "numeric", month: "long" }) : ""} · {b.carrier_name}</span>
+                <span className="row" style={{ gap: 6 }}>{b.journey ? date(b.journey.departs_at, { weekday: "long", day: "numeric", month: "long" }) : ""} ·
+                  <CarrierName name={b.carrier_name} uid={b.carrier_uid} logo={b.carrier_logo} /></span>
                 <strong style={{ color: "var(--on-surface)" }}>{money(b.total_amount)}</strong>
               </div>
             </Link>

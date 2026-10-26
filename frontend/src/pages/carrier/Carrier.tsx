@@ -1,15 +1,23 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { CrewEditor, LicenceCorrection, VehicleEditor } from "./Edits";
 import { api } from "../../api";
-import { useI18n } from "../../i18n";
+import { toMinor, useI18n } from "../../i18n";
+import type { VMake } from "../registry/VehicleModels";
 import { useAuth } from "../../auth";
 import { PageHead } from "../../components/layout";
-import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, useToast } from "../../components/ui";
+import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, useToast, PasswordInput } from "../../components/ui";
 import { LayoutPreview, type LayoutRow } from "./Layouts";
+import { CarrierConnectionPolicy } from "../passenger/Connections";
+import { RequestTable } from "../admin/NetworkRoutes";
+import { TripChanges } from "./TripChanges";
+import { FareMatrix } from "./FareMatrix";
+import { useSignInSlip, type SignIn } from "../../components/SignInSlip";
 
 export interface CarrierTrip {
-  uid: string; trip_no: string; status: string; departure_at: string; arrival_at?: string; seats_total: number; segments_count?: number;
+  uid: string; trip_no: string; trip_code?: string | null; status: string; departure_at: string; arrival_at?: string; seats_total: number; segments_count?: number;
   plate_no: string | null; route_code?: string; origin: string; destination: string; origin_code: string; dest_code: string; sold: number; driver_name?: string | null;
+  shift_min?: number; changes?: number;
 }
 interface Dashboard {
   trips_today: number; sales_today: number; tickets_today: number; released_balance: number; active_vehicles: number; load_factor: number;
@@ -22,6 +30,9 @@ interface Route {
 interface Vehicle { uid: string; plate_no: string; vehicle_type: string; make: string | null; model: string | null; manufacture_year: number | null; passenger_seats: number; status: string; next_expiry: string | null; seat_layout_uid: string | null; seat_layout_name: string | null }
 interface Crew { uid: string; full_name: string; crew_type: string; license_class: string | null; status: string; email: string | null }
 interface Station { uid: string; code: string; name: string; city_code: string }
+interface NetRoute { uid: string; code: string; name_en: string; name_ar: string; distance_km: number;
+  stops: { seq: number; station_uid: string; station_code: string; station_name: string; km_from_start: number; mandatory: boolean }[] }
+type RouteRequest = Parameters<typeof RequestTable>[0]["rows"][number];
 
 export function useArrow() {
   return useI18n().dir === "rtl" ? "←" : "→";
@@ -35,13 +46,15 @@ function useLine() {
 
 // ------------------------------------------------------------------ dashboard
 export function CarrierDashboard() {
-  const { t, money, num, dateTime } = useI18n();
+  const { t, has, money, num, dateTime } = useI18n();
   const { me } = useAuth();
   const line = useLine();
   const state = useLoad(() => api.get<Dashboard>("/api/carrier/dashboard"));
   return (
     <div className="stack">
-      <PageHead title={me?.company?.name ?? t("nav.carrier")} sub={me?.company?.code ? `${t("common.code")}: ${me.company.code}` : undefined}>
+      <PageHead title={me?.company?.name ?? t("nav.carrier")} logo={me?.company ?? undefined}
+                sub={me?.company?.code ? `${t("common.code")}: ${me.company.code}` : undefined}>
+        <Link className="btn outlined" to="/carrier/finance"><Icon name="account_balance_wallet" />{t("finance.title")}</Link>
         <Link className="btn" to="/carrier/trips?new=1"><Icon name="add" />{t("carrier.newTrip")}</Link>
       </PageHead>
       <Loaded state={state}>{(d) => (
@@ -62,7 +75,7 @@ export function CarrierDashboard() {
                   <thead><tr><th>{t("booking.tripNo")}</th><th>{t("booking.departs")}</th><th>{t("carrier.route")}</th><th>{t("carrier.sold")}</th><th>{t("common.status")}</th></tr></thead>
                   <tbody>{d.trips.map((x) => (
                     <tr key={x.uid}>
-                      <td className="mono small">{x.trip_no}</td><td>{dateTime(x.departure_at)}</td>
+                      <td className="mono small"><strong>{x.trip_code ?? x.trip_no}</strong>{x.trip_code && <div className="trip-ref">{x.trip_no}</div>}</td><td>{dateTime(x.departure_at)}</td>
                       <td className="small">{line(x)}</td>
                       <td className="num">{x.sold}/{x.seats_total}</td><td><Status value={x.status} /></td>
                     </tr>
@@ -74,7 +87,7 @@ export function CarrierDashboard() {
               <div className="card-title"><h3>{t("carrier.alerts")}</h3></div>
               {d.alerts.length === 0 ? <div className="alert ok"><Icon name="check_circle" />{t("carrier.noAlerts")}</div> : (
                 <div className="stack tight">{d.alerts.map((a, i) => (
-                  <div key={i} className="alert warn"><Icon name="warning" /><span>{a.subject} · {a.detail} · {a.at.slice(0, 10)}</span></div>
+                  <div key={i} className="alert warn"><Icon name="warning" /><span>{a.subject} · {has(`val.${a.detail}`) ? t(`val.${a.detail}`) : a.detail} · {a.at.slice(0, 10)}</span></div>
                 ))}</div>
               )}
             </div>
@@ -86,19 +99,35 @@ export function CarrierDashboard() {
 }
 
 // ------------------------------------------------------------------ trips
+interface TripNumbers { service_numbers: { number: number; block: string; direction: string | null }[]; suggested_extra: number | null; extra_range: { from: number; to: number } }
+
 function NewTrip({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
   const { t, station } = useI18n();
   const arrow = useArrow();
   const routes = useLoad(() => api.get<{ routes: Route[] }>("/api/carrier/routes"));
   const vehicles = useLoad(() => api.get<{ vehicles: Vehicle[] }>("/api/carrier/vehicles"));
   const crew = useLoad(() => api.get<{ crew: Crew[] }>("/api/carrier/crew"));
-  const [form, setForm] = useState({ route_uid: "", vehicle_uid: "", driver_uid: "", departure_local: "", publish: true, trip_type: "SCHEDULED" });
+  const [form, setForm] = useState({ route_uid: "", vehicle_uid: "", driver_uid: "", departure_local: "", publish: true, trip_type: "SCHEDULED", service_number: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
+  // the trip number is required (1165, N7): one of the carrier's numbers on the route that day, or a free extra number
+  const day = form.departure_local.slice(0, 10);
+  const [offer, setOffer] = useState<TripNumbers | null>(null);
+  useEffect(() => {
+    if (!form.route_uid || !day) { setOffer(null); return; }
+    let live = true;
+    api.get<TripNumbers>("/api/carrier/numbers/for-trip", { route_uid: form.route_uid, day }).then((o) => {
+      if (!live) return;
+      setOffer(o);
+      setForm((f) => ({ ...f, service_number: String(o.service_numbers[0]?.number ?? o.suggested_extra ?? "") }));
+    }).catch(() => live && setOffer(null));
+    return () => { live = false; };
+  }, [form.route_uid, day]);
   const submit = async () => {
     setBusy(true); setError(null);
     try {
-      await api.post("/api/carrier/trips", { ...form, driver_uid: form.driver_uid || null });
+      await api.post("/api/carrier/trips", { ...form, driver_uid: form.driver_uid || null,
+        service_number: form.service_number ? Number(form.service_number) : null });
       onDone();
     } catch (e) { setError(e); } finally { setBusy(false); }
   };
@@ -106,7 +135,7 @@ function NewTrip({ onClose, onDone }: { onClose: () => void; onDone: () => void 
   return (
     <Modal title={t("carrier.newTrip")} onClose={onClose}
            actions={<><button className="btn text" onClick={onClose}>{t("common.cancel")}</button>
-             <button className="btn" disabled={busy || !form.route_uid || !form.vehicle_uid || !form.departure_local} onClick={submit}>{t("common.create")}</button></>}>
+             <button className="btn" disabled={busy || !form.route_uid || !form.vehicle_uid || !form.departure_local || !form.service_number} onClick={submit}>{t("common.create")}</button></>}>
       <div className="stack">
         <ErrorBox error={error} />
         <Field label={t("carrier.route")}>
@@ -122,7 +151,7 @@ function NewTrip({ onClose, onDone }: { onClose: () => void; onDone: () => void 
               {vehicles.data?.vehicles.filter((v) => v.status === "ACTIVE").map((v) => <option key={v.uid} value={v.uid}>{v.plate_no} · {v.passenger_seats} {t("common.seats")}</option>)}
             </select>
           </Field>
-          <Field label={`${t("carrier.driver")} (${t("common.optional")})`}>
+          <Field label={t("carrier.driver")} optional>
             <select className="input" value={form.driver_uid} onChange={(e) => setForm({ ...form, driver_uid: e.target.value })}>
               <option value="">{t("carrier.noDriver")}</option>
               {crew.data?.crew.filter((c) => c.status === "ACTIVE").map((c) => <option key={c.uid} value={c.uid}>{c.full_name}</option>)}
@@ -139,6 +168,13 @@ function NewTrip({ onClose, onDone }: { onClose: () => void; onDone: () => void 
             </select>
           </Field>
         </div>
+        <Field label={t("trip.serviceNumber")} hint={offer ? t("numbers.tripHint", { from: offer.extra_range.from, to: offer.extra_range.to }) : t("numbers.pickRouteDay")}>
+          <select className="input ltr mono" value={form.service_number} disabled={!offer} onChange={(e) => setForm({ ...form, service_number: e.target.value })}>
+            {!offer && <option value="">—</option>}
+            {offer?.service_numbers.map((n) => <option key={n.number} value={n.number}>{n.number} · {t(`numbers.block.${n.block}`)}</option>)}
+            {offer?.suggested_extra != null && <option value={offer.suggested_extra}>{offer.suggested_extra} · {t("numbers.block.EXTRA")}</option>}
+          </select>
+        </Field>
         <label className="check"><input type="checkbox" checked={form.publish} onChange={(e) => setForm({ ...form, publish: e.target.checked })} />{t("carrier.publishNow")}</label>
       </div>
     </Modal>
@@ -238,6 +274,7 @@ export function CarrierTrips() {
   const state = useLoad(() => api.get<{ trips: CarrierTrip[] }>("/api/carrier/trips"));
   const [creating, setCreating] = useState(() => new URLSearchParams(location.search).has("new"));
   const [manifest, setManifest] = useState<string | null>(null);
+  const [changing, setChanging] = useState<CarrierTrip | null>(null);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const act = async (fn: () => Promise<void>) => { setError(null); try { await fn(); state.reload(); } catch (e) { setError(e); } };
@@ -253,12 +290,22 @@ export function CarrierTrips() {
           <thead><tr><th>{t("booking.tripNo")}</th><th>{t("booking.departs")}</th><th>{t("carrier.route")}</th><th>{t("carrier.plate")}</th><th>{t("carrier.driver")}</th><th>{t("carrier.sold")}</th><th>{t("common.status")}</th><th>{t("common.actions")}</th></tr></thead>
           <tbody>{trips.map((x) => (
             <tr key={x.uid}>
-              <td className="mono small">{x.trip_no}</td><td>{dateTime(x.departure_at)}</td><td className="small">{line(x)}</td>
+              <td className="mono small"><strong>{x.trip_code ?? x.trip_no}</strong>{x.trip_code && <div className="trip-ref">{x.trip_no}</div>}</td><td>{dateTime(x.departure_at)}{!!x.changes && <div><span className="chip wheat small">{t("tripChange.changed")}{x.shift_min ? ` ${x.shift_min > 0 ? "+" : ""}${x.shift_min}′` : ""}</span></div>}</td><td className="small" style={{ minWidth: 240 }}>{line(x)}</td>
               <td className="mono">{x.plate_no}</td><td>{x.driver_name ?? <span className="muted">{t("carrier.noDriver")}</span>}</td>
               <td className="num">{x.sold}/{x.seats_total}</td><td><Status value={x.status} /></td>
               <td><div className="row nowrap" style={{ gap: 4 }}>
                 <button className="btn text small" onClick={() => setManifest(x.uid)}><Icon name="group" size={18} />{t("carrier.manifest")}</button>
+                <button className="btn text small" onClick={() => setChanging(x)}><Icon name="edit_calendar" size={18} />{t("carrier.changes")}</button>
                 {x.status === "DRAFT" && <button className="btn tonal small" onClick={() => act(async () => { await api.post(`/api/carrier/trips/${x.uid}/publish`); })}>{t("carrier.publish")}</button>}
+                {["DRAFT", "PUBLISHED", "BOARDING"].includes(x.status) && (
+                  <button className="btn text small danger" onClick={() => act(async () => {
+                    // every booking is refunded in full to whoever paid it (1102); the reason is kept with the decision
+                    const reason = window.prompt(t("carrier.cancelWhy", { trip: x.trip_no }));
+                    if (!reason || reason.trim().length < 5) return;
+                    const r = await api.post<{ bookings_refunded: number; refund_total: number }>(`/api/carrier/trips/${x.uid}/cancel`, { reason });
+                    toast(t("carrier.cancelled", { n: r.bookings_refunded, amount: money(r.refund_total) }));
+                  })}>{t("carrier.cancelTrip")}</button>
+                )}
                 {["DEPARTED", "BOARDING", "PUBLISHED"].includes(x.status) && new Date(x.arrival_at ?? x.departure_at) < new Date() && (
                   <button className="btn tonal small" onClick={() => act(async () => {
                     const r = await api.post<{ released: number }>(`/api/carrier/trips/${x.uid}/complete`);
@@ -272,6 +319,7 @@ export function CarrierTrips() {
       )}</Loaded>
       {creating && <NewTrip onClose={() => setCreating(false)} onDone={() => { setCreating(false); toast(t("common.saved")); state.reload(); }} />}
       {manifest && <ManifestModal uid={manifest} onClose={() => setManifest(null)} />}
+      {changing && <TripChanges trip={changing} onClose={() => setChanging(null)} onDone={() => { setChanging(null); state.reload(); }} />}
       {generating && <GenerateTrips onClose={() => setGenerating(false)} onDone={() => { setGenerating(false); state.reload(); }} />}
     </div>
   );
@@ -329,15 +377,63 @@ function GenerateTrips({ onClose, onDone }: { onClose: () => void; onDone: () =>
 }
 
 // ------------------------------------------------------------------ vehicles
+/** A carrier asks the platform for a vehicle model missing from the list (1157, N8). */
+function ModelRequest({ makes, onClose }: { makes: VMake[]; onClose: () => void }) {
+  const { t, locale } = useI18n();
+  const toast = useToast();
+  const [f, setF] = useState({ make_uid: "", make_name: "", model_name: "", vehicle_type: "COACH", seats: "", note: "" });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const send = async () => {
+    setBusy(true); setError(null);
+    try {
+      await api.post("/api/vehicle-models/requests", { make_uid: f.make_uid || null, make_name: f.make_uid ? null : f.make_name || null,
+        model_name: f.model_name, vehicle_type: f.vehicle_type, seats: f.seats ? Number(f.seats) : null, note: f.note || null });
+      toast(t("vm.requested")); onClose();
+    } catch (e) { setError(e); } finally { setBusy(false); }
+  };
+  return (
+    <Modal title={t("vm.missing")} onClose={onClose}
+           actions={<><button className="btn text" onClick={onClose}>{t("common.cancel")}</button>
+             <button className="btn" disabled={busy || !f.model_name.trim() || (!f.make_uid && f.make_name.trim().length < 2)} onClick={send}>{t("vm.send")}</button></>}>
+      <div className="stack">
+        <ErrorBox error={error} />
+        <p className="small muted">{t("vm.requestNote")}</p>
+        <Field label={t("carrier.make")}>
+          <select className="input" value={f.make_uid} onChange={(e) => setF({ ...f, make_uid: e.target.value })}>
+            <option value="">{t("vm.otherMake")}</option>
+            {makes.map((k) => <option key={k.uid} value={k.uid}>{locale === "ar" ? k.name_ar : k.name_en}</option>)}
+          </select>
+        </Field>
+        {!f.make_uid && <Field label={t("vm.makeName")}><input className="input ltr" value={f.make_name} onChange={(e) => setF({ ...f, make_name: e.target.value })} /></Field>}
+        <Field label={t("carrier.model")}><input className="input ltr" value={f.model_name} onChange={(e) => setF({ ...f, model_name: e.target.value })} /></Field>
+        <Field label={t("carrier.vtype")}>
+          <select className="input" value={f.vehicle_type} onChange={(e) => setF({ ...f, vehicle_type: e.target.value })}>
+            {["COACH", "MINIBUS", "CITY_BUS", "VAN", "OTHER"].map((k) => <option key={k} value={k}>{t(`carrier.vtypes.${k}`)}</option>)}
+          </select>
+        </Field>
+        <Field label={t("carrier.seatsCount")}><input className="input ltr" type="number" min={1} value={f.seats} onChange={(e) => setF({ ...f, seats: e.target.value })} /></Field>
+        <Field label={t("reg.f.notes")}><textarea className="input" value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} /></Field>
+      </div>
+    </Modal>
+  );
+}
+
 export function CarrierVehicles() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const toast = useToast();
   const state = useLoad(() => api.get<{ vehicles: Vehicle[] }>("/api/carrier/vehicles"));
   const layouts = useLoad(() => api.get<{ layouts: LayoutRow[] }>("/api/carrier/seat-layouts"));
   const [open, setOpen] = useState(false);
   const [relayout, setRelayout] = useState<Vehicle | null>(null);
+  const [editing, setEditing] = useState<string | null>(null);
   const [newLayout, setNewLayout] = useState("");
-  const blank = { plate_no: "", chassis_no: "", vehicle_type: "COACH", make: "", model: "", manufacture_year: "", seat_layout_uid: "", insurance_no: "", insurer: "", insurance_issue: "", insurance_expiry: "" };
+  const blank = { plate_no: "", chassis_no: "", vehicle_type: "COACH", make: "", model: "", make_uid: "", model_uid: "", manufacture_year: "", seat_layout_uid: "",
+                  insurance_no: "", insurer: "", insurer_uid: "", insurance_issue: "", insurance_expiry: "" };
+  const catalog = useLoad(() => open ? api.get<{ makes: VMake[] }>("/api/vehicle-models").then((r) => r.makes) : Promise.resolve([] as VMake[]), [open]);
+  const insurers = useLoad(() => open ? api.get<{ insurers: { uid: string; name_ar: string; name_en: string }[] }>("/api/registry/insurers").then((r) => r.insurers)
+    : Promise.resolve([]), [open]);
+  const [asking, setAsking] = useState(false);
   const [f, setF] = useState(blank);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
@@ -345,7 +441,8 @@ export function CarrierVehicles() {
   const submit = async () => {
     setBusy(true); setError(null);
     try {
-      await api.post("/api/carrier/vehicles", { ...f, make: f.make || null, model: f.model || null,
+      await api.post("/api/carrier/vehicles", { ...f, make: f.make || null, model: f.model || null, model_uid: f.model_uid || null,
+        insurer: f.insurer_uid ? null : f.insurer || null, insurer_uid: f.insurer_uid || null,
         manufacture_year: f.manufacture_year ? Number(f.manufacture_year) : null, seat_layout_uid: f.seat_layout_uid || null });
       setOpen(false); setF(blank); toast(t("common.saved")); state.reload();
     } catch (e) { setError(e); } finally { setBusy(false); }
@@ -371,7 +468,10 @@ export function CarrierVehicles() {
               <td>{v.manufacture_year}</td><td className="num">{v.passenger_seats}</td>
               <td>{v.seat_layout_name ?? <span className="chip" style={{ color: "var(--error)" }}>{t("layout.missing")}</span>}</td>
               <td className="mono small">{v.next_expiry}</td><td><Status value={v.status} /></td>
-              <td><button className="btn tonal small" onClick={() => { setRelayout(v); setNewLayout(v.seat_layout_uid ?? ""); setError(null); }}>{t("layout.change")}</button></td>
+              <td><div className="row nowrap" style={{ gap: 4 }}>
+                <button className="btn tonal small" onClick={() => setEditing(v.uid)}><Icon name="edit" size={18} />{t("edit.edit")}</button>
+                <button className="btn text small" onClick={() => { setRelayout(v); setNewLayout(v.seat_layout_uid ?? ""); setError(null); }}>{t("layout.change")}</button>
+              </div></td>
             </tr>
           ))}</tbody>
         </table></div>
@@ -389,8 +489,23 @@ export function CarrierVehicles() {
                   {["COACH", "MINIBUS", "CITY_BUS", "VAN"].map((k) => <option key={k} value={k}>{t(`carrier.vtypes.${k}`)}</option>)}
                 </select>
               </Field>
-              <Field label={t("carrier.make")}><input className="input" value={f.make} onChange={set("make")} /></Field>
-              <Field label={t("carrier.model")}><input className="input" value={f.model} onChange={set("model")} /></Field>
+              <Field label={t("carrier.make")}>
+                <select className="input" value={f.make_uid} onChange={(e) => setF({ ...f, make_uid: e.target.value, model_uid: "" })}>
+                  <option value="">{t("finance.choose")}</option>
+                  {(catalog.data ?? []).map((k) => <option key={k.uid} value={k.uid}>{locale === "ar" ? k.name_ar : k.name_en}</option>)}
+                </select>
+              </Field>
+              <Field label={t("carrier.model")}>
+                <select className="input" value={f.model_uid} disabled={!f.make_uid}
+                        onChange={(e) => {
+                          const m = (catalog.data ?? []).flatMap((k) => k.models).find((x) => x.uid === e.target.value);
+                          setF({ ...f, model_uid: e.target.value, vehicle_type: m && m.vehicle_type !== "OTHER" ? m.vehicle_type : f.vehicle_type });
+                        }}>
+                  <option value="">{t("finance.choose")}</option>
+                  {((catalog.data ?? []).find((k) => k.uid === f.make_uid)?.models ?? []).map((m) =>
+                    <option key={m.uid} value={m.uid}>{m.name}{m.seats_from ? ` · ${m.seats_from}${m.seats_to && m.seats_to !== m.seats_from ? `–${m.seats_to}` : ""}` : ""}</option>)}
+                </select>
+              </Field>
               <Field label={t("carrier.year")}><input className="input ltr" type="number" value={f.manufacture_year} onChange={set("manufacture_year")} /></Field>
               <Field label={t("layout.layout")} hint={t("layout.vehicleHint")}>
                 <select className="input" value={f.seat_layout_uid} onChange={set("seat_layout_uid")} required>
@@ -398,14 +513,24 @@ export function CarrierVehicles() {
                 </select>
               </Field>
               <Field label={t("carrier.insuranceNo")}><input className="input ltr" value={f.insurance_no} onChange={set("insurance_no")} /></Field>
-              <Field label={t("carrier.insurer")}><input className="input" value={f.insurer} onChange={set("insurer")} /></Field>
+              <Field label={t("carrier.insurer")}>
+                {(insurers.data ?? []).length > 0
+                  ? <select className="input" value={f.insurer_uid} onChange={set("insurer_uid")}>
+                      <option value="">{t("finance.choose")}</option>
+                      {(insurers.data ?? []).map((i) => <option key={i.uid} value={i.uid}>{locale === "ar" ? i.name_ar : i.name_en}</option>)}
+                    </select>
+                  : <input className="input" value={f.insurer} onChange={set("insurer")} />}
+              </Field>
               <Field label={t("carrier.insuranceIssue")}><input className="input ltr" type="date" value={f.insurance_issue} onChange={set("insurance_issue")} /></Field>
               <Field label={t("carrier.insuranceExpiry")}><input className="input ltr" type="date" value={f.insurance_expiry} onChange={set("insurance_expiry")} /></Field>
             </div>
+            <div><button type="button" className="btn text small" onClick={() => setAsking(true)}><Icon name="add" />{t("vm.missing")}</button></div>
             {f.seat_layout_uid && <LayoutPreview uid={f.seat_layout_uid} />}
           </div>
         </Modal>
       )}
+      {asking && <ModelRequest makes={catalog.data ?? []} onClose={() => setAsking(false)} />}
+      {editing && <VehicleEditor uid={editing} onClose={() => { setEditing(null); state.reload(); }} />}
       {relayout && (
         <Modal title={`${t("layout.change")} · ${relayout.plate_no}`} onClose={() => setRelayout(null)} wide
                actions={<><button className="btn text" onClick={() => setRelayout(null)}>{t("common.cancel")}</button>
@@ -428,34 +553,58 @@ export function CarrierVehicles() {
 
 // ------------------------------------------------------------------ routes
 export function CarrierRoutes() {
-  const { t, station, money, duration } = useI18n();
+  const { t, station, money, duration, locale } = useI18n();
   const toast = useToast();
   const state = useLoad(() => api.get<{ routes: Route[] }>("/api/carrier/routes"));
+  const network = useLoad(() => api.get<{ routes: NetRoute[] }>("/api/network/routes"));
   const stations = useLoad(() => api.get<{ stations: Station[] }>("/api/carrier/stations"));
+  const requests = useLoad(() => api.get<{ requests: RouteRequest[] }>("/api/carrier/route-requests"));
   const [open, setOpen] = useState(false);
-  type StopRow = { station_uid: string; arr: string; dep: string; fare: string };
-  const blankStops: StopRow[] = [{ station_uid: "", arr: "0", dep: "0", fare: "0" }, { station_uid: "", arr: "", dep: "", fare: "" }];
-  const [code, setCode] = useState("");
-  const [stops, setStops] = useState<StopRow[]>(blankStops);
+  const [asking, setAsking] = useState(false);
+  const [pricing, setPricing] = useState<string | null>(null);
+  // a service on a route of the network (1163, N11): the stations served on it, with times and the fare ladder
+  type Row = { station_uid: string; name: string; code: string; mandatory: boolean; serve: boolean; arr: string; dep: string; fare: string };
+  const [netUid, setNetUid] = useState("");
+  const [rows, setRows] = useState<Row[]>([]);
+  const [ask, setAsk] = useState({ from_station_uid: "", to_station_uid: "", via: "", note: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
-  const setStop = (i: number, k: keyof StopRow, v: string) => setStops(stops.map((s, j) => (j === i ? { ...s, [k]: v, ...(k === "arr" && (j === stops.length - 1) ? { dep: v } : {}) } : s)));
+  const pick = (uid: string) => {
+    setNetUid(uid);
+    const r = network.data?.routes.find((x) => x.uid === uid);
+    setRows((r?.stops ?? []).map((s) => ({ station_uid: s.station_uid, name: s.station_name, code: s.station_code, mandatory: s.mandatory, serve: true, arr: "", dep: "", fare: "" })));
+  };
+  const setRow = (i: number, k: keyof Row, v: string | boolean) => setRows(rows.map((r, j) => (j === i ? { ...r, [k]: v } : r)));
+  const served = rows.filter((r) => r.serve);
+  const firstServed = rows.findIndex((r) => r.serve);
+  const lastServed = rows.length - 1 - [...rows].reverse().findIndex((r) => r.serve);
   const submit = async () => {
     setBusy(true); setError(null);
     try {
-      await api.post("/api/carrier/routes", { code: code.toUpperCase(), stops: stops.map((s) => ({
-        station_uid: s.station_uid, arr_offset_min: Number(s.arr), dep_offset_min: Number(s.dep || s.arr), fare_from_origin: Number(s.fare) * 100 })) });
-      setOpen(false); setCode(""); setStops(blankStops); toast(t("common.saved")); state.reload();
+      await api.post("/api/carrier/routes", { network_route_uid: netUid, stops: served.map((s, i) => ({
+        station_uid: s.station_uid, arr_offset_min: i === 0 ? 0 : Number(s.arr), dep_offset_min: i === 0 ? 0 : Number(s.dep || s.arr),
+        fare_from_origin: i === 0 ? 0 : toMinor(s.fare) })) });
+      setOpen(false); setNetUid(""); setRows([]); toast(t("common.saved")); state.reload();
     } catch (e) { setError(e); } finally { setBusy(false); }
+  };
+  const sendAsk = async () => {
+    setBusy(true); setError(null);
+    try { await api.post("/api/carrier/route-requests", { ...ask, via: ask.via || undefined }); setAsking(false); toast(t("nroute.asked")); requests.reload(); }
+    catch (e) { setError(e); } finally { setBusy(false); }
   };
   return (
     <div className="stack">
-      <PageHead title={t("carrier.routes")}><button className="btn" onClick={() => setOpen(true)}><Icon name="add" />{t("carrier.newRoute")}</button></PageHead>
+      <PageHead title={t("carrier.routes")}>
+        <button className="btn outlined" onClick={() => setAsking(true)}><Icon name="send" />{t("nroute.ask")}</button>
+        <button className="btn" onClick={() => setOpen(true)}><Icon name="add" />{t("carrier.newRoute")}</button>
+      </PageHead>
+      <p className="small muted" style={{ margin: 0 }}>{t("nroute.carrierHint")}</p>
       <Loaded state={state}>{({ routes }) => routes.length === 0 ? <div className="card"><Empty icon="route" title={t("common.noData")} /></div> : (
         <div className="grid cols-2">{routes.map((r) => (
           <div key={r.uid} className="card stack">
             <div className="row between"><div className="row"><span className="chip outline mono">{r.code}</span><span className="chip">{t(`service.${r.service_type}`)}</span></div>
-              <span className="small muted"><Icon name="schedule" size={16} /> {duration(r.std_duration_min)}</span></div>
+              <span className="row"><span className="small muted"><Icon name="schedule" size={16} /> {duration(r.std_duration_min)}</span>
+                <button className="btn text" onClick={() => setPricing(r.uid)}><Icon name="payments" />{t("fares.open")}</button></span></div>
             <div className="stops">{r.stops.map((s, i) => (
               <div key={s.seq} className={`stop${i === 0 ? " done" : ""}`}>
                 <span className="dot" /><span>{station(s.station_code, s.station_name)}<span className="small muted"> · +{s.arr_offset_min}′</span></span>
@@ -465,30 +614,59 @@ export function CarrierRoutes() {
           </div>
         ))}</div>
       )}</Loaded>
+      <Loaded state={requests}>{({ requests: list }) => list.length === 0 ? null : (
+        <div className="card stack"><h3 style={{ margin: 0 }}>{t("nroute.myRequests")}</h3><RequestTable rows={list} /></div>
+      )}</Loaded>
+      <CarrierConnectionPolicy />
+      {pricing && <FareMatrix uid={pricing} onClose={() => { setPricing(null); state.reload(); }} />}
       {open && (
         <Modal title={t("carrier.newRoute")} onClose={() => setOpen(false)} wide
-               actions={<><button className="btn text" onClick={() => setOpen(false)}>{t("common.cancel")}</button><button className="btn" disabled={busy || !code} onClick={submit}>{t("common.save")}</button></>}>
+               actions={<><button className="btn text" onClick={() => setOpen(false)}>{t("common.cancel")}</button>
+                 <button className="btn" disabled={busy || served.length < 2} onClick={submit}>{t("common.save")}</button></>}>
           <div className="stack">
             <ErrorBox error={error} />
-            <Field label={t("carrier.routeCode")}><input className="input ltr mono" value={code} placeholder="DAM-ALP" onChange={(e) => setCode(e.target.value.toUpperCase())} /></Field>
-            <strong>{t("carrier.stopsLabel")}</strong>
-            {stops.map((s, i) => (
-              <div key={i} className="grid" style={{ gridTemplateColumns: "2fr 1fr 1fr 1.2fr auto", alignItems: "end" }}>
-                <Field label={`${i + 1}. ${t("common.station")}`}>
-                  <select className="input" value={s.station_uid} onChange={(e) => setStop(i, "station_uid", e.target.value)}>
-                    <option value="" disabled>—</option>
-                    {stations.data?.stations.map((st) => <option key={st.uid} value={st.uid}>{station(st.code, st.name)}</option>)}
-                  </select>
+            <Field label={t("nroute.pickRoute")}>
+              <select className="input" value={netUid} onChange={(e) => pick(e.target.value)}>
+                <option value="">—</option>
+                {network.data?.routes.map((r) => <option key={r.uid} value={r.uid}>{r.code} · {locale === "ar" ? r.name_ar : r.name_en}</option>)}
+              </select>
+            </Field>
+            {network.data && network.data.routes.length === 0 && <p className="small muted" style={{ margin: 0 }}>{t("nroute.noneForCarrier")}</p>}
+            {rows.length > 0 && <p className="small muted" style={{ margin: 0 }}>{t("nroute.serveHint")}</p>}
+            {rows.map((r, i) => {
+              const forced = r.mandatory && i > firstServed && i < lastServed;
+              const at = served.findIndex((x) => x.station_uid === r.station_uid);
+              return (
+                <div key={r.station_uid} className="grid" style={{ gridTemplateColumns: "auto 2fr 1fr 1fr 1.2fr", alignItems: "end" }}>
+                  <label className="row small" style={{ gap: 6, alignItems: "center", paddingBottom: 10 }}>
+                    <input type="checkbox" aria-label={`${t("nroute.serve")} ${r.name}`} checked={r.serve || forced} disabled={forced} onChange={(e) => setRow(i, "serve", e.target.checked)} />
+                  </label>
+                  <div style={{ paddingBottom: 10 }}>{station(r.code, r.name)}{r.mandatory && <span className="small muted"> *</span>}</div>
+                  <Field label={t("carrier.arrOffset")}><input className="input ltr" type="number" min={0} disabled={!r.serve || at <= 0} value={at <= 0 ? "0" : r.arr} onChange={(e) => setRow(i, "arr", e.target.value)} /></Field>
+                  <Field label={t("carrier.depOffset")}><input className="input ltr" type="number" min={0} disabled={!r.serve || at <= 0 || at === served.length - 1} value={at <= 0 ? "0" : r.dep} onChange={(e) => setRow(i, "dep", e.target.value)} /></Field>
+                  <Field label={t("carrier.fareFromOrigin")}><input className="input ltr" type="number" min={0} step={500} disabled={!r.serve || at <= 0} value={at <= 0 ? "0" : r.fare} onChange={(e) => setRow(i, "fare", e.target.value)} /></Field>
+                </div>
+              );
+            })}
+          </div>
+        </Modal>
+      )}
+      {asking && (
+        <Modal title={t("nroute.ask")} onClose={() => setAsking(false)}
+               actions={<><button className="btn text" onClick={() => setAsking(false)}>{t("common.cancel")}</button>
+                 <button className="btn" disabled={busy || !ask.from_station_uid || !ask.to_station_uid || ask.note.trim().length < 5} onClick={sendAsk}>{t("nroute.send")}</button></>}>
+          <div className="stack">
+            <ErrorBox error={error} />
+            <div className="grid cols-2">
+              {(["from_station_uid", "to_station_uid"] as const).map((k) => (
+                <Field key={k} label={t(k === "from_station_uid" ? "nroute.from" : "nroute.to")}>
+                  <select className="input" value={ask[k]} onChange={(e) => setAsk({ ...ask, [k]: e.target.value })}>
+                    <option value="">—</option>{stations.data?.stations.map((st) => <option key={st.uid} value={st.uid}>{station(st.code, st.name)}</option>)}</select>
                 </Field>
-                <Field label={t("carrier.arrOffset")}><input className="input ltr" type="number" min={0} disabled={i === 0} value={s.arr} onChange={(e) => setStop(i, "arr", e.target.value)} /></Field>
-                <Field label={t("carrier.depOffset")}><input className="input ltr" type="number" min={0} disabled={i === 0 || i === stops.length - 1} value={s.dep} onChange={(e) => setStop(i, "dep", e.target.value)} /></Field>
-                <Field label={t("carrier.fareFromOrigin")}><input className="input ltr" type="number" min={0} step={500} disabled={i === 0} value={s.fare} onChange={(e) => setStop(i, "fare", e.target.value)} /></Field>
-                <button className="icon-btn" disabled={i === 0 || stops.length <= 2} onClick={() => setStops(stops.filter((_, j) => j !== i))}><Icon name="close" /></button>
-              </div>
-            ))}
-            <button className="btn outlined" style={{ alignSelf: "flex-start" }} onClick={() => setStops([...stops.slice(0, -1), { station_uid: "", arr: "", dep: "", fare: "" }, stops[stops.length - 1]])}>
-              <Icon name="add" />{t("carrier.addStop")}
-            </button>
+              ))}
+            </div>
+            <Field label={t("nroute.via")}><input className="input" value={ask.via} onChange={(e) => setAsk({ ...ask, via: e.target.value })} /></Field>
+            <Field label={t("nroute.requestNote")}><input className="input" value={ask.note} onChange={(e) => setAsk({ ...ask, note: e.target.value })} /></Field>
           </div>
         </Modal>
       )}
@@ -496,50 +674,169 @@ export function CarrierRoutes() {
   );
 }
 
-// ------------------------------------------------------------------ crew
+// ------------------------------------------------------------------ crew (names in parts, national number, licences: N3, 1158)
+interface CrewLicence { uid: string; license_type: string; license_no: string; issuer: string; license_class: string | null; issue_date: string;
+                        expiry_date: string; status: string; front_uid: string | null; back_uid: string | null; expired: boolean }
+interface CrewDetail { uid: string; full_name: string; crew_type: string; id_no_last4: string | null; problems: string[]; licences: CrewLicence[] }
+interface CrewRow extends Crew { id_no_last4?: string | null; problems?: string[]; next_expiry?: string | null }
+const LICENCE_TYPES = ["DRIVING", "HEAVY_DRIVING", "TRANSPORT", "TRAFFIC", "CROSS_BORDER", "MEDICAL", "FIRST_AID", "CRIMINAL_RECORD", "OTHER"];
+
+function problemText(t: (k: string, v?: Record<string, string | number>) => string, p: string) {
+  const [kind, type] = p.split(":");
+  return t(kind === "MISSING" ? "crew.missing" : "crew.expired", { type: t(`crew.lic.${type}`) });
+}
+
 export function CarrierCrew() {
   const { t } = useI18n();
   const toast = useToast();
-  const state = useLoad(() => api.get<{ crew: Crew[] }>("/api/carrier/crew"));
+  const state = useLoad(() => api.get<{ crew: CrewRow[] }>("/api/carrier/crew"));
+  const slip = useSignInSlip();
   const [open, setOpen] = useState(false);
-  const blank = { full_name: "", email: "", mobile: "", password: "", license_class: "D" };
+  const [view, setView] = useState<string | null>(null);
+  const [editing, setEditing] = useState<string | null>(null);
+  const blank = { crew_type: "DRIVER", first_name: "", father_name: "", grandfather_name: "", last_name: "", mother_name: "", national_id: "",
+                  birth_date: "", email: "", mobile: "", password: "", license_class: "D" };
   const [f, setF] = useState(blank);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
-  const set = (k: keyof typeof blank) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
+  const set = (k: keyof typeof blank) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value });
   const submit = async () => {
     setBusy(true); setError(null);
+    const opt = (v: string) => v.trim() || null;
     try {
-      await api.post("/api/carrier/crew", { ...f, mobile: f.mobile || null });
-      setOpen(false); setF(blank); toast(t("common.saved")); state.reload();
+      const r = await api.post<{ sign_in?: SignIn }>("/api/carrier/crew", { crew_type: f.crew_type, first_name: opt(f.first_name), father_name: opt(f.father_name),
+        grandfather_name: opt(f.grandfather_name), last_name: opt(f.last_name), mother_name: opt(f.mother_name), national_id: opt(f.national_id),
+        birth_date: opt(f.birth_date), email: opt(f.email), mobile: opt(f.mobile), password: opt(f.password),
+        license_class: f.crew_type === "DRIVER" ? opt(f.license_class) : null });
+      setOpen(false); setF(blank); toast(t("common.saved")); state.reload(); slip.show(r.sign_in);
     } catch (e) { setError(e); } finally { setBusy(false); }
   };
   return (
     <div className="stack">
-      <PageHead title={t("carrier.crew")}><button className="btn" onClick={() => setOpen(true)}><Icon name="person_add" />{t("carrier.newDriver")}</button></PageHead>
+      <PageHead title={t("carrier.crew")}><button className="btn" onClick={() => setOpen(true)}><Icon name="person_add" />{t("crew.add")}</button></PageHead>
+      {slip.element}
       <Loaded state={state}>{({ crew }) => crew.length === 0 ? <div className="card"><Empty icon="badge" title={t("common.noData")} /></div> : (
         <div className="table-wrap" tabIndex={0}><table className="table">
-          <thead><tr><th>{t("common.name")}</th><th>{t("common.email")}</th><th>{t("carrier.licenseClass")}</th><th>{t("common.status")}</th></tr></thead>
+          <thead><tr><th>{t("common.name")}</th><th>{t("crew.kind")}</th><th>{t("carrier.licenseClass")}</th><th>{t("crew.licences")}</th><th>{t("common.status")}</th><th>{t("common.actions")}</th></tr></thead>
           <tbody>{crew.map((c) => (
-            <tr key={c.uid}><td>{c.full_name}</td><td className="ltr small">{c.email}</td><td>{c.license_class}</td><td><Status value={c.status} /></td></tr>
+            <tr key={c.uid}>
+              <td>{c.full_name}{c.id_no_last4 && <div className="small muted">{t("crew.nationalId")} ···· <span className="ltr mono">{c.id_no_last4}</span></div>}
+                {c.email && <div className="ltr small muted">{c.email}</div>}</td>
+              <td>{t(`crew.kinds.${c.crew_type}`)}</td><td>{c.license_class ?? "—"}</td>
+              <td className="small">{(c.problems ?? []).length === 0
+                ? <span className="chip green">{t("crew.complete")}{c.next_expiry ? ` · ${c.next_expiry}` : ""}</span>
+                : (c.problems ?? []).map((p) => <div key={p} className="chip wheat">{problemText(t, p)}</div>)}</td>
+              <td><Status value={c.status} /></td>
+              <td><div className="row nowrap" style={{ gap: 4 }}>
+                <button className="btn tonal small" onClick={() => setEditing(c.uid)}><Icon name="edit" size={18} />{t("edit.edit")}</button>
+                <button className="btn text small" onClick={() => setView(c.uid)}>{t("crew.licences")}</button>
+              </div></td>
+            </tr>
           ))}</tbody>
         </table></div>
       )}</Loaded>
       {open && (
-        <Modal title={t("carrier.newDriver")} onClose={() => setOpen(false)}
+        <Modal title={t("crew.add")} onClose={() => setOpen(false)} wide
                actions={<><button className="btn text" onClick={() => setOpen(false)}>{t("common.cancel")}</button><button className="btn" disabled={busy} onClick={submit}>{t("common.save")}</button></>}>
           <div className="stack">
             <ErrorBox error={error} />
-            <Field label={t("common.name")}><input className="input" value={f.full_name} onChange={set("full_name")} /></Field>
-            <div className="grid cols-2">
-              <Field label={t("common.email")}><input className="input ltr" type="email" value={f.email} onChange={set("email")} /></Field>
-              <Field label={`${t("common.mobile")} (${t("common.optional")})`}><input className="input ltr" value={f.mobile} onChange={set("mobile")} /></Field>
-              <Field label={t("common.password")} hint={t("auth.passwordHint")}><input className="input ltr" type="password" value={f.password} onChange={set("password")} /></Field>
-              <Field label={t("carrier.licenseClass")}><input className="input ltr" value={f.license_class} onChange={set("license_class")} /></Field>
+            <Field label={t("crew.kind")}>
+              <select className="input" value={f.crew_type} onChange={set("crew_type")}>
+                {["DRIVER", "HOST", "ASSISTANT"].map((k) => <option key={k} value={k}>{t(`crew.kinds.${k}`)}</option>)}
+              </select>
+            </Field>
+            <div className="grid cols-3">
+              <Field label={t("crew.first")}><input className="input" value={f.first_name} onChange={set("first_name")} /></Field>
+              <Field label={t("crew.father")}><input className="input" value={f.father_name} onChange={set("father_name")} /></Field>
+              <Field label={t("crew.grandfather")} optional><input className="input" value={f.grandfather_name} onChange={set("grandfather_name")} /></Field>
+              <Field label={t("crew.last")}><input className="input" value={f.last_name} onChange={set("last_name")} /></Field>
+              <Field label={t("crew.mother")} optional><input className="input" value={f.mother_name} onChange={set("mother_name")} /></Field>
+              <Field label={t("crew.nationalId")} hint={t("crew.nationalIdHint")}><input className="input ltr" autoComplete="off" value={f.national_id} onChange={set("national_id")} /></Field>
+              <Field label={t("crew.birthDate")} optional><input className="input ltr" type="date" value={f.birth_date} onChange={set("birth_date")} /></Field>
+              {f.crew_type === "DRIVER" && <Field label={t("carrier.licenseClass")}><input className="input ltr" value={f.license_class} onChange={set("license_class")} /></Field>}
+            </div>
+            <p className="small muted">{f.crew_type === "DRIVER" ? t("crew.driverSignIn") : t("crew.otherSignIn")}</p>
+            <div className="grid cols-3">
+              <Field label={f.crew_type === "DRIVER" ? t("common.email") : t("common.email")} optional={!(f.crew_type === "DRIVER")}><input className="input ltr" type="email" value={f.email} onChange={set("email")} /></Field>
+              <Field label={t("common.mobile")} optional><input className="input ltr" value={f.mobile} onChange={set("mobile")} /></Field>
+              <Field label={t("common.password")} hint={t("auth.passwordHint")}><PasswordInput value={f.password} onChange={set("password")} /></Field>
             </div>
           </div>
         </Modal>
       )}
+      {view && <CrewLicences uid={view} onClose={() => { setView(null); state.reload(); }} />}
+      {editing && <CrewEditor uid={editing} onClose={() => { setEditing(null); state.reload(); }} />}
     </div>
+  );
+}
+
+function CrewLicences({ uid, onClose }: { uid: string; onClose: () => void }) {
+  const { t } = useI18n();
+  const toast = useToast();
+  const state = useLoad(() => api.get<CrewDetail>(`/api/carrier/crew/${uid}`), [uid]);
+  const blank = { license_type: "DRIVING", license_no: "", issuer: "", license_class: "", issue_date: "", expiry_date: "" };
+  const [fixing, setFixing] = useState<CrewDetail["licences"][number] | null>(null);
+  const [f, setF] = useState(blank);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const set = (k: keyof typeof blank) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value });
+  const act = async (fn: () => Promise<unknown>) => {
+    setBusy(true); setError(null);
+    try { await fn(); toast(t("common.saved")); state.reload(); } catch (e) { setError(e); } finally { setBusy(false); }
+  };
+  const upload = (licence: string, side: "front" | "back", file: File) => act(() => {
+    const form = new FormData();
+    form.append("file", file);
+    return api.upload(`/api/carrier/crew/${uid}/licences/${licence}/images/${side}`, form);
+  });
+  return (
+    <Modal title={t("crew.licences")} onClose={onClose} wide actions={<button className="btn" onClick={onClose}>{t("common.close")}</button>}>
+      <div className="stack">
+        <ErrorBox error={error} />
+        <Loaded state={state}>{(d) => (<>
+          <div className="row between" style={{ flexWrap: "wrap" }}><b>{d.full_name}</b><span className="small muted">{t(`crew.kinds.${d.crew_type}`)}</span></div>
+          {d.problems.length > 0 && <div className="alert info"><Icon name="info" /><span>{d.problems.map((p) => problemText(t, p)).join(" · ")}</span></div>}
+          {d.licences.length === 0 ? <Empty icon="badge" title={t("crew.noLicences")} /> : (
+            <div className="table-wrap" tabIndex={0}><table className="table">
+              <thead><tr><th>{t("crew.licType")}</th><th>{t("crew.licNo")}</th><th>{t("crew.validity")}</th><th>{t("crew.pictures")}</th><th>{t("common.status")}</th><th /></tr></thead>
+              <tbody>{d.licences.map((l) => (
+                <tr key={l.uid}>
+                  <td>{t(`crew.lic.${l.license_type}`)}{l.license_class && <div className="small muted">{t("carrier.licenseClass")} {l.license_class}</div>}</td>
+                  <td className="mono ltr small">{l.license_no}<div className="muted">{l.issuer}</div></td>
+                  <td className="small ltr">{l.issue_date} → {l.expiry_date}{l.expired && <div className="chip red">{t("crew.expiredChip")}</div>}</td>
+                  <td><div className="row" style={{ gap: 4, flexWrap: "wrap" }}>
+                    {(["front", "back"] as const).map((side) => (
+                      <label key={side} className="btn text small">
+                        <Icon name={(side === "front" ? l.front_uid : l.back_uid) ? "check_circle" : "upload_file"} />{t(`crew.${side}`)}
+                        <input type="file" accept="image/*,application/pdf" hidden disabled={busy} onChange={(e) => e.target.files?.[0] && upload(l.uid, side, e.target.files[0])} />
+                      </label>))}
+                  </div></td>
+                  <td><Status value={l.status} /></td>
+                  <td><button className="btn text small" onClick={() => setFixing(l)}>{t("edit.correct")}</button></td>
+                </tr>
+              ))}</tbody>
+            </table></div>
+          )}
+        </>)}</Loaded>
+        {fixing && <LicenceCorrection licence={fixing} onClose={() => setFixing(null)} />}
+        <h4>{t("crew.addLicence")}</h4>
+        <div className="grid cols-3">
+          <Field label={t("crew.licType")}>
+            <select className="input" value={f.license_type} onChange={set("license_type")}>
+              {LICENCE_TYPES.map((k) => <option key={k} value={k}>{t(`crew.lic.${k}`)}</option>)}
+            </select>
+          </Field>
+          <Field label={t("crew.licNo")}><input className="input ltr" value={f.license_no} onChange={set("license_no")} /></Field>
+          <Field label={t("crew.issuer")}><input className="input" value={f.issuer} onChange={set("issuer")} /></Field>
+          {(f.license_type === "DRIVING" || f.license_type === "HEAVY_DRIVING") &&
+            <Field label={t("carrier.licenseClass")}><input className="input ltr" value={f.license_class} onChange={set("license_class")} /></Field>}
+          <Field label={t("crew.issueDate")}><input className="input ltr" type="date" value={f.issue_date} onChange={set("issue_date")} /></Field>
+          <Field label={t("crew.expiryDate")}><input className="input ltr" type="date" value={f.expiry_date} onChange={set("expiry_date")} /></Field>
+        </div>
+        <div><button className="btn tonal" disabled={busy || !f.license_no || !f.issuer || !f.issue_date || !f.expiry_date}
+          onClick={() => act(async () => { await api.post(`/api/carrier/crew/${uid}/licences`, { ...f, license_class: f.license_class || null }); setF(blank); })}>
+          <Icon name="add" />{t("crew.addLicence")}</button></div>
+      </div>
+    </Modal>
   );
 }

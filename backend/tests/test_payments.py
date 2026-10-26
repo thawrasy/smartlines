@@ -196,10 +196,10 @@ def test_bank_transfer_matched_from_the_statement(admin, pax):
     u = pax.post("/api/payments/bank-transfers", json={"amount": 2000000, "idempotency_key": key()}).json()
     bank_ref = f"TRX{secrets.token_hex(5)}"
     csv = ("date,amount,currency,description,payer,transaction_id\n"
-           f"2026-10-05,\"30,000.00\",SYP,Top-up {ref[:7]} {ref[7:]},Test User,{bank_ref}\n"
-           f"2026-10-05,1500.00,SYP,no reference here,Someone,TRX{secrets.token_hex(5)}\n"
-           f"2026-10-05,25000.00,SYP,{u['reference']},Test User,TRX{secrets.token_hex(5)}\n"
-           f"2026-10-05,-500.00,SYP,bank fee,,TRX{secrets.token_hex(5)}\n")
+           f"2026-10-05,\"300.00\",SYP,Top-up {ref[:7]} {ref[7:]},Test User,{bank_ref}\n"
+           f"2026-10-05,15.00,SYP,no reference here,Someone,TRX{secrets.token_hex(5)}\n"
+           f"2026-10-05,250.00,SYP,{u['reference']},Test User,TRX{secrets.token_hex(5)}\n"
+           f"2026-10-05,-5.00,SYP,bank fee,,TRX{secrets.token_hex(5)}\n")
     files = {"file": ("statement.csv", csv.encode(), "text/csv")}
     r = admin.post("/api/admin/payments/statements", files=files, data={"account_label": "CBS main"})
     assert r.status_code == 201, r.text
@@ -231,16 +231,16 @@ def test_statement_with_decimal_commas(admin, pax):
     """R-24: a bank that writes 1.234,50 is read with the decimal mark finance chooses; read with the wrong one, the
     file is refused rather than credited with another amount."""
     before = balance(pax)
-    t = pax.post("/api/payments/bank-transfers", json={"amount": 12345050, "idempotency_key": key()}).json()
+    t = pax.post("/api/payments/bank-transfers", json={"amount": 12345000, "idempotency_key": key()}).json()   # 1,234.50 new pounds (1176)
     text = ('"date","amount","currency","description","transaction_id"\n'
-            f'"2026-10-06","123.450,50","SYP","{t["reference"]}","TRX{secrets.token_hex(5)}"\n')
+            f'"2026-10-06","1.234,50","SYP","{t["reference"]}","TRX{secrets.token_hex(5)}"\n')
     files = {"file": ("statement-eu.csv", text.encode(), "text/csv")}
     r = admin.post("/api/admin/payments/statements", files=files, data={"account_label": "EU style"})
     assert r.status_code == 422 and r.json()["error"]["code"] == "STATEMENT_BAD_AMOUNT", r.text
     r = admin.post("/api/admin/payments/statements", files=files, data={"account_label": "EU style", "decimal_mark": ","})
     assert r.status_code == 201 and r.json()["awaiting_approval"] == 1, r.text
     approve(admin, t["reference"])
-    assert balance(pax) == before + 12345050
+    assert balance(pax) == before + 12345000
 
 
 def test_agency_counter_topup(pax):

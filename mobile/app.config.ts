@@ -1,4 +1,5 @@
-// One code base, three apps. Build with APP_VARIANT=passenger (default), APP_VARIANT=driver or APP_VARIANT=operator.
+// One code base, four apps. Build with APP_VARIANT=passenger (default), driver, operator or officer (the roadside
+// officer's app of the government bodies, N48).
 //   MASSLAK_API_URL   https base address of the API, e.g. https://masslak.com
 //   MASSLAK_API_PINS  comma-separated base64 SHA-256 hashes of the API certificate's public key (at least two:
 //                     the current key and a backup), enforced by native certificate pinning in release builds
@@ -8,11 +9,12 @@ const VARIANTS = {
   passenger: { name: "Masslak", slug: "masslak", id: "sy.masslak.app" },
   driver: { name: "Masslak Driver", slug: "masslak-driver", id: "sy.masslak.driver" },
   operator: { name: "Masslak Business", slug: "masslak-business", id: "sy.masslak.business" },
+  officer: { name: "Masslak Roadside", slug: "masslak-roadside", id: "sy.masslak.roadside" },
 } as const;
 
 export default ({ config }: ConfigContext): ExpoConfig => {
   const wanted = process.env.APP_VARIANT;
-  const variant = (wanted === "driver" || wanted === "operator" ? wanted : "passenger") as keyof typeof VARIANTS;
+  const variant = (wanted === "driver" || wanted === "operator" || wanted === "officer" ? wanted : "passenger") as keyof typeof VARIANTS;
   const v = VARIANTS[variant];
   const apiUrl = process.env.MASSLAK_API_URL ?? "https://masslak.com";
   if (!apiUrl.startsWith("https://") && process.env.NODE_ENV === "production") {
@@ -34,6 +36,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         NSCameraUsageDescription: variant === "driver"
           ? "The camera scans passengers' ticket codes when they board."
           : variant === "operator" ? "The camera scans ticket and parcel codes."
+          : variant === "officer" ? "The camera reads the movement code on a vehicle's placard, from a distance."
           : "The camera scans the code inside the vehicle when you ride a shuttle.",
         NSFaceIDUsageDescription: "Face ID unlocks your tickets and wallet.",
         ITSAppUsesNonExemptEncryption: false,

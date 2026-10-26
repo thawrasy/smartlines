@@ -7,6 +7,7 @@ from datetime import date, timedelta
 
 import pytest
 
+from network_helper import network_route
 from test_e2e import OWNER_URL, day, login, new_passenger, owner_sql
 
 pytestmark = pytest.mark.skipif(not OWNER_URL, reason="needs MASSLAK_OWNER_URL")
@@ -46,14 +47,14 @@ def beirut_trip(admin):
     bey = stations[0]["uid"]
     dam = next(s for s in admin.get("/api/stations", params={"city": "DAM"}).json()["stations"] if s["station_class"] == "CENTRAL")["uid"]
     o = login("owner@carrier.test", "OPERATOR")
-    code = f"DAM-BEY-{secrets.randbelow(9000) + 1000}"
-    r = o.post("/api/carrier/routes", json={"code": code, "stops": [
+    net = network_route([dam, bey], [0, 110], "Damascus Beirut")
+    r = o.post("/api/carrier/routes", json={"network_route_uid": net, "stops": [
         {"station_uid": dam, "arr_offset_min": 0, "dep_offset_min": 0, "fare_from_origin": 0},
         {"station_uid": bey, "arr_offset_min": 180, "dep_offset_min": 180, "fare_from_origin": 5500000}]})
     assert r.status_code == 201, r.text
-    route = next(x for x in o.get("/api/carrier/routes").json()["routes"] if x["code"] == code)
+    route = next(x for x in o.get("/api/carrier/routes").json()["routes"] if x["uid"] == r.json()["uid"])
     layout = next(x for x in o.get("/api/carrier/seat-layouts").json()["layouts"] if x["total_seats"] == 44)
-    plate = str(100000 + secrets.randbelow(900000))
+    plate = str(1_000_000_000 + secrets.randbelow(9_000_000_000))   # wide enough that two runs never share one
     r = o.post("/api/carrier/vehicles", json={
         "plate_no": plate, "chassis_no": f"CHS-I{plate}", "vehicle_type": "COACH", "seat_layout_uid": layout["uid"],
         "insurance_no": f"POL-I{plate}", "insurer": "Test", "insurance_issue": "2026-01-01", "insurance_expiry": "2030-01-01"})
@@ -72,7 +73,7 @@ def beirut_trip(admin):
 
 def passenger(seat, **doc):
     return {"nationality": "SY", "first_name": "Rami", "father_name": "Khaled", "grandfather_name": "Omar",
-            "last_name": "Haddad", "seat_no": seat, **doc}
+            "last_name": "Haddad", "first_name_latin": "Rami", "last_name_latin": "Haddad", "seat_no": seat, **doc}
 
 
 def try_book(c, trip, **doc):
@@ -108,8 +109,13 @@ def test_international_trips_need_a_valid_passport(beirut_trip):
     r = try_book(pax, beirut_trip, id_type="PASSPORT", id_no="N0123456", passport_expiry=soon)
     assert r.status_code == 422 and r.json()["error"]["code"] == "PASSPORT_EXPIRES_TOO_SOON"
     good = (date.today() + timedelta(days=900)).isoformat()
+    # the name as in the passport, in Latin letters, is required across a border (N4, 1149)
+    r = try_book(pax, beirut_trip, id_type="PASSPORT", id_no="N0123456", passport_expiry=good, first_name_latin=None, last_name_latin=None)
+    assert r.status_code == 422 and r.json()["error"]["code"] == "LATIN_NAME_REQUIRED", r.text
     r = try_book(pax, beirut_trip, id_type="PASSPORT", id_no="N0123456", passport_expiry=good)
     assert r.status_code == 201, r.text
+    assert owner_sql("""SELECT p.first_name_latin || ' ' || p.last_name_latin FROM sales.passenger p JOIN sales.booking b ON b.id = p.booking_id
+                         WHERE b.booking_ref = $1""", r.json()["booking_ref"]) == "Rami Haddad"
     row = owner_sql("""SELECT d.doc_type, d.dest_country, d.exception, p.passport_expiry::text AS expiry FROM sales.ticket_doc d
                          JOIN sales.ticket t ON t.id = d.ticket_id JOIN sales.booking b ON b.id = t.booking_id
                          JOIN sales.passenger p ON p.id = t.passenger_id WHERE b.booking_ref = $1""", r.json()["booking_ref"], fetch=True)

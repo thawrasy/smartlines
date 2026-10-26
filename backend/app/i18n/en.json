@@ -9,6 +9,32 @@
     "body": "Your booking {booking_ref} is cancelled. Refund: SYP {refund_amount}.",
     "sms": "Masslak: booking {booking_ref} cancelled. Refund SYP {refund_amount}."
   },
+  "booking.cancelled_by_carrier": {
+    "subject": "Trip {trip_no} cancelled by the carrier",
+    "body": "The carrier cancelled trip {trip_no}. Your booking {booking_ref} is cancelled and SYP {refund_amount} is refunded in full {refund_to}. We are sorry for the trouble.",
+    "sms": "Masslak: the carrier cancelled trip {trip_no}. Booking {booking_ref}: SYP {refund_amount} refunded {refund_to}."
+  },
+  "trip.cancel_penalty": {
+    "subject": "Penalty for cancelling trip {trip_no}",
+    "body": "Under the regulator's decision {legal_ref}, cancelling trip {trip_no} carries a penalty of SYP {amount}. It is taken from your balance, or from your next released earnings if the balance does not cover it."
+  },
+  "refund_to_labels": {
+    "WALLET": "to your Masslak wallet",
+    "AGENCY": "through the agency that sold it",
+    "COUNTER": "in cash at the carrier's counter"
+  },
+  "points.earned": {
+    "subject": "You earned {points} points",
+    "body": "Trip {trip_no} earned you {points} loyalty points. Your balance is {balance} points; turn them into wallet credit or a voucher at a partner from your wallet page."
+  },
+  "voucher.used": {
+    "subject": "Voucher used at {partner}",
+    "body": "Your voucher worth {currency} {amount} was used at {partner}."
+  },
+  "voucher.returned": {
+    "subject": "{points} points back in your balance",
+    "body": "A voucher you did not use has expired or was cancelled, so its {points} points are back in your loyalty balance."
+  },
   "booking.reserved": {
     "subject": "Booking {booking_ref} reserved: pay by {pay_by_local}",
     "body": "Your seats on booking {booking_ref} are reserved: {from_city} to {to_city}, departing {departs_local}, {passengers} passenger(s), SYP {total_amount}. Pay by {pay_by_local}, or the reservation lapses and the seats go back on sale. Your tickets are issued once paid.",
@@ -21,6 +47,41 @@
   "withdrawal.rejected": {
     "subject": "Withdrawal of SYP {amount} not approved",
     "body": "Your withdrawal of SYP {amount} was not approved: {reason}. The amount is available in your balance again."
+  },
+  "tracking.signal_lost": {
+    "subject": "Trip {trip_no}: no position for {minutes} min",
+    "body": "The vehicle on trip {trip_no} has sent no position for {minutes} minutes. Check with the driver; the alert closes when positions return."
+  },
+  "tracking.alert_escalated": {
+    "subject": "Trip {trip_no}: still no position after {minutes} min",
+    "body": "The vehicle on trip {trip_no} has been silent for {minutes} minutes and the alert was escalated. Contact the driver now and record what happened."
+  },
+  "screen.unseen": {
+    "subject": "Screen {label} at {station}: unseen for {minutes} min",
+    "body": "The screen {label} at station {station} has not read its board for {minutes} minutes. Check its power, network and browser; the alert clears when it reads its board again."
+  },
+  "sos.raised": {
+    "subject": "SOS on trip {trip_no}",
+    "body": "An SOS was raised on trip {trip_no} (vehicle {plate_no}). Position: {where}. Call the driver and the emergency services now, then acknowledge the alarm in the portal.",
+    "sms": "Masslak SOS: trip {trip_no}, vehicle {plate_no}, position {where}. Act now."
+  },
+  "incident.reported": {
+    "subject": "Incident on trip {trip_no}: {incident_type}, {severity}",
+    "body": "The driver of trip {trip_no} (vehicle {plate_no}) reported an incident: {incident_type}, {severity}. Review it in the portal and decide what happens to the trip."
+  },
+  "incident_type_labels": {
+    "COLLISION": "collision",
+    "BREAKDOWN": "breakdown",
+    "FIRE": "fire",
+    "SECURITY": "security",
+    "SEIZURE": "seizure",
+    "MEDICAL": "medical",
+    "OTHER": "other"
+  },
+  "severity_labels": {
+    "MINOR": "minor",
+    "MAJOR": "major",
+    "SEVERE": "severe"
   },
   "document.approved": {
     "subject": "{doc_type} approved",
@@ -1220,5 +1281,205 @@
     "subject": "Masslak sign-in code",
     "body": "Your Masslak sign-in code is {code}. It expires in {minutes} minutes. Do not share it with anyone.",
     "sms": "Masslak code: {code} (valid {minutes} min). Never share it."
+  },
+  "security.traffic_alert": {
+    "subject": "Security alert: {kind_label} ({severity_label})",
+    "body": "The platform's traffic watch opened an alert: {kind_label}. Figures: {metrics_text}. Automatic action: {actions_text}. Open the shield in the security console to check it, block addresses or pause the platform.",
+    "sms": "Masslak security: {kind_label}. {metrics_text}. Check the shield in the console now."
+  },
+  "security.shield_changed": {
+    "subject": "Platform shield: {level_label}",
+    "body": "The platform shield is now {level_label} (it was {previous_label}). Reason: {reason}. Set by: {by_label}. Review it in the security console.",
+    "sms": "Masslak shield: {level_label}. Reason: {reason}."
+  },
+  "account.signed_in_elsewhere": {
+    "subject": "Your account was signed in on another device",
+    "body": "Your Masslak account was just signed in on another device ({client_label}). For your safety only one device stays signed in, so the other device was signed out. If this was not you, change your password now and contact support."
+  },
+  "shield_labels": {
+    "VOLUME": "abnormal traffic volume",
+    "SPIKE": "a sudden spike over the usual traffic",
+    "ERRORS": "many server errors",
+    "WAF": "many requests stopped by the firewall",
+    "AUTH_FLOOD": "a flood of failed sign-ins",
+    "HEAVY_ADDRESS": "one address far above the rest",
+    "WARNING": "warning",
+    "CRITICAL": "critical",
+    "NORMAL": "normal",
+    "ELEVATED": "elevated",
+    "LOCKDOWN": "lockdown (traffic paused)",
+    "AUTO": "the platform itself",
+    "STAFF": "a member of the security staff",
+    "NONE": "none",
+    "ADDRESS_BLOCKED": "the address was blocked for a while",
+    "LEVEL_ELEVATED": "the shield was raised to elevated",
+    "web": "a web browser",
+    "android": "the Android app",
+    "ios": "the iPhone app",
+    "FIRING": "firing",
+    "RESOLVED": "resolved"
+  },
+  "agency_cash.received": {
+    "subject": "{carrier_name} recorded receiving {currency} {amount}",
+    "body": "{carrier_name} recorded receiving {currency} {amount} from your agency for its cash sales (reference {reference}). Still owed to this carrier: {currency} {owed_after}."
+  },
+  "payment_activation.contracted": {
+    "subject": "Payment gateway contract signed: {option}",
+    "body": "The platform has signed the payment gateway contract that lets your travellers pay by {option}. It goes live on your trips once the platform activates it; you will be told then. Basis: {basis}."
+  },
+  "payment_activation.active": {
+    "subject": "Travellers can now pay you by {option}",
+    "body": "Payment by {option} is now active on your trips. The gateway settles into the platform's bank account and your share is paid to you after each trip, as with every electronic payment. Basis: {basis}."
+  },
+  "payment_activation.suspended": {
+    "subject": "Payment by {option} paused on your trips",
+    "body": "The platform has paused payment by {option} on your trips; travellers pay in the other open ways meanwhile. Basis: {basis}."
+  },
+  "booking.trip_changed.reschedule": {
+    "subject": "Trip {trip_code}: new departure time",
+    "body": "The carrier moved trip {trip_code} ({shift_text}) because of: {reason_code}. Your booking {booking_ref} now departs {departs_local}. {free_cancel_text}",
+    "sms": "Masslak: trip {trip_code} now departs {departs_local} ({reason_code}). Booking {booking_ref}. {free_cancel_text}"
+  },
+  "booking.trip_changed.vehicle_swap": {
+    "subject": "Trip {trip_code}: another vehicle",
+    "body": "The carrier changed the vehicle of trip {trip_code} because of: {reason_code}. The trip keeps its number. New vehicle: {vehicle_plate}. New seat(s) for booking {booking_ref}: {seats_text}.",
+    "sms": "Masslak: trip {trip_code} now runs with vehicle {vehicle_plate} ({reason_code}). Booking {booking_ref}, new seat(s): {seats_text}."
+  },
+  "booking.trip_changed.rebook": {
+    "subject": "Your booking {booking_ref} moved to trip {trip_code}",
+    "body": "The carrier moved your booking {booking_ref} from trip {from_trip_code} to trip {trip_code} because of: {reason_code}. It departs {departs_local}, vehicle {vehicle_plate}, seat(s) {seats_text}. You pay nothing more; your tickets have new numbers in the app.",
+    "sms": "Masslak: booking {booking_ref} moved to trip {trip_code}, departing {departs_local}, seat(s) {seats_text} ({reason_code}). No extra charge."
+  },
+  "reason_code_labels": {
+    "BREAKDOWN": "a breakdown",
+    "ACCIDENT": "an accident",
+    "LATE_INCOMING_TRIP": "the late arrival of the incoming trip",
+    "REPAIR_IN_PROGRESS": "a repair in progress",
+    "VEHICLE_REPLACEMENT": "a vehicle replacement",
+    "WEATHER": "the weather",
+    "ROAD_CLOSURE": "a road closure",
+    "AUTHORITY_ORDER": "an order of an authority",
+    "OTHER": "another reason"
+  },
+  "trip_change_labels": {
+    "FREE_CANCEL": "If the new time does not suit you, cancel the booking and get everything back."
+  },
+  "account.verify_email": {
+    "subject": "Your Masslak confirmation code",
+    "body": "Your code to confirm this e-mail on Masslak is {code}. It lasts {minutes} minutes. If you did not create an account, ignore this message."
+  },
+  "account.guest_code": {
+    "subject": "Your Masslak booking code",
+    "body": "Your code to book on Masslak without an account is {code}. It lasts {minutes} minutes. If you did not ask for it, ignore this message."
+  },
+  "security.monitoring_alert": {
+    "subject": "Monitoring: {alertname} {status_label}",
+    "body": "{status_label}: {alertname} ({severity}). {summary} Since {starts_at} UTC."
+  },
+  "placard": {
+    "title": "Movement code",
+    "scan": "Security and authorised bodies: scan this code to see the vehicle's movement, crew, passengers and load.",
+    "carrier": "Carrier",
+    "plate": "Plate",
+    "seats": "Seats",
+    "serial": "Placard",
+    "front": "Front windscreen",
+    "rear": "Rear window",
+    "keep": "Keep this placard visible and undamaged. A lost or copied placard is revoked and a new one printed.",
+    "brand": "Masslak, the transport platform"
+  },
+  "board": {
+    "departures": "Departures",
+    "arrivals": "Arrivals",
+    "time": "Time",
+    "to": "To",
+    "from": "From",
+    "carrier": "Carrier",
+    "trip": "Trip",
+    "bay": "Bay",
+    "state": "Status",
+    "via": "via",
+    "noDepartures": "No departures in the coming hours",
+    "noArrivals": "No arrivals in the coming hours",
+    "offline": "Connection lost · last updated {time}",
+    "screenOff": "This screen shows nothing at the moment",
+    "waiting": "This screen is waiting to be approved by the station's administration",
+    "waitingHint": "Give the station's administration this player's address",
+    "refused": "This device may not show the station's boards",
+    "status": {
+      "SCHEDULED": "On time",
+      "CHECK_IN": "Check-in open",
+      "BOARDING": "Boarding",
+      "DEPARTED": "Departed",
+      "CANCELLED": "Cancelled",
+      "ARRIVED": "Arrived",
+      "EXPECTED": "Expected",
+      "SEE_COUNTER": "See the counter"
+    }
+  },
+  "fuel.filled": {
+    "subject": "Fuel: {plate_no} filled {litres} L at {station}",
+    "body": "The vehicle {plate_no} filled {litres} L of {fuel_type} at {station} for {amount}. The account holds {balance}; the vehicle's budget left in this period is {left_amount}. {held_note}"
+  },
+  "fuel_labels": {
+    "HELD": "The checks found something to review: the fill is held until you or the fuel company decide.",
+    "LOW_BALANCE": "The account is below the balance you set: ask the fuel company to record a new payment.",
+    "NO_BUDGET": "no budget set",
+    "DIESEL": "diesel",
+    "GASOLINE": "petrol",
+    "LPG": "LPG",
+    "CNG": "CNG",
+    "ADBLUE": "AdBlue"
+  },
+  "parcel.arrived": {
+    "subject": "Parcel {tracking_no} has arrived at {station}",
+    "body": "Your parcel {tracking_no} for {recipient_name} has arrived at {station} with {carrier}. The recipient collects it with the code {pickup_code} and an identity document. It waits {days} days; after that it may be sent back.",
+    "sms": "Masslak: parcel {tracking_no} is waiting at {station}. Pickup code {pickup_code}. Bring an identity document."
+  },
+  "parcel.delivered": {
+    "subject": "Parcel {tracking_no} was delivered",
+    "body": "Your parcel {tracking_no} was handed to {delivered_to} at {station} ({method_label})."
+  },
+  "parcel.exception": {
+    "subject": "Parcel {tracking_no}: {kind_label}",
+    "body": "Your parcel {tracking_no} for {recipient_name} was recorded as {kind_label} by {carrier}: {note}. The carrier will contact you about what happens next."
+  },
+  "parcel_labels": {
+    "OTP": "with the pickup code",
+    "ID": "after an identity check",
+    "DAMAGED": "damaged",
+    "MISSING": "missing",
+    "REFUSED": "refused by the recipient",
+    "UNCLAIMED": "not collected",
+    "LOADED": "on board",
+    "RECEIVED": "received at a location on the way",
+    "ATTEMPT_FAILED": "not delivered at the address, back at the station",
+    "AT": "at",
+    "NOBODY_HOME": "nobody at home",
+    "WRONG_ADDRESS": "wrong address",
+    "REFUSED_AT_DOOR": "refused at the door",
+    "NO_CODE": "no code given",
+    "ACCESS": "address not reachable",
+    "OTHER": "other reason",
+    "AND_ID": "and an identity check"
+  },
+  "parcel.arrived_address": {
+    "subject": "Parcel {tracking_no} has arrived at {station}",
+    "body": "Your parcel {tracking_no} for {recipient_name} has arrived at {station} with {carrier}. It will be taken to {address}; the recipient receives the delivery code by text when it leaves for the address.",
+    "sms": "Masslak: parcel {tracking_no} has arrived at {station}. It will be delivered to your address; the code comes by text when it leaves."
+  },
+  "parcel.out_for_delivery": {
+    "subject": "Parcel {tracking_no} is on its way to the address",
+    "body": "Your parcel {tracking_no} left {station} for {address}. The recipient gives the code {pickup_code} to the courier.",
+    "sms": "Masslak: parcel {tracking_no} is on its way to you. Give the courier the code {pickup_code}."
+  },
+  "parcel.code_sent": {
+    "subject": "Pickup code for parcel {tracking_no}",
+    "body": "The pickup code for parcel {tracking_no} is {pickup_code}.",
+    "sms": "Masslak: the code for parcel {tracking_no} is {pickup_code}."
+  },
+  "parcel.moved": {
+    "subject": "Parcel {tracking_no}: {step_label}",
+    "body": "Your parcel {tracking_no} for {recipient_name}: {step_label} {place_text}"
   }
 }

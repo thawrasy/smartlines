@@ -1,4 +1,5 @@
-"""Security console: IP and range rules, login events, the activity log and the two-factor sign-in policy.
+"""Security console: IP and range rules, login events, the activity log, the two-factor sign-in policy and the platform
+shield (1142: firewall, traffic watch, shield level, one session per portal).
 
 IP rules are managed through the application role (platform scope). The logs are read through a
 separate connection on the masslak_auditor role, because the application role can only append to them.
@@ -7,11 +8,12 @@ import ipaddress
 import json
 from typing import Literal, Optional
 
+import asyncpg
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field
 
 from .. import db, mfa_policy
-from ..deps import Principal, context_for, require_permission
+from ..deps import Principal, context_for, require_permission, require_step_up
 from ..errors import ApiError, not_found
 from ..util import row_dict, rows
 
@@ -71,6 +73,9 @@ async def add_ip_rule(body: IpRuleIn, request: Request, pr: Principal = Depends(
         except ValueError:
             raise ApiError(422, "INVALID_TARGET", "enter an IP address, a CIDR range, a country code or an AS number")
         rule_type = "CIDR"
+    if body.action == "ALLOW":
+        raise ApiError(409, "USE_EXCEPTION_REGISTER", "letting addresses through the shield goes through the exception register: "
+                       "one person asks, another approves, with an end date (1167)")
     if rule_type == "CIDR" and body.action == "BLOCK" and ipaddress.ip_address(request.state.client_ip) in ipaddress.ip_network(cidr):
         raise ApiError(409, "SELF_BLOCK", "this rule would block your own address")
     async with db.transaction(context_for(request, pr)) as conn:
@@ -130,12 +135,13 @@ async def activity(pr: Principal = Depends(can_audit), limit: int = Query(100, l
 
 # ---------------------------------------------------------------- two-factor sign-in policy (owner's decision 2)
 class MfaPolicyIn(BaseModel):
-    methods: list[Literal["TOTP", "SMS", "WHATSAPP"]] = Field(min_length=1)
-    required_portals: list[Literal["PLATFORM", "INSPECTOR", "OPERATOR", "DRIVER", "AGENCY", "PASSENGER"]]
+    methods: list[Literal["TOTP", "EMAIL", "TELEGRAM", "SMS", "WHATSAPP"]] = Field(min_length=1)
+    required_portals: list[Literal["PLATFORM", "INSPECTOR", "OPERATOR", "DRIVER", "AGENCY", "STATION", "FUEL", "PASSENGER"]]
     enforce_in_sandbox: bool = False
     code_minutes: int = Field(default=5, ge=2, le=10)
     resend_seconds: int = Field(default=60, ge=30, le=300)
     sends_per_hour: int = Field(default=5, ge=3, le=20)
+    step_up_minutes: int = Field(default=10, ge=5, le=60)
 
 
 async def _mfa_policy_view(conn) -> dict:
@@ -144,7 +150,7 @@ async def _mfa_policy_view(conn) -> dict:
     policy = await mfa_policy.current(conn)
     counts = await conn.fetch(
         """SELECT factor_type, count(DISTINCT user_id) AS people FROM iam.mfa_factor
-            WHERE verified_at IS NOT NULL AND disabled_at IS NULL AND factor_type IN ('TOTP','SMS','WHATSAPP')
+            WHERE verified_at IS NOT NULL AND disabled_at IS NULL AND factor_type IN ('TOTP','EMAIL','TELEGRAM','SMS','WHATSAPP')
             GROUP BY factor_type""")
     without = await conn.fetch(
         """SELECT CASE u.account_kind WHEN 'PLATFORM' THEN 'PLATFORM' WHEN 'AGENCY' THEN 'AGENCY' ELSE
@@ -153,10 +159,10 @@ async def _mfa_policy_view(conn) -> dict:
              FROM iam.app_user u
             WHERE u.status = 'ACTIVE' AND u.account_kind IN ('PLATFORM','COMPANY','AGENCY')
               AND NOT EXISTS (SELECT 1 FROM iam.mfa_factor f WHERE f.user_id = u.id AND f.verified_at IS NOT NULL
-                                 AND f.disabled_at IS NULL AND f.factor_type IN ('TOTP','SMS','WHATSAPP'))
+                                 AND f.disabled_at IS NULL AND f.factor_type IN ('TOTP','EMAIL','TELEGRAM','SMS','WHATSAPP'))
             GROUP BY 1""")
     return {"policy": policy.public(), "available": policy.available(),
-            "delivery": {"TOTP": True, "SMS": providers.enabled("SMS"), "WHATSAPP": providers.enabled("WHATSAPP")},
+            "delivery": {"TOTP": True, **{m: providers.enabled(m) for m in mfa_policy.MESSAGE_METHODS}},
             "always_required": list(mfa_policy.ALWAYS), "sandbox": get_settings().sandbox,
             "enrolled": {r["factor_type"]: r["people"] for r in counts},
             "staff_without_factor": {r["portal"]: r["people"] for r in without}}
@@ -173,6 +179,7 @@ async def set_mfa_policy(body: MfaPolicyIn, request: Request, pr: Principal = De
     """Which methods are open and which portals must use one. A portal added here asks its staff for a second factor
     at their next sign-in (enrolment first, for those without one); the other API processes follow within half a
     minute. Platform staff keep theirs outside the sandbox whatever is chosen."""
+    require_step_up(pr)                 # a sensitive operation: a recent second factor (1136)
     value = mfa_policy.Policy.of(body.model_dump()).public()
     async with db.transaction(context_for(request, pr)) as conn:
         before = await conn.fetchval("SELECT value::text FROM sys.setting WHERE key = 'auth.mfa'")
@@ -188,6 +195,51 @@ async def set_mfa_policy(body: MfaPolicyIn, request: Request, pr: Principal = De
         out = await _mfa_policy_view(conn)
     request.state.audit = {"action": "security.mfa_policy", "object_type": "setting", "object_id": None,
                            "reason": f"methods={','.join(value['methods'])} portals={','.join(value['required_portals'])}"}
+    return out
+
+
+# ---------------------------------------------------------------- idle sign-out (owner's note, 1146)
+IDLE_PORTALS = ("PLATFORM", "INSPECTOR", "OPERATOR", "DRIVER", "AGENCY", "STATION", "FUEL", "PASSENGER")
+
+
+class IdlePolicyIn(BaseModel):
+    minutes: dict[Literal["PLATFORM", "INSPECTOR", "OPERATOR", "DRIVER", "AGENCY", "STATION", "FUEL", "PASSENGER"], int]
+    reason: str = Field(min_length=5, max_length=300)
+
+
+async def _idle_view(conn) -> dict:
+    v = await conn.fetchval("SELECT value FROM sys.setting WHERE key = 'auth.idle'")
+    v = json.loads(v) if isinstance(v, str) else (v or {})
+    return {"minutes": {p: int((v.get("minutes") or {}).get(p, 30)) for p in IDLE_PORTALS}, "min": 5, "max": 1440}
+
+
+@router.get("/idle-policy")
+async def get_idle_policy(request: Request, pr: Principal = Depends(can_policy)):
+    async with db.transaction(context_for(request, pr)) as conn:
+        return await _idle_view(conn)
+
+
+@router.put("/idle-policy")
+async def set_idle_policy(body: IdlePolicyIn, request: Request, pr: Principal = Depends(can_policy)):
+    """Minutes without activity after which a session of each portal ends (5 to 1440). A shorter period applies to the
+    sessions already open at their next request."""
+    require_step_up(pr)
+    if set(body.minutes) != set(IDLE_PORTALS) or any(not 5 <= m <= 1440 for m in body.minutes.values()):
+        raise ApiError(422, "INVALID_SETTING", "give every portal a period of 5 to 1440 minutes", min=5, max=1440)
+    async with db.transaction(context_for(request, pr)) as conn:
+        before = await conn.fetchval("SELECT value::text FROM sys.setting WHERE key = 'auth.idle'")
+        await conn.execute(
+            """INSERT INTO sys.setting (key, value, description, updated_by)
+               VALUES ('auth.idle', $1::jsonb, 'Idle sign-out: minutes per portal', $2)
+               ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now(), updated_by = EXCLUDED.updated_by""",
+            json.dumps({"minutes": body.minutes}), pr.user_id)
+        from ..modules.notify.outbox import emit
+        await emit(conn, "security.idle_policy_changed", "setting", pr.user_id,
+                   {"before": json.loads(before) if before else None, "after": {"minutes": body.minutes},
+                    "reason": body.reason, "changed_by": pr.user_id})
+        out = await _idle_view(conn)
+    request.state.audit = {"action": "security.idle_policy", "object_type": "setting", "object_id": None,
+                           "reason": body.reason[:300]}
     return out
 
 
@@ -214,3 +266,247 @@ async def reset_statements(request: Request, pr: Principal = Depends(can_policy)
         raise ApiError(409, "STATEMENT_STATS_OFF", "statement statistics are not collected on this server")
     request.state.audit = {"action": "security.statements_reset", "object_type": "setting", "object_id": None}
     return {"reset": True}
+
+
+# ------------------------------------------------------------------ the platform shield (1142)
+PORTALS = ("PASSENGER", "PLATFORM", "OPERATOR", "AGENCY", "STATION", "FUEL", "DRIVER", "INSPECTOR")
+
+
+@router.get("/shield")
+async def shield_view(request: Request, pr: Principal = Depends(can_policy)):
+    """The shield in force, the last hour of traffic per minute, the alerts, the latest firewall hits, the busiest
+    addresses of the last ten minutes and the history of levels."""
+    async with db.transaction(context_for(request, pr)) as conn:
+        state = json.loads(await conn.fetchval("SELECT sec.shield_view()::text"))
+        setter = await conn.fetchrow(
+            """SELECT s.set_at, p.legal_name AS set_by FROM sec.shield_state s
+                 LEFT JOIN iam.app_user u ON u.id = s.set_by LEFT JOIN iam.party p ON p.id = u.party_id WHERE s.id = 1""")
+        minutes = await conn.fetch(
+            """SELECT date_trunc('minute', window_start) AS minute, sum(requests)::int AS requests, sum(err_4xx)::int AS err_4xx,
+                      sum(err_5xx)::int AS err_5xx, sum(blocked)::int AS blocked, sum(limited)::int AS limited,
+                      sum(waf_hits)::int AS waf, sum(auth_failures)::int AS auth_failures
+                 FROM sec.traffic_sample WHERE window_start > now() - interval '60 minutes' GROUP BY 1 ORDER BY 1""")
+        alerts = await conn.fetch(
+            """SELECT id, alert_key, kind, severity, status, opened_at, last_seen_at, metrics, actions, ack_at, resolved_at, note
+                 FROM sec.traffic_alert WHERE status <> 'RESOLVED' OR opened_at > now() - interval '7 days'
+                ORDER BY (status = 'RESOLVED'), opened_at DESC LIMIT 50""")
+        hits = await conn.fetch(
+            """SELECT at, host(ip) AS ip, method, path, rule, location, sample, action FROM sec.waf_hit ORDER BY at DESC LIMIT 50""")
+        top = await conn.fetch(
+            """SELECT k AS ip, sum(v::int)::int AS requests,
+                      EXISTS (SELECT 1 FROM sec.ip_decision(k::inet, 'ALL') d WHERE d.action = 'BLOCK') AS blocked
+                 FROM sec.traffic_sample, jsonb_each_text(top) e(k, v)
+                WHERE window_start > now() - interval '10 minutes' GROUP BY k ORDER BY 2 DESC LIMIT 15""")
+        events = await conn.fetch(
+            """SELECT e.at, e.level, e.previous, e.reason, e.auto, e.until, p.legal_name AS set_by
+                 FROM sec.shield_event e LEFT JOIN iam.app_user u ON u.id = e.set_by LEFT JOIN iam.party p ON p.id = u.party_id
+                ORDER BY e.at DESC LIMIT 20""")
+    return {"state": {**state, **row_dict(setter)}, "minutes": rows(minutes), "alerts": rows(alerts), "waf_hits": rows(hits),
+            "top_addresses": rows(top), "events": rows(events)}
+
+
+class ShieldLevelIn(BaseModel):
+    level: Literal["NORMAL", "ELEVATED", "LOCKDOWN"]
+    reason: str = Field(min_length=3, max_length=300)
+    minutes: Optional[int] = Field(default=None, ge=5, le=7 * 24 * 60, description="end the raised level on its own after this")
+
+
+@router.put("/shield/level")
+async def set_shield_level(body: ShieldLevelIn, request: Request, pr: Principal = Depends(can_policy)):
+    """Raises or lowers the shield. LOCKDOWN stops the platform's traffic (except the console, sign-in, payment notices
+    and allowed addresses) until it is lowered or its end time comes; every API process follows within seconds."""
+    require_step_up(pr)                 # a sensitive operation: a recent second factor (1136)
+    if body.level == "NORMAL" and body.minutes:
+        raise ApiError(422, "INVALID_UNTIL", "a normal level takes no end time")
+    async with db.transaction(context_for(request, pr)) as conn:
+        try:
+            out = await conn.fetchval("SELECT sec.set_shield($1, $2, CASE WHEN $3::int IS NULL THEN NULL ELSE now() + make_interval(mins => $3::int) END)::text",
+                                      body.level, body.reason, body.minutes)
+        except asyncpg.RaiseError as exc:
+            raise ApiError(422, str(exc).split(":", 1)[0], str(exc))
+    from .. import shield
+    shield.load(json.loads(out))        # this process at once; the others within REFRESH_SECONDS
+    request.state.audit = {"action": "security.shield.level", "object_type": "shield", "object_id": 1,
+                           "reason": f"{body.level}: {body.reason}"}
+    return json.loads(out)
+
+
+class ShieldPolicyIn(BaseModel):
+    waf_mode: Literal["OFF", "DETECT", "BLOCK"]
+    waf_strikes: int = Field(ge=1, le=100)
+    waf_window_min: int = Field(ge=1, le=1440)
+    waf_block_min: int = Field(ge=1, le=43200)
+    alert_rpm: int = Field(ge=100, le=10_000_000)
+    alert_ip_rpm: int = Field(ge=30, le=1_000_000)
+    spike_factor: float = Field(ge=1.5, le=100)
+    spike_min_rpm: int = Field(ge=10, le=10_000_000)
+    alert_error_pct: float = Field(ge=1, le=100)
+    alert_waf_per_min: int = Field(ge=1, le=1_000_000)
+    alert_auth_fail_per_min: int = Field(ge=1, le=1_000_000)
+    auto_block_heavy: bool
+    auto_elevate: bool
+    auto_elevate_min: int = Field(ge=5, le=1440)
+    elevated_rate_factor: float = Field(default=0.5, ge=0.1, le=1)
+    lockdown_allow_signed_in: bool
+    session_policy: dict[str, Literal["SINGLE", "MULTI"]]
+
+
+@router.put("/shield/policy")
+async def set_shield_policy(body: ShieldPolicyIn, request: Request, pr: Principal = Depends(can_policy)):
+    """The firewall mode, the alert thresholds, the automatic actions and the one-session rule per portal."""
+    require_step_up(pr)
+    if set(body.session_policy) - set(PORTALS):
+        raise ApiError(422, "UNKNOWN_PORTAL", "the session rule names portals that do not exist")
+    policy = body.model_dump(exclude={"session_policy"})
+    sessions = {p: body.session_policy.get(p, "SINGLE") for p in PORTALS}
+    async with db.transaction(context_for(request, pr)) as conn:
+        await conn.execute("UPDATE sec.shield_state SET policy = $1::jsonb, session_policy = $2::jsonb, updated_at = now() WHERE id = 1",
+                           json.dumps(policy), json.dumps(sessions))
+        from ..modules.notify.outbox import emit
+        await emit(conn, "security.shield_policy_changed", "shield", 1, {"policy": policy, "session_policy": sessions, "changed_by": pr.user_id})
+        out = json.loads(await conn.fetchval("SELECT sec.shield_view()::text"))
+    from .. import shield
+    shield.load(out)
+    request.state.audit = {"action": "security.shield.policy", "object_type": "shield", "object_id": 1,
+                           "reason": f"waf={body.waf_mode} sessions={','.join(f'{k}:{v}' for k, v in sessions.items())}"}
+    return out
+
+
+class AlertNoteIn(BaseModel):
+    note: Optional[str] = Field(default=None, max_length=500)
+
+
+@router.post("/shield/alerts/{alert_id}/{step}")
+async def shield_alert_step(alert_id: int, step: Literal["acknowledge", "resolve"], body: AlertNoteIn, request: Request,
+                            pr: Principal = Depends(can_policy)):
+    async with db.transaction(context_for(request, pr)) as conn:
+        if step == "acknowledge":
+            n = await conn.execute("""UPDATE sec.traffic_alert SET status = 'ACKNOWLEDGED', ack_by = $2, ack_at = now(), note = coalesce($3, note)
+                                       WHERE id = $1 AND status = 'OPEN'""", alert_id, pr.user_id, body.note)
+        else:
+            n = await conn.execute("""UPDATE sec.traffic_alert SET status = 'RESOLVED', resolved_by = $2, resolved_at = now(), note = coalesce($3, note)
+                                       WHERE id = $1 AND status <> 'RESOLVED'""", alert_id, pr.user_id, body.note)
+    if n.endswith(" 0"):
+        raise not_found("open alert")
+    request.state.audit = {"action": f"security.shield.alert.{step}", "object_type": "traffic_alert", "object_id": alert_id,
+                           "reason": body.note}
+    return {"ok": True}
+
+
+# ------------------------------------------------------------------ the exception register (1167)
+class ExceptionIn(BaseModel):
+    target: str = Field(min_length=2, max_length=64, description="IP address or CIDR range")
+    scope: Literal["ALL", "PASSENGER", "OPERATOR", "AGENCY", "ADMIN", "API", "PAYMENT_WEBHOOK", "DRIVER"] = "ALL"
+    reason: str = Field(min_length=10, max_length=500)
+    days: int = Field(ge=1, le=365, description="the exception ends on its own after this; the platform setting caps it")
+
+
+class DecisionIn(BaseModel):
+    note: Optional[str] = Field(default=None, max_length=500)
+
+
+@router.get("/exceptions")
+async def exceptions(request: Request, pr: Principal = Depends(can_rules)):
+    """Addresses let through the shield: open requests, approved ones with their end dates, and the last decisions."""
+    async with db.transaction(context_for(request, pr)) as conn:
+        recs = await conn.fetch(
+            """SELECT e.uid, host(e.target) || '/' || masklen(e.target) AS target, e.scope, e.reason, e.status,
+                      e.requested_at, e.expires_at, e.decided_at, e.decision_note, e.revoked_at, e.ip_rule_id,
+                      e.requested_by = $1 AS mine, rp.legal_name AS requested_by, dp.legal_name AS decided_by,
+                      (e.status = 'APPROVED' AND e.expires_at <= now()) AS ended
+                 FROM sec.shield_exception e
+                 JOIN iam.app_user ru ON ru.id = e.requested_by LEFT JOIN iam.party rp ON rp.id = ru.party_id
+                 LEFT JOIN iam.app_user du ON du.id = e.decided_by LEFT JOIN iam.party dp ON dp.id = du.party_id
+                WHERE e.status IN ('PENDING','APPROVED') OR e.requested_at > now() - interval '90 days'
+                ORDER BY (e.status = 'PENDING') DESC, e.requested_at DESC LIMIT 200""", pr.user_id)
+        max_days = await conn.fetchval("SELECT sec.setting_int('security.exception_max_days', 90)")
+    return {"exceptions": rows(recs), "max_days": max_days}
+
+
+@router.post("/exceptions", status_code=201)
+async def request_exception(body: ExceptionIn, request: Request, pr: Principal = Depends(can_rules)):
+    """Asks to let an address or range through the shield; another person approves it (four eyes)."""
+    try:
+        target = str(ipaddress.ip_network(body.target.strip(), strict=False))
+    except ValueError:
+        raise ApiError(422, "INVALID_TARGET", "enter an IP address or a CIDR range")
+    net = ipaddress.ip_network(target)
+    if net.prefixlen < (16 if net.version == 4 else 32):
+        raise ApiError(422, "EXCEPTION_TOO_WIDE", "an exception covers at most a /16 (IPv4) or a /32 (IPv6)")
+    async with db.transaction(context_for(request, pr)) as conn:
+        uid = await conn.fetchval(
+            """INSERT INTO sec.shield_exception (target, scope, reason, requested_by, expires_at)
+               VALUES ($1::cidr, $2, $3, $4, now() + make_interval(days => $5::int)) RETURNING uid""",
+            target, body.scope, body.reason, pr.user_id, body.days)
+    request.state.audit = {"action": "security.exception.request", "object_type": "shield_exception", "object_id": str(uid),
+                           "reason": body.reason}
+    return {"uid": str(uid), "status": "PENDING"}
+
+
+@router.post("/exceptions/{uid}/{step}")
+async def decide_exception(uid: str, step: Literal["approve", "decline", "revoke"], body: DecisionIn, request: Request,
+                           pr: Principal = Depends(can_rules)):
+    """Approve or decline a request (another person than the one who asked), or revoke an approved exception."""
+    if step == "approve":
+        require_step_up(pr)             # it opens the shield for an address: a recent second factor (1136)
+    async with db.transaction(context_for(request, pr)) as conn:
+        if step == "revoke":
+            row = await conn.fetchrow(
+                """UPDATE sec.shield_exception SET status = 'REVOKED', revoked_by = $2, decision_note = coalesce($3, decision_note)
+                    WHERE uid = $1::uuid AND status = 'APPROVED' RETURNING status""", uid, pr.user_id, body.note)
+        else:
+            row = await conn.fetchrow(
+                """UPDATE sec.shield_exception SET status = $4, decided_by = $2, decision_note = $3
+                    WHERE uid = $1::uuid AND status = 'PENDING' RETURNING status""",
+                uid, pr.user_id, body.note, "APPROVED" if step == "approve" else "DECLINED")
+    if row is None:
+        raise not_found("exception in that state")
+    request.state.audit = {"action": f"security.exception.{step}", "object_type": "shield_exception", "object_id": uid,
+                           "reason": body.note}
+    return {"status": row["status"]}
+
+
+# ------------------------------------------------------------------ the alert relay (1167)
+@router.post("/relay/alertmanager", include_in_schema=False)
+async def alert_relay(request: Request):
+    """Alertmanager's security route posts here (deploy/production/alertmanager.yml): each alert goes to the Telegram
+    chats of security.alert_telegram_chats, in Arabic and English. Answers only with the bearer token
+    MASSLAK_ALERT_RELAY_TOKEN; without the setting the address does not exist."""
+    import asyncio
+    import hmac
+    import logging
+    import os
+
+    from ..modules.notify import providers
+    from ..modules.notify.render import render
+    token = os.environ.get("MASSLAK_ALERT_RELAY_TOKEN", "")
+    given = request.headers.get("authorization", "").removeprefix("Bearer ").strip()
+    if not token:
+        raise ApiError(404, "NOT_FOUND", "unknown endpoint")
+    if not hmac.compare_digest(given.encode(), token.encode()):
+        raise ApiError(401, "UNAUTHORIZED", "a valid relay token is required")
+    try:
+        payload = await request.json()
+        alerts = list(payload.get("alerts") or [])[:50]
+    except (ValueError, AttributeError):
+        raise ApiError(422, "INVALID_PAYLOAD", "an Alertmanager webhook body is expected")
+    async with db.transaction(db.Context(request_id=request.state.request_id, ip=request.state.client_ip, scope="SYSTEM")) as conn:
+        chats = await conn.fetchval("SELECT value FROM sys.setting WHERE key = 'security.alert_telegram_chats'")
+    chats = [str(c) for c in (json.loads(chats) if isinstance(chats, str) else chats or []) if str(c).lstrip("-").isdigit()][:10]
+    sent = failed = 0
+    for alert in alerts:
+        labels, notes = alert.get("labels") or {}, alert.get("annotations") or {}
+        values = {"status": str(alert.get("status", "firing")).upper(), "alertname": str(labels.get("alertname", "?"))[:80],
+                  "severity": str(labels.get("severity", "?"))[:20], "summary": str(notes.get("summary", ""))[:600],
+                  "starts_at": str(alert.get("startsAt", ""))[:16].replace("T", " ")}
+        text = "\n\n".join("\n".join(render("security.monitoring_alert", "TELEGRAM", loc, values)) for loc in ("ar", "en"))
+        for chat in chats:
+            try:
+                await asyncio.to_thread(providers.send_telegram, chat, text)
+                sent += 1
+            except Exception:              # noqa: BLE001 - one chat failing does not stop the others
+                failed += 1
+                logging.getLogger("masslak.alerts").warning("alert relay: Telegram delivery failed", exc_info=True)
+    if failed and not sent:
+        raise ApiError(502, "RELAY_FAILED", "no chat received the alerts")
+    return {"alerts": len(alerts), "sent": sent, "failed": failed}

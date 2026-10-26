@@ -25,6 +25,8 @@ LABEL_CANDIDATES = ("code", "name", "label", "title", "legal_name", "plate_no", 
 SPECIAL_LABELS = {
     "iam.company": "(SELECT p.legal_name FROM iam.party p WHERE p.id = t.id)",
     "iam.party": "t.legal_name",
+    "ref.insurer": "t.name_en || ' / ' || t.name_ar",
+    "ref.bank": "t.name_en || ' / ' || t.name_ar",
     "iam.app_user": "coalesce(t.email::text, t.mobile)",
     "fleet.crew_profile": "(SELECT p.legal_name FROM iam.party p WHERE p.id = t.party_id)",
     "fleet.truck_unit": "(SELECT v.plate_no FROM fleet.vehicle v WHERE v.id = t.vehicle_id)",
@@ -464,15 +466,22 @@ async def run_action(conn: asyncpg.Connection, res: Resource, pr: Principal, key
     return await get_row(conn, res, key)
 
 
+# registries whose entries are offered only once reviewed and shown to companies (1156)
+LOOKUP_WHERE = {
+    "ref.insurer": "t.status = 'ACTIVE' AND NOT t.hidden_from_companies",
+    "ref.bank": "t.status = 'ACTIVE' AND NOT t.hidden_from_companies",
+}
+
+
 async def lookup(conn: asyncpg.Connection, table: str, q: Optional[str], limit: int = 30, key: Optional[str] = None) -> list:
     """Options for a reference column; key is the referenced column when the foreign key does not point at the primary key."""
     meta = await table_meta(conn, table)
     lab = await label_expr(conn, table)
     key = key if key in meta.cols else meta.pk[0]
     params: list = [limit]
-    where = "true"
+    where = LOOKUP_WHERE.get(table, "true")
     if q:
         params.append(f"%{q}%")
-        where = f"({lab}) ILIKE $2"
+        where = f"{where} AND ({lab}) ILIKE $2"
     rows = await conn.fetch(f"SELECT t.{key} AS id, {lab} AS label FROM {table} t WHERE {where} ORDER BY 2 LIMIT $1", *params)
     return [{"id": r["id"], "label": r["label"]} for r in rows]

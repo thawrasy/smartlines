@@ -16,6 +16,7 @@ import asyncpg
 import pytest
 
 from app import config, kms, profile
+from app.guard import GUARDED_SETTINGS
 from app.tools import keys, preflight
 
 OWNER_URL = os.environ.get("MASSLAK_OWNER_URL")
@@ -43,7 +44,8 @@ PROFILE_HBA = [
 def good() -> preflight.Facts:
     return preflight.Facts(ssl="on", connection_encrypted=True, hba=[dict(r) for r in PROFILE_HBA], archive_mode="on",
                            archive_command="pgbackrest --stanza=masslak archive-push %p",
-                           archive_check={"repo_type": "s3", "repo_host": "", "check_ok": "1", "plugins": ""})
+                           archive_check={"repo_type": "s3", "repo_host": "", "check_ok": "1", "plugins": ""},
+                           db_layout="ha", sync_standbys=1, guarded_enforced=len(GUARDED_SETTINGS))
 
 
 def test_the_profile_as_written_passes():
@@ -73,6 +75,53 @@ def test_each_gap_is_named(change, expected):
     assert any(expected in p for p in problems), problems
 
 
+LOCKED = {"versioning": "Enabled", "object_lock": True, "retention_mode": "GOVERNANCE", "retention_days": 30}
+
+
+@pytest.mark.parametrize("protection, error, expected", [
+    ({**LOCKED, "versioning": "Suspended"}, "", "does not keep old versions"),
+    ({**LOCKED, "object_lock": False, "retention_days": 0}, "", "no Object Lock"),
+    ({**LOCKED, "retention_days": 7}, "", "default retention is 7 days"),
+    (None, "FILE_STORE_UNAVAILABLE: GET failed (URLError)", "cannot be read (FILE_STORE_UNAVAILABLE"),
+])
+def test_files_in_object_storage_must_be_versioned_and_locked(protection, error, expected):
+    """H-04: a restore can bring the files back to a backup's moment only from a bucket that kept and locked them."""
+    f = good()
+    f.files_backend, f.files_protection, f.files_error, f.backup_keep_days = "s3", protection, error, 14
+    problems = preflight.evaluate(f)
+    assert len(problems) == 1 and expected in problems[0], problems
+    f.files_protection = LOCKED
+    assert preflight.evaluate(f) == []
+    f.files_backend, f.files_protection = "local", None          # files on the volume travel in the backup itself
+    assert preflight.evaluate(f) == []
+
+
+@pytest.mark.parametrize("layout, accepted, standbys, expected", [
+    ("ha", "", 0, "no synchronous standby streams"),
+    ("single", "", 1, "the database runs on one host"),
+    ("single", "   ", 1, "the database runs on one host"),
+    ("two", "", 1, "MASSLAK_DB_LAYOUT is 'two'"),
+])
+def test_the_database_runs_on_two_hosts_or_one_the_owner_accepted(layout, accepted, standbys, expected):
+    """H-01: two database hosts with a synchronous standby, or the owner's written acceptance of one host."""
+    f = good()
+    f.db_layout, f.single_host_accepted, f.sync_standbys = layout, accepted, standbys
+    problems = preflight.evaluate(f)
+    assert len(problems) == 1 and expected in problems[0], problems
+    f.db_layout, f.single_host_accepted = "single", "owner, 2026-10-10: pilot on one host"
+    assert preflight.evaluate(f) == []
+
+
+def test_the_layout_comes_from_the_environment(monkeypatch):
+    f = preflight.Facts()
+    monkeypatch.delenv("MASSLAK_DB_LAYOUT", raising=False)
+    preflight.gather_layout(f)
+    assert f.db_layout == "single"                              # unset: one host, which then needs the acceptance
+    monkeypatch.setenv("MASSLAK_DB_LAYOUT", "ha")
+    preflight.gather_layout(f)
+    assert f.db_layout == "ha"
+
+
 def test_a_repository_host_is_off_this_host():
     f = good()
     f.archive_check.update(repo_type="posix", repo_host="backup.internal")
@@ -88,7 +137,9 @@ def test_the_archive_check_lines_are_read_as_written():
 
 # ------------------------------------------------------------------ the API and the worker at start-up
 URL = "postgresql://masslak_api:x@pgbouncer:6432/masslak?sslmode=verify-full&sslrootcert=/etc/masslak/trust/ca.crt"
-ENV = {"MASSLAK_PROFILE": "production", "MASSLAK_KMS_PROVIDER": "vault"}
+ENV = {"MASSLAK_PROFILE": "production", "MASSLAK_KMS_PROVIDER": "vault",
+       "MASSLAK_QR_KEYS": "q202610:" + "A" * 43 + "=", "MASSLAK_DOCUMENT_KEYS": "d202610:" + "B" * 43 + "=",
+       "MASSLAK_LOOKUP_KEYS": "l202610:" + "C" * 43 + "=", "MASSLAK_EINVOICE_KEYS": "e202610:" + "D" * 43 + "="}
 
 
 @pytest.fixture
@@ -96,6 +147,9 @@ def production_urls(monkeypatch):
     s = config.get_settings()
     for name in ("database_url", "audit_database_url", "reports_database_url"):
         monkeypatch.setattr(s, name, URL)
+    monkeypatch.setattr(s, "cookie_secure", True)          # the CI job runs the API over plain HTTP (false there)
+    for name in ("telemetry_database_url", "telemetry_upkeep_url"):    # a CI step may point at its telemetry database
+        monkeypatch.setattr(s, name, "")
     return s
 
 
@@ -110,9 +164,45 @@ def test_a_complete_profile_starts(production_urls):
     ({**ENV, "MASSLAK_BIDX_KEY": "AAAA"}, "data keys sit in this process"),
     ({**ENV, "POSTGRES_PASSWORD": "owner"}, "must not hold"),
     ({**ENV, "PGBACKREST_REPO1_CIPHER_PASS": "x"}, "must not hold"),
+    ({**ENV, "MASSLAK_PATRONI_REST_PASSWORD": "x"}, "must not hold"),
+    ({k: v for k, v in ENV.items() if k != "MASSLAK_QR_KEYS"}, "MASSLAK_QR_KEYS must name a key of its own"),
+    ({**ENV, "MASSLAK_DOCUMENT_KEYS": "s1,d1:" + "B" * 43 + "="}, "MASSLAK_DOCUMENT_KEYS must name a key of its own"),
+    ({k: v for k, v in ENV.items() if k != "MASSLAK_LOOKUP_KEYS"}, "MASSLAK_LOOKUP_KEYS must name a key of its own"),
+    ({k: v for k, v in ENV.items() if k != "MASSLAK_EINVOICE_KEYS"}, "MASSLAK_EINVOICE_KEYS must name a key of its own"),
+    ({**ENV, "MASSLAK_EINVOICE_KEYS": "e1,e202610:" + "D" * 43 + "="}, "MASSLAK_EINVOICE_KEYS must name a key of its own"),
 ])
 def test_each_gap_stops_the_start(production_urls, env, expected):
     assert any(expected in p for p in profile.problems(env)), profile.problems(env)
+
+
+def test_a_session_cookie_sent_over_plain_http_stops_the_start(production_urls, monkeypatch):
+    # reviews of release 1.49.0: the default is right, a wrong environment value used to pass unnoticed
+    monkeypatch.setattr(production_urls, "cookie_secure", False)
+    assert any("MASSLAK_COOKIE_SECURE=false" in p for p in profile.problems(ENV))
+
+
+def test_the_telemetry_database_must_be_reached_over_checked_tls(production_urls, monkeypatch):
+    # reviews of release 1.49.0: the one connection the profile did not check
+    monkeypatch.setattr(production_urls, "telemetry_database_url", "")
+    monkeypatch.setattr(production_urls, "telemetry_upkeep_url", "")
+    assert profile.problems(ENV) == []                       # no telemetry database: nothing to check
+    monkeypatch.setattr(production_urls, "telemetry_database_url", "postgresql://masslak_tel:x@telemetry/masslak_tel")
+    assert any("MASSLAK_TELEMETRY_DATABASE_URL" in p for p in profile.problems(ENV))
+    monkeypatch.setattr(production_urls, "telemetry_database_url", URL.replace("pgbouncer:6432/masslak", "telemetry/masslak_tel"))
+    monkeypatch.setattr(production_urls, "telemetry_upkeep_url", "postgresql://masslak_tel_upkeep:x@telemetry/masslak_tel?sslmode=require")
+    found = profile.problems(ENV)
+    assert not any("MASSLAK_TELEMETRY_DATABASE_URL" in p for p in found)
+    assert any("MASSLAK_TELEMETRY_UPKEEP_URL" in p for p in found)
+
+
+def test_the_production_telemetry_overlay_runs_tls_and_checks_it():
+    root = Path(__file__).resolve().parents[2]
+    overlay = (root / "deploy/production/docker-compose.telemetry.yml").read_text(encoding="utf-8")
+    assert "image: masslak-db:" in overlay and '"-c", "ssl=on"' in overlay and "ssl_min_protocol_version=TLSv1.3" in overlay
+    assert overlay.count("sslmode=verify-full&sslrootcert=/etc/masslak/trust/ca.crt") == 4    # migrate, app, worker (two)
+    assert "./deploy/production/tls/telemetry.crt:/tls-src/server.crt:ro" in overlay
+    init = (root / "deploy/production/init.sh").read_text(encoding="utf-8")
+    assert "issue telemetry telemetry" in init and "deploy/production/docker-compose.telemetry.yml" in init
 
 
 def test_a_connection_that_does_not_check_the_certificate_stops_the_start(production_urls, monkeypatch):
@@ -195,7 +285,8 @@ def test_each_container_receives_only_its_part_of_the_environment(tmp_path):
              "MASSLAK_API_PASSWORD=api", "MASSLAK_REPLICATION_PASSWORD=repl", "MASSLAK_SIGNING_SECRET=sign",
              "MASSLAK_FIELD_KEYS=kms://x=AAAA", "MASSLAK_BIDX_KEY=BBBB", "MASSLAK_KMS_PROVIDER=vault",
              "MASSLAK_VAULT_TOKEN=tok", "PGBACKREST_REPO1_TYPE=s3", "PGBACKREST_REPO1_CIPHER_PASS=cipher",
-             "MASSLAK_BACKUP_AGE_IDENTITY=/root/key", "MASSLAK_SMS_URL=", "# a comment", "COMPOSE_FILE=a:b"]
+             "MASSLAK_BACKUP_AGE_IDENTITY=/root/key", "MASSLAK_BACKUP_KEEP_DAYS=30", "MASSLAK_IMAGE_KEY=/etc/masslak/release.pub", "MASSLAK_SMS_URL=", "# a comment",
+             "COMPOSE_FILE=a:b"]
     (tmp_path / ".env").write_text("\n".join(lines) + "\n")
     subprocess.run(["bash", str(tmp_path / "env-split.sh")], check=True, capture_output=True)
     read = lambda name: dict(l.split("=", 1) for l in (tmp_path / "env" / f"{name}.env").read_text().splitlines())   # noqa: E731,E741
@@ -204,9 +295,18 @@ def test_each_container_receives_only_its_part_of_the_environment(tmp_path):
     assert set(app) == {"MASSLAK_ENVIRONMENT", "POSTGRES_USER", "MASSLAK_SIGNING_SECRET", "MASSLAK_KMS_PROVIDER",
                         "MASSLAK_VAULT_TOKEN"}, app
     assert {"POSTGRES_PASSWORD", "MASSLAK_FIELD_KEYS", "MASSLAK_REPLICATION_PASSWORD"} <= set(migrate)
-    assert not {"PGBACKREST_REPO1_CIPHER_PASS", "MASSLAK_BACKUP_AGE_IDENTITY", "COMPOSE_FILE"} & set(migrate)
+    assert not {"PGBACKREST_REPO1_CIPHER_PASS", "MASSLAK_BACKUP_AGE_IDENTITY", "COMPOSE_FILE", "MASSLAK_IMAGE_KEY"} & set(migrate)
+    assert migrate["MASSLAK_BACKUP_KEEP_DAYS"] == "30"     # its preflight compares the file bucket's lock with it (H-04)
     assert set(db) == {"POSTGRES_USER", "POSTGRES_PASSWORD", "PGBACKREST_REPO1_TYPE", "PGBACKREST_REPO1_CIPHER_PASS"}
     assert oct((tmp_path / "env" / "app.env").stat().st_mode & 0o777) == "0o600"
+    # two database hosts (H-01): the proxies get the owner's login only, pgBackRest's settings go to the hosts' bundles;
+    # the cluster's REST password and etcd token reach no container through these files
+    (tmp_path / ".env").write_text("\n".join(lines + ["MASSLAK_DB_LAYOUT=ha", "MASSLAK_PATRONI_REST_PASSWORD=rest",
+                                                      "MASSLAK_ETCD_TOKEN=tok"]) + "\n")
+    subprocess.run(["bash", str(tmp_path / "env-split.sh")], check=True, capture_output=True)
+    assert set(read("db")) == {"POSTGRES_USER", "POSTGRES_PASSWORD"}
+    assert not {"MASSLAK_PATRONI_REST_PASSWORD", "MASSLAK_ETCD_TOKEN"} & (set(read("app")) | set(read("migrate")))
+    assert read("migrate")["MASSLAK_DB_LAYOUT"] == "ha"           # its preflight checks the layout (H-01)
     # a test server's API keeps its data keys (there is no key service there)
     (tmp_path / ".env").write_text("\n".join(line.replace("production", "development") for line in lines) + "\n")
     subprocess.run(["bash", str(tmp_path / "env-split.sh")], check=True, capture_output=True)

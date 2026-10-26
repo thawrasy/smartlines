@@ -1,7 +1,8 @@
+import { MilesCorner } from "./Miles";
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api, newKey } from "../../api";
-import { useI18n } from "../../i18n";
+import { fromMinor, toMinor, useI18n } from "../../i18n";
 import { PageHead } from "../../components/layout";
 import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Spinner, useLoad, useToast } from "../../components/ui";
 import type { IconName } from "../../components/icons";
@@ -116,6 +117,8 @@ export default function Wallet() {
               ))}
             </div>
           )}
+          <Points onRedeemed={state.reload} />
+          <MilesCorner />
           <div className="card">
             <div className="card-title"><h3>{t("wallet.statement")}</h3></div>
             {w.entries.length === 0 ? <Empty icon="receipt_long" title={t("common.noData")} /> : (
@@ -148,14 +151,14 @@ function TopupModal({ onClose, onDone }: { onClose: () => void; onDone: () => vo
   const navigate = useNavigate();
   const methods = useLoad(() => api.get<{ methods: Method[] }>("/api/payments/methods"));
   const [method, setMethod] = useState<Method | null>(null);
-  const [amount, setAmount] = useState(100000);
+  const [amount, setAmount] = useState(1000);
   const [mobile, setMobile] = useState("");
   const [started, setStarted] = useState<Started | null>(null);
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [key] = useState(newKey);
-  const minor = amount * 100;
+  const minor = toMinor(amount);
   const inRange = method ? minor >= method.min_amount && minor <= method.max_amount : false;
   // what the payer will be asked for, the platform's fee included, before paying (owner's decision 4)
   const priced = method && inRange && !["BANK_TRANSFER", "CASH_AGENT", "SANDBOX"].includes(method.adapter);
@@ -232,10 +235,10 @@ function TopupModal({ onClose, onDone }: { onClose: () => void; onDone: () => vo
         ) : method && (
           <>
             <Field label={t("wallet.amount")} hint={t("pay.limits", { min: money(method.min_amount), max: money(method.max_amount) })}>
-              <input className="input ltr" type="number" min={method.min_amount / 100} step={1000} value={amount} onChange={(e) => setAmount(Number(e.target.value))} />
+              <input className="input ltr" type="number" min={fromMinor(method.min_amount)} step={10} value={amount} onChange={(e) => setAmount(Number(e.target.value))} />
             </Field>
-            <div className="row">{[50000, 100000, 250000, 500000].map((v) => (
-              <button key={v} type="button" className={`chip chip-select${amount === v ? " on" : ""}`} onClick={() => setAmount(v)}>{money(v * 100)}</button>
+            <div className="row">{[500, 1000, 2500, 5000].map((v) => (
+              <button key={v} type="button" className={`chip chip-select${amount === v ? " on" : ""}`} onClick={() => setAmount(v)}>{money(toMinor(v))}</button>
             ))}</div>
             {method.adapter === "PARTNER_WALLET" && (
               <Field label={t("pay.mobile")} hint={t("pay.mobileHint")}><input className="input ltr" inputMode="tel" placeholder="+9639…" value={mobile} onChange={(e) => setMobile(e.target.value.trim())} /></Field>
@@ -300,6 +303,138 @@ export function TestGateway({ uid }: { uid: string }) {
         )}</Loaded>
         <ErrorBox error={error} />
       </div>
+    </div>
+  );
+}
+
+interface PartnerOffer {
+  agreement: string; partner: string; partner_type: string; points: number; amount: number; currency: string;
+  min_points: number; step_points: number; voucher_days: number; valid_to: string | null;
+}
+interface Voucher {
+  voucher: string; partner: string | null; points: number; value: number; currency: string; status: string;
+  code: string | null; expires_at: string | null; used_at: string | null;
+}
+interface PointsView {
+  program: { code: string; name: string; point_value: number; currency: string; expiry_months: number; redeem: { min_points: number; step: number } | null } | null;
+  account: { balance: number; value: number; status: string; tier_name: string | null } | null;
+  offers?: PartnerOffer[];
+  vouchers?: Voucher[];
+}
+
+/** Loyalty points (1103): earned after each trip, turned into wallet credit at the programme's point value. */
+function Points({ onRedeemed }: { onRedeemed: () => void }) {
+  const { t, money } = useI18n();
+  const toast = useToast();
+  const state = useLoad(() => api.get<PointsView>("/api/loyalty").catch(() => ({ program: null, account: null })));
+  const [points, setPoints] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const v = state.data;
+  if (!v?.program) return null;
+  const redeem = v.program.redeem;
+  const n = Number(points);
+  const ok = !!redeem && !!v.account && Number.isInteger(n) && n >= redeem.min_points && n % redeem.step === 0 && n <= v.account.balance;
+  const submit = async () => {
+    setBusy(true); setError(null);
+    try {
+      const r = await api.post<{ value: number }>("/api/loyalty/redeem", { points: n, idempotency_key: newKey() });
+      toast(t("points.redeemed", { amount: money(r.value) }));
+      setPoints(""); state.reload(); onRedeemed();
+    } catch (e) { setError(e); } finally { setBusy(false); }
+  };
+  return (
+    <div className="card stack">
+      <div className="row between">
+        <h3 style={{ margin: 0 }}>{v.program.name}</h3>
+        {v.account?.tier_name && <span className="chip">{v.account.tier_name}</span>}
+      </div>
+      <div className="row" style={{ gap: 24, flexWrap: "wrap" }}>
+        <div><div className="muted small">{t("points.balance")}</div><div className="mono" style={{ fontSize: 28, fontWeight: 700 }}>{v.account?.balance ?? 0}</div></div>
+        <div><div className="muted small">{t("points.worth")}</div><div className="mono" style={{ fontSize: 28, fontWeight: 700 }}>{money(v.account?.value ?? 0)}</div></div>
+      </div>
+      <p className="small muted" style={{ margin: 0 }}>{t("points.how", { months: v.program.expiry_months })}</p>
+      {redeem && v.account && v.account.balance >= redeem.min_points && (
+        <div className="row" style={{ gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
+          <Field label={t("points.redeemLabel", { min: redeem.min_points, step: redeem.step })}>
+            <input className="input mono" inputMode="numeric" value={points} onChange={(e) => setPoints(e.target.value.replace(/\D/g, ""))} />
+          </Field>
+          <button className="btn tonal" disabled={!ok || busy} onClick={submit}>{t("points.redeem")}</button>
+        </div>
+      )}
+      <ErrorBox error={error} />
+      {(v.offers?.length ?? 0) > 0 && v.account && <PartnerOffers offers={v.offers!} balance={v.account.balance} onDone={state.reload} />}
+      {(v.vouchers?.length ?? 0) > 0 && <Vouchers vouchers={v.vouchers!} onDone={state.reload} />}
+    </div>
+  );
+}
+
+/** Partners that take points under their agreement with the platform (1107): points become a voucher used at the partner. */
+function PartnerOffers({ offers, balance, onDone }: { offers: PartnerOffer[]; balance: number; onDone: () => void }) {
+  const { t, money } = useI18n();
+  const toast = useToast();
+  const [pick, setPick] = useState(offers[0].agreement);
+  const [points, setPoints] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const o = offers.find((x) => x.agreement === pick) ?? offers[0];
+  const n = Number(points);
+  const ok = Number.isInteger(n) && n >= o.min_points && n % o.step_points === 0 && n <= balance;
+  const submit = async () => {
+    setBusy(true); setError(null);
+    try {
+      const r = await api.post<{ value: number; code: string }>("/api/loyalty/vouchers", { agreement: o.agreement, points: n, idempotency_key: newKey() });
+      toast(t("points.voucherIssued", { amount: money(r.value), code: r.code }));
+      setPoints(""); onDone();
+    } catch (e) { setError(e); } finally { setBusy(false); }
+  };
+  return (
+    <div className="stack" style={{ borderTop: "1px solid var(--divider)", paddingTop: 12 }}>
+      <h4 style={{ margin: 0 }}>{t("points.partners")}</h4>
+      <div className="row" style={{ gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
+        <Field label={t("points.partner")}>
+          <select className="input" value={o.agreement} onChange={(e) => setPick(e.target.value)}>
+            {offers.map((x) => <option key={x.agreement} value={x.agreement}>{x.partner}</option>)}
+          </select>
+        </Field>
+        <Field label={t("points.redeemLabel", { min: o.min_points, step: o.step_points })}>
+          <input className="input mono" inputMode="numeric" value={points} onChange={(e) => setPoints(e.target.value.replace(/\D/g, ""))} />
+        </Field>
+        <button className="btn tonal" disabled={!ok || busy} onClick={submit}>{t("points.getVoucher")}</button>
+      </div>
+      <p className="small muted" style={{ margin: 0 }}>
+        {t("points.rate", { points: o.points, amount: money(o.amount), days: o.voucher_days })}
+        {ok ? " " + t("points.youGet", { amount: money(Math.floor((n * o.amount) / o.points)) }) : ""}
+      </p>
+      <ErrorBox error={error} />
+    </div>
+  );
+}
+
+function Vouchers({ vouchers, onDone }: { vouchers: Voucher[]; onDone: () => void }) {
+  const { t, money, dateTime } = useI18n();
+  const [error, setError] = useState<unknown>(null);
+  const cancel = async (uid: string) => {
+    setError(null);
+    try { await api.post(`/api/loyalty/vouchers/${uid}/cancel`, {}); onDone(); } catch (e) { setError(e); }
+  };
+  return (
+    <div className="stack" style={{ borderTop: "1px solid var(--divider)", paddingTop: 12 }}>
+      <h4 style={{ margin: 0 }}>{t("points.vouchers")}</h4>
+      <div className="table-wrap"><table className="table">
+        <thead><tr><th>{t("points.partner")}</th><th>{t("points.code")}</th><th>{t("points.value")}</th><th>{t("points.state")}</th><th></th></tr></thead>
+        <tbody>{vouchers.map((x) => (
+          <tr key={x.voucher}>
+            <td>{x.partner}</td>
+            <td className="mono">{x.code ?? "—"}</td>
+            <td className="mono">{money(x.value)}</td>
+            <td><span className="chip">{t(`points.status_${x.status}`)}</span>
+              {x.status === "ISSUED" && x.expires_at && <div className="small muted">{t("points.until", { date: dateTime(x.expires_at) })}</div>}</td>
+            <td>{x.status === "ISSUED" && <button className="btn text" onClick={() => cancel(x.voucher)}>{t("points.cancelVoucher")}</button>}</td>
+          </tr>
+        ))}</tbody>
+      </table></div>
+      <ErrorBox error={error} />
     </div>
   );
 }

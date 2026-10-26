@@ -10,7 +10,14 @@ repo_host="${PGBACKREST_REPO1_HOST:-$(sed -n 's/^repo1-host=//p' "$conf" | tail 
 out repo_type "${repo_type:-posix}"
 out repo_host "$repo_host"
 created="$(pgbackrest --stanza=masslak stanza-create 2>&1)"
-if checked="$(pgbackrest --stanza=masslak check 2>&1)"; then out check_ok 1; else out check_ok 0; fi
+# a stanza just made may not be seen by the first check (the repository's files appear a moment later): asked again
+# a few times before the answer counts
+ok=0
+for _ in 1 2 3 4 5; do
+  if checked="$(pgbackrest --stanza=masslak check 2>&1)"; then ok=1; break; fi
+  sleep 3
+done
+out check_ok "$ok"
 out check_output "$(printf '%s\n%s' "$created" "$checked" | tail -n 20)"
 plugins=""
 for p in test_decoding wal2json decoderbufs decoder_raw; do

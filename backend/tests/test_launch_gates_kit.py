@@ -49,13 +49,23 @@ def test_egress_counts_only_in_production(tmp_path):
 
 
 def test_capacity_needs_1x_and_2x_passing_a_5x_run_and_an_8_hour_soak(tmp_path):
-    def run(rate, verdict):
-        return {"environment": "staging", "target_per_second": rate, "verdict": {"status": verdict}}
+    def run(rate, verdict, **over):
+        return {"environment": "staging", "target_per_second": rate, "verdict": {"status": verdict}, "seconds": 900,
+                "warmup_seconds": 300, "build": {"commit": "a" * 40}, "release": {"hash_matches": True}, **over}
+    # a burst that cannot be tied to what it measured does not count (reviews of release 1.49.0)
+    write(tmp_path, "burst_staging_1x.json", run(240, "PASS", seconds=120))
+    write(tmp_path, "burst_staging_2x.json", run(480, "PASS", release={"hash_matches": False}))
+    write(tmp_path, "burst_staging_5x.json", run(1200, "FAIL", build={"commit": None}))
+    assert len([x for x in status(tmp_path, 3)["reasons"] if x.startswith("burst at")]) == 3
     write(tmp_path, "burst_staging_1x.json", run(240, "PASS"))
     write(tmp_path, "burst_staging_2x.json", run(480, "PASS"))
     write(tmp_path, "burst_staging_5x.json", run(1200, "FAIL"))         # 5x records the limit; it need not pass
     r = status(tmp_path, 3)
     assert r["status"] == "Open" and r["reasons"] == ["a soak of at least 8 hours passing on staging"]
+    # a checkpoint of a run still going (or cut short) never closes the gate, whatever it says
+    write(tmp_path, "soak_staging.json", {"environment": "staging", "duration_s": 9 * 3600, "partial": True,
+                                          "verdict": {"status": "PASS"}})
+    assert status(tmp_path, 3)["status"] == "Open"
     write(tmp_path, "soak_staging.json", {"environment": "staging", "duration_s": 9 * 3600, "verdict": {"status": "PASS"}})
     assert status(tmp_path, 3)["status"] == "Passed"
 
@@ -122,3 +132,40 @@ def test_soak_verdicts():
     assert v["status"] == "FAIL" and "memory grows" in v["reasons"][0]
     short = [sample(t, 300.0) for t in range(0, 1200, 60)]
     assert soak.verdict(short, [{"requests": 10, "errors": 0}], 1200, soak.LIMITS)["status"] == "INCONCLUSIVE"
+
+
+def test_soak_trends_are_judged_only_over_an_hour_after_warm_up():
+    # a few minutes of a process warming up looks like a leak; it is shown, not judged
+    warming = [sample(t, 300.0 + t / 3600 * 600) for t in range(0, 1200, 60)]
+    v = soak.verdict(warming, [{"requests": 10, "errors": 0}], 1200, soak.LIMITS)
+    assert v["status"] == "INCONCLUSIVE" and not v["reasons"]
+    assert any("not judged" in n for n in v["notes"])
+
+
+def test_soak_does_not_judge_an_outbox_backlog_older_than_the_run():
+    hours = 9
+    # the oldest waiting event is older than the run itself: left by earlier work, not by this load
+    stale = [sample(t, 300.0, oldest=t + 7200.0) for t in range(0, hours * 3600, 600)]
+    v = soak.verdict(stale, [{"requests": 10, "errors": 0}], hours * 3600, soak.LIMITS)
+    assert v["status"] == "PASS" and any("older than the run" in n for n in v["notes"])
+
+
+def test_soak_checkpoint_is_never_a_pass(tmp_path):
+    import argparse
+    import datetime as dt
+
+    class Totals:
+        def table(self, _duration):
+            return [{"step": "hold", "requests": 10, "errors": 0}]
+
+    s = soak.Soak.__new__(soak.Soak)
+    s.total = Totals()
+    s.samples = [sample(t, 300.0) for t in range(0, 9 * 3600, 600)]
+    out = tmp_path / "soak.json"
+    args = argparse.Namespace(environment="staging", base="http://x", users=1, think=(1.0, 2.0), sample=60,
+                              json=str(out))
+    started = dt.datetime(2026, 10, 26, tzinfo=dt.timezone.utc)
+    rep = soak.write_report(args, s, started, [], 9 * 3600, 10 * 3600, partial=True)
+    assert rep["partial"] is True and rep["verdict"]["status"] == "INCONCLUSIVE"
+    assert not (tmp_path / "soak.json.tmp").exists()
+    assert soak.write_report(args, s, started, [], 9 * 3600, 9 * 3600, partial=False)["verdict"]["status"] == "PASS"

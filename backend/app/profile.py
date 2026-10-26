@@ -7,6 +7,8 @@ On a production server (anything config.is_test_server() does not call a test se
     certificate as sslrootcert);
   * the data keys come from the key service (MASSLAK_KMS_PROVIDER=vault) and none sits in their own environment
     (MASSLAK_FIELD_KEYS, MASSLAK_BIDX_KEY or MASSLAK_KEK there would put the keys next to the data they protect);
+  * ticket codes and document tokens are signed with keys of their own (MASSLAK_QR_KEYS, MASSLAK_DOCUMENT_KEYS), and
+    e-invoices with a key of their own (MASSLAK_EINVOICE_KEYS, 1108);
   * their environment holds no secret of the database owner, of replication, of the warehouse, of the backups or of
     pgBackRest (deploy/env-split.sh leaves them out; this catches a container started with the whole deploy/.env).
 The migration checks the database side of the profile itself (app.tools.preflight).
@@ -17,12 +19,13 @@ import os
 from typing import Mapping
 from urllib.parse import parse_qs, urlparse
 
-from .config import get_settings, is_test_server
+from .config import declaration_conflicts, get_settings, is_test_server
 
 # secrets only the owner's tools and the infrastructure hold
 OWNER_SECRETS = ("POSTGRES_PASSWORD", "MASSLAK_REPLICATION_PASSWORD", "MASSLAK_CDC_PASSWORD", "MASSLAK_DW_PASSWORD",
                  "MASSLAK_DW_ANALYST_PASSWORD", "MASSLAK_TELEMETRY_OWNER_PASSWORD", "MASSLAK_BACKUP_AGE_IDENTITY",
-                 "PGBACKREST_REPO1_CIPHER_PASS", "PGBACKREST_REPO1_S3_KEY_SECRET")
+                 "PGBACKREST_REPO1_CIPHER_PASS", "PGBACKREST_REPO1_S3_KEY_SECRET", "MASSLAK_PATRONI_REST_PASSWORD",
+                 "MASSLAK_ETCD_TOKEN")
 RAW_KEYS = ("MASSLAK_FIELD_KEYS", "MASSLAK_BIDX_KEY", "MASSLAK_KEK")
 
 
@@ -40,15 +43,34 @@ def problems(environ: Mapping[str, str] | None = None) -> list[str]:
         found.append("this server is declared production but does not run the production profile "
                      "(deploy/production/docker-compose.production.yml, COMPOSE_FILE in deploy/.env)")
     for name, url in (("MASSLAK_DATABASE_URL", s.database_url), ("MASSLAK_AUDIT_DATABASE_URL", s.audit_database_url),
-                      ("MASSLAK_REPORTS_DATABASE_URL", s.reports_database_url)):
+                      ("MASSLAK_REPORTS_DATABASE_URL", s.reports_database_url),
+                      # the telemetry database too, when positions are kept there (reviews of release 1.49.0)
+                      ("MASSLAK_TELEMETRY_DATABASE_URL", s.telemetry_database_url),
+                      ("MASSLAK_TELEMETRY_UPKEEP_URL", s.telemetry_upkeep_url)):
         if url and not verified_tls(url):
             found.append(f"{name} does not check the database's certificate (sslmode=verify-full and sslrootcert)")
+    if not s.cookie_secure:
+        found.append("the session cookie would also travel over plain HTTP (MASSLAK_COOKIE_SECURE=false): a production "
+                     "server sends it over HTTPS only (reviews of release 1.49.0)")
     if env.get("MASSLAK_KMS_PROVIDER", "").strip().lower() != "vault":
         found.append("the data keys must come from the key service on a production server (MASSLAK_KMS_PROVIDER=vault)")
     held = [k for k in RAW_KEYS if env.get(k, "").strip()]
     if held:
         found.append(f"data keys sit in this process's environment ({', '.join(held)}): on a production server they are "
                      "wrapped by the key service and only the migration may read them, once, to wrap them")
+    # QR codes, document tokens and lookup digests (blocklist, invite codes) keyed with keys of their own
+    derived = [name for name in ("MASSLAK_QR_KEYS", "MASSLAK_DOCUMENT_KEYS", "MASSLAK_LOOKUP_KEYS")
+               if not env.get(name, "").strip() or env.get(name, "").split(",")[0].strip() == "s1"]
+    if derived:
+        found.append(f"{', '.join(derived)} must name a key of its own first (kid:base64 of 32 bytes; deploy/init-env.sh "
+                     "makes them): tokens would otherwise be signed with a key derived from MASSLAK_SIGNING_SECRET "
+                     "(reviews of release 1.49.0)")
+    # e-invoices signed with a key of their own, named on every document (owner's decision, October 2026; 1108)
+    invoice_keys = env.get("MASSLAK_EINVOICE_KEYS", "").strip()
+    if not invoice_keys or invoice_keys.split(",")[0].strip() == "e1":
+        found.append("MASSLAK_EINVOICE_KEYS must name a key of its own first (kid:base64 of a 32-byte Ed25519 seed; "
+                     "deploy/init-env.sh makes it): e-invoices would otherwise be signed with a key derived from the "
+                     "ticket key")
     leaked = [k for k in OWNER_SECRETS if env.get(k, "").strip()]
     if leaked:
         found.append(f"secrets this process must not hold are in its environment ({', '.join(leaked)}): start it with "
@@ -57,6 +79,10 @@ def problems(environ: Mapping[str, str] | None = None) -> list[str]:
 
 
 def require_in_production() -> None:
+    conflicts = declaration_conflicts()           # checked before the test-server exemption: a declaration is never lowered
+    if conflicts:
+        raise RuntimeError("the server's declarations contradict each other (reviews of the 1.50.0 release):\n  - "
+                           + "\n  - ".join(conflicts))
     if is_test_server():
         return
     found = problems()

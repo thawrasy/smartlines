@@ -13,7 +13,7 @@ from ...errors import ApiError
 
 RESERVED = ("PAY_LATER", "CARD", "INSTALLMENT", "FINANCING")      # paid after the booking is written
 PROVIDER_OPTIONS = {"CARD": "HOSTED_CARD", "INSTALLMENT": "INSTALLMENT", "FINANCING": "FINANCING"}
-PAY_METHOD = {"WALLET": "WALLET", "AGENCY_BALANCE": "WALLET", "CASH_COUNTER": "CASH", "PAY_LATER": "CASH",
+PAY_METHOD = {"WALLET": "WALLET", "AGENCY_BALANCE": "WALLET", "AGENCY_CASH": "CASH", "CASH_COUNTER": "CASH", "PAY_LATER": "CASH",
               "CARD": "CARD", "INSTALLMENT": "INSTALLMENT", "FINANCING": "FINANCING"}
 
 
@@ -46,11 +46,21 @@ async def require(conn: asyncpg.Connection, code: str, channel: str, amount: Opt
     return m
 
 
+async def carrier_takes(conn: asyncpg.Connection, carrier_id: int, code: str) -> bool:
+    """A gateway option is paid to a carrier only once the platform activated it for that carrier (N13 phase two, 1145)."""
+    return code not in PROVIDER_OPTIONS or bool(await conn.fetchval("SELECT fin.carrier_takes($1, $2)", carrier_id, code))
+
+
+async def require_carrier_takes(conn: asyncpg.Connection, carrier_id: int, code: str) -> None:
+    if not await carrier_takes(conn, carrier_id, code):
+        raise ApiError(409, "PAYMENT_METHOD_DISABLED", "this carrier does not take this way of paying yet", option=code)
+
+
 def channel_of(channel_code: str) -> str:
     """The switch channel of a sales channel code."""
     if channel_code == "AGENCY":
         return "AGENCY"
-    if channel_code == "COUNTER":
+    if channel_code in ("COUNTER", "STATION"):         # a station counter takes the counter's payment options (1110)
         return "COUNTER"
     return "APP" if channel_code.startswith("APP") else "WEB"
 
@@ -85,11 +95,14 @@ def eligible_trip(m: dict, trip_type: Optional[str]) -> bool:
     return not allowed or (trip_type in allowed)
 
 
-async def booking_options(conn: asyncpg.Connection, channel: str) -> list[dict]:
-    """The options a checkout can offer on this channel, with the providers behind the electronic ones."""
+async def booking_options(conn: asyncpg.Connection, channel: str, carrier_id: Optional[int] = None) -> list[dict]:
+    """The options a checkout can offer on this channel, with the providers behind the electronic ones; for a carrier's
+    trip, only the gateway options the platform activated for that carrier."""
     out = []
     for m in await all_methods(conn):
         if not m["enabled"] or channel not in m["channels"]:
+            continue
+        if carrier_id is not None and not await carrier_takes(conn, carrier_id, m["code"]):
             continue
         item = {"code": m["code"], "min_amount": m["min_amount"], "max_amount": m["max_amount"]}
         cfg = m["config"]

@@ -3,7 +3,7 @@
 
     python3 db/tools/failover_drill.py --dsn "postgresql://<owner>@hostA:5432,hostB:5432/masslak?target_session_attrs=read-write" \\
         --kill "<command that stops the primary>" [--promote "<command that promotes the standby>"] \\
-        [--api https://<site>/api/ready] [--rate 20] [--warmup 10] [--settle 15] [--json evidence.json]
+        [--api https://<site>/api/ready [--api-ca ca.crt]] [--rate 20] [--warmup 10] [--settle 15] [--json evidence.json]
 
 Writes numbered rows to sys.failover_probe (schema file 1065) at a steady rate through the same kind of connection
 string the API uses (every server listed, the primary chosen by target_session_attrs), records each commit the
@@ -13,13 +13,15 @@ Afterwards it reads the probe rows back from the new primary and reports:
   * RTO: from the first failed write to the first write the new primary acknowledged (target: 60 s, RUNBOOKS.md 3);
   * RPO: acknowledged rows the new primary does not have, and the time they span (target: none lost with a
     synchronous standby, otherwise within 60 s);
-  * the API's readiness (/api/ready) during the drill, when --api is given: how long it was not ready.
+  * the API's readiness (/api/ready) during the drill, when --api is given: how long it was not ready, and whether it
+    was ready again when the drill ended (a last period still open at the end is counted up to then).
 Exit status 0 when both targets are met. Run it on staging, never on production: it stops a database server.
 """
 import argparse
 import asyncio
 import json
 import shlex
+import ssl
 import subprocess
 import sys
 import time
@@ -63,11 +65,12 @@ async def writer(a, drill: uuid.UUID, state: dict) -> None:
         await conn.close()
 
 
-async def readiness(url: str, state: dict) -> None:
+async def readiness(url: str, ca: str | None, state: dict) -> None:
     down_since = None
+    ctx = ssl.create_default_context(cafile=ca) if ca else None
     while not state["done"]:
         try:
-            ok = await asyncio.to_thread(lambda: urllib.request.urlopen(url, timeout=2).status == 200)  # nosec B310 - operator's own URL
+            ok = await asyncio.to_thread(lambda: urllib.request.urlopen(url, timeout=2, context=ctx).status == 200)  # nosec B310 - operator's own URL
         except Exception:                                                                              # noqa: BLE001 - any failure is "not ready"
             ok = False
         now = time.time()
@@ -79,6 +82,7 @@ async def readiness(url: str, state: dict) -> None:
         await asyncio.sleep(0.5)
     if down_since is not None:
         state["api_down"].append(round(time.time() - down_since, 1))
+    state["api_ready_at_end"] = down_since is None
 
 
 def run(cmd: str) -> int:
@@ -91,7 +95,7 @@ async def drill(a) -> dict:
              "killed_at": None, "api_down": []}
     tasks = [asyncio.create_task(writer(a, drill_id, state))]
     if a.api:
-        tasks.append(asyncio.create_task(readiness(a.api, state)))
+        tasks.append(asyncio.create_task(readiness(a.api, a.api_ca, state)))
     await asyncio.sleep(a.warmup)
     before = len(state["acked"])
     # the primary as it was: which server, and whether a standby confirmed every commit (no loss expected then)
@@ -128,11 +132,15 @@ async def drill(a) -> dict:
     rto = round(state["recovered"] - state["first_failure"], 2) if state["recovered"] and state["first_failure"] else None
     rpo_seconds = round(state["acked"][lost[-1]] - state["acked"][lost[0]], 2) if lost else 0.0
     result = {
-        "drill": str(drill_id), "kill_exit": kill_rc, "promote_exit": promote_rc,
+        "drill": str(drill_id), "kill_exit": kill_rc,
+        # who promoted the standby: this drill's --promote command (its exit status), or the cluster manager on its own
+        # (Patroni), when there is no command to report on (reviews of release 1.49.0: a bare null was unexplained)
+        "promotion": "command" if a.promote else "automatic (cluster manager)", "promote_exit": promote_rc,
         "acknowledged_before_kill": before, "acknowledged": len(state["acked"]), "kept": len(kept & set(state["acked"])),
         "lost": len(lost), "lost_seconds": rpo_seconds, "rto_seconds": rto, "errors": state["errors"],
         "servers_written": sorted(state["servers"]), "old_primary": old, "new_primary": primary,
         "new_primary_is_standby": standby, "api_not_ready_seconds": state["api_down"],
+        "api_ready_at_end": state.get("api_ready_at_end"),
         "targets": {"rto_seconds": a.rto, "rpo_seconds": a.rpo},
     }
     result["passed"] = (rto is not None and rto <= a.rto and not standby
@@ -147,6 +155,7 @@ def main() -> int:
     ap.add_argument("--promote", help="command that promotes the standby (not needed with Patroni)")
     ap.add_argument("--promote-after", type=float, default=0.0, help="seconds between the kill and --promote")
     ap.add_argument("--api", help="the API's /api/ready address, watched during the drill")
+    ap.add_argument("--api-ca", help="the authority the API's certificate is checked against (default: the system's)")
     ap.add_argument("--rate", type=float, default=20.0, help="writes a second (default 20)")
     ap.add_argument("--warmup", type=float, default=10.0, help="seconds of writes before the kill (default 10)")
     ap.add_argument("--settle", type=float, default=5.0, help="seconds of writes after recovery (default 5)")

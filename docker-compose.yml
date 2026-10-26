@@ -7,9 +7,26 @@
 # the proxy alone (audit T3-02, deploy/egress).
 name: masslak
 
+# Every container's log on the host is capped (the trial notes of October 2026: a flood of requests must not fill the
+# disk); docker keeps at most 5 files of 20 MB per container and rotates them
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "20m", max-file: "5" }
+# The API and the worker run as an unprivileged user, with no Linux capabilities, a read-only image and a small private
+# /tmp; they cannot gain privileges through a setuid file
+x-hardened: &hardened
+  read_only: true
+  tmpfs: ["/tmp:size=64m,mode=1777"]
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+
 services:
   db:
-    image: postgis/postgis:16-3.4-alpine@sha256:681931a625df344215e9b8998bf34daf146b6a395ceacee4439eb9c85869239f
+    logging: *logging
+    # PostGIS with the settings guard (db/guard): only the platform's own functions set the request context and the
+    # guard flags the row rules and the ledger trust; the image adds the module to shared_preload_libraries
+    build: db/guard
+    image: masslak-postgres:${MASSLAK_IMAGE_TAG:-latest}
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-masslak}
@@ -41,7 +58,9 @@ services:
   # Streaming read replica: reports and exports run here (the API refuses to start in production without it), so heavy
   # queries never slow bookings; also the failover candidate (docs/operations/RUNBOOKS.md, section 3)
   db-replica:
-    image: postgis/postgis:16-3.4-alpine@sha256:681931a625df344215e9b8998bf34daf146b6a395ceacee4439eb9c85869239f
+    logging: *logging
+    build: db/guard
+    image: masslak-postgres:${MASSLAK_IMAGE_TAG:-latest}
     restart: unless-stopped
     user: postgres
     entrypoint: ["/usr/local/bin/masslak-replica"]
@@ -61,6 +80,7 @@ services:
     networks: [internal]
 
   migrate:
+    logging: *logging
     build:
       context: .
       args:
@@ -81,6 +101,8 @@ services:
   # connections). Requests set their context inside each transaction, so a pooled connection never carries a company
   # into the next request; protocol-level prepared statements are kept by PgBouncer (max_prepared_statements).
   pgbouncer:
+    logging: *logging
+    security_opt: ["no-new-privileges:true"]
     image: edoburu/pgbouncer:v1.23.1-p3@sha256:377dec3c0e4a66a1077ec043e16a26ed5702a6d954011a7983a1457c2e070b1d
     restart: unless-stopped
     environment:
@@ -103,6 +125,8 @@ services:
     networks: [internal]
 
   app:
+    logging: *logging
+    <<: *hardened
     image: masslak:${MASSLAK_IMAGE_TAG:-latest}
     restart: unless-stopped
     env_file: deploy/env/app.env          # no owner, replication or backup secret (deploy/env-split.sh, H-06)
@@ -133,6 +157,8 @@ services:
 
   # Sends notifications from the transactional outbox (several replicas can run: events are claimed with SKIP LOCKED)
   worker:
+    logging: *logging
+    <<: *hardened
     image: masslak:${MASSLAK_IMAGE_TAG:-latest}
     restart: unless-stopped
     env_file: deploy/env/worker.env
@@ -161,6 +187,8 @@ services:
   # The only way out for the API and the worker: HTTPS and mail submission to allowlisted names, never to private,
   # loopback, link-local or metadata addresses (deploy/egress/squid.conf; probe with deploy/egress/selftest.sh)
   egress:
+    logging: *logging
+    security_opt: ["no-new-privileges:true"]
     build: deploy/egress
     image: masslak-egress:${MASSLAK_IMAGE_TAG:-latest}
     restart: unless-stopped
@@ -171,6 +199,8 @@ services:
       edge: {}
 
   caddy:
+    logging: *logging
+    security_opt: ["no-new-privileges:true"]
     image: caddy:2-alpine@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f
     restart: unless-stopped
     ports: ["80:80", "443:443", "443:443/udp"]

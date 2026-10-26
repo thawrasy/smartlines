@@ -12,6 +12,13 @@
     DELETE /api/integrations/clients/{uid}/webhooks/{wuid}
     POST /api/integrations/clients/{uid}/webhooks/{wuid}/rotate | ping
     POST /api/integrations/clients/{uid}/deliveries/{duid}/retry
+    GET  /api/integrations/requests                     connection requests (a company sees its own)
+    POST /api/integrations/requests                     a company asks for a connection (N2, 1155)
+    POST /api/integrations/requests/{uid}/withdraw      the company takes back a request not yet handled
+    POST /api/integrations/requests/{uid}/client | reject   platform security builds the client from it, or refuses it
+
+Since the owner's decision on N2 (option B) a company files requests and takes its key once the platform approved the
+client; making clients, changing scopes or limits and managing webhooks belong to platform security.
 """
 from __future__ import annotations
 
@@ -22,9 +29,9 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 
 from ... import db
-from ...deps import Principal, context_for, require_user
-from ...errors import forbidden
-from . import service
+from ...deps import Principal, context_for, require_user, require_step_up
+from ...errors import ApiError, forbidden
+from . import requests as reqs, service
 from .scopes import EVENTS, KIND_SCOPES, SCOPES
 
 router = APIRouter(prefix="/api/integrations", tags=["integration console"])
@@ -112,7 +119,8 @@ async def list_clients(request: Request, c: Console = Depends(console)):
 
 
 @router.post("/clients", status_code=201)
-async def create_client(body: ClientIn, request: Request, c: Console = Depends(console)):
+async def create_client(body: ClientIn, request: Request, c: Console = Depends(platform_only)):
+    require_step_up(c.pr)                 # a sensitive operation: a recent second factor (1136)
     async with db.transaction(context_for(request, c.pr)) as conn:
         out = await service.create(conn, c.pr, platform=c.platform, name=body.name, kind=body.kind, scopes=body.scopes,
                                    environment=body.environment, description=body.description, contact_email=body.contact_email,
@@ -130,7 +138,7 @@ async def client_detail(uid: uuid.UUID, request: Request, c: Console = Depends(c
 
 
 @router.put("/clients/{uid}")
-async def update_client(uid: uuid.UUID, body: ClientUpdate, request: Request, c: Console = Depends(console)):
+async def update_client(uid: uuid.UUID, body: ClientUpdate, request: Request, c: Console = Depends(platform_only)):
     async with db.transaction(context_for(request, c.pr)) as conn:
         out = await service.update(conn, c.pr, uid, c.company_id, platform=c.platform, **body.model_dump())
     request.state.audit = {"action": "api_client.update", "object_type": "iam.api_client", "reason": str(uid)}
@@ -139,7 +147,13 @@ async def update_client(uid: uuid.UUID, body: ClientUpdate, request: Request, c:
 
 @router.post("/clients/{uid}/keys", status_code=201)
 async def issue_key(uid: uuid.UUID, request: Request, c: Console = Depends(console)):
+    require_step_up(c.pr)                 # a sensitive operation: a recent second factor (1136)
     async with db.transaction(context_for(request, c.pr)) as conn:
+        if not c.platform:
+            # the company takes its key once; a new one only after the platform or the company revoked the active key (N2)
+            cl = await _client(conn, c, uid)
+            if await conn.fetchval("SELECT count(*) FROM iam.api_key WHERE api_client_id = $1 AND status = 'ACTIVE'", cl["id"]):
+                raise ApiError(409, "KEY_ALREADY_TAKEN", "the key was already taken; revoke it first to take a new one")
         out = await service.issue_key(conn, c.pr, uid, c.company_id)
     request.state.audit = {"action": "api_key.issue", "object_type": "iam.api_key", "object_id": out["id"]}
     return out
@@ -158,7 +172,8 @@ async def _client(conn, c: Console, uid: uuid.UUID):
 
 
 @router.post("/clients/{uid}/webhooks", status_code=201)
-async def add_webhook(uid: uuid.UUID, body: EndpointIn, request: Request, c: Console = Depends(console)):
+async def add_webhook(uid: uuid.UUID, body: EndpointIn, request: Request, c: Console = Depends(platform_only)):
+    require_step_up(c.pr)                 # a sensitive operation: a recent second factor (1136)
     async with db.transaction(context_for(request, c.pr)) as conn:
         cl = await _client(conn, c, uid)
         out = await service.add_endpoint(conn, cl["id"], cl["kind"], body.url, body.events, body.include_pii)
@@ -167,7 +182,7 @@ async def add_webhook(uid: uuid.UUID, body: EndpointIn, request: Request, c: Con
 
 
 @router.delete("/clients/{uid}/webhooks/{wuid}")
-async def remove_webhook(uid: uuid.UUID, wuid: uuid.UUID, request: Request, c: Console = Depends(console)):
+async def remove_webhook(uid: uuid.UUID, wuid: uuid.UUID, request: Request, c: Console = Depends(platform_only)):
     async with db.transaction(context_for(request, c.pr)) as conn:
         cl = await _client(conn, c, uid)
         out = await service.remove_endpoint(conn, cl["id"], wuid)
@@ -178,6 +193,8 @@ async def remove_webhook(uid: uuid.UUID, wuid: uuid.UUID, request: Request, c: C
 @router.post("/clients/{uid}/webhooks/{wuid}/{action}")
 async def webhook_action(uid: uuid.UUID, wuid: uuid.UUID, action: Literal["rotate", "ping"], request: Request,
                          c: Console = Depends(console)):
+    if action == "rotate" and not c.platform:
+        raise forbidden("platform security only")
     ctx = context_for(request, c.pr)
     async with db.transaction(ctx) as conn:
         cl = await _client(conn, c, uid)
@@ -193,6 +210,51 @@ async def retry_delivery(uid: uuid.UUID, duid: uuid.UUID, request: Request, c: C
         out = await service.redeliver(conn, cl["id"], duid, user_id=c.pr.user_id)
     # a replay is recorded with who asked for it (event contract, docs/integration/EVENTS.md)
     request.state.audit = {"action": "webhook.redeliver", "object_type": "webhook_delivery", "object_id": None}
+    return out
+
+
+# ------------------------------------------------------------------ connection requests (N2, 1155)
+@router.get("/requests")
+async def list_requests(request: Request, c: Console = Depends(console)):
+    async with db.transaction(context_for(request, c.pr)) as conn:
+        return {"requests": await reqs.listing(conn, c.company_id)}
+
+
+@router.post("/requests", status_code=201)
+async def submit_request(body: reqs.RequestIn, request: Request, c: Console = Depends(console)):
+    if c.platform:
+        raise forbidden("a company files connection requests; platform security builds clients")
+    async with db.transaction(context_for(request, c.pr)) as conn:
+        out = await reqs.submit(conn, c.pr, body)
+    request.state.audit = {"action": "integration_request.submit", "object_type": "iam.integration_request", "reason": out["uid"]}
+    return out
+
+
+@router.post("/requests/{uid}/withdraw")
+async def withdraw_request(uid: uuid.UUID, request: Request, c: Console = Depends(console)):
+    if c.platform:
+        raise forbidden("the company withdraws its own request")
+    async with db.transaction(context_for(request, c.pr)) as conn:
+        out = await reqs.withdraw(conn, uid, c.company_id)
+    request.state.audit = {"action": "integration_request.withdraw", "object_type": "iam.integration_request", "reason": str(uid)}
+    return out
+
+
+@router.post("/requests/{uid}/client", status_code=201)
+async def build_from_request(uid: uuid.UUID, body: reqs.BuildIn, request: Request, c: Console = Depends(platform_only)):
+    """Platform security builds the client from the request; it stays PENDING until another person approves it."""
+    require_step_up(c.pr)
+    async with db.transaction(context_for(request, c.pr)) as conn:
+        out = await reqs.build(conn, c.pr, uid, body)
+    request.state.audit = {"action": "integration_request.client", "object_type": "iam.integration_request", "reason": str(uid)}
+    return out
+
+
+@router.post("/requests/{uid}/reject")
+async def reject_request(uid: uuid.UUID, body: reqs.NoteIn, request: Request, c: Console = Depends(platform_only)):
+    async with db.transaction(context_for(request, c.pr)) as conn:
+        out = await reqs.reject(conn, c.pr, uid, body.note)
+    request.state.audit = {"action": "integration_request.reject", "object_type": "iam.integration_request", "reason": f"{uid} {body.note}"}
     return out
 
 

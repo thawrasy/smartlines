@@ -60,15 +60,35 @@ async def change_password(conn, ctx: db.Context, pr: Principal, current: str, ne
     stored = await conn.fetchval("SELECT password_hash FROM iam.app_user WHERE id = $1", pr.user_id)
     if not verify_password(stored, current):
         raise ApiError(422, "PASSWORD_WRONG", "the current password is not correct")
-    problem = password_problem(new)
+    problem = password_problem(new, pr.email, pr.display_name)
     if problem:
         raise ApiError(422, problem, "password does not meet the policy")
     if verify_password(stored, new):
         raise ApiError(422, "PASSWORD_SAME", "choose a password you have not been using")
-    await conn.execute("UPDATE iam.app_user SET password_hash = $2, password_changed_at = now() WHERE id = $1",
+    await conn.execute("""UPDATE iam.app_user SET password_hash = $2, password_changed_at = now(),
+                                 password_must_change = false, temp_password_expires_at = NULL WHERE id = $1""",
                        pr.user_id, hash_password(new))
     await revoke_others(conn, ctx, pr)
     await auth_event(conn, ctx, pr, "PASSWORD_CHANGED")
+
+
+async def deactivate(conn, ctx: db.Context, pr: Principal, password: str) -> None:
+    """Closes the owner's own passenger account. Nothing is deleted: the data stays, every session ends, and signing in
+    again with the same details reactivates it (1085, the owner's rule of 10 October 2026). Erasure is a different
+    request (request_erasure)."""
+    if pr.portal != "PASSENGER":
+        raise ApiError(409, "DEACTIVATE_STAFF", "staff accounts are closed by their company or the platform")
+    stored = await conn.fetchval("SELECT password_hash FROM iam.app_user WHERE id = $1", pr.user_id)
+    if not verify_password(stored, password):
+        raise ApiError(422, "PASSWORD_WRONG", "the password is not correct")
+    if await conn.fetchval(
+            """SELECT 1 FROM sales.booking b JOIN ops.trip t ON t.id = b.trip_id
+                WHERE b.booker_party_id = $1 AND b.status = 'CONFIRMED' AND t.departure_at > now()""", pr.party_id):
+        raise ApiError(409, "UPCOMING_TRIPS", "the person has upcoming trips; close the account after they travel or cancel")
+    await conn.execute("UPDATE iam.app_user SET status = 'DEACTIVATED' WHERE id = $1", pr.user_id)
+    await conn.execute("UPDATE iam.user_session SET revoked_at = now(), revoke_reason = 'DEACTIVATED' "
+                       "WHERE user_id = $1 AND revoked_at IS NULL", pr.user_id)
+    await auth_event(conn, ctx, pr, "ACCOUNT_DEACTIVATED")
 
 
 # ------------------------------------------------------------------ mobile devices
@@ -124,7 +144,7 @@ async def export(conn, ctx: db.Context, pr: Principal) -> dict:
         """SELECT u.uid, u.email, u.mobile, u.preferred_locale, u.created_at, u.last_login_at, p.legal_name
              FROM iam.app_user u JOIN iam.party p ON p.id = u.party_id WHERE u.id = $1""", pr.user_id)
     bookings = await conn.fetch(
-        """SELECT b.id, b.booking_ref, b.status, b.total_amount, b.currency, b.created_at, t.trip_no
+        """SELECT b.id, b.booking_ref, b.status, b.total_amount, b.currency, b.created_at, t.trip_no, t.trip_code
              FROM sales.booking b JOIN ops.trip t ON t.id = b.trip_id
             WHERE b.booker_party_id = $1 ORDER BY b.created_at""", pr.party_id)
     async with db.system_scope(conn, ctx):
@@ -198,6 +218,8 @@ async def complete_erasure(conn, pr: Principal, request_uid: uuid.UUID) -> int:
     # gov.erase_party pseudonymises the person and their old passenger rows, withdraws consents, refuses under a
     # legal hold, writes gov.erasure_log and closes the request (review 3.15)
     await conn.fetchval("SELECT gov.erase_party($1, $2)::text", r["party_id"], r["id"])
+    # the boarding photo goes with the person (1086): the store deletes the bytes after its grace period
+    await conn.fetchval("SELECT gov.erase_party_photo($1)", r["party_id"])
     await conn.execute("UPDATE iam.user_session SET revoked_at = now(), revoke_reason = 'ERASED' WHERE user_id = $1 AND revoked_at IS NULL",
                        r["user_id"])
     await conn.execute("DELETE FROM iam.mfa_factor WHERE user_id = $1", r["user_id"])

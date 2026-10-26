@@ -1,22 +1,27 @@
 import { useState } from "react";
 import { api, newKey } from "../../api";
-import { useI18n } from "../../i18n";
+import { toMinor, useI18n } from "../../i18n";
 import { useAuth } from "../../auth";
 import { ClaimsToPay } from "../support/StaffDesk";
 import { PageHead } from "../../components/layout";
-import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, useToast } from "../../components/ui";
+import { CarrierName, Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, useToast } from "../../components/ui";
 
-interface Balance { currency: string; balance: number; held: number; available: number }
-interface BankAccount { uid: string; bank_name: string; holder_name: string; iban_last4: string; verified: boolean; status: string; company_name?: string; created_at: string }
+interface Balance { currency: string; balance: number; held: number; available: number; money_mode?: string }
+interface BankAccount {
+  uid: string; bank_name: string; holder_name: string; iban_last4: string; verified: boolean; status: string; company_name?: string; company_uid?: string;
+  company_logo?: string | null; created_at: string; bank_name_ar?: string | null; bank_name_en?: string | null; branch_name_ar?: string | null;
+  branch_name_en?: string | null; swift_bic?: string | null; account_no_last4?: string | null; is_default?: boolean; verification_status?: string;
+}
+interface RegistryBranch { uid: string; name_ar: string; name_en: string; swift_bic: string | null; is_head_office: boolean }
+interface RegistryBank { uid: string; code: string; name_ar: string; name_en: string; swift_bic: string | null; branches: RegistryBranch[] }
 interface Withdrawal {
   uid: string; amount: number; currency: string; status: string; needs_second: boolean; created_at: string; paid_at: string | null;
   bank_ref: string | null; reject_reason: string | null; bank_name: string; iban_last4: string; bank_account_uid: string;
-  company_name: string; requested_by_name: string; approved_by?: number | null; second_approver?: number | null;
+  company_name: string; company_uid?: string; company_logo?: string | null; requested_by_name: string; approved_by?: number | null; second_approver?: number | null;
 }
-interface Settlement { uid: string; period_from: string; period_to: string; gross: number; commission: number; refunds: number; net: number; status: string; trips: number; company_name: string }
+interface Settlement { uid: string; period_from: string; period_to: string; gross: number; commission: number; refunds: number; net: number; status: string; trips: number; company_name: string; company_uid?: string; company_logo?: string | null; }
 interface SettlementDetail { uid: string; status: string; from: string; to: string; gross: number; commission: number; refunds: number; net: number; lines: { trip_no: string; gross: number; commission: number; refunds: number; net: number }[] }
 
-const toMinor = (v: string) => Math.round(Number(v || 0) * 100);
 
 function SettlementView({ uid, base, onClose }: { uid: string; base: string; onClose: () => void }) {
   const { t, money, date } = useI18n();
@@ -42,8 +47,13 @@ function SettlementView({ uid, base, onClose }: { uid: string; base: string; onC
 }
 
 // ------------------------------------------------------------------ carrier and agency owners
+/** A bank or branch name in the reader's language. */
+function named(locale: string, ar?: string | null, en?: string | null): string {
+  return (locale === "ar" ? ar || en : en || ar) ?? "";
+}
+
 export function CompanyFinance() {
-  const { t, money, dateTime, date } = useI18n();
+  const { t, money, dateTime, date, locale } = useI18n();
   const { can } = useAuth();
   const toast = useToast();
   const bal = useLoad(() => api.get<Balance>("/api/finance/balance"));
@@ -51,7 +61,8 @@ export function CompanyFinance() {
   const wds = useLoad(() => api.get<{ withdrawals: Withdrawal[] }>("/api/finance/withdrawals"));
   const sts = useLoad(() => api.get<{ settlements: Settlement[] }>("/api/finance/settlements"));
   const [mode, setMode] = useState<null | "account" | "withdraw">(null);
-  const [acct, setAcct] = useState({ bank_name: "", holder_name: "", iban: "" });
+  const [acct, setAcct] = useState({ bank_uid: "", branch_uid: "", holder_name: "", iban: "", account_no: "", is_default: false });
+  const banks = useLoad(() => mode === "account" ? api.get<{ banks: RegistryBank[] }>("/api/registry/banks") : Promise.resolve({ banks: [] as RegistryBank[] }), [mode]);
   const [wd, setWd] = useState({ account: "", amount: "", key: newKey() });
   const [view, setView] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -63,13 +74,15 @@ export function CompanyFinance() {
     try { await fn(); setMode(null); toast(done); reload(); } catch (e) { setError(e); } finally { setBusy(false); }
   };
   const verified = (accounts.data?.accounts ?? []).filter((a) => a.verified && a.status === "ACTIVE");
+  const noFunds = bal.data?.money_mode === "NO_FUNDS";         // phase one (N13): figures only, no money with the platform
   return (
     <div className="stack">
       <PageHead title={t("finance.title")} sub={t("finance.sub")}>
         {manage && <button className="btn outlined" onClick={() => { setError(null); setMode("account"); }}><Icon name="add" />{t("finance.addAccount")}</button>}
-        {manage && <button className="btn" disabled={!verified.length} onClick={() => { setError(null); setWd({ account: verified[0]?.uid ?? "", amount: "", key: newKey() }); setMode("withdraw"); }}>
+        {manage && !noFunds && <button className="btn" disabled={!verified.length} onClick={() => { setError(null); setWd({ account: verified[0]?.uid ?? "", amount: "", key: newKey() }); setMode("withdraw"); }}>
           <Icon name="payments" />{t("finance.withdraw")}</button>}
       </PageHead>
+      {noFunds && <div className="card notice" role="note"><Icon name="info" /> {t("finance.noFunds")}</div>}
       <Loaded state={bal}>{(b) => (
         <div className="grid cols-3">
           <Stat icon="account_balance_wallet" label={t("finance.available")} value={money(b.available)} />
@@ -95,8 +108,22 @@ export function CompanyFinance() {
           <div className="card-title"><h3>{t("finance.accounts")}</h3></div>
           <Loaded state={accounts}>{({ accounts: list }) => list.length === 0 ? <Empty icon="account_balance_wallet" title={t("finance.noAccount")} /> : (
             <div className="stack tight">{list.map((a) => (
-              <div key={a.uid} className="row between"><span>{a.bank_name}<div className="small muted">{a.holder_name} · ···· <span className="ltr mono">{a.iban_last4}</span></div></span>
-                {a.verified ? <span className="chip green"><Icon name="verified" size={16} />{t("finance.verified")}</span> : <span className="chip wheat">{t("finance.pending")}</span>}</div>
+              <div key={a.uid} className="row between" style={{ flexWrap: "wrap" }}>
+                <span style={{ minWidth: 0 }}>{named(locale, a.bank_name_ar, a.bank_name_en) || a.bank_name}
+                  {a.is_default && <span className="chip blue small">{t("finance.default")}</span>}
+                  <div className="small muted">{[named(locale, a.branch_name_ar, a.branch_name_en), a.holder_name].filter(Boolean).join(" · ")} · IBAN ···· <span className="ltr mono">{a.iban_last4}</span>
+                    {a.account_no_last4 && <> · {t("finance.accountNo")} ···· <span className="ltr mono">{a.account_no_last4}</span></>}
+                    {a.swift_bic && <> · SWIFT <span className="ltr mono">{a.swift_bic}</span></>}</div></span>
+                <div className="row" style={{ gap: 4, flexWrap: "wrap" }}>
+                  {a.status !== "ACTIVE" ? <span className="chip">{t("finance.disabled")}</span>
+                    : a.verification_status === "REJECTED" ? <span className="chip red">{t("finance.rejectedAccount")}</span>
+                    : a.verified ? <span className="chip green"><Icon name="verified" size={16} />{t("finance.verified")}</span>
+                    : <span className="chip wheat">{t("finance.unverified")}</span>}
+                  {manage && a.status === "ACTIVE" && !a.is_default && a.verification_status !== "REJECTED" && <button className="btn text small" disabled={busy}
+                    onClick={() => run(() => api.post(`/api/finance/bank-accounts/${a.uid}/default`), t("common.saved"))}>{t("finance.makeDefault")}</button>}
+                  {manage && a.status === "ACTIVE" && <button className="btn text small" disabled={busy}
+                    onClick={() => run(() => api.post(`/api/finance/bank-accounts/${a.uid}/disable`), t("common.saved"))}>{t("finance.disableAccount")}</button>}
+                </div></div>
             ))}</div>
           )}</Loaded>
         </div>
@@ -118,12 +145,36 @@ export function CompanyFinance() {
       {mode === "account" && (
         <Modal title={t("finance.addAccount")} onClose={() => setMode(null)}
                actions={<><button className="btn text" onClick={() => setMode(null)}>{t("common.cancel")}</button>
-                 <button className="btn" disabled={busy} onClick={() => run(() => api.post("/api/finance/bank-accounts", acct), t("finance.accountAdded"))}>{t("common.save")}</button></>}>
+                 <button className="btn" disabled={busy || !acct.bank_uid}
+                   onClick={() => run(() => api.post("/api/finance/bank-accounts", { ...acct, branch_uid: acct.branch_uid || null, account_no: acct.account_no || null }), t("finance.accountAdded"))}>{t("common.save")}</button></>}>
           <div className="stack">
             <ErrorBox error={error} />
-            <Field label={t("finance.bankName")}><input className="input" value={acct.bank_name} onChange={(e) => setAcct({ ...acct, bank_name: e.target.value })} /></Field>
+            <Loaded state={banks}>{({ banks: list }) => {
+              const bank = list.find((b) => b.uid === acct.bank_uid);
+              const branch = bank?.branches.find((b) => b.uid === acct.branch_uid);
+              const swift = branch?.swift_bic || bank?.swift_bic;
+              return (<>
+                <Field label={t("finance.bankName")} hint={list.length === 0 ? t("finance.noBanks") : undefined}>
+                  <select className="input" value={acct.bank_uid} onChange={(e) => setAcct({ ...acct, bank_uid: e.target.value, branch_uid: "" })}>
+                    <option value="">{t("finance.choose")}</option>
+                    {list.map((b) => <option key={b.uid} value={b.uid}>{named(locale, b.name_ar, b.name_en)}</option>)}
+                  </select>
+                </Field>
+                <Field label={t("finance.branch")} hint={bank && bank.branches.length === 0 ? t("finance.headOffice") : undefined}>
+                  <select className="input" value={acct.branch_uid} disabled={!bank || bank.branches.length === 0}
+                          onChange={(e) => setAcct({ ...acct, branch_uid: e.target.value })}>
+                    <option value="">{t("finance.headOffice")}</option>
+                    {(bank?.branches ?? []).map((b) => <option key={b.uid} value={b.uid}>{named(locale, b.name_ar, b.name_en)}</option>)}
+                  </select>
+                </Field>
+                <Field label="SWIFT / BIC" hint={t("finance.swiftHint")}><input className="input ltr mono" readOnly value={swift ?? "—"} /></Field>
+              </>);
+            }}</Loaded>
             <Field label={t("finance.holder")}><input className="input" value={acct.holder_name} onChange={(e) => setAcct({ ...acct, holder_name: e.target.value })} /></Field>
+            <Field label={t("finance.accountNo")}><input className="input ltr mono" autoComplete="off" value={acct.account_no} onChange={(e) => setAcct({ ...acct, account_no: e.target.value.toUpperCase() })} /></Field>
             <Field label="IBAN" hint={t("finance.ibanHint")}><input className="input ltr mono" autoComplete="off" value={acct.iban} onChange={(e) => setAcct({ ...acct, iban: e.target.value.toUpperCase() })} /></Field>
+            <label className="row"><input type="checkbox" checked={acct.is_default} onChange={(e) => setAcct({ ...acct, is_default: e.target.checked })} />{t("finance.makeDefault")}</label>
+            <div className="alert info"><Icon name="info" /><span>{t("finance.unverifiedNote")}</span></div>
           </div>
         </Modal>
       )}
@@ -162,6 +213,7 @@ export function AdminFinance() {
   const sts = useLoad(() => api.get<{ settlements: Settlement[] }>("/api/admin/finance/settlements"));
   const companies = useLoad(() => api.get<{ companies: { uid: string; legal_name: string; company_type: string }[] }>("/api/admin/companies"));
   const [reject, setReject] = useState<Withdrawal | null>(null);
+  const [rejectAcct, setRejectAcct] = useState<BankAccount | null>(null);
   const [reason, setReason] = useState("");
   const [pay, setPay] = useState<{ w: Withdrawal; details: { iban: string; holder: string; bank: string; amount: number } | null; ref: string } | null>(null);
   const [runOpen, setRunOpen] = useState(false);
@@ -183,7 +235,7 @@ export function AdminFinance() {
   return (
     <div className="stack">
       <PageHead title={t("finance.desk")} sub={t("finance.deskSub")} />
-      <ErrorBox error={!reject && !pay && !runOpen ? error : null} />
+      <ErrorBox error={!reject && !pay && !runOpen && !rejectAcct ? error : null} />
       <div className="card">
         <div className="card-title"><h3>{t("finance.withdrawals")}</h3>
           <select className="input" style={{ width: 200 }} aria-label={t("common.status")} value={status} onChange={(e) => setStatus(e.target.value)}>
@@ -198,7 +250,7 @@ export function AdminFinance() {
               return (
                 <tr key={w.uid}>
                   <td className="small">{dateTime(w.created_at)}<div className="muted">{w.requested_by_name}</div></td>
-                  <td>{w.company_name}</td><td className="num">{money(w.amount)}</td>
+                  <td><CarrierName name={w.company_name} uid={w.company_uid} logo={w.company_logo} /></td><td className="num">{money(w.amount)}</td>
                   <td className="small">{w.bank_name} ···· <span className="ltr mono">{w.iban_last4}</span></td>
                   <td className="small">{w.needs_second ? t("finance.twoNeeded") : t("finance.oneNeeded")}{waitingSecond && <div className="chip wheat">{t("finance.waitingSecond")}</div>}</td>
                   <td><Status value={w.status} /></td>
@@ -222,7 +274,7 @@ export function AdminFinance() {
             <div className="table-wrap" tabIndex={0}><table className="table">
               <thead><tr><th>{t("finance.company")}</th><th>{t("finance.period")}</th><th className="num">{t("finance.net")}</th><th>{t("common.status")}</th><th /></tr></thead>
               <tbody>{settlements.map((s) => (
-                <tr key={s.uid}><td>{s.company_name}</td><td className="small">{date(`${s.period_from}T12:00:00Z`)} – {date(`${s.period_to}T12:00:00Z`)}</td>
+                <tr key={s.uid}><td><CarrierName name={s.company_name} uid={s.company_uid} logo={s.company_logo} /></td><td className="small">{date(`${s.period_from}T12:00:00Z`)} – {date(`${s.period_to}T12:00:00Z`)}</td>
                   <td className="num">{money(s.net)}</td><td><Status value={s.status} /></td>
                   <td><div className="row nowrap" style={{ gap: 4 }}>
                     <button className="btn text small" onClick={() => setView(s.uid)}>{t("common.view")}</button>
@@ -236,8 +288,11 @@ export function AdminFinance() {
           <div className="card-title"><h3>{t("finance.accountsToVerify")}</h3></div>
           <Loaded state={accounts}>{({ accounts: list }) => list.length === 0 ? <Empty icon="verified" title={t("common.noData")} /> : (
             <div className="stack tight">{list.map((a) => (
-              <div key={a.uid} className="row between"><span>{a.company_name}<div className="small muted">{a.bank_name} · {a.holder_name} · ···· <span className="ltr mono">{a.iban_last4}</span></div></span>
-                <button className="btn tonal small" disabled={busy} onClick={() => act(() => api.post(`/api/admin/finance/bank-accounts/${a.uid}/verify`), t("finance.verified"))}>{t("finance.verify")}</button></div>
+              <div key={a.uid} className="row between"><span><CarrierName name={a.company_name} uid={a.company_uid} logo={a.company_logo} /><div className="small muted">{a.bank_name} · {a.holder_name} · ···· <span className="ltr mono">{a.iban_last4}</span></div></span>
+                <div className="row nowrap" style={{ gap: 4 }}>
+                  <button className="btn tonal small" disabled={busy} onClick={() => act(() => api.post(`/api/admin/finance/bank-accounts/${a.uid}/verify`), t("finance.verified"))}>{t("finance.verify")}</button>
+                  <button className="btn text small" disabled={busy} onClick={() => { setRejectAcct(a); setReason(""); setError(null); }}>{t("admin.reject")}</button>
+                </div></div>
             ))}</div>
           )}</Loaded>
         </div>
@@ -246,6 +301,14 @@ export function AdminFinance() {
         <Modal title={`${t("admin.reject")} · ${money(reject.amount)}`} onClose={() => setReject(null)}
                actions={<><button className="btn text" onClick={() => setReject(null)}>{t("common.cancel")}</button>
                  <button className="btn danger" disabled={busy || reason.trim().length < 3} onClick={() => act(() => api.post(`/api/admin/finance/withdrawals/${reject.uid}/reject`, { reason }), t("common.saved"), () => setReject(null))}>{t("common.confirm")}</button></>}>
+          <div className="stack"><ErrorBox error={error} /><Field label={t("common.reason")}><textarea className="input" value={reason} onChange={(e) => setReason(e.target.value)} /></Field></div>
+        </Modal>
+      )}
+      {rejectAcct && (
+        <Modal title={`${t("admin.reject")} · ${rejectAcct.bank_name}`} onClose={() => setRejectAcct(null)}
+               actions={<><button className="btn text" onClick={() => setRejectAcct(null)}>{t("common.cancel")}</button>
+                 <button className="btn danger" disabled={busy || reason.trim().length < 3}
+                         onClick={() => act(() => api.post(`/api/admin/finance/bank-accounts/${rejectAcct.uid}/reject`, { reason }), t("common.saved"), () => setRejectAcct(null))}>{t("common.confirm")}</button></>}>
           <div className="stack"><ErrorBox error={error} /><Field label={t("common.reason")}><textarea className="input" value={reason} onChange={(e) => setReason(e.target.value)} /></Field></div>
         </Modal>
       )}

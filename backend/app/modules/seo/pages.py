@@ -1,6 +1,6 @@
 """Landing pages for search engines, in Arabic (/ar/...) and English (/en/...).
 
-    /robots.txt  /sitemap.xml  /og-ar.png  /og-en.png  /logo.png
+    /robots.txt  /.well-known/security.txt  /sitemap.xml  /og-ar.png  /og-en.png  /logo.png
     /ar  /en                          home: search form, popular routes, international, services, cities, FAQ
     /{lang}/bus/{from}-to-{to}        a route: facts, next departures with prices, how to book, documents, FAQ
     /{lang}/city/{city}               routes from and to a city, its bus stations
@@ -13,14 +13,15 @@ JavaScript; the booking itself happens in the web app (/search). Unknown address
 """
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from html import escape
 
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse, PlainTextResponse, Response
 
-from ...config import get_settings
-from . import data, images
+from ... import money as amounts
+from ...config import get_settings, is_test_server
+from . import data, images, render
 from .render import (base, breadcrumbs, city_name, day_label, distance, duration, faq, local, money, page, search_form,
                      search_url, station_name, words)
 
@@ -31,7 +32,19 @@ CACHE = {"Cache-Control": "public, max-age=600"}
 
 def _html(body: str, status: int = 200) -> HTMLResponse:
     headers = dict(CACHE) if status == 200 else {"Cache-Control": "no-store", "X-Robots-Tag": "noindex"}
-    return HTMLResponse(body, status_code=status, headers=headers)
+    return HTMLResponse(body, status_code=status, headers={**headers, "Content-Security-Policy": render.CSP})
+
+
+def _logo_url(x: data.Trip) -> str:
+    return f"/api/public/companies/{x.carrier_uid}/logo?v={x.carrier_logo}"
+
+
+def _carrier(x: data.Trip) -> str:
+    """The carrier's name, with its logo beside it when it has one (1116)."""
+    if not (x.carrier_logo and x.carrier_uid):
+        return escape(x.carrier)
+    return (f"<span class='carrier'><img src=\"{escape(_logo_url(x))}\" alt='' width='60' height='22' loading='lazy'>"
+            f"<span>{escape(x.carrier)}</span></span>")
 
 
 def _cities_for_form(cat: data.Catalog, lang: str) -> list[tuple[str, str]]:
@@ -54,12 +67,31 @@ def _popular(cat: data.Catalog, limit: int = 16, international: bool | None = Fa
 
 
 # ------------------------------------------------------------------ robots, sitemap, images
+def robots_text(test_server: bool) -> str:
+    """A test or trial server is kept out of every index; a production server lets the public pages in and names only
+    the API, since the app screens answer with X-Robots-Tag noindex anyway and a list of them would only guide scanners
+    (owner's trial notes, October 2026)."""
+    if test_server:
+        return "User-agent: *\nDisallow: /\n"
+    return "\n".join(["User-agent: *", "Allow: /", "Disallow: /api/", "Disallow: /backup/", "", f"Sitemap: {base()}/sitemap.xml", ""])
+
+
 @router.get("/robots.txt")
 async def robots():
-    private = ["/api/", "/admin", "/carrier", "/agency", "/driver", "/inspector", "/regulator", "/account", "/wallet", "/family", "/trips",
-               "/booking/", "/pay/", "/m/", "/mfa", "/search", "/trip/"]
-    lines = ["User-agent: *", "Allow: /", *[f"Disallow: {p}" for p in private], "", f"Sitemap: {base()}/sitemap.xml", ""]
-    return PlainTextResponse("\n".join(lines), headers=CACHE)
+    return PlainTextResponse(robots_text(is_test_server()), headers=CACHE)
+
+
+def security_txt(today: date | None = None) -> str:
+    """RFC 9116: where to report a vulnerability, valid for less than a year from the day it is served."""
+    today = today or date.today()
+    st = get_settings()
+    return "\n".join([f"Contact: {st.security_contact}", f"Expires: {today + timedelta(days=360)}T00:00:00Z",
+                      "Preferred-Languages: ar, en", f"Canonical: {base()}/.well-known/security.txt", ""])
+
+
+@router.get("/.well-known/security.txt")
+async def security_contact():
+    return PlainTextResponse(security_txt(), headers=CACHE)
 
 
 async def _paths() -> list[str]:
@@ -104,7 +136,7 @@ async def home(lang: str):
     h = w["home"]
     hero = (f'<section class="hero"><div class="wrap"><h1>{escape(h["h1"])}</h1><p class="lead">{escape(h["lead"])}</p>'
             f"{search_form(lang, _cities_for_form(cat, lang))}</div></section>")
-    body = [f'<section><p style="margin-top:24px">{escape(h["intro"])}</p></section>']
+    body = [f'<section><p class="gap-top">{escape(h["intro"])}</p></section>']
     body.append(f'<section id="routes"><h2>{escape(h["popular_title"])}</h2><div class="grid">'
                 + "".join(_route_card(lang, r) for r in _popular(cat)) + "</div></section>")
     body.append(f'<section><h2>{escape(h["intl_title"])}</h2><p>{escape(h["intl_text"])}</p><div class="grid">'
@@ -165,14 +197,14 @@ async def route(lang: str, slug: str):
         rows = []
         for x in r.trips[:15]:
             d = local(x.departs, x.zone)
-            rows.append(f"<tr><td>{escape(day_label(lang, x.departs, x.zone))}</td><td>{d.strftime('%H:%M')}</td><td>{escape(x.carrier)}</td>"
+            rows.append(f"<tr><td>{escape(day_label(lang, x.departs, x.zone))}</td><td>{d.strftime('%H:%M')}</td><td>{_carrier(x)}</td>"
                         f"<td>{escape(money(lang, x.price))}</td><td><a href=\"{escape(search_url(r.a, r.b, lang, d.date().isoformat()))}\">"
                         f"{escape(w['nav']['book'])}</a></td></tr>")
-            trips_ld.append({"@type": "BusTrip", "name": f"{A} – {B}", "provider": {"@type": "Organization", "name": x.carrier},
+            trips_ld.append({"@type": "BusTrip", "name": f"{A} – {B}", "provider": {"@type": "Organization", "name": x.carrier, **({"logo": f"{base()}{_logo_url(x)}"} if x.carrier_logo else {})},
                              "departureTime": x.departs.isoformat(), **({"arrivalTime": x.arrives.isoformat()} if x.arrives else {}),
                              "departureBusStop": {"@type": "BusStation", "name": station_name(lang, x.origin_code, x.origin_station)},
                              "arrivalBusStop": {"@type": "BusStation", "name": station_name(lang, x.dest_code, x.dest_station)},
-                             "offers": {"@type": "Offer", "price": round(x.price / 100), "priceCurrency": x.currency,
+                             "offers": {"@type": "Offer", "price": str(amounts.major(x.price, x.currency)), "priceCurrency": x.currency,
                                         "url": f"{base()}{search_url(r.a, r.b, lang, d.date().isoformat())}",
                                         "availability": "https://schema.org/InStock"}})
         body.append(f"<table><thead><tr><th>{escape(c['date'])}</th><th>{escape(c['time'])}</th><th>{escape(c['carrier'])}</th>"
@@ -353,7 +385,7 @@ async def not_found(lang: str):
     cat = await data.catalog()
     w = words(lang)
     t = w["notfound"]
-    body = (f"<h1 style='margin-top:32px'>{escape(t['h1'])}</h1><p>{escape(t['text'])}</p>{search_form(lang, _cities_for_form(cat, lang))}"
+    body = (f"<h1 class='gap-top-lg'>{escape(t['h1'])}</h1><p>{escape(t['text'])}</p>{search_form(lang, _cities_for_form(cat, lang))}"
             f"<div class='grid'>" + "".join(_route_card(lang, r) for r in _popular(cat, 8)) + "</div>")
     return _html(page(lang=lang, path="", title=t["title"], description=t["text"], body=body, status_noindex=True), 404)
 

@@ -1,14 +1,18 @@
 import { useMemo, useState } from "react";
-import { Alert, Text } from "react-native";
+import { Alert, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
 import { randomUUID } from "expo-crypto";
-import { useI18n } from "../../../i18n";
+import { toMinor, useI18n } from "../../../i18n";
 import { api } from "../../../platform/api";
-import { Button, Card, Chip, Choice, ErrorText, Field, Loading, Notice, Row, Screen, Title, s } from "../../../ui/kit";
+import { Button, Card, Chip, Choice, Empty, ErrorText, Field, ListCard, Loading, Notice, Screen, SvcHeader, s } from "../../../ui/kit";
+import { TripLine } from "../../../ui/brand";
+import { color, font } from "../../../ui/theme";
 import { tone, useLabels } from "../../../ui/labels";
 import { useLoad } from "../../../ui/useLoad";
 
 interface Options { services: { id: number; code: string; name: string; max_weight_kg: number | null }[]; stations: { id: number; code: string; name: string; city: string }[] }
+interface TripParcel { tracking_no: string; status: string; created_at: string; recipient_name: string; trip_no: string | null; origin_code: string | null;
+  destination_code: string | null }
 interface Parcel { tracking_no: string; status: string; created_at: string; recipient_name: string; service: string; origin_code: string; destination_code: string; origin: string; destination: string; price: number }
 
 /** Send a parcel between stations: price from the published rate table, paid from the wallet, tracked by number. */
@@ -17,6 +21,7 @@ export default function Parcels() {
   const labels = useLabels();
   const opts = useLoad(() => api.get<Options>("/api/w/parcels/options"));
   const mine = useLoad(() => api.get<{ parcels: Parcel[] }>("/api/w/parcels/mine"));
+  const onTrips = useLoad(() => api.get<{ parcels: TripParcel[] }>("/api/parcels/mine"));     // parcels on scheduled trips (1182)
   const [f, setF] = useState({ service: null as number | null, fromCity: null as string | null, from: null as number | null,
                                toCity: null as string | null, to: null as number | null, weight: "", value: "", name: "", mobile: "", contents: "" });
   const [quote, setQuote] = useState<{ price: number; zone: string } | null>(null);
@@ -26,7 +31,7 @@ export default function Parcels() {
   const cities = useMemo(() => [...new Set((opts.data?.stations ?? []).map((x) => x.city))], [opts.data]);
   const stationsIn = (c: string | null) => (opts.data?.stations ?? []).filter((x) => x.city === c);
   const body = () => ({ service_id: f.service, origin_station_id: f.from, dest_station_id: f.to, weight_kg: Number(f.weight),
-                        declared_value: Math.round(Number(f.value || 0) * 100) });
+                        declared_value: toMinor(f.value || 0) });
   const ready = f.service && f.from && f.to && f.from !== f.to && Number(f.weight) > 0;
   const getQuote = async () => {
     setBusy(true); setError(null);
@@ -46,8 +51,7 @@ export default function Parcels() {
   ]);
   return (
     <Screen>
-      <Button kind="text" label={t("common.back")} onPress={() => router.back()} />
-      <Title sub={t("svc.parcels.hint")}>{t("svc.parcels.title")}</Title>
+      <SvcHeader icon="parcel" title={t("svc.parcels.title")} sub={t("svc.parcels.hint")} onBack={() => router.back()} />
       {opts.loading && !opts.data ? <Loading /> : null}
       {opts.data ? (
         <Card>
@@ -61,6 +65,13 @@ export default function Parcels() {
                   options={cities.map((c) => ({ value: c, label: city(c) }))} />
           {stationsIn(f.toCity).length > 1 ? <Choice value={f.to} onChange={(v) => set("to", v)}
                   options={stationsIn(f.toCity).map((x) => ({ value: x.id, label: station(x.code, x.name) }))} /> : null}
+          {f.fromCity && f.toCity ? (
+            <View style={[s.between, { paddingVertical: 4 }]}>
+              <Text style={ps.city}>{city(f.fromCity)}</Text>
+              <TripLine width={90} height={16} />
+              <Text style={ps.city}>{city(f.toCity)}</Text>
+            </View>
+          ) : null}
           <Field label={t("svc.parcels.weight")} value={f.weight} onChangeText={(v) => set("weight", v.replace(/[^0-9.]/g, ""))} keyboardType="decimal-pad" />
           <Field label={t("svc.parcels.value")} hint={t("svc.parcels.valueHint")} value={f.value} onChangeText={(v) => set("value", v.replace(/\D/g, ""))} keyboardType="number-pad" />
           {quote ? <Notice tone="green" text={t("svc.parcels.price", { amount: money(quote.price), zone: quote.zone })} /> : null}
@@ -75,14 +86,26 @@ export default function Parcels() {
           <ErrorText error={error} />
         </Card>
       ) : <ErrorText error={opts.error} />}
-      <Text style={s.h2}>{t("svc.parcels.mine")}</Text>
-      {mine.data && mine.data.parcels.length === 0 ? <Text style={s.muted}>{t("svc.parcels.none")}</Text> : null}
+      <Text style={s.section}>{t("svc.parcels.mine")}</Text>
+      {mine.data && mine.data.parcels.length === 0 ? <Empty icon="parcel" text={t("svc.parcels.none")} /> : null}
       {mine.data?.parcels.map((x) => (
-        <Row key={x.tracking_no} title={`${station(x.origin_code, x.origin)} → ${station(x.destination_code, x.destination)}`}
-             sub={`${x.tracking_no} · ${x.recipient_name} · ${date(x.created_at)}`}
-             right={<Chip label={labels.value(x.status)} tone={tone(x.status)} />}
-             onPress={() => router.push({ pathname: "/svc/track", params: { no: x.tracking_no } })} />
+        <ListCard key={x.tracking_no} title={`${station(x.origin_code, x.origin)} → ${station(x.destination_code, x.destination)}`}
+                  sub={`${x.recipient_name} · ${date(x.created_at)}`}
+                  right={<Chip label={labels.value(x.status)} tone={tone(x.status)} />}
+                  onPress={() => router.push({ pathname: "/svc/track", params: { no: x.tracking_no } })}>
+          <View style={s.between}><Text style={s.mono}>{x.tracking_no}</Text><Text style={s.price}>{money(x.price)}</Text></View>
+        </ListCard>
+      ))}
+      {onTrips.data && onTrips.data.parcels.length > 0 ? <Text style={s.section}>{t("svc.journey.onTrips")}</Text> : null}
+      {onTrips.data?.parcels.map((x) => (
+        <ListCard key={x.tracking_no} title={x.tracking_no} sub={`${x.recipient_name} · ${date(x.created_at)}${x.trip_no ? ` · ${x.trip_no}` : ""}`}
+                  right={<Chip label={labels.value(x.status)} tone={tone(x.status)} />}
+                  onPress={() => router.push({ pathname: "/svc/journey", params: { no: x.tracking_no } })}>
+          <Text style={s.small}>{t("svc.journey.follow")}</Text>
+        </ListCard>
       ))}
     </Screen>
   );
 }
+
+const ps = StyleSheet.create({ city: { fontFamily: font.displayBold, fontSize: 20, color: color.navy } });

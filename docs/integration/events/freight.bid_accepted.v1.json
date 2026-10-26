@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://masslak.com/schemas/events/freight.bid_accepted.v1.json",
+  "title": "freight.bid_accepted",
+  "description": "A shipper accepted a carrier's bid on the freight marketplace. The data of the envelope (EVENTS.md); fields are only added within a version.",
+  "x-event-type": "freight.bid_accepted",
+  "x-schema-version": 1,
+  "type": "object",
+  "properties": {
+    "price": {
+      "type": "integer"
+    }
+  },
+  "required": [
+    "price"
+  ],
+  "additionalProperties": true
+}

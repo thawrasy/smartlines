@@ -12,11 +12,14 @@ from ...util import rows
 from ..notify.outbox import emit
 from . import scanner, storage
 
-DOC_TYPES = ("CR", "TAX_CERT", "TRANSPORT_LICENSE", "INSURANCE_POLICY", "VEHICLE_REG", "AGENCY_LICENSE", "OTHER")
+# the same list as iam.kyc_document_types(): the documents a KYC form may ask for (1118)
+DOC_TYPES = ("CR", "ARTICLES", "TRANSPORT_LICENSE", "TAX_CERT", "ID_DOCUMENT", "BANK_LETTER", "INSURANCE_POLICY", "POA",
+             "OWNERSHIP_CHART", "CHAMBER_CERT", "FINANCIAL_STATEMENTS", "TAX_CLEARANCE", "VEHICLE_REG", "AGENCY_LICENSE", "OTHER")
 
 LIST_SQL = """
     SELECT d.uid, d.doc_type, d.owner_type, d.issuer, d.issue_date, d.expiry_date, d.review_note, d.created_at,
            d.reviewed_at, f.file_name, f.mime_type, f.size_bytes, f.scan_status, p.legal_name AS company_name, v.plate_no,
+           p.uid AS company_uid, iam.logo_version(p.id) AS company_logo,
            CASE WHEN d.status = 'APPROVED' AND d.expiry_date < current_date THEN 'EXPIRED' ELSE d.status END AS status,
            d.expiry_date - current_date AS days_left
       FROM iam.document d JOIN ref.file_object f ON f.id = d.file_id JOIN iam.party p ON p.id = d.company_id
@@ -63,6 +66,16 @@ async def upload(conn: asyncpg.Connection, ctx: db.Context, pr: Principal, doc_t
         if owner_id is None:
             raise not_found("vehicle")
         owner_type = "VEHICLE"
+    file_id = await store_file(conn, ctx, pr, company, data, file_name)
+    row = await conn.fetchrow(
+        """INSERT INTO iam.document (owner_type, owner_id, doc_type, issuer, issue_date, expiry_date, file_id, company_id, uploaded_by)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, uid""",
+        owner_type, owner_id, doc_type, issuer, issue_date, expiry_date, file_id, company, pr.user_id)
+    return row["id"], str(row["uid"])
+
+
+async def store_file(conn: asyncpg.Connection, ctx: db.Context, pr: Principal, company: int, data: bytes, file_name: str) -> int:
+    """An uploaded file, encrypted in storage and scanned before anyone can download or approve it (audit T3-15)."""
     async with db.system_scope(conn, ctx):
         fc = await crypto.cipher(conn)
     try:
@@ -74,14 +87,9 @@ async def upload(conn: asyncpg.Connection, ctx: db.Context, pr: Principal, doc_t
         """INSERT INTO ref.file_object (storage_key, file_name, mime_type, size_bytes, sha256, data_class, enc_key_id,
              uploaded_by, company_id) VALUES ($1, $2, $3, $4, $5, 'CONFIDENTIAL', $6, $7, $8) RETURNING id""",
         stored.storage_key, safe_name, stored.mime_type, stored.size, stored.sha256, stored.key_id, pr.user_id, company)
-    # quarantine: the file is scanned before anyone can download or approve it (audit T3-15)
     if await scanner.scan_file(conn, ctx, file_id) in ("REJECTED", "QUARANTINED"):
         raise ApiError(422, "FILE_REJECTED", "the file did not pass the security scan")
-    row = await conn.fetchrow(
-        """INSERT INTO iam.document (owner_type, owner_id, doc_type, issuer, issue_date, expiry_date, file_id, company_id, uploaded_by)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, uid""",
-        owner_type, owner_id, doc_type, issuer, issue_date, expiry_date, file_id, company, pr.user_id)
-    return row["id"], str(row["uid"])
+    return file_id
 
 
 async def company_documents(conn: asyncpg.Connection, pr: Principal) -> list[dict]:

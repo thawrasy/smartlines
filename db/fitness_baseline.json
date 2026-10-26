@@ -1,0 +1,1750 @@
+{
+ "about": "Accepted state of db/tools/fitness.py: foreign keys without an index (only shrinks) and the roles that may execute each SECURITY DEFINER function (a change here is a reviewed privilege change)",
+ "unindexed_foreign_keys": [
+  "ref.translation.translation_locale_fkey",
+  "ref.country.country_currency_fk",
+  "ref.exchange_rate.exchange_rate_quote_currency_fkey",
+  "ref.city.city_country_code_fkey",
+  "sys.setting.setting_updated_by_fk",
+  "iam.party.party_nationality_fkey",
+  "iam.party.party_country_code_fkey",
+  "iam.party.party_tax_country_fkey",
+  "iam.bank_account.bank_account_currency_fkey",
+  "iam.app_user.app_user_preferred_locale_fkey",
+  "iam.company.company_approved_by_fk",
+  "iam.document.document_reviewed_by_fk",
+  "ref.file_object.file_uploaded_by_fk",
+  "iam.user_role.user_role_granted_by_fkey",
+  "iam.api_client.api_client_created_by_fkey",
+  "iam.api_client.api_client_approved_by_fkey",
+  "iam.api_key.api_key_created_by_fkey",
+  "iam.api_key.api_key_revoked_by_fkey",
+  "iam.identity_provider.identity_provider_country_code_fkey",
+  "iam.verification.verification_reviewer_id_fkey",
+  "net.compliance_profile.compliance_profile_created_by_fkey",
+  "net.compliance_profile.compliance_profile_approved_by_fkey",
+  "net.station.station_country_code_fkey",
+  "net.station.station_verified_by_fkey",
+  "net.carrier_code.carrier_code_approved_by_fkey",
+  "fleet.license_record.license_record_verified_by_fkey",
+  "fleet.license_change_request.license_change_request_requested_by_fkey",
+  "fleet.license_change_request.license_change_request_reviewed_by_fkey",
+  "fleet.license_change_request.license_change_request_approved_by_fkey",
+  "fleet.vehicle_status_history.vehicle_status_history_changed_by_fkey",
+  "pricing.fare_table.fare_table_currency_fkey",
+  "pricing.fare_table.fare_table_created_by_fkey",
+  "pricing.fare_table.fare_table_approved_by_fkey",
+  "pricing.jurisdiction.jurisdiction_country_code_fkey",
+  "pricing.tax_scheme.tax_scheme_created_by_fkey",
+  "pricing.tax_scheme.tax_scheme_approved_by_fkey",
+  "pricing.commission_scheme.commission_scheme_created_by_fkey",
+  "pricing.commission_scheme.commission_scheme_approved_by_fkey",
+  "pricing.allocation_template.allocation_template_created_by_fkey",
+  "pricing.allocation_template.allocation_template_approved_by_fkey",
+  "pricing.loyalty_program.loyalty_program_currency_fkey",
+  "pricing.campaign.campaign_created_by_fkey",
+  "pricing.campaign.campaign_approved_by_fkey",
+  "ops.trip_template.trip_template_currency_fkey",
+  "sales.refund_request.refund_request_requested_by_fkey",
+  "ops.trip.trip_currency_fkey",
+  "ops.trip_stop_event.trip_stop_event_by_user_id_fkey",
+  "ops.incident.incident_reported_by_fkey",
+  "ops.incident_evidence.incident_evidence_uploaded_by_fkey",
+  "ops.trip_disruption.trip_disruption_decided_by_fkey",
+  "sales.refund_request.refund_request_decided_by_fkey",
+  "sales.passenger.passenger_passport_country_fkey",
+  "sales.passenger.passenger_nationality_fkey",
+  "sales.ticket.ticket_trip_id_from_seq_fkey",
+  "sales.ticket.ticket_trip_id_to_seq_fkey",
+  "fin.wallet.wallet_currency_fkey",
+  "fin.ledger_txn.ledger_txn_currency_fkey",
+  "fin.ledger_txn.ledger_txn_created_by_fkey",
+  "fin.payment.payment_currency_fkey",
+  "fin.withdrawal_request.withdrawal_request_requested_by_fkey",
+  "fin.withdrawal_request.withdrawal_request_approved_by_fkey",
+  "fin.withdrawal_request.withdrawal_request_second_approver_fkey",
+  "fin.price_allocation.price_allocation_currency_fkey",
+  "fin.tax_ledger.tax_ledger_currency_fkey",
+  "fin.settlement_batch.settlement_batch_currency_fkey",
+  "fin.settlement_batch.settlement_batch_approved_by_fkey",
+  "fin.payout.payout_currency_fkey",
+  "fin.bank_reconciliation.bank_reconciliation_currency_fkey",
+  "fin.bank_reconciliation.bank_reconciliation_reviewed_by_fkey",
+  "acct.gl_account.gl_account_currency_fkey",
+  "acct.gl_period.gl_period_closed_by_fkey",
+  "acct.posting_rule.posting_rule_created_by_fkey",
+  "acct.posting_rule.posting_rule_approved_by_fkey",
+  "acct.journal_entry.journal_entry_currency_fkey",
+  "acct.journal_entry.journal_entry_created_by_fkey",
+  "acct.tax_authority.tax_authority_country_code_fkey",
+  "fin.withdrawal_request.withdrawal_request_currency_fkey",
+  "acct.tax_profile.tax_profile_approved_by_fkey",
+  "fin.withdrawal_request.withdrawal_request_paid_by_fkey",
+  "net.corridor.corridor_country_code_fkey",
+  "sec.ip_rule.ip_rule_created_by_fkey",
+  "acct.einvoice_document.einvoice_document_currency_fkey",
+  "acct.tax_collection_no_file.tax_collection_no_file_currency_fkey",
+  "acct.tax_payment.tax_payment_currency_fkey",
+  "sec.ip_rule.ip_rule_approved_by_fkey",
+  "sec.ip_rule.ip_rule_revoked_by_fkey",
+  "crm.case_event.case_event_actor_id_fkey",
+  "sec.authority_data_request.authority_data_request_requested_by_fkey",
+  "crm.notification_template.notification_template_locale_fkey",
+  "crm.notification_template.notification_template_approved_by_fkey",
+  "sec.authority_data_request.authority_data_request_approved_by_fkey",
+  "iam.document.document_uploaded_by_fkey",
+  "sales.ticket_doc.ticket_doc_visa_country_fkey",
+  "gov.policy_change.policy_change_proposer_id_fkey",
+  "gov.feature_compliance_review.feature_compliance_review_approved_by_fkey",
+  "gov.subject_request.subject_request_handled_by_fkey",
+  "sec.blocklist_entry.blocklist_entry_added_by_fkey",
+  "sales.ticket_doc.ticket_doc_residence_country_fkey",
+  "sec.access_review.access_review_reviewer_id_fkey",
+  "sec.break_glass_log.break_glass_log_approver_id_fkey",
+  "sec.screening_result.screening_result_reviewed_by_fkey",
+  "sec.watchlist_entry.watchlist_entry_created_by_fkey",
+  "sec.manifest_submission.manifest_submission_created_by_fkey",
+  "sec.authority_order.authority_order_executed_by_fkey",
+  "sec.sos_event.sos_event_triggered_by_fkey",
+  "sales.ticket_doc.ticket_doc_verified_by_fkey",
+  "fleet.seat_layout.seat_layout_created_by_fkey",
+  "sales.agency_agreement.agency_agreement_currency_fkey",
+  "sales.agency_agreement.agency_agreement_created_by_fkey",
+  "iam.bank_account.bank_account_verified_by_fkey",
+  "fin.settlement_batch.settlement_batch_created_by_fkey",
+  "iam.party_role.party_role_role_code_fk",
+  "ops.trip.trip_trip_type_fk",
+  "fleet.vehicle.vehicle_vehicle_class_fk",
+  "net.station.station_subtype_fk",
+  "ops.crossing_event.crossing_event_recorded_by_user_id_fkey",
+  "ops.transit_reconciliation.transit_reconciliation_resolved_by_user_id_fkey",
+  "ctr.service_contract.service_contract_currency_fkey",
+  "ctr.contract_invoice.contract_invoice_currency_fkey",
+  "fleet.vehicle_service_status.vehicle_service_status_released_by_fkey",
+  "fleet.insurance_claim.insurance_claim_currency_fkey",
+  "fleet.vehicle_fuel_profile.vehicle_fuel_profile_vehicle_class_fkey",
+  "net.line.line_city_id_fkey",
+  "net.line_tariff.line_tariff_currency_fkey",
+  "net.line_tariff.line_tariff_approved_by_fkey",
+  "ops.shuttle_ride.shuttle_ride_currency_fkey",
+  "sales.shuttle_zone.shuttle_zone_city_id_fkey",
+  "sales.subscription_plan.subscription_plan_currency_fkey",
+  "sales.subscription.subscription_currency_fkey",
+  "pricing.cancellation_policy.cancellation_policy_approved_by_fkey",
+  "sales.ticket_doc.ticket_doc_dest_country_fkey",
+  "sales.entry_rule.entry_rule_nationality_fkey",
+  "sales.entry_rule.entry_rule_created_by_fkey",
+  "sales.entry_rule.entry_rule_approved_by_fkey",
+  "sales.inspection_check.inspection_check_currency_fkey",
+  "ptn.partner_contract.partner_contract_currency_fkey",
+  "ptn.partner_contract.partner_contract_created_by_fkey",
+  "ptn.partner_contract.partner_contract_approved_by_fkey",
+  "ptn.fuel_price.fuel_price_currency_fkey",
+  "ptn.fuel_card.fuel_card_currency_fkey",
+  "ptn.partner_menu_item.partner_menu_item_currency_fkey",
+  "ptn.partner_order.partner_order_currency_fkey",
+  "ptn.partner_sale.partner_sale_currency_fkey",
+  "ptn.fuel_anomaly.fuel_anomaly_resolved_by_fkey",
+  "ptn.partner_settlement.partner_settlement_currency_fkey",
+  "pricing.reward_catalog.reward_catalog_currency_fkey",
+  "pricing.reward_voucher.reward_voucher_currency_fkey",
+  "pricing.partner_redemption.partner_redemption_currency_fkey",
+  "pricing.sponsor_account.sponsor_account_currency_fkey",
+  "pricing.override_policy.override_policy_created_by_fkey",
+  "pricing.override_policy.override_policy_approved_by_fkey",
+  "bill.plan.plan_currency_fkey",
+  "bill.carrier_agreement.carrier_agreement_created_by_fkey",
+  "bill.carrier_agreement.carrier_agreement_approved_by_fkey",
+  "bill.carrier_invoice.carrier_invoice_currency_fkey",
+  "fin.cash_remittance.cash_remittance_currency_fkey",
+  "fin.cash_remittance.cash_remittance_recorded_by_fkey",
+  "fin.float_account.float_account_currency_fkey",
+  "fin.float_report.float_report_currency_fkey",
+  "ship.surcharge_definition.surcharge_definition_currency_fkey",
+  "ship.geo_zone.geo_zone_country_code_fkey",
+  "ship.geo_zone.geo_zone_city_id_fkey",
+  "ship.rate_table.rate_table_currency_fkey",
+  "ship.cargo_rate_card.cargo_rate_card_currency_fkey",
+  "ship.prohibited_item.prohibited_item_country_code_fkey",
+  "ship.shipment.shipment_currency_fkey",
+  "ship.shipment.shipment_cargo_category_fkey",
+  "ship.shipment_leg.shipment_leg_currency_fkey",
+  "ship.capacity_booking.capacity_booking_currency_fkey",
+  "ship.delivery_preference.delivery_preference_requested_by_fkey",
+  "ship.cod_collection.cod_collection_currency_fkey",
+  "ship.cod_collection.cod_collection_collected_by_fkey",
+  "ship.cargo_claim.cargo_claim_currency_fkey",
+  "ship.partner_contract.partner_contract_currency_fkey",
+  "ship.partner_settlement.partner_settlement_currency_fkey",
+  "frt.freight_request.freight_request_cargo_category_fkey",
+  "frt.freight_request.freight_request_currency_fkey",
+  "frt.freight_bid.freight_bid_currency_fkey",
+  "frt.freight_contract.freight_contract_currency_fkey",
+  "frt.transit_declaration.transit_declaration_cargo_category_fkey",
+  "frt.freight_document.freight_document_verified_by_fkey",
+  "frt.detention_claim.detention_claim_currency_fkey",
+  "frt.freight_claim.freight_claim_currency_fkey",
+  "brd.border_point.border_point_country_code_fkey",
+  "brd.manifest_person.manifest_person_issuing_country_fkey",
+  "brd.manifest_person.manifest_person_nationality_fkey",
+  "brd.manifest_vehicle.manifest_vehicle_plate_country_fkey",
+  "brd.manifest_cargo.manifest_cargo_cargo_category_fkey",
+  "brd.manifest_discrepancy.manifest_discrepancy_resolved_by_fkey",
+  "acct.sales_invoice.sales_invoice_currency_fkey",
+  "acct.cash_box.cash_box_currency_fkey",
+  "acct.cash_session.cash_session_opened_by_fkey",
+  "acct.cash_receipt.cash_receipt_currency_fkey",
+  "acct.cash_payment.cash_payment_currency_fkey",
+  "acct.cash_payment.cash_payment_approved_by_fkey",
+  "acct.sync_conflict.sync_conflict_resolved_by_fkey",
+  "acct.export_batch.export_batch_created_by_fkey",
+  "sales.channel_agreement.channel_agreement_created_by_fkey",
+  "sales.channel_agreement.channel_agreement_approved_by_fkey",
+  "sales.channel_inventory_rule.channel_inventory_rule_trip_type_fkey",
+  "sales.channel_statement.channel_statement_currency_fkey",
+  "sales.channel_memo.channel_memo_currency_fkey",
+  "taxi.meter_tariff.meter_tariff_currency_fkey",
+  "taxi.meter_tariff.meter_tariff_approved_by_fkey",
+  "crm.call_qa.call_qa_scorer_user_id_fkey",
+  "taxi.taxi_office.taxi_office_city_id_fkey",
+  "rent.rental_booking.rental_booking_currency_fkey",
+  "taxi.taxi_permit.taxi_permit_city_id_fkey",
+  "taxi.ride_request.ride_request_city_id_fkey",
+  "taxi.ride_request.ride_request_currency_fkey",
+  "taxi.ride.ride_currency_fkey",
+  "rent.rental_rate.rental_rate_currency_fkey",
+  "rent.rental_addon.rental_addon_currency_fkey",
+  "rent.renter_rule.renter_rule_approved_by_fkey",
+  "rent.deposit_hold.deposit_hold_currency_fkey",
+  "rpt.report_schedule.report_schedule_locale_fkey",
+  "fin.payment_provider.payment_provider_updated_by_fkey",
+  "fin.bank_statement_line.bank_statement_line_currency_fkey",
+  "sales.ticket.ticket_passenger_booking_fk",
+  "ops.seat_segment.seat_segment_ticket_trip_fk",
+  "fin.payment_method.payment_method_updated_by_fkey",
+  "fin.cash_credit_limit.cash_credit_limit_set_by_fkey",
+  "fin.cash_remittance.cash_remittance_confirmed_by_fkey",
+  "sales.booking.booking_currency_fkey",
+  "fin.approval_request.approval_request_requested_by_fkey",
+  "fin.fee_rule.fee_rule_created_by_fkey",
+  "fin.fee_rule.fee_rule_updated_by_fkey",
+  "fin.approval_policy.approval_policy_updated_by_fkey",
+  "ship.parcel_tariff.parcel_tariff_currency_fkey",
+  "ship.parcel_offer.parcel_offer_currency_fkey",
+  "ops.trip_cancel_penalty.trip_cancel_penalty_currency_fkey",
+  "pricing.loyalty_agreement.loyalty_agreement_currency_fkey",
+  "pricing.loyalty_settlement.loyalty_settlement_currency_fkey",
+  "brd.station_sale.station_sale_currency_fkey",
+  "sales.booking_change.booking_change_currency_fkey",
+  "frt.shipping_line.shipping_line_country_fkey",
+  "frt.rate_card.rate_card_to_country_fkey",
+  "frt.consignment_invoice.consignment_invoice_currency_fkey",
+  "frt.consignment.consignment_shipper_country_fkey",
+  "frt.consignment.consignment_consignee_country_fkey",
+  "frt.consignment.consignment_origin_country_fkey",
+  "frt.consignment.consignment_dest_country_fkey",
+  "frt.consignment.consignment_cargo_category_fkey",
+  "frt.consignment.consignment_value_currency_fkey",
+  "frt.rate_card.rate_card_currency_fkey",
+  "frt.truck_movement.truck_movement_truck_plate_country_fkey",
+  "frt.truck_movement.truck_movement_driver_nationality_fkey",
+  "frt.truck_movement.truck_movement_currency_fkey",
+  "frt.transport_invoice.transport_invoice_currency_fkey",
+  "sales.connection_hold.connection_hold_currency_fkey",
+  "sales.ticket.ticket_booking_trip_fk"
+ ],
+ "definer_functions": {
+  "acct.einvoice_chain_breaks(bigint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "acct.tg_journal_guard()": [],
+  "audit.archive_metrics()": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_readonly"
+  ],
+  "audit.drop_archived_partitions()": [],
+  "audit.on_ddl_end()": [],
+  "audit.on_sql_drop()": [],
+  "audit.record_archive(text,bigint,text)": [
+   "masslak_audit",
+   "masslak_auditor"
+  ],
+  "audit.seal(text,integer)": [],
+  "audit.tg_auth_fail_autoblock()": [],
+  "audit.tg_capture_change()": [],
+  "brd.assign_trip_bay(uuid,integer,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "brd.boarding_pass(bigint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "brd.cancel_station_checkin(text,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "brd.screen_board(uuid)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "brd.station_actor_may(bigint,bigint,text)": [],
+  "brd.station_bays(bigint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "brd.station_board(uuid,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "brd.station_checkin_ticket(uuid,bigint,text,boolean)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "brd.station_may_board(uuid,bigint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "brd.station_may_sell(bigint,integer,bigint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "brd.station_trips(bigint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "brd.stop_bay_id(bigint,integer)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "brd.tg_delivery_scope()": [],
+  "brd.tg_manifest_chain()": [],
+  "brd.tg_manifest_content_sealed()": [],
+  "brd.tg_manifest_person_trip()": [],
+  "brd.tg_manifest_sealed()": [],
+  "brd.tg_station_sale()": [],
+  "brd.ticket_uid(text,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "crm.ai_authorize_tool(bigint,text,jsonb,boolean)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "crm.ai_tool_refusal(bigint,text,jsonb,boolean)": [],
+  "crm.tg_ai_conversation_ended()": [],
+  "crm.tg_ai_tool_call_guard()": [],
+  "crm.tg_case_defaults()": [],
+  "crm.tg_case_event_effects()": [],
+  "crm.tg_case_lifecycle()": [],
+  "crm.tg_trip_rating_rules()": [],
+  "fin.agency_cash_owed(bigint,bigint,character)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "fin.apply_money_mode_default(text)": [],
+  "fin.approval_levels(text,bigint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "fin.carrier_takes(bigint,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "fin.cash_aging(timestamp with time zone,character)": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_readonly"
+  ],
+  "fin.cash_limit(bigint)": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_audit",
+   "masslak_auditor",
+   "masslak_readonly"
+  ],
+  "fin.cash_owed(bigint,character)": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_audit",
+   "masslak_auditor",
+   "masslak_readonly"
+  ],
+  "fin.close_ledger_days(date)": [],
+  "fin.ensure_platform_wallets(character)": [],
+  "fin.ledger_open_from()": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_audit",
+   "masslak_auditor",
+   "masslak_cdc",
+   "masslak_readonly"
+  ],
+  "fin.money_boundary_metrics()": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_readonly"
+  ],
+  "fin.money_mode()": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "fin.money_mode_state()": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "fin.payment_fee(bigint,character,bigint,bigint,timestamp with time zone)": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_readonly"
+  ],
+  "fin.payment_metrics()": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_readonly"
+  ],
+  "fin.reconcile_payments()": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_audit",
+   "masslak_auditor",
+   "masslak_cdc",
+   "masslak_readonly"
+  ],
+  "fin.reconcile_wallets()": [],
+  "fin.roll_up_balances(integer)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "fin.set_money_mode(text,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "fin.switch_money_mode(text,text,bigint)": [],
+  "fin.tg_approval_decision()": [],
+  "fin.tg_ledger_entry_apply()": [],
+  "fin.tg_ledger_txn_balanced()": [],
+  "fin.tg_payment_wallet_owner()": [],
+  "fin.tg_posting_batch_close()": [],
+  "fin.tg_reversal_mirrors()": [],
+  "fin.tg_wallet_balance_guard()": [],
+  "fin.tg_wallet_mode_change()": [],
+  "fin.tg_wallet_opens_empty()": [],
+  "fin.tg_withdrawal_kyc_gate()": [],
+  "fin.unsigned_notices(interval)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "fin.verify_ledger_day(date)": [],
+  "fleet.license_valid(text,bigint,text,date)": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_readonly"
+  ],
+  "fleet.tg_license_locked()": [],
+  "fleet.tg_permit_vehicle_rules()": [],
+  "fleet.tg_vehicle_of_company()": [],
+  "fleet.vehicle_usable_by(bigint,bigint)": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_audit",
+   "masslak_auditor",
+   "masslak_readonly"
+  ],
+  "frt.can_see_bill(bigint)": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_audit",
+   "masslak_auditor",
+   "masslak_readonly"
+  ],
+  "frt.can_see_consignment(bigint)": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_audit",
+   "masslak_auditor",
+   "masslak_readonly"
+  ],
+  "frt.can_see_contract(bigint)": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_audit",
+   "masslak_auditor",
+   "masslak_readonly"
+  ],
+  "frt.can_see_document(bigint)": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_audit",
+   "masslak_auditor",
+   "masslak_readonly"
+  ],
+  "frt.can_see_leg(bigint)": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_audit",
+   "masslak_auditor",
+   "masslak_readonly"
+  ],
+  "frt.can_see_request(bigint)": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_audit",
+   "masslak_auditor",
+   "masslak_readonly"
+  ],
+  "frt.carries_request(bigint)": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_audit",
+   "masslak_auditor",
+   "masslak_readonly"
+  ],
+  "frt.consignment_snapshot(bigint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "frt.container_charges(bigint,bigint)": [],
+  "frt.document_gaps(bigint,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "frt.find_rate(bigint,text,text,bigint,bigint,bigint,bigint,character,date)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "frt.issue_document(text,bigint[],bigint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "frt.issue_transport_invoice(bigint,text,bigint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "frt.next_number(text,bigint)": [],
+  "frt.open_loads()": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "frt.set_movement_status(bigint,text,bigint,text,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "frt.tg_bill_count_floor()": [],
+  "frt.tg_bl_container_count()": [],
+  "frt.tg_consignment_container_bl()": [],
+  "frt.tg_consignment_no()": [],
+  "frt.tg_movement_container()": [],
+  "frt.tg_movement_owner()": [],
+  "frt.vehicle_snapshot(bigint)": [],
+  "frt.verify_document(text,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "frt.void_document(bigint,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "gov.erase_party(bigint,bigint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "gov.erase_party_photo(bigint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "gov.feature_review_approved(text)": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_audit",
+   "masslak_auditor",
+   "masslak_readonly"
+  ],
+  "gov.lifecycle_gaps()": [
+   "masslak_audit",
+   "masslak_auditor",
+   "masslak_readonly"
+  ],
+  "iam.activate_kyc_form(integer)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "iam.approve_photo_change(uuid)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "iam.approve_photo_policy_change(uuid,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "iam.approve_photo_rule(uuid)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "iam.approve_photo_rule_retirement(uuid)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "iam.ctx_has_permission(text)": [],
+  "iam.data_requirement_met(bigint,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "iam.decide_company_kyc(uuid,text,text,text[],text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "iam.decide_person_kyc(uuid,text,text,text[])": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "iam.evidence_accepted(bigint,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "iam.is_family_head(bigint)": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_audit",
+   "masslak_auditor",
+   "masslak_cdc",
+   "masslak_readonly"
+  ],
+  "iam.is_head_of_party(bigint)": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_audit",
+   "masslak_auditor",
+   "masslak_cdc",
+   "masslak_readonly"
+  ],
+  "iam.is_member_of(bigint)": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_audit",
+   "masslak_auditor",
+   "masslak_cdc",
+   "masslak_readonly"
+  ],
+  "iam.is_minor(date,date)": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_audit",
+   "masslak_auditor",
+   "masslak_cdc",
+   "masslak_readonly"
+  ],
+  "iam.kyc_gate(bigint,text)": [],
+  "iam.kyc_kind_of_company(bigint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "iam.kyc_may_touch(bigint)": [],
+  "iam.kyc_missing(jsonb,jsonb,bigint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "iam.kyc_risk(jsonb)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "iam.kyc_setting(text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "iam.kyc_setting_problem(text,jsonb)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "iam.kyc_stage_authority(jsonb)": [],
+  "iam.may_decide_kyc_stage(jsonb)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "iam.open_company_kyc(bigint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "iam.open_person_kyc(bigint,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "iam.person_kyc_gate(bigint,text,text)": [],
+  "iam.person_kyc_may_touch(bigint)": [],
+  "iam.person_kyc_missing(uuid)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "iam.person_verified(bigint,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "iam.photo_approval_stages()": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "iam.photo_enabled()": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "iam.photo_requirement(character,text,text,text,date)": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_readonly"
+  ],
+  "iam.photo_setting(text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "iam.propose_photo_rule(character,text,text,text,text,date,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "iam.record_photo_approval(text,bigint,bigint,jsonb)": [],
+  "iam.reject_photo_change(uuid)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "iam.reject_photo_policy_change(uuid)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "iam.reject_photo_rule_retirement(uuid)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "iam.remove_company_logo(bigint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "iam.request_photo_change(bigint,text,text,bigint,bigint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "iam.request_photo_feature_change(boolean,text,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "iam.request_photo_policy_change(text,text,boolean,integer,text,text,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "iam.request_photo_rule_retirement(uuid,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "iam.request_photo_setting_change(text,jsonb,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "iam.save_company_kyc(uuid,jsonb,smallint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "iam.save_kyc_form(jsonb,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "iam.save_kyc_form(jsonb,text,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "iam.save_person_kyc(uuid,jsonb,smallint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "iam.set_kyc_setting(text,jsonb)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "iam.set_party_photo(bigint,bigint,bigint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "iam.set_photo_approval_stages(jsonb)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "iam.submit_company_kyc(uuid)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "iam.submit_person_kyc(uuid)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "iam.tg_beneficial_total()": [],
+  "iam.tg_company_party_type()": [],
+  "iam.tg_document_file_clean()": [],
+  "iam.tg_external_role_bounded()": [],
+  "iam.tg_session_company()": [],
+  "iam.withdraw_photo_rule(uuid)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "net.activate_due_route_versions()": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "net.activate_route_version(bigint)": [],
+  "net.add_station_screen(bigint,text,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "net.change_station_screen(uuid,text,text,boolean)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "net.claim_screen_pairing(text,uuid)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "net.decide_road_verification(uuid,boolean,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "net.decide_route_version(uuid,boolean,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "net.open_station_gate(bigint,text,bigint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "net.propose_road_correction(text,integer,text,text,numeric,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "net.raise_screen_alerts()": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "net.remove_station_screen(uuid)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "net.request_road_verification(text,text,text,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "net.review_road_correction(uuid,boolean,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "net.road_recount(bigint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "net.screen_kind_allowed(bigint,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "net.screen_pairing_state(bytea)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "net.screen_unseen_minutes()": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "net.set_boarding_setting(text,jsonb)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "net.set_carrier_bay(bigint,uuid,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "net.set_screen_filter(uuid,text[],uuid[])": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "net.set_station_bay_mode(bigint,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "net.start_screen_pairing(text,bytea)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "net.station_bay_id(bigint,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "net.station_bays_by_caller(bigint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "net.station_screens(bigint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "net.tg_line_permit_active()": [],
+  "net.tg_service_number_follows()": [],
+  "net.tg_station_manager()": [],
+  "net.trim_road(bigint,integer)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "net.vehicle_bound_to_line(bigint,bigint,bigint,date)": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_audit",
+   "masslak_auditor",
+   "masslak_cdc",
+   "masslak_readonly"
+  ],
+  "net.withdraw_route_version(uuid)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ops.accept_positions(bigint,jsonb)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ops.apply_schedule_request(bigint)": [],
+  "ops.connection_policy(bigint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ops.decide_schedule_request(uuid,boolean,text,integer)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ops.followers_problem(bigint,jsonb)": [],
+  "ops.insert_schedule_version(bigint,jsonb,bigint)": [],
+  "ops.leg_problem(jsonb,jsonb,integer)": [],
+  "ops.may_decide_schedule_stage(jsonb)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ops.pick_service_no(bigint,bigint,timestamp with time zone,date,text,bigint)": [],
+  "ops.position_backlog_metrics()": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_readonly"
+  ],
+  "ops.position_flags(timestamp with time zone,timestamp with time zone,numeric,numeric,real,text,boolean,timestamp with time zone,bigint,bigint,timestamp with time zone,numeric,numeric,bigint)": [],
+  "ops.position_retention()": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ops.raise_tracking_alerts()": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ops.release_expired_holds()": [],
+  "ops.release_template_trips(bigint,date)": [],
+  "ops.report_incident(bigint,text,text,boolean,text,numeric,numeric,timestamp with time zone,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ops.request_number(bigint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ops.request_schedule(text,uuid,uuid,jsonb,date,integer,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ops.rotation_problem(bigint,jsonb,boolean)": [],
+  "ops.route_distance_m(bigint,numeric,numeric,timestamp with time zone)": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_audit",
+   "masslak_auditor",
+   "masslak_cdc",
+   "masslak_readonly"
+  ],
+  "ops.schedule_needs_approval(text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ops.schedule_number_free(bigint,integer,daterange,bigint,bigint)": [],
+  "ops.schedule_proposal_problem(bigint,jsonb)": [],
+  "ops.schedule_setting(text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ops.schedule_setting_problem(text,jsonb)": [],
+  "ops.schedule_stage_authority(jsonb)": [],
+  "ops.schedules_due()": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ops.set_cancel_penalty(jsonb)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ops.set_schedule_setting(text,jsonb)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ops.suggest_schedule_number(bigint,text,text,daterange,bigint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ops.take_schedule_number(bigint,integer,jsonb,daterange,bigint)": [],
+  "ops.template_as_proposal(bigint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ops.tg_crew_kyc_gate()": [],
+  "ops.tg_geo_event_trust()": [],
+  "ops.tg_route_violation_rules()": [],
+  "ops.tg_seat_segment_guard()": [],
+  "ops.tg_template_service_number()": [],
+  "ops.tg_template_status_by_carrier()": [],
+  "ops.tg_trip_currency()": [],
+  "ops.tg_trip_kyc_gate()": [],
+  "ops.tg_trip_number()": [],
+  "ops.tg_trip_publish_approval()": [],
+  "ops.tg_trip_publish_rules()": [],
+  "ops.tg_trip_route_obligation()": [],
+  "ops.tg_trip_stops_order()": [],
+  "ops.tg_trip_vehicle_eligible()": [],
+  "ops.tg_trip_vehicle_hired()": [],
+  "ops.tg_trip_vehicle_in_service()": [],
+  "ops.tg_vehicle_position()": [],
+  "ops.tg_violation_needs_trust()": [],
+  "ops.tg_violation_report_allowed()": [],
+  "ops.trip_designator(bigint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ops.trip_number_free(bigint,date,integer,text,bigint)": [],
+  "ops.trip_photo_scope(bigint)": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_readonly"
+  ],
+  "ops.trip_relation(bigint,bigint)": [],
+  "ops.trip_return(bigint)": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_readonly"
+  ],
+  "ops.trip_silence()": [],
+  "ops.violation_reportable(bigint)": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_audit",
+   "masslak_auditor",
+   "masslak_cdc",
+   "masslak_readonly"
+  ],
+  "ops.withdraw_schedule_request(uuid)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "pricing.accept_voucher(bigint,bytea,text,bigint,bigint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "pricing.add_liability(bigint,bigint,text,bigint)": [],
+  "pricing.cancel_voucher(uuid)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "pricing.earn_points_for_trip(bigint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "pricing.expire_points()": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "pricing.open_loyalty_settlement(bigint,character,date,date,bigint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "pricing.partner_offers(bigint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "pricing.redeem_at_partner(bigint,bigint,uuid,bigint,text,bytea,bytea,bigint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "pricing.redeem_points(bigint,bigint,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "pricing.release_vouchers()": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "pricing.return_voucher(bigint,text)": [],
+  "pricing.tg_jurisdiction_tree()": [],
+  "pricing.tg_loyalty_settlement()": [],
+  "pricing.tg_points_kyc_gate()": [],
+  "ptn.is_partner_staff(bigint)": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_audit",
+   "masslak_auditor",
+   "masslak_readonly"
+  ],
+  "ref.apply_code_change(bigint)": [],
+  "ref.apply_due_code_changes()": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ref.apply_name_corrections()": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ref.cancel_code_change(uuid)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ref.code_plan(text,text,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ref.company_currency(bigint)": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_audit",
+   "masslak_auditor",
+   "masslak_readonly"
+  ],
+  "ref.company_tz(bigint)": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_audit",
+   "masslak_auditor",
+   "masslak_readonly"
+  ],
+  "ref.decide_code_change(uuid,boolean,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ref.field_source()": [],
+  "ref.market_of_country(text)": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_audit",
+   "masslak_auditor",
+   "masslak_readonly"
+  ],
+  "ref.party_market(bigint)": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_audit",
+   "masslak_auditor",
+   "masslak_readonly"
+  ],
+  "ref.propose_place(text,text,text,text,text,numeric,numeric,date,text,boolean)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ref.remove_name_correction(bigint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ref.request_code_change(text,text,text,text,text,date)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ref.review_place(text,boolean,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ref.serve_place(text,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ref.set_name_correction(text,text,text,text,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ref.station_tz(bigint)": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_audit",
+   "masslak_auditor",
+   "masslak_readonly"
+  ],
+  "ref.tg_code_guard()": [],
+  "ref.tg_place_name()": [],
+  "sales.charter_block_seats(bigint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "sales.charter_release_seats(bigint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "sales.charter_seat_ticket(bigint,smallint,bigint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "sales.charter_seat_unticket(bigint,bigint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "sales.connection_settings()": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "sales.ensure_booking_partitions()": [],
+  "sales.expire_reservations()": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "sales.is_channel_member(bigint)": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_audit",
+   "masslak_auditor",
+   "masslak_cdc",
+   "masslak_readonly"
+  ],
+  "sales.missed_connection(bigint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "sales.seat_limit(bigint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "sales.seat_limits()": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "sales.set_charter_commission(integer)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "sales.set_connection_settings(boolean,integer,integer,integer,boolean)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "sales.set_passenger_mix(integer,integer,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "sales.set_seat_limits(integer,integer,integer,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "sales.setting_bool(text,boolean)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "sales.setting_int(text,integer)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "sales.tg_band_document()": [],
+  "sales.tg_boarding_stop()": [],
+  "sales.tg_boarding_ticket_trip()": [],
+  "sales.tg_booking_key()": [],
+  "sales.tg_lap_infant()": [],
+  "sales.tg_ticket_fare_brand()": [],
+  "sales.travels_on(bigint)": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_audit",
+   "masslak_auditor",
+   "masslak_cdc",
+   "masslak_readonly"
+  ],
+  "sales.vehicle_hired(bigint,timestamp with time zone,timestamp with time zone,bigint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "sch.is_guardian(bigint)": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_audit",
+   "masslak_auditor",
+   "masslak_readonly"
+  ],
+  "sch.on_board(bigint)": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_audit",
+   "masslak_auditor",
+   "masslak_readonly"
+  ],
+  "sch.student_visible(bigint)": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_audit",
+   "masslak_auditor",
+   "masslak_readonly"
+  ],
+  "sch.tg_absence_notice_rules()": [],
+  "sch.tg_attendance_rules()": [],
+  "sch.tg_contract_rules()": [],
+  "sch.tg_enrollment_guardian()": [],
+  "sch.tg_enrollment_rules()": [],
+  "sch.tg_operator_rules()": [],
+  "sch.tg_route_rules()": [],
+  "sch.tg_run_close()": [],
+  "sch.tg_run_sweep()": [],
+  "sch.tg_student_rules()": [],
+  "sec.authorize(text,text,text,text,text,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "sec.break_glass_active(bigint,text)": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_audit",
+   "masslak_auditor",
+   "masslak_readonly"
+  ],
+  "sec.break_glass_upkeep()": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_audit",
+   "masslak_auditor",
+   "masslak_readonly"
+  ],
+  "sec.is_blocked(text,bytea)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "sec.raise_sos(bigint,numeric,numeric)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "sec.rate_take(text,text,integer)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "sec.remove_authority_member(bigint,bigint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "sec.tg_active_key_only()": [],
+  "sec.tg_break_glass_rules()": [],
+  "sec.tg_external_access()": [],
+  "sec.tg_signature_file_clean()": [],
+  "ship.can_see_shipment(bigint)": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_audit",
+   "masslak_auditor",
+   "masslak_readonly"
+  ],
+  "ship.cargo_overbooked()": [
+   "masslak_readonly"
+  ],
+  "ship.cargo_recheck_load(bigint,boolean)": [],
+  "ship.cargo_recheck_trip(bigint,boolean)": [],
+  "ship.expire_parcel_offers()": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ship.is_partner_user(bigint)": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_audit",
+   "masslak_auditor",
+   "masslak_readonly"
+  ],
+  "ship.load_usage(bigint)": [],
+  "ship.parcel_price(bigint,numeric,numeric)": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_readonly"
+  ],
+  "ship.release_unhanded_parcels()": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ship.shipment_size(bigint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ship.tg_capacity_booking_cargo()": [],
+  "ship.tg_guaranteed_has_capacity()": [],
+  "ship.tg_leg_cargo()": [],
+  "ship.tg_leg_trip_carrier()": [],
+  "ship.tg_load_capacity()": [],
+  "ship.tg_shipment_size_cargo()": [],
+  "ship.tg_trip_cargo_capacity()": [],
+  "ship.tg_vehicle_cargo_limit()": [],
+  "ship.trip_cargo_usage(bigint)": [],
+  "ship.trip_hold(bigint)": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_readonly"
+  ],
+  "ship.vehicle_payload(bigint,bigint)": [],
+  "sys.capacity_metrics()": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_readonly"
+  ],
+  "sys.city_open(text,bigint)": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_audit",
+   "masslak_auditor",
+   "masslak_readonly"
+  ],
+  "sys.context_status(text)": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_audit",
+   "masslak_auditor",
+   "masslak_readonly"
+  ],
+  "sys.create_partition(text,text,text,text)": [],
+  "sys.create_partition(text,text,text,text,bigint)": [],
+  "sys.current_release()": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_audit",
+   "masslak_auditor",
+   "masslak_readonly"
+  ],
+  "sys.dead_delivery_metrics()": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_readonly"
+  ],
+  "sys.decide_requirement_change(bigint,boolean,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "sys.default_partition_backlog()": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "sys.default_partition_oldest(text)": [],
+  "sys.definer_path_gaps()": [
+   "masslak_audit",
+   "masslak_auditor",
+   "masslak_readonly"
+  ],
+  "sys.drop_outbox_days()": [],
+  "sys.durability_metrics()": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_readonly"
+  ],
+  "sys.ensure_id_partitions(regclass,bigint,integer)": [],
+  "sys.feature_on(text[])": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_audit",
+   "masslak_auditor",
+   "masslak_readonly"
+  ],
+  "sys.finance_metrics()": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_readonly"
+  ],
+  "sys.find_orphans()": [],
+  "sys.ha_metrics()": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_readonly"
+  ],
+  "sys.json_contract_violations()": [
+   "masslak_audit",
+   "masslak_auditor"
+  ],
+  "sys.lock_metrics()": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_readonly"
+  ],
+  "sys.move_default_period()": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "sys.ops_metrics()": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_readonly"
+  ],
+  "sys.partition_inline_limit()": [],
+  "sys.partition_metrics()": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_readonly"
+  ],
+  "sys.phase_on(text)": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_audit",
+   "masslak_auditor",
+   "masslak_readonly"
+  ],
+  "sys.propose_requirement_change(text,text,date,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "sys.purge_expired()": [],
+  "sys.record_backup(text,boolean,text,bigint)": [],
+  "sys.record_release(text,text)": [],
+  "sys.replication_metrics()": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_readonly"
+  ],
+  "sys.requirement_enforced(text,date)": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_audit",
+   "masslak_auditor",
+   "masslak_readonly"
+  ],
+  "sys.requirement_impact(text,text,date)": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_audit",
+   "masslak_auditor",
+   "masslak_readonly"
+  ],
+  "sys.reset_statement_stats()": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "sys.run_maintenance()": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "sys.run_maintenance_body()": [],
+  "sys.run_orphan_check()": [],
+  "sys.scale_metrics()": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_readonly"
+  ],
+  "sys.schema_hash()": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_audit",
+   "masslak_auditor",
+   "masslak_readonly"
+  ],
+  "sys.security_metrics()": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_readonly"
+  ],
+  "sys.set_context(bigint,bigint,text,bigint,uuid,inet,bigint,bigint,bigint,text)": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_audit",
+   "masslak_auditor",
+   "masslak_readonly"
+  ],
+  "sys.set_visitor_locale(jsonb,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "sys.statement_metrics()": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_readonly"
+  ],
+  "sys.statement_stats_enabled()": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_readonly"
+  ],
+  "sys.tg_business_reference()": [],
+  "sys.tg_delivery_event_day()": [],
+  "sys.tg_json_contract()": [],
+  "sys.tg_outbox_sequence()": [],
+  "sys.tg_remember_new_row()": [],
+  "sys.tg_requirement_guarded()": [],
+  "sys.tg_same_company()": [],
+  "sys.tg_shuttle_city_open()": [],
+  "sys.top_statements(text,integer,bigint)": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_readonly"
+  ],
+  "sys.unmet_requirements(text,text,bigint,date)": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_readonly"
+  ],
+  "sys.unvalidated_constraints()": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_audit",
+   "masslak_auditor",
+   "masslak_readonly"
+  ],
+  "sys.visitor_locale(text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "taxi.can_see_shift(bigint)": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_audit",
+   "masslak_auditor",
+   "masslak_readonly"
+  ],
+  "pricing.band_for(bigint,text,date)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "net.set_number_range(bigint,text,integer,integer,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ops.carrier_number_problem(bigint,text,text,integer)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ops.carrier_number_range(bigint,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ops.default_trip_number(bigint,bigint,date)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ops.free_schedule_numbers(bigint,text,text,daterange,bigint,integer)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "brd.screen_board_data(bigint)": [],
+  "net.claim_hub(bytea,bytea,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "net.decide_hub_player(uuid,uuid,boolean)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "net.hub_by_key(bytea,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "net.hub_report(bigint,jsonb,integer)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "net.hub_sync(bigint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "net.release_screen_player(uuid)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "net.revoke_hub(uuid,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "net.set_screen_network(uuid,text,text,inet)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "net.start_hub_pairing(bigint,text,bytea)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "net.station_hubs(bigint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ptn.account_visible(bigint)": [
+   "masslak_api",
+   "masslak_app",
+   "masslak_readonly"
+  ],
+  "ptn.attendant_station(uuid)": [],
+  "ptn.budget_start(text,bigint)": [],
+  "ptn.card_state(bigint,bigint)": [],
+  "ptn.decide_fuel_anomaly(uuid,text,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ptn.fuel_company_view(bigint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ptn.fuel_open_account(uuid,character)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ptn.fuel_reverse_sale(uuid,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ptn.fuel_set_low_balance(uuid,bigint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ptn.fuel_topup(uuid,bigint,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ptn.fuel_unbind_tag(uuid)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ptn.tg_fuel_account_entry()": [],
+  "ptn.tg_fuel_card_account()": [],
+  "ptn.tg_fuel_partner_company()": [],
+  "ptn.company_today(bigint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ptn.fuel_bind_card_tag(uuid,bytea)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ptn.fuel_cancel_subscription(uuid)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ptn.fuel_confirm_subscription(uuid,bigint,numeric,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ptn.fuel_controller_txn(bytea,integer,text,text,numeric,bigint,numeric,timestamp with time zone)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ptn.fuel_cover(bigint,bigint)": [],
+  "ptn.fuel_fill(uuid,text,numeric,bigint,bigint,bigint,integer,bigint,uuid,integer)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ptn.fuel_identify(uuid,bytea,integer,text,uuid)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ptn.fuel_owner_query(uuid,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ptn.fuel_pump_new_qr(uuid)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ptn.fuel_request_subscription(text,date,uuid[])": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ptn.fuel_set_controller(uuid,bytea)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ptn.fuel_settle(bigint)": [],
+  "ptn.fuel_tag_lost(uuid)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ptn.tg_fuel_pumps()": []
+ }
+}

@@ -59,7 +59,7 @@ SELECT json_agg(json_build_object(
        'indexed', EXISTS (SELECT 1 FROM pg_index i WHERE i.indrelid = t.oid AND i.indkey[0] = f.conkey[1]))
        ORDER BY f.conname)
      FROM pg_constraint f JOIN pg_class fc ON fc.oid = f.confrelid JOIN pg_namespace fn ON fn.oid = fc.relnamespace
-     WHERE f.conrelid = t.oid AND f.contype = 'f')
+     WHERE f.conrelid = t.oid AND f.contype = 'f' AND f.conparentid = 0)   -- not the copy kept on each partition of a referenced table
 ) ORDER BY t.schema, t.name) FROM t
 """
 

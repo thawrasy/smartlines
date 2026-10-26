@@ -6,6 +6,10 @@
         MASSLAK_WHATSAPP_URL = https://graph.facebook.com/<version>/<phone number id>/messages
         MASSLAK_WHATSAPP_TOKEN = <bearer>, MASSLAK_WHATSAPP_TEMPLATE = <approved authentication template>
         (sign-in codes only: WhatsApp sends a code through a template the business account had approved)
+    MASSLAK_NOTIFY_TELEGRAM = off | log | bot
+        MASSLAK_TELEGRAM_BOT_TOKEN = <token from BotFather>, MASSLAK_TELEGRAM_BOT_NAME = <the bot's username>,
+        MASSLAK_TELEGRAM_WEBHOOK_SECRET = <the secret Telegram sends back with each update>
+        (second-factor codes only, to a chat the person linked from the sign-in page, 1151)
 
 The log provider writes each message, address and text included, as one JSON line under data/messages/: for the
 sandbox only. Outside it the API and the worker refuse to start with it (review of 1.47.0, R-27), and a channel left
@@ -32,7 +36,7 @@ class ChannelOff(RuntimeError):
     """The channel has no delivery configured on this server."""
 
 
-_REAL = {"EMAIL": "smtp", "SMS": "http", "WHATSAPP": "cloud"}
+_REAL = {"EMAIL": "smtp", "SMS": "http", "WHATSAPP": "cloud", "TELEGRAM": "bot"}
 
 
 def mode(channel: str) -> str:
@@ -133,3 +137,29 @@ def send_whatsapp_code(to: str, code: str, locale: str, text: str) -> None:
     with egress.urlopen(req, timeout=15) as r:  # nosec B310 - https only, checked above
         if r.status >= 300:
             raise RuntimeError(f"WhatsApp answered {r.status}")
+
+
+def telegram_bot_name() -> str:
+    """The bot people open to link their chat; a placeholder in the sandbox."""
+    return os.environ.get("MASSLAK_TELEGRAM_BOT_NAME", "masslak_sandbox_bot" if get_settings().sandbox else "")
+
+
+def telegram_webhook_secret() -> str:
+    return os.environ.get("MASSLAK_TELEGRAM_WEBHOOK_SECRET", "sandbox-telegram-secret" if get_settings().sandbox else "")
+
+
+def send_telegram(chat_id: str, text: str) -> None:
+    """A message to a linked Telegram chat through the Bot API (1151)."""
+    m = mode("TELEGRAM")
+    if m == "off":
+        raise ChannelOff("Telegram delivery is off on this server (MASSLAK_NOTIFY_TELEGRAM)")
+    if m == "log":
+        require_in_production()
+        return _log("TELEGRAM", chat_id, "", text)
+    token = os.environ["MASSLAK_TELEGRAM_BOT_TOKEN"]
+    req = urllib.request.Request(f"https://api.telegram.org/bot{token}/sendMessage",
+                                 data=json.dumps({"chat_id": chat_id, "text": text}).encode(),
+                                 headers={"Content-Type": "application/json"}, method="POST")
+    with egress.urlopen(req, timeout=15) as r:  # nosec B310 - a fixed https URL
+        if r.status >= 300:
+            raise RuntimeError(f"Telegram answered {r.status}")

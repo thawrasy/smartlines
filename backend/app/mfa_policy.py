@@ -1,8 +1,8 @@
 """The platform's two-factor sign-in policy (owner's decision 2; review of release 1.47.0, R-31).
 
-sys.setting 'auth.mfa' says which methods are open (an authenticator app, a text message, a WhatsApp message; one or
-more) and which portals must use one. The security officers change it from the security console. A method sent by
-message is offered only when this server can deliver on that channel (MASSLAK_NOTIFY_SMS, MASSLAK_NOTIFY_WHATSAPP);
+sys.setting 'auth.mfa' says which methods are open (an authenticator app, an e-mail, a Telegram message, a text message,
+a WhatsApp message; one or more) and which portals must use one. The security officers change it from the security console. A method sent by
+message is offered only when this server can deliver on that channel (MASSLAK_NOTIFY_EMAIL, _TELEGRAM, _SMS, _WHATSAPP);
 the authenticator app needs no delivery, so it remains the way in when nothing else is open.
 
 Two rules do not depend on the setting: platform staff always use a second factor outside the sandbox, and anyone who
@@ -18,13 +18,13 @@ import asyncpg
 
 from .config import get_settings
 
-METHODS = ("TOTP", "SMS", "WHATSAPP")
-MESSAGE_METHODS = ("SMS", "WHATSAPP")
-PORTALS = ("PLATFORM", "INSPECTOR", "OPERATOR", "DRIVER", "AGENCY", "PASSENGER")
+METHODS = ("TOTP", "EMAIL", "TELEGRAM", "SMS", "WHATSAPP")
+MESSAGE_METHODS = ("EMAIL", "TELEGRAM", "SMS", "WHATSAPP")    # codes sent to the person (1151 adds e-mail and Telegram)
+PORTALS = ("PLATFORM", "INSPECTOR", "OPERATOR", "DRIVER", "AGENCY", "STATION", "PASSENGER")
 ALWAYS = ("PLATFORM",)                 # outside the sandbox, whatever the setting says
 CACHE_SECONDS = 30
-DEFAULT = {"methods": list(METHODS), "required_portals": ["PLATFORM", "INSPECTOR", "OPERATOR", "DRIVER", "AGENCY"],
-           "enforce_in_sandbox": False, "code_minutes": 5, "resend_seconds": 60, "sends_per_hour": 5}
+DEFAULT = {"methods": ["TOTP", "EMAIL", "TELEGRAM", "WHATSAPP"], "required_portals": ["PLATFORM", "INSPECTOR", "OPERATOR", "DRIVER", "AGENCY", "STATION"],
+           "enforce_in_sandbox": False, "code_minutes": 5, "resend_seconds": 60, "sends_per_hour": 5, "step_up_minutes": 10}
 
 
 @dataclass(frozen=True)
@@ -35,17 +35,20 @@ class Policy:
     code_minutes: int
     resend_seconds: int
     sends_per_hour: int
+    step_up_minutes: int = 10          # a sensitive operation needs a second factor this recent on its session (1136)
 
     @classmethod
     def of(cls, raw: dict) -> "Policy":
         v = {**DEFAULT, **(raw or {})}
         return cls(tuple(m for m in METHODS if m in v["methods"]), tuple(p for p in PORTALS if p in v["required_portals"]),
-                   bool(v["enforce_in_sandbox"]), int(v["code_minutes"]), int(v["resend_seconds"]), int(v["sends_per_hour"]))
+                   bool(v["enforce_in_sandbox"]), int(v["code_minutes"]), int(v["resend_seconds"]), int(v["sends_per_hour"]),
+                   int(v["step_up_minutes"]))
 
     def public(self) -> dict:
         return {"methods": list(self.methods), "required_portals": list(self.required_portals),
                 "enforce_in_sandbox": self.enforce_in_sandbox, "code_minutes": self.code_minutes,
-                "resend_seconds": self.resend_seconds, "sends_per_hour": self.sends_per_hour}
+                "resend_seconds": self.resend_seconds, "sends_per_hour": self.sends_per_hour,
+                "step_up_minutes": self.step_up_minutes}
 
     def available(self) -> list[str]:
         """The methods a person can use on this server now: open in the policy and, for messages, deliverable."""

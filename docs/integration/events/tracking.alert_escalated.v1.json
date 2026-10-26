@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://masslak.com/schemas/events/tracking.alert_escalated.v1.json",
+  "title": "tracking.alert_escalated",
+  "description": "A lost signal was not answered in time and was escalated. The data of the envelope (EVENTS.md); fields are only added within a version.",
+  "x-event-type": "tracking.alert_escalated",
+  "x-schema-version": 1,
+  "type": "object",
+  "properties": {
+    "alert_id": {
+      "type": "integer"
+    },
+    "trip_no": {
+      "type": "string"
+    },
+    "minutes": {
+      "type": "integer"
+    }
+  },
+  "required": [
+    "alert_id",
+    "trip_no",
+    "minutes"
+  ],
+  "additionalProperties": true
+}

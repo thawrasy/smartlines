@@ -1,5 +1,6 @@
 """Request context and authentication dependencies."""
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 from typing import AsyncIterator, Optional
 
 import asyncpg
@@ -11,6 +12,8 @@ from .errors import ApiError, forbidden
 from .security import token_hash
 
 SESSION_COOKIE = "msk_session"
+REPLACED = "replaced by a new sign-in"   # revoke_reason of a session a later sign-in ended (1142)
+IDLE = "idle"                             # revoke_reason of a session left without activity past its portal's period (1146)
 
 # Portal -> RLS scope
 PORTAL_SCOPE = {
@@ -20,6 +23,8 @@ PORTAL_SCOPE = {
     "AGENCY": "AGENCY",
     "PLATFORM": "PLATFORM",
     "INSPECTOR": "PLATFORM",
+    "STATION": "COMPANY",           # a station's operating company: its own rows, and the grants given to it (1098, 1099)
+    "FUEL": "COMPANY",              # a fuel company: its stations, the accounts held with it (1180)
 }
 
 
@@ -38,9 +43,12 @@ class Principal:
     roles: set[str] = field(default_factory=set)
     is_owner: bool = False
     mfa_pending: bool = False       # staff session that still owes its second factor
+    password_must_change: bool = False   # a temporary password set by an administrator, not yet replaced (N16, 1150)
     mfa_enrolled: bool = False      # holds a second factor of a method open on this server
     mfa_required: bool = False
     mfa_factors: list[str] = field(default_factory=list)
+    mfa_at: Optional[datetime] = None     # when this session last passed its second factor (1136)
+    step_up_minutes: int = 10
 
 
 def base_context(request: Request) -> db.Context:
@@ -51,14 +59,15 @@ async def load_principal(conn: asyncpg.Connection, token: str) -> Optional[Princ
     row = await conn.fetchrow(
         """
         SELECT s.id AS session_id, s.portal, s.company_id, u.id AS user_id, u.uid, u.party_id, u.email,
-               u.preferred_locale, p.legal_name, s.mfa_passed, u.mfa_required, 
+               u.preferred_locale, p.legal_name, s.mfa_passed, s.mfa_at, u.mfa_required, u.password_must_change,
                ARRAY(SELECT f.factor_type FROM iam.mfa_factor f WHERE f.user_id = u.id AND f.verified_at IS NOT NULL
-                        AND f.disabled_at IS NULL AND f.factor_type IN ('TOTP','SMS','WHATSAPP')) AS mfa_factors
+                        AND f.disabled_at IS NULL AND f.factor_type IN ('TOTP','EMAIL','TELEGRAM','SMS','WHATSAPP')) AS mfa_factors
           FROM iam.user_session s
           JOIN iam.app_user u ON u.id = s.user_id
           JOIN iam.party p ON p.id = u.party_id
          WHERE s.token_hash = $1 AND s.revoked_at IS NULL AND s.expires_at > now() AND u.status = 'ACTIVE'
            AND (s.access_expires_at IS NULL OR s.access_expires_at > now())
+           AND s.last_seen_at > now() - make_interval(mins => iam.idle_minutes(s.portal))
         """,
         token_hash(token),
     )
@@ -74,6 +83,8 @@ async def load_principal(conn: asyncpg.Connection, token: str) -> Optional[Princ
     pr.mfa_enrolled = mfa_policy.enrolled(pr.mfa_factors, policy)
     pr.mfa_required = mfa_required_for(pr.portal, row["mfa_required"], bool(pr.mfa_factors), policy)
     pr.mfa_pending = pr.mfa_required and not row["mfa_passed"]
+    pr.mfa_at, pr.step_up_minutes = row["mfa_at"], policy.step_up_minutes
+    pr.password_must_change = row["password_must_change"]
     await load_permissions(conn, pr)
     return pr
 
@@ -103,8 +114,26 @@ async def load_permissions(conn: asyncpg.Connection, pr: Principal) -> None:
         if "is_owner" in r.keys() and r["is_owner"]:
             pr.is_owner = True
     if pr.is_owner:
-        perms = await conn.fetch("SELECT code FROM iam.permission WHERE scope IN ('COMPANY','BOTH')")
+        # the owner of a station operating company holds the station permissions only, never a carrier's (1099); a fuel
+        # company's owner the fuel permissions (1180); no other owner holds the fuel ones
+        perms = await conn.fetch(
+            """SELECT code FROM iam.permission WHERE scope IN ('COMPANY','BOTH')
+                 AND CASE $1 WHEN 'STATION' THEN module = 'station' OR code IN ('company.staff', 'company.login_log', 'company.kyc')
+                             WHEN 'FUEL' THEN module = 'fuel' OR code IN ('company.staff', 'company.login_log', 'company.kyc')
+                             ELSE module <> 'fuel' END""",
+            pr.portal)
         pr.permissions |= {p["code"] for p in perms}
+    # per-user exceptions (1154, N1): approved by a second person, within their dates, for this portal's company
+    company = None if pr.portal in ("PLATFORM", "INSPECTOR") else pr.company_id
+    if pr.portal in ("PLATFORM", "INSPECTOR") or company:
+        for e in await conn.fetch(
+                """SELECT permission_code, effect FROM iam.permission_exception
+                    WHERE user_id = $1 AND company_id IS NOT DISTINCT FROM $2 AND status = 'ACTIVE'
+                      AND valid_from <= now() AND valid_to > now()""", pr.user_id, company):
+            if e["effect"] == "GRANT":
+                pr.permissions.add(e["permission_code"])
+            else:
+                pr.permissions.discard(e["permission_code"])
 
 
 def _presented_token(request: Request) -> Optional[str]:
@@ -133,13 +162,25 @@ async def optional_principal(request: Request) -> Optional[Principal]:
     async with db.transaction(db.Context(request_id=ctx.request_id, ip=ctx.ip, scope="SYSTEM")) as conn:
         pr = await load_principal(conn, token)
         if pr:
-            await conn.execute("UPDATE iam.user_session SET last_seen_at = now() WHERE id = $1", pr.session_id)
+            # a request a screen sends by itself (the notification bell) is not the user's activity (1146)
+            if request.headers.get("x-masslak-background") != "1":
+                await conn.execute("UPDATE iam.user_session SET last_seen_at = now() WHERE id = $1", pr.session_id)
+        else:
+            # a session idle past its portal's period ends here (1146), and says so
+            await conn.execute(
+                """UPDATE iam.user_session SET revoked_at = now(), revoke_reason = $2
+                    WHERE token_hash = $1 AND revoked_at IS NULL
+                      AND last_seen_at <= now() - make_interval(mins => iam.idle_minutes(portal))""", token_hash(token), IDLE)
+            # ended by a sign-in on another device (one session per portal, 1142): said so, not just "sign in"
+            reason = await conn.fetchval("SELECT revoke_reason FROM iam.user_session WHERE token_hash = $1", token_hash(token))
+            request.state.session_replaced = reason == REPLACED
+            request.state.session_idle = reason == IDLE
     if pr:
         request.state.principal = pr
     return pr
 
 
-STAFF_PORTALS = {"OPERATOR", "AGENCY", "PLATFORM", "INSPECTOR", "DRIVER"}
+STAFF_PORTALS = {"OPERATOR", "AGENCY", "PLATFORM", "INSPECTOR", "DRIVER", "STATION", "FUEL"}
 
 
 def mfa_required_for(portal: str, account_requires: bool, has_factor: bool, policy: mfa_policy.Policy) -> bool:
@@ -153,17 +194,39 @@ def mfa_required_for(portal: str, account_requires: bool, has_factor: bool, poli
     return account_requires or policy.requires(portal)
 
 
-async def require_session(principal: Optional[Principal] = Depends(optional_principal)) -> Principal:
+async def require_session(request: Request, principal: Optional[Principal] = Depends(optional_principal)) -> Principal:
     """A valid session, even one that still owes its second factor (used by the MFA endpoints)."""
     if principal is None:
+        if getattr(request.state, "session_replaced", False):
+            raise ApiError(401, "SESSION_REPLACED", "this account signed in on another device; sign in again to continue here")
+        if getattr(request.state, "session_idle", False):
+            raise ApiError(401, "SESSION_IDLE", "you were signed out after a time without activity; sign in again")
         raise ApiError(401, "AUTH_REQUIRED", "login required")
     return principal
 
 
 async def require_user(principal: Principal = Depends(require_session)) -> Principal:
+    if principal.password_must_change:     # the temporary password is replaced before anything else (N16, 1150)
+        raise ApiError(403, "PASSWORD_CHANGE_REQUIRED", "choose your own password before you continue", next="FIRST_PASSWORD")
     if principal.mfa_pending:
         raise ApiError(401, "MFA_REQUIRED", "enter the code from your authenticator app",
                        next="VERIFY" if principal.mfa_enrolled else "ENROLL")
+    return principal
+
+
+def require_step_up(principal: Principal) -> None:
+    """A sensitive operation (1136): someone who uses a second factor must have passed it on this session within the
+    last auth.mfa.step_up_minutes; otherwise 403 STEP_UP_REQUIRED, and POST /api/auth/mfa/step-up with a code."""
+    if not principal.mfa_required:
+        return
+    recent = principal.mfa_at is not None and datetime.now(timezone.utc) - principal.mfa_at < timedelta(minutes=principal.step_up_minutes)
+    if not recent:
+        raise ApiError(403, "STEP_UP_REQUIRED", "confirm with a code from your second factor to continue",
+                       next="STEP_UP", minutes=principal.step_up_minutes)
+
+
+async def step_up_user(principal: Principal = Depends(require_user)) -> Principal:
+    require_step_up(principal)
     return principal
 
 

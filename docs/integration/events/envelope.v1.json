@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://masslak.com/schemas/events/envelope.v1.json",
+  "title": "Event envelope",
+  "description": "What every webhook delivery carries (EVENTS.md); data follows the schema of its type and version.",
+  "type": "object",
+  "required": [
+    "id",
+    "type",
+    "created_at",
+    "api_version",
+    "schema_version",
+    "correlation_id",
+    "aggregate",
+    "sequence",
+    "data"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "type": {
+      "type": "string",
+      "pattern": "^[a-z_]+\\.[a-z_]+$"
+    },
+    "created_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "api_version": {
+      "const": "v1"
+    },
+    "schema_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "correlation_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "aggregate": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "sequence": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1
+    },
+    "data": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": false
+}

@@ -43,6 +43,7 @@ import math
 import secrets
 import uuid
 from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal
 from typing import Optional
 
 import asyncpg
@@ -55,6 +56,7 @@ from ..errors import ApiError, not_found
 from ..ledger import company_wallet, post_txn, user_wallet
 from ..modules.notify.outbox import emit
 from ..modules.sales import documents
+from ..util import round_minor
 from . import features
 
 router = APIRouter(tags=["workflows"])
@@ -346,7 +348,7 @@ async def _taxi_estimate(conn: asyncpg.Connection, body: TaxiTrip) -> dict:
         raise ApiError(422, "TOO_SHORT", "pickup and drop-off are too close")
     if km > 80:
         raise ApiError(422, "TOO_FAR", "city taxis cover trips up to 80 km")
-    fare = tariff["flag_fall"] + round(tariff["per_km"] * km)
+    fare = tariff["flag_fall"] + round_minor(Decimal(tariff["per_km"]) * Decimal(str(km)))
     fare = max(fare, tariff["min_fare"] or 0)
     fare = int(math.ceil(fare / 50000) * 50000)          # nearest 500 pounds up
     return {"km": km, "minutes": max(5, round(km * 2.4)), "fare": fare,
@@ -429,6 +431,7 @@ class RentalBooking(BaseModel):
     return_branch_id: Optional[int] = None
     starts_at: datetime
     ends_at: datetime
+    with_driver: bool = False                       # the car comes with one of the company's drivers (1173)
 
 
 def _days(a: datetime, b: datetime) -> int:
@@ -469,6 +472,8 @@ async def rental_offers(request: Request, branch_id: Optional[int] = None, start
                 offers.append({"rate_id": r["id"], "rental_class": r["rental_class"], "class_name": r["class_name"], "unit": r["unit"],
                                "price": r["price"], "total": _rate_total(r, days), "days": days, "deposit": r["deposit_amount"] or 0,
                                "km_per_day": r["km_included_per_day"], "available": r["available"],
+                               "unlimited_km": r["unlimited_km"], "extra_km_price": r["extra_km_price"],
+                               "driver_per_day": r["driver_price_per_day"],
                                "currency": r["currency"] or (await markets.of_party(conn, branch["company_id"])).currency})
     return {"branches": [dict(b) for b in branches], "offers": offers}
 
@@ -491,14 +496,20 @@ async def book_rental(body: RentalBooking, request: Request, pr: Principal = Dep
         if not await conn.fetchval("SELECT 1 FROM rent.rental_branch WHERE id = $1 AND company_id = $2 AND status = 'ACTIVE'",
                                    back, rate["company_id"]):
             raise not_found("return branch")
-        total = _rate_total(rate, _days(body.starts_at, body.ends_at))
+        days = _days(body.starts_at, body.ends_at)
+        total = _rate_total(rate, days)
+        if body.with_driver:
+            if rate["driver_price_per_day"] is None:
+                raise ApiError(422, "DRIVER_NOT_OFFERED", "this rate is for the car alone")
+            total += days * rate["driver_price_per_day"]
         async with db.system_scope(conn, ctx):
             b = await conn.fetchrow(
                 """INSERT INTO rent.rental_booking (company_id, renter_party_id, rental_class, rate_id, pickup_branch_id,
-                     return_branch_id, period, quoted_total, currency, status)
-                   VALUES ($1, $2, $3, $4, $5, $6, tstzrange($7, $8), $9, $10, 'PENDING') RETURNING id, uid""",
+                     return_branch_id, period, quoted_total, currency, status, with_driver)
+                   VALUES ($1, $2, $3, $4, $5, $6, tstzrange($7, $8), $9, $10, 'PENDING', $11) RETURNING id, uid""",
                 rate["company_id"], pr.party_id, rate["rental_class"], rate["id"], body.pickup_branch_id, back,
-                body.starts_at, body.ends_at, total, rate["currency"] or (await markets.of_party(conn, rate["company_id"])).currency)
+                body.starts_at, body.ends_at, total, rate["currency"] or (await markets.of_party(conn, rate["company_id"])).currency,
+                body.with_driver)
             await emit(conn, "rental.requested", "rental_booking", b["id"], {"class": rate["rental_class"], "total": total},
                        company_id=rate["company_id"])
     return {"uid": str(b["uid"]), "status": "PENDING", "quoted_total": total, "deposit": rate["deposit_amount"] or 0}
@@ -596,12 +607,14 @@ async def my_freight(request: Request, pr: Principal = Depends(require_user)):
                   LEFT JOIN net.station os ON os.id = r.origin_station_id LEFT JOIN net.station ds ON ds.id = r.dest_station_id
                  WHERE r.shipper_party_id = $1 ORDER BY r.created_at DESC LIMIT 30""", pr.party_id)
         bids = await conn.fetch(
-            """SELECT b.id, b.request_id, b.price, b.currency, b.valid_until, b.status, b.created_at, c.legal_name AS carrier
+            """SELECT b.id, b.request_id, b.price, b.currency, b.valid_until, b.status, b.created_at, c.legal_name AS carrier,
+                      c.uid::text AS carrier_uid, iam.logo_version(c.id) AS carrier_logo
                  FROM frt.freight_bid b JOIN iam.party c ON c.id = b.carrier_company_id
                 WHERE b.request_id = ANY($1::bigint[]) ORDER BY b.price""", [r["id"] for r in rows])
     by_req: dict = {}
     for b in bids:
-        by_req.setdefault(b["request_id"], []).append({k: b[k] for k in ("id", "price", "currency", "valid_until", "status", "created_at", "carrier")})
+        by_req.setdefault(b["request_id"], []).append({k: b[k] for k in ("id", "price", "currency", "valid_until", "status", "created_at", "carrier",
+                                                                       "carrier_uid", "carrier_logo")})
     return {"requests": [{k: (str(v) if k == "uid" else v) for k, v in dict(r).items() if k != "id"} | {"bids": by_req.get(r["id"], [])}
                          for r in rows]}
 

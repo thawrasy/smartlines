@@ -9,10 +9,15 @@ import asyncpg
 async def bank_accounts(conn: asyncpg.Connection, party_id: Optional[int] = None, unverified_only: bool = False):
     return await conn.fetch(
         """SELECT a.id, a.uid, a.bank_name, a.holder_name, a.iban_last4, a.currency, a.verified, a.status, a.created_at,
-                  p.legal_name AS company_name
+                  a.account_no_last4, a.swift_bic, a.is_default, a.verification_status, a.verified_holder_name, a.verified_at,
+                  b.uid AS bank_uid, b.name_ar AS bank_name_ar, b.name_en AS bank_name_en, b.code AS bank_code,
+                  br.uid AS branch_uid, br.name_ar AS branch_name_ar, br.name_en AS branch_name_en,
+                  p.legal_name AS company_name, p.uid AS company_uid, iam.logo_version(p.id) AS company_logo
              FROM iam.bank_account a JOIN iam.party p ON p.id = a.party_id
-            WHERE ($1::bigint IS NULL OR a.party_id = $1) AND (NOT $2 OR (NOT a.verified AND a.status = 'ACTIVE'))
-            ORDER BY a.created_at DESC""", party_id, unverified_only)
+             LEFT JOIN ref.bank b ON b.id = a.bank_id LEFT JOIN ref.bank_branch br ON br.id = a.branch_id
+            WHERE ($1::bigint IS NULL OR a.party_id = $1)
+              AND (NOT $2 OR (a.verification_status = 'UNVERIFIED' AND a.status = 'ACTIVE'))
+            ORDER BY a.is_default DESC, a.created_at DESC""", party_id, unverified_only)
 
 
 async def bank_account_by_uid(conn, account_uid: uuid.UUID) -> Optional[asyncpg.Record]:
@@ -28,14 +33,15 @@ async def insert_bank_account(conn, party_id: int, bank_name: str, holder: str, 
 
 
 async def verify_bank_account(conn, account_id: int, user_id: int) -> None:
-    await conn.execute("UPDATE iam.bank_account SET verified = true, verified_by = $2, verified_at = now() WHERE id = $1",
+    await conn.execute("""UPDATE iam.bank_account SET verified = true, verified_by = $2, verified_at = now(),
+                                 verification_status = 'VERIFIED_MANUAL', verification_source = 'platform finance review' WHERE id = $1""",
                        account_id, user_id)
 
 
 WITHDRAWAL_COLS = """w.id, w.uid, w.amount, w.currency, w.status, w.needs_second, w.created_at, w.decided_at, w.paid_at,
                      w.bank_ref, w.reject_reason, w.requested_by, w.approved_by, w.second_approver,
                      a.bank_name, a.iban_last4, a.uid AS bank_account_uid, p.legal_name AS company_name,
-                     rp.legal_name AS requested_by_name"""
+                     p.uid AS company_uid, iam.logo_version(p.id) AS company_logo, rp.legal_name AS requested_by_name"""
 WITHDRAWAL_FROM = """fin.withdrawal_request w JOIN iam.bank_account a ON a.id = w.bank_account_id
                      JOIN iam.party p ON p.id = w.company_id
                      JOIN iam.app_user ru ON ru.id = w.requested_by JOIN iam.party rp ON rp.id = ru.party_id"""
@@ -94,7 +100,7 @@ async def settlements(conn, company_id: Optional[int] = None):
     return await conn.fetch(
         """SELECT s.id, s.uid, lower(s.period) AS period_from, upper(s.period) - 1 AS period_to, s.currency, s.gross,
                   s.commission, s.refunds, s.net, s.status, s.created_at, s.approved_at, s.created_by, s.approved_by,
-                  p.legal_name AS company_name,
+                  p.legal_name AS company_name, p.uid AS company_uid, iam.logo_version(p.id) AS company_logo,
                   (SELECT count(*) FROM fin.settlement_line l WHERE l.batch_id = s.id) AS trips
              FROM fin.settlement_batch s JOIN iam.party p ON p.id = s.company_id
             WHERE ($1::bigint IS NULL OR s.company_id = $1) ORDER BY s.created_at DESC LIMIT 200""", company_id)

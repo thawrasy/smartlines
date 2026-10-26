@@ -134,8 +134,8 @@ export function TravelRules() {
           </Field>
           <div className="grid cols-3">
             <Field label={t("wf.travel.minDaysLabel")}><input type="number" min={0} max={730} value={f.passport_min_days} onChange={(e) => setF({ ...f, passport_min_days: Number(e.target.value) })} /></Field>
-            <Field label={t("wf.travel.from")} hint={t("common.optional")}><input type="date" value={f.valid_from} onChange={(e) => setF({ ...f, valid_from: e.target.value })} /></Field>
-            <Field label={t("wf.travel.to")} hint={t("common.optional")}><input type="date" value={f.valid_to} onChange={(e) => setF({ ...f, valid_to: e.target.value })} /></Field>
+            <Field label={t("wf.travel.from")} optional><input type="date" value={f.valid_from} onChange={(e) => setF({ ...f, valid_from: e.target.value })} /></Field>
+            <Field label={t("wf.travel.to")} optional><input type="date" value={f.valid_to} onChange={(e) => setF({ ...f, valid_to: e.target.value })} /></Field>
           </div>
           <Field label={t("wf.travel.enforcement")}>
             <select value={f.enforcement} onChange={(e) => setF({ ...f, enforcement: e.target.value })}>
@@ -143,7 +143,7 @@ export function TravelRules() {
             </select>
           </Field>
           <Field label={t("wf.travel.labelField")}><input value={f.label} maxLength={120} onChange={(e) => setF({ ...f, label: e.target.value })} /></Field>
-          <Field label={t("wf.travel.basis")} hint={exception ? t("wf.travel.basisRequired") : t("common.optional")}>
+          <Field label={t("wf.travel.basis")} hint={exception ? t("wf.travel.basisRequired") : undefined} optional={!exception} required={exception}>
             <input value={f.legal_basis} maxLength={300} onChange={(e) => setF({ ...f, legal_basis: e.target.value })} />
           </Field>
           <Field label={t("wf.travel.note")} hint={t("wf.travel.noteHint")}><input value={f.note} maxLength={300} onChange={(e) => setF({ ...f, note: e.target.value })} /></Field>

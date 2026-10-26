@@ -211,8 +211,9 @@ PLAN = [
                                   "status": weighted(("UNDER_REVIEW", 2), ("NOTIFIED", 1), ("ACCEPTED", 1), ("PAID", 1), ("REJECTED", 1))}),
     ("fleet.boarding_validator", 6, {"status": weighted(("ACTIVE", 5), ("OFFLINE", 1))}),
     # ---------------------------------------------------------------- freight
-    ("fleet.truck_unit", 6, {"vehicle_id": "@trucks", "gvw_kg": 40000, "tare_kg": cycle(8200, 8800, 9100)}),
-    ("fleet.trailer", 6, {"status": weighted(("ACTIVE", 4), ("PENDING", 1), ("BLOCKED", 1)), "created_at": lambda i: ago(60)}),
+    ("fleet.truck_unit", 6, {"vehicle_id": "@trucks", "axle_config": cycle("4x2", "6x4", "6x2", "8x4"), "gvw_kg": 40000, "tare_kg": cycle(8200, 8800, 9100)}),
+    ("fleet.trailer", 6, {"axle_config": cycle("T2", "T3", "T3", "T1"), "colour_code": cycle("WHITE", "GREY", "BLUE"),
+                       "status": weighted(("ACTIVE", 4), ("PENDING", 1), ("BLOCKED", 1)), "created_at": lambda i: ago(60)}),
     ("frt.freight_request", 36, {"mode": "BID", "shipper_company_id": None,
                                  "cargo_category": cycle("GENERAL", "FOOD", "GENERAL", "REFRIGERATED", "VEHICLES", "CONTAINERS"),
                                  "cargo_description": cycle("Olive oil, 40 pallets", "Flour sacks for bakeries", "Cement bags", "Citrus from the coast",
@@ -584,17 +585,29 @@ async def main():
     s.passenger = await conn.fetchval("SELECT party_id FROM iam.app_user WHERE email = 'passenger@masslak.test'")
     if s.company is None or s.passenger is None:
         sys.exit("run seed_demo.py first")
+    # the border crossings, each in its own city: Jdeidet Yabous lies in Rif Dimashq; Nasib is named after the border
+    # village of Nasib in Daraa governorate, and takes the village as its place once the geography holds it. Placed on
+    # every run, so a demo database seeded with the crossings under Damascus is corrected.
+    s.named["border"] = []
+    for code, city_code, village, name, lat, lng in (
+            ("SY-RDM-X901", "RDM", None, "Jdeidet Yabous crossing", 33.6330, 36.0750),
+            ("SY-DRA-X902", "DRA", "Nasib", "Nasib crossing", 32.5450, 36.2050)):
+        city = await conn.fetchval("SELECT id FROM ref.city WHERE code = $1", city_code)
+        place = village and await conn.fetchval(
+            """SELECT p.id FROM ref.place p JOIN ref.admin_area a ON a.id = p.area_id
+                WHERE p.name_en = $1 AND p.status = 'ACTIVE' AND left(a.pcode, 4) = ref.city_governorate($2) LIMIT 1""",
+            village, city)
+        # found by its code, an old one (1161), or the code it had in demo databases seeded before it moved city
+        sid = await conn.fetchval("SELECT coalesce(ref.code_entity('STATION', $1), ref.code_entity('STATION', $2))",
+                                  code, code.replace("SY-RDM-", "SY-DAM-")) or await conn.fetchval(
+            """INSERT INTO net.station (code, city_id, country_code, station_class, subtype, name, lat, lng, status)
+               VALUES ($1, $2, 'SY', 'CENTRAL', 'BORDER', $3, $4, $5, 'ACTIVE') RETURNING id""", code, city, name, lat, lng)
+        await conn.execute("UPDATE net.station SET city_id = $2, place_id = coalesce($3, place_id) WHERE id = $1",
+                           sid, city, place or None)
+        s.named["border"].append(sid)
     if await conn.fetchval("SELECT count(*) FROM ship.shipment") > 0:
         print("module demo data already present")
         return
-    city = await conn.fetchval("SELECT id FROM ref.city WHERE code = 'DAM'")
-    s.named["border"] = []
-    for code, name, lat, lng in (("SY-DAM-X901", "Jdeidet Yabous crossing", 33.6330, 36.0750),
-                                  ("SY-DRA-X902", "Nasib crossing", 32.5450, 36.2050)):
-        sid = await conn.fetchval("SELECT id FROM net.station WHERE code = $1", code) or await conn.fetchval(
-            """INSERT INTO net.station (code, city_id, country_code, station_class, subtype, name, lat, lng, status)
-               VALUES ($1, $2, 'SY', 'CENTRAL', 'BORDER', $3, $4, $5, 'ACTIVE') RETURNING id""", code, city, name, lat, lng)
-        s.named["border"].append(sid)
     s.named["border2"] = list(reversed(s.named["border"]))
     admin = await conn.fetchval("SELECT id FROM iam.app_user WHERE email = 'admin@masslak.test'")
     s.named["companies"] = [s.company]
@@ -607,10 +620,15 @@ async def main():
                                pid, admin)
         s.named["companies"].append(pid)
     s.named["partners"] = s.named["companies"][1:]
+    # the demo company's contract covers every line, so its trucks, rental cars and taxis sit in the one fleet (1173)
+    for line in ("BUS", "TRUCK", "RENTAL", "TAXI"):
+        await conn.execute("""INSERT INTO iam.company_fleet_line (company_id, line, contract_ref, granted_by)
+                              SELECT $1, $2, 'DEMO-CONTRACT', $3 WHERE NOT iam.fleet_line_open($1, $2)""", s.company, line, admin)
+    uses = {"trucks": ("TRUCK", "TRACTOR"), "cars": ("CAR", "RENTAL_CAR"), "taxis": ("CAR", "TAXI"), "buses": ("BUS", "COACH")}
     for pool, n, vtype, prefix in (("trucks", 6, "OTHER", "TRK"), ("cars", 16, "OTHER", "RNT"), ("taxis", 10, "OTHER", "TAX"),
                                    ("buses", 6, "COACH", "BUS")):
         s.named[pool] = await s.make("fleet.vehicle", n, {
-            "vehicle_type": vtype, "plate_no": lambda i, p=prefix: f"{p} {120400 + i * 17}", "chassis_no": lambda i, p=prefix: f"{p}CH{880000 + i}",
+            "vehicle_class": uses[pool][0], "fleet_use": uses[pool][1], "vehicle_type": vtype, "plate_no": lambda i, p=prefix: f"{p} {120400 + i * 17}", "chassis_no": lambda i, p=prefix: f"{p}CH{880000 + i}",
             "passenger_seats": 44 if vtype == "COACH" else 4, "seat_layout_id": None, "status": "ACTIVE",
             "make": cycle("Hyundai", "Kia", "Toyota", "Mercedes", "MAN") if pool != "buses" else "Mercedes",
             "manufacture_year": cycle(2018, 2020, 2021, 2023), "owner_party_id": s.company})

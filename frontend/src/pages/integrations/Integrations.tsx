@@ -23,6 +23,14 @@ interface Meta {
   authorities?: { code: string; name: string; authority_type: string }[];
 }
 
+/** A company's connection request (N2, 1155): the company asks, platform security builds and approves the client. */
+interface ConnRequest {
+  uid: string; company_name: string; requested_by_name: string; purpose: string; connection_type: string; data_needed: string[];
+  system_name: string; system_vendor: string | null; system_host: string | null; ip_addresses: string[]; contact_name: string;
+  contact_email: string; contact_mobile: string | null; expected_volume: string; environment: string; status: string;
+  client_uid: string | null; client_status: string | null; decision_note: string | null; created_at: string;
+}
+
 const KIND_ICON: Record<string, IconName> = {
   CARRIER: "directions_bus", CHANNEL: "storefront", PARTNER: "account_balance", AUTHORITY: "shield", INTEGRATION: "hub", INTERNAL: "api",
 };
@@ -31,20 +39,26 @@ function copy(text: string, done: () => void) {
   navigator.clipboard?.writeText(text).then(done, () => undefined);
 }
 
-/** API clients: keys, scopes, allowed addresses and webhooks. Platform security sees and approves all; a company owner manages its own. */
+/** API clients: keys, scopes, allowed addresses and webhooks. Platform security builds, approves and manages every
+ *  client; a company files connection requests and takes its key once its client is approved (N2, option B). */
 export function IntegrationsPage() {
   const { t } = useI18n();
   const meta = useLoad(() => api.get<Meta>("/api/integrations/meta"));
   const list = useLoad(() => api.get<{ clients: Client[] }>("/api/integrations/clients"));
+  const reqs = useLoad(() => api.get<{ requests: ConnRequest[] }>("/api/integrations/requests").then((r) => r.requests));
   const [open, setOpen] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [asking, setAsking] = useState(false);
   if (open) return <ClientView uid={open} meta={meta.data} onBack={() => { setOpen(null); list.reload(); }} />;
+  const platform = !!meta.data?.platform;
   return (
     <div className="stack">
-      <PageHead title={t("api.title")} sub={t("api.sub")}>
-        <button className="btn" onClick={() => setCreating(true)} disabled={!meta.data}><Icon name="add" />{t("api.new")}</button>
+      <PageHead title={t("api.title")} sub={t(platform ? "api.sub" : "api.subCompany")}>
+        {platform ? <button className="btn" onClick={() => setCreating(true)} disabled={!meta.data}><Icon name="add" />{t("api.new")}</button>
+                  : <button className="btn" onClick={() => setAsking(true)} disabled={!meta.data}><Icon name="add" />{t("api.askConnection")}</button>}
       </PageHead>
       <DocsCard />
+      {meta.data && <Requests state={reqs} meta={meta.data} onClient={(uid) => { list.reload(); setOpen(uid); }} />}
       <div className="card stack">
         <Loaded state={list}>{(d) => d.clients.length === 0 ? (
           <Empty icon="api" title={t("api.none")} hint={t("api.noneHint")} />
@@ -53,7 +67,7 @@ export function IntegrationsPage() {
             <thead><tr><th>{t("api.client")}</th><th>{t("api.kind")}</th><th>{t("api.scopesCol")}</th><th>{t("api.keysCol")}</th><th>{t("api.today")}</th><th>{t("common.status")}</th><th /></tr></thead>
             <tbody>{d.clients.map((c) => (
               <tr key={c.uid} className="clickable" onClick={() => setOpen(c.uid)}>
-                <td><strong>{c.name}</strong><div className="small muted">{c.company ?? c.authority ?? c.provider ?? ""}</div></td>
+                <td><strong>{c.name}</strong><div className={`small muted${c.company ? "" : " mono ltr"}`}>{c.company ?? c.authority ?? c.provider ?? ""}</div></td>
                 <td><span className="row" style={{ gap: 6 }}><Icon name={KIND_ICON[c.kind] ?? "api"} />{t(`api.kinds.${c.kind}`)}</span>
                   <div className="small muted">{t(`api.env.${c.environment}`)}</div></td>
                 <td className="small">{c.scopes.length}</td>
@@ -66,6 +80,7 @@ export function IntegrationsPage() {
           </table></div>
         )}</Loaded>
       </div>
+      {asking && meta.data && <RequestModal meta={meta.data} onClose={() => setAsking(false)} onDone={() => { setAsking(false); reqs.reload(); }} />}
       {creating && meta.data && <CreateModal meta={meta.data} onClose={() => setCreating(false)}
                                              onDone={(uid) => { setCreating(false); list.reload(); setOpen(uid); }} />}
     </div>
@@ -79,7 +94,7 @@ function DocsCard() {
     <div className="card stack" style={{ gap: 8 }}>
       <div className="row" style={{ gap: 8 }}><Icon name="code" /><strong>{t("api.docsTitle")}</strong></div>
       <p className="small muted" style={{ margin: 0 }}>{t("api.docsHint")}</p>
-      <pre className="code-block ltr">{`curl -H "X-Api-Key: msk_test_…" ${base}/me`}</pre>
+      <pre className="code-block ltr" tabIndex={0}>{`curl -H "X-Api-Key: msk_test_…" ${base}/me`}</pre>
       <div className="row" style={{ gap: 12 }}>
         <a className="btn text small" href="/api/v1/openapi.json" target="_blank" rel="noreferrer"><Icon name="description" />{t("api.openapi")}</a>
       </div>
@@ -249,7 +264,8 @@ function ClientView({ uid, meta, onBack }: { uid: string; meta: Meta | null; onB
 
             <div className="card stack">
               <div className="row between"><h3 style={{ margin: 0 }}><Icon name="key" /> {t("api.keys")}</h3>
-                <button className="btn" disabled={c.status !== "ACTIVE"} onClick={issue}><Icon name="add" />{t("api.issueKey")}</button></div>
+                <button className="btn" disabled={c.status !== "ACTIVE" || (!meta?.platform && d.keys.some((k) => k.status === "ACTIVE"))} onClick={issue}>
+                  <Icon name="add" />{t(meta?.platform ? "api.issueKey" : "api.takeKey")}</button></div>
               <p className="small muted" style={{ margin: 0 }}>{t("api.keysHint")}</p>
               {d.keys.length === 0 ? <p className="small muted">{t("api.noKeys")}</p> : (
                 <div className="table-wrap" tabIndex={0}><table className="table">
@@ -269,8 +285,8 @@ function ClientView({ uid, meta, onBack }: { uid: string; meta: Meta | null; onB
 
             <div className="card stack">
               <div className="row between"><h3 style={{ margin: 0 }}><Icon name="webhook" /> {t("api.webhooks")}</h3>
-                <button className="btn tonal" disabled={c.status === "REVOKED"} onClick={() => setAdding(true)}><Icon name="add" />{t("api.addWebhook")}</button></div>
-              <p className="small muted" style={{ margin: 0 }}>{t("api.webhooksHint")}</p>
+                {meta?.platform && <button className="btn tonal" disabled={c.status === "REVOKED"} onClick={() => setAdding(true)}><Icon name="add" />{t("api.addWebhook")}</button>}</div>
+              <p className="small muted" style={{ margin: 0 }}>{t(meta?.platform ? "api.webhooksHint" : "api.webhooksCompany")}</p>
               {d.webhooks.length === 0 ? <p className="small muted">{t("api.noWebhooks")}</p> : d.webhooks.map((h) => (
                 <div key={h.uid} className="hook-row">
                   <div style={{ minWidth: 0 }}>
@@ -284,11 +300,11 @@ function ClientView({ uid, meta, onBack }: { uid: string; meta: Meta | null; onB
                   </div>
                   <div className="row" style={{ gap: 4 }}>
                     <button className="btn text small" onClick={() => act(() => api.post(`/api/integrations/clients/${uid}/webhooks/${h.uid}/ping`), t("api.pingQueued"))}><Icon name="send" />{t("api.ping")}</button>
-                    <button className="btn text small" onClick={() => act(async () => {
+                    {meta?.platform && <button className="btn text small" onClick={() => act(async () => {
                       const r = await api.post<{ secret: string }>(`/api/integrations/clients/${uid}/webhooks/${h.uid}/rotate`);
                       setSecret({ title: t("api.newSecret"), value: r.secret, hint: t("api.secretOnce") });
-                    })}><Icon name="autorenew" />{t("api.rotate")}</button>
-                    <button className="btn text small danger" onClick={() => act(() => api.del(`/api/integrations/clients/${uid}/webhooks/${h.uid}`), t("api.removed"))}><Icon name="delete" /></button>
+                    })}><Icon name="autorenew" />{t("api.rotate")}</button>}
+                    {meta?.platform && <button className="btn text small danger" aria-label={t("common.remove")} onClick={() => act(() => api.del(`/api/integrations/clients/${uid}/webhooks/${h.uid}`), t("api.removed"))}><Icon name="delete" /></button>}
                   </div>
                 </div>
               ))}
@@ -386,6 +402,156 @@ function WebhookModal({ uid, events, canPii, onClose, onDone }: { uid: string; e
         </Field>
         {canPii && <label className="check-row"><input type="checkbox" checked={pii} onChange={(e) => setPii(e.target.checked)} /><span>{t("api.includePii")}<div className="small muted">{t("api.includePiiHint")}</div></span></label>}
         {error ? <ErrorBox error={error} /> : null}
+      </div>
+    </Modal>
+  );
+}
+
+// ---------------------------------------------------------------- connection requests (N2, 1155)
+const VOLUMES = ["LOW", "MEDIUM", "HIGH"] as const;
+const TYPES = ["READ", "WEBHOOKS", "TWO_WAY"] as const;
+
+function Requests({ state, meta, onClient }: { state: ReturnType<typeof useLoad<ConnRequest[]>>; meta: Meta; onClient: (uid: string) => void }) {
+  const { t, dateTime } = useI18n();
+  const toast = useToast();
+  const [building, setBuilding] = useState<ConnRequest | null>(null);
+  const [rejecting, setRejecting] = useState<ConnRequest | null>(null);
+  const [error, setError] = useState<unknown>(null);
+  const withdraw = async (r: ConnRequest) => {
+    setError(null);
+    try { await api.post(`/api/integrations/requests/${r.uid}/withdraw`); toast(t("common.saved")); state.reload(); } catch (e) { setError(e); }
+  };
+  return (
+    <div className="card stack">
+      <h3 style={{ margin: 0 }}><Icon name="assignment_ind" /> {t("api.requests")}</h3>
+      <p className="small muted" style={{ margin: 0 }}>{t(meta.platform ? "api.requestsPlatform" : "api.requestsCompany")}</p>
+      <ErrorBox error={error} />
+      <Loaded state={state}>{(list) => list.length === 0 ? <p className="small muted">{t("api.noRequests")}</p> : (
+        <div className="table-wrap" tabIndex={0}><table className="table">
+          <thead><tr><th>{t("api.system")}</th>{meta.platform && <th>{t("api.company")}</th>}<th>{t("api.connType")}</th><th>{t("api.dataNeeded")}</th>
+            <th>{t("common.when")}</th><th>{t("common.status")}</th><th /></tr></thead>
+          <tbody>{list.map((r) => (
+            <tr key={r.uid}>
+              <td><strong>{r.system_name}</strong>{r.system_vendor && <div className="small muted">{r.system_vendor}</div>}
+                <div className="small muted">{r.purpose}</div>
+                <div className="small muted ltr">{r.contact_name} · {r.contact_email}{r.system_host ? ` · ${r.system_host}` : ""}{r.ip_addresses.length ? ` · ${r.ip_addresses.join(", ")}` : ""}</div></td>
+              {meta.platform && <td className="small">{r.company_name}<div className="muted">{r.requested_by_name}</div></td>}
+              <td className="small">{t(`api.connTypes.${r.connection_type}`)}<div className="muted">{t(`api.volumes.${r.expected_volume}`)} · {t(`api.env.${r.environment}`)}</div></td>
+              <td><div className="row" style={{ gap: 4 }}>{r.data_needed.map((d) => <span key={d} className="chip mono ltr small">{d}</span>)}</div></td>
+              <td className="small">{dateTime(r.created_at)}</td>
+              <td><Status value={r.client_status ?? r.status} />{r.decision_note && <div className="small muted">{r.decision_note}</div>}</td>
+              <td className="num">
+                {r.client_uid ? <button className="btn text small" onClick={() => onClient(r.client_uid!)}>{t("api.openClient")}</button>
+                  : r.status === "SUBMITTED" && (meta.platform ? (
+                    <span className="row" style={{ gap: 4 }}>
+                      <button className="btn small" onClick={() => setBuilding(r)}>{t("api.buildClient")}</button>
+                      <button className="btn text small" onClick={() => setRejecting(r)}>{t("api.rejectRequest")}</button>
+                    </span>
+                  ) : <button className="btn text small" onClick={() => void withdraw(r)}>{t("api.withdraw")}</button>)}
+              </td>
+            </tr>
+          ))}</tbody>
+        </table></div>
+      )}</Loaded>
+      {building && <BuildModal request={building} meta={meta} onClose={() => setBuilding(null)}
+                               onDone={(uid) => { setBuilding(null); state.reload(); onClient(uid); }} />}
+      {rejecting && <ReasonModal title={t("api.rejectRequest")} onClose={() => setRejecting(null)}
+                                 onSave={(note) => api.post(`/api/integrations/requests/${rejecting.uid}/reject`, { note }).then(() => { setRejecting(null); state.reload(); })} />}
+    </div>
+  );
+}
+
+function RequestModal({ meta, onClose, onDone }: { meta: Meta; onClose: () => void; onDone: () => void }) {
+  const { t } = useI18n();
+  const { me } = useAuth();
+  const kind = me?.portal === "AGENCY" ? "CHANNEL" : "CARRIER";
+  const offered = meta.kinds[kind] ?? [];
+  const [f, setF] = useState({ purpose: "", connection_type: "READ", system_name: "", system_vendor: "", system_host: "", ips: "",
+                               contact_name: "", contact_email: "", contact_mobile: "", expected_volume: "LOW", environment: "SANDBOX" });
+  const [data, setData] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setF({ ...f, [k]: e.target.value });
+  const ok = f.purpose.trim().length >= 10 && f.system_name.trim().length >= 2 && f.contact_name.trim().length >= 3 && /\S+@\S+\.\S+/.test(f.contact_email) && data.length > 0;
+  const save = async () => {
+    setBusy(true); setError(null);
+    try {
+      await api.post("/api/integrations/requests", {
+        purpose: f.purpose.trim(), connection_type: f.connection_type, data_needed: data, system_name: f.system_name.trim(),
+        system_vendor: f.system_vendor.trim() || null, system_host: f.system_host.trim() || null,
+        ip_addresses: f.ips.split(/[\s,]+/).filter(Boolean), contact_name: f.contact_name.trim(), contact_email: f.contact_email.trim(),
+        contact_mobile: f.contact_mobile.trim() || null, expected_volume: f.expected_volume, environment: f.environment });
+      onDone();
+    } catch (e) { setError(e); } finally { setBusy(false); }
+  };
+  return (
+    <Modal wide title={t("api.askConnection")} onClose={onClose}
+           actions={<><button className="btn text" onClick={onClose}>{t("common.cancel")}</button><button className="btn" disabled={busy || !ok} onClick={save}>{t("api.sendRequest")}</button></>}>
+      <div className="stack">
+        <p className="small muted" style={{ margin: 0 }}>{t("api.askHint")}</p>
+        <ErrorBox error={error} />
+        <Field label={t("api.purpose")}><textarea className="input" maxLength={1000} value={f.purpose} onChange={set("purpose")} /></Field>
+        <div className="grid cols-3">
+          <Field label={t("api.connType")}><select className="input" value={f.connection_type} onChange={set("connection_type")}>
+            {TYPES.map((x) => <option key={x} value={x}>{t(`api.connTypes.${x}`)}</option>)}</select></Field>
+          <Field label={t("api.volume")}><select className="input" value={f.expected_volume} onChange={set("expected_volume")}>
+            {VOLUMES.map((x) => <option key={x} value={x}>{t(`api.volumes.${x}`)}</option>)}</select></Field>
+          <Field label={t("api.environment")}><select className="input" value={f.environment} onChange={set("environment")}>
+            {(["SANDBOX", "PRODUCTION"] as const).map((x) => <option key={x} value={x}>{t(`api.env.${x}`)}</option>)}</select></Field>
+        </div>
+        <fieldset className="stack tight" style={{ border: 0, padding: 0, margin: 0 }}>
+          <legend className="small muted">{t("api.dataNeeded")}</legend>
+          <div className="grid cols-2">{offered.map((sc) => (
+            <label key={sc} className="check small"><input type="checkbox" checked={data.includes(sc)} onChange={(e) => setData(e.target.checked ? [...data, sc] : data.filter((x) => x !== sc))} />
+              <span><span className="mono ltr">{sc}</span> · {t(`api.scope.${sc.replace(":", "_")}`)}</span></label>
+          ))}</div>
+        </fieldset>
+        <div className="grid cols-3">
+          <Field label={t("api.system")}><input className="input" maxLength={120} value={f.system_name} onChange={set("system_name")} /></Field>
+          <Field label={t("api.vendor")} optional><input className="input" maxLength={120} value={f.system_vendor} onChange={set("system_vendor")} /></Field>
+          <Field label={t("api.host")} optional><input className="input ltr" maxLength={253} value={f.system_host} onChange={set("system_host")} /></Field>
+        </div>
+        <Field label={t("api.ips")} optional hint={t("api.ipsHint")}><input className="input ltr" value={f.ips} onChange={set("ips")} /></Field>
+        <div className="grid cols-3">
+          <Field label={t("api.contactName")}><input className="input" maxLength={120} value={f.contact_name} onChange={set("contact_name")} /></Field>
+          <Field label={t("common.email")}><input className="input ltr" type="email" value={f.contact_email} onChange={set("contact_email")} /></Field>
+          <Field label={t("common.mobile")} optional><input className="input ltr" inputMode="tel" value={f.contact_mobile} onChange={set("contact_mobile")} /></Field>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function BuildModal({ request, meta, onClose, onDone }: { request: ConnRequest; meta: Meta; onClose: () => void; onDone: (uid: string) => void }) {
+  const { t } = useI18n();
+  const kinds = ["CARRIER", "CHANNEL", "INTEGRATION"].filter((k) => meta.kinds[k]);
+  const [name, setName] = useState(request.system_name);
+  const [kind, setKind] = useState(kinds.find((k) => request.data_needed.every((d) => meta.kinds[k]?.includes(d))) ?? kinds[0]);
+  const [scopes, setScopes] = useState<string[]>(request.data_needed);
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const save = async () => {
+    setBusy(true); setError(null);
+    try {
+      const r = await api.post<{ client: { uid: string } }>(`/api/integrations/requests/${request.uid}/client`, { name: name.trim(), kind, scopes, note: note.trim() || null });
+      onDone(r.client.uid);
+    } catch (e) { setError(e); } finally { setBusy(false); }
+  };
+  return (
+    <Modal title={t("api.buildClient")} onClose={onClose}
+           actions={<><button className="btn text" onClick={onClose}>{t("common.cancel")}</button><button className="btn" disabled={busy || name.trim().length < 3 || scopes.length === 0} onClick={save}>{t("common.create")}</button></>}>
+      <div className="stack">
+        <p className="small muted" style={{ margin: 0 }}>{t("api.buildHint", { company: request.company_name })}</p>
+        <ErrorBox error={error} />
+        <Field label={t("api.client")}><input className="input" maxLength={120} value={name} onChange={(e) => setName(e.target.value)} /></Field>
+        <Field label={t("api.kind")}><select className="input" value={kind} onChange={(e) => { setKind(e.target.value); setScopes([]); }}>
+          {kinds.map((k) => <option key={k} value={k}>{t(`api.kinds.${k}`)}</option>)}</select></Field>
+        <div className="grid cols-2">{(meta.kinds[kind] ?? []).map((sc) => (
+          <label key={sc} className="check small"><input type="checkbox" checked={scopes.includes(sc)} onChange={(e) => setScopes(e.target.checked ? [...scopes, sc] : scopes.filter((x) => x !== sc))} />
+            <span className="mono ltr">{sc}</span></label>
+        ))}</div>
+        <Field label={t("api.note")} optional><input className="input" maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} /></Field>
       </div>
     </Modal>
   );

@@ -25,6 +25,9 @@ source = ["app"]
 parallel = true
 sigterm = true
 omit = ["app/tools/*"]   # command-line tools: their tests run them as separate processes
+# the worker runs in the tests as its own process (python -m app.modules.notify.worker --once): measured too, so the
+# scheduled reports, notifications and e-invoices it runs count (independent review, round 8, R-19)
+patch = ["subprocess"]
 
 [tool.coverage.report]
 skip_empty = true

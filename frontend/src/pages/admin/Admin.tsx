@@ -1,13 +1,21 @@
 import { useState } from "react";
+import { RecordEditor, type EditField } from "../../components/RecordEditor";
 import { api, newKey } from "../../api";
-import { useI18n } from "../../i18n";
+import { fromMinor, toMinor, useI18n } from "../../i18n";
 import { useAuth } from "../../auth";
 import { PageHead } from "../../components/layout";
-import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, useToast } from "../../components/ui";
+import { PlacePicker, type PickedPlace } from "../../components/PlacePicker";
+import { GeoCascade, NO_GEO, type GeoChoice } from "../../components/GeoCascade";
+import { useSignInSlip, type SignIn } from "../../components/SignInSlip";
+import { CarrierName, Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, useToast, PasswordInput } from "../../components/ui";
 
 interface Overview { carriers: number; carriers_pending: number; passengers: number; active_trips: number; bookings: number; gmv: number; stations: number }
-interface Company { uid: string; legal_name: string; company_type: string; approval_status: string; created_at: string; code3: string | null; vehicles: number; trips: number }
-interface AdminStation { uid: string; code: string; name: string; station_class: string; status: string; city_code: string; lat: number; lng: number; owner_name: string | null }
+interface Company {
+  uid: string; legal_name: string; company_type: string; approval_status: string; created_at: string; code3: string | null;
+  code2?: string | null; logo?: string | null; vehicles: number; trips: number;
+}
+interface AdminStation { uid: string; code: string; name: string; station_class: string; status: string; city_code: string; lat: number; lng: number; owner_name: string | null;
+  place_pcode: string | null; place_en: string | null; place_ar: string | null }
 
 export function AdminOverview() {
   const { t, num, money } = useI18n();
@@ -30,25 +38,39 @@ export function AdminOverview() {
   );
 }
 
+// the fields of a company the platform corrects (1171); the legal name and the registration and licence numbers need a reason
+function companyFields(t: (k: string) => string): EditField[] {
+  return [
+    { key: "legal_name", label: t("admin.legalName") }, { key: "name_latin", label: t("edit.c.nameLatin"), ltr: true },
+    { key: "cr_no", label: t("edit.c.crNo"), ltr: true }, { key: "cr_expiry", label: t("edit.c.crExpiry"), kind: "date" },
+    { key: "transport_license_no", label: t("edit.c.licenceNo"), ltr: true }, { key: "regulator_code", label: t("edit.c.regulatorCode"), ltr: true },
+  ];
+}
+const COMPANY_REGULATED = ["legal_name", "cr_no", "transport_license_no"];
+
 export function AdminCompanies() {
   const { t, date } = useI18n();
   const { can } = useAuth();
   const toast = useToast();
   const state = useLoad(() => api.get<{ companies: Company[] }>("/api/admin/companies"));
   const [open, setOpen] = useState(false);
-  const blank = { legal_name: "", code3: "", transport_license_no: "", owner_name: "", owner_email: "", owner_password: "" };
+  const blank = { legal_name: "", code3: "", code2: "", transport_license_no: "", owner_name: "", owner_email: "", owner_password: "" };
   const [f, setF] = useState(blank);
+  const [identity, setIdentity] = useState<Company | null>(null);
+  const [editing, setEditing] = useState<Company | null>(null);
+  const [linesOf, setLinesOf] = useState<Company | null>(null);
+  const slip = useSignInSlip();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [statusFor, setStatusFor] = useState<{ uid: string; status: string } | null>(null);
   const [reason, setReason] = useState("");
-  const set = (k: keyof typeof blank) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: k === "code3" ? e.target.value.toUpperCase() : e.target.value });
+  const set = (k: keyof typeof blank) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: k === "code3" || k === "code2" ? e.target.value.toUpperCase() : e.target.value });
 
   const onboard = async () => {
     setBusy(true); setError(null);
     try {
-      await api.post("/api/admin/companies", { ...f, transport_license_no: f.transport_license_no || null });
-      setOpen(false); setF(blank); toast(t("common.saved")); state.reload();
+      const r = await api.post<{ sign_in?: SignIn }>("/api/admin/companies", { ...f, code2: f.code2 || null, transport_license_no: f.transport_license_no || null });
+      setOpen(false); setF(blank); toast(t("common.saved")); state.reload(); slip.show(r.sign_in);
     } catch (e) { setError(e); } finally { setBusy(false); }
   };
   const changeStatus = async () => {
@@ -62,6 +84,7 @@ export function AdminCompanies() {
 
   return (
     <div className="stack">
+      {slip.element}
       <PageHead title={t("admin.companies")}>
         {can("company.approve") && <button className="btn" onClick={() => setOpen(true)}><Icon name="add" />{t("admin.onboard")}</button>}
       </PageHead>
@@ -71,16 +94,23 @@ export function AdminCompanies() {
           <thead><tr><th>{t("admin.legalName")}</th><th>{t("common.code")}</th><th>{t("admin.vehiclesCount")}</th><th>{t("admin.tripsCount")}</th><th>{t("admin.created")}</th><th>{t("common.status")}</th><th>{t("common.actions")}</th></tr></thead>
           <tbody>{companies.map((c) => (
             <tr key={c.uid}>
-              <td style={{ fontWeight: 500 }}>{c.legal_name}</td><td className="mono">{c.code3}</td><td className="num">{c.vehicles}</td><td className="num">{c.trips}</td>
+              <td style={{ fontWeight: 500 }}><CarrierName name={c.legal_name} uid={c.uid} logo={c.logo} /></td>
+              <td className="mono text-nowrap">{c.code3}{c.code2 ? ` · ${c.code2}` : ""}</td><td className="num">{c.vehicles}</td><td className="num">{c.trips}</td>
               <td>{date(c.created_at, { year: "numeric" })}</td><td><Status value={c.approval_status} /></td>
               <td>{can("company.approve") && <div className="row nowrap" style={{ gap: 4 }}>
                 {c.approval_status !== "APPROVED" && <button className="btn tonal small" onClick={() => setStatusFor({ uid: c.uid, status: "APPROVED" })}>{t("admin.approve")}</button>}
                 {c.approval_status === "APPROVED" && <button className="btn danger small" onClick={() => setStatusFor({ uid: c.uid, status: "SUSPENDED" })}>{t("admin.suspend")}</button>}
+                <button className="btn text small" onClick={() => setEditing(c)}><Icon name="edit" />{t("edit.edit")}</button>
+                <button className="btn text small" onClick={() => setIdentity(c)}><Icon name="image" />{t("company.identity")}</button>
+                <button className="btn text small" onClick={() => setLinesOf(c)}><Icon name="garage" />{t("fl.lines")}</button>
               </div>}</td>
             </tr>
           ))}</tbody>
         </table></div>
       )}</Loaded>
+      {editing && <RecordEditor title={t("edit.companyTitle", { name: editing.legal_name })} url={`/api/admin/companies/${editing.uid}`} record="company"
+                                fields={companyFields(t)} regulated={COMPANY_REGULATED} onClose={() => { setEditing(null); state.reload(); }} />}
+      {linesOf && <FleetLines company={linesOf} onClose={() => setLinesOf(null)} />}
       {open && (
         <Modal title={t("admin.onboard")} onClose={() => setOpen(false)}
                actions={<><button className="btn text" onClick={() => setOpen(false)}>{t("common.cancel")}</button><button className="btn" disabled={busy} onClick={onboard}>{t("common.create")}</button></>}>
@@ -89,14 +119,16 @@ export function AdminCompanies() {
             <Field label={t("admin.legalName")}><input className="input" value={f.legal_name} onChange={set("legal_name")} /></Field>
             <div className="grid cols-2">
               <Field label={t("admin.code3")}><input className="input ltr mono" maxLength={3} value={f.code3} onChange={set("code3")} /></Field>
-              <Field label={`${t("admin.license")} (${t("common.optional")})`}><input className="input ltr" value={f.transport_license_no} onChange={set("transport_license_no")} /></Field>
+              <Field label={t("company.code2")} optional hint={t("company.code2Hint")}><input className="input ltr mono" maxLength={2} value={f.code2} onChange={set("code2")} /></Field>
+              <Field label={t("admin.license")} optional><input className="input ltr" value={f.transport_license_no} onChange={set("transport_license_no")} /></Field>
               <Field label={t("admin.ownerName")}><input className="input" value={f.owner_name} onChange={set("owner_name")} /></Field>
               <Field label={t("admin.ownerEmail")}><input className="input ltr" type="email" value={f.owner_email} onChange={set("owner_email")} /></Field>
             </div>
-            <Field label={t("admin.ownerPassword")} hint={t("auth.passwordHint")}><input className="input ltr" type="password" value={f.owner_password} onChange={set("owner_password")} /></Field>
+            <Field label={t("admin.ownerPassword")} hint={t("auth.passwordHint")}><PasswordInput value={f.owner_password} onChange={set("owner_password")} /></Field>
           </div>
         </Modal>
       )}
+      {identity && <CompanyIdentity company={identity} onClose={() => { setIdentity(null); state.reload(); }} />}
       {statusFor && (
         <Modal title={t("admin.changeStatus")} onClose={() => setStatusFor(null)}
                actions={<><button className="btn text" onClick={() => setStatusFor(null)}>{t("common.cancel")}</button><button className="btn" disabled={busy || reason.trim().length < 3} onClick={changeStatus}>{t("common.confirm")}</button></>}>
@@ -111,54 +143,199 @@ export function AdminCompanies() {
   );
 }
 
+/** A company's identity on the platform's screens: its logo, to a specification, and the designator of its trip numbers
+ * ("DC 1201"). The logo is shown next to the name on the station's departure board and in search results (1114, 1115). */
+interface FleetLine { id: number; line: string; contract_ref: string | null; valid_from: string; valid_to: string | null; open: boolean; granted_by: string | null }
+
+// The lines of business a company's contract covers (1173): its staff define only the vehicles of the open lines.
+function FleetLines({ company, onClose }: { company: Company; onClose: () => void }) {
+  const { t, date } = useI18n();
+  const toast = useToast();
+  const state = useLoad(() => api.get<{ lines: FleetLine[]; vehicles: Record<string, number> }>(`/api/admin/companies/${company.uid}/fleet-lines`), [company.uid]);
+  const [f, setF] = useState({ line: "TRUCK", contract_ref: "", valid_from: "", valid_to: "" });
+  const [error, setError] = useState<unknown>(null);
+  const run = async (fn: () => Promise<unknown>) => {
+    setError(null);
+    try { await fn(); toast(t("common.saved")); state.reload(); } catch (e) { setError(e); }
+  };
+  return (
+    <Modal title={`${t("fl.lines")} · ${company.legal_name}`} onClose={onClose} wide actions={<button className="btn text" onClick={onClose}>{t("common.close")}</button>}>
+      <div className="stack">
+        <p className="small muted">{t("fl.linesHint")}</p>
+        <ErrorBox error={error} />
+        <Loaded state={state}>{(d) => (<>
+          {Object.keys(d.vehicles).length > 0 && <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
+            {Object.entries(d.vehicles).map(([u, n]) => <span key={u} className="chip">{t(`fl.use.${u}`)}: {n}</span>)}</div>}
+          {d.lines.length === 0 ? <Empty icon="garage" title={t("common.noData")} /> : (
+            <div className="table-wrap" tabIndex={0}><table className="table">
+              <thead><tr><th>{t("fl.lines")}</th><th>{t("fl.contractRef")}</th><th>{t("fl.validFrom")}</th><th>{t("common.status")}</th><th>{t("common.actions")}</th></tr></thead>
+              <tbody>{d.lines.map((l) => <tr key={l.id}><td>{t(`fl.line.${l.line}`)}</td><td className="ltr small">{l.contract_ref ?? "—"}</td>
+                <td className="small">{date(l.valid_from)}{l.valid_to ? ` → ${date(l.valid_to)}` : ""}</td>
+                <td>{l.open ? <span className="chip green">{t("fl.open")}</span> : <span className="chip outline">{t("fl.closed")}</span>}</td>
+                <td>{l.open && <button className="btn text small" onClick={() => run(() => api.post(`/api/admin/fleet-lines/${l.id}/end`))}>{t("fl.endLine")}</button>}</td></tr>)}</tbody>
+            </table></div>)}
+        </>)}</Loaded>
+        <h4>{t("fl.openLine")}</h4>
+        <div className="grid cols-3">
+          <Field label={t("fl.lines")}><select className="input" value={f.line} onChange={(e) => setF({ ...f, line: e.target.value })}>
+            {["BUS", "TRUCK", "RENTAL", "TAXI"].map((x) => <option key={x} value={x}>{t(`fl.line.${x}`)}</option>)}</select></Field>
+          <Field label={t("fl.contractRef")}><input className="input ltr" value={f.contract_ref} onChange={(e) => setF({ ...f, contract_ref: e.target.value })} /></Field>
+          <Field label={t("fl.validFrom")}><input className="input ltr" type="date" value={f.valid_from} onChange={(e) => setF({ ...f, valid_from: e.target.value })} /></Field>
+          <Field label={t("fl.validTo")}><input className="input ltr" type="date" value={f.valid_to} onChange={(e) => setF({ ...f, valid_to: e.target.value })} /></Field>
+        </div>
+        <button className="btn" style={{ alignSelf: "flex-start" }} onClick={() => run(() => api.post(`/api/admin/companies/${company.uid}/fleet-lines`, {
+          line: f.line, contract_ref: f.contract_ref || null, valid_from: f.valid_from || null, valid_to: f.valid_to || null }))}><Icon name="add" />{t("fl.openLine")}</button>
+      </div>
+    </Modal>
+  );
+}
+
+function CompanyIdentity({ company, onClose }: { company: Company; onClose: () => void }) {
+  const { t } = useI18n();
+  const toast = useToast();
+  const [logo, setLogo] = useState<string | null>(company.logo ?? null);
+  const [code2, setCode2] = useState(company.code2 ?? "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const act = async (call: () => Promise<void>) => {
+    setBusy(true); setError(null);
+    try { await call(); toast(t("common.saved")); } catch (e) { setError(e); } finally { setBusy(false); }
+  };
+  const upload = (file: File | undefined) => file && act(async () => {
+    const form = new FormData();
+    form.append("file", file);
+    const r = await api.put<{ logo: string }>(`/api/admin/companies/${company.uid}/logo`, form);
+    setLogo(r.logo);
+  });
+  return (
+    <Modal title={`${t("company.identity")} · ${company.legal_name}`} onClose={onClose}
+           actions={<button className="btn text" onClick={onClose}>{t("common.close")}</button>}>
+      <div className="stack">
+        <ErrorBox error={error} />
+        <h3 style={{ margin: 0 }}>{t("company.logo")}</h3>
+        <div className="row" style={{ gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          {logo ? <span className="logo-tile"><img src={`/api/public/companies/${company.uid}/logo?v=${logo}`} alt={t("company.logoOf", { name: company.legal_name })} /></span>
+                : <span className="small muted">{t("company.noLogo")}</span>}
+          <label className="btn outlined small">
+            <Icon name="upload" />{t(logo ? "company.replaceLogo" : "company.addLogo")}
+            <input type="file" accept="image/png,image/jpeg,image/webp" hidden disabled={busy}
+                   onChange={(e) => { upload(e.target.files?.[0]); e.target.value = ""; }} />
+          </label>
+          {logo && <button className="btn text small danger" disabled={busy}
+                           onClick={() => act(async () => { await api.del(`/api/admin/companies/${company.uid}/logo`); setLogo(null); })}>
+            <Icon name="delete" />{t("company.removeLogo")}</button>}
+        </div>
+        <ul className="small muted" style={{ margin: 0, paddingInlineStart: 18 }}>
+          {["format", "shape", "size", "kept"].map((k) => <li key={k}>{t(`company.spec.${k}`)}</li>)}
+        </ul>
+        {company.code3 && <>
+        <h3 style={{ margin: 0 }}>{t("company.code2")}</h3>
+        <div className="row" style={{ gap: 8, alignItems: "flex-start", flexWrap: "wrap" }}>
+          <Field label={t("company.code2")} hint={t("company.code2Hint")}>
+            <input className="input ltr mono" maxLength={2} value={code2} onChange={(e) => setCode2(e.target.value.toUpperCase())} />
+          </Field>
+          <button className="btn outlined" style={{ marginTop: 26 }} disabled={busy || code2 === (company.code2 ?? "")}
+                  onClick={() => act(async () => { await api.put(`/api/admin/companies/${company.uid}/designator`, { code2: code2 || null }); })}>
+            {t("common.save")}</button>
+        </div>
+        <p className="small muted" style={{ margin: 0 }}>{t("company.code2Note", { code3: company.code3 })}</p>
+        </>}
+      </div>
+    </Modal>
+  );
+}
+
 export function AdminStations() {
-  const { t, station, city } = useI18n();
+  const { t, has, station, city, locale } = useI18n();
   const { can } = useAuth();
   const toast = useToast();
   const state = useLoad(() => api.get<{ stations: AdminStation[] }>("/api/admin/stations"));
   const [open, setOpen] = useState(false);
-  const blank = { city_code: "DAM", number: "2", name: "", address: "", lat: "", lng: "" };
+  const blank = { city_code: "", number: "2", name: "", address: "", lat: "", lng: "" };
   const [f, setF] = useState(blank);
+  const [place, setPlace] = useState<PickedPlace | null>(null);
+  const [geo, setGeo] = useState<GeoChoice>(NO_GEO);
+  const [placing, setPlacing] = useState<AdminStation | null>(null);
+  const [editing, setEditing] = useState<AdminStation | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const set = (k: keyof typeof blank) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value });
-  const cities = ["ALP", "DAM", "DRA", "DRZ", "HMA", "HMS", "HSK", "IDL", "LTK", "QNT", "RDM", "RQA", "SWD", "TRT"];
+  const close = () => { setOpen(false); setPlacing(null); setPlace(null); setGeo(NO_GEO); setError(null); };
   const submit = async () => {
     setBusy(true); setError(null);
     try {
-      await api.post("/api/admin/stations", { ...f, number: Number(f.number), lat: Number(f.lat), lng: Number(f.lng), address: f.address || null });
-      setOpen(false); setF(blank); toast(t("common.saved")); state.reload();
+      await api.post("/api/admin/stations", {
+        city_code: f.city_code || geo.city || undefined, place: place?.pcode ?? (geo.area || undefined), number: Number(f.number), name: f.name, address: f.address || null,
+        lat: f.lat ? Number(f.lat) : undefined, lng: f.lng ? Number(f.lng) : undefined });
+      close(); setF(blank); toast(t("common.saved")); state.reload();
     } catch (e) { setError(e); } finally { setBusy(false); }
   };
+  const savePlace = async () => {
+    if (!placing || !place) return;
+    setBusy(true); setError(null);
+    try {
+      await api.put(`/api/admin/stations/${placing.uid}/place`, { place: place.pcode });
+      close(); toast(t("common.saved")); state.reload();
+    } catch (e) { setError(e); } finally { setBusy(false); }
+  };
+  const placeName = (s: AdminStation) => (locale === "ar" ? s.place_ar : s.place_en);
   return (
     <div className="stack">
       <PageHead title={t("admin.stations")}>
-        {can("station.approve") && <button className="btn" onClick={() => setOpen(true)}><Icon name="add" />{t("admin.newStation")}</button>}
+        {can("station.approve") && <button className="btn" onClick={() => { setOpen(true); setPlace(null); }}><Icon name="add" />{t("admin.newStation")}</button>}
       </PageHead>
       <Loaded state={state}>{({ stations }) => (
         <div className="table-wrap" tabIndex={0}><table className="table">
-          <thead><tr><th>{t("common.code")}</th><th>{t("common.station")}</th><th>{t("common.city")}</th><th>{t("common.type")}</th><th>{t("admin.lat")}, {t("admin.lng")}</th><th>{t("common.status")}</th></tr></thead>
+          <thead><tr><th>{t("common.code")}</th><th>{t("common.station")}</th><th>{t("common.city")}</th><th>{t("geo.place")}</th><th>{t("common.type")}</th><th>{t("admin.lat")}, {t("admin.lng")}</th><th>{t("common.status")}</th><th>{t("common.actions")}</th></tr></thead>
           <tbody>{stations.map((s) => (
-            <tr key={s.uid}><td className="mono small">{s.code}</td><td>{station(s.code, s.name)}</td><td>{city(s.city_code)}</td><td>{s.station_class}</td>
-              <td className="mono small ltr">{s.lat.toFixed(4)}, {s.lng.toFixed(4)}</td><td><Status value={s.status} /></td></tr>
+            <tr key={s.uid}><td className="mono small">{s.code}</td><td>{station(s.code, s.name)}</td><td>{city(s.city_code)}</td>
+              <td>{s.place_pcode ? <span>{placeName(s)} <span className="mono small muted">{s.place_pcode}</span></span>
+                : can("station.approve") && <button className="btn text small" onClick={() => { setPlacing(s); setPlace(null); }}>{t("geo.setPlace")}</button>}</td>
+              <td>{has(`val.${s.station_class}`) ? t(`val.${s.station_class}`) : s.station_class}</td>
+              <td className="mono small ltr">{s.lat.toFixed(4)}, {s.lng.toFixed(4)}</td><td><Status value={s.status} /></td>
+              <td>{can("station.approve") && <button className="btn text small" onClick={() => setEditing(s)}><Icon name="edit" />{t("edit.edit")}</button>}</td></tr>
           ))}</tbody>
         </table></div>
       )}</Loaded>
+      {editing && <RecordEditor title={t("edit.stationTitle", { name: station(editing.code, editing.name) })} url={`/api/admin/stations/${editing.uid}`} record="station"
+        regulated={["name", "lat", "lng"]} onClose={() => { setEditing(null); state.reload(); }}
+        fields={[{ key: "name", label: t("common.station") }, { key: "address", label: t("edit.s.address") },
+                 { key: "lat", label: t("admin.lat"), kind: "number" }, { key: "lng", label: t("admin.lng"), kind: "number" },
+                 { key: "phone", label: t("common.mobile"), ltr: true }, { key: "email", label: t("common.email"), kind: "email" },
+                 { key: "operator_name", label: t("edit.s.operator") }, { key: "license_no", label: t("edit.s.licenceNo"), ltr: true },
+                 { key: "license_authority", label: t("edit.s.licenceAuthority") }, { key: "license_expiry", label: t("edit.s.licenceExpiry"), kind: "date" },
+                 { key: "lead_min", label: t("edit.s.leadMin"), kind: "number" },
+                 { key: "status", label: t("common.status"), kind: "select", options: [{ value: "ACTIVE", label: t("edit.s.active") }, { value: "SUSPENDED", label: t("edit.s.suspended") }, { value: "PENDING", label: t("edit.s.pending") }] }]} />}
       {open && (
-        <Modal title={t("admin.newStation")} onClose={() => setOpen(false)}
-               actions={<><button className="btn text" onClick={() => setOpen(false)}>{t("common.cancel")}</button><button className="btn" disabled={busy} onClick={submit}>{t("common.save")}</button></>}>
+        <Modal title={t("admin.newStation")} onClose={close}
+               actions={<><button className="btn text" onClick={close}>{t("common.cancel")}</button><button className="btn" disabled={busy} onClick={submit}>{t("common.save")}</button></>}>
           <div className="stack">
             <ErrorBox error={error} />
+            {/* the governorate, its city and the neighbourhood, one level at a time (1160, N37); or a place found by name */}
+            <GeoCascade value={geo} onChange={setGeo} depth="area" />
+            <PlacePicker label={t("geo.stationPlace")} value={place} onPick={setPlace} />
+            <p className="small muted" style={{ margin: 0 }}>{t("geo.stationPlaceHint")}</p>
             <div className="grid cols-2">
-              <Field label={t("common.city")}><select className="input" value={f.city_code} onChange={set("city_code")}>{cities.map((c) => <option key={c} value={c}>{city(c)}</option>)}</select></Field>
               <Field label={t("admin.number")}><input className="input ltr" type="number" min={1} max={999} value={f.number} onChange={set("number")} /></Field>
             </div>
             <Field label={`${t("common.name")} (English)`}><input className="input ltr" value={f.name} onChange={set("name")} /></Field>
-            <Field label={`${t("admin.address")} (${t("common.optional")})`}><input className="input" value={f.address} onChange={set("address")} /></Field>
+            <Field label={t("admin.address")} optional><input className="input" value={f.address} onChange={set("address")} /></Field>
             <div className="grid cols-2">
-              <Field label={t("admin.lat")}><input className="input ltr" type="number" step="0.0001" value={f.lat} onChange={set("lat")} /></Field>
-              <Field label={t("admin.lng")}><input className="input ltr" type="number" step="0.0001" value={f.lng} onChange={set("lng")} /></Field>
+              <Field label={t("admin.lat")} optional><input className="input ltr" type="number" step="0.0001" value={f.lat} placeholder={place ? String(place.lat) : ""} onChange={set("lat")} /></Field>
+              <Field label={t("admin.lng")} optional><input className="input ltr" type="number" step="0.0001" value={f.lng} placeholder={place ? String(place.lng) : ""} onChange={set("lng")} /></Field>
             </div>
+          </div>
+        </Modal>
+      )}
+      {placing && (
+        <Modal title={t("geo.setPlaceOf", { station: station(placing.code, placing.name) })} onClose={close}
+               actions={<><button className="btn text" onClick={close}>{t("common.cancel")}</button><button className="btn" disabled={busy || !place} onClick={savePlace}>{t("common.save")}</button></>}>
+          <div className="stack">
+            <ErrorBox error={error} />
+            {/* the governorate, its city and the neighbourhood, one level at a time (1160, N37); or a place found by name */}
+            <GeoCascade value={geo} onChange={setGeo} depth="area" />
+            <PlacePicker label={t("geo.stationPlace")} value={place} onPick={setPlace} />
+            <p className="small muted" style={{ margin: 0 }}>{t("geo.pickNear", { lat: placing.lat.toFixed(4), lng: placing.lng.toFixed(4) })}</p>
           </div>
         </Modal>
       )}
@@ -173,16 +350,17 @@ interface AdminAgency {
 }
 
 // Amounts are typed in whole Syrian pounds and sent in minor units
-const toMinor = (v: string) => Math.round(Number(v || 0) * 100);
 
 export function AdminAgencies() {
   const { t, money } = useI18n();
   const { can } = useAuth();
   const toast = useToast();
   const state = useLoad(() => api.get<{ agencies: AdminAgency[] }>("/api/admin/agencies"));
-  const blank = { legal_name: "", license_no: "", owner_name: "", owner_email: "", owner_password: "", commission_pct: "5", daily_limit: "500000" };
+  const blank = { legal_name: "", license_no: "", owner_name: "", owner_email: "", owner_password: "", commission_pct: "5", daily_limit: "5000" };
   const [f, setF] = useState(blank);
+  const [editing, setEditing] = useState<{ uid: string; legal_name: string } | null>(null);
   const [mode, setMode] = useState<null | "new" | { terms: AdminAgency } | { deposit: AdminAgency }>(null);
+  const slip = useSignInSlip();
   const [terms, setTerms] = useState({ commission_pct: "", daily_limit: "", status: "ACTIVE", reason: "" });
   const [dep, setDep] = useState({ amount: "", bank_reference: "", key: newKey() });
   const [busy, setBusy] = useState(false);
@@ -197,7 +375,7 @@ export function AdminAgencies() {
   const onboard = () => run(() => api.post("/api/admin/agencies", {
     legal_name: f.legal_name, license_no: f.license_no || null, owner_name: f.owner_name, owner_email: f.owner_email,
     owner_password: f.owner_password, commission_bp: Math.round(Number(f.commission_pct) * 100), daily_limit: toMinor(f.daily_limit),
-  }).then(() => setF(blank)));
+  }).then((r) => { setF(blank); slip.show((r as { sign_in?: SignIn }).sign_in); }));
   const saveTerms = (a: AdminAgency) => run(() => api.post(`/api/admin/agencies/${a.uid}/agreement`, {
     commission_bp: Math.round(Number(terms.commission_pct) * 100), daily_limit: toMinor(terms.daily_limit), status: terms.status, reason: terms.reason,
   }));
@@ -205,7 +383,7 @@ export function AdminAgencies() {
     amount: toMinor(dep.amount), bank_reference: dep.bank_reference.trim(), idempotency_key: dep.key,
   }));
   const openTerms = (a: AdminAgency) => {
-    setTerms({ commission_pct: String((a.commission_bp ?? 0) / 100), daily_limit: String((a.daily_limit ?? 0) / 100), status: a.agreement_status === "SUSPENDED" ? "SUSPENDED" : "ACTIVE", reason: "" });
+    setTerms({ commission_pct: String((a.commission_bp ?? 0) / 100), daily_limit: String(fromMinor(a.daily_limit ?? 0)), status: a.agreement_status === "SUSPENDED" ? "SUSPENDED" : "ACTIVE", reason: "" });
     setMode({ terms: a });
   };
   const openDeposit = (a: AdminAgency) => { setDep({ amount: "", bank_reference: "", key: newKey() }); setMode({ deposit: a }); };
@@ -215,6 +393,7 @@ export function AdminAgencies() {
 
   return (
     <div className="stack">
+      {slip.element}
       <PageHead title={t("admin.agencies")} sub={t("admin.agenciesHint")}>
         {can("company.approve") && <button className="btn" onClick={() => setMode("new")}><Icon name="add" />{t("admin.onboardAgency")}</button>}
       </PageHead>
@@ -233,12 +412,15 @@ export function AdminAgencies() {
               <td><Status value={a.agreement_status ?? a.approval_status} /></td>
               <td><div className="row nowrap" style={{ gap: 4 }}>
                 {can("company.approve") && <button className="btn tonal small" onClick={() => openTerms(a)}>{t("admin.terms")}</button>}
+                {can("company.approve") && <button className="btn text small" onClick={() => setEditing(a)}><Icon name="edit" />{t("edit.edit")}</button>}
                 {can("cash.remittance") && <button className="btn outlined small" onClick={() => openDeposit(a)}>{t("admin.deposit")}</button>}
               </div></td>
             </tr>
           ))}</tbody>
         </table></div>
       )}</Loaded>
+      {editing && <RecordEditor title={t("edit.companyTitle", { name: editing.legal_name })} url={`/api/admin/companies/${editing.uid}`} record="company"
+                                fields={companyFields(t)} regulated={COMPANY_REGULATED} onClose={() => { setEditing(null); state.reload(); }} />}
 
       {mode === "new" && (
         <Modal title={t("admin.onboardAgency")} onClose={close} actions={actions(onboard)}>
@@ -246,13 +428,13 @@ export function AdminAgencies() {
             <ErrorBox error={error} />
             <Field label={t("admin.legalName")}><input className="input" value={f.legal_name} onChange={set("legal_name")} /></Field>
             <div className="grid cols-2">
-              <Field label={`${t("admin.license")} (${t("common.optional")})`}><input className="input ltr" value={f.license_no} onChange={set("license_no")} /></Field>
+              <Field label={t("admin.license")} optional><input className="input ltr" value={f.license_no} onChange={set("license_no")} /></Field>
               <Field label={t("admin.commissionPct")} hint={t("admin.commissionHint")}><input className="input ltr" type="number" min={0} max={20} step={0.25} value={f.commission_pct} onChange={set("commission_pct")} /></Field>
               <Field label={t("admin.dailyLimitSyp")}><input className="input ltr" type="number" min={1} value={f.daily_limit} onChange={set("daily_limit")} /></Field>
               <Field label={t("admin.ownerName")}><input className="input" value={f.owner_name} onChange={set("owner_name")} /></Field>
             </div>
             <Field label={t("admin.ownerEmail")}><input className="input ltr" type="email" value={f.owner_email} onChange={set("owner_email")} /></Field>
-            <Field label={t("admin.ownerPassword")} hint={t("auth.passwordHint")}><input className="input ltr" type="password" autoComplete="new-password" value={f.owner_password} onChange={set("owner_password")} /></Field>
+            <Field label={t("admin.ownerPassword")} hint={t("auth.passwordHint")}><PasswordInput autoComplete="new-password" value={f.owner_password} onChange={set("owner_password")} /></Field>
           </div>
         </Modal>
       )}

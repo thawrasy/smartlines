@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { cloneElement, createContext, isValidElement, useCallback, useContext, useEffect, useId, useRef, useState, type InputHTMLAttributes, type ReactElement, type ReactNode } from "react";
 import { ICONS, type IconName } from "./icons";
 import { useI18n } from "../i18n";
 import { ApiError } from "../api";
@@ -21,6 +21,24 @@ export function Logo({ size = 36 }: { size?: number }) {
       <circle cx="15.5" cy="43.5" r="5" fill="#7FB0FF" />
       <circle cx="48.5" cy="34.5" r="5" fill="#12A06A" />
     </svg>
+  );
+}
+
+/** The address of a company's logo. The version (iam.logo_version) changes with the logo, so a new one shows at once and an
+ * unchanged one comes from the browser's cache (1115, 1116). */
+export function logoUrl(uid: string, version: string) { return `/api/public/companies/${uid}/logo?v=${version}`; }
+
+/** A carrier's name with its logo beside it, wherever the name is shown (owner's note, 1116). The logo is the carrier's own,
+ * added once by the platform when it defines the company, never set per trip; without one the name stands alone. The logo
+ * is decorative next to the name, so it carries no text of its own. */
+export function CarrierName({ name, uid, logo, size = "sm", strong, className }: {
+  name: ReactNode; uid?: string | null; logo?: string | null; size?: "sm" | "md"; strong?: boolean; className?: string;
+}) {
+  return (
+    <span className={`carrier-name${strong ? " strong" : ""}${className ? ` ${className}` : ""}`}>
+      {logo && uid && <span className={`logo-tile${size === "sm" ? " sm" : ""}`}><img src={logoUrl(uid, logo)} alt="" loading="lazy" /></span>}
+      <bdi className="carrier-label">{name}</bdi>
+    </span>
   );
 }
 
@@ -71,13 +89,52 @@ export function useErrorText() {
   }, [t, has]);
 }
 
-export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+/** A labelled control. A required field carries an asterisk after its label (explicitly, or when its control has
+ *  `required`); next to optional fields, the other fields of the same form carry it too. An optional field says so
+ *  inside the control, as its placeholder, instead of in the label (owner's note, October 2026). */
+export function Field({ label, hint, required, optional, children }: {
+  label: string; hint?: string; required?: boolean; optional?: boolean; children: ReactNode;
+}) {
+  const { t } = useI18n();
+  const props = isValidElement(children) ? (children.props as { required?: boolean; placeholder?: string; type?: string }) : null;
+  const marked = required ?? props?.required === true;
+  const typed = props && (props.type === undefined || ["text", "email", "tel", "number", "search", "url"].includes(props.type));
+  const control = optional && isValidElement(children) && typed && !props?.placeholder
+    ? cloneElement(children as ReactElement<{ placeholder?: string }>, { placeholder: t("common.optional") }) : children;
   return (
-    <label className="field">
-      <span>{label}</span>
-      {children}
+    <label className={`field${marked ? " is-required" : ""}${optional ? " is-optional" : ""}`}>
+      <span className="field-label">{label}</span>
+      {control}
       {hint && <small className="hint">{hint}</small>}
     </label>
+  );
+}
+
+/** A password field with an eye inside it that shows the password only while it is held down (pointer, touch, or Space
+ *  and Enter on the button), and hides it again on release, when the field loses focus, or after a few seconds (owner's
+ *  trial notes, October 2026: preferred to a "show password" box under the field). */
+export function PasswordInput({ className, ...props }: Omit<InputHTMLAttributes<HTMLInputElement>, "type">) {
+  const { t } = useI18n();
+  const [shown, setShown] = useState(false);
+  const timer = useRef<number | undefined>(undefined);
+  const show = () => { setShown(true); window.clearTimeout(timer.current); timer.current = window.setTimeout(() => setShown(false), 5000); };
+  const hide = () => { setShown(false); window.clearTimeout(timer.current); };
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+  const key = (e: React.KeyboardEvent, down: boolean) => {
+    if (e.key !== " " && e.key !== "Enter") return;
+    e.preventDefault();
+    if (down) show(); else hide();
+  };
+  return (
+    <span className="pw">
+      <input {...props} className={`input ltr${className ? " " + className : ""}`} type={shown ? "text" : "password"}
+             onBlur={(e) => { hide(); props.onBlur?.(e); }} />
+      <button type="button" className="pw-eye" aria-label={t("auth.holdToShow")} aria-pressed={shown} title={t("auth.holdToShow")}
+              onPointerDown={(e) => { e.preventDefault(); show(); }} onPointerUp={hide} onPointerLeave={hide} onPointerCancel={hide}
+              onKeyDown={(e) => key(e, true)} onKeyUp={(e) => key(e, false)} onContextMenu={(e) => e.preventDefault()}>
+        <Icon name={shown ? "visibility_off" : "visibility"} size={20} />
+      </button>
+    </span>
   );
 }
 
@@ -130,7 +187,7 @@ export function Stat({ icon, label, value, tone }: { icon: IconName; label: stri
   return (
     <div className={`stat ${tone ?? ""}`}>
       <div className="label"><span className="badge-ic"><Icon name={icon} size={20} /></span>{label}</div>
-      <div className="value">{value}</div>
+      <div className="value" title={typeof value === "string" || typeof value === "number" ? String(value) : undefined}>{value}</div>
     </div>
   );
 }

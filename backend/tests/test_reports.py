@@ -83,8 +83,11 @@ def test_company_sees_only_its_own_rows(owner):
     assert carriers <= {name}, (carriers, name)
     # a platform dataset is refused, and so is a column that is not in the dataset
     assert owner.post("/api/reports/run", json={"dataset": "payments", "spec": {"columns": ["amount"]}}).status_code == 403
-    r = owner.post("/api/reports/run", json={"dataset": "trips", "spec": {"columns": ["trip_no", "1; DROP TABLE ops.trip"]}})
+    r = owner.post("/api/reports/run", json={"dataset": "trips", "spec": {"columns": ["trip_no", "not_a_real_column"]}})
     assert r.status_code == 422 and r.json()["error"]["code"] == "REPORT_UNKNOWN_COLUMN"
+    # a column name written as an SQL statement is stopped by the application firewall before the column validator (1142)
+    r = owner.post("/api/reports/run", json={"dataset": "trips", "spec": {"columns": ["trip_no", "1; DROP TABLE ops.trip"]}})
+    assert r.status_code == 403 and r.json()["error"]["code"] == "REQUEST_REJECTED", r.text
     r = owner.post("/api/reports/run", json={"dataset": "trips", "spec": {"columns": ["trip_no"], "filters": [["trip_no", "union", "x"]]}})
     assert r.status_code == 422
     # filter values travel as parameters: quotes and percent signs are just text
@@ -151,6 +154,44 @@ def test_custom_report_saved_shared_and_isolated(owner, agency, admin):
     assert x.status_code == 200 and x.content[:2] == b"PK"
     assert owner.delete(f"/api/reports/definitions/{uid}").status_code == 200
     assert uid not in {s["uid"] for s in codes(owner)["saved"]}
+
+
+def _worker_once():
+    out = subprocess.run([sys.executable, "-m", "app.modules.notify.worker", "--once"], cwd=os.path.join(os.path.dirname(__file__), ".."),
+                         env={**os.environ}, capture_output=True, text=True, timeout=120)
+    assert out.returncode == 0, out.stderr[-2000:]
+    return out
+
+
+def test_a_scheduled_custom_report_stops_when_its_recipients_or_its_definition_go(owner):
+    # independent review round 8, T-07: the scheduler's company path and the three ways a schedule switches itself off
+    r = owner.post("/api/reports/definitions", json={"name": "Trips per route (scheduled)", "dataset": "trips",
+                                                     "spec": {"group_by": ["origin_city", "dest_city"], "totals": [["count", "*"]]}})
+    assert r.status_code == 201, r.text
+    definition = r.json()["uid"]
+    made = []
+    for _ in range(2):
+        s = owner.post("/api/reports/schedules", json={"definition": definition, "frequency": "WEEKLY", "format": "CSV", "locale": "en",
+                                                        "recipients": ["owner@carrier.test"]})
+        assert s.status_code == 201 and s.json()["sensitive"] is False, s.text
+        made.append(s.json()["uid"])
+    sent, other = made
+    owner_sql("UPDATE rpt.report_schedule SET next_run_at = now() - interval '1 minute' WHERE uid = $1::uuid", sent)
+    out = _worker_once()
+    run = owner_sql("""SELECT r.format, r.definition_id IS NOT NULL AS custom FROM rpt.report_run r WHERE r.params ->> 'schedule' = $1""",
+                    sent, fetch=True)
+    assert run and run["format"] == "CSV" and run["custom"], out.stderr[-1500:]
+    # a recipient who is no longer a member of the company: with nobody left, the schedule switches itself off
+    owner_sql("UPDATE rpt.report_schedule SET recipients = ARRAY['someone@elsewhere.example'], next_run_at = now() - interval '1 minute' "
+              "WHERE uid = $1::uuid", sent)
+    _worker_once()
+    assert owner_sql("SELECT active FROM rpt.report_schedule WHERE uid = $1::uuid", sent) is False
+    # the definition it runs is archived: the other schedule switches itself off instead of running
+    assert owner.delete(f"/api/reports/definitions/{definition}").status_code == 200
+    owner_sql("UPDATE rpt.report_schedule SET next_run_at = now() - interval '1 minute' WHERE uid = $1::uuid", other)
+    _worker_once()
+    assert owner_sql("SELECT active FROM rpt.report_schedule WHERE uid = $1::uuid", other) is False
+    assert owner_sql("SELECT count(*) FROM rpt.report_run WHERE params ->> 'schedule' = $1", other) == 0
 
 
 def test_scheduled_report_is_delivered_with_the_owner_rights(admin):

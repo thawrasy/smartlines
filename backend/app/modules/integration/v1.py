@@ -9,8 +9,10 @@
     shipments:read  GET  /api/v1/shipments/{tracking_no}
     reports:read    GET  /api/v1/reports, /api/v1/reports/{code}?format=json|csv|txt|xlsx|pdf
     wallet:credit   POST /api/v1/wallet/lookup, POST /api/v1/wallet/credits, GET /api/v1/wallet/credits[/{reference}]
+    vouchers:redeem POST /api/v1/loyalty/vouchers/check, POST /api/v1/loyalty/vouchers/redeem, GET /api/v1/loyalty/redemptions
     border:read     GET  /api/v1/border/manifests, /api/v1/border/manifests/{uid}
     border:respond  POST /api/v1/border/manifests/{uid}/decisions
+    roadside:scan   POST /api/v1/roadside/scan, GET /api/v1/roadside/checks
     webhooks:manage GET/POST /api/v1/webhooks, DELETE /api/v1/webhooks/{uid}, POST /api/v1/webhooks/{uid}/rotate|ping,
                     GET /api/v1/webhooks/deliveries, POST /api/v1/webhooks/deliveries/{uid}/retry
 
@@ -33,9 +35,11 @@ from ...crypto import cipher
 from ...errors import ApiError, not_found
 from ...routers import public
 from ..agency import service as agency
+from ..loyalty import partners as loyalty_partners
 from ..manifests import service as manifests
 from ..payments import service as payments
 from ..reports import api as reports
+from ..roadside import api as roadside
 from ..sales import service as sales
 from ..sales.models import AgencyBookingIn, HoldIn
 from . import service
@@ -75,7 +79,8 @@ async def trip_search(request: Request, origin: str = Query(..., min_length=3, m
                       passengers: int = Query(1, ge=1, le=4), caller: Caller = Depends(api_caller)):
     """Published trips between two cities on a day, with fares and free seats (city codes as in /api/ref)."""
     caller.need("trips:read")
-    return await public.search(request, origin=origin.upper(), destination=destination.upper(), on=on, passengers=passengers)
+    return await public.search(request, origin=origin.upper(), destination=destination.upper(), on=on, passengers=passengers,
+                               stops=None, adults=None, children=0, infants_lap=0, infants_seat=0, cabin=None)
 
 
 @router.get("/trips")
@@ -324,6 +329,99 @@ async def wallet_credit_status(reference: str, request: Request, caller: Caller 
     if r is None:
         raise not_found("credit")
     return _credit(r)
+
+
+# ------------------------------------------------------------------ loyalty vouchers (partners, 1107)
+class VoucherCodeIn(BaseModel):
+    code: str = Field(min_length=10, max_length=40)
+
+
+class VoucherRedeemIn(VoucherCodeIn):
+    reference: Optional[str] = Field(default=None, max_length=80)
+
+
+async def _loyalty_partner(conn, caller: Caller):
+    caller.need("vouchers:redeem")
+    return await loyalty_partners.partner_by_client(conn, caller.client_id)
+
+
+@router.post("/loyalty/vouchers/check")
+async def voucher_check(body: VoucherCodeIn, request: Request, caller: Caller = Depends(api_caller)):
+    """Before the sale: what a member's voucher is worth here and whether it can still be used."""
+    ctx = context(request, caller)
+    async with db.transaction(ctx) as conn:
+        async with db.system_scope(conn, ctx):
+            partner = await _loyalty_partner(conn, caller)
+            return await loyalty_partners.check(conn, partner["id"], body.code)
+
+
+@router.post("/loyalty/vouchers/redeem", status_code=201)
+async def voucher_redeem(body: VoucherRedeemIn, request: Request, caller: Caller = Depends(api_caller)):
+    """Honours the voucher once; the platform then owes you your share of it under the agreement (payable)."""
+    ctx = context(request, caller)
+    async with db.transaction(ctx) as conn:
+        async with db.system_scope(conn, ctx):
+            partner = await _loyalty_partner(conn, caller)
+        out = await loyalty_partners.accept(conn, ctx, partner["id"], body.code, body.reference, None, caller.client_id)
+    request.state.audit = {"action": "voucher.accept", "object_type": "partner_redemption", "object_id": out["redemption"]}
+    return out
+
+
+@router.get("/loyalty/redemptions")
+async def voucher_redemptions(request: Request, date_from: date = Query(..., alias="from"), date_to: Optional[date] = Query(None, alias="to"),
+                              caller: Caller = Depends(api_caller)):
+    """The vouchers you honoured in a period (at most 62 days) and the statement each was settled in, to reconcile."""
+    end = date_to or date_from
+    if end < date_from or (end - date_from).days > 62:
+        raise ApiError(422, "INVALID_PERIOD", "give a period of at most 62 days")
+    ctx = context(request, caller)
+    async with db.transaction(ctx) as conn:
+        async with db.system_scope(conn, ctx):
+            partner = await _loyalty_partner(conn, caller)
+            return {"redemptions": await loyalty_partners.partner_redemptions(conn, partner["id"], date_from, end)}
+
+
+# ------------------------------------------------------------------ roadside lookups (authorities, N47/N48, 1178)
+class RoadsideScanIn(BaseModel):
+    code: str = Field(min_length=10, max_length=60, description="the movement code read from the vehicle's placard")
+    officer_ref: str = Field(min_length=1, max_length=60, description="the body's own reference for the officer (badge or system id)")
+    lat: Optional[float] = Field(default=None, ge=-90, le=90)
+    lng: Optional[float] = Field(default=None, ge=-180, le=180)
+
+
+async def _roadside_body(conn, authority: int):
+    body = await conn.fetchrow("SELECT id, code, authority_type, name_ar, name_en, active FROM sec.authority_profile WHERE id = $1", authority)
+    if body is None or not body["active"]:
+        raise ApiError(403, "AUTHORITY_INACTIVE", "the body this client is linked to is not active")
+    return body
+
+
+@router.post("/roadside/scan", status_code=201)
+async def roadside_scan(body: RoadsideScanIn, request: Request, caller: Caller = Depends(api_caller)):
+    """The vehicle behind a movement code and its movement now (trip, crew, counts, cargo), within the scopes the platform
+    approved for the client's body. Each lookup is recorded as a roadside check of the body, with the officer's reference."""
+    authority = _authority(caller, "roadside:scan")
+    ctx = context(request, caller)
+    async with db.transaction(ctx) as conn:
+        async with db.system_scope(conn, ctx):
+            acting = await _roadside_body(conn, authority)
+            out = await roadside.lookup(conn, body.code, acting, client_id=caller.client_id, officer_ref=body.officer_ref.strip(),
+                                        lat=body.lat, lng=body.lng, closed=True)
+    request.state.audit = {"action": "roadside.api_scan", "object_type": "vehicle", "object_id": out.pop("_vehicle_uid")}
+    return out
+
+
+@router.get("/roadside/checks")
+async def roadside_checks(request: Request, since: Optional[datetime] = None, caller: Caller = Depends(api_caller)):
+    """The roadside lookups this client made (newest first, at most 500)."""
+    _authority(caller, "roadside:scan")
+    ctx = context(request, caller)
+    async with db.transaction(ctx) as conn:
+        async with db.system_scope(conn, ctx):
+            rows = await conn.fetch(
+                f"""{roadside.CHECKS} WHERE f.api_client_id = $1 AND ($2::timestamptz IS NULL OR f.created_at >= $2)
+                     ORDER BY f.created_at DESC LIMIT 500""", caller.client_id, since)
+    return {"checks": [roadside.check_row(r, ("inspector", "by_api", "sample_mode", "sampled")) for r in rows]}
 
 
 # ------------------------------------------------------------------ border manifests (authorities)

@@ -4,9 +4,10 @@ import { api, type BookingRow } from "../../api";
 import { useI18n } from "../../i18n";
 import { useAuth } from "../../auth";
 import { PageHead } from "../../components/layout";
-import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, useToast } from "../../components/ui";
+import { Empty, ErrorBox, Field, Icon, Loaded, Modal, Stat, Status, useLoad, useToast, PasswordInput } from "../../components/ui";
 import { SearchForm } from "../passenger/Home";
 import Results from "../passenger/Results";
+import { useSignInSlip, type SignIn } from "../../components/SignInSlip";
 
 interface AgencyBooking extends BookingRow { contact_mobile: string | null; sold_by: string | null; commission: number | null; passengers: number }
 interface Dashboard {
@@ -53,6 +54,7 @@ export function AgencyDashboard() {
   return (
     <div className="stack">
       <PageHead title={me?.company?.name ?? t("nav.agency")}>
+        <Link className="btn outlined" to="/agency/finance"><Icon name="account_balance_wallet" />{t("finance.title")}</Link>
         <Link className="btn" to="/agency/search"><Icon name="search" />{t("agency.sell")}</Link>
       </PageHead>
       <Loaded state={state}>{(d) => (
@@ -80,7 +82,7 @@ export function AgencyDashboard() {
 // ------------------------------------------------------------------ sell: search, then the shared results screen
 export function AgencySell() {
   const [params] = useSearchParams();
-  return params.get("from") ? <Results /> : <AgencySearch />;
+  return params.get("from") || params.get("legs") ? <Results /> : <AgencySearch />;
 }
 
 function AgencySearch() {
@@ -172,6 +174,7 @@ export function AgencyStaff() {
   const { can } = useAuth();
   const toast = useToast();
   const state = useLoad(() => api.get<{ staff: StaffMember[] }>("/api/agency/staff"));
+  const slip = useSignInSlip();
   const blank = { full_name: "", email: "", mobile: "", password: "", role: "SELLER" };
   const [f, setF] = useState(blank);
   const [open, setOpen] = useState(false);
@@ -181,12 +184,13 @@ export function AgencyStaff() {
   const save = async () => {
     setBusy(true); setError(null);
     try {
-      await api.post("/api/agency/staff", { ...f, mobile: f.mobile || null });
-      setOpen(false); setF(blank); toast(t("common.saved")); state.reload();
+      const r = await api.post<{ sign_in?: SignIn }>("/api/agency/staff", { ...f, mobile: f.mobile || null });
+      setOpen(false); setF(blank); toast(t("common.saved")); state.reload(); slip.show(r.sign_in);
     } catch (e) { setError(e); } finally { setBusy(false); }
   };
   return (
     <div className="stack">
+      {slip.element}
       <PageHead title={t("agency.staff")} sub={t("agency.staffHint")}>
         {can("company.staff") && <button className="btn" onClick={() => setOpen(true)}><Icon name="person_add" />{t("agency.addStaff")}</button>}
       </PageHead>
@@ -212,7 +216,7 @@ export function AgencyStaff() {
             <Field label={t("common.name")}><input className="input" value={f.full_name} onChange={set("full_name")} /></Field>
             <div className="grid cols-2">
               <Field label={t("common.email")}><input className="input ltr" type="email" value={f.email} onChange={set("email")} /></Field>
-              <Field label={`${t("common.mobile")} (${t("common.optional")})`}><input className="input ltr" inputMode="tel" value={f.mobile} onChange={set("mobile")} /></Field>
+              <Field label={t("common.mobile")} optional><input className="input ltr" inputMode="tel" value={f.mobile} onChange={set("mobile")} /></Field>
             </div>
             <Field label={t("agency.role")}>
               <select className="input" value={f.role} onChange={set("role")}>
@@ -220,7 +224,7 @@ export function AgencyStaff() {
                 <option value="ACCOUNTANT">{t("agency.roles.AGENCY_ACCOUNTANT")}</option>
               </select>
             </Field>
-            <Field label={t("common.password")} hint={t("auth.passwordHint")}><input className="input ltr" type="password" autoComplete="new-password" value={f.password} onChange={set("password")} /></Field>
+            <Field label={t("common.password")} hint={t("auth.passwordHint")}><PasswordInput autoComplete="new-password" value={f.password} onChange={set("password")} /></Field>
             <p className="small muted"><Icon name="shield" size={16} /> {t("agency.staffMfa")}</p>
           </div>
         </Modal>

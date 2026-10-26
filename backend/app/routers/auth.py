@@ -2,6 +2,9 @@
 import asyncio
 import hmac
 import json
+import logging
+import re
+import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Literal, Optional
@@ -9,18 +12,20 @@ from typing import Literal, Optional
 from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel, EmailStr, Field
 
-from .. import crypto, db, markets, metrics, mfa, mfa_policy, ratelimit
+from .. import crypto, db, markets, metrics, mfa, mfa_policy, ratelimit, shield
 from ..config import get_settings
-from ..deps import SESSION_COOKIE, Principal, base_context, mfa_required_for, require_session, require_user
+from ..deps import REPLACED, SESSION_COOKIE, Principal, base_context, mfa_required_for, require_session, require_user
 from ..errors import ApiError
-from ..security import hash_password, identifier_hash, new_token, password_problem, token_hash, verify_password
+from ..modules.account import names
+from ..security import (hash_password, identifier_blocked, identifier_hash, new_token, password_needs_rehash, password_problem, token_hash,
+                        verify_password)
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
-Portal = Literal["PASSENGER", "OPERATOR", "DRIVER", "AGENCY", "PLATFORM", "INSPECTOR"]
+Portal = Literal["PASSENGER", "OPERATOR", "DRIVER", "AGENCY", "PLATFORM", "INSPECTOR", "STATION", "FUEL"]
 PORTALS_BY_KIND = {
     "CUSTOMER": {"PASSENGER"},
-    "COMPANY": {"OPERATOR", "DRIVER"},
+    "COMPANY": {"OPERATOR", "DRIVER", "STATION", "FUEL"},   # STATION: a station's operating company (1099); FUEL: a fuel company (1180)
     "AGENCY": {"AGENCY"},
     "PLATFORM": {"PLATFORM", "INSPECTOR"},
 }
@@ -28,10 +33,16 @@ MAX_FAILS, LOCK_MIN = 5, 15
 
 
 class RegisterIn(BaseModel):
-    full_name: str = Field(min_length=3, max_length=120)
+    """The sign-up form (N35): the nationality first, then the name in parts as its rules require (N4); the e-mail and
+    the password typed twice. A client that still sends one full name (older app versions) is asked for the parts at
+    the next sign-in."""
+    name: Optional[names.NameIn] = None
+    full_name: Optional[str] = Field(default=None, min_length=3, max_length=120)
     email: EmailStr
+    email_confirm: Optional[EmailStr] = None
     mobile: Optional[str] = Field(default=None, pattern=r"^\+?[0-9]{8,15}$")
     password: str = Field(min_length=1, max_length=200)
+    password_confirm: Optional[str] = Field(default=None, max_length=200)
     locale: Optional[str] = None             # defaults to the platform setting
 
 
@@ -64,14 +75,47 @@ async def _auth_event(conn, request: Request, event: str, result: str, *, user_i
 async def _blocked(conn, *pairs) -> bool:
     """Whether any (type, value) is on the active blocklist; values are compared as digests (sec.is_blocked, 1054)."""
     for kind, value in pairs:
-        if value and await conn.fetchval("SELECT sec.is_blocked($1, $2)", kind, identifier_hash("".join(str(value).split()))):
+        if value and await identifier_blocked(conn, kind, value):
             return True
     return False
 
 
+class ReactivateIn(BaseModel):
+    identifier: str = Field(min_length=3, max_length=200)
+    password: str = Field(min_length=1, max_length=200)
+
+
+@router.post("/reactivate")
+async def reactivate(body: ReactivateIn, request: Request):
+    """A closed account (1085) comes back with all its data when its owner signs in again with the same details. The
+    answer for a wrong password is the answer for an unknown identifier, so the endpoint does not reveal accounts."""
+    ctx = base_context(request)
+    ctx.scope = "AUTH"
+    ident = body.identifier.strip()
+    async with db.transaction(ctx) as conn:
+        await ratelimit.check_identifier(conn, ident)
+    async with db.transaction(ctx) as conn:
+        user = await conn.fetchrow("SELECT id, password_hash, status FROM iam.app_user WHERE email = $1 OR mobile = $1", ident)
+        if user is None:
+            verify_password(None, body.password)
+        if user is None or user["status"] != "DEACTIVATED" or not verify_password(user["password_hash"], body.password):
+            raise ApiError(401, "INVALID_CREDENTIALS", "invalid login details")
+        await conn.execute("UPDATE iam.app_user SET status = 'ACTIVE', failed_attempts = 0, locked_until = NULL WHERE id = $1",
+                           user["id"])
+        await _auth_event(conn, request, "ACCOUNT_REACTIVATED", "SUCCESS", user_id=user["id"], identifier=ident)
+    return {"ok": True}
+
+
 @router.post("/register", status_code=201)
 async def register(body: RegisterIn, request: Request):
-    problem = password_problem(body.password)
+    if body.name is None and not body.full_name:
+        raise ApiError(422, "NAME_PARTS_REQUIRED", "give the name parts the identity document carries", missing=["first", "last"])
+    if body.email_confirm is not None and body.email_confirm.lower() != body.email.lower():
+        raise ApiError(422, "EMAIL_MISMATCH", "the two e-mail addresses differ")
+    if body.password_confirm is not None and body.password_confirm != body.password:
+        raise ApiError(422, "PASSWORD_MISMATCH", "the two passwords differ")
+    display = names.full_of(body.name) if body.name else body.full_name.strip()
+    problem = password_problem(body.password, body.email, display, body.mobile)
     if problem:
         raise ApiError(422, problem, "password does not meet the policy")
     ctx = base_context(request)
@@ -89,9 +133,13 @@ async def register(body: RegisterIn, request: Request):
         locale = body.locale if body.locale and await conn.fetchval(
             "SELECT 1 FROM ref.locale WHERE code = $1 AND is_enabled", body.locale) else await conn.fetchval(
             "SELECT coalesce((SELECT value #>> '{}' FROM sys.setting WHERE key = 'ui.default_locale'), 'en')")
+        if body.name:
+            names.check(await names.rules(conn), body.name)
         party_id = await conn.fetchval(
             "INSERT INTO iam.party (party_type, legal_name) VALUES ('PERSON', $1) RETURNING id",   # contact lives on the account
-            body.full_name.strip())
+            display)
+        if body.name:
+            await names.save(conn, party_id, body.name)
         await conn.execute("INSERT INTO iam.party_role (party_id, role_code) VALUES ($1, 'PASSENGER')", party_id)
         user_id = await conn.fetchval(
             """INSERT INTO iam.app_user (party_id, account_kind, email, mobile, password_hash, password_changed_at,
@@ -102,27 +150,206 @@ async def register(body: RegisterIn, request: Request):
             # the passenger's market currency (1061): the default market until a country is known
             "INSERT INTO fin.wallet (owner_party_id, wallet_type, label, currency) VALUES ($1, 'USER', 'Passenger wallet', ref.company_currency($1))",
             party_id)
+        code, minutes = await names.issue_email_code(conn, user_id)
     request.state.audit = {"action": "auth.register", "object_type": "app_user", "object_id": user_id}
-    return {"ok": True}
+    sent = await send_email_code(body.email, code, minutes, locale)
+    return {"ok": True, "email_code_sent": sent}
+
+
+async def send_email_code(to: str, code: str, minutes: int, locale: str) -> bool:
+    """Sends the code that confirms the e-mail (N35); a failure leaves the account unconfirmed, to ask again later."""
+    from ..modules.notify import providers
+    from ..modules.notify.render import render
+    subject, text = render("account.verify_email", "EMAIL", locale, {"code": code, "minutes": minutes})
+    try:
+        await asyncio.to_thread(providers.send_email, to, subject, text)
+        return True
+    except Exception:                                                  # noqa: BLE001 - the person asks for another code
+        logging.getLogger("masslak.auth").warning("the e-mail confirmation code could not be sent")
+        return False
+
+
+class GuestStartIn(BaseModel):
+    email: EmailStr
+    locale: Optional[str] = Field(default=None, pattern=r"^(ar|en)$")
+
+
+class GuestVerifyIn(BaseModel):
+    email: EmailStr
+    code: str = Field(min_length=6, max_length=6, pattern=r"^[0-9]{6}$")
+    device_id: Optional[str] = Field(default=None, min_length=16, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
+    app_version: Optional[str] = Field(default=None, max_length=20)
+
+
+async def guest_setting(conn) -> dict:
+    v = await conn.fetchval("SELECT value FROM sys.setting WHERE key = 'booking.guest'")
+    return json.loads(v) if isinstance(v, str) else dict(v or {"enabled": False})
+
+
+@router.post("/guest/start")
+async def guest_start(body: GuestStartIn, request: Request):
+    """Booking without an account (N18, 1153): a code goes to the e-mail; with it the guest signs in to book. An e-mail
+    that belongs to an account is told to sign in instead."""
+    email = str(body.email).strip().lower()
+    ctx = base_context(request)
+    ctx.scope = "AUTH"
+    async with db.transaction(ctx) as conn:
+        await ratelimit.check_identifier(conn, email)
+    async with db.transaction(ctx) as conn:
+        setting = await guest_setting(conn)
+        if not setting.get("enabled"):
+            raise ApiError(403, "GUEST_BOOKING_OFF", "booking needs an account; sign up or sign in")
+        user = await conn.fetchrow("SELECT id, is_guest, status FROM iam.app_user WHERE email = $1", email)
+        if user is not None and not user["is_guest"]:
+            raise ApiError(409, "ACCOUNT_EXISTS", "this e-mail has an account: sign in to book")
+        if user is None:
+            locale = body.locale or await conn.fetchval("SELECT value #>> '{}' FROM sys.setting WHERE key = 'ui.default_locale'")
+            party = await conn.fetchval(
+                "INSERT INTO iam.party (party_type, legal_name) VALUES ('PERSON', 'Guest') RETURNING id")
+            await conn.execute("INSERT INTO iam.party_role (party_id, role_code) VALUES ($1, 'PASSENGER') ON CONFLICT DO NOTHING",
+                               party)
+            uid = await conn.fetchval(
+                """INSERT INTO iam.app_user (party_id, account_kind, email, status, preferred_locale, is_guest)
+                   VALUES ($1, 'CUSTOMER', $2, 'ACTIVE', $3, true) RETURNING id""", party, email, locale or "ar")
+        else:
+            uid = user["id"]
+        locale = await conn.fetchval("SELECT preferred_locale FROM iam.app_user WHERE id = $1", uid)
+        code, minutes = await names.issue_email_code(conn, uid, "GUEST_SIGN_IN", int(setting.get("code_minutes", 15)))
+    sent = await send_guest_code(email, code, minutes, locale)
+    return {"ok": True, "sent": sent, "expires_in": minutes * 60}
+
+
+async def send_guest_code(to: str, code: str, minutes: int, locale: str) -> bool:
+    from ..modules.notify import providers
+    from ..modules.notify.render import render
+    subject, text = render("account.guest_code", "EMAIL", locale, {"code": code, "minutes": minutes})
+    try:
+        await asyncio.to_thread(providers.send_email, to, subject, text)
+        return True
+    except Exception:                                                  # noqa: BLE001 - the guest asks for another code
+        logging.getLogger("masslak.auth").warning("the guest sign-in code could not be sent")
+        return False
+
+
+@router.post("/guest/verify")
+async def guest_verify(body: GuestVerifyIn, request: Request, response: Response):
+    """The code from the e-mail opens a passenger session for the guest; the booking goes on as for any passenger."""
+    email = str(body.email).strip().lower()
+    ctx = base_context(request)
+    ctx.scope = "AUTH"
+    async with db.transaction(ctx) as conn:
+        await ratelimit.check_identifier(conn, email)
+    async with db.transaction(ctx) as conn:
+        uid = await conn.fetchval("SELECT id FROM iam.app_user WHERE email = $1 AND is_guest", email)
+        ok = bool(uid) and await names.confirm_email(conn, uid, body.code, "GUEST_SIGN_IN")
+        if not ok:
+            await _auth_event(conn, request, "LOGIN_FAILED", "FAILURE", user_id=uid, portal="PASSENGER", identifier=email,
+                              reason="guest_code")
+    if not ok:
+        raise ApiError(422, "CODE_WRONG", "the code is not right or has expired; ask for a new one")
+    return await _sign_in(LoginIn(identifier=email, password="guest-code", portal="PASSENGER", device_id=body.device_id,
+                                  app_version=body.app_version),
+                          request, response, ident=email, where="id = $1 AND is_guest", args=(uid,), proven=True)
+
+
+class IndividualIn(BaseModel):
+    """The individuals' door (N16): a passenger's e-mail or mobile number and password."""
+    identifier: str = Field(min_length=3, max_length=200)
+    password: str = Field(min_length=1, max_length=200)
+    device_id: Optional[str] = Field(default=None, min_length=16, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
+    app_version: Optional[str] = Field(default=None, max_length=20)
+
+
+class BusinessIn(BaseModel):
+    """The business door (N16): the company number, the employee's username and password; the company's kind decides
+    the portal. The driver's and the inspector's apps name their portal."""
+    company_no: str = Field(pattern=r"^[0-9]{6,8}$")
+    username: str = Field(min_length=3, max_length=32)
+    password: str = Field(min_length=1, max_length=200)
+    portal: Optional[Literal["DRIVER", "INSPECTOR"]] = None
+    device_id: Optional[str] = Field(default=None, min_length=16, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
+    app_version: Optional[str] = Field(default=None, max_length=20)
+
+
+async def doors(conn) -> dict:
+    v = await conn.fetchval("SELECT value FROM sys.setting WHERE key = 'auth.doors'")
+    return json.loads(v) if isinstance(v, str) else dict(v or {})
 
 
 @router.post("/login")
 async def login(body: LoginIn, request: Request, response: Response):
-    s = get_settings()
+    """The older sign-in with a portal picker, kept for the apps until the public launch (auth.doors.legacy_portal_login)."""
+    ctx = base_context(request)
+    ctx.scope = "AUTH"
+    async with db.transaction(ctx) as conn:
+        if not (await doors(conn)).get("legacy_portal_login", True):
+            raise ApiError(410, "USE_SIGN_IN_DOORS", "sign in through the individuals' or the business door")
     ident = body.identifier.strip()
+    return await _sign_in(body, request, response, ident=ident, where="email = $1 OR mobile = $1", args=(ident,))
+
+
+@router.post("/login/individual")
+async def login_individual(body: IndividualIn, request: Request, response: Response):
+    ident = body.identifier.strip()
+    return await _sign_in(LoginIn(identifier=ident, password=body.password, portal="PASSENGER", device_id=body.device_id,
+                                  app_version=body.app_version),
+                          request, response, ident=ident, where="(email = $1 OR mobile = $1) AND account_kind = 'CUSTOMER'",
+                          args=(ident,))
+
+
+@router.post("/login/business")
+async def login_business(body: BusinessIn, request: Request, response: Response):
+    username = body.username.strip().lower()
+    ctx = base_context(request)
+    ctx.scope = "AUTH"
+    async with db.transaction(ctx) as conn:
+        d = await doors(conn)
+        company = None if body.company_no == str(d.get("platform_no")) else await conn.fetchrow(
+            "SELECT id, company_type FROM iam.company WHERE company_no = $1 AND approval_status = 'APPROVED'", body.company_no)
+    ident = f"{body.company_no}:{username}"
+    if company is None and body.company_no != str(d.get("platform_no")):
+        # an unknown number is answered as a wrong password, after the same work, so numbers cannot be probed
+        verify_password(None, body.password)
+        async with db.transaction(ctx) as conn:
+            await ratelimit.check_identifier(conn, ident)
+            await _auth_event(conn, request, "LOGIN_FAILED", "FAILURE", identifier=ident, reason="unknown_company")
+        raise ApiError(401, "INVALID_CREDENTIALS", "invalid login details")
+    if company is None:
+        portal = "INSPECTOR" if body.portal == "INSPECTOR" else "PLATFORM"
+        where, args = "username = $1 AND account_kind = 'PLATFORM'", (username,)
+    else:
+        kind = company["company_type"]
+        portal = "AGENCY" if kind == "AGENCY" else "STATION" if kind == "STATION_OPERATOR" else "FUEL" if kind == "FUEL_COMPANY" else (
+            "DRIVER" if body.portal == "DRIVER" else "OPERATOR")
+        where, args = "username = $1 AND home_company_id = $2", (username, company["id"])
+    return await _sign_in(LoginIn(identifier=ident, password=body.password, portal=portal, device_id=body.device_id,
+                                  app_version=body.app_version),
+                          request, response, ident=ident, where=where, args=args, block=False,
+                          company_id=company["id"] if company else None, auto_driver=body.portal is None)
+
+
+async def _sign_in(body: LoginIn, request: Request, response: Response, *, ident: str, where: str, args: tuple,
+                   block: bool = True, company_id: Optional[int] = None, auto_driver: bool = False, proven: bool = False):
+    """One sign-in for the three entries: the account found by the door's own rule, then the same checks, session and
+    second factor for all."""
+    s = get_settings()
+    fixed_company = company_id
     ctx = base_context(request)
     ctx.scope = "AUTH"                     # opens accounts, factors and sessions only, not the rest of the platform
     async with db.transaction(ctx) as conn:    # its own transaction, so the token stays taken whatever follows
+        await ratelimit.check_device_and_network(conn, body.device_id, request.state.client_ip)
         await ratelimit.check_identifier(conn, ident)
     async with db.transaction(ctx) as conn:
         user = await conn.fetchrow(
-            """SELECT id, account_kind, password_hash, status, locked_until, failed_attempts, mfa_required,
-                      ARRAY(SELECT f.factor_type FROM iam.mfa_factor f WHERE f.user_id = app_user.id
-                               AND f.factor_type IN ('TOTP','SMS','WHATSAPP')
-                               AND f.verified_at IS NOT NULL AND f.disabled_at IS NULL) AS mfa_factors
-                 FROM iam.app_user WHERE email = $1 OR mobile = $1""", ident)
+            f"""SELECT id, account_kind, password_hash, status, locked_until, failed_attempts, mfa_required,
+                       password_must_change, temp_password_expires_at,
+                       ARRAY(SELECT f.factor_type FROM iam.mfa_factor f WHERE f.user_id = app_user.id
+                                AND f.factor_type IN ('TOTP','EMAIL','TELEGRAM','SMS','WHATSAPP')
+                                AND f.verified_at IS NOT NULL AND f.disabled_at IS NULL) AS mfa_factors
+                  FROM iam.app_user WHERE {where}""", *args)
         policy = await mfa_policy.current(conn)
-        blocked = await _blocked(conn, ("EMAIL" if "@" in ident else "PHONE", ident), ("DEVICE", body.device_id))
+        deactivated = False
+        blocked = await _blocked(conn, *((("EMAIL" if "@" in ident else "PHONE", ident),) if block else ()), ("DEVICE", body.device_id))
         if blocked:             # recorded, then refused once the record is committed
             await _auth_event(conn, request, "LOGIN_FAILED", "BLOCKED", user_id=user["id"] if user else None,
                               portal=body.portal, identifier=ident, reason="blocklist")
@@ -138,7 +365,15 @@ async def login(body: LoginIn, request: Request, response: Response):
                 await _auth_event(conn, request, "LOGIN_FAILED", "BLOCKED", user_id=user["id"], portal=body.portal,
                                   reason="account_locked")
                 raise ApiError(423, "ACCOUNT_LOCKED", "account temporarily locked after failed attempts")
-            if not verify_password(user["password_hash"], body.password) or user["status"] != "ACTIVE":
+            # a guest proved the e-mail with a code (N18, 1153); everyone else gives the password
+            password_ok = proven or verify_password(user["password_hash"], body.password)
+            if password_ok and user["status"] == "DEACTIVATED":
+                # closed by its owner (1085): the right password is told so, and nothing is counted against the account
+                deactivated = True
+                raise_invalid = True
+                await _auth_event(conn, request, "LOGIN_FAILED", "BLOCKED", user_id=user["id"], portal=body.portal,
+                                  reason="deactivated")
+            elif not password_ok or user["status"] != "ACTIVE":
                 fails = user["failed_attempts"] + 1
                 locked = fails >= MAX_FAILS
                 await conn.execute(
@@ -151,26 +386,41 @@ async def login(body: LoginIn, request: Request, response: Response):
                 raise_invalid = True
     if blocked:
         raise ApiError(403, "BLOCKED", "sign-in is not possible; contact support")
+    if deactivated:
+        raise ApiError(403, "ACCOUNT_DEACTIVATED", "this account is closed; reactivate it with the same details")
     if raise_invalid:
         raise ApiError(401, "INVALID_CREDENTIALS", "invalid login details")
+    if user["password_must_change"] and user["temp_password_expires_at"] <= datetime.now(timezone.utc):
+        raise ApiError(403, "TEMP_PASSWORD_EXPIRED", "the temporary password has expired; ask your administrator for a new one")
 
     if body.portal not in PORTALS_BY_KIND.get(user["account_kind"], set()):
         raise ApiError(403, "PORTAL_NOT_ALLOWED", "this account cannot open the requested portal")
 
     ctx.user_id = user["id"]
+    # a hash made with weaker Argon2 parameters is replaced now that the password is known to be right
+    rehashed = hash_password(body.password) if password_needs_rehash(user["password_hash"]) else None
     async with db.transaction(ctx) as conn:
         company_id = None
-        if body.portal in ("OPERATOR", "DRIVER", "AGENCY"):
-            # Agency staff open only the agency portal, carrier staff only the carrier and driver portals
+        if body.portal in ("OPERATOR", "DRIVER", "AGENCY", "STATION", "FUEL"):
+            # Agency staff open only the agency portal, a station operating company's staff only the station portal
+            # (1099), a fuel company's staff only the fuel portal (1180), carrier staff only the carrier and driver portals
             company_id = await conn.fetchval(
                 """SELECT m.company_id FROM iam.company_member m JOIN iam.company c ON c.id = m.company_id
                     WHERE m.user_id = $1 AND m.status = 'ACTIVE' AND c.approval_status = 'APPROVED'
-                      AND (c.company_type = 'AGENCY') = ($2 = 'AGENCY')
-                    ORDER BY m.is_owner DESC LIMIT 1""", user["id"], body.portal)
+                      AND CASE $2 WHEN 'AGENCY' THEN c.company_type = 'AGENCY'
+                                  WHEN 'STATION' THEN c.company_type = 'STATION_OPERATOR'
+                                  WHEN 'FUEL' THEN c.company_type = 'FUEL_COMPANY'
+                                  ELSE c.company_type NOT IN ('AGENCY', 'STATION_OPERATOR', 'FUEL_COMPANY') END
+                      AND ($3::bigint IS NULL OR m.company_id = $3)
+                    ORDER BY m.is_owner DESC LIMIT 1""", user["id"], body.portal, fixed_company)
             if company_id is None:
                 raise ApiError(403, "COMPANY_NOT_ACTIVE", "no approved company for this account")
             ctx.company_id = company_id
             await db.apply_context(conn, ctx)  # the crew check below reads rows of that company
+            if auto_driver and body.portal == "OPERATOR" and await conn.fetchval(
+                    """SELECT r.code = 'CARRIER_DRIVER' FROM iam.company_member m JOIN iam.role r ON r.id = m.role_id
+                        WHERE m.user_id = $1 AND m.company_id = $2""", user["id"], company_id):
+                body.portal = "DRIVER"      # the business door: a driver lands in the driver's portal unasked (N16)
             if body.portal == "DRIVER" and not await conn.fetchval(
                     "SELECT 1 FROM fleet.crew_profile cp JOIN iam.app_user u ON u.party_id = cp.party_id "
                     "WHERE u.id = $1 AND cp.company_id = $2 AND cp.status = 'ACTIVE'", user["id"], company_id):
@@ -204,14 +454,30 @@ async def login(body: LoginIn, request: Request, response: Response):
             request.headers.get("user-agent", "")[:300], expires, client, device, refresh_hash, access_expires)
         await conn.execute(
             "UPDATE iam.app_user SET failed_attempts = 0, locked_until = NULL, last_login_at = now(), "
-            "last_login_ip = $2::inet WHERE id = $1", user["id"], request.state.client_ip)
+            "last_login_ip = $2::inet, password_hash = coalesce($3, password_hash) WHERE id = $1",
+            user["id"], request.state.client_ip, rehashed)
         await _auth_event(conn, request, "LOGIN_SUCCESS", "SUCCESS", user_id=user["id"], portal=body.portal,
                           company_id=company_id, session_id=session_id)
+        # one active session per account and portal (1142): this sign-in ends the others, and the holder is told
+        if shield.session_mode(body.portal) == "SINGLE":
+            ended = await conn.fetch(
+                """UPDATE iam.user_session SET revoked_at = now(), revoke_reason = $4
+                    WHERE user_id = $1 AND portal = $2 AND id <> $3 AND revoked_at IS NULL AND expires_at > now()
+                RETURNING id, client""", user["id"], body.portal, session_id, REPLACED)
+            if ended:
+                await _auth_event(conn, request, "SESSION_REVOKED", "SUCCESS", user_id=user["id"], portal=body.portal,
+                                  company_id=company_id, session_id=session_id, reason=f"{REPLACED}: {len(ended)}")
+                await conn.execute(
+                    """INSERT INTO sys.outbox_event (event_type, aggregate_type, aggregate_id, payload)
+                       VALUES ('account.signed_in_elsewhere', 'user', $1, $2::jsonb)""",
+                    user["id"], json.dumps({"user_id": user["id"], "portal": body.portal, "client": client,
+                                            "ended": len(ended)}))
     factors = list(user["mfa_factors"])
     needs = mfa_required_for(body.portal, user["mfa_required"], bool(factors), policy)
     enrolled = mfa_policy.enrolled(factors, policy)
     out = {"ok": True, "portal": body.portal, "mfa": ("VERIFY" if enrolled else "ENROLL") if needs else None,
-           "mfa_methods": [m for m in factors if m in policy.available()] if needs else []}
+           "mfa_methods": [m for m in factors if m in policy.available()] if needs else [],
+           "password_change_required": user["password_must_change"]}
     if refresh:
         # Mobile apps keep both tokens in the Keychain or Android Keystore; nothing goes into a cookie
         return {**out, "access_token": token, "refresh_token": refresh, "access_expires_at": access_expires.isoformat(),
@@ -247,6 +513,7 @@ async def refresh(body: RefreshIn, request: Request):
             """SELECT s.id, s.user_id, s.portal, s.company_id, d.fingerprint_hash FROM iam.user_session s
                  JOIN iam.device d ON d.id = s.device_id
                 WHERE s.refresh_hash = $1 AND s.revoked_at IS NULL AND s.expires_at > now() AND d.revoked_at IS NULL
+                  AND s.last_seen_at > now() - make_interval(mins => iam.idle_minutes(s.portal))   -- idle sign-out (1146)
                 FOR UPDATE OF s""", presented)
         if sess is None:
             reused = await conn.fetchrow(
@@ -302,18 +569,27 @@ async def me(request: Request, principal: Principal = Depends(require_user)):
     async with db.transaction(ctx) as conn:
         if principal.company_id:
             row = await conn.fetchrow(
-                "SELECT p.legal_name, p.uid FROM iam.party p WHERE p.id = $1", principal.company_id)
+                "SELECT p.legal_name, p.uid, iam.logo_version(p.id) AS logo FROM iam.party p WHERE p.id = $1", principal.company_id)
             code = await conn.fetchval(
                 "SELECT code3 FROM net.carrier_code WHERE company_id = $1 AND status = 'ACTIVE' LIMIT 1",
                 principal.company_id)
-            company = {"name": row["legal_name"], "uid": str(row["uid"]), "code": code}
+            company = {"name": row["legal_name"], "uid": str(row["uid"]), "code": code, "logo": row["logo"]}
         # the market the screens show times and money in (1061): the company's, or the person's
         market = (await markets.of_party(conn, principal.company_id or principal.party_id)).public()
+        idle = await conn.fetchval("SELECT iam.idle_minutes($1)", principal.portal)
+        person = await conn.fetchrow(
+            """SELECT p.names_complete, p.verification_status, u.email_verified_at IS NOT NULL AS email_verified, u.is_guest
+                 FROM iam.app_user u JOIN iam.party p ON p.id = u.party_id WHERE u.id = $1""", principal.user_id)
     return {
         "uid": principal.user_uid, "name": principal.display_name, "email": principal.email,
         "portal": principal.portal, "locale": principal.locale, "company": company, "market": market,
         "roles": sorted(principal.roles), "permissions": sorted(principal.permissions), "is_owner": principal.is_owner,
         "mfa": {"enrolled": principal.mfa_enrolled, "required": principal.mfa_required},
+        "idle_minutes": idle,           # the screen signs out by itself after this long without activity (1146)
+        # the name parts still to give (N4), the e-mail still to confirm (N35), and the account's verification (KYC)
+        "names_complete": person["names_complete"], "email_verified": person["email_verified"],
+        "verification_status": person["verification_status"],
+        "is_guest": person["is_guest"],     # booked without an account (N18): offered to turn it into a full account
     }
 
 
@@ -340,7 +616,14 @@ CODE_TRIES = 5                          # wrong entries of one message code befo
 SECRET_COLUMN = "iam.mfa_factor.secret"
 RECOVERY_COLUMN = "iam.mfa_factor.recovery"
 PHONE_COLUMN = "iam.mfa_factor.phone"
-Method = Literal["TOTP", "SMS", "WHATSAPP"]
+EMAIL_COLUMN = "iam.mfa_factor.email"           # where e-mailed codes go (1151)
+CHAT_COLUMN = "iam.mfa_factor.telegram_chat"     # the Telegram chat codes go to (1151)
+Method = Literal["TOTP", "EMAIL", "TELEGRAM", "SMS", "WHATSAPP"]
+LINK_MINUTES = 15                                # a Telegram link lasts this long (1151)
+
+
+def _dest_column(method: str) -> str:
+    return EMAIL_COLUMN if method == "EMAIL" else CHAT_COLUMN if method == "TELEGRAM" else PHONE_COLUMN
 
 
 class CodeIn(BaseModel):
@@ -353,10 +636,12 @@ class EnrollIn(BaseModel):
     method: Method = "TOTP"
     # where message codes go; the account's mobile number when omitted
     mobile: Optional[str] = Field(default=None, pattern=r"^\+?[0-9]{8,15}$")
+    # where e-mailed codes go; the account's e-mail when omitted (1151)
+    email: Optional[str] = Field(default=None, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$", max_length=200)
 
 
 class SendIn(BaseModel):
-    method: Literal["SMS", "WHATSAPP"]
+    method: Literal["EMAIL", "TELEGRAM", "SMS", "WHATSAPP"]
 
 
 def _system(request: Request):
@@ -365,8 +650,15 @@ def _system(request: Request):
     return ctx
 
 
-def _masked(mobile: Optional[str]) -> Optional[str]:
-    return ("•••" + mobile[-4:]) if mobile else None
+def _masked(mobile: Optional[str], method: str = "SMS") -> Optional[str]:
+    if not mobile:
+        return None
+    if method == "EMAIL":
+        local, _, domain = mobile.partition("@")
+        return f"{local[:1]}•••@{domain}"
+    if method == "TELEGRAM":
+        return "Telegram"
+    return "•••" + mobile[-4:]
 
 
 async def _issue_recovery_codes(conn, fc: crypto.FieldCipher, user_id: int) -> list[str]:
@@ -416,7 +708,12 @@ async def _deliver_code(request: Request, uid: uuid.UUID, channel: str, to: str,
     _, text = render("auth.mfa_code", "SMS", locale, {"code": code, "minutes": minutes})
     error = None
     try:
-        if channel == "SMS":
+        if channel == "EMAIL":
+            subject, body = render("auth.mfa_code", "EMAIL", locale, {"code": code, "minutes": minutes})
+            await asyncio.to_thread(providers.send_email, to, subject, body)
+        elif channel == "TELEGRAM":
+            await asyncio.to_thread(providers.send_telegram, to, text)
+        elif channel == "SMS":
             await asyncio.to_thread(providers.send_sms, to, text)
         else:
             await asyncio.to_thread(providers.send_whatsapp_code, to, code, locale, text)
@@ -453,7 +750,7 @@ async def _message_code_ok(conn, fc: crypto.FieldCipher, user_id: int, channel: 
 async def _second_factor_ok(conn, fc: crypto.FieldCipher, user_id: int, method: Optional[str], code: str,
                             recovery: bool) -> Optional[str]:
     """The method that accepted the code ('totp', 'sms', 'whatsapp', 'recovery_code'), or None."""
-    if method in ("SMS", "WHATSAPP"):
+    if method in mfa_policy.MESSAGE_METHODS:
         f = await conn.fetchval("""SELECT id FROM iam.mfa_factor WHERE user_id = $1 AND factor_type = $2
                                      AND verified_at IS NOT NULL AND disabled_at IS NULL""", user_id, method)
         if f and await _message_code_ok(conn, fc, user_id, method, "VERIFY", code, f):
@@ -489,6 +786,7 @@ async def _second_factor_ok(conn, fc: crypto.FieldCipher, user_id: int, method: 
 @router.get("/mfa/methods")
 async def mfa_methods(request: Request, pr: Principal = Depends(require_session)):
     """What the second step offers this person: the methods open on the platform, the ones they hold, where codes go."""
+    from ..modules.notify import providers
     async with db.transaction(_system(request)) as conn:
         policy = await mfa_policy.current(conn)
         fc = await crypto.cipher(conn)
@@ -496,11 +794,15 @@ async def mfa_methods(request: Request, pr: Principal = Depends(require_session)
                                     WHERE user_id = $1 AND disabled_at IS NULL""", pr.user_id)
         mobile = await conn.fetchval("SELECT mobile FROM iam.app_user WHERE id = $1", pr.user_id)
     enrolled = [f["factor_type"] for f in held if f["verified_at"] and f["factor_type"] in mfa_policy.METHODS]
-    sent_to = {f["factor_type"]: _masked(fc.decrypt(f["secret_enc"], f["enc_key_id"], PHONE_COLUMN))
+    sent_to = {f["factor_type"]: _masked(fc.decrypt(f["secret_enc"], f["enc_key_id"], _dest_column(f["factor_type"])),
+                                         f["factor_type"])
                for f in held if f["verified_at"] and f["factor_type"] in mfa_policy.MESSAGE_METHODS}
+    email = await _account_email(request, pr)
     return {"available": policy.available(), "enrolled": enrolled,
             "usable": [m for m in enrolled if m in policy.available()], "sent_to": sent_to,
-            "account_mobile": _masked(mobile), "required": pr.mfa_required, "pending": pr.mfa_pending,
+            "account_mobile": _masked(mobile), "account_email": _masked(email, "EMAIL"),
+            "telegram_bot": providers.telegram_bot_name() or None,
+            "required": pr.mfa_required, "pending": pr.mfa_pending,
             "recovery_codes": any(f["factor_type"] == "RECOVERY_CODES" for f in held),
             "code_minutes": policy.code_minutes, "resend_seconds": policy.resend_seconds}
 
@@ -524,21 +826,29 @@ async def mfa_enroll(request: Request, body: Optional[EnrollIn] = None, pr: Prin
                                   VALUES ($1, 'TOTP', $2, $3, 'pending')""", pr.user_id, sealed.ciphertext, sealed.key_id)
         return {"method": "TOTP", "secret": secret, "uri": mfa.provisioning_uri(secret, pr.email or pr.user_uid),
                 "digits": mfa.DIGITS, "period": mfa.STEP_SECONDS}
+    if body.method == "TELEGRAM":
+        return await _enroll_telegram(request, pr)
     async with db.transaction(_system(request)) as conn:
         policy = await _method_open(conn, body.method)
-        mobile = body.mobile or await conn.fetchval("SELECT mobile FROM iam.app_user WHERE id = $1", pr.user_id)
-        if not mobile:
-            raise ApiError(422, "MFA_MOBILE_REQUIRED", "give the mobile number the codes should go to")
+        if body.method == "EMAIL":
+            mobile = body.email or await conn.fetchval("SELECT email FROM iam.app_user WHERE id = $1", pr.user_id)
+            if not mobile:
+                raise ApiError(422, "MFA_EMAIL_REQUIRED", "give the e-mail address the codes should go to")
+        else:
+            mobile = body.mobile or await conn.fetchval("SELECT mobile FROM iam.app_user WHERE id = $1", pr.user_id)
+            if not mobile:
+                raise ApiError(422, "MFA_MOBILE_REQUIRED", "give the mobile number the codes should go to")
         fc = await crypto.cipher(conn)
-        sealed = fc.encrypt(mobile, PHONE_COLUMN)
+        sealed = fc.encrypt(mobile, _dest_column(body.method))
         await conn.execute("""UPDATE iam.mfa_factor SET disabled_at = now() WHERE user_id = $1 AND factor_type = $2
                                 AND verified_at IS NULL AND disabled_at IS NULL""", pr.user_id, body.method)
         factor_id = await conn.fetchval(
             """INSERT INTO iam.mfa_factor (user_id, factor_type, secret_enc, enc_key_id, label)
-               VALUES ($1, $2, $3, $4, $5) RETURNING id""", pr.user_id, body.method, sealed.ciphertext, sealed.key_id, mobile[-4:])
+               VALUES ($1, $2, $3, $4, $5) RETURNING id""", pr.user_id, body.method, sealed.ciphertext, sealed.key_id,
+            _masked(mobile, body.method))
         code, uid = await _new_challenge(conn, fc, pr, factor_id, body.method, "ENROL", policy)
     await _deliver_code(request, uid, body.method, mobile, code, pr.locale, policy.code_minutes)
-    return {"method": body.method, "sent_to": _masked(mobile), "expires_in": policy.code_minutes * 60,
+    return {"method": body.method, "sent_to": _masked(mobile, body.method), "expires_in": policy.code_minutes * 60,
             "resend_in": policy.resend_seconds}
 
 
@@ -550,15 +860,85 @@ async def mfa_send(body: SendIn, request: Request, pr: Principal = Depends(requi
         policy = await _method_open(conn, body.method)
         f = await conn.fetchrow("""SELECT id, secret_enc, enc_key_id, verified_at FROM iam.mfa_factor
                                     WHERE user_id = $1 AND factor_type = $2 AND disabled_at IS NULL
+                                      AND secret_enc IS NOT NULL
                                     ORDER BY verified_at IS NULL, id DESC LIMIT 1""", pr.user_id, body.method)
         if f is None:
             raise ApiError(409, "MFA_METHOD_NOT_ENROLLED", "this method is not set up for your account", method=body.method)
         fc = await crypto.cipher(conn)
-        mobile = fc.decrypt(f["secret_enc"], f["enc_key_id"], PHONE_COLUMN)
+        mobile = fc.decrypt(f["secret_enc"], f["enc_key_id"], _dest_column(body.method))
         code, uid = await _new_challenge(conn, fc, pr, f["id"], body.method, "VERIFY" if f["verified_at"] else "ENROL", policy)
     await _deliver_code(request, uid, body.method, mobile, code, pr.locale, policy.code_minutes)
-    return {"method": body.method, "sent_to": _masked(mobile), "expires_in": policy.code_minutes * 60,
+    return {"method": body.method, "sent_to": _masked(mobile, body.method), "expires_in": policy.code_minutes * 60,
             "resend_in": policy.resend_seconds}
+
+
+async def _account_email(request: Request, pr: Principal) -> Optional[str]:
+    async with db.transaction(_system(request)) as conn:
+        return await conn.fetchval("SELECT email FROM iam.app_user WHERE id = $1", pr.user_id)
+
+
+async def _enroll_telegram(request: Request, pr: Principal) -> dict:
+    """Starts linking a Telegram chat: a pending factor and a one-time link to the platform's bot. The bot's webhook
+    (telegram_webhook) records the chat and sends the first code there (1151, N36)."""
+    from ..modules.notify import providers
+    bot = providers.telegram_bot_name()
+    if not bot:
+        raise ApiError(409, "MFA_METHOD_OFF", "Telegram is not set up on this server", method="TELEGRAM")
+    token = secrets.token_urlsafe(24)
+    async with db.transaction(_system(request)) as conn:
+        await _method_open(conn, "TELEGRAM")
+        fc = await crypto.cipher(conn)
+        await conn.execute("""UPDATE iam.mfa_factor SET disabled_at = now() WHERE user_id = $1 AND factor_type = 'TELEGRAM'
+                                AND verified_at IS NULL AND disabled_at IS NULL""", pr.user_id)
+        factor_id = await conn.fetchval(
+            """INSERT INTO iam.mfa_factor (user_id, factor_type, label) VALUES ($1, 'TELEGRAM', 'pending') RETURNING id""",
+            pr.user_id)
+        await conn.execute(
+            """INSERT INTO iam.messenger_link (user_id, factor_id, channel, token_hash, expires_at)
+               VALUES ($1, $2, 'TELEGRAM', $3, now() + make_interval(mins => $4))""",
+            pr.user_id, factor_id, fc.blind_index(token, "telegram-link"), LINK_MINUTES)
+    return {"method": "TELEGRAM", "link": f"https://t.me/{bot}?start={token}", "bot": bot,
+            "expires_in": LINK_MINUTES * 60}
+
+
+class TelegramUpdate(BaseModel):
+    """The part of a Telegram update the link needs: a message with its chat and text."""
+    message: Optional[dict] = None
+
+
+@router.post("/telegram/webhook", include_in_schema=False)
+async def telegram_webhook(body: TelegramUpdate, request: Request):
+    """Telegram calls this with each message to the bot. "/start <token>" from a person who opened their link ties the
+    chat to the pending factor and sends the first code there; anything else is answered with nothing."""
+    from ..modules.notify import providers
+    secret = providers.telegram_webhook_secret()
+    given = request.headers.get("x-telegram-bot-api-secret-token", "")
+    if not secret or not hmac.compare_digest(given, secret):
+        raise ApiError(403, "FORBIDDEN", "not from the platform's bot")
+    msg = body.message or {}
+    text = str(msg.get("text") or "")
+    chat = str((msg.get("chat") or {}).get("id") or "")
+    if not text.startswith("/start ") or not re.fullmatch(r"-?[0-9]{1,20}", chat):
+        return {"ok": True}
+    token = text.split(" ", 1)[1].strip()[:64]
+    async with db.transaction(_system(request)) as conn:
+        fc = await crypto.cipher(conn)
+        link = await conn.fetchrow(
+            """UPDATE iam.messenger_link SET linked_at = now()
+                WHERE token_hash = $1 AND linked_at IS NULL AND expires_at > now()
+            RETURNING user_id, factor_id""", fc.blind_index(token, "telegram-link"))
+        if link is None:
+            return {"ok": True}
+        sealed = fc.encrypt(chat, CHAT_COLUMN)
+        await conn.execute("UPDATE iam.mfa_factor SET secret_enc = $2, enc_key_id = $3, label = 'Telegram' WHERE id = $1",
+                           link["factor_id"], sealed.ciphertext, sealed.key_id)
+        who = await conn.fetchrow("SELECT id, uid, preferred_locale FROM iam.app_user WHERE id = $1", link["user_id"])
+        policy = await mfa_policy.current(conn)
+        owner = Principal(user_id=who["id"], user_uid=str(who["uid"]), party_id=0, session_id=None, portal="PASSENGER",
+                          company_id=None, display_name="", email=None, locale=who["preferred_locale"] or "ar")
+        code, uid = await _new_challenge(conn, fc, owner, link["factor_id"], "TELEGRAM", "ENROL", policy)
+    await _deliver_code(request, uid, "TELEGRAM", chat, code, owner.locale, policy.code_minutes)
+    return {"ok": True}
 
 
 @router.post("/mfa/confirm")
@@ -591,7 +971,7 @@ async def mfa_confirm(body: CodeIn, request: Request, pr: Principal = Depends(re
                                             "AND factor_type = 'RECOVERY_CODES' AND disabled_at IS NULL)", pr.user_id)
             if method == "TOTP" or not has_codes:
                 codes = await _issue_recovery_codes(conn, fc, pr.user_id)
-            await conn.execute("UPDATE iam.user_session SET mfa_passed = true, mfa_failures = 0 WHERE id = $1", pr.session_id)
+            await conn.execute("UPDATE iam.user_session SET mfa_passed = true, mfa_at = now(), mfa_failures = 0 WHERE id = $1", pr.session_id)
         await _auth_event(conn, request, "MFA_SUCCESS" if ok else "MFA_FAILED", "SUCCESS" if ok else "FAILURE",
                           user_id=pr.user_id, portal=pr.portal, session_id=pr.session_id,
                           reason=f"enrolled_{method.lower()}" if ok else "enrol_wrong_code")
@@ -613,7 +993,7 @@ async def mfa_verify(body: CodeIn, request: Request, response: Response, pr: Pri
         if body.method is None or body.method in (await mfa_policy.current(conn)).available():
             how = await _second_factor_ok(conn, fc, pr.user_id, body.method, body.code, recovery=True)
         if how:
-            await conn.execute("UPDATE iam.user_session SET mfa_passed = true, mfa_failures = 0 WHERE id = $1",
+            await conn.execute("UPDATE iam.user_session SET mfa_passed = true, mfa_at = now(), mfa_failures = 0 WHERE id = $1",
                                pr.session_id)
             await _auth_event(conn, request, "MFA_SUCCESS", "SUCCESS", user_id=pr.user_id, portal=pr.portal,
                               session_id=pr.session_id, reason=how)
@@ -633,6 +1013,38 @@ async def mfa_verify(body: CodeIn, request: Request, response: Response, pr: Pri
             raise ApiError(401, "MFA_TOO_MANY_ATTEMPTS", "too many wrong codes; sign in again")
         raise ApiError(422, "MFA_CODE_INVALID", "the code is not valid", attempts_left=MFA_MAX_FAILURES - fails)
     return {"ok": True, "method": how, "recovery_code_used": how == "recovery_code"}
+
+
+@router.post("/mfa/step-up")
+async def mfa_step_up(body: CodeIn, request: Request, response: Response, pr: Principal = Depends(require_user)):
+    """Confirms a sensitive operation (1136): a current code from the person's authenticator app or text or WhatsApp
+    message (no recovery code) renews the second factor of this session for auth.mfa.step_up_minutes. Wrong codes count
+    with the sign-in ones; five revoke the session."""
+    async with db.transaction(_system(request)) as conn:
+        fc = await crypto.cipher(conn)
+        how = None
+        if body.method is None or body.method in (await mfa_policy.current(conn)).available():
+            how = await _second_factor_ok(conn, fc, pr.user_id, body.method, body.code, recovery=False)
+        if how:
+            await conn.execute("UPDATE iam.user_session SET mfa_at = now(), mfa_failures = 0 WHERE id = $1", pr.session_id)
+            await _auth_event(conn, request, "MFA_SUCCESS", "SUCCESS", user_id=pr.user_id, portal=pr.portal,
+                              session_id=pr.session_id, reason=f"step_up_{how}")
+        else:
+            fails = await conn.fetchval("UPDATE iam.user_session SET mfa_failures = mfa_failures + 1 WHERE id = $1 "
+                                        "RETURNING mfa_failures", pr.session_id)
+            await _auth_event(conn, request, "MFA_FAILED", "FAILURE", user_id=pr.user_id, portal=pr.portal,
+                              session_id=pr.session_id, reason="step_up_wrong_code")
+            if fails >= MFA_MAX_FAILURES:
+                await conn.execute("UPDATE iam.user_session SET revoked_at = now(), revoke_reason = 'mfa_failures' "
+                                   "WHERE id = $1", pr.session_id)
+                await _auth_event(conn, request, "SESSION_REVOKED", "BLOCKED", user_id=pr.user_id, portal=pr.portal,
+                                  session_id=pr.session_id, reason="mfa_failures")
+    if not how:
+        if fails >= MFA_MAX_FAILURES:
+            response.delete_cookie(SESSION_COOKIE, path="/")
+            raise ApiError(401, "MFA_TOO_MANY_ATTEMPTS", "too many wrong codes; sign in again")
+        raise ApiError(422, "MFA_CODE_INVALID", "the code is not valid", attempts_left=MFA_MAX_FAILURES - fails)
+    return {"ok": True, "method": how, "valid_minutes": pr.step_up_minutes}
 
 
 @router.post("/mfa/recovery-codes")

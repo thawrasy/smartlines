@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://masslak.com/schemas/events/tracking.signal_lost.v1.json",
+  "title": "tracking.signal_lost",
+  "description": "A trip's vehicle stopped sending its position. The data of the envelope (EVENTS.md); fields are only added within a version.",
+  "x-event-type": "tracking.signal_lost",
+  "x-schema-version": 1,
+  "type": "object",
+  "properties": {
+    "alert_id": {
+      "type": "integer"
+    },
+    "trip_no": {
+      "type": "string"
+    },
+    "minutes": {
+      "type": "integer"
+    }
+  },
+  "required": [
+    "alert_id",
+    "trip_no",
+    "minutes"
+  ],
+  "additionalProperties": true
+}

@@ -45,7 +45,12 @@ def account(carrier, admin):
     assert acct["iban_last4"] == iban[-4:] and acct["verified"] is False and "iban" not in acct
     stored = owner_sql("SELECT iban_enc FROM iam.bank_account WHERE uid = $1", uuid.UUID(uid))
     assert iban.encode() not in stored and stored[:1] == b"\x01"              # encrypted at rest
-    r = carrier.post("/api/finance/withdrawals", json={"bank_account_uid": uid, "amount": 10000, "idempotency_key": uuid.uuid4().hex})
+    # money goes to unverified accounts only while the platform allows it (1156: allowed at launch); here it does not
+    owner_sql("""UPDATE sys.setting SET value = jsonb_set(value, '{verified_only}', 'true') WHERE key = 'payouts.accounts'""")
+    try:
+        r = carrier.post("/api/finance/withdrawals", json={"bank_account_uid": uid, "amount": 10000, "idempotency_key": uuid.uuid4().hex})
+    finally:
+        owner_sql("""UPDATE sys.setting SET value = jsonb_set(value, '{verified_only}', 'false') WHERE key = 'payouts.accounts'""")
     assert r.status_code == 409 and r.json()["error"]["code"] == "BANK_ACCOUNT_NOT_VERIFIED"
     assert any(a["uid"] == uid for a in admin.get("/api/admin/finance/bank-accounts").json()["accounts"])
     assert admin.post(f"/api/admin/finance/bank-accounts/{uid}/verify").status_code == 200
