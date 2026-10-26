@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**622 tables, 6809 columns, in 26 schemas.**
+**622 tables, 6810 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -3609,6 +3609,7 @@ Commission scheme (platform, intermediary, payment, referral) with funder, benef
 | `created_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `approved_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `name` | `text` |  |  |
 
 ### `pricing.family_offer` 🛡️
 

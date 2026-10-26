@@ -35,6 +35,7 @@ from ...errors import ApiError, not_found
 from ...util import rows
 from ..einvoice import taxes
 from ..payments import fees
+from . import commission
 
 router = APIRouter(prefix="/api/admin/pricing", tags=["pricing"])
 
@@ -249,59 +250,183 @@ async def create_scheme(body: SchemeIn, request: Request, pr: Principal = Depend
     return {"id": sid, "code": body.code, "version": version, "status": "PENDING"}
 
 
-async def _pending(conn: asyncpg.Connection, sid: int) -> asyncpg.Record:
-    s = await conn.fetchrow("SELECT * FROM pricing.tax_scheme WHERE id = $1 FOR UPDATE", sid)
+TABLE = {"taxes": ("pricing.tax_scheme", "tax_scheme"), "commissions": ("pricing.commission_scheme", "commission_scheme")}
+Kind = Literal["taxes", "commissions"]
+
+
+async def _pending(conn: asyncpg.Connection, table: str, sid: int) -> asyncpg.Record:
+    s = await conn.fetchrow(f"SELECT * FROM {table} WHERE id = $1 FOR UPDATE", sid)
     if s is None:
-        raise not_found("tax scheme")
+        raise not_found("scheme")
     if s["status"] != "PENDING":
         raise ApiError(409, "SCHEME_NOT_PENDING", "only a scheme waiting for approval can be approved or withdrawn")
     return s
 
 
-@router.post("/taxes/{sid}/approve")
-async def approve_scheme(sid: int, request: Request, pr: Principal = Depends(_officer)):
+@router.post("/{kind}/{sid}/approve")
+async def approve_scheme(kind: Kind, sid: int, request: Request, pr: Principal = Depends(_officer)):
+    table, obj = TABLE[kind]
     async with db.transaction(context_for(request, pr)) as conn:
-        s = await _pending(conn, sid)
+        s = await _pending(conn, table, sid)
         if s["created_by"] == pr.user_id:
-            raise ApiError(403, "SAME_OFFICER", "a second officer approves a tax scheme, not the one who recorded it")
+            raise ApiError(403, "SAME_OFFICER", "a second officer approves a scheme, not the one who recorded it")
         start = max(s["valid"].lower, datetime.now(timezone.utc))
         # the version in force of the same code ends when this one starts; one that would start later is refused
-        for old in await conn.fetch(
-                "SELECT id, valid FROM pricing.tax_scheme WHERE code = $1 AND status = 'ACTIVE' AND id <> $2 FOR UPDATE", s["code"], sid):
+        for old in await conn.fetch(f"SELECT id, valid FROM {table} WHERE code = $1 AND status = 'ACTIVE' AND id <> $2 FOR UPDATE", s["code"], sid):
             if old["valid"].lower >= start:
                 raise ApiError(409, "VERSION_OVERLAP", "a version of this scheme already starts on or after this one; withdraw one of them")
             if old["valid"].upper is None or old["valid"].upper > start:
-                await conn.execute("UPDATE pricing.tax_scheme SET valid = tstzrange(lower(valid), $2) WHERE id = $1", old["id"], start)
-        await conn.execute(
-            "UPDATE pricing.tax_scheme SET status = 'ACTIVE', approved_by = $2, valid = tstzrange($3, upper(valid)) WHERE id = $1",
-            sid, pr.user_id, start)
-    request.state.audit = {"action": "pricing.tax_scheme_approve", "object_type": "tax_scheme", "object_id": sid, "reason": s["code"]}
+                await conn.execute(f"UPDATE {table} SET valid = tstzrange(lower(valid), $2) WHERE id = $1", old["id"], start)
+        await conn.execute(f"UPDATE {table} SET status = 'ACTIVE', approved_by = $2, valid = tstzrange($3, upper(valid)) WHERE id = $1",
+                           sid, pr.user_id, start)
+    request.state.audit = {"action": f"pricing.{obj}_approve", "object_type": obj, "object_id": sid, "reason": s["code"]}
     return {"id": sid, "status": "ACTIVE", "valid_from": start.isoformat()}
 
 
-@router.post("/taxes/{sid}/withdraw")
-async def withdraw_scheme(sid: int, request: Request, pr: Principal = Depends(_officer)):
+@router.post("/{kind}/{sid}/withdraw")
+async def withdraw_scheme(kind: Kind, sid: int, request: Request, pr: Principal = Depends(_officer)):
+    table, obj = TABLE[kind]
     async with db.transaction(context_for(request, pr)) as conn:
-        s = await _pending(conn, sid)
-        await conn.execute("UPDATE pricing.tax_scheme SET status = 'RETIRED' WHERE id = $1", sid)
-    request.state.audit = {"action": "pricing.tax_scheme_withdraw", "object_type": "tax_scheme", "object_id": sid, "reason": s["code"]}
+        s = await _pending(conn, table, sid)
+        await conn.execute(f"UPDATE {table} SET status = 'RETIRED' WHERE id = $1", sid)
+    request.state.audit = {"action": f"pricing.{obj}_withdraw", "object_type": obj, "object_id": sid, "reason": s["code"]}
     return {"id": sid, "status": "RETIRED"}
 
 
-@router.post("/taxes/{sid}/retire")
-async def retire_scheme(sid: int, request: Request, pr: Principal = Depends(_officer)):
+@router.post("/{kind}/{sid}/retire")
+async def retire_scheme(kind: Kind, sid: int, request: Request, pr: Principal = Depends(_officer)):
+    table, obj = TABLE[kind]
     async with db.transaction(context_for(request, pr)) as conn:
-        s = await conn.fetchrow("SELECT code, status, valid FROM pricing.tax_scheme WHERE id = $1 FOR UPDATE", sid)
+        s = await conn.fetchrow(f"SELECT code, status FROM {table} WHERE id = $1 FOR UPDATE", sid)
         if s is None:
-            raise not_found("tax scheme")
+            raise not_found("scheme")
         if s["status"] != "ACTIVE":
             raise ApiError(409, "SCHEME_NOT_ACTIVE", "only a scheme in force is retired")
         await conn.execute(
-            """UPDATE pricing.tax_scheme SET status = 'RETIRED',
-                      valid = tstzrange(lower(valid), greatest(lower(valid), least(coalesce(upper(valid), 'infinity'), now()))) WHERE id = $1""",
+            f"""UPDATE {table} SET status = 'RETIRED',
+                       valid = tstzrange(lower(valid), greatest(lower(valid), least(coalesce(upper(valid), 'infinity'), now()))) WHERE id = $1""",
             sid)
-    request.state.audit = {"action": "pricing.tax_scheme_retire", "object_type": "tax_scheme", "object_id": sid, "reason": s["code"]}
+    request.state.audit = {"action": f"pricing.{obj}_retire", "object_type": obj, "object_id": sid, "reason": s["code"]}
     return {"id": sid, "status": "RETIRED"}
+
+
+# ------------------------------------------------------------------ commission schemes (1175)
+async def _commissions(conn: asyncpg.Connection) -> list[dict]:
+    recs = await conn.fetch(
+        """SELECT s.id, s.code, s.name, s.type, s.funded_by, s.beneficiary_role, s.base_type, s.scope, s.version, s.status,
+                  lower(s.valid) AS valid_from, upper(s.valid) AS valid_to, cu.email AS created_by, au.email AS approved_by,
+                  (s.status = 'ACTIVE' AND s.valid @> now()) AS in_force, (s.status = 'ACTIVE' AND lower(s.valid) > now()) AS scheduled
+             FROM pricing.commission_scheme s LEFT JOIN iam.app_user cu ON cu.id = s.created_by LEFT JOIN iam.app_user au ON au.id = s.approved_by
+            ORDER BY s.code, s.version DESC""")
+    out = [dict(r) for r in recs]
+    rules = await conn.fetch(
+        """SELECT r.id, r.scheme_id, r.seq, r.calc_method, r.rate, r.amount, r.min_amount, r.max_amount FROM pricing.commission_rule r
+            WHERE r.scheme_id = ANY($1::bigint[]) ORDER BY r.scheme_id, r.seq""", [s["id"] for s in out])
+    bands = await conn.fetch(
+        """SELECT commission_rule_id, from_value, to_value, rate, amount, mode FROM pricing.rate_band
+            WHERE commission_rule_id = ANY($1::bigint[]) ORDER BY commission_rule_id, from_value""", [r["id"] for r in rules])
+    by_rule: dict[int, list] = {}
+    for b in bands:
+        by_rule.setdefault(b["commission_rule_id"], []).append({k: (float(v) if isinstance(v, Decimal) else v) for k, v in dict(b).items() if k != "commission_rule_id"})
+    by_scheme: dict[int, list] = {}
+    for r in rules:
+        d = dict(r)
+        d["rate"] = float(d["rate"]) if d["rate"] is not None else None
+        d["bands"] = by_rule.get(d.pop("id"), [])
+        by_scheme.setdefault(d.pop("scheme_id"), []).append(d)
+    for s in out:
+        s["scope"] = s["scope"] if isinstance(s["scope"], dict) else json.loads(s["scope"] or "{}")
+        s["rules"] = by_scheme.get(s["id"], [])
+        s["receiver"] = commission.RECEIVER[s["type"]]
+        s["payer"] = commission.PAYER[s["funded_by"]]
+        for k in ("valid_from", "valid_to"):
+            s[k] = s[k].isoformat() if s[k] else None
+    return out
+
+
+@router.get("/commissions")
+async def commission_overview(request: Request, pr: Principal = Depends(_officer)):
+    async with db.transaction(context_for(request, pr)) as conn:
+        return {"schemes": await _commissions(conn)}
+
+
+class CommissionRuleIn(BaseModel):
+    calc_method: Literal["PERCENT", "FIXED", "TIERED"]
+    rate: Optional[float] = Field(default=None, ge=0, le=100)
+    amount: Optional[int] = Field(default=None, ge=0)
+    min_amount: Optional[int] = Field(default=None, ge=0)
+    max_amount: Optional[int] = Field(default=None, ge=0)
+    bands: list[BandIn] = Field(default_factory=list, max_length=20)
+
+    @model_validator(mode="after")
+    def _terms(self):
+        if self.calc_method == "PERCENT" and self.rate is None:
+            raise ValueError("a percent rule gives its rate")
+        if self.calc_method == "FIXED" and self.amount is None:
+            raise ValueError("a fixed rule gives its amount")
+        if self.calc_method == "TIERED" and not self.bands:
+            raise ValueError("a tiered rule gives its bands")
+        if self.min_amount is not None and self.max_amount is not None and self.min_amount > self.max_amount:
+            raise ValueError("the minimum is above the maximum")
+        if len({b.mode for b in self.bands}) > 1 or any(b.dimension != "AMOUNT" for b in self.bands):
+            raise ValueError("the bands of a commission are of the amount and share one mode")
+        return self
+
+
+class CommissionIn(BaseModel):
+    code: str = Field(pattern=r"^[A-Z][A-Z0-9_-]{1,29}$")
+    name: str = Field(min_length=2, max_length=120)
+    type: Literal["PLATFORM", "INTERMEDIARY", "SUB_AGENT", "OVERRIDE", "PAYMENT", "REFERRAL"]
+    funded_by: Literal["CARRIER", "PLATFORM", "CUSTOMER", "CHANNEL"]
+    beneficiary_role: str = Field(default="", max_length=60)
+    base_type: Literal["FARE", "NET", "FEE"] = "FARE"
+    channels: list[Literal["WEB", "AGENCY", "COUNTER", "API"]] = Field(default_factory=list)
+    valid_from: date
+    valid_to: Optional[date] = None
+    rules: list[CommissionRuleIn] = Field(min_length=1, max_length=10)
+    from_id: Optional[int] = None
+
+    @model_validator(mode="after")
+    def _shape(self):
+        if self.valid_to is not None and self.valid_to <= self.valid_from:
+            raise ValueError("the scheme ends before it starts")
+        if commission.RECEIVER[self.type] == commission.PAYER[self.funded_by]:
+            raise ValueError("a commission is not paid by the one who receives it")
+        return self
+
+
+@router.post("/commissions", status_code=201)
+async def create_commission(body: CommissionIn, request: Request, pr: Principal = Depends(_officer)):
+    if body.valid_from < date.today():
+        raise ApiError(422, "SCHEME_IN_PAST", "a commission scheme starts today or later; past sales keep the commissions they had")
+    async with db.transaction(context_for(request, pr)) as conn:
+        if body.from_id is not None:
+            prev = await conn.fetchval("SELECT code FROM pricing.commission_scheme WHERE id = $1", body.from_id)
+            if prev is None:
+                raise not_found("commission scheme")
+            if prev != body.code:
+                raise ApiError(422, "VERSION_CODE", "a new version keeps the scheme's code")
+        elif await conn.fetchval("SELECT EXISTS (SELECT 1 FROM pricing.commission_scheme WHERE code = $1 AND status <> 'RETIRED')", body.code):
+            raise ApiError(409, "SCHEME_EXISTS", "a scheme with this code exists; record a new version of it instead")
+        version = (await conn.fetchval("SELECT max(version) FROM pricing.commission_scheme WHERE code = $1", body.code) or 0) + 1
+        scope = {"channels": body.channels} if body.channels else {}
+        end = datetime.combine(body.valid_to, time.min, tzinfo=timezone.utc) if body.valid_to else None
+        sid = await conn.fetchval(
+            """INSERT INTO pricing.commission_scheme (code, name, type, funded_by, beneficiary_role, scope, base_type, valid, version, status, created_by)
+               VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, tstzrange($8, $9), $10, 'PENDING', $11) RETURNING id""",
+            body.code, body.name.strip(), body.type, body.funded_by, body.beneficiary_role.strip() or commission.RECEIVER[body.type].lower(),
+            json.dumps(scope), body.base_type, _start(body.valid_from), end, version, pr.user_id)
+        for seq, r in enumerate(body.rules, start=1):
+            rid = await conn.fetchval(
+                """INSERT INTO pricing.commission_rule (scheme_id, seq, calc_method, rate, amount, min_amount, max_amount)
+                   VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id""", sid, seq, r.calc_method, r.rate, r.amount, r.min_amount, r.max_amount)
+            for b in r.bands:
+                await conn.execute(
+                    """INSERT INTO pricing.rate_band (commission_rule_id, dimension, from_value, to_value, rate, amount, mode)
+                       VALUES ($1, 'AMOUNT', $2, $3, $4, $5, $6)""", rid, b.from_value, b.to_value, b.rate, b.amount, b.mode)
+    request.state.audit = {"action": "pricing.commission_scheme_create", "object_type": "commission_scheme", "object_id": sid,
+                           "reason": f"{body.code} v{version}"}
+    return {"id": sid, "code": body.code, "version": version, "status": "PENDING"}
 
 
 # ------------------------------------------------------------------ the preview
@@ -327,6 +452,8 @@ class PreviewIn(BaseModel):
     method: Optional[str] = Field(default=None, max_length=40)
     agency_commission_bp: int = Field(default=0, ge=0, le=5000)
     try_ids: list[int] = Field(default_factory=list, max_length=10)     # waiting schemes tried as if in force
+    channel: Optional[Literal["WEB", "AGENCY", "COUNTER", "API"]] = None   # where the sale is made, for commission schemes
+    try_commission_ids: list[int] = Field(default_factory=list, max_length=10)
     currency: Optional[str] = Field(default=None, pattern=r"^[A-Z]{3}$")   # the country's market currency when not given
 
 
@@ -375,13 +502,19 @@ async def preview(body: PreviewIn, request: Request, pr: Principal = Depends(_of
         fee = 0 if no_funds else get_settings().platform_fee
         f_sale, f_schemes = await schemes("PLATFORM", "BOOKING_FEE")
         fee_net, fee_taxes = taxes.split_inclusive(fee, f_schemes, f_sale) if fee else (0, [])
-        commission = commission_for(fares_total, body.agency_commission_bp)
+        agency_cut = commission_for(fares_total, body.agency_commission_bp)
         pay = {"fee": 0, "absorbed": 0, "label": None, "borne_by": "PAYER"}
         if body.method and not no_funds:
             p = await conn.fetchrow("SELECT id, code, adapter, min_amount, max_amount FROM fin.payment_provider WHERE code = $1", body.method)
             if p is None:
                 raise not_found("payment method")
             pay = await fees.fee_for(conn, dict(p), currency, fares_total + fee, None)
+        c_tried = await commission.load(conn, "id = ANY($1::bigint[])", body.try_commission_ids) if body.try_commission_ids else []
+        c_tried_codes = {c.code for c in c_tried}
+        c_schemes = [c for c in await commission.in_force(conn, at) if c.code not in c_tried_codes] + c_tried
+        c_schemes = [c for c in c_schemes if commission.applies(c, body.channel, None)]
+        c_names = {r["id"]: r["name"] for r in await conn.fetch(
+            "SELECT id, coalesce(name, code) AS name FROM pricing.commission_scheme WHERE id = ANY($1::bigint[])", [c.id for c in c_schemes])}
         authorities = {r["id"]: r["legal_name"] for r in await conn.fetch(
             "SELECT id, legal_name FROM iam.party WHERE id = ANY($1::bigint[])",
             [t["payable_to_party_id"] for t in ticket_taxes.values() if t["payable_to_party_id"]]
@@ -393,20 +526,30 @@ async def preview(body: PreviewIn, request: Request, pr: Principal = Depends(_of
         t["payable_to"] = authorities.get(t.pop("payable_to_party_id"))
         t["tried"] = t["code"] in tried_codes
     total_tax = sum(t["amount"] for t in tax_lines) + sum(t["amount"] for t in fee_tax_lines)
-    paid = fares_total + fee + pay["fee"]
-    shares = [
-        {"who": "CARRIER", "amount": ticket_net - commission},
-        {"who": "AGENCY", "amount": commission},
-        {"who": "PLATFORM", "amount": fee_net - pay.get("absorbed", 0)},
-        {"who": "TAX", "amount": total_tax},
-        {"who": "PAYMENT", "amount": pay["fee"] + pay.get("absorbed", 0)},
-    ]
+    bucket = {"CARRIER": ticket_net - agency_cut, "AGENCY": agency_cut, "PLATFORM": fee_net - pay.get("absorbed", 0), "TAX": total_tax,
+              "PAYMENT": pay["fee"] + pay.get("absorbed", 0), "REFERRER": 0}
+    bases = {"FARE": fares_total, "NET": ticket_net, "FEE": fee}
+    commission_lines, traveller_extra = [], 0
+    for c in c_schemes:
+        base = bases[c.base_type]
+        amt = commission.amount(c, base)
+        payer, receiver = commission.PAYER[c.funded_by], commission.RECEIVER[c.type]
+        if payer == "TRAVELLER":
+            traveller_extra += amt
+        else:
+            bucket[payer] -= amt
+        bucket[receiver] += amt
+        commission_lines.append({"code": c.code, "name": c_names.get(c.id, c.code), "type": c.type, "payer": payer, "receiver": receiver,
+                                 "base_type": c.base_type, "base": base, "amount": amt, "tried": c.code in c_tried_codes})
+    paid = fares_total + fee + pay["fee"] + traveller_extra
+    shares = [{"who": k, "amount": v} for k, v in bucket.items()]
     return {
         "currency": currency, "passengers": n, "fare": body.fare, "fares_total": fares_total,
         "ticket_net": ticket_net, "ticket_taxes": tax_lines,
         "platform_fee": fee, "platform_fee_net": fee_net, "platform_fee_taxes": fee_tax_lines,
         "payment_fee": pay["fee"], "payment_fee_absorbed": pay.get("absorbed", 0), "payment_fee_label": pay.get("label"),
-        "agency_commission": commission, "total_paid": paid, "total_tax": total_tax,
+        "agency_commission": agency_cut, "total_paid": paid, "total_tax": total_tax,
         "shares": [s for s in shares if s["amount"]], "no_funds": no_funds,
-        "tried": sorted(tried_codes),
+        "tried": sorted(tried_codes | c_tried_codes),
+        "commissions": commission_lines, "traveller_commission": traveller_extra,
     }

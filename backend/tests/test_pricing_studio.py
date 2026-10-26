@@ -115,3 +115,45 @@ def test_only_platform_officers_open_the_studio():
     carrier = login("owner@carrier.test", "OPERATOR")
     assert carrier.get("/api/admin/pricing/taxes").status_code in (401, 403)
     assert carrier.post("/api/admin/pricing/preview", json={"fare": 1000}).status_code in (401, 403)
+
+
+def commission_body(code, **kw):
+    return {"code": code, "name": f"{code} test", "type": "INTERMEDIARY", "funded_by": "CARRIER", "base_type": "FARE",
+            "channels": ["AGENCY"], "valid_from": date.today().isoformat(), "rules": [{"calc_method": "PERCENT", "rate": 4}], **kw}
+
+
+def test_a_commission_is_recorded_tried_approved_and_frozen(admin, second, country):
+    code = "AG" + uuid.uuid4().hex[:5].upper()
+    bad = admin.post("/api/admin/pricing/commissions", json=commission_body(code, type="PLATFORM", funded_by="PLATFORM"))
+    assert bad.status_code == 422                                                 # nobody pays themselves
+    r = admin.post("/api/admin/pricing/commissions", json=commission_body(code))
+    assert r.status_code == 201 and r.json()["status"] == "PENDING", r.text
+    cid = r.json()["id"]
+    assert admin.post("/api/admin/pricing/commissions", json=commission_body(code)).json()["error"]["code"] == "SCHEME_EXISTS"
+    # tried in the preview from an agency: 4 % of the fares, paid by the carrier to the agency; a web sale is untouched
+    p = preview(admin, country, passengers=2, channel="AGENCY", try_commission_ids=[cid])
+    line = next(x for x in p["commissions"] if x["code"] == code)
+    assert line["amount"] == 88_000 and line["payer"] == "CARRIER" and line["receiver"] == "AGENCY" and line["tried"]
+    assert not any(x["code"] == code for x in preview(admin, country, channel="WEB", try_commission_ids=[cid])["commissions"])
+    assert admin.post(f"/api/admin/pricing/commissions/{cid}/approve").json()["error"]["code"] == "SAME_OFFICER"
+    assert second.post(f"/api/admin/pricing/commissions/{cid}/approve").json()["status"] == "ACTIVE"
+    row = next(s for s in admin.get("/api/admin/pricing/commissions").json()["schemes"] if s["id"] == cid)
+    assert row["in_force"] and row["receiver"] == "AGENCY" and row["payer"] == "CARRIER" and row["rules"][0]["rate"] == 4.0
+    frozen = owner_sql("SELECT count(*) FROM pricing.commission_rule WHERE scheme_id = $1", cid)
+    assert frozen == 1
+    v2 = admin.post("/api/admin/pricing/commissions", json=commission_body(code, from_id=cid, rules=[{"calc_method": "FIXED", "amount": 15_000}],
+                                                                           valid_from=(date.today() + timedelta(days=1)).isoformat()))
+    assert v2.status_code == 201 and v2.json()["version"] == 2, v2.text
+    assert second.post(f"/api/admin/pricing/commissions/{v2.json()['id']}/withdraw").json()["status"] == "RETIRED"
+    assert admin.post(f"/api/admin/pricing/commissions/{cid}/retire").json()["status"] == "RETIRED"
+
+
+def test_a_commission_the_customer_pays_is_added_to_the_price(admin, country):
+    code = "RF" + uuid.uuid4().hex[:5].upper()
+    cid = admin.post("/api/admin/pricing/commissions", json=commission_body(code, type="REFERRAL", funded_by="CUSTOMER", channels=[],
+                                                                            rules=[{"calc_method": "FIXED", "amount": 5_000}])).json()["id"]
+    plain = preview(admin, country)
+    tried = preview(admin, country, try_commission_ids=[cid])
+    assert tried["total_paid"] == plain["total_paid"] + 5_000 and tried["traveller_commission"] == 5_000
+    assert any(s["who"] == "REFERRER" and s["amount"] == 5_000 for s in tried["shares"])
+    admin.post(f"/api/admin/pricing/commissions/{cid}/withdraw")

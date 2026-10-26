@@ -5283,6 +5283,22 @@ SELECT pg_temp.ok((SELECT axles = 2 FROM fleet.trailer WHERE id = :tl1173),
   'Lists (1174): the trailer''s number of axles follows its arrangement');
 SELECT pg_temp.expect_error(format($$INSERT INTO fleet.truck_unit (vehicle_id, axle_config, gvw_kg, tare_kg) VALUES (%s, 'T3', 40000, 9000)$$, :tr1173),
   'AXLE_KIND', 'Lists (1174): a truck takes a wheel formula, not a trailer group');
+-- Commission schemes (1175): complete terms, a second officer, rules frozen once in force
+INSERT INTO pricing.commission_scheme (code, name, type, funded_by, beneficiary_role, base_type, valid, created_by)
+  VALUES ('T1175', 'Agency 4 %', 'INTERMEDIARY', 'CARRIER', 'agency', 'FARE', tstzrange(now(), NULL), (SELECT min(id) FROM iam.app_user))
+  RETURNING id AS cs1175 \gset
+SELECT pg_temp.expect_error(format($$INSERT INTO pricing.commission_rule (scheme_id, seq, calc_method) VALUES (%s, 99, 'PERCENT')$$, :cs1175),
+  'commission_rule_terms_check', 'Commissions (1175): a percentage rule gives its rate');
+SELECT pg_temp.expect_error(format('UPDATE pricing.commission_scheme SET status = ''ACTIVE'', approved_by = (SELECT max(id) FROM iam.app_user) WHERE id = %s', :cs1175),
+  'COMMISSION_RULES', 'Commissions (1175): a scheme goes in force only with a rule');
+INSERT INTO pricing.commission_rule (scheme_id, seq, calc_method, rate) VALUES (:cs1175, 1, 'PERCENT', 4);
+SELECT pg_temp.expect_error(format('UPDATE pricing.commission_scheme SET status = ''ACTIVE'' WHERE id = %s', :cs1175),
+  'COMMISSION_UNAPPROVED', 'Commissions (1175): a scheme goes in force only approved by a second officer');
+UPDATE pricing.commission_scheme SET status = 'ACTIVE', approved_by = (SELECT max(id) FROM iam.app_user) WHERE id = :cs1175;
+SELECT pg_temp.expect_error(format('UPDATE pricing.commission_rule SET rate = 9 WHERE scheme_id = %s', :cs1175),
+  'COMMISSION_FROZEN', 'Commissions (1175): the rules of a scheme in force do not change');
+SELECT pg_temp.expect_error(format($$INSERT INTO pricing.commission_rule (scheme_id, seq, calc_method, rate) VALUES (%s, 2, 'PERCENT', 1)$$, :cs1175),
+  'COMMISSION_FROZEN', 'Commissions (1175): no rule is added to a scheme in force');
 ROLLBACK;
 
 \echo '=== ALL TESTS PASSED ==='

@@ -21,29 +21,38 @@ interface TaxLine { code: string; tax_type: string; treatment: string; rate: num
 interface Receipt { currency: string; passengers: number; fare: number; fares_total: number; ticket_net: number; ticket_taxes: TaxLine[];
   platform_fee: number; platform_fee_net: number; platform_fee_taxes: TaxLine[]; payment_fee: number; payment_fee_absorbed: number;
   payment_fee_label: string | null; agency_commission: number; total_paid: number; total_tax: number; shares: { who: string; amount: number }[];
-  no_funds: boolean; tried: string[] }
+  no_funds: boolean; tried: string[]; commissions: CommissionLine[]; traveller_commission: number }
+interface CommissionLine { code: string; name: string; type: string; payer: string; receiver: string; base_type: string; base: number; amount: number; tried: boolean }
+interface CRule { seq: number; calc_method: string; rate: number | null; amount: number | null; min_amount: number | null; max_amount: number | null; bands: Band[] }
+interface Commission { id: number; code: string; name: string | null; type: string; funded_by: string; payer: string; receiver: string; base_type: string;
+  scope: { channels?: string[] }; version: number; status: string; valid_from: string; valid_to: string | null; created_by: string | null;
+  approved_by: string | null; in_force: boolean; scheduled: boolean; rules: CRule[] }
 
 type Phase = "FORCE" | "WAITING" | "SCHEDULED" | "ENDED";
 const phaseOf = (s: Scheme): Phase => s.status === "PENDING" ? "WAITING" : s.scheduled ? "SCHEDULED" : s.in_force ? "FORCE" : "ENDED";
 const SHARE_COLOUR: Record<string, string> = { CARRIER: "var(--primary)", AGENCY: "var(--brand-gold)", PLATFORM: "var(--brand-navy)",
-  TAX: "var(--tertiary)", PAYMENT: "var(--outline)" };
+  TAX: "var(--tertiary)", PAYMENT: "var(--outline)", REFERRER: "var(--success)" };
 
 export function PricingStudio() {
   const { t } = useI18n();
-  const [tab, setTab] = useState<"taxes" | "preview">("taxes");
+  const [tab, setTab] = useState<"taxes" | "commissions" | "preview">("taxes");
   const [tryIds, setTryIds] = useState<number[]>([]);
+  const [tryC, setTryC] = useState<number[]>([]);
+  const comms = useLoad((signal) => api.get<{ schemes: Commission[] }>("/api/admin/pricing/commissions", undefined, { signal }).then((r) => r.schemes));
   const state = useLoad((signal) => api.get<{ jurisdictions: Jurisdiction[]; schemes: Scheme[] }>("/api/admin/pricing/taxes", undefined, { signal }));
   return (
     <div className="stack">
       <PageHead title={t("ps.title")} sub={t("ps.sub")} />
       <div className="segmented" role="tablist" aria-label={t("ps.title")} style={{ alignSelf: "flex-start" }}>
-        {(["taxes", "preview"] as const).map((k) => (
+        {(["taxes", "commissions", "preview"] as const).map((k) => (
           <button key={k} type="button" role="tab" aria-selected={tab === k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}>
-            <Icon name={k === "taxes" ? "request_quote" : "receipt_long"} size={18} />{t(`ps.tab.${k}`)}</button>))}
+            <Icon name={k === "taxes" ? "request_quote" : k === "commissions" ? "handshake" : "receipt_long"} size={18} />{t(`ps.tab.${k}`)}</button>))}
       </div>
-      <Loaded state={state}>{(d) => tab === "taxes"
-        ? <Taxes data={d} reload={state.reload} onTry={(id) => { setTryIds((x) => x.includes(id) ? x : [...x, id]); setTab("preview"); }} />
-        : <Preview schemes={d.schemes} tryIds={tryIds} setTryIds={setTryIds} />}</Loaded>
+      {tab === "commissions" ? <Loaded state={comms}>{(cs) => <Commissions schemes={cs} reload={comms.reload}
+          onTry={(id) => { setTryC((x) => x.includes(id) ? x : [...x, id]); setTab("preview"); }} />}</Loaded>
+        : <Loaded state={state}>{(d) => tab === "taxes"
+          ? <Taxes data={d} reload={state.reload} onTry={(id) => { setTryIds((x) => x.includes(id) ? x : [...x, id]); setTab("preview"); }} />
+          : <Preview schemes={d.schemes} tryIds={tryIds} setTryIds={setTryIds} commissions={comms.data ?? []} tryC={tryC} setTryC={setTryC} />}</Loaded>}
     </div>
   );
 }
@@ -289,23 +298,26 @@ function SchemeForm({ from, jurisdictions, known, onClose, onDone }: { from?: Sc
 }
 
 // ------------------------------------------------------------------ the price preview
-function Preview({ schemes, tryIds, setTryIds }: { schemes: Scheme[]; tryIds: number[]; setTryIds: (x: number[]) => void }) {
+function Preview({ schemes, tryIds, setTryIds, commissions, tryC, setTryC }: { schemes: Scheme[]; tryIds: number[]; setTryIds: (x: number[]) => void;
+  commissions: Commission[]; tryC: number[]; setTryC: (x: number[]) => void }) {
   const { t, money } = useI18n();
   const opts = useLoad((signal) => api.get<{ methods: { code: string; name: string }[]; countries: string[]; cities: { code: string; name: string; country_code: string }[];
     platform_fee: number; no_funds: boolean }>(
     "/api/admin/pricing/preview-options", undefined, { signal }));
-  const [f, setF] = useState({ fare: "11000", passengers: "1", country: "SY", origin_city: "", distance_km: "", at: "", method: "", commission: "0" });
+  const [f, setF] = useState({ fare: "11000", passengers: "1", country: "SY", origin_city: "", distance_km: "", at: "", method: "", commission: "0", channel: "" });
   const [r, setR] = useState<Receipt | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const waiting = schemes.filter((s) => s.status === "PENDING");
+  const waitingC = commissions.filter((c) => c.status === "PENDING");
   const run = async () => {
     setBusy(true); setError(null);
     try {
       setR(await api.post<Receipt>("/api/admin/pricing/preview", {
         fare: Math.round(Number(f.fare) * 100), passengers: Number(f.passengers) || 1, country: f.country, origin_city: f.origin_city || null,
         distance_km: f.distance_km ? Number(f.distance_km) : null, at: f.at || null, method: f.method || null,
-        agency_commission_bp: Math.round(Number(f.commission || 0) * 100), try_ids: tryIds }));
+        agency_commission_bp: Math.round(Number(f.commission || 0) * 100), try_ids: tryIds,
+        channel: f.channel || null, try_commission_ids: tryC }));
     } catch (e) { setError(e); } finally { setBusy(false); }
   };
   const set = (k: string, v: string) => setF((x) => ({ ...x, [k]: v }));
@@ -328,10 +340,15 @@ function Preview({ schemes, tryIds, setTryIds }: { schemes: Scheme[]; tryIds: nu
           </>)}</Loaded>
           {input("distance_km", t("ps.distance"))}
           {input("at", t("ps.at"), "date")}{input("commission", t("ps.commission"))}
+          <Field label={t("pc.channel")}><select className="input" value={f.channel} onChange={(e) => set("channel", e.target.value)}>
+            <option value="">{t("pc.anyChannel")}</option>{["WEB", "AGENCY", "COUNTER", "API"].map((c) => <option key={c} value={c}>{t(`pc.channelName.${c}`)}</option>)}</select></Field>
         </div>
         {waiting.length > 0 && <div className="field"><span>{t("ps.tryWaiting")}</span><div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
           {waiting.map((s) => <button key={s.id} type="button" aria-pressed={tryIds.includes(s.id)} className={`chip chip-select ltr${tryIds.includes(s.id) ? " on" : ""}`}
                                       onClick={() => setTryIds(tryIds.includes(s.id) ? tryIds.filter((x) => x !== s.id) : [...tryIds, s.id])}>{s.code} v{s.version}</button>)}</div></div>}
+        {waitingC.length > 0 && <div className="field"><span>{t("pc.tryWaiting")}</span><div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
+          {waitingC.map((c) => <button key={c.id} type="button" aria-pressed={tryC.includes(c.id)} className={`chip chip-select ltr${tryC.includes(c.id) ? " on" : ""}`}
+                                       onClick={() => setTryC(tryC.includes(c.id) ? tryC.filter((x) => x !== c.id) : [...tryC, c.id])}>{c.code} v{c.version}</button>)}</div></div>}
         <button className="btn" style={{ alignSelf: "flex-start" }} disabled={busy || !(Number(f.fare) > 0)} onClick={run}><Icon name="calculate" />{t("ps.calculate")}</button>
         <ErrorBox error={error} />
       </section>
@@ -345,20 +362,26 @@ function Preview({ schemes, tryIds, setTryIds }: { schemes: Scheme[]; tryIds: nu
             {r.ticket_taxes.map((x) => <TaxRow key={x.code} x={x} currency={r.currency} />)}
             <tr><th scope="row">{t("ps.platformFee")}</th><td className="num">{money(r.platform_fee, true, r.currency)}</td></tr>
             {r.platform_fee_taxes.map((x) => <TaxRow key={`f${x.code}`} x={x} currency={r.currency} />)}
+            {r.traveller_commission > 0 && <tr><th scope="row">{t("pc.travellerPays")}</th><td className="num">{money(r.traveller_commission, true, r.currency)}</td></tr>}
             {r.payment_fee > 0 && <tr><th scope="row">{t("ps.paymentFee")}</th><td className="num">{money(r.payment_fee, true, r.currency)}</td></tr>}
             {r.payment_fee_absorbed > 0 && <tr className="small"><td>{t("ps.feeAbsorbed")}</td><td className="num">{money(r.payment_fee_absorbed, true, r.currency)}</td></tr>}
             <tr style={{ borderTop: "2px solid var(--outline)" }}><th scope="row" style={{ fontSize: 16 }}>{t("ps.totalPaid")}</th>
               <td className="num" style={{ fontSize: 18, fontWeight: 700 }}>{money(r.total_paid, true, r.currency)}</td></tr>
             {r.agency_commission > 0 && <tr className="small"><td>{t("ps.agencyCommission")}</td><td className="num">{money(r.agency_commission, true, r.currency)}</td></tr>}
+            {r.commissions.map((c) => (
+              <tr key={c.code} className="small"><td>
+                <span className="ltr mono">{c.code}</span> · {c.name}{c.tried && <span className="chip wheat" style={{ marginInlineStart: 6 }}>{t("ps.triedChip")}</span>}
+                <div className="muted">{t(`ps.who.${c.payer === "TRAVELLER" ? "TRAVELLER" : c.payer}`)} → {t(`ps.who.${c.receiver}`)} · {t("ps.onBase", { base: money(c.base, true, r.currency) })}</div>
+              </td><td className="num">{money(c.amount, true, r.currency)}</td></tr>))}
           </tbody></table>
           {r.no_funds && <p className="small muted">{t("ps.noFunds")}</p>}
           <h4 style={{ margin: "8px 0 0" }}>{t("ps.whoGets")}</h4>
-          <div role="img" aria-label={r.shares.map((s) => `${t(`ps.who.${s.who}`)} ${money(s.amount, true, r.currency)}`).join(", ")}
+          <div role="img" aria-label={r.shares.filter((s) => s.amount !== 0).map((s) => `${t(`ps.who.${s.who}`)} ${money(s.amount, true, r.currency)}`).join(", ")}
                style={{ display: "flex", height: 14, borderRadius: 7, overflow: "hidden", background: "var(--surface-container)" }}>
-            {r.shares.map((s) => <div key={s.who} style={{ width: `${(s.amount / r.total_paid) * 100}%`, background: SHARE_COLOUR[s.who] }} />)}
+            {r.shares.filter((s) => s.amount > 0).map((s) => <div key={s.who} style={{ width: `${(s.amount / r.total_paid) * 100}%`, background: SHARE_COLOUR[s.who] }} />)}
           </div>
           <ul className="row" style={{ listStyle: "none", padding: 0, margin: 0, gap: 14, flexWrap: "wrap" }}>
-            {r.shares.map((s) => <li key={s.who} className="small row" style={{ gap: 6, alignItems: "center" }}>
+            {r.shares.filter((s) => s.amount !== 0).map((s) => <li key={s.who} className="small row" style={{ gap: 6, alignItems: "center" }}>
               <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: 3, background: SHARE_COLOUR[s.who], display: "inline-block" }} />
               {t(`ps.who.${s.who}`)} <b className="mono">{money(s.amount, true, r.currency)}</b>
               <span className="muted">({((s.amount / r.total_paid) * 100).toFixed(1)}%)</span></li>)}
@@ -384,3 +407,158 @@ function TaxRow({ x, currency }: { x: TaxLine; currency: string }) {
   );
 }
 
+
+// ------------------------------------------------------------------ commission schemes (1175)
+function Commissions({ schemes, reload, onTry }: { schemes: Commission[]; reload: () => void; onTry: (id: number) => void }) {
+  const { t, money } = useI18n();
+  const toast = useToast();
+  const { me } = useAuth();
+  const [filter, setFilter] = useState<Phase | "ALL">("ALL");
+  const [editing, setEditing] = useState<{ from?: Commission } | null>(null);
+  const [error, setError] = useState<unknown>(null);
+  const phase = (c: Commission): Phase => c.status === "PENDING" ? "WAITING" : c.scheduled ? "SCHEDULED" : c.in_force ? "FORCE" : "ENDED";
+  const count = (p: Phase) => schemes.filter((c) => phase(c) === p).length;
+  const shown = schemes.filter((c) => filter === "ALL" ? phase(c) !== "ENDED" : phase(c) === filter);
+  const act = async (c: Commission, what: "approve" | "withdraw" | "retire") => {
+    setError(null);
+    try { await api.post(`/api/admin/pricing/commissions/${c.id}/${what}`, {}); toast(t(`ps.done.${what}`)); reload(); } catch (e) { setError(e); }
+  };
+  const ruleText = (r: CRule) => r.calc_method === "PERCENT" ? `${r.rate}%` : r.calc_method === "FIXED" ? `${money(r.amount ?? 0)} / ${t("ps.per.BOOKING")}`
+    : t("ps.bandsN", { n: r.bands.length });
+  return (
+    <div className="stack">
+      <p className="muted" style={{ margin: 0 }}>{t("pc.sub")}</p>
+      <div className="grid cols-4">
+        <Stat icon="verified" label={t("ps.phase.FORCE")} value={count("FORCE")} />
+        <Stat icon="pending_actions" tone="wheat" label={t("ps.phase.WAITING")} value={count("WAITING")} />
+        <Stat icon="event_repeat" tone="blue" label={t("ps.phase.SCHEDULED")} value={count("SCHEDULED")} />
+        <Stat icon="history" label={t("ps.phase.ENDED")} value={count("ENDED")} />
+      </div>
+      <div className="row" style={{ justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+        <div className="row" role="group" aria-label={t("ps.filter")} style={{ gap: 6, flexWrap: "wrap" }}>
+          {(["ALL", "FORCE", "WAITING", "SCHEDULED", "ENDED"] as const).map((p) => (
+            <button key={p} type="button" aria-pressed={filter === p} className={`chip chip-select${filter === p ? " on" : ""}`}
+                    onClick={() => setFilter(p)}>{p === "ALL" ? t("ps.current") : t(`ps.phase.${p}`)}</button>))}
+        </div>
+        <button className="btn" onClick={() => setEditing({})}><Icon name="add" />{t("pc.new")}</button>
+      </div>
+      <ErrorBox error={error} />
+      {shown.length === 0 ? <Empty icon="handshake" title={t("pc.none")} hint={t("pc.noneHint")} /> : (
+        <div className="grid cols-3">{shown.map((c) => {
+          const ph = phase(c);
+          const mine = c.created_by === me?.email;
+          return (
+            <article key={c.id} className="card" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div className="row" style={{ justifyContent: "space-between", gap: 8 }}>
+                <div><div className="ltr mono small muted">{c.code} · v{c.version}</div><h3 style={{ margin: "2px 0 0" }}>{c.name ?? c.code}</h3></div>
+                <span className={`chip ${ph === "FORCE" ? "green" : ph === "WAITING" ? "wheat" : ph === "SCHEDULED" ? "blue" : "outline"}`}>{t(`ps.phase.${ph}`)}</span>
+              </div>
+              <div className="row" style={{ gap: 8, alignItems: "center", flexWrap: "wrap" }} aria-label={t("pc.flow")}>
+                <span className="chip outline">{t(`ps.who.${c.payer}`)}</span><Icon name="arrow_forward" size={18} />
+                <span className="chip blue">{t(`ps.who.${c.receiver}`)}</span>
+              </div>
+              <div style={{ fontFamily: "var(--font-display)", fontSize: 26, fontWeight: 700, color: "var(--brand-navy)" }}>
+                {c.rules.length ? c.rules.map(ruleText).join(" + ") : "—"} <span className="small muted">{t(`pc.base.${c.base_type}`)}</span></div>
+              <dl className="small" style={{ margin: 0, display: "grid", gridTemplateColumns: "auto 1fr", gap: "4px 12px" }}>
+                <dt className="muted">{t("pc.kind")}</dt><dd style={{ margin: 0 }}>{t(`pc.type.${c.type}`)}</dd>
+                <dt className="muted">{t("pc.channels")}</dt><dd style={{ margin: 0 }}>{c.scope.channels?.length ? c.scope.channels.map((x) => t(`pc.channelName.${x}`)).join(", ") : t("pc.anyChannel")}</dd>
+                <dt className="muted">{t("ps.period")}</dt><dd style={{ margin: 0 }}><Period from={c.valid_from} to={c.valid_to} /></dd>
+                <dt className="muted">{t("ps.fourEyes")}</dt><dd style={{ margin: 0 }} className="ltr">{c.created_by ?? "—"}{c.approved_by ? ` → ${c.approved_by}` : ""}</dd>
+              </dl>
+              <div className="row" style={{ gap: 6, flexWrap: "wrap", marginTop: "auto" }}>
+                {ph === "WAITING" && <button className="btn small" disabled={mine} title={mine ? t("ps.notYours") : undefined} onClick={() => act(c, "approve")}><Icon name="check" />{t("ps.approve")}</button>}
+                {ph === "WAITING" && <button className="btn tonal small" onClick={() => onTry(c.id)}><Icon name="receipt_long" />{t("ps.try")}</button>}
+                {ph === "WAITING" && <button className="btn text small" onClick={() => act(c, "withdraw")}>{t("ps.withdraw")}</button>}
+                {(ph === "FORCE" || ph === "SCHEDULED") && <button className="btn tonal small" onClick={() => setEditing({ from: c })}><Icon name="edit" />{t("ps.newVersion")}</button>}
+                {(ph === "FORCE" || ph === "SCHEDULED") && <button className="btn text small" onClick={() => act(c, "retire")}>{t("ps.retire")}</button>}
+              </div>
+            </article>);
+        })}</div>)}
+      {editing && <CommissionForm from={editing.from} onClose={() => setEditing(null)} onDone={() => { setEditing(null); reload(); }} />}
+    </div>
+  );
+}
+
+const RECEIVER_OF: Record<string, string> = { PLATFORM: "PLATFORM", INTERMEDIARY: "AGENCY", SUB_AGENT: "AGENCY", OVERRIDE: "AGENCY", PAYMENT: "PAYMENT", REFERRAL: "REFERRER" };
+const PAYER_OF: Record<string, string> = { CARRIER: "CARRIER", PLATFORM: "PLATFORM", CHANNEL: "AGENCY", CUSTOMER: "TRAVELLER" };
+
+function CommissionForm({ from, onClose, onDone }: { from?: Commission; onClose: () => void; onDone: () => void }) {
+  const { t } = useI18n();
+  const toast = useToast();
+  const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+  const [f, setF] = useState({ code: from?.code ?? "", name: from?.name ?? "", type: from?.type ?? "INTERMEDIARY", funded_by: from?.funded_by ?? "CARRIER",
+    base_type: from?.base_type ?? "FARE", channels: from?.scope.channels ?? [] as string[], valid_from: from ? tomorrow : new Date().toISOString().slice(0, 10), valid_to: "" });
+  const [rules, setRules] = useState(from?.rules.length ? from.rules.map((r) => ({ calc_method: r.calc_method, rate: r.rate != null ? String(r.rate) : "",
+    amount: r.amount != null ? String(r.amount / 100) : "", min: r.min_amount != null ? String(r.min_amount / 100) : "", max: r.max_amount != null ? String(r.max_amount / 100) : "",
+    mode: r.bands[0]?.mode ?? "WHOLE", bands: r.bands.map((b) => ({ from: String(b.from_value / 100), to: b.to_value != null ? String(b.to_value / 100) : "", rate: b.rate != null ? String(b.rate) : "" })) }))
+    : [{ calc_method: "PERCENT", rate: "", amount: "", min: "", max: "", mode: "WHOLE", bands: [{ from: "0", to: "", rate: "" }] }]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const set = (k: string, v: unknown) => setF((x) => ({ ...x, [k]: v }));
+  const setRule = (i: number, k: string, v: unknown) => setRules((rs) => rs.map((r, j) => j === i ? { ...r, [k]: v } : r));
+  const minor = (v: string) => (v.trim() ? Math.round(Number(v) * 100) : null);
+  const same = RECEIVER_OF[f.type] === PAYER_OF[f.funded_by];
+  const ok = /^[A-Z][A-Z0-9_-]{1,29}$/.test(f.code) && f.name.trim().length >= 2 && !same && rules.every((r) =>
+    r.calc_method === "PERCENT" ? r.rate !== "" : r.calc_method === "FIXED" ? r.amount !== "" : r.bands.every((b) => b.rate !== ""));
+  const save = async () => {
+    setBusy(true); setError(null);
+    try {
+      await api.post("/api/admin/pricing/commissions", { code: f.code, name: f.name.trim(), type: f.type, funded_by: f.funded_by, base_type: f.base_type,
+        channels: f.channels, valid_from: f.valid_from, valid_to: f.valid_to || null, from_id: from?.id ?? null,
+        rules: rules.map((r) => ({ calc_method: r.calc_method, rate: r.calc_method === "PERCENT" ? Number(r.rate) : null,
+          amount: r.calc_method === "FIXED" ? minor(r.amount) : null, min_amount: minor(r.min), max_amount: minor(r.max),
+          bands: r.calc_method !== "TIERED" ? [] : r.bands.map((b) => ({ dimension: "AMOUNT", mode: r.mode, from_value: minor(b.from) ?? 0, to_value: minor(b.to), rate: Number(b.rate) })) })) });
+      toast(t("ps.sentForApproval")); onDone();
+    } catch (e) { setError(e); } finally { setBusy(false); }
+  };
+  const sel = (k: string, label: string, opts: string[], prefix: string) => (
+    <Field label={label}><select className="input" value={(f as Record<string, unknown>)[k] as string} onChange={(e) => set(k, e.target.value)}>
+      {opts.map((x) => <option key={x} value={x}>{t(`${prefix}.${x}`)}</option>)}</select></Field>);
+  return (
+    <Modal title={from ? t("ps.newVersionOf", { code: from.code, v: from.version + 1 }) : t("pc.new")} onClose={onClose} wide
+           actions={<><button className="btn text" onClick={onClose}>{t("common.cancel")}</button>
+             <button className="btn" disabled={busy || !ok} onClick={save}><Icon name="send" />{t("ps.submit")}</button></>}>
+      <div className="stack">
+        <ErrorBox error={error} />
+        <div className="grid cols-3">
+          <Field label={t("ps.code")} hint={t("ps.codeHint")}><input className="input ltr" value={f.code} disabled={!!from} onChange={(e) => set("code", e.target.value.toUpperCase())} /></Field>
+          <Field label={t("ps.name")}><input className="input" value={f.name} onChange={(e) => set("name", e.target.value)} /></Field>
+          {sel("type", t("pc.kind"), ["INTERMEDIARY", "SUB_AGENT", "OVERRIDE", "PLATFORM", "PAYMENT", "REFERRAL"], "pc.type")}
+          {sel("funded_by", t("pc.paidBy"), ["CARRIER", "PLATFORM", "CHANNEL", "CUSTOMER"], "pc.funded")}
+          {sel("base_type", t("pc.baseLabel"), ["FARE", "NET", "FEE"], "pc.base")}
+          <Field label={t("ps.validFrom")}><input className="input ltr" type="date" min={new Date().toISOString().slice(0, 10)} value={f.valid_from} onChange={(e) => set("valid_from", e.target.value)} /></Field>
+        </div>
+        <div className={`alert ${same ? "error" : "info"}`}><Icon name={same ? "error" : "info"} />
+          <span>{same ? t("pc.samePerson") : t("pc.flowText", { payer: t(`ps.who.${PAYER_OF[f.funded_by]}`), receiver: t(`ps.who.${RECEIVER_OF[f.type]}`) })}</span></div>
+        <div><div className="small" style={{ marginBottom: 6 }}>{t("pc.channels")} <span className="muted">({t("pc.channelsHint")})</span></div>
+          <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>{["WEB", "AGENCY", "COUNTER", "API"].map((c) => (
+            <button key={c} type="button" aria-pressed={f.channels.includes(c)} className={`chip chip-select${f.channels.includes(c) ? " on" : ""}`}
+                    onClick={() => set("channels", f.channels.includes(c) ? f.channels.filter((x) => x !== c) : [...f.channels, c])}>{t(`pc.channelName.${c}`)}</button>))}</div></div>
+        {rules.map((r, i) => (
+          <fieldset key={i} className="card" style={{ border: "1px solid var(--outline-variant)" }}>
+            <legend className="small" style={{ padding: "0 6px" }}>{t("ps.rule")} {i + 1}</legend>
+            <div className="grid cols-3">
+              <Field label={t("ps.method")}><select className="input" value={r.calc_method} onChange={(e) => setRule(i, "calc_method", e.target.value)}>
+                {["PERCENT", "FIXED", "TIERED"].map((x) => <option key={x} value={x}>{t(`ps.methodName.${x}`)}</option>)}</select></Field>
+              {r.calc_method === "PERCENT" && <Field label={t("ps.rate")}><input className="input ltr" inputMode="decimal" value={r.rate} onChange={(e) => setRule(i, "rate", e.target.value)} /></Field>}
+              {r.calc_method === "FIXED" && <Field label={t("pc.perBooking")}><input className="input ltr" inputMode="decimal" value={r.amount} onChange={(e) => setRule(i, "amount", e.target.value)} /></Field>}
+              {r.calc_method === "TIERED" && <Field label={t("ps.bandMode")} hint={t(`ps.bandModeHint.${r.mode}`)}><select className="input" value={r.mode} onChange={(e) => setRule(i, "mode", e.target.value)}>
+                <option value="WHOLE">{t("ps.bandWhole")}</option><option value="MARGINAL">{t("ps.bandMarginal")}</option></select></Field>}
+              <Field label={`${t("ps.min")} (${t("common.optional")})`}><input className="input ltr" inputMode="decimal" value={r.min} onChange={(e) => setRule(i, "min", e.target.value)} /></Field>
+              <Field label={`${t("ps.max")} (${t("common.optional")})`}><input className="input ltr" inputMode="decimal" value={r.max} onChange={(e) => setRule(i, "max", e.target.value)} /></Field>
+            </div>
+            {r.calc_method === "TIERED" && <div className="stack" style={{ marginTop: 8 }}>
+              <div className="table-wrap" tabIndex={0}><table className="table"><thead><tr><th>{t("ps.from")}</th><th>{t("ps.to")}</th><th>{t("ps.rate")}</th><th /></tr></thead>
+                <tbody>{r.bands.map((b, k) => <tr key={k}>{(["from", "to", "rate"] as const).map((col) => (
+                  <td key={col}><input className="input ltr" inputMode="decimal" aria-label={t(col === "from" ? "ps.from" : col === "to" ? "ps.to" : "ps.rate")} placeholder={col === "to" ? "∞" : ""}
+                                       value={b[col]} onChange={(e) => setRule(i, "bands", r.bands.map((x, m) => m === k ? { ...x, [col]: e.target.value } : x))} /></td>))}
+                  <td>{r.bands.length > 1 && <button className="btn text small" aria-label={t("common.remove")} onClick={() => setRule(i, "bands", r.bands.filter((_, m) => m !== k))}><Icon name="close" /></button>}</td></tr>)}</tbody></table></div>
+              <button className="btn text small" style={{ alignSelf: "flex-start" }} onClick={() => setRule(i, "bands", [...r.bands, { from: r.bands[r.bands.length - 1]?.to ?? "", to: "", rate: "" }])}><Icon name="add" />{t("ps.addBand")}</button>
+            </div>}
+            {rules.length > 1 && <button className="btn text small" onClick={() => setRules(rules.filter((_, j) => j !== i))}><Icon name="delete" />{t("ps.removeRule")}</button>}
+          </fieldset>))}
+        <button className="btn tonal" style={{ alignSelf: "flex-start" }} onClick={() => setRules([...rules, { calc_method: "PERCENT", rate: "", amount: "", min: "", max: "", mode: "WHOLE", bands: [{ from: "0", to: "", rate: "" }] }])}><Icon name="add" />{t("ps.addRule")}</button>
+      </div>
+    </Modal>
+  );
+}
