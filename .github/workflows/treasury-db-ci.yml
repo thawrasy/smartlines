@@ -27,6 +27,8 @@ on:
       - 'treasury-platform/.dockerignore'
       - 'treasury-platform/RELEASE'
       - 'treasury-platform/tools/release/**'
+      - 'treasury-platform/docs/57-release.md'
+      - 'treasury-platform/docs/57-RELEASE.docx'
       - '.github/workflows/treasury-db-ci.yml'
   pull_request:
     paths:
@@ -47,6 +49,8 @@ on:
       - 'treasury-platform/.dockerignore'
       - 'treasury-platform/RELEASE'
       - 'treasury-platform/tools/release/**'
+      - 'treasury-platform/docs/57-release.md'
+      - 'treasury-platform/docs/57-RELEASE.docx'
       - '.github/workflows/treasury-db-ci.yml'
   workflow_dispatch:
 
