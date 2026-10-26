@@ -133,6 +133,9 @@ jobs:
   # test against the two containers, read-only, no capabilities, user 10001, file master keys, each process with its
   # own database logins (tools/ci/image_pilot.sh), on a fresh database deployed the way production does.
   images:
+    # A release is published only after the database job (the database tests and app_ci.sh, the integration tests
+    # among them) has passed on the same commit.
+    needs: database
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     # contents: write for the release step only, which runs on a pushed commit whose message says [release] (docs/57).
