@@ -360,6 +360,8 @@ test('an operator onboards a tenant and its first administrator signs in', async
     await line.getByLabel(/^Source/).fill('Facility offer letter, clause 3');
     await line.getByRole('button', { name: 'Add' }).click();
     await fo.p.getByRole('button', { name: 'Submit for approval' }).click();
+    await fo.p.screenshot({ path: `${shots}/dbg-submitted.png`, fullPage: true });
+    await expect(fo.p.getByRole('button', { name: 'Withdraw' })).toBeVisible();
     const tm = await signIn(tmEmailFac);
     await tm.p.goto(facilityUrl);
     await tm.p.getByRole('button', { name: /^Approve($| \()/ }).click();
