@@ -173,7 +173,8 @@ def capacity(files: list[tuple[str, str, dict]]) -> tuple[str, list[str], list[s
             missing.append(f"burst at {rate}/s ({label}) {'recorded' if label == '5x' else 'passing'} on staging"
                            f" ({BURST_MIN_SECONDS // 60} min or more after a warm-up, build and release recorded)")
     soaks = [(p, d) for p, d in staging if os.path.basename(p).startswith("soak_")
-             and (d.get("verdict") or {}).get("status") == "PASS" and float(d.get("duration_s") or 0) >= 8 * 3600]
+             and not d.get("partial") and (d.get("verdict") or {}).get("status") == "PASS"
+             and float(d.get("duration_s") or 0) >= 8 * 3600]
     if soaks:
         used.append(os.path.basename(soaks[-1][0]))
     else:

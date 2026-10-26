@@ -55,6 +55,7 @@ class Soak:
         self.total = Stats()
         self.samples: list[dict] = []
         self.stop = asyncio.Event()
+        self.on_sample = None
 
     async def timed(self, step: str, call):
         t0 = time.perf_counter()
@@ -140,6 +141,8 @@ class Soak:
             sample["errors"] = sum(s["errors"] for s in win)
             sample["p95_ms"] = {s["step"]: s["p95_ms"] for s in win}
             self.samples.append(sample)
+            if self.on_sample is not None:     # the report so far, so a run cut short keeps what it measured
+                self.on_sample()
             print(json.dumps({k: sample[k] for k in ("t_s", "api_rss_mb", "outbox_pending", "outbox_oldest_s", "dead_ratio_max",
                                                       "replica_lag_s", "lock_waiters", "requests", "errors")}), flush=True)
 
@@ -225,16 +228,24 @@ def verdict(samples: list[dict], totals: list[dict], duration_s: float, limits: 
     if len(samples) < 4:
         return {"status": "INCONCLUSIVE", "reasons": [], "notes": ["fewer than four samples"]}
     late = samples[len(samples) // 2:]                       # after warm-up
+    # a trend is judged only over a long enough window: a few minutes of warm-up extrapolated to an hour says nothing
+    trend_ok = late[-1]["t_s"] - late[0]["t_s"] >= 3600
+    if not trend_ok:
+        notes.append("memory and backlog trends are shown but not judged: the window after warm-up is under an hour")
     mem = [(s["t_s"], s["api_rss_mb"]) for s in late if s["api_rss_mb"] is not None]
     growth = slope_per_hour(mem) if mem else None
     if growth is None:
         notes.append("API memory not measured (the API runs on another host): read it from the container platform")
-    elif growth > limits["memory_growth_mb_per_hour"]:
+    elif growth > limits["memory_growth_mb_per_hour"] and trend_ok:
         reasons.append(f"API memory grows {growth:.0f} MB an hour after warm-up")
     backlog = slope_per_hour([(s["t_s"], s["outbox_pending"]) for s in late])
-    if max(s["outbox_oldest_s"] for s in samples) > limits["outbox_oldest_s"]:
+    # an event that was already waiting when the run began is a backlog left from before, not a delay this load caused
+    waits = [s["outbox_oldest_s"] for s in samples if s["outbox_oldest_s"] <= s["t_s"] + 60]
+    if len(waits) < len(samples):
+        notes.append("an outbox backlog older than the run was waiting at the start (left by earlier work); it is not judged")
+    if waits and max(waits) > limits["outbox_oldest_s"]:
         reasons.append("an outbox event waited more than 5 minutes")
-    if backlog > 0 and late[-1]["outbox_pending"] > max(100, 2 * statistics.median(s["outbox_pending"] for s in late)):
+    if trend_ok and backlog > 0 and late[-1]["outbox_pending"] > max(100, 2 * statistics.median(s["outbox_pending"] for s in late)):
         reasons.append("the outbox backlog keeps growing")
     if late[-1]["dead_ratio_max"] > limits["dead_ratio"]:
         reasons.append(f"dead rows reach {late[-1]['dead_ratio_max']:.0%} of a busy table (vacuum behind)")
@@ -281,6 +292,7 @@ async def main(args) -> int:
     tasks = [asyncio.create_task(soak.traveller(c)) for c in travellers]
     tasks += [asyncio.create_task(soak.driver(c)) for c in drivers]
     tasks += [asyncio.create_task(soak.staff(c)) for c in staff]
+    soak.on_sample = lambda: write_report(args, soak, started, pids, time.monotonic() - t0, seconds, partial=True)
     sampler = asyncio.create_task(soak.sampler(conn, pids, t0))
     try:
         await asyncio.sleep(seconds)
@@ -291,18 +303,31 @@ async def main(args) -> int:
         await conn.close()
         for c in travellers + drivers + staff:
             await c.aclose()
-    duration = time.monotonic() - t0
+    report = write_report(args, soak, started, pids, time.monotonic() - t0, seconds, partial=False)
+    print(json.dumps(report["verdict"], indent=1))
+    return {"PASS": 0, "INCONCLUSIVE": 2}.get(report["verdict"]["status"], 1)
+
+
+def write_report(args, soak, started, pids, duration: float, planned_s: int, partial: bool) -> dict:
+    """The report as it stands. While the run lasts it is rewritten after every sample with "partial": true, so a run
+    cut short (the host restarted, the tool killed) still leaves its per-window latencies, database figures and trends;
+    the verdict of a partial report is never PASS. Written to a temporary file and renamed, so a reader never sees half."""
     totals = soak.total.table(duration)
     report = {"environment": args.environment, "tool": "backend/loadtest/soak.py", "date": started.date().isoformat(), "base": args.base,
               "host": {"name": platform.node(), "cpus": os.cpu_count(), "api_pids": pids},
-              "duration_s": round(duration), "users": args.users, "think_s": list(args.think), "sample_s": args.sample,
-              "limits": LIMITS, "steps": totals, "samples": soak.samples,
-              "verdict": verdict(soak.samples, totals, duration, LIMITS)}
-    print(json.dumps(report["verdict"], indent=1))
+              "planned_s": planned_s, "duration_s": round(duration), "partial": partial, "users": args.users,
+              "think_s": list(args.think), "sample_s": args.sample, "limits": LIMITS, "steps": totals, "samples": soak.samples,
+              "verdict": verdict(soak.samples, totals, duration, LIMITS) if soak.samples else
+              {"status": "INCONCLUSIVE", "reasons": [], "notes": ["no sample yet"]}}
+    if partial and report["verdict"]["status"] == "PASS":
+        report["verdict"] = {**report["verdict"], "status": "INCONCLUSIVE",
+                             "notes": report["verdict"].get("notes", []) + [f"partial: {round(duration)} s of the {planned_s} s planned"]}
     if args.json:
-        with open(args.json, "w") as fh:
+        tmp = args.json + ".tmp"
+        with open(tmp, "w") as fh:
             json.dump(report, fh, indent=1, default=str)
-    return {"PASS": 0, "INCONCLUSIVE": 2}.get(report["verdict"]["status"], 1)
+        os.replace(tmp, args.json)
+    return report
 
 
 if __name__ == "__main__":
