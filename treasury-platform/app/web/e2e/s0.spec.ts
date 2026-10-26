@@ -323,6 +323,13 @@ test('an operator onboards a tenant and its first administrator signs in', async
       return { context, p };
     };
     const foEmail = `fo@${code}.test.invalid`, tmEmailFac = `tm@${code}.test.invalid`;
+    // The platform reference of a facility takes its lead bank's three-letter code (BR-FAC-030).
+    await openMenu(page, 'Banks and lenders');
+    await page.getByRole('link', { name: 'BNK1' }).click();
+    const ref = page.locator('form', { has: page.locator('input[name="refCode"]') });
+    await ref.locator('input[name="refCode"]').fill('BKA');
+    await ref.getByRole('button', { name: 'Save' }).click();
+    await fresh(page.getByText('Saved.'));
     await invite(foEmail, 'Facilities Officer', 'FO');
     await invite(tmEmailFac, 'Treasury Manager', 'TM');
     const fo = await signIn(foEmail);
@@ -360,7 +367,6 @@ test('an operator onboards a tenant and its first administrator signs in', async
     await line.getByLabel(/^Source/).fill('Facility offer letter, clause 3');
     await line.getByRole('button', { name: 'Add' }).click();
     await fo.p.getByRole('button', { name: 'Submit for approval' }).click();
-    await fo.p.screenshot({ path: `${shots}/dbg-submitted.png`, fullPage: true });
     await expect(fo.p.getByRole('button', { name: 'Withdraw' })).toBeVisible();
     const tm = await signIn(tmEmailFac);
     await tm.p.goto(facilityUrl);
