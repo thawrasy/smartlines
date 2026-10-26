@@ -5593,6 +5593,17 @@ SELECT pg_temp.ok((SELECT count(*) FROM pg_policies WHERE schemaname = 'ship' AN
 SELECT pg_temp.ok(NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'ship' AND table_name = 'shipment'
                                 AND column_name IN ('pickup_code', 'pickup_pin')),
   'Parcels (1182): the pickup code itself is never a column');
+SELECT pg_temp.ok((SELECT pg_get_constraintdef(oid) LIKE '%delivery_mode = ''ADDRESS''::text) = (delivery_address IS NOT NULL)%'
+                     AND pg_get_constraintdef(oid) LIKE '%delivered_at IS NULL) OR (delivery_mode = ''PICKUP''::text) OR (out_for_delivery_at IS NOT NULL)%'
+                     FROM pg_constraint WHERE conname = 'shipment_journey_ck'),
+  'Parcels (1183): a parcel for an address has its address, and is handed over only on its way there');
+SELECT pg_temp.ok(EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'parcel_hop_open_uq' AND indexdef LIKE '%WHERE (dispatched_at IS NULL)%'),
+  'Parcels (1183): a parcel is at one location at a time');
+SELECT pg_temp.ok((SELECT count(*) FROM pg_policies WHERE schemaname = 'ship' AND policyname = 'module_gate'
+                     AND tablename IN ('parcel_hop', 'parcel_id_check') AND qual LIKE '%trip_parcels%') = 2
+                  AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'ship' AND table_name = 'parcel_id_check'
+                                    AND column_name IN ('doc_no', 'document_no')),
+  'Parcels (1183): the locations and identity checks open with the parcels switch; the document number is stored only encrypted');
 SELECT pg_temp.ok((SELECT value ? 'unclaimed_days' AND value ? 'pickup_code_tries' FROM sys.setting WHERE key = 'parcels.policy'),
   'Parcels (1182): the policy holds the days a parcel waits and the wrong codes allowed');
 ROLLBACK;

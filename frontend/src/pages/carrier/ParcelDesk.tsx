@@ -12,7 +12,7 @@ export interface ParcelLabel {
   currency: string; carrier_name: string; code: string;
 }
 interface Settings {
-  booking_mode: "ONLINE_DROPOFF" | "COUNTER_ONLY"; handover_minutes: number; cancel_fee: number; no_show_fee: number;
+  booking_mode: "ONLINE_DROPOFF" | "COUNTER_ONLY"; handover_minutes: number; cancel_fee: number; no_show_fee: number; address_delivery: boolean; address_fee: number;
   pending_fees: { cancel_fee: number; no_show_fee: number } | null; fees_decision: string | null; allowed: boolean; not_allowed_reason: string | null;
   min_handover_minutes: number; fee_policy: "CARRIER" | "PLATFORM"; prohibited: string[];
 }
@@ -124,6 +124,26 @@ export function ParcelAwaiting() {
   );
 }
 
+/** How the parcel is handed over at its destination (1183): collected at the counter, or taken to an address when the
+ *  carrier offers it (its fee shown); and whether it is important (code and identity check both required, every step told). */
+export function HandOverChoice({ offers, fee, mode, address, secure, onChange }: { offers: boolean; fee: number; mode: "PICKUP" | "ADDRESS";
+  address: string; secure: boolean; onChange: (v: { delivery_mode?: "PICKUP" | "ADDRESS"; delivery_address?: string; secure?: boolean }) => void }) {
+  const { t, money } = useI18n();
+  return (
+    <fieldset className="stack" style={{ border: 0, padding: 0 }}>
+      <legend className="small muted">{t("parcel.handOverTitle")}</legend>
+      <div className="row" style={{ gap: 12, flexWrap: "wrap" }}>
+        <label className="check"><input type="radio" name="parcel-handover" checked={mode === "PICKUP"} onChange={() => onChange({ delivery_mode: "PICKUP" })} />{t("parcel.journey.mode.PICKUP")}</label>
+        {offers && <label className="check"><input type="radio" name="parcel-handover" checked={mode === "ADDRESS"} onChange={() => onChange({ delivery_mode: "ADDRESS" })} />
+          {t("parcel.journey.mode.ADDRESS")}{fee > 0 && ` (+${money(fee)})`}</label>}
+      </div>
+      {mode === "ADDRESS" && <Field label={t("parcel.deliveryAddress")}><input className="input" maxLength={300} value={address} onChange={(e) => onChange({ delivery_address: e.target.value })} /></Field>}
+      <label className="check"><input type="checkbox" checked={secure} onChange={(e) => onChange({ secure: e.target.checked })} />{t("parcel.secure")}</label>
+      <p className="small muted">{t("parcel.secureHint")}</p>
+    </fieldset>
+  );
+}
+
 /** A parcel sold at the counter: the clerk takes the cash, receives the parcel and prints its label at once. */
 export function CounterParcel() {
   const { t, dateTime } = useI18n();
@@ -132,13 +152,14 @@ export function CounterParcel() {
   const trips = useLoad((signal) => api.get<{ trips: Trip[] }>("/api/carrier/trips", undefined, { signal }));
   const tariffs = useLoad((signal) => api.get<{ tariffs: Tariff[] }>("/api/carrier/parcels/tariffs", undefined, { signal }));
   const settings = useLoad((signal) => api.get<Settings>("/api/carrier/parcels/settings", undefined, { signal }));
-  const blank = { trip: "", tariff: "", weight_kg: 1, length_cm: 30, width_cm: 20, height_cm: 10, description: "", sender_name: "", recipient_name: "", recipient_mobile: "" };
+  const blank = { trip: "", tariff: "", weight_kg: 1, length_cm: 30, width_cm: 20, height_cm: 10, description: "", sender_name: "", recipient_name: "", recipient_mobile: "",
+    delivery_mode: "PICKUP", delivery_address: "", secure: false as boolean };
   const [f, setF] = useState(blank);
   const [ok, setOk] = useState(false);
   const [label, setLabel] = useState<ParcelLabel | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
-  const set = (k: keyof typeof blank, n = false) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: n ? Number(e.target.value) : e.target.value });
+  const set = (k: Exclude<keyof typeof blank, "secure">, n = false) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: n ? Number(e.target.value) : e.target.value });
   const upcoming = (trips.data?.trips ?? []).filter((x) => new Date(x.departure_at).getTime() > Date.now() && x.status !== "CANCELLED");
   const sell = async () => {
     const trip = upcoming.find((x) => x.uid === f.trip);
@@ -148,11 +169,13 @@ export function CounterParcel() {
       const out = await api.post<{ tracking_no: string; label: ParcelLabel }>("/api/carrier/parcels/counter", {
         trip_uid: trip.uid, from_seq: 0, to_seq: trip.segments_count, tariff_uid: f.tariff, weight_kg: f.weight_kg, length_cm: f.length_cm,
         width_cm: f.width_cm, height_cm: f.height_cm, description: f.description, sender_name: f.sender_name, recipient_name: f.recipient_name,
-        recipient_mobile: f.recipient_mobile, accept_rules: ok, idempotency_key: newKey() });
+        recipient_mobile: f.recipient_mobile, accept_rules: ok, idempotency_key: newKey(), delivery_mode: f.delivery_mode,
+        delivery_address: f.delivery_mode === "ADDRESS" ? f.delivery_address : null, secure: f.secure });
       toast(t("parcel.sold", { no: out.tracking_no })); setLabel(out.label); setF(blank); setOk(false);
     } catch (e) { setError(e); } finally { setBusy(false); }
   };
-  const ready = f.trip && f.tariff && ok && f.description.length >= 2 && f.sender_name.length >= 3 && f.recipient_name.length >= 3 && f.recipient_mobile.length >= 8;
+  const ready = f.trip && f.tariff && ok && f.description.length >= 2 && f.sender_name.length >= 3 && f.recipient_name.length >= 3 && f.recipient_mobile.length >= 8
+    && (f.delivery_mode === "PICKUP" || f.delivery_address.trim().length >= 5);
   return (
     <div className="card stack">
       <p className="small muted">{t("parcel.counterHint")}</p>
@@ -178,6 +201,9 @@ export function CounterParcel() {
         <Field label={t("parcel.recipient")}><input className="input" value={f.recipient_name} onChange={set("recipient_name")} /></Field>
         <Field label={t("parcel.mobile")}><input className="input ltr" value={f.recipient_mobile} onChange={set("recipient_mobile")} /></Field>
       </div>
+      <HandOverChoice offers={settings.data?.address_delivery ?? false} fee={settings.data?.address_fee ?? 0} mode={f.delivery_mode as "PICKUP" | "ADDRESS"}
+        address={f.delivery_address} secure={f.secure}
+        onChange={(v) => setF({ ...f, ...v })} />
       {settings.data && (
         <div className="alert info small" style={{ flexDirection: "column", alignItems: "flex-start", gap: 4 }}>
           <strong>{t("parcel.prohibitedTitle")}</strong>
@@ -198,10 +224,11 @@ export function ParcelSettings() {
   const item = useItem();
   const toast = useToast();
   const state = useLoad((signal) => api.get<Settings>("/api/carrier/parcels/settings", undefined, { signal }));
-  const [f, setF] = useState<Pick<Settings, "booking_mode" | "handover_minutes" | "cancel_fee" | "no_show_fee"> | null>(null);
+  const [f, setF] = useState<Pick<Settings, "booking_mode" | "handover_minutes" | "cancel_fee" | "no_show_fee" | "address_delivery" | "address_fee"> | null>(null);
   const [error, setError] = useState<unknown>(null);
   useEffect(() => { if (state.data) setF({ booking_mode: state.data.booking_mode, handover_minutes: state.data.handover_minutes,
-    cancel_fee: state.data.cancel_fee, no_show_fee: state.data.no_show_fee }); }, [state.data]);
+    cancel_fee: state.data.cancel_fee, no_show_fee: state.data.no_show_fee, address_delivery: state.data.address_delivery ?? false,
+    address_fee: state.data.address_fee ?? 0 }); }, [state.data]);
   const save = async () => {
     if (!f) return;
     setError(null);
@@ -227,6 +254,14 @@ export function ParcelSettings() {
             <Field label={t("parcel.noShowFee")}><input className="input ltr" type="number" min={0} value={fromMinor(f.no_show_fee)} onChange={(e) => setF({ ...f, no_show_fee: toMinor(e.target.value) })} /></Field>
           </div>
           <p className="small muted">{t(`parcel.feePolicy.${s.fee_policy}`)}</p>
+          <fieldset className="stack" style={{ border: 0, padding: 0 }}>
+            <legend className="small muted">{t("parcel.handOverTitle")}</legend>
+            <label className="check"><input type="checkbox" checked={f.address_delivery} onChange={(e) => setF({ ...f, address_delivery: e.target.checked })} />{t("parcel.addressDelivery")}</label>
+            <p className="small muted">{t("parcel.addressDeliveryHint")}</p>
+            {f.address_delivery && (
+              <Field label={t("parcel.addressFee")}><input className="input ltr" type="number" min={0} value={fromMinor(f.address_fee)} onChange={(e) => setF({ ...f, address_fee: toMinor(e.target.value) })} /></Field>
+            )}
+          </fieldset>
           {s.pending_fees && <div className="alert info small">{t("parcel.feesPending", { cancel: money(s.pending_fees.cancel_fee), noShow: money(s.pending_fees.no_show_fee) })}</div>}
           {s.fees_decision && <p className="small muted">{t("parcel.feesDecision")}: {s.fees_decision}</p>}
           <div className="small"><strong>{t("parcel.prohibitedTitle")}:</strong> {s.prohibited.map(item).join(" · ")}</div>

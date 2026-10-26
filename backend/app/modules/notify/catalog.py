@@ -51,21 +51,28 @@ async def default_locale(conn) -> str:
 
 
 async def _parcel(conn, kind: str, payload: dict) -> list[Delivery]:
-    """The sender's account hears of each step. On arrival the recipient's mobile is texted the pickup code too: the code
-    is drawn again here from the parcel and the moment it arrived, so it never sits in the outbox."""
+    """The sender's account hears of each step; an important parcel's sender by e-mail too (1183). The recipient's mobile
+    is texted the pickup code when it is issued (arrival at the counter, or leaving for the address) and when the clerk
+    sends it again. The code is drawn again here from the parcel and the moment it was issued, so it never sits in the
+    outbox."""
     values = dict(payload)
-    if kind == "parcel.arrived":
+    if payload.get("code_at"):
         from ..parcels.journey import pickup_code
-        values["pickup_code"] = pickup_code(payload["tracking_no"], payload["arrived_at"])
+        values["pickup_code"] = pickup_code(payload["tracking_no"], payload["code_at"])
+    template = kind
+    if kind == "parcel.arrived" and payload.get("delivery_mode") == "ADDRESS":
+        template = "parcel.arrived_address"
     out: list[Delivery] = []
-    uid = await conn.fetchval("SELECT id FROM iam.app_user WHERE party_id = $1 AND status = 'ACTIVE' ORDER BY id LIMIT 1",
-                              payload.get("shipper_party_id"))
-    if uid is not None:
-        d = await _user(conn, uid, kind, ["IN_APP", "EMAIL"], values)
-        if d:
-            out.append(d)
-    if kind == "parcel.arrived" and payload.get("recipient_mobile"):
-        out.append(Delivery(kind, ["SMS"], await default_locale(conn), mobile=payload["recipient_mobile"], values=values))
+    if kind != "parcel.code_sent":
+        uid = await conn.fetchval("SELECT id FROM iam.app_user WHERE party_id = $1 AND status = 'ACTIVE' ORDER BY id LIMIT 1",
+                                  payload.get("shipper_party_id"))
+        quiet = kind == "parcel.moved" and not payload.get("secure")
+        if uid is not None:
+            d = await _user(conn, uid, template, ["IN_APP"] if quiet else ["IN_APP", "EMAIL"], values)
+            if d:
+                out.append(d)
+    if kind in ("parcel.arrived", "parcel.out_for_delivery", "parcel.code_sent") and payload.get("recipient_mobile"):
+        out.append(Delivery(template, ["SMS"], await default_locale(conn), mobile=payload["recipient_mobile"], values=values))
     return out
 
 
@@ -103,8 +110,9 @@ async def deliveries(conn: asyncpg.Connection, event: asyncpg.Record, payload: d
         if event["company_id"] is not None:
             return await _owners(conn, event["company_id"], kind, payload)
         return await _platform_staff(conn, "boarding.manage", kind, ["IN_APP", "EMAIL"], payload)
-    if kind in ("parcel.arrived", "parcel.delivered", "parcel.exception"):   # a parcel's journey (1182): its sender, and
-        return await _parcel(conn, kind, payload)                            # the recipient's mobile when it arrives
+    if kind in ("parcel.arrived", "parcel.delivered", "parcel.exception", "parcel.moved", "parcel.out_for_delivery",
+                "parcel.code_sent"):            # a parcel's journey (1182, 1183): its sender, and the recipient's mobile for the code
+        return await _parcel(conn, kind, payload)
     if kind == "fuel.filled":           # a vehicle filled at a fuel station (1180): the owners of the company holding the account
         return await _owners(conn, event["company_id"], kind, payload)
     if kind == "sos.raised":            # an emergency on a trip (1101): the carrier's owners and the platform's security staff

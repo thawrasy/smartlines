@@ -73,6 +73,8 @@ SYSTEM_SCOPE = {
     ("app/modules/sales/charter.py", "name_travellers"): (1, "travellers named on a charter's seats: tickets of the carrier's trip, passenger documents encrypted with the platform's keys"),
     ("app/modules/sales/charter.py", "unname_traveller"): (1, "a traveller taken off a charter: the carrier's ticket cancelled and its seat blocked again"),
     ("app/modules/parcels/service.py", "book"): (1, "a booked parcel's shipment, parcel and leg on the carrier's trip, before the charge"),
+    ("app/modules/parcels/journey.py", "_record_id"): (1, "the field-encryption keys, to seal the document number of a parcel's identity check"),
+    ("app/modules/parcels/journey.py", "journey"): (1, "the sender of its own parcel sees the carrier's identity check: kind, last four digits, holder"),
     ("app/modules/payments/api.py", "_test_payment"): (1, "sandbox payment page reads the payment it completes"),
     ("app/modules/payments/api.py", "agency_topups"): (1, "an agency lists the top-ups it took in cash for passengers"),
     ("app/modules/payments/api.py", "mine"): (1, "the passenger's own payments with their provider and transfer details"),

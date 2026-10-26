@@ -101,6 +101,8 @@ class SettingsIn(BaseModel):
     handover_minutes: int = Field(ge=15, le=2880)
     cancel_fee: int = Field(ge=0, le=100_000_000)
     no_show_fee: int = Field(ge=0, le=100_000_000)
+    address_delivery: bool = False             # also take parcels to the recipient's address (1183)
+    address_fee: int = Field(default=0, ge=0, le=100_000_000)
 
 
 class PointIn(BaseModel):
@@ -146,14 +148,16 @@ async def put_settings(body: SettingsIn, request: Request, pr: Principal = Depen
         pending = {"cancel_fee": body.cancel_fee, "no_show_fee": body.no_show_fee} if regulated and fees_changed else None
         cancel_fee, no_show_fee = (current["cancel_fee"], current["no_show_fee"]) if pending else (body.cancel_fee, body.no_show_fee)
         await conn.execute(
-            """INSERT INTO ship.parcel_carrier (company_id, booking_mode, handover_minutes, cancel_fee, no_show_fee, pending_fees, updated_by)
-               VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7)
+            """INSERT INTO ship.parcel_carrier (company_id, booking_mode, handover_minutes, cancel_fee, no_show_fee, pending_fees, updated_by,
+                 address_delivery, address_fee)
+               VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $9, $10)
                ON CONFLICT (company_id) DO UPDATE SET booking_mode = EXCLUDED.booking_mode, handover_minutes = EXCLUDED.handover_minutes,
+                 address_delivery = EXCLUDED.address_delivery, address_fee = EXCLUDED.address_fee,
                  cancel_fee = EXCLUDED.cancel_fee, no_show_fee = EXCLUDED.no_show_fee,
                  pending_fees = coalesce(EXCLUDED.pending_fees, CASE WHEN $8 THEN ship.parcel_carrier.pending_fees END),
                  updated_by = EXCLUDED.updated_by, updated_at = now()""",
             pr.company_id, body.booking_mode, body.handover_minutes, cancel_fee, no_show_fee,
-            json.dumps(pending) if pending else None, pr.user_id, regulated and not fees_changed)
+            json.dumps(pending) if pending else None, pr.user_id, regulated and not fees_changed, body.address_delivery, body.address_fee)
         out = await _settings_view(conn, pr.company_id)
     request.state.audit = {"action": "parcel.settings", "object_type": "company", "object_id": pr.company_id,
                            "reason": f"{body.booking_mode} {body.handover_minutes} min" + (" (fees pending)" if pending else "")}
@@ -217,6 +221,9 @@ class CounterParcelIn(Size):
     declared_value: int = Field(default=0, ge=0, le=10_000_000_000)
     accept_rules: bool = False
     idempotency_key: str = Field(min_length=8, max_length=80)
+    delivery_mode: Literal["PICKUP", "ADDRESS"] = "PICKUP"      # (1183)
+    delivery_address: Optional[str] = Field(default=None, max_length=300)
+    secure: bool = False
 
 
 class ReceiveIn(BaseModel):
@@ -262,10 +269,12 @@ async def counter_sale(body: CounterParcelIn, request: Request, pr: Principal = 
             raise not_found("trip")
         await service.require_parcel_trip(conn, trip)
         t = await service.tariff(conn, body.tariff_uid, trip["company_id"])
+        terms = await service.handover_terms(conn, trip["company_id"], body.delivery_mode, body.delivery_address, body.secure,
+                                             body.declared_value)
         out = await service.book(conn, ctx, pr, trip, t, weight_kg=body.weight_kg, length_cm=body.length_cm, width_cm=body.width_cm,
                                  height_cm=body.height_cm, description=body.description.strip(), recipient_name=body.recipient_name,
                                  recipient_mobile=body.recipient_mobile, declared_value=body.declared_value,
-                                 idempotency_key=body.idempotency_key, counter=True, sender_name=body.sender_name)
+                                 idempotency_key=body.idempotency_key, counter=True, sender_name=body.sender_name, terms=terms)
         label = await _label(conn, out["tracking_no"], pr.company_id)
     request.state.audit = {"action": "parcel.counter_sale", "object_type": "shipment", "object_id": None, "reason": out["tracking_no"]}
     return {**out, "label": label}

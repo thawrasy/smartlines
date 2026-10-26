@@ -1450,6 +1450,36 @@
     "DAMAGED": "damaged",
     "MISSING": "missing",
     "REFUSED": "refused by the recipient",
-    "UNCLAIMED": "not collected"
+    "UNCLAIMED": "not collected",
+    "LOADED": "on board",
+    "RECEIVED": "received at a location on the way",
+    "ATTEMPT_FAILED": "not delivered at the address, back at the station",
+    "AT": "at",
+    "NOBODY_HOME": "nobody at home",
+    "WRONG_ADDRESS": "wrong address",
+    "REFUSED_AT_DOOR": "refused at the door",
+    "NO_CODE": "no code given",
+    "ACCESS": "address not reachable",
+    "OTHER": "other reason",
+    "AND_ID": "and an identity check"
+  },
+  "parcel.arrived_address": {
+    "subject": "Parcel {tracking_no} has arrived at {station}",
+    "body": "Your parcel {tracking_no} for {recipient_name} has arrived at {station} with {carrier}. It will be taken to {address}; the recipient receives the delivery code by text when it leaves for the address.",
+    "sms": "Masslak: parcel {tracking_no} has arrived at {station}. It will be delivered to your address; the code comes by text when it leaves."
+  },
+  "parcel.out_for_delivery": {
+    "subject": "Parcel {tracking_no} is on its way to the address",
+    "body": "Your parcel {tracking_no} left {station} for {address}. The recipient gives the code {pickup_code} to the courier.",
+    "sms": "Masslak: parcel {tracking_no} is on its way to you. Give the courier the code {pickup_code}."
+  },
+  "parcel.code_sent": {
+    "subject": "Pickup code for parcel {tracking_no}",
+    "body": "The pickup code for parcel {tracking_no} is {pickup_code}.",
+    "sms": "Masslak: the code for parcel {tracking_no} is {pickup_code}."
+  },
+  "parcel.moved": {
+    "subject": "Parcel {tracking_no}: {step_label}",
+    "body": "Your parcel {tracking_no} for {recipient_name}: {step_label} {place_text}"
   }
 }

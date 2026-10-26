@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**637 tables, 7010 columns, in 26 schemas.**
+**639 tables, 7039 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -23,7 +23,7 @@ Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant i
 - [`gov` — Governance, obligations and data protection](#gov) (15 tables)
 - [`sec` — Security: IP rules, risk, signing, the security hub and government adapters](#sec) (34 tables)
 - [`ptn` — Service partners: fuel stations, rest stops and maintenance](#ptn) (25 tables)
-- [`ship` — Shipments and the integrated shipping network](#ship) (59 tables)
+- [`ship` — Shipments and the integrated shipping network](#ship) (61 tables)
 - [`frt` — Trucking, heavy transport and transit freight](#frt) (31 tables)
 - [`brd` — Border manifest gateway](#brd) (12 tables)
 - [`ctr` — Contracted transport: universities and employees](#ctr) (6 tables)
@@ -9227,6 +9227,42 @@ A carrier's parcel choices: online with drop-off or counter only, the hand-over 
 | `stopped_reason` | `text` |  |  |
 | `updated_by` | `bigint` | 🔗 `iam.app_user`  |  |
 | `updated_at` | `timestamp with time zone` | ✱ | `now()` |
+| `address_delivery` | `boolean` | ✱ | `false` |
+| `address_fee` | `bigint` | ✱ | `0` |
+
+### `ship.parcel_hop` 🛡️
+
+Each of the carrier's locations a parcel passed through between loading and its destination: received there, then sent on (1183)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `shipment_id` | `bigint` | 🔗 `ship.shipment` ✱ |  |
+| `seq` | `smallint` | ✱ |  |
+| `point_id` | `bigint` | 🔗 `ship.parcel_point` ✱ |  |
+| `received_at` | `timestamp with time zone` | ✱ | `now()` |
+| `received_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `dispatched_at` | `timestamp with time zone` |  |  |
+| `dispatched_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `next_point_id` | `bigint` | 🔗 `ship.parcel_point`  |  |
+
+### `ship.parcel_id_check` 🛡️
+
+The identity document checked when a parcel was handed over: kind, number (encrypted), holder and issuer (1183)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `shipment_id` | `bigint` | 🔑 🔗 `ship.shipment` ✱ |  |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `doc_kind` | `text` | ✱ |  |
+| `doc_no_enc` | `bytea` | ✱ |  |
+| `enc_key_id` | `bigint` | 🔗 `sec.key_registry` ✱ |  |
+| `doc_last4` | `text` | ✱ |  |
+| `holder_name` | `text` | ✱ |  |
+| `issued_by` | `text` |  |  |
+| `checked_by` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `checked_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `ship.parcel_offer` 🛡️
 
@@ -9596,6 +9632,13 @@ A consignment from sender to receiver, independent of the vehicles that carry it
 | `exception_kind` | `text` |  |  |
 | `exception_note` | `text` |  |  |
 | `returned_at` | `timestamp with time zone` |  |  |
+| `delivery_mode` | `text` | ✱ | `'PICKUP'::text` |
+| `delivery_address` | `text` |  |  |
+| `secure` | `boolean` | ✱ | `false` |
+| `code_issued_at` | `timestamp with time zone` |  |  |
+| `code_sends` | `smallint` | ✱ | `0` |
+| `out_for_delivery_at` | `timestamp with time zone` |  |  |
+| `out_by` | `bigint` | 🔗 `iam.app_user`  |  |
 
 ### `ship.shipment_leg` 🛡️
 

@@ -64,6 +64,13 @@ def render(template: str, channel: str, locale: str, values: dict) -> tuple[str,
         lab = words.get("parcel_labels", {})
         vals["method_label"] = lab.get(str(values.get("method")), values.get("method", ""))
         vals["kind_label"] = lab.get(str(values.get("kind")), values.get("kind", ""))
+        vals["step_label"] = lab.get(str(values.get("step")), values.get("step", ""))
+        if values.get("place"):
+            vals["place_text"] = f"{lab.get('AT', '')} {values['place']}".strip()
+        else:
+            vals["place_text"] = f"({lab.get(str(values['reason']), values['reason'])})" if values.get("reason") else ""
+        if values.get("id_checked") and values.get("method") == "OTP":
+            vals["method_label"] = f"{vals['method_label']} {lab.get('AND_ID', '')}".strip()
     if vals.get("trip_code") is None and "trip_no" in vals:   # the trip number passengers read (1114), else the reference
         vals["trip_code"] = vals["trip_no"]
     def fill(s: str) -> str:

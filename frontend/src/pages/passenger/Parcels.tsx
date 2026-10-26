@@ -2,7 +2,7 @@ import { useState } from "react";
 import { api } from "../../api";
 import { useI18n } from "../../i18n";
 import { CarrierName, Empty, ErrorBox, Field, Icon, Loaded, Modal, Status, useLoad, useToast } from "../../components/ui";
-import { useItem } from "../carrier/ParcelDesk";
+import { HandOverChoice, useItem } from "../carrier/ParcelDesk";
 import { JourneyView } from "../carrier/ParcelJourney";
 
 type Mode = "WEIGHT" | "VOLUME" | "WEIGHT_AND_VOLUME" | "FIXED" | "NEGOTIATED";
@@ -10,7 +10,7 @@ interface Tariff { uid: string; code: string; name: string; pricing_mode: Mode; 
 interface Hold { max_weight_kg: number; free_weight_kg: number; free_volume_m3: number | null; free_items: number | null }
 interface DropPoint { uid: string; kind: string; name: string; address: string; hours: string; phone: string | null }
 interface HoldTrip { uid: string; trip_no: string; trip_code?: string | null; carrier_name: string; carrier_uid?: string | null; carrier_logo?: string | null; from_seq: number; to_seq: number; departs_at: string; from_station: string; to_station: string; hold: Hold; tariffs: Tariff[];
-  booking_mode?: "ONLINE_DROPOFF" | "COUNTER_ONLY"; handover_by?: string; points?: DropPoint[] }
+  booking_mode?: "ONLINE_DROPOFF" | "COUNTER_ONLY"; handover_by?: string; points?: DropPoint[]; address_delivery?: boolean; address_fee?: number }
 interface Price { mode: Mode; currency: string; weight_kg: number; volume_m3: number; weight_charge: number | null; volume_charge: number | null; fixed: number | null; basis: string; total: number | null }
 interface Quote { price: Price; fits: boolean; agreed: boolean }
 interface Mine { tracking_no: string; status: string; trip_no: string | null; weight_kg: number | null; volume_m3: number | null; currency: string; price_breakdown: { total?: number }; guaranteed: boolean }
@@ -39,6 +39,7 @@ export default function Parcels() {
   const item = useItem();
   const [ok, setOk] = useState(false);
   const [point, setPoint] = useState("");
+  const [hand, setHand] = useState({ delivery_mode: "PICKUP" as "PICKUP" | "ADDRESS", delivery_address: "", secure: false });
   const [notice, setNotice] = useState<string | null>(null);
 
   const body = () => pick && { trip_uid: pick.trip.uid, from_seq: pick.trip.from_seq, to_seq: pick.trip.to_seq, tariff_uid: pick.tariff.uid, ...size };
@@ -46,11 +47,13 @@ export default function Parcels() {
   const doQuote = () => run(async () => setQuote(await api.post<Quote>("/api/parcels/quote", body())));
   const doBook = () => run(async () => {
     const r = await api.post<{ tracking_no: string; status: string; handover_by: string | null }>("/api/parcels", {
-      ...body(), ...who, accept_rules: ok, drop_point_uid: point || null, idempotency_key: crypto.randomUUID() });
+      ...body(), ...who, accept_rules: ok, drop_point_uid: point || null, idempotency_key: crypto.randomUUID(), ...hand,
+      delivery_address: hand.delivery_mode === "ADDRESS" ? hand.delivery_address : null });
     // phase one: a reservation, paid at the carrier's point when handed over (1147)
     setNotice(r.status === "EXPECTED" && r.handover_by ? t("parcel.reservedNotice", { no: r.tracking_no, time: dateTime(r.handover_by) })
       : r.handover_by ? `${t("parcel.booked", { no: r.tracking_no })} ${t("parcel.handoverNotice", { time: dateTime(r.handover_by) })}` : t("parcel.booked", { no: r.tracking_no }));
-    toast(t("parcel.booked", { no: r.tracking_no })); setPick(null); setQuote(null); setOk(false); setPoint(""); mine.reload(); trips.reload();
+    toast(t("parcel.booked", { no: r.tracking_no })); setPick(null); setQuote(null); setOk(false); setPoint("");
+    setHand({ delivery_mode: "PICKUP", delivery_address: "", secure: false }); mine.reload(); trips.reload();
   });
   const cancelReservation = (no: string) => run(async () => {
     await api.post(`/api/parcels/${no}/cancel`, {}); toast(t("parcel.reservationCancelled")); mine.reload(); trips.reload();
@@ -120,6 +123,8 @@ export default function Parcels() {
                 {(pick.trip.points ?? []).map((p) => <option key={p.uid} value={p.uid}>{p.name} · {p.address} · {p.hours}</option>)}</select>
             </Field>
           )}
+          <HandOverChoice offers={pick.trip.address_delivery ?? false} fee={pick.trip.address_fee ?? 0} mode={hand.delivery_mode}
+            address={hand.delivery_address} secure={hand.secure} onChange={(v) => setHand({ ...hand, ...v })} />
           {rules.data && (
             <div className="alert info small" style={{ flexDirection: "column", alignItems: "flex-start", gap: 4 }}>
               <strong>{t("parcel.prohibitedTitle")}</strong><span>{rules.data.prohibited.map(item).join(" · ")}</span>

@@ -89,6 +89,9 @@ class ParcelBookIn(ParcelQuoteIn):
     idempotency_key: str = Field(min_length=8, max_length=80)
     accept_rules: bool = False                   # the sender confirms the parcel holds none of the prohibited items (1147)
     drop_point_uid: Optional[uuid.UUID] = None   # where the sender will hand it over
+    delivery_mode: Literal["PICKUP", "ADDRESS"] = "PICKUP"      # collected at the counter, or taken to an address (1183)
+    delivery_address: Optional[str] = Field(default=None, max_length=300)
+    secure: bool = False                         # important: handed over with the code and an identity check (1183)
 
 
 class OfferIn(ParcelQuoteIn):
@@ -137,6 +140,7 @@ async def parcel_trips(request: Request, origin: str = Query(..., min_length=3, 
             row.pop("template_id")
             by = await service.handover_by(conn, t, settings)
             out.append({**row, "hold": hold, "tariffs": [_tariff_view(x) for x in tariffs], "booking_mode": settings["booking_mode"],
+                        "address_delivery": settings["address_delivery"], "address_fee": settings["address_fee"],
                         "handover_by": by.isoformat(), "points": await service.points(conn, t["company_id"])})
     out.sort(key=lambda r: r["departs_at"])
     return {"trips": out}
@@ -161,10 +165,12 @@ async def parcel_book(body: ParcelBookIn, request: Request, pr: Principal = Depe
         trip = await service.trip_for_parcel(conn, body.trip_uid, body.from_seq, body.to_seq)
         online = await service.online_terms(conn, trip, body.accept_rules, body.drop_point_uid)
         t = await service.tariff(conn, body.tariff_uid, trip["company_id"])
+        terms = await service.handover_terms(conn, trip["company_id"], body.delivery_mode, body.delivery_address, body.secure,
+                                             body.declared_value)
         out = await service.book(conn, ctx, pr, trip, t, weight_kg=body.weight_kg, length_cm=body.length_cm, width_cm=body.width_cm,
                                  height_cm=body.height_cm, description=body.description.strip(), recipient_name=body.recipient_name,
                                  recipient_mobile=body.recipient_mobile, declared_value=body.declared_value,
-                                 idempotency_key=body.idempotency_key, **online)
+                                 idempotency_key=body.idempotency_key, terms=terms, **online)
     request.state.audit = {"action": "parcel.book", "object_type": "shipment", "object_id": None, "reason": out["tracking_no"]}
     return out
 

@@ -1450,6 +1450,36 @@
     "DAMAGED": "تالف",
     "MISSING": "مفقود",
     "REFUSED": "رفضه المستلم",
-    "UNCLAIMED": "لم يُستلم"
+    "UNCLAIMED": "لم يُستلم",
+    "LOADED": "حُمّل على الرحلة",
+    "RECEIVED": "استُلم في موقع على الطريق",
+    "ATTEMPT_FAILED": "لم يُسلَّم في العنوان، وعاد إلى المحطة",
+    "AT": "في",
+    "NOBODY_HOME": "لا أحد في العنوان",
+    "WRONG_ADDRESS": "عنوان خاطئ",
+    "REFUSED_AT_DOOR": "رُفض عند الباب",
+    "NO_CODE": "لم يُعطَ الرمز",
+    "ACCESS": "تعذّر الوصول إلى العنوان",
+    "OTHER": "سبب آخر",
+    "AND_ID": "مع التحقق من الهوية"
+  },
+  "parcel.arrived_address": {
+    "subject": "وصل الطرد {tracking_no} إلى {station}",
+    "body": "وصل طردك {tracking_no} المرسل إلى {recipient_name} إلى {station} مع {carrier}. سيُوصَل إلى {address}، ويصل رمز التسليم إلى المستلم برسالة عند خروج الطرد إليه.",
+    "sms": "مسلك: وصل الطرد {tracking_no} إلى {station}. سيُوصَل إلى عنوانك، ويصلك الرمز برسالة عند خروجه إليك."
+  },
+  "parcel.out_for_delivery": {
+    "subject": "الطرد {tracking_no} في طريقه إلى العنوان",
+    "body": "خرج طردك {tracking_no} من {station} إلى {address}. يعطي المستلم الرمز {pickup_code} لموظف التوصيل.",
+    "sms": "مسلك: الطرد {tracking_no} في طريقه إليك. أعطِ موظف التوصيل الرمز {pickup_code}."
+  },
+  "parcel.code_sent": {
+    "subject": "رمز استلام الطرد {tracking_no}",
+    "body": "رمز استلام الطرد {tracking_no} هو {pickup_code}.",
+    "sms": "مسلك: رمز الطرد {tracking_no} هو {pickup_code}."
+  },
+  "parcel.moved": {
+    "subject": "الطرد {tracking_no}: {step_label}",
+    "body": "طردك {tracking_no} المرسل إلى {recipient_name}: {step_label} {place_text}"
   }
 }

@@ -29,7 +29,8 @@ from ..notify.outbox import emit
 
 SERVICE_CODE = "ECONOMY"           # the coach-hold service product the shipments of booked parcels belong to
 DEFAULT_CARRIER = {"booking_mode": "ONLINE_DROPOFF", "handover_minutes": 120, "cancel_fee": 0, "no_show_fee": 0,
-                   "pending_fees": None, "fees_decision": None, "stopped": False, "stopped_reason": None}
+                   "pending_fees": None, "fees_decision": None, "stopped": False, "stopped_reason": None,
+                   "address_delivery": False, "address_fee": 0}
 
 
 def _j(v):
@@ -112,6 +113,23 @@ async def handover_by(conn: asyncpg.Connection, trip: asyncpg.Record, settings: 
     return await conn.fetchval("SELECT $1::timestamptz - make_interval(mins => $2)", trip["departs_at"], minutes)
 
 
+async def handover_terms(conn: asyncpg.Connection, company_id: int, delivery_mode: str, delivery_address: Optional[str],
+                         secure: bool, declared_value: int) -> dict:
+    """How the parcel is handed over at its destination (1183): collected at the counter, or taken to an address when the
+    carrier offers it (its fee added to the price); important when the sender asks or its declared value reaches the
+    platform's amount."""
+    settings = await carrier_settings(conn, company_id)
+    if delivery_mode == "ADDRESS":
+        if not settings["address_delivery"]:
+            raise ApiError(409, "NO_ADDRESS_DELIVERY", "this carrier does not take parcels to an address")
+        if not delivery_address or len(delivery_address.strip()) < 5:
+            raise ApiError(422, "ADDRESS_REQUIRED", "write the recipient's address")
+    threshold = (await policy(conn)).get("secure_from_value")
+    auto = threshold is not None and declared_value >= int(threshold) > 0
+    return {"delivery_mode": delivery_mode, "delivery_address": delivery_address.strip() if delivery_mode == "ADDRESS" else None,
+            "secure": bool(secure or auto), "address_fee": int(settings["address_fee"]) if delivery_mode == "ADDRESS" else 0}
+
+
 def volume_m3(length_cm: float, width_cm: float, height_cm: float) -> Decimal:
     return (Decimal(str(length_cm)) * Decimal(str(width_cm)) * Decimal(str(height_cm)) / Decimal(1_000_000)).quantize(Decimal("0.0001"))
 
@@ -165,7 +183,7 @@ async def book(conn: asyncpg.Connection, ctx: db.Context, pr: Principal, trip: a
                weight_kg: float, length_cm: float, width_cm: float, height_cm: float, description: str, recipient_name: str,
                recipient_mobile: str, declared_value: int, idempotency_key: str, offer: Optional[asyncpg.Record] = None,
                reserve_until=None, drop_point_id: Optional[int] = None, counter: bool = False, sender_name: Optional[str] = None,
-               handover_until=None) -> dict:
+               handover_until=None, terms: Optional[dict] = None) -> dict:
     """Books one parcel on the trip's hold and charges the wallet, in that order, in the caller's transaction.
 
     reserve_until: phase one (N13, 1147) - the space is taken without payment until then; the sender pays at the counter
@@ -182,6 +200,10 @@ async def book(conn: asyncpg.Connection, ctx: db.Context, pr: Principal, trip: a
         raise ApiError(409, "PRICE_BY_AGREEMENT", "this tariff is priced by agreement with the carrier: ask for an offer first")
     else:
         price, currency = breakdown["total"], breakdown["currency"]
+    terms = terms or {"delivery_mode": "PICKUP", "delivery_address": None, "secure": False, "address_fee": 0}
+    if terms["address_fee"]:                                  # taken to an address (1183): the carrier's fee on top
+        price += terms["address_fee"]
+        breakdown.update(address_fee=terms["address_fee"], total=price)
     async with db.system_scope(conn, ctx):
         done = await conn.fetchrow(
             "SELECT tracking_no, price_breakdown FROM ship.shipment WHERE shipper_party_id = $1 AND idempotency_key = $2",
@@ -201,15 +223,17 @@ async def book(conn: asyncpg.Connection, ctx: db.Context, pr: Principal, trip: a
             """INSERT INTO ship.shipment (tracking_no, company_id, shipper_party_id, service_id, shipper_type, origin_station_id,
                  dest_station_id, payer_type, declared_value, currency, billable_weight_kg, price_breakdown, recipient_name,
                  recipient_mobile, contents, status, guaranteed, tariff_id, idempotency_key, handover_by, drop_point_id,
-                 sold_at_counter, sender_name, handed_over_at, handed_over_by, paid_at, pay_method)
+                 sold_at_counter, sender_name, handed_over_at, handed_over_by, paid_at, pay_method, delivery_mode, delivery_address,
+                 secure)
                VALUES ($1, $2, $3, $4, 'INDIVIDUAL', $5, $6, 'SENDER', $7, $8, $9, $10::jsonb, $11, $12, $13, $16, true, $14, $15,
                        $17, $18, $19, $20, CASE WHEN $19 THEN now() END, CASE WHEN $19 THEN $21::bigint END,
-                       CASE WHEN $16 = 'CREATED' THEN now() END, CASE WHEN $19 THEN 'CASH' WHEN $16 = 'CREATED' THEN 'WALLET' END)
+                       CASE WHEN $16 = 'CREATED' THEN now() END, CASE WHEN $19 THEN 'CASH' WHEN $16 = 'CREATED' THEN 'WALLET' END,
+                       $22, $23, $24)
                RETURNING id""",
             tracking, trip["company_id"], pr.company_id if counter else pr.party_id, service, trip["origin"], trip["destination"],
             declared_value, currency, Decimal(str(weight_kg)), json.dumps(breakdown), recipient_name.strip(), recipient_mobile,
             description, t["id"], idempotency_key, status, reserve_until or handover_until, drop_point_id, counter,
-            sender_name.strip() if sender_name else None, pr.user_id)
+            sender_name.strip() if sender_name else None, pr.user_id, terms["delivery_mode"], terms["delivery_address"], terms["secure"])
         await conn.execute(
             """INSERT INTO ship.parcel (shipment_id, piece_no, label_no, weight_kg, length_cm, width_cm, height_cm, content_desc)
                VALUES ($1, 1, $2, $3, $4, $5, $6, $7)""",
