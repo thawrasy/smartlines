@@ -308,7 +308,7 @@ test('an operator onboards a tenant and its first administrator signs in', async
       const context = await browser.newContext();
       const p = await context.newPage();
       await p.goto(await linkSentTo(mailDir, email, '/invitation', 90_000));
-      const password = `an e2e passphrase for ${email}`;
+      const password = `an e2e passphrase of ${email.slice(0, 2)} staff`;   // a password may not hold the e-mail
       await p.getByLabel(/^New password/).fill(password);
       await p.getByLabel(/^Repeat the password/).fill(password);
       await p.getByRole('button', { name: 'Save password' }).click();
