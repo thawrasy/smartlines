@@ -393,5 +393,59 @@ test('an operator onboards a tenant and its first administrator signs in', async
     await fo.p.waitForLoadState('networkidle').catch(() => undefined);
     await fo.p.screenshot({ path: `${shots}/42-facility-card-full.png`, fullPage: true });
     await fo.context.close();
+
+    // A purchase letter of credit request, for docs/59: a purchasing officer creates it on the screen and enters its terms
+    // and documents (through the API the terms screen uses, to keep the journey short). Transhipment is not allowed by
+    // sea, so the checks show the UCP 600 warning of articles 19 to 24 (docs/60).
+    const rqEmail = `rq@${code}.test.invalid`;
+    await invite(rqEmail, 'Purchasing Officer', 'RQ');
+    const rq = await signIn(rqEmail);
+    await rq.p.goto(`${origin}/requests/new`);
+    const newRequest = rq.p.locator('form', { hasText: 'New request' });
+    await newRequest.getByLabel(/^Request type/).selectOption('PURCHASE_LC');
+    await newRequest.getByLabel(/^Title/).fill('Seamless steel pipes, order 4471');
+    await rq.p.getByRole('button', { name: 'العربية' }).click();
+    await shot(rq.p, '50-request-new');
+    await rq.p.getByRole('button', { name: 'English' }).click();
+    await newRequest.getByRole('button', { name: 'Create the draft' }).click();
+    await expect(rq.p).toHaveURL(/\/requests\/[0-9a-f-]{36}$/);
+    const requestUrl = rq.p.url();
+    const requestId = requestUrl.split('/').pop()!;
+    const day = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
+    const failed = await rq.p.evaluate(async ({ id, terms }) => {
+      const { token } = await (await fetch('/api/v1/csrf')).json() as { token: string };
+      const call = async (method: string, path: string, body: unknown) => {
+        const r = await fetch(`/api/v1${path}`, { method, body: JSON.stringify(body), headers: {
+          'Content-Type': 'application/json', 'X-CSRF-Token': token, 'Idempotency-Key': crypto.randomUUID() } });
+        if (!r.ok) throw new Error(`${method} ${path}: ${r.status} ${await r.text()}`);
+        return r.status === 204 ? null : await r.json();
+      };
+      try {
+        const supplier = await call('POST', '/counterparties', { kind: 'SUPPLIER', nameEn: 'Steel Pipes Ltd', country: 'CN', erpCode: 'V-1001' }) as { id: string };
+        await call('PUT', `/requests/${id}/terms`, { fields: { ...terms, beneficiary: supplier.id } });
+        await call('PUT', `/requests/${id}/terms/documents`, [
+          { clause: 'COMMERCIAL_INVOICE', originals: 3, copies: 2 }, { clause: 'BL_SEA', originals: 3, copies: 3 }, { clause: 'PACKING_LIST', originals: 1, copies: 2 }]);
+        return '';
+      } catch (e) { return String(e); }
+    }, { id: requestId, terms: {
+      lcType: 'SIGHT', availableWith: 'ADVISING_BANK', confirmation: 'WITHOUT', advisingBankName: 'Advising Bank', advisingBankAddress: 'Shanghai',
+      advisingBankBic: 'ADVBCNSH', currencyId: 'SAR', amount: 1_500_000, toleranceMode: 'PLUS_MINUS', tolerancePlusPct: 5, toleranceMinusPct: 5,
+      expiryRule: 'ABSOLUTE', expiryDate: day(150), expiryPlace: 'Riyadh', latestShipmentRule: 'ABSOLUTE', latestShipmentDate: day(120),
+      presentationDays: 21, presentationBasis: 'SHIPMENT_DATE', partialShipments: 'ALLOWED', transhipment: 'NOT_ALLOWED', transportMode: 'SEA',
+      portOfLoading: 'Shanghai', portOfDischarge: 'Dammam', incotermId: 'CFR', incotermPlace: 'Dammam', goodsCategory: 'STEEL_PIPES',
+      goodsDescription: 'Seamless steel pipes as per proforma', insuranceResponsibility: 'APPLICANT', lcTextLanguage: 'EN' } });
+    expect(failed).toBe('');
+    await rq.p.getByRole('button', { name: 'العربية' }).click();
+    await rq.p.goto(requestUrl);
+    await rq.p.getByRole('heading').first().waitFor();
+    await shot(rq.p, '51-request-card');
+    await rq.p.goto(`${requestUrl}/terms`);
+    await rq.p.getByRole('heading').first().waitFor();
+    await shot(rq.p, '52-terms');
+    await rq.p.screenshot({ path: `${shots}/53-terms-full.png`, fullPage: true });
+    await rq.p.goto(`${origin}/api/v1/requests/${requestId}/terms/print?lang=ar`);
+    await shot(rq.p, '54-terms-print');
+    await rq.p.screenshot({ path: `${shots}/55-terms-print-full.png`, fullPage: true });
+    await rq.context.close();
   }
 });
