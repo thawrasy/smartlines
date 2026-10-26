@@ -65,6 +65,9 @@ const LenderRatings = lazyNamed(loadReadiness, 'LenderRatings');
 const Provision = lazyNamed(loadReadiness, 'Provision');
 const ReadinessFile = lazyNamed(loadReadiness, 'ReadinessFile');
 const loadRequests = () => import('./Requests');
+const loadRequestTypes = () => import('./RequestTypes');
+const RequestTypes = lazyNamed(loadRequestTypes, 'RequestTypes');
+const RequestTypeDetail = lazyNamed(loadRequestTypes, 'RequestTypeDetail');
 const NewRequest = lazyNamed(loadRequests, 'NewRequest');
 const RequestDetail = lazyNamed(loadRequests, 'RequestDetail');
 const RequestList = lazyNamed(loadRequests, 'RequestList');
@@ -188,6 +191,7 @@ const menu: { group: string; items: MenuItem[] }[] = [
   ] },
   { group: 'Settings', items: [
     { to: '/settings', label: 'General settings', permission: 'cfg.settings.manage' },
+    { to: '/request-types', label: 'Request types and workflows', permission: 'wfl.template.view' },
     { to: '/numbering', label: 'Numbering', permission: 'cfg.numbering.manage' },
     { to: '/calendar', label: 'Non-working days', permission: 'cfg.settings.manage' },
     { to: '/catalogs', label: 'Catalogues', anyOf: ['cat.manage.general', 'cat.manage.financial'] },
@@ -278,6 +282,8 @@ function Shell() {
               <Route path="/settings" element={<Settings />} />
               <Route path="/support" element={<Support />} />
               <Route path="/numbering" element={<Numbering />} />
+              <Route path="/request-types" element={<RequestTypes />} />
+              <Route path="/request-types/:code" element={<RequestTypeDetail />} />
               <Route path="/calendar" element={<Calendar />} />
               <Route path="/audit" element={<Audit />} />
               <Route path="/jobs" element={<Jobs />} />

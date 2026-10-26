@@ -166,6 +166,7 @@ RequestEndpoints.Map(portal);
 InboxEndpoints.Map(portal);
 DashboardEndpoints.Map(portal);
 TemplateEndpoints.Map(portal);
+RequestTypeEndpoints.Map(portal);
 LcTermsEndpoints.Map(portal);
 LcEndpoints.Map(portal);
 SalesEndpoints.Map(portal);

@@ -231,3 +231,9 @@ dialog::backdrop { background: rgb(6 42 34 / 45%); }
   .card:not(:has(.pack)) { display: none; }
   .pack .watermark { opacity: .25; }
 }
+
+/* the stages of a workflow as a chain (request types and workflows) */
+.workflow-chain { display: flex; flex-wrap: wrap; gap: .5rem; list-style: none; padding: 0; margin: 0 0 1rem; }
+.workflow-chain li { border: 1px solid var(--line, #d0d5dd); border-radius: 8px; padding: .4rem .7rem; position: relative; }
+.workflow-chain li + li::before { content: '→'; position: absolute; inset-inline-start: -.45rem; top: 50%; transform: translate(-50%, -50%); color: var(--muted, #667085); }
+[dir="rtl"] .workflow-chain li + li::before { content: '←'; transform: translate(50%, -50%); }
