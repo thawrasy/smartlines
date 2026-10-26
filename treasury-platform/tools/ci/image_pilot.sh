@@ -41,7 +41,7 @@ echo "== P1. the images run as the host runs them"
 for image in "$API_IMAGE" "$WORKER_IMAGE"; do
     [ "$(docker image inspect --format '{{.Config.User}}' "$image")" = "bankfas" ] || { echo "$image does not run as the bankfas user"; exit 1; }
 done
-docker run --rm --read-only --tmpfs /tmp --cap-drop ALL -e HOME=/tmp --entrypoint /opt/chromium/chrome "$API_IMAGE" --version
+docker run --rm --read-only --tmpfs /tmp --cap-drop ALL -e HOME=/tmp --entrypoint /opt/chromium/headless_shell "$API_IMAGE" --version
 
 echo "== P2. service logins"
 SQLCMDPASSWORD="$SA_PASSWORD" SQL_SERVER="$SQL_SERVER" SQLCMD="$SQLCMD" BANKFAS_SECRETS_DIR="$SEC" BANKFAS_LOGIN_SET=a \

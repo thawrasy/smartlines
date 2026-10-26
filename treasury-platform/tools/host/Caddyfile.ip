@@ -1,0 +1,58 @@
+# /etc/caddy/Caddyfile for the private trial by address (site.conf ACCESS=ip, docs/62). Check with
+# `caddy validate --config /etc/caddy/Caddyfile`. No domain and no DNS: the certificates come from Caddy's own local
+# authority (tls internal); its root certificate is /var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt,
+# which a tester may install to open the site without the browser's warning.
+# Caddy runs on the host, not in a container, so UFW and fail2ban see its traffic (Docker's published ports bypass UFW).
+{
+	email <OPS_MAILBOX>
+	skip_install_trust
+	servers {
+		timeouts {
+			read_header 10s
+			read_body 30s
+			write 60s
+			idle 2m
+		}
+		max_header_size 32KB
+	}
+}
+
+(bankfas) {
+	# No sitemap, and nothing to index (docs/31 row 48); the application answers the same, this is the second layer.
+	@sitemap path_regexp sitemap (?i)^/sitemap
+	respond @sitemap 404
+	header X-Robots-Tag "noindex, nofollow, noarchive, nosnippet"
+	encode zstd gzip
+	request_body {
+		max_size 25MB
+	}
+	log {
+		output file /var/log/caddy/access.log {
+			roll_size 50MiB
+			roll_keep 30
+			roll_keep_for 2160h
+		}
+		format json
+	}
+	reverse_proxy 127.0.0.1:8080 {
+		header_up -X-Forwarded-Host
+		transport http {
+			dial_timeout 5s
+			response_header_timeout 60s
+		}
+	}
+}
+
+# The portal of the trial's one tenant, on the server's address (Portal__Address, Portal__AddressTenant).
+https://<SERVER_IP> {
+	tls internal
+	import bankfas
+}
+
+# The operator panel, on the loopback only: reached through an SSH tunnel (ssh -L 8443:127.0.0.1:8443 ...), never
+# from the network. *.localhost is the browser's own machine, so the tunnel carries it here.
+https://admin.localhost:8443 {
+	bind 127.0.0.1
+	tls internal
+	import bankfas
+}

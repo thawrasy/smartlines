@@ -16,7 +16,7 @@ public sealed partial class PdfRenderer(IConfiguration config, ILogger<PdfRender
 
     private static readonly string[] Candidates =
     [
-        "/opt/pw-browsers/chromium", "/usr/bin/chromium", "/usr/bin/chromium-browser", "/usr/bin/google-chrome", "/usr/lib/chromium/chromium",
+        "/opt/chromium/headless_shell", "/opt/pw-browsers/chromium", "/usr/bin/chromium", "/usr/bin/chromium-browser", "/usr/bin/google-chrome", "/usr/lib/chromium/chromium",
     ];
 
     /// <summary>The Chromium binary, or null when there is none (the PDF endpoints then answer 503).</summary>

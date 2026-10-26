@@ -191,6 +191,22 @@ jobs:
               tools/host/compose.yml > "$RUNNER_TEMP/compose.yml"
           docker compose -f "$RUNNER_TEMP/compose.yml" config --quiet
           bash -n tools/host/*.sh tools/deploy/*.sh tools/ci/*.sh tools/release/*.sh
+          # The private trial by address (docs/62), as a dry run under a folder: the files written from site.conf,
+          # the trial's certificate signed and checked, and the compose.yml it writes still valid.
+          T="$RUNNER_TEMP/iphost"; mkdir -p "$T/opt/bankfas" "$T/etc"; touch "$T/etc/hosts"
+          sed -e 's/^ACCESS=.*/ACCESS=ip/; s/^SERVER_IP=.*/SERVER_IP=203.0.113.10/; s/^DOMAIN=.*/DOMAIN=bankfas.internal/' \
+              -e 's/^DB_HOST=.*/DB_HOST=db.bankfas.internal/; s/^DB_ADDRESS=.*/DB_ADDRESS=172.30.0.1/; s/^SMTP_HOST=.*/SMTP_HOST=/' \
+              tools/host/site.conf.example > "$T/opt/bankfas/site.conf"
+          chmod 600 "$T/opt/bankfas/site.conf"
+          sudo BANKFAS_ROOT="$T" bash tools/host/provision_app_host.sh < /dev/null
+          sudo BANKFAS_ROOT="$T" BANKFAS_NO_MSSQL=1 bash tools/host/trial_db_cert.sh
+          sudo grep -qx 'Portal__Address=203.0.113.10' "$T/opt/bankfas/api.env"
+          sudo grep -qx 'Mail__DropDirectory=/srv/bankfas/mail' "$T/opt/bankfas/worker.env"
+          sudo grep -q '^https://203.0.113.10 {' "$T/etc/caddy/Caddyfile"
+          sudo openssl verify -CAfile "$T/opt/bankfas/trial-ca/ca.crt" "$T/var/opt/mssql/certs/db.pem"
+          sudo sed -e "s#/opt/bankfas/api.env#$T/opt/bankfas/api.env#; s#/opt/bankfas/worker.env#$T/opt/bankfas/worker.env#" \
+              "$T/opt/bankfas/compose.yml" > "$RUNNER_TEMP/compose-ip.yml"
+          sudo docker compose -f "$RUNNER_TEMP/compose-ip.yml" config --quiet
 
       - name: Set up Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0

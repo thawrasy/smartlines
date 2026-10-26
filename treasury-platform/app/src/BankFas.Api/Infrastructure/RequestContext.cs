@@ -38,7 +38,7 @@ public sealed class RequestContext
 
 /// <summary>
 /// Takes the tenant from the Host header alone, never from the body, query or path (FR-PLT-046, DOC-B04): the first
-/// label of {code}.{domain}. The operator host goes to the panel before any tenant lookup. An unknown code, and an
+/// label of {code}.{domain}, or the tenant of the trial's address (Portal:Address, docs/62). The operator host goes to the panel before any tenant lookup. An unknown code, and an
 /// archived tenant, get the same neutral 404 (decision 37, Q-1). Lookups are cached for a minute; the database checks
 /// the status again at login and at every binding.
 /// </summary>
@@ -59,7 +59,7 @@ public sealed class HostRoutingMiddleware(RequestDelegate next, IOptions<HostOpt
         else
         {
             var suffix = "." + portal.Value.Domain.ToLowerInvariant();
-            var code = host.EndsWith(suffix, StringComparison.Ordinal) ? host[..^suffix.Length] : "";
+            var code = portal.Value.TenantOfAddress(host) ?? (host.EndsWith(suffix, StringComparison.Ordinal) ? host[..^suffix.Length] : "");
             ResolvedTenant? tenant = null;
             if (code.Length is > 0 and <= 30 && !code.Contains('.', StringComparison.Ordinal) && !hosts.Value.NotTenants.Contains(code))
             {

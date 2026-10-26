@@ -28,15 +28,20 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
 RUN groupadd --system --gid 10001 bankfas && useradd --system --uid 10001 --gid bankfas --home-dir /nonexistent --shell /usr/sbin/nologin bankfas
 ENV DOTNET_EnableDiagnostics=0 TMPDIR=/tmp
 
-# Chromium for the PDF prints (ADR 0051): Playwright's build, the one the browser tests run on; Ubuntu 24.04, the base
-# of the .NET 10 images, ships Chromium as a snap only, which does not run in a container. A host that cannot reach
-# Playwright's download servers passes a local copy of the chrome-linux folder instead:
-#   docker build --build-context chromium=<path>/chrome-linux ...
+# Chromium for the PDF prints (ADR 0051): Playwright's headless shell of the Chromium the browser tests run on, the
+# same engine without the browser's window, made for printing (docs/62: a third of the full browser), its debugging
+# symbols stripped. Ubuntu 24.04, the base of the .NET 10 images, ships Chromium as a snap only, which does not run in
+# a container. A host that cannot reach Playwright's download servers passes a local copy of the folder instead, with
+# the binary named headless_shell:
+#   docker build --build-context chromium=<path>/chromium_headless_shell-<n>/chrome-linux ...
 FROM node:22-bookworm-slim AS chromium-download
 RUN --mount=type=secret,id=extra_ca,required=false \
     if [ -f /run/secrets/extra_ca ]; then export NODE_EXTRA_CA_CERTS=/run/secrets/extra_ca; fi \
- && PLAYWRIGHT_BROWSERS_PATH=/ms-playwright npx -y playwright@1.56.1 install chromium \
- && mv /ms-playwright/chromium-*/chrome-linux /out
+ && CA=$( { [ -f /run/secrets/extra_ca ] && echo "-o Acquire::https::CAInfo=/run/secrets/extra_ca"; } || true) \
+ && apt-get $CA update && apt-get $CA install -y --no-install-recommends binutils && rm -rf /var/lib/apt/lists/* \
+ && PLAYWRIGHT_BROWSERS_PATH=/ms-playwright npx -y playwright@1.56.1 install chromium-headless-shell \
+ && mv /ms-playwright/chromium_headless_shell-*/chrome-* /out \
+ && strip --strip-unneeded /out/headless_shell
 FROM scratch AS chromium
 COPY --from=chromium-download /out /
 
@@ -58,7 +63,7 @@ COPY --from=web /src/app/web/public/fonts/ /usr/local/share/fonts/bankfas/
 WORKDIR /app
 COPY --from=build /out/api ./
 COPY --from=web /src/app/web/dist ./wwwroot
-ENV ASPNETCORE_URLS=http://0.0.0.0:8080 Web__Root=/app/wwwroot Pdf__Chromium=/opt/chromium/chrome
+ENV ASPNETCORE_URLS=http://0.0.0.0:8080 Web__Root=/app/wwwroot Pdf__Chromium=/opt/chromium/headless_shell
 USER bankfas
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD ["/usr/bin/env", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080"]

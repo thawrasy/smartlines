@@ -63,4 +63,15 @@ public class PortalLinkTests
         Assert.Equal("https://acme.bankfas.com/invitation#token=abc-_9", uri.ToString());
         Assert.Equal("", uri.Query);
     }
+
+    [Fact]
+    public void The_trial_address_serves_its_tenant_and_its_links()
+    {
+        var p = new BankFas.Data.Jobs.PortalOptions { Domain = "bankfas.com", Address = "203.0.113.10", AddressTenant = "DEMO" };
+        Assert.Equal("https://203.0.113.10/invitation#token=abc", p.TenantUri("demo", "/invitation#token=abc").ToString());
+        Assert.Equal("https://acme.bankfas.com/invitation#token=abc", p.TenantUri("acme", "/invitation#token=abc").ToString());
+        Assert.Equal("demo", p.TenantOfAddress("203.0.113.10"));
+        Assert.Null(p.TenantOfAddress("203.0.113.11"));
+        Assert.Null(new BankFas.Data.Jobs.PortalOptions().TenantOfAddress("203.0.113.10"));
+    }
 }

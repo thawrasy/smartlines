@@ -2,7 +2,9 @@
 # Prepares the application host from /opt/bankfas/site.conf (docs/54 H-04, H-05, H-08; docs/55): the folders with
 # their owners and modes, the master key (created once, never overwritten), api.env, worker.env, compose.yml and the
 # Caddyfile written from the templates of tools/host, the database login secrets and the SMTP password put in place,
-# and the DNS token of Caddy. Safe to run again: what exists is kept, what is written from site.conf is written again
+# and the DNS token of Caddy. With ACCESS=ip (docs/62) it writes the trial by address instead: Caddyfile.ip, the
+# portal of IP_TENANT on SERVER_IP, the operator panel on admin.localhost, the host's certificate authorities given to
+# both containers, and the mail kept in /srv/bankfas/mail when SMTP_HOST is empty. Safe to run again: what exists is kept, what is written from site.conf is written again
 # (the previous file kept as .bak). Run as root from treasury-platform/; it starts nothing.
 #
 # Usage: sudo tools/host/provision_app_host.sh [--db-secrets <tar from the database server>]
@@ -34,12 +36,25 @@ while IFS='=' read -r k v; do
     [[ "$k" =~ ^[A-Z_]+$ ]] || continue
     V[$k]="$v"
 done < <(grep -E '^[A-Z_]+=' "$SITE")
-for k in DOMAIN DB_HOST SMTP_HOST SMTP_PORT SMTP_FROM SMTP_USER OPS_MAILBOX SECURITY_MAILBOX DNS_PROVIDER DNS_TOKEN_VAR API_IMAGE WORKER_IMAGE CLAMAV_VERSION KEY_NAME; do
+ACCESS="${V[ACCESS]:-domain}"
+[[ "$ACCESS" =~ ^(domain|ip)$ ]] || fail "ACCESS is domain or ip"
+MAIL_KEPT=0
+required=(DOMAIN DB_HOST OPS_MAILBOX SECURITY_MAILBOX API_IMAGE WORKER_IMAGE CLAMAV_VERSION KEY_NAME)
+if [ "$ACCESS" = domain ]; then required+=(SMTP_HOST SMTP_PORT SMTP_FROM SMTP_USER DNS_PROVIDER DNS_TOKEN_VAR)
+else
+    required+=(SERVER_IP IP_TENANT)
+    if [ -n "${V[SMTP_HOST]:-}" ]; then required+=(SMTP_PORT SMTP_FROM SMTP_USER); else MAIL_KEPT=1; V[SMTP_HOST]=none; V[SMTP_PORT]=587; V[SMTP_FROM]="${V[SMTP_FROM]:-no-reply@localhost}"; V[SMTP_USER]="${V[SMTP_USER]:-none}"; fi
+fi
+for k in "${required[@]}"; do
     [ -n "${V[$k]:-}" ] || fail "$k is empty in $SITE"
     [[ "${V[$k]}" =~ ^[A-Za-z0-9@._:/-]+$ ]] || fail "$k has a character outside [A-Za-z0-9@._:/-]"
 done
 [[ "${V[DOMAIN]}" != *example.com* ]] || fail "DOMAIN is still the example"
-[[ "${V[SMTP_PORT]}" =~ ^[0-9]{2,5}$ ]] || fail "SMTP_PORT is a port number"
+[[ "${V[SMTP_PORT]:-587}" =~ ^[0-9]{2,5}$ ]] || fail "SMTP_PORT is a port number"
+if [ "$ACCESS" = ip ]; then
+    [[ "${V[SERVER_IP]}" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] || fail "SERVER_IP is the server's IPv4 address"
+    [[ "${V[IP_TENANT]}" =~ ^[a-z0-9-]{2,30}$ ]] || fail "IP_TENANT is a tenant code: 2 to 30 small letters, digits or hyphens"
+fi
 [[ "${V[KEY_NAME]}" =~ ^[A-Za-z0-9._-]+$ ]] || fail "KEY_NAME is a file name"
 DB_ADDRESS="${V[DB_ADDRESS]:-}"
 [ -z "$DB_ADDRESS" ] || [[ "$DB_ADDRESS" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] || fail "DB_ADDRESS is an IPv4 address, or empty"
@@ -69,6 +84,7 @@ install -d -m 750 -o root -g 10001 "$R/opt/bankfas/secrets"
 install -d -m 700 -o 10001 -g 10001 "$R/opt/bankfas/secrets/master-keys" "$R/opt/bankfas/secrets/db"
 install -d -m 750 -o 10001 -g 10001 "$R/srv/bankfas/files" "$R/srv/bankfas/dataprotection"
 install -d -m 755 "$R/srv/bankfas/breached"
+[ "$MAIL_KEPT" = 1 ] && install -d -m 750 -o 10001 -g 10001 "$R/srv/bankfas/mail"
 
 step "master key"
 key="$R/opt/bankfas/secrets/master-keys/${V[KEY_NAME]}.key"
@@ -108,8 +124,48 @@ PY
         echo "   /etc/hosts: ${V[DB_HOST]} is 127.0.0.1 on this host"
     fi
 fi
+if [ "$ACCESS" = ip ]; then
+    # The trial by address (docs/62): the portal of IP_TENANT on SERVER_IP, the operator panel on admin.localhost
+    # (the SSH tunnel), the mail kept on this host without SMTP, and the host's certificate authorities (with the
+    # trial's own, tools/host/trial_db_cert.sh) given to both containers so they trust the database's certificate.
+    for f in api.env worker.env; do
+        python3 - "$R/opt/bankfas/$f" "${V[SERVER_IP]}" "${V[IP_TENANT]}" "$MAIL_KEPT" <<'PY'
+import sys
+p, ip, tenant, kept = sys.argv[1:]
+out = []
+for line in open(p).read().split("\n"):
+    if kept == "1" and line.startswith("Mail__Smtp__"):
+        continue
+    if line.startswith("Hosts__Operator="):
+        line = "Hosts__Operator=admin.localhost"
+    out.append(line)
+    if line.startswith("Portal__Domain="):
+        out += [f"Portal__Address={ip}", f"Portal__AddressTenant={tenant}"]
+if kept == "1":
+    out.append("Mail__DropDirectory=/srv/bankfas/mail")
+open(p, "w").write("\n".join(out))
+PY
+    done
+    python3 - "$R/opt/bankfas/compose.yml" "$MAIL_KEPT" <<'PY'
+import sys
+p, kept = sys.argv[1:]
+out, service = [], None
+for line in open(p).read().split("\n"):
+    out.append(line)
+    if line.startswith("  ") and not line.startswith("    ") and line.strip().endswith(":"):
+        service = line.strip()[:-1]
+    if service in ("api", "worker") and line == "    volumes:":
+        out.append("      - /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt:ro   # the host's authorities (docs/62)")
+        if kept == "1":
+            out.append("      - /srv/bankfas/mail:/srv/bankfas/mail   # the mail kept on this host (docs/62)")
+open(p, "w").write("\n".join(out))
+PY
+    echo "   the trial by address: https://${V[SERVER_IP]} is the tenant ${V[IP_TENANT]}; the operator panel is https://admin.localhost:8443 (SSH tunnel)"
+    [ "$MAIL_KEPT" = 1 ] && echo "   no SMTP: the mail is kept in /srv/bankfas/mail (tools/host/show_mail.sh)"
+fi
 install -d -m 755 "$R/etc/caddy"
-render "$HERE/Caddyfile" "$R/etc/caddy/Caddyfile" 644
+if [ "$ACCESS" = ip ]; then render "$HERE/Caddyfile.ip" "$R/etc/caddy/Caddyfile" 644
+else render "$HERE/Caddyfile" "$R/etc/caddy/Caddyfile" 644; fi
 
 step "database login secrets"
 if [ -n "$DB_SECRETS" ]; then
@@ -125,12 +181,15 @@ done
 
 step "SMTP password"
 smtp="$R/opt/bankfas/secrets/smtp.secret"
+if [ "$MAIL_KEPT" = 1 ]; then echo "   not needed: the mail is kept on this host"; else
 if [ -n "$SMTP_FILE" ]; then ( umask 077; tr -d '\r\n' < "$SMTP_FILE" > "$smtp" ); shred -u "$SMTP_FILE" 2>/dev/null || true
 elif [ ! -s "$smtp" ] && [ -t 0 ]; then read -rsp "   SMTP password for ${V[SMTP_USER]}: " p; echo; ( umask 077; printf '%s' "$p" > "$smtp" ); unset p; fi
 if [ -s "$smtp" ]; then chown 10001:10001 "$smtp"; chmod 400 "$smtp"; echo "   in place"; else echo "   MISSING"; fi
+fi
 
 step "DNS token of Caddy"
 dns="$R/etc/caddy/dns.env"
+if [ "$ACCESS" = ip ]; then echo "   not needed: the certificates come from Caddy's own authority"; else
 if [ -n "$DNS_FILE" ]; then ( umask 077; printf '%s=%s\n' "${V[DNS_TOKEN_VAR]}" "$(tr -d '\r\n' < "$DNS_FILE")" > "$dns" ); shred -u "$DNS_FILE" 2>/dev/null || true
 elif [ ! -s "$dns" ] && [ -t 0 ]; then read -rsp "   ${V[DNS_PROVIDER]} API token: " p; echo; ( umask 077; printf '%s=%s\n' "${V[DNS_TOKEN_VAR]}" "$p" > "$dns" ); unset p; fi
 if [ -s "$dns" ]; then
@@ -139,5 +198,6 @@ if [ -s "$dns" ]; then
     printf '[Service]\nEnvironmentFile=/etc/caddy/dns.env\n' > "$R/etc/systemd/system/caddy.service.d/dns.conf"
     echo "   in place (systemctl daemon-reload && systemctl restart caddy)"
 else echo "   MISSING"; fi
+fi
 
 echo "done: now tools/host/check_ready.sh"

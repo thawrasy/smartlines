@@ -18,10 +18,23 @@ public sealed class PortalOptions
     /// <summary>A port for development, else null.</summary>
     public int? Port { get; set; }
 
+    /// <summary>
+    /// A private trial without a domain (docs/62): the server's address (an IP) that serves one tenant's portal, and
+    /// that tenant's code. A request to this address is that tenant's, and its links point here. Both empty otherwise.
+    /// </summary>
+    public string? Address { get; set; }
+    public string? AddressTenant { get; set; }
+
+    /// <summary>The tenant the address serves, when the trial by address is set.</summary>
+    public string? TenantOfAddress(string host) =>
+        !string.IsNullOrEmpty(Address) && !string.IsNullOrEmpty(AddressTenant) && string.Equals(host, Address, StringComparison.OrdinalIgnoreCase)
+            ? AddressTenant.ToLowerInvariant() : null;
+
     /// <summary>The URL of a page of the tenant's portal; a fragment (#...) stays a fragment, so a token in it never reaches a server.</summary>
     public Uri TenantUri(string tenantCode, string pathQueryAndFragment)
     {
-        var builder = new UriBuilder(Scheme, tenantCode + "." + Domain, Port ?? -1);
+        var byAddress = !string.IsNullOrEmpty(Address) && string.Equals(tenantCode, AddressTenant, StringComparison.OrdinalIgnoreCase);
+        var builder = new UriBuilder(Scheme, byAddress ? Address : tenantCode + "." + Domain, Port ?? -1);
         var rest = pathQueryAndFragment;
         var hash = rest.IndexOf('#', StringComparison.Ordinal);
         if (hash >= 0) { builder.Fragment = rest[(hash + 1)..]; rest = rest[..hash]; }

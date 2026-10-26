@@ -71,10 +71,10 @@ public sealed class PlatformFixture : IAsyncLifetime
     public string Code(byte[] secret) => Totp.Code(secret, Totp.StepAt(Env.Clock.Now));
 
     /// <summary>Creates a tenant through the panel, onboards it, and signs its first administrator in with MFA enrolled.</summary>
-    public async Task<TestTenant> CreateTenantAsync(string? name = null)
+    public async Task<TestTenant> CreateTenantAsync(string? name = null, string? code = null, string? host = null)
     {
         RequireDatabase();
-        var code = "ci-" + Guid.NewGuid().ToString("N")[..10];
+        code ??= "ci-" + Guid.NewGuid().ToString("N")[..10];
         var adminEmail = $"admin@{code}.test.invalid";
         await Panel.PostOkAsync("/api/v1/operator/tenants", new
         {
@@ -85,7 +85,7 @@ public sealed class PlatformFixture : IAsyncLifetime
         await SetMfaPolicyAsync(code, "REQUIRED");
         var ct = TestContext.Current.CancellationToken;
         Assert.True(await Env.OnboardingJob().RunOnceAsync(ct) >= 1);
-        var portal = await Env.BrowserAsync($"{code}.{TestEnvironment.Domain}");
+        var portal = await Env.BrowserAsync(host ?? $"{code}.{TestEnvironment.Domain}");
         const string password = "a first administrator passphrase";
         await portal.PostOkAsync("/api/v1/auth/invitation", new { token = Env.LinkTokenSentTo(adminEmail), password });
         var secretAndCodes = await SignInFirstTimeAsync(portal, adminEmail, password);

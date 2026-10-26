@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # The application host's firewall (ADR 0047, DOC-S16 section 4). Run once as root, then keep `ufw status verbose` in
 # the provisioning record. ADMIN_CIDRS is the list of the administrators' addresses, for example "203.0.113.10/32";
-# DB_ON_THIS_HOST=1 when SQL Server runs on this host too (docs/58).
+# DB_ON_THIS_HOST=1 when SQL Server runs on this host too (docs/58). WEB_CIDRS, when set, is the list of the only
+# addresses that may open the site (the private trial by address, docs/62): then port 80 stays closed and 443 opens to
+# those addresses alone; empty, the site is open to everyone (a public platform).
 set -euo pipefail
 : "${ADMIN_CIDRS:?set ADMIN_CIDRS to the addresses of the administrators, separated by spaces}"
 SSH_PORT="${SSH_PORT:-22}"
@@ -11,9 +13,16 @@ ufw --force reset
 ufw default deny incoming
 ufw default allow outgoing          # narrowed to a list once the outbound hosts are known (DQ-S10-3)
 for cidr in $ADMIN_CIDRS; do ufw allow from "$cidr" to any port "$SSH_PORT" proto tcp comment 'SSH from the admins'; done
-ufw allow 80/tcp comment 'HTTP: certificate challenge and the redirect to HTTPS'
-ufw allow 443/tcp comment 'HTTPS'
-ufw allow 443/udp comment 'HTTP/3'
+if [ -n "${WEB_CIDRS:-}" ]; then
+  for cidr in $WEB_CIDRS; do
+    ufw allow from "$cidr" to any port 443 proto tcp comment 'HTTPS from the testers (docs/62)'
+    ufw allow from "$cidr" to any port 443 proto udp comment 'HTTP/3 from the testers (docs/62)'
+  done
+else
+  ufw allow 80/tcp comment 'HTTP: certificate challenge and the redirect to HTTPS'
+  ufw allow 443/tcp comment 'HTTPS'
+  ufw allow 443/udp comment 'HTTP/3'
+fi
 # One server for the trial (docs/58, DB_ON_THIS_HOST=1): SQL Server on this host is reached by the containers' network
 # only, never from outside.
 if [ "${DB_ON_THIS_HOST:-0}" = 1 ]; then

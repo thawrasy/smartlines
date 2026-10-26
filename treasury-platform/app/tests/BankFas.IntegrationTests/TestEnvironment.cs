@@ -34,6 +34,10 @@ public sealed class TestClock : TimeProvider
 public sealed class TestEnvironment : WebApplicationFactory<Program>
 {
     public const string Domain = "bankfas.test";
+
+    /// <summary>The private trial by address (docs/62): this address serves the tenant AddressTenant.</summary>
+    public const string Address = "127.0.0.9";
+    public const string AddressTenant = "ci-by-address";
     public const string OperatorHost = "admin." + Domain;
     public const string SecurityAlertEmail = "security-alerts@test.invalid";
     public TestClock Clock { get; } = new();
@@ -117,6 +121,8 @@ public sealed class TestEnvironment : WebApplicationFactory<Program>
             ["Database:TrustServerCertificate"] = "true",
             ["Hosts:Operator"] = OperatorHost,
             ["Portal:Domain"] = Domain,
+            ["Portal:Address"] = Address,
+            ["Portal:AddressTenant"] = AddressTenant,
             ["Keys:Provider"] = "local",
             ["RateLimits:Scale"] = "100",
             ["Mail:DropDirectory"] = MailDir,
@@ -150,7 +156,7 @@ public sealed class TestEnvironment : WebApplicationFactory<Program>
     /// <summary>The onboarding job as the worker runs it, with this application's keys and mail drop.</summary>
     public OnboardingJob OnboardingJob() =>
         new(Services.GetRequiredService<SqlConnectionFactory>(), Services.GetRequiredService<IKeyWrapper>(), new FileDropMailSender(MailDir),
-            new PortalOptions { Domain = Domain }, new BankFas.Data.Seeding.SeedPacks(BankFas.Data.Seeding.TenantSeeder.PacksDirectory(null)));
+            new PortalOptions { Domain = Domain, Address = Address, AddressTenant = AddressTenant }, new BankFas.Data.Seeding.SeedPacks(BankFas.Data.Seeding.TenantSeeder.PacksDirectory(null)));
 
     /// <summary>The newest mail to an address, and the token of its link.</summary>
     public string LinkTokenSentTo(string email)

@@ -22,6 +22,9 @@ expect() {   # expect <path> <mode> <uid> <what>
 [ -f "$SITE" ] || { echo "no $SITE (tools/host/site.conf.example)"; exit 1; }
 declare -A V
 while IFS='=' read -r k v; do [[ "$k" =~ ^[A-Z_]+$ ]] && V[$k]="$v"; done < <(grep -E '^[A-Z_]+=' "$SITE")
+ACCESS="${V[ACCESS]:-domain}"
+# The trial by address (docs/62) may keep the mail on this host: no SMTP_HOST, Mail__DropDirectory instead.
+MAIL_KEPT=0; [ "$ACCESS" = ip ] && [ -z "${V[SMTP_HOST]:-}" ] && MAIL_KEPT=1
 
 echo "== files and permissions"
 expect "$SITE" 600 0 "site.conf is root-only"
@@ -36,7 +39,8 @@ grep -q "^Keys__File__Current=file:${V[KEY_NAME]:-none}$" "$R/opt/bankfas/api.en
     && grep -q "^Keys__File__Current=file:${V[KEY_NAME]:-none}$" "$R/opt/bankfas/worker.env" 2>/dev/null \
     && pass "both processes name the current master key" || fail "api.env or worker.env does not name file:${V[KEY_NAME]:-?}"
 for n in app platform support jobs; do expect "$R/opt/bankfas/secrets/db/bankfas_${n}_a.secret" 400 10001 "the database secret of bankfas_${n}_a"; done
-expect "$R/opt/bankfas/secrets/smtp.secret" 400 10001 "the SMTP password"
+if [ "$MAIL_KEPT" = 1 ]; then expect "$R/srv/bankfas/mail" 750 10001 "the mail kept on this host (no SMTP)"
+else expect "$R/opt/bankfas/secrets/smtp.secret" 400 10001 "the SMTP password"; fi
 expect "$R/srv/bankfas/files" 750 10001 "the document store"
 expect "$R/srv/bankfas/dataprotection" 750 10001 "the data protection keys folder"
 for f in api.env worker.env compose.yml; do
@@ -44,9 +48,16 @@ for f in api.env worker.env compose.yml; do
 done
 if grep -qE '^ASPNETCORE_ENVIRONMENT=Production$' "$R/opt/bankfas/api.env" && grep -qE '^DOTNET_ENVIRONMENT=Production$' "$R/opt/bankfas/worker.env"; then
     pass "both processes run as Production"; else fail "api.env or worker.env is not Production"; fi
-if grep -qiE 'TrustServerCertificate|RateLimits__Scale|AllowMissingRanges|Scanning__Provider=test|Mail__DropDirectory' "$R/opt/bankfas/api.env" "$R/opt/bankfas/worker.env"; then
+dev='TrustServerCertificate|RateLimits__Scale|AllowMissingRanges|Scanning__Provider=test'
+[ "$MAIL_KEPT" = 1 ] || dev="$dev|Mail__DropDirectory"
+if grep -qiE "$dev" "$R/opt/bankfas/api.env" "$R/opt/bankfas/worker.env"; then
     fail "a development or test setting is in api.env or worker.env"; else pass "no development or test setting"; fi
-if [ -e "$R/etc/caddy/dns.env" ]; then expect "$R/etc/caddy/dns.env" 600 0 "Caddy's DNS token is root-only"; else fail "no /etc/caddy/dns.env (the DNS token of the wildcard certificate)"; fi
+if [ "$ACCESS" = ip ]; then
+    grep -q "^Portal__Address=${V[SERVER_IP]:-none}$" "$R/opt/bankfas/api.env" 2>/dev/null && grep -q "^Portal__AddressTenant=${V[IP_TENANT]:-none}$" "$R/opt/bankfas/api.env" 2>/dev/null \
+        && pass "the trial by address: https://${V[SERVER_IP]:-?} serves the tenant ${V[IP_TENANT]:-?}" || fail "api.env does not name SERVER_IP and IP_TENANT (provision_app_host.sh)"
+    if [ -f "$R/usr/local/share/ca-certificates/bankfas-trial-ca.crt" ]; then pass "the trial's certificate authority is trusted on this host"
+    else fail "the trial's certificate authority is not installed (tools/host/trial_db_cert.sh)"; fi
+elif [ -e "$R/etc/caddy/dns.env" ]; then expect "$R/etc/caddy/dns.env" 600 0 "Caddy's DNS token is root-only"; else fail "no /etc/caddy/dns.env (the DNS token of the wildcard certificate)"; fi
 
 echo "== the leaked-password list"
 n="$(find "$R/srv/bankfas/breached" -maxdepth 1 -name '?????.txt' 2>/dev/null | wc -l)"
@@ -65,7 +76,9 @@ if command -v docker >/dev/null && docker info >/dev/null 2>&1; then
 else fail "Docker does not run"; fi
 if command -v caddy >/dev/null; then
     caddy validate --config "$R/etc/caddy/Caddyfile" >/dev/null 2>&1 && pass "the Caddyfile is valid" || fail "caddy validate fails"
-    caddy list-modules 2>/dev/null | grep -q "^dns.providers.${V[DNS_PROVIDER]:-none}$" && pass "Caddy has the ${V[DNS_PROVIDER]:-?} DNS module" || fail "Caddy lacks dns.providers.${V[DNS_PROVIDER]:-?} (xcaddy build --with github.com/caddy-dns/${V[DNS_PROVIDER]:-?})"
+    if [ "$ACCESS" = ip ]; then pass "Caddy needs no DNS module: its own authority signs the certificates (docs/62)"
+    elif caddy list-modules 2>/dev/null | grep -q "^dns.providers.${V[DNS_PROVIDER]:-none}$"; then pass "Caddy has the ${V[DNS_PROVIDER]:-?} DNS module"
+    else fail "Caddy lacks dns.providers.${V[DNS_PROVIDER]:-?} (xcaddy build --with github.com/caddy-dns/${V[DNS_PROVIDER]:-?})"; fi
 else fail "Caddy is not installed"; fi
 if command -v ufw >/dev/null && ufw status 2>/dev/null | grep -q '^Status: active'; then pass "the firewall is active"; else fail "the firewall is not active (tools/host/ufw.sh)"; fi
 [ "$(timedatectl show -p NTPSynchronized --value 2>/dev/null)" = yes ] && pass "the clock is synchronised" || warn "the clock is not reported synchronised"
@@ -84,14 +97,20 @@ avail="$(df -Pk "$R/srv" 2>/dev/null | awk 'NR==2 {print int($4/1048576)}')"
 if [ "${BANKFAS_SKIP_NETWORK:-0}" != 1 ]; then
     echo "== the network"
     me="$(hostname -I 2>/dev/null)"
-    for h in "${V[DOMAIN]:-}" "admin.${V[DOMAIN]:-}" "check-$RANDOM.${V[DOMAIN]:-}"; do
-        ip="$(getent ahostsv4 "$h" 2>/dev/null | awk 'NR==1 {print $1}')"
-        if [ -z "$ip" ]; then fail "$h does not resolve"; else pass "$h resolves to $ip"; fi
-    done
+    if [ "$ACCESS" = ip ]; then
+        pass "no domain to resolve: the trial is reached on ${V[SERVER_IP]:-?} (docs/62)"
+    else
+        for h in "${V[DOMAIN]:-}" "admin.${V[DOMAIN]:-}" "check-$RANDOM.${V[DOMAIN]:-}"; do
+            ip="$(getent ahostsv4 "$h" 2>/dev/null | awk 'NR==1 {print $1}')"
+            if [ -z "$ip" ]; then fail "$h does not resolve"; else pass "$h resolves to $ip"; fi
+        done
+    fi
     [ -n "$me" ] && echo "      (this host's addresses: $me; behind a NAT the public address differs)"
     tcp() { timeout 5 bash -c "exec 3<>/dev/tcp/$1/$2" 2>/dev/null; }
     tcp "${V[DB_HOST]:-}" 1433 && pass "the database server answers on ${V[DB_HOST]:-?}:1433" || fail "no answer from ${V[DB_HOST]:-?}:1433 (its firewall allows this host?)"
-    tcp "${V[SMTP_HOST]:-}" "${V[SMTP_PORT]:-587}" && pass "the mail relay answers on ${V[SMTP_HOST]:-?}:${V[SMTP_PORT]:-587}" || fail "no answer from the mail relay"
+    if [ "$MAIL_KEPT" = 1 ]; then pass "no mail relay: the mail is kept in /srv/bankfas/mail"
+    elif tcp "${V[SMTP_HOST]:-}" "${V[SMTP_PORT]:-587}"; then pass "the mail relay answers on ${V[SMTP_HOST]:-?}:${V[SMTP_PORT]:-587}"
+    else fail "no answer from the mail relay"; fi
 fi
 
 echo "== $fails failed, $warns warnings"

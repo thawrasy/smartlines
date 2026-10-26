@@ -7,6 +7,8 @@
 # of its own (not the e-mail it names). It is valid for 48 hours; a second run is refused (50023).
 #
 # Usage: SQL_USER=bankfas_migrator SQLCMDPASSWORD=... BANKFAS_DOMAIN=<domain> tools/deploy/bootstrap_operator.sh <e-mail> <display name>
+# BANKFAS_PANEL_URL gives the panel's address when it is not https://admin.<domain>: the private trial by address
+# (docs/62) uses https://admin.localhost:8443, through the SSH tunnel.
 # Environment: SQL_SERVER, SQL_USER, SQLCMDPASSWORD, SQLCMD and SQLCMD_OPTS as for tools/deploy/deploy.sh; sa and -C
 # are refused outside CI (tools/deploy/preflight.sh, DQ-S11-6).
 set -euo pipefail
@@ -26,6 +28,8 @@ fail() { echo "bootstrap_operator: $*" >&2; exit 1; }
 [[ "$EMAIL" =~ ^[^[:space:]\'@]+@[^[:space:]\'@]+\.[^[:space:]\'@]+$ ]] || fail "the e-mail is not valid"
 [[ "$NAME" != *"'"* && ${#NAME} -le 200 ]] || fail "the display name has a quote or is longer than 200 characters"
 [[ "$DOMAIN" =~ ^[a-z0-9.-]+$ ]] || fail "BANKFAS_DOMAIN is a host name"
+PANEL="${BANKFAS_PANEL_URL:-https://admin.$DOMAIN}"
+[[ "$PANEL" =~ ^https://[a-z0-9.-]+(:[0-9]{2,5})?/?$ ]] || fail "BANKFAS_PANEL_URL is https://<host>[:port]"
 if [ -n "$SQL_USER" ]; then
     : "${SQLCMDPASSWORD:?set SQLCMDPASSWORD for the login $SQL_USER}"
     AUTH=(-U "$SQL_USER")
@@ -45,4 +49,4 @@ link_token="$(base64 -w0 < "$WORK/token.bin" | tr '+/' '-_' | tr -d '=')"
     grep -q 50023 "$WORK/out" && fail "an operator already exists: an operator administrator invites the next ones from the panel"
     cat "$WORK/out" >&2; fail "the bootstrap failed"; }
 echo "The first operator administrator is invited ($EMAIL). Their link, valid for 48 hours, shown this once:"
-echo "  https://admin.$DOMAIN/setup#token=$link_token"
+echo "  ${PANEL%/}/setup#token=$link_token"

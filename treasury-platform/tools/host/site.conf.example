@@ -2,7 +2,17 @@
 # api.env, worker.env, compose.yml and the Caddyfile from it, and check_ready.sh checks the host against it.
 # Root-only (chmod 600). No secret goes here: passwords and tokens are asked for, or read from files, by the script.
 
-# The platform domain: the portals are <code>.DOMAIN, the operator panel admin.DOMAIN.
+# How the platform is reached (docs/62):
+#   domain  the portals are <code>.DOMAIN and the operator panel admin.DOMAIN, with a wildcard certificate (docs/54).
+#   ip      a private trial on the server's address, no domain and no DNS: https://SERVER_IP is the portal of the one
+#           tenant IP_TENANT, the operator panel is https://admin.localhost:8443 through an SSH tunnel only, and the
+#           certificates come from Caddy's own authority. The mail is optional: without SMTP_HOST the messages are
+#           written to /srv/bankfas/mail on this host (tools/host/show_mail.sh reads them).
+ACCESS=domain
+SERVER_IP=
+IP_TENANT=demo
+# The platform domain: the portals are <code>.DOMAIN, the operator panel admin.DOMAIN. With ACCESS=ip it is only a
+# name inside this host (for example bankfas.internal) and never needs to resolve.
 DOMAIN=treasury.example.com
 # The database server's name, as in its TLS certificate (docs/54 B-08).
 DB_HOST=db.treasury.example.com
@@ -10,7 +20,7 @@ DB_HOST=db.treasury.example.com
 # containers' network: compose.yml maps DB_HOST to it in both containers, and /etc/hosts maps it to 127.0.0.1 here.
 # Left empty with two servers (docs/54), where DB_HOST resolves through DNS.
 DB_ADDRESS=
-# The mail relay (docs/54 A-04).
+# The mail relay (docs/54 A-04). With ACCESS=ip, leave SMTP_HOST empty to keep the mail on this host.
 SMTP_HOST=smtp.example.com
 SMTP_PORT=587
 SMTP_FROM=no-reply@treasury.example.com
@@ -18,7 +28,8 @@ SMTP_USER=no-reply@treasury.example.com
 # Where the certificate notices (Caddy) and the security alerts go.
 OPS_MAILBOX=ops@example.com
 SECURITY_MAILBOX=security@example.com
-# The DNS provider of the wildcard certificate (a caddy-dns module) and the variable its token is read from.
+# The DNS provider of the wildcard certificate (a caddy-dns module) and the variable its token is read from; not used
+# with ACCESS=ip.
 DNS_PROVIDER=cloudflare
 DNS_TOKEN_VAR=CF_API_TOKEN
 # The images (docs/54 R-01) and the ClamAV release.

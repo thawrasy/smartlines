@@ -6,7 +6,7 @@ record. Values between `<...>` are host-specific and are never written in the re
 
 | File | Goes to | What it does |
 |---|---|---|
-| `ufw.sh` | run once as root | Default deny in; 80/443 open; SSH from the admin addresses only; ICMP echo limited; new connections to 443 limited per address |
+| `ufw.sh` | run once as root | Default deny in; 80/443 open (443 to `WEB_CIDRS` only, 80 closed, when it is set: docs/62); SSH from the admin addresses only; ICMP echo limited; new connections to 443 limited per address |
 | `sysctl-bankfas.conf` | `/etc/sysctl.d/60-bankfas.conf` | SYN cookies, reverse-path filter, no redirects or source routes, larger SYN backlog |
 | `Caddyfile` | `/etc/caddy/Caddyfile` (Caddy on the host) | TLS with automatic certificates, JSON access log, timeouts, body limit, proxy to the API |
 | `compose.yml` | `/opt/bankfas/compose.yml` | The API and the worker on a fixed network, the API's port on loopback only, trusting the network's gateway (Caddy) only; images from `app/deploy/Dockerfile` (the API's carries Chromium and an Arabic font for the PDF, ADR 0051) |
@@ -20,6 +20,9 @@ record. Values between `<...>` are host-specific and are never written in the re
 | `api.env.example`, `worker.env.example` | `/opt/bankfas/api.env`, `/opt/bankfas/worker.env` (root, 600) | The settings of the two processes; each has only its own database logins (docs/54 H-05) |
 | `site.conf.example` | `/opt/bankfas/site.conf` (root, 600) | Every value of the host in one file (docs/55) |
 | `provision_app_host.sh` | run as root, again after any change of site.conf | Folders and owners, the master key once, the env files, compose.yml and the Caddyfile written from site.conf, the secrets put in place (docs/54 H-05) |
+| `Caddyfile.ip` | `/etc/caddy/Caddyfile` with `ACCESS=ip` (docs/62) | The private trial by address: the portal of one tenant on `https://<SERVER_IP>`, the operator panel on `https://admin.localhost:8443` bound to the loopback (SSH tunnel), certificates from Caddy's own authority (`tls internal`), no DNS module |
+| `trial_db_cert.sh` | run as root with `ACCESS=ip`, after SQL Server is installed | The trial's certificate authority, the database's certificate for `DB_HOST` signed by it and given to SQL Server, and the authority trusted on the host and in both containers; nothing trusts any certificate |
+| `show_mail.sh` | run as root with `ACCESS=ip` and no SMTP | The messages kept in `/srv/bankfas/mail`, newest first, with their links |
 | `check_ready.sh` | run as root before the first start and after every change | Read-only readiness: permissions, Production settings, the leaked-password list, images, Caddy, firewall, DNS, the database and the mail relay (docs/54 R-02a) |
 
 The application's own guard (per-address limit, temporary blocks, the security page of the operator panel) is in
@@ -40,5 +43,5 @@ The whole order, both servers, is `docs/54-deployment-runbook.md`.
 - **Database:** a certificate the containers trust on SQL Server (no `TrustServerCertificate` outside tests).
 - **Images:** built on the host or a build machine; behind a TLS-inspecting proxy pass its CA with
   `--secret id=extra_ca,src=<ca.pem>`, and without access to Playwright's servers pass Chromium with
-  `--build-context chromium=<path>/chrome-linux` (`app/deploy/Dockerfile`).
+  `--build-context chromium=<path>/chromium_headless_shell-<n>/chrome-linux` (`app/deploy/Dockerfile`).
 - **Pilot check of the images:** `tools/ci/image_pilot.sh` after `db_ci.sh` on a throwaway server.
