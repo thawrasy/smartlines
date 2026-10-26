@@ -46,7 +46,7 @@ function useLine() {
 
 // ------------------------------------------------------------------ dashboard
 export function CarrierDashboard() {
-  const { t, money, num, dateTime } = useI18n();
+  const { t, has, money, num, dateTime } = useI18n();
   const { me } = useAuth();
   const line = useLine();
   const state = useLoad(() => api.get<Dashboard>("/api/carrier/dashboard"));
@@ -87,7 +87,7 @@ export function CarrierDashboard() {
               <div className="card-title"><h3>{t("carrier.alerts")}</h3></div>
               {d.alerts.length === 0 ? <div className="alert ok"><Icon name="check_circle" />{t("carrier.noAlerts")}</div> : (
                 <div className="stack tight">{d.alerts.map((a, i) => (
-                  <div key={i} className="alert warn"><Icon name="warning" /><span>{a.subject} · {a.detail} · {a.at.slice(0, 10)}</span></div>
+                  <div key={i} className="alert warn"><Icon name="warning" /><span>{a.subject} · {has(`val.${a.detail}`) ? t(`val.${a.detail}`) : a.detail} · {a.at.slice(0, 10)}</span></div>
                 ))}</div>
               )}
             </div>
@@ -290,7 +290,7 @@ export function CarrierTrips() {
           <thead><tr><th>{t("booking.tripNo")}</th><th>{t("booking.departs")}</th><th>{t("carrier.route")}</th><th>{t("carrier.plate")}</th><th>{t("carrier.driver")}</th><th>{t("carrier.sold")}</th><th>{t("common.status")}</th><th>{t("common.actions")}</th></tr></thead>
           <tbody>{trips.map((x) => (
             <tr key={x.uid}>
-              <td className="mono small"><strong>{x.trip_code ?? x.trip_no}</strong>{x.trip_code && <div className="trip-ref">{x.trip_no}</div>}</td><td>{dateTime(x.departure_at)}{!!x.changes && <div><span className="chip wheat small">{t("tripChange.changed")}{x.shift_min ? ` ${x.shift_min > 0 ? "+" : ""}${x.shift_min}′` : ""}</span></div>}</td><td className="small">{line(x)}</td>
+              <td className="mono small"><strong>{x.trip_code ?? x.trip_no}</strong>{x.trip_code && <div className="trip-ref">{x.trip_no}</div>}</td><td>{dateTime(x.departure_at)}{!!x.changes && <div><span className="chip wheat small">{t("tripChange.changed")}{x.shift_min ? ` ${x.shift_min > 0 ? "+" : ""}${x.shift_min}′` : ""}</span></div>}</td><td className="small" style={{ minWidth: 240 }}>{line(x)}</td>
               <td className="mono">{x.plate_no}</td><td>{x.driver_name ?? <span className="muted">{t("carrier.noDriver")}</span>}</td>
               <td className="num">{x.sold}/{x.seats_total}</td><td><Status value={x.status} /></td>
               <td><div className="row nowrap" style={{ gap: 4 }}>

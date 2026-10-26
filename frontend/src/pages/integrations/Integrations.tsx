@@ -67,7 +67,7 @@ export function IntegrationsPage() {
             <thead><tr><th>{t("api.client")}</th><th>{t("api.kind")}</th><th>{t("api.scopesCol")}</th><th>{t("api.keysCol")}</th><th>{t("api.today")}</th><th>{t("common.status")}</th><th /></tr></thead>
             <tbody>{d.clients.map((c) => (
               <tr key={c.uid} className="clickable" onClick={() => setOpen(c.uid)}>
-                <td><strong>{c.name}</strong><div className="small muted">{c.company ?? c.authority ?? c.provider ?? ""}</div></td>
+                <td><strong>{c.name}</strong><div className={`small muted${c.company ? "" : " mono ltr"}`}>{c.company ?? c.authority ?? c.provider ?? ""}</div></td>
                 <td><span className="row" style={{ gap: 6 }}><Icon name={KIND_ICON[c.kind] ?? "api"} />{t(`api.kinds.${c.kind}`)}</span>
                   <div className="small muted">{t(`api.env.${c.environment}`)}</div></td>
                 <td className="small">{c.scopes.length}</td>

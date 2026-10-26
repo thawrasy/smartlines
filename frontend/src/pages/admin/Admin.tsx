@@ -246,7 +246,7 @@ function CompanyIdentity({ company, onClose }: { company: Company; onClose: () =
 }
 
 export function AdminStations() {
-  const { t, station, city, locale } = useI18n();
+  const { t, has, station, city, locale } = useI18n();
   const { can } = useAuth();
   const toast = useToast();
   const state = useLoad(() => api.get<{ stations: AdminStation[] }>("/api/admin/stations"));
@@ -291,7 +291,7 @@ export function AdminStations() {
             <tr key={s.uid}><td className="mono small">{s.code}</td><td>{station(s.code, s.name)}</td><td>{city(s.city_code)}</td>
               <td>{s.place_pcode ? <span>{placeName(s)} <span className="mono small muted">{s.place_pcode}</span></span>
                 : can("station.approve") && <button className="btn text small" onClick={() => { setPlacing(s); setPlace(null); }}>{t("geo.setPlace")}</button>}</td>
-              <td>{s.station_class}</td>
+              <td>{has(`val.${s.station_class}`) ? t(`val.${s.station_class}`) : s.station_class}</td>
               <td className="mono small ltr">{s.lat.toFixed(4)}, {s.lng.toFixed(4)}</td><td><Status value={s.status} /></td>
               <td>{can("station.approve") && <button className="btn text small" onClick={() => setEditing(s)}><Icon name="edit" />{t("edit.edit")}</button>}</td></tr>
           ))}</tbody>

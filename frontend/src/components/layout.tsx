@@ -51,7 +51,7 @@ export function PublicLayout() {
   const L = useLabels();
   const mine = passenger ? modules.filter((m) => m.resources.length > 0) : [];
   return (
-    <>
+    <div className="public-shell">
       <header className="topbar">
         <Brand />
         <nav className="topnav grow">
@@ -64,7 +64,7 @@ export function PublicLayout() {
           {passenger && mine.some((m) => m.key === "cargo" || m.key === "trip_parcels") && <NavLink to="/parcels">{t("nav.parcels")}</NavLink>}
           {mine.length > 0 && <ModulesMenu items={mine.map((m) => ({ to: `/m/${m.key}`, icon: m.icon as IconName, label: L.module(m.key) }))} />}
           {passenger && <NavLink to="/account">{t("nav.account")}</NavLink>}
-          <NavLink to="/verify">{t("nav.verify")}</NavLink>
+          {!passenger && <NavLink to="/verify">{t("nav.verify")}</NavLink>}
         </nav>
         <div className="row nowrap" style={{ gap: 4, marginInlineStart: "auto" }}>
           <LangSwitch />
@@ -112,7 +112,7 @@ export function PublicLayout() {
         </div>
       </footer>
       {passenger && <MobileNav services={mine.length ? "/services" : undefined} parcels={mine.some((m) => m.key === "cargo" || m.key === "trip_parcels")} />}
-    </>
+    </div>
   );
 }
 

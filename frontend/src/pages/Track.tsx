@@ -22,7 +22,7 @@ export default function Track() {
     <div className="page narrow stack">
       <PageHead title={t("wf.track.title")} sub={t("wf.track.sub")} />
       <form className="card row nowrap" onSubmit={(e) => { e.preventDefault(); if (q.trim()) nav(`/track/${q.trim().toUpperCase()}`); }}>
-        <input className="ltr mono" style={{ flex: 1, minWidth: 0 }} value={q} onChange={(e) => setQ(e.target.value)} placeholder="MS0000000000" aria-label={t("wf.track.number")} />
+        <input className="input ltr mono" style={{ flex: 1, minWidth: 0 }} value={q} onChange={(e) => setQ(e.target.value)} placeholder="MS0000000000" aria-label={t("wf.track.number")} />
         <button className="btn"><Icon name="search" />{t("wf.track.go")}</button>
       </form>
       {/* only "no such parcel" says so; a busy or unreachable service says that, with a retry (review of 1.47.0, R-36) */}

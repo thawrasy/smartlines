@@ -176,7 +176,7 @@ export function Stat({ icon, label, value, tone }: { icon: IconName; label: stri
   return (
     <div className={`stat ${tone ?? ""}`}>
       <div className="label"><span className="badge-ic"><Icon name={icon} size={20} /></span>{label}</div>
-      <div className="value">{value}</div>
+      <div className="value" title={typeof value === "string" || typeof value === "number" ? String(value) : undefined}>{value}</div>
     </div>
   );
 }

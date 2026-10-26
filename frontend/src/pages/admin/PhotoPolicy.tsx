@@ -62,6 +62,17 @@ function useRun() {
 
 const show = (v: unknown) => (v == null ? "—" : typeof v === "string" ? v : JSON.stringify(v));
 
+// A setting in plain terms: who may see the photo as chips, a provider by name, an empty value as a dash
+function SettingValue({ value }: { value: unknown }) {
+  const { t, has } = useI18n();
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return <span className="row" style={{ gap: 6, flexWrap: "wrap" }}>{Object.entries(value as Record<string, unknown>).map(([k, on]) => (
+      <span key={k} className={`chip ${on ? "green" : "outline"}`}><Icon name={on ? "check" : "close"} size={16} />{has(`photo.viewer.${k}`) ? t(`photo.viewer.${k}`) : k}</span>))}</span>;
+  }
+  if (value == null || value === "NONE") return <span className="muted">{t("photo.noneSet")}</span>;
+  return <span className="mono ltr">{show(value)}</span>;
+}
+
 // ------------------------------------------------------------------ the switch and its settings
 function PhotoSettings() {
   const { t } = useI18n();
@@ -102,7 +113,7 @@ function PhotoSettings() {
           <div className="table-wrap" tabIndex={0}><table className="table">
             <tbody>
               {SETTING_KEYS.map((k) => (
-                <tr key={k}><td>{t(`photo.key.${k.split(".")[1]}`)}</td><td className="mono small ltr">{show((d as unknown as Record<string, unknown>)[k.split(".")[1]])}</td>
+                <tr key={k}><td>{t(`photo.key.${k.split(".")[1]}`)}</td><td className="small"><SettingValue value={(d as unknown as Record<string, unknown>)[k.split(".")[1]]} /></td>
                   <td><button className="btn text small" onClick={() => { setF({ ...f, key: k, value: show((d as unknown as Record<string, unknown>)[k.split(".")[1]]) }); setAsk({ kind: "setting" }); }}>{t("photo.askChange")}</button></td></tr>
               ))}
               <tr><td>{t("photo.minAge")}</td><td>{d.identity_card_min_age ?? "—"}</td>
@@ -115,7 +126,7 @@ function PhotoSettings() {
             <h3 style={{ margin: 0 }}>{t("photo.kinds")}</h3>
             {d.kinds.map((k) => (
               <div key={k.code} className="row" style={{ justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
-                <span>{k.label}<span className="small muted"> · {k.code}</span></span>
+                <span>{k.label} <span className="small muted mono ltr">{k.code}</span></span>
                 <span className="row" style={{ gap: 6 }}><span className={`chip ${k.active ? "green" : ""}`}>{t(k.active ? "photo.accepted" : "photo.notAccepted")}</span>
                   <button className="btn text small" onClick={() => setAsk({ kind: "kind", code: k.code })}>{t("photo.askChange")}</button></span>
               </div>

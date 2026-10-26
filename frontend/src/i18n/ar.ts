@@ -116,6 +116,7 @@ const ar: Messages = {
   },
   station: { central: "محطة {city} المركزية", numbered: "محطة {city} {n}" },
   status: {
+    PENDING_REVIEW: "بانتظار المراجعة",
     IN_MAINTENANCE: "في الصيانة", PICKED_UP: "مع المستأجر", RETURNED: "أُعيدت", OUT_OF_SERVICE: "خارج الخدمة", EXPIRING: "قارب الانتهاء",
     HOLD: "محجوز",
     INVITED: "مدعو",
@@ -138,7 +139,7 @@ const ar: Messages = {
     QUOTED: "مسعَّر", DECLINED: "مرفوض", WITHDRAWN: "مسحوب", ARCHIVED: "مؤرشف", PAUSED: "موقوف مؤقتاً",
     REQUESTED: "مقدَّم", PAID: "مدفوع", DISPUTED: "معترض عليه", REFUNDED: "مسترد", MAINTENANCE: "صيانة", OPEN: "مفتوح", RESOLVED: "محلول", ERROR: "خطأ",
   },
-  txn: { SHIPMENT_PAY: "إرسال طرد", SUBSCRIPTION_PAY: "اشتراك نقل ترددي", BOOKING_PAY: "حجز رحلة", REFUND: "استرداد", TOPUP: "شحن المحفظة", RELEASE: "تسوية", PAYOUT: "صرف مصرفي", LOYALTY_REDEEM: "استبدال نقاط",
+  txn: { CANCEL_PENALTY: "رسم إلغاء", SHIPMENT_PAY: "إرسال طرد", SUBSCRIPTION_PAY: "اشتراك نقل ترددي", BOOKING_PAY: "حجز رحلة", REFUND: "استرداد", TOPUP: "شحن المحفظة", RELEASE: "تسوية", PAYOUT: "صرف مصرفي", LOYALTY_REDEEM: "استبدال نقاط",
          CHARTER_PAY: "استئجار", CHARTER_REFUND: "استرداد استئجار", CHARTER_RELEASE: "تسوية استئجار" },
   service: { DIRECT: "مباشرة", INDIRECT: "مع توقفات" },
   errors: {
@@ -4516,6 +4517,9 @@ const ar: Messages = {
     commission: "عمولة المنصة (%)", commissionHint: "تُقتطع من مستحقات الناقل عند إنجاز الاستئجار.",
   },
   photo: {
+    viewer: { AGENT: "موظفو الوكالة", TRAVELLER: "المسافر نفسه", TRAVELER: "المسافر نفسه", DRIVER_AT_BOARDING: "السائق عند الصعود", CARRIER_OFFICE_AT_BOARDING: "مكتب الناقل عند الصعود",
+              STATION_COUNTER_AT_CHECKIN: "شباك المحطة عند تسجيل الوصول" },
+    noneSet: "غير محدد",
     nav: "صورة الصعود", title: "سياسة صورة الصعود",
     sub: "استخدام صورة الصعود ومن يحق له رؤيتها، والقواعد التي تشترطها، واستبدال صورة محفوظة. يمر كل تغيير بمراحل الموافقة التي تحددها المنصة، ولا يكون طالب التغيير إحداها.",
     tab: { settings: "التشغيل والإعدادات", rules: "القواعد", policy: "تغييرات السياسة", changes: "استبدال الصور" },

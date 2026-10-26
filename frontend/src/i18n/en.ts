@@ -114,6 +114,7 @@ const en = {
   },
   station: { central: "{city} Central Station", numbered: "{city} Station {n}" },
   status: {
+    PENDING_REVIEW: "Waiting for review",
     IN_MAINTENANCE: "In the workshop", PICKED_UP: "With the renter", RETURNED: "Returned", OUT_OF_SERVICE: "Out of service", EXPIRING: "Expiring",
     HOLD: "Reserved",
     INVITED: "Invited",
@@ -136,7 +137,7 @@ const en = {
     QUOTED: "Priced", DECLINED: "Declined", WITHDRAWN: "Withdrawn", ARCHIVED: "Archived", PAUSED: "Paused",
     REFUNDED: "Refunded", REQUESTED: "Requested", PAID: "Paid", DISPUTED: "Disputed", MAINTENANCE: "Maintenance", OPEN: "Open", RESOLVED: "Resolved", ERROR: "Error",
   },
-  txn: { SHIPMENT_PAY: "Parcel", SUBSCRIPTION_PAY: "Shuttle pass", BOOKING_PAY: "Trip booking", REFUND: "Refund", TOPUP: "Wallet top-up", RELEASE: "Settlement", PAYOUT: "Bank payout", LOYALTY_REDEEM: "Points redeemed",
+  txn: { CANCEL_PENALTY: "Cancellation charge", SHIPMENT_PAY: "Parcel", SUBSCRIPTION_PAY: "Shuttle pass", BOOKING_PAY: "Trip booking", REFUND: "Refund", TOPUP: "Wallet top-up", RELEASE: "Settlement", PAYOUT: "Bank payout", LOYALTY_REDEEM: "Points redeemed",
          CHARTER_PAY: "Charter", CHARTER_REFUND: "Charter refund", CHARTER_RELEASE: "Charter settlement" },
   service: { DIRECT: "Direct", INDIRECT: "With stops" },
   errors: {
@@ -943,7 +944,7 @@ const en = {
 
   } as Record<string, string>,
   val: {
-
+    HIGH: "High", MEDIUM: "Medium", LOW: "Low", CENTRAL: "Central", COMPANY: "Company", EXTERNAL: "External",
   } as Record<string, string>,
   act: {
     bus_checked_empty: "Bus checked empty", send_to_finance: "Send to finance", give_consent: "Give consent", refuse_consent: "Refuse consent",
@@ -4076,6 +4077,9 @@ const en = {
     commission: "Platform commission (%)", commissionHint: "Taken from the carrier's payment when a charter is done.",
   },
   photo: {
+    viewer: { AGENT: "Agency staff", TRAVELLER: "The traveller", TRAVELER: "The traveller", DRIVER_AT_BOARDING: "Driver, at boarding", CARRIER_OFFICE_AT_BOARDING: "Carrier office, at boarding",
+              STATION_COUNTER_AT_CHECKIN: "Station counter, at check-in" },
+    noneSet: "None set",
     nav: "Boarding photo", title: "Boarding photo policy",
     sub: "Whether a boarding photo is used, who may see it, the rules that require it and the replacement of a photo on file. Every change passes the platform's approval stages; whoever asks is never one of them.",
     tab: { settings: "Switch and settings", rules: "Rules", policy: "Policy changes", changes: "Photo replacement" },

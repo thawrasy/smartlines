@@ -134,9 +134,10 @@ td.ltr, th.ltr { display: table-cell; text-align: start; }
 .card-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
 .divider { height: 1px; background: var(--divider); margin: 8px 0; }
 
-.stat { background: var(--surface); border-radius: var(--radius-m); padding: 20px; box-shadow: var(--shadow-1); }
+.stat { background: var(--surface); border-radius: var(--radius-m); padding: 20px; box-shadow: var(--shadow-1); container-type: inline-size; min-width: 0; }
 .stat .label { color: var(--on-surface-variant); font-size: 13px; display: flex; align-items: center; gap: 8px; }
-.stat .value { font-size: 28px; font-weight: 700; margin-top: 6px; font-variant-numeric: tabular-nums; font-family: var(--font-display); color: var(--brand-navy); }
+/* an amount and its currency stay on one line: the figure shrinks with its card */
+.stat .value { font-size: clamp(18px, 9cqi, 28px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 700; margin-top: 6px; font-variant-numeric: tabular-nums; font-family: var(--font-display); color: var(--brand-navy); }
 .stat .badge-ic { width: 36px; height: 36px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center;
   background: var(--primary-container); color: var(--on-primary-container); }
 .stat.wheat .badge-ic { background: var(--secondary-container); color: var(--on-secondary-container); }
@@ -199,8 +200,10 @@ table.table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .brand-name { height: 24px; width: auto; display: block; }
 .brand-latin { height: 13px; width: auto; display: block; opacity: .6; margin-top: 8px; }
 .brand-sub { font-size: 12px; font-weight: 400; color: var(--on-surface-variant); }
-.topnav { display: flex; gap: 4px; }
-.topnav a { position: relative; padding: 23px 12px; color: var(--on-surface-variant); font-weight: 500; font-size: 14px; }
+/* one line of links: past the width they scroll sideways instead of breaking a label in two */
+.topnav { display: flex; gap: 2px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.topnav::-webkit-scrollbar { display: none; }
+.topnav a { position: relative; padding: 23px 10px; white-space: nowrap; flex: none; color: var(--on-surface-variant); font-weight: 500; font-size: 14px; }
 .topnav a:hover { color: var(--on-surface); text-decoration: none; }
 .topnav a.active { color: var(--on-surface); font-weight: 600; }
 .topnav a.active::after { content: ""; position: absolute; inset-inline: 12px; bottom: 0; height: 2px; border-radius: 2px; background: var(--primary); }
@@ -411,6 +414,11 @@ table.table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .bar-row { display: grid; grid-template-columns: 140px 1fr 56px; gap: 12px; align-items: center; font-size: 14px; }
 .bar-track { height: 10px; border-radius: 5px; background: var(--surface-container-high); overflow: hidden; }
 .bar-fill { height: 100%; border-radius: 5px; background: var(--primary); }
+/* the footer sits at the bottom of the window even when a page is short */
+.public-shell { min-height: 100vh; display: flex; flex-direction: column; }
+.public-shell > .footer { margin-top: auto; }
+/* centred blocks keep the full width a column layout would otherwise shrink to their content */
+.public-shell > :not(.footer):not(.alert):not(.topbar) { width: 100%; min-width: 0; box-sizing: border-box; }
 .footer { border-top: 1px solid var(--divider); background: var(--surface); padding: 32px max(24px, calc((100vw - 1200px) / 2)); color: var(--on-surface-variant); font-size: 13px; }
 .feature { display: flex; gap: 14px; align-items: flex-start; }
 .feature .badge-ic { width: 44px; height: 44px; border-radius: 12px; flex: none; display: inline-flex; align-items: center; justify-content: center; background: var(--primary-container); color: var(--on-primary-container); }
@@ -685,3 +693,12 @@ tr.clickable:hover td { background: var(--surface-container-low, rgba(10, 91, 21
 /* parcel label (1147): printed on the counter's printer and stuck on the parcel */
 .parcel-label { border: 2px dashed var(--outline); border-radius: 12px; padding: 16px; }
 .parcel-label img { image-rendering: pixelated; }
+
+/* File pickers in the identity: the browser's own button becomes a tonal button, the field a dashed drop area */
+input[type="file"] { font: inherit; font-size: 13px; color: var(--on-surface-variant); max-width: 100%; padding: 6px; border: 1px dashed var(--outline-variant);
+  border-radius: var(--radius-s, 8px); background: var(--surface-container-low, var(--surface)); cursor: pointer; }
+input[type="file"]:hover { border-color: var(--primary); }
+input[type="file"]:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+input[type="file"]::file-selector-button { font: inherit; font-weight: 600; margin-inline-end: 12px; padding: 8px 14px; border: 0; border-radius: 999px;
+  background: var(--primary-container, var(--surface-container)); color: var(--on-primary-container, var(--primary)); cursor: pointer; }
+input[type="file"]::file-selector-button:hover { filter: brightness(.96); }
