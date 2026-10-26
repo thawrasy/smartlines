@@ -15,4 +15,4 @@ owner's notes. This file records what the code now does about each finding and w
 | Containers ran with default privileges | The API and the worker run read-only with a 64 MB private `/tmp`, no Linux capabilities and `no-new-privileges`; PgBouncer, the egress proxy and Caddy get `no-new-privileges`. The one-off restore container asks back the three capabilities it needs. | `docker-compose.yml`, `deploy/restore.sh` |
 
 Server-side steps (SSH keys only, no root login, SSH banner, closing the document on the trial server) are done with
-the owner present (wave 9 of the plan) and need no code change.
+the owner present (wave 9 of the plan, `docs/security/SSH_HARDENING.md`, `deploy/ssh-harden.sh`).
