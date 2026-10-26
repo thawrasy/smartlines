@@ -89,7 +89,7 @@ export function CodeChanges({ onChange }: { onChange: () => void }) {
               <td><span className="chip">{t(`codes.status.${c.status}`)}</span>
                 <div className="small muted">{c.requested_by}{c.decided_by ? ` / ${c.decided_by}` : ""}</div>
                 {c.decision_note && <div className="small muted">{c.decision_note}</div>}
-                {c.failure && <div className="small" style={{ color: "var(--danger)" }}>{c.failure}</div>}</td>
+                {c.failure && <div className="small" style={{ color: "var(--error)" }}>{c.failure}</div>}</td>
               <td className="row" style={{ gap: 4 }}>
                 {c.status === "PENDING" && !c.mine && <button className="btn text small" onClick={() => setDeciding(c)}>{t("codes.decide")}</button>}
                 {OPEN.includes(c.status) && c.mine && <button className="btn text small" disabled={busy} onClick={() => cancel(c)}>{t("codes.cancel")}</button>}

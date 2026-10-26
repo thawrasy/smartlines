@@ -111,7 +111,7 @@ function PolicyModal({ p, onClose, onDone }: { p: Policy; onClose: () => void; o
       actions={<><button className="btn text" onClick={onClose}>{t("common.cancel")}</button><button className="btn" onClick={save}>{t("common.save")}</button></>}>
       <p className="small muted">{t("approval.editHint")}</p>
       {levels.map((l, i) => (
-        <div key={i} className="grid cols-2" style={{ borderTop: "1px solid var(--line)", paddingTop: 8 }}>
+        <div key={i} className="grid cols-2" style={{ borderTop: "1px solid var(--outline-variant)", paddingTop: 8 }}>
           <Field label={t("approval.levelN", { n: i + 1 })}><input className="input" value={l.name} maxLength={80} onChange={(e) => set(i, { name: e.target.value })} /></Field>
           <Field label={t("approval.permission")}>
             <select value={l.permission} onChange={(e) => set(i, { permission: e.target.value })}>

@@ -7,7 +7,9 @@ It fails when
   rings (outline and primary on every surface);
 * the web theme (frontend/src/theme.css) gives a token a value other than the token's light value;
 * the mobile theme (mobile/src/ui/theme.ts) uses a colour that is not a token's light value, or maps a role to the
-  wrong token.
+  wrong token;
+* a screen (frontend/src/**/*.tsx) names a CSS variable the web theme does not define: the browser then draws nothing
+  (a warning text with no colour), and an old fallback colour of another palette shows instead.
 
     python3 scripts/check_design_tokens.py [--table]      --table prints every pair with its ratio
 """
@@ -79,6 +81,13 @@ def main() -> int:
             bad.append(f"mobile theme: {name} is {value}, it stands for {MOBILE_ROLES[name]} = {light[MOBILE_ROLES[name]]}")
         elif value.upper() not in known:
             bad.append(f"mobile theme: {name} = {value} is not a token colour")
+
+    web_text = WEB.read_text()
+    defined = set(re.findall(r"--([a-z0-9-]+)\s*:", web_text))
+    for f in sorted((ROOT / "frontend" / "src").rglob("*.tsx")):
+        for name in sorted(set(re.findall(r"var\(--([a-z0-9-]+)", f.read_text()))):
+            if name not in defined:
+                bad.append(f"{f.relative_to(ROOT)}: var(--{name}) is not defined in the web theme")
 
     if "--table" in sys.argv:
         print("\n".join(rows))

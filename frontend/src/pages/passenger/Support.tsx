@@ -22,7 +22,7 @@ function Stars({ value, onChange, label }: { value: number; onChange: (v: number
     <div className="row" role="radiogroup" aria-label={label} style={{ gap: 2 }}>
       {[1, 2, 3, 4, 5].map((n) => (
         <button key={n} type="button" className="btn text icon" role="radio" aria-checked={value === n} aria-label={`${n}`}
-                onClick={() => onChange(n)} style={{ color: n <= value ? "var(--wheat, #c9a227)" : "var(--muted, #999)", padding: 2 }}>
+                onClick={() => onChange(n)} style={{ color: n <= value ? "var(--brand-gold)" : "var(--on-surface-variant)", padding: 2 }}>
           <Icon name="star" size={26} />
         </button>
       ))}
@@ -139,7 +139,7 @@ function Thread({ uid, onClose, changed }: { uid: string; onClose: () => void; c
             {messages.length === 0 && <div className="small muted">{t("support.noReplies")}</div>}
             {messages.map((m, i) => (
               <div key={i} className="card" style={{ alignSelf: m.mine ? "flex-end" : "flex-start", maxWidth: "85%",
-                                                     background: m.mine ? "var(--surface-2, #f3f6fb)" : undefined }}>
+                                                     background: m.mine ? "var(--surface-container)" : undefined }}>
                 <div className="small muted">{m.mine ? t("support.you") : t("support.team")} · {dateTime(m.created_at)}</div>
                 <div style={{ whiteSpace: "pre-wrap" }}>{m.body}</div>
               </div>

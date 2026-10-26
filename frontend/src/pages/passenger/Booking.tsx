@@ -24,7 +24,7 @@ function RotatingQr({ ticket }: { ticket: Ticket }) {
     const load = async () => {
       try {
         const r = await api.get<{ token: string; valid_until: number; window: number }>(`${ch.api}/tickets/${ticket.uid}/qr`);
-        const url = await QRCode.toDataURL(r.token, { margin: 1, width: 440, errorCorrectionLevel: "M", color: { dark: "#00382A", light: "#FFFFFF" } });
+        const url = await QRCode.toDataURL(r.token, { margin: 1, width: 440, errorCorrectionLevel: "M", color: { dark: "#0B1F3F", light: "#FFFFFF" } });
         if (!live) return;
         setImg(url); setError(null);
         const ms = r.valid_until * 1000;
@@ -64,7 +64,7 @@ function PaperCode({ ticket }: { ticket: Ticket }) {
   useEffect(() => {
     let live = true;
     api.get<{ credential: string }>(`${ch.api}/tickets/${ticket.uid}/offline`)
-      .then((r) => QRCode.toDataURL(r.credential, { margin: 1, width: 440, errorCorrectionLevel: "M", color: { dark: "#00382A", light: "#FFFFFF" } }))
+      .then((r) => QRCode.toDataURL(r.credential, { margin: 1, width: 440, errorCorrectionLevel: "M", color: { dark: "#0B1F3F", light: "#FFFFFF" } }))
       .then((url) => { if (live) setImg(url); })
       .catch((e) => {
         if (!live) return;

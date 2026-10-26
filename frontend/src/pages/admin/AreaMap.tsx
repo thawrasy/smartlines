@@ -72,11 +72,11 @@ function Drawing({ d, name, hover, setHover, onOpen }: {
   return (
     <div className="stack tight">
       <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t("geo.mapOf", { name: d.area.name_en ? name(d.area) : t("geo.country") })}
-           style={{ width: "100%", height: "auto", background: "var(--surface-2, #f4f6f8)", borderRadius: 12 }}>
-        {d.area.boundary && <path d={view.path(d.area.boundary)} fill="var(--primary-soft, #e3eefc)" stroke="var(--primary, #1a5fb4)" strokeWidth={2} fillRule="evenodd" />}
+           style={{ width: "100%", height: "auto", background: "var(--surface-container)", borderRadius: 12 }}>
+        {d.area.boundary && <path d={view.path(d.area.boundary)} fill="var(--primary-soft)" stroke="var(--primary)" strokeWidth={2} fillRule="evenodd" />}
         {d.children.map((c) => c.boundary ? (
           <path key={c.pcode} d={view.path(c.boundary)} fillRule="evenodd" tabIndex={drilling ? 0 : undefined} role={drilling ? "button" : undefined}
-                aria-label={name(c)} fill={hover === name(c) ? "rgba(26,95,180,0.18)" : "rgba(26,95,180,0.05)"} stroke="var(--primary, #1a5fb4)" strokeWidth={0.8}
+                aria-label={name(c)} fill={hover === name(c) ? "var(--primary-soft)" : "transparent"} stroke="var(--primary)" strokeWidth={0.8}
                 style={{ cursor: drilling ? "pointer" : "default" }}
                 onMouseEnter={() => setHover(name(c))} onMouseLeave={() => setHover(null)} onFocus={() => setHover(name(c))} onBlur={() => setHover(null)}
                 onClick={() => drilling && onOpen(c.pcode, name(c))} onKeyDown={(e) => drilling && e.key === "Enter" && onOpen(c.pcode, name(c))}>
@@ -88,7 +88,7 @@ function Drawing({ d, name, hover, setHover, onOpen }: {
           return (
             <g key={c.pcode} tabIndex={drilling ? 0 : undefined} role={drilling ? "button" : undefined} aria-label={name(c)} style={{ cursor: drilling ? "pointer" : "default" }}
                onClick={() => drilling && onOpen(c.pcode, name(c))} onKeyDown={(e) => drilling && e.key === "Enter" && onOpen(c.pcode, name(c))}>
-              <circle cx={x} cy={y} r={10} fill="rgba(26,95,180,0.12)" stroke="var(--primary, #1a5fb4)" />
+              <circle cx={x} cy={y} r={10} fill="var(--primary-soft)" stroke="var(--primary)" />
               <text x={x} y={y - 14} textAnchor="middle" fontSize={12} fill="currentColor">{name(c)}</text>
             </g>
           );
@@ -97,8 +97,8 @@ function Drawing({ d, name, hover, setHover, onOpen }: {
           const [x, y] = view.at(Number(p.lng), Number(p.lat));
           const city = !!p.city_code;
           return (
-            <circle key={p.pcode} cx={x} cy={y} r={city ? 5 : 2.5} fill={p.status === "PROPOSED" ? "#c88a12" : city ? "#2e7d32" : "#5f6b7a"}
-                    stroke="#fff" strokeWidth={city ? 1.5 : 0.5} onMouseEnter={() => setHover(`${name(p)}${p.city_code ? ` (${p.city_code})` : ""}`)} onMouseLeave={() => setHover(null)}>
+            <circle key={p.pcode} cx={x} cy={y} r={city ? 5 : 2.5} fill={p.status === "PROPOSED" ? "var(--brand-gold)" : city ? "var(--success)" : "var(--on-surface-variant)"}
+                    stroke="var(--surface)" strokeWidth={city ? 1.5 : 0.5} onMouseEnter={() => setHover(`${name(p)}${p.city_code ? ` (${p.city_code})` : ""}`)} onMouseLeave={() => setHover(null)}>
               <title>{`${name(p)} · ${p.pcode}${p.city_code ? ` · ${p.city_code}` : ""}`}</title>
             </circle>
           );
@@ -106,7 +106,7 @@ function Drawing({ d, name, hover, setHover, onOpen }: {
         {d.stations.map((s) => {
           const [x, y] = view.at(Number(s.lng), Number(s.lat));
           return (
-            <rect key={s.code} x={x - 5} y={y - 5} width={10} height={10} rx={2} fill="#b3261e" stroke="#fff" strokeWidth={1.5}
+            <rect key={s.code} x={x - 5} y={y - 5} width={10} height={10} rx={2} fill="var(--error)" stroke="var(--surface)" strokeWidth={1.5}
                   onMouseEnter={() => setHover(`${s.code} · ${s.name}`)} onMouseLeave={() => setHover(null)}>
               <title>{`${s.code} · ${s.name}`}</title>
             </rect>
@@ -115,10 +115,10 @@ function Drawing({ d, name, hover, setHover, onOpen }: {
       </svg>
       <div className="row small" style={{ gap: 16, flexWrap: "wrap", alignItems: "center" }}>
         <span className="muted" aria-live="polite" style={{ minHeight: "1.2em", flex: 1 }}>{label || (drilling ? t("geo.mapHint") : "")}</span>
-        <span className="row" style={{ gap: 4 }}><svg width={12} height={12} aria-hidden><circle cx={6} cy={6} r={5} fill="#2e7d32" /></svg>{t("geo.mapCity")}</span>
-        <span className="row" style={{ gap: 4 }}><svg width={12} height={12} aria-hidden><circle cx={6} cy={6} r={3} fill="#5f6b7a" /></svg>{t("geo.mapPlace")}</span>
-        <span className="row" style={{ gap: 4 }}><svg width={12} height={12} aria-hidden><circle cx={6} cy={6} r={4} fill="#c88a12" /></svg>{t("geo.mapProposed")}</span>
-        <span className="row" style={{ gap: 4 }}><svg width={12} height={12} aria-hidden><rect x={1} y={1} width={10} height={10} rx={2} fill="#b3261e" /></svg>{t("geo.mapStation")}</span>
+        <span className="row" style={{ gap: 4 }}><svg width={12} height={12} aria-hidden><circle cx={6} cy={6} r={5} fill="var(--success)" /></svg>{t("geo.mapCity")}</span>
+        <span className="row" style={{ gap: 4 }}><svg width={12} height={12} aria-hidden><circle cx={6} cy={6} r={3} fill="var(--on-surface-variant)" /></svg>{t("geo.mapPlace")}</span>
+        <span className="row" style={{ gap: 4 }}><svg width={12} height={12} aria-hidden><circle cx={6} cy={6} r={4} fill="var(--brand-gold)" /></svg>{t("geo.mapProposed")}</span>
+        <span className="row" style={{ gap: 4 }}><svg width={12} height={12} aria-hidden><rect x={1} y={1} width={10} height={10} rx={2} fill="var(--error)" /></svg>{t("geo.mapStation")}</span>
       </div>
       {!d.area.boundary && d.children.every((c) => !c.boundary) && <p className="small muted" style={{ margin: 0 }}>{t("geo.mapNoShapes")}</p>}
     </div>

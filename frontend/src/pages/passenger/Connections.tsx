@@ -108,7 +108,7 @@ export function ConnectionOptions({ from, to, on, pax }: { from: string; to: str
 export function RiskNotice({ accepted, onChange, flexible }: { accepted: boolean; onChange: (v: boolean) => void; flexible: boolean }) {
   const { t } = useI18n();
   return (
-    <div className="card stack" role="region" aria-labelledby="risk-title" style={{ borderInlineStart: "4px solid var(--warning, #c88a12)" }}>
+    <div className="card stack" role="region" aria-labelledby="risk-title" style={{ borderInlineStart: "4px solid var(--secondary)" }}>
       <h3 id="risk-title" className="row" style={{ gap: 8, margin: 0 }}><Icon name="warning" />{t("conn.risks.title")}</h3>
       <ul className="small" style={{ margin: 0, paddingInlineStart: 20 }}>
         <li>{t("conn.risks.own")}</li>

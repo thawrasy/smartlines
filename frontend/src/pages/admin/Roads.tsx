@@ -24,7 +24,7 @@ interface Correction { uid: string; road: string; seq: number | null; kind: stri
 interface Verification { uid: string; road: string; from_status: string; to_status: string; document_ref: string; note: string | null; status: string;
   requested_at: string; requested_by: string; decided_by: string | null; decision_note: string | null; mine: boolean }
 
-const COLOURS: Record<Cls, string> = { INTERNATIONAL: "var(--brand, #0b6e4f)", MAIN: "#c27c0e", SECONDARY: "#6b7280", URBAN: "#2563eb" };
+const COLOURS: Record<Cls, string> = { INTERNATIONAL: "var(--primary)", MAIN: "var(--brand-gold)", SECONDARY: "var(--on-surface-variant)", URBAN: "var(--tertiary)" };
 
 export function AdminRoads() {
   return <RoadsGuide portal="PLATFORM" />;
@@ -149,7 +149,7 @@ function NetworkMap({ data, selected, onPick }: { data: MapData; selected: strin
   return (
     <div className="card stack">
       <h3 style={{ margin: 0 }}>{t("roads.map")}</h3>
-      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t("roads.map")} style={{ width: "100%", height: "auto", background: "var(--surface-2, #f6f7f5)", borderRadius: 8 }}>
+      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t("roads.map")} style={{ width: "100%", height: "auto", background: "var(--surface-container)", borderRadius: 8 }}>
         {data.roads.map((r) => (
           <polyline key={r.code} points={r.line.map(([lng, lat]) => box(lng, lat).join(",")).join(" ")} fill="none"
                     stroke={COLOURS[r.road_class]} strokeWidth={selected === r.code ? 5 : r.road_class === "INTERNATIONAL" ? 3 : 2}
@@ -159,7 +159,7 @@ function NetworkMap({ data, selected, onPick }: { data: MapData; selected: strin
         ))}
         {data.junctions.map((j) => {
           const [x, y] = box(Number(j.lng), Number(j.lat));
-          return <circle key={j.pcode} cx={x} cy={y} r={2 + Number(j.roads)} fill="#fff" stroke="#111" strokeWidth={1}><title>{locale === "ar" ? j.name_ar : j.name_en}</title></circle>;
+          return <circle key={j.pcode} cx={x} cy={y} r={2 + Number(j.roads)} fill="var(--surface)" stroke="var(--on-surface)" strokeWidth={1}><title>{locale === "ar" ? j.name_ar : j.name_en}</title></circle>;
         })}
       </svg>
       <div className="row small" style={{ gap: 16, flexWrap: "wrap" }}>
