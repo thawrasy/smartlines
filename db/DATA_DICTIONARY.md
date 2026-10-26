@@ -2,7 +2,7 @@
 
 > Generated from the built database (`db/tools/gen_docs.py`); do not edit by hand.
 
-**629 tables, 6905 columns, in 26 schemas.**
+**637 tables, 6999 columns, in 26 schemas.**
 
 Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant isolation (RLS) · 🧩 partitioned monthly · 🔒 append-only / change-protected
 
@@ -22,7 +22,7 @@ Legend: 🔑 primary key · 🔗 foreign key · ✱ required · 🛡️ tenant i
 - [`crm` — Complaints, ratings, notifications, the AI assistant and the contact center](#crm) (19 tables)
 - [`gov` — Governance, obligations and data protection](#gov) (15 tables)
 - [`sec` — Security: IP rules, risk, signing, the security hub and government adapters](#sec) (34 tables)
-- [`ptn` — Service partners: fuel stations, rest stops and maintenance](#ptn) (17 tables)
+- [`ptn` — Service partners: fuel stations, rest stops and maintenance](#ptn) (25 tables)
 - [`ship` — Shipments and the integrated shipping network](#ship) (59 tables)
 - [`frt` — Trucking, heavy transport and transit freight](#frt) (31 tables)
 - [`brd` — Border manifest gateway](#brd) (12 tables)
@@ -8384,6 +8384,8 @@ Virtual fuel card of a carrier, bound to a vehicle or a driver, with limits
 | `budget_litres` | `numeric(8,2)` |  |  |
 | `blocked_reason` | `text` |  |  |
 | `blocked_at` | `timestamp with time zone` |  |  |
+| `valid_until` | `date` |  |  |
+| `paused_reason` | `text` |  |  |
 
 ### `ptn.fuel_card_tag` 🛡️
 
@@ -8399,6 +8401,59 @@ The NFC tag of a vehicle's fuel card, as the hash of the random identifier it ho
 | `bound_at` | `timestamp with time zone` | ✱ | `now()` |
 | `unbound_at` | `timestamp with time zone` |  |  |
 | `unbound_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `tag_id` | `bigint` | 🔗 `ptn.fuel_tag`  |  |
+
+### `ptn.fuel_challenge` 🛡️
+
+What one identification at the pump asks of the fill that follows: the pump's QR, the odometer's photo, from the risk worked out; used once, within minutes (1181)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `partner_id` | `bigint` | 🔗 `ptn.partner` ✱ |  |
+| `card_id` | `bigint` | 🔗 `ptn.fuel_card` ✱ |  |
+| `user_id` | `bigint` | 🔗 `iam.app_user` ✱ |  |
+| `identified_by` | `text` | ✱ |  |
+| `tag_kind` | `text` |  |  |
+| `risk` | `smallint` | ✱ |  |
+| `factors` | `jsonb` | ✱ | `'{}'::jsonb` |
+| `sampled` | `boolean` | ✱ | `false` |
+| `need_pump_qr` | `boolean` | ✱ |  |
+| `need_odometer_photo` | `boolean` | ✱ |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+| `expires_at` | `timestamp with time zone` | ✱ |  |
+| `used_at` | `timestamp with time zone` |  |  |
+
+### `ptn.fuel_commission` 🛡️
+
+The platform's commission due on a fill, from the carrier (its subscription) and from the fuel company (its terms); void when the fill is given back (1181)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `sale_id` | `bigint` | 🔗 `ptn.partner_sale` ✱ |  |
+| `side` | `text` | ✱ |  |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `pct` | `numeric(5,2)` | ✱ |  |
+| `amount` | `bigint` | ✱ |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ |  |
+| `status` | `text` | ✱ | `'DUE'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ptn.fuel_company_terms` 🛡️
+
+The platform's commission on a fuel company's fills, agreed in its contract, from a date (1181)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `fuel_company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `commission_pct` | `numeric(5,2)` | ✱ |  |
+| `valid_from` | `date` | ✱ |  |
+| `note` | `text` |  |  |
+| `set_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `ptn.fuel_price` 🛡️
 
@@ -8412,6 +8467,38 @@ The NFC tag of a vehicle's fuel card, as the hash of the random identifier it ho
 | `unit_price` | `bigint` | ✱ |  |
 | `currency` | `character(3)` | 🔗 `ref.currency` ✱ | `'SYP'::bpchar` |
 | `valid_from` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ptn.fuel_pump` 🛡️
+
+The pumps of a fuel station; each carries a signed QR sticker beside its meter (1181)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `partner_id` | `bigint` | 🔗 `ptn.partner` ✱ |  |
+| `pump_no` | `smallint` | ✱ |  |
+| `qr_version` | `smallint` | ✱ | `1` |
+| `status` | `text` | ✱ | `'ACTIVE'::text` |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
+
+### `ptn.fuel_pump_txn` 🛡️
+
+Each delivery the station's pump controller reported: pump, litres, amount, totalizer; matched with the attendant's fill (1181)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `partner_id` | `bigint` | 🔗 `ptn.partner` ✱ |  |
+| `pump_id` | `bigint` | 🔗 `ptn.fuel_pump` ✱ |  |
+| `controller_ref` | `text` | ✱ |  |
+| `fuel_type` | `text` | ✱ |  |
+| `litres` | `numeric(8,2)` | ✱ |  |
+| `amount` | `bigint` |  |  |
+| `totalizer` | `numeric(14,2)` |  |  |
+| `ended_at` | `timestamp with time zone` | ✱ |  |
+| `received_at` | `timestamp with time zone` | ✱ | `now()` |
+| `sale_id` | `bigint` | 🔗 `ptn.partner_sale`  |  |
 
 ### `ptn.fuel_session` 🛡️
 
@@ -8431,6 +8518,61 @@ Refuelling session that precedes the sale and carries the odometer evidence (14.
 | `opened_at` | `timestamp with time zone` | ✱ | `now()` |
 | `closed_at` | `timestamp with time zone` |  |  |
 | `status` | `text` | ✱ | `'OPEN'::text` |
+
+### `ptn.fuel_subscription` 🛡️
+
+A carrier's subscription to the fuel service for its vehicles, paid to the platform in advance; the platform's commission on its fills is agreed here (1181)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `company_id` | `bigint` | 🔗 `iam.company` ✱ |  |
+| `period` | `text` | ✱ |  |
+| `vehicles` | `integer` | ✱ |  |
+| `price_per_vehicle` | `bigint` |  |  |
+| `amount` | `bigint` |  |  |
+| `currency` | `character(3)` | 🔗 `ref.currency` ✱ |  |
+| `commission_pct` | `numeric(5,2)` |  |  |
+| `starts_on` | `date` | ✱ |  |
+| `ends_on` | `date` | ✱ |  |
+| `status` | `text` | ✱ | `'REQUESTED'::text` |
+| `requested_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `requested_at` | `timestamp with time zone` | ✱ | `now()` |
+| `paid_reference` | `text` |  |  |
+| `paid_at` | `timestamp with time zone` |  |  |
+| `confirmed_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `note` | `text` |  |  |
+
+### `ptn.fuel_subscription_vehicle` 🛡️
+
+The vehicles a fuel subscription covers (1181)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `subscription_id` | `bigint` | 🔑 🔗 `ptn.fuel_subscription` ✱ |  |
+| `vehicle_id` | `bigint` | 🔑 🔗 `fleet.vehicle` ✱ |  |
+
+### `ptn.fuel_tag` 🛡️
+
+The NFC tags the platform registers and hands to carriers for their vehicles; only the hash of the tag's serial is kept (1181)
+
+| Column | Type | Constraints | Default |
+|---|---|---|---|
+| `id` | `bigint` | 🔑 ✱ | `identity` |
+| `uid` | `uuid` | ✱ | `gen_random_uuid()` |
+| `tag_hash` | `bytea` | ✱ |  |
+| `kind` | `text` | ✱ |  |
+| `label` | `text` | ✱ |  |
+| `batch` | `text` |  |  |
+| `status` | `text` | ✱ | `'STOCK'::text` |
+| `issued_to` | `bigint` | 🔗 `iam.company`  |  |
+| `issued_at` | `timestamp with time zone` |  |  |
+| `issued_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `sun_counter` | `integer` |  |  |
+| `last_seen_at` | `timestamp with time zone` |  |  |
+| `registered_by` | `bigint` | 🔗 `iam.app_user`  |  |
+| `created_at` | `timestamp with time zone` | ✱ | `now()` |
 
 ### `ptn.odometer_reading` 🛡️ 🔒
 
@@ -8477,6 +8619,8 @@ A contracted service partner, registered on the station pattern (14.11, 4.11)
 | `status` | `text` | ✱ | `'PENDING'::text` |
 | `created_at` | `timestamp with time zone` | ✱ | `now()` |
 | `pumps` | `smallint` |  |  |
+| `controller_key_hash` | `bytea` |  |  |
+| `controller_since` | `timestamp with time zone` |  |  |
 
 ### `ptn.partner_contract` 🛡️
 
@@ -8580,6 +8724,12 @@ The shared sale transaction for fuel and rest stops, posted through the ledger
 | `holder_name` | `text` |  |  |
 | `station_name` | `text` |  |  |
 | `pump_ref` | `text` |  |  |
+| `challenge_id` | `bigint` | 🔗 `ptn.fuel_challenge`  |  |
+| `pump_id` | `bigint` | 🔗 `ptn.fuel_pump`  |  |
+| `pump_by_qr` | `boolean` |  |  |
+| `odometer_photo_file_id` | `bigint` | 🔗 `ref.file_object`  |  |
+| `photo_dhash` | `bigint` |  |  |
+| `risk` | `smallint` |  |  |
 
 ### `ptn.partner_settlement` 🛡️
 

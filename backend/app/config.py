@@ -36,6 +36,9 @@ class Settings(BaseSettings):
 
     # Secret used to sign QR codes and verification tokens (32+ random bytes in production)
     signing_secret: str = "change-me-in-production-0123456789abcdef"
+    # The master key of the fuel service's secure NFC tags (NTAG 424 DNA, 1181), 32 hex characters: the tags are
+    # programmed with keys drawn from it, so it outlives a change of signing_secret. Empty: drawn from signing_secret.
+    fuel_tag_key: str = ""
     session_hours: int = 12
     cookie_secure: bool = True
     # Comma-separated proxy addresses or CIDR ranges whose X-Forwarded-For header is trusted

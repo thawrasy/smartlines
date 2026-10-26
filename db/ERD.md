@@ -104,8 +104,8 @@ flowchart LR
   pricing -->|1| ref
   pricing -->|1| sales
   ptn -->|2| fin
-  ptn -->|6| fleet
-  ptn -->|14| iam
+  ptn -->|7| fleet
+  ptn -->|23| iam
   ptn -->|1| net
   ptn -->|4| ops
   rail -->|1| fleet
@@ -4809,11 +4809,43 @@ erDiagram
     bigint partner_id FK
     bigint bound_by FK
     bigint unbound_by FK
+    bigint tag_id FK
+  }
+  ptn_fuel_challenge {
+    bigint id PK
+    uuid uid
+    bigint partner_id FK
+    bigint card_id FK
+    bigint user_id FK
+  }
+  ptn_fuel_commission {
+    bigint id PK
+    bigint sale_id FK
+    bigint company_id FK
+    character currency FK
+    text status
+  }
+  ptn_fuel_company_terms {
+    bigint id PK
+    bigint fuel_company_id FK
+    bigint set_by FK
   }
   ptn_fuel_price {
     bigint id PK
     bigint partner_id FK
     character currency FK
+  }
+  ptn_fuel_pump {
+    bigint id PK
+    uuid uid
+    bigint partner_id FK
+    text status
+  }
+  ptn_fuel_pump_txn {
+    bigint id PK
+    bigint partner_id FK
+    bigint pump_id FK
+    bigint sale_id FK
   }
   ptn_fuel_session {
     bigint id PK
@@ -4825,6 +4857,27 @@ erDiagram
     bigint trip_id FK
     bigint fuel_card_id FK
     text status
+  }
+  ptn_fuel_subscription {
+    bigint id PK
+    uuid uid
+    bigint company_id FK
+    character currency FK
+    text status
+    bigint requested_by FK
+    bigint confirmed_by FK
+  }
+  ptn_fuel_subscription_vehicle {
+    bigint subscription_id PK
+    bigint vehicle_id PK
+  }
+  ptn_fuel_tag {
+    bigint id PK
+    uuid uid
+    text status
+    bigint issued_to FK
+    bigint issued_by FK
+    bigint registered_by FK
   }
   ptn_odometer_reading {
     bigint id PK
@@ -4883,6 +4936,9 @@ erDiagram
     bigint ledger_txn_id FK
     bigint card_id FK
     bigint meter_photo_file_id FK
+    bigint challenge_id FK
+    bigint pump_id FK
+    bigint odometer_photo_file_id FK
   }
   ptn_partner_settlement {
     bigint id PK
@@ -4932,6 +4988,7 @@ erDiagram
   ptn_fuel_card }o..o| fleet_crew_profile : "driver_party_id"
   ptn_fuel_session }o..o| fleet_crew_profile : "driver_party_id"
   ptn_odometer_reading }o--|| fleet_vehicle : "vehicle_id"
+  ptn_fuel_subscription_vehicle }o--|| fleet_vehicle : "vehicle_id"
   ptn_fuel_card }o..o| fleet_vehicle : "vehicle_id"
   ptn_fuel_session }o--|| fleet_vehicle : "vehicle_id"
   ptn_partner_sale }o..o| fleet_vehicle : "vehicle_id"
@@ -4939,14 +4996,23 @@ erDiagram
   ptn_rest_stop_rating }o--|| iam_app_user : "user_id"
   ptn_partner_order }o--|| iam_app_user : "user_id"
   ptn_fuel_card_tag }o..o| iam_app_user : "bound_by"
+  ptn_fuel_challenge }o--|| iam_app_user : "user_id"
+  ptn_fuel_company_terms }o..o| iam_app_user : "set_by"
   ptn_partner_sale }o..o| iam_app_user : "user_id"
   ptn_fuel_card_tag }o..o| iam_app_user : "unbound_by"
+  ptn_fuel_tag }o..o| iam_app_user : "issued_by"
+  ptn_fuel_tag }o..o| iam_app_user : "registered_by"
+  ptn_fuel_subscription }o..o| iam_app_user : "confirmed_by"
+  ptn_fuel_company_terms }o--|| iam_company : "fuel_company_id"
   ptn_fuel_card }o--|| iam_company : "company_id"
   ptn_fuel_account }o--|| iam_company : "fuel_company_id"
+  ptn_fuel_subscription }o--|| iam_company : "company_id"
   ptn_partner }o..o| iam_company : "company_id"
   ptn_fuel_account }o--|| iam_company : "holder_company_id"
+  ptn_fuel_commission }o--|| iam_company : "company_id"
   ptn_fuel_session }o--|| iam_company : "company_id"
   ptn_partner_sale }o..o| iam_company : "company_id"
+  ptn_fuel_tag }o..o| iam_company : "issued_to"
   ptn_partner }o--|| iam_party : "party_id"
   ptn_partner_sale }o..o| iam_party : "driver_party_id"
   ptn_partner }o..o| net_station : "station_id"
@@ -4957,11 +5023,17 @@ erDiagram
   ptn_fuel_account_entry }o--|| ptn_fuel_account : "account_id"
   ptn_fuel_card }o..o| ptn_fuel_account : "account_id"
   ptn_fuel_card_tag }o--|| ptn_fuel_card : "card_id"
+  ptn_fuel_challenge }o--|| ptn_fuel_card : "card_id"
   ptn_fuel_session }o..o| ptn_fuel_card : "fuel_card_id"
   ptn_partner_sale }o..o| ptn_fuel_card : "card_id"
+  ptn_partner_sale }o..o| ptn_fuel_challenge : "challenge_id"
+  ptn_fuel_pump_txn }o--|| ptn_fuel_pump : "pump_id"
+  ptn_partner_sale }o..o| ptn_fuel_pump : "pump_id"
   ptn_fuel_anomaly }o--|| ptn_fuel_session : "session_id"
   ptn_odometer_reading }o..o| ptn_fuel_session : "session_id"
   ptn_partner_sale }o..o| ptn_fuel_session : "session_id"
+  ptn_fuel_subscription_vehicle }o--|| ptn_fuel_subscription : "subscription_id"
+  ptn_fuel_card_tag }o..o| ptn_fuel_tag : "tag_id"
   ptn_partner_contract }o--|| ptn_partner : "partner_id"
   ptn_station_employee }o--|| ptn_partner : "partner_id"
   ptn_fuel_price }o--|| ptn_partner : "partner_id"
@@ -4969,13 +5041,18 @@ erDiagram
   ptn_partner_menu_item }o--|| ptn_partner : "partner_id"
   ptn_partner_settlement }o--|| ptn_partner : "partner_id"
   ptn_rest_stop_rating }o--|| ptn_partner : "partner_id"
+  ptn_fuel_pump_txn }o--|| ptn_partner : "partner_id"
   ptn_partner_order }o--|| ptn_partner : "partner_id"
   ptn_partner_sale }o--|| ptn_partner : "partner_id"
+  ptn_fuel_pump }o--|| ptn_partner : "partner_id"
+  ptn_fuel_challenge }o--|| ptn_partner : "partner_id"
   ptn_fuel_card_tag }o..o| ptn_partner : "partner_id"
   ptn_partner_order_item }o--|| ptn_partner_menu_item : "menu_item_id"
   ptn_partner_order_item }o--|| ptn_partner_order : "order_id"
   ptn_partner_sale }o..o| ptn_partner_order : "order_id"
+  ptn_fuel_commission }o--|| ptn_partner_sale : "sale_id"
   ptn_fuel_account_entry }o..o| ptn_partner_sale : "sale_id"
+  ptn_fuel_pump_txn }o..o| ptn_partner_sale : "sale_id"
   ptn_fuel_session }o--|| ptn_station_employee : "station_employee_id"
 ```
 

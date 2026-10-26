@@ -209,9 +209,10 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         # CSRF defence in depth: browsers cannot add this header cross-site without CORS approval
         # (the integration API authenticates with keys in a header, never cookies, so it needs no such header; nor does
         # Telegram's webhook, which carries the bot's own secret header, 1151; nor Alertmanager's relay, with its bearer
-        # token, 1167; nor a station display hub, with its own key in a header, 1179)
+        # token, 1167; nor a station display hub, with its own key in a header, 1179; nor a fuel station's pump controller,
+        # with its own key in a header, 1181)
         if request.method in MUTATING and not path.startswith(("/api/payments/notify", "/api/v1/", "/api/auth/telegram/webhook",
-                                                               "/api/security/relay/", "/api/hub/")) \
+                                                               "/api/security/relay/", "/api/hub/", "/api/pump/")) \
                 and request.headers.get(CLIENT_HEADER) not in ("web", "android", "ios"):
             request.state.error_code = "CLIENT_HEADER_REQUIRED"
             return JSONResponse({"error": {"code": "CLIENT_HEADER_REQUIRED", "message": "missing client header"}},

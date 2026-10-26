@@ -44,6 +44,7 @@ sed -e "s|^MASSLAK_DOMAIN=.*|MASSLAK_DOMAIN=$domain|" \
     -e "s|^MASSLAK_AUDIT_PASSWORD=.*|MASSLAK_AUDIT_PASSWORD=$(pass)|" \
     -e "s|^MASSLAK_REPLICATION_PASSWORD=.*|MASSLAK_REPLICATION_PASSWORD=$(pass)|" \
     -e "s|^MASSLAK_SIGNING_SECRET=.*|MASSLAK_SIGNING_SECRET=$(openssl rand -base64 48 | tr -d '\n')|" \
+    -e "s|^MASSLAK_FUEL_TAG_KEY=.*|MASSLAK_FUEL_TAG_KEY=$(openssl rand -hex 16)|" \
     -e "s|^MASSLAK_FIELD_KEYS=.*|MASSLAK_FIELD_KEYS=$([ "$demo" = true ] && echo "kms://masslak/field/restricted/v1=$(key),kms://masslak/field/confidential/v1=$(key)")|" \
     -e "s|^MASSLAK_BIDX_KEY=.*|MASSLAK_BIDX_KEY=$([ "$demo" = true ] && key)|" \
     -e "s|^MASSLAK_TICKET_SIGNING_KEY=.*|MASSLAK_TICKET_SIGNING_KEY=$(key)|" \

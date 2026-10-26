@@ -1668,19 +1668,7 @@
    "masslak_api",
    "masslak_app"
   ],
-  "ptn.fuel_bind_tag(uuid,uuid,bytea)": [
-   "masslak_api",
-   "masslak_app"
-  ],
   "ptn.fuel_company_view(bigint)": [
-   "masslak_api",
-   "masslak_app"
-  ],
-  "ptn.fuel_fill(uuid,uuid,text,text,numeric,bigint,bigint,integer,text)": [
-   "masslak_api",
-   "masslak_app"
-  ],
-  "ptn.fuel_identify(uuid,bytea,text,uuid)": [
    "masslak_api",
    "masslak_app"
   ],
@@ -1706,6 +1694,57 @@
   ],
   "ptn.tg_fuel_account_entry()": [],
   "ptn.tg_fuel_card_account()": [],
-  "ptn.tg_fuel_partner_company()": []
+  "ptn.tg_fuel_partner_company()": [],
+  "ptn.company_today(bigint)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ptn.fuel_bind_card_tag(uuid,bytea)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ptn.fuel_cancel_subscription(uuid)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ptn.fuel_confirm_subscription(uuid,bigint,numeric,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ptn.fuel_controller_txn(bytea,integer,text,text,numeric,bigint,numeric,timestamp with time zone)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ptn.fuel_cover(bigint,bigint)": [],
+  "ptn.fuel_fill(uuid,text,numeric,bigint,bigint,bigint,integer,bigint,uuid,integer)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ptn.fuel_identify(uuid,bytea,integer,text,uuid)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ptn.fuel_owner_query(uuid,text)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ptn.fuel_pump_new_qr(uuid)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ptn.fuel_request_subscription(text,date,uuid[])": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ptn.fuel_set_controller(uuid,bytea)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ptn.fuel_settle(bigint)": [],
+  "ptn.fuel_tag_lost(uuid)": [
+   "masslak_api",
+   "masslak_app"
+  ],
+  "ptn.tg_fuel_pumps()": []
  }
 }

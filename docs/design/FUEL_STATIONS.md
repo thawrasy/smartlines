@@ -68,9 +68,56 @@ The partner model was planned and stays the base, not a parallel one:
   accounts, stations, people), carrier fuel page, driver code page, platform fuel page; English and Arabic.
 - **Tests**: 24 database checks and `backend/tests/test_fuel_stations.py` (the whole flow end to end).
 
+## Hard to cheat, and sold as a service (1181, owner's note of 26 October 2026)
+
+**The vehicle is present.** The platform registers every NFC tag it hands to carriers (`ptn.fuel_tag`, the serial kept
+as a hash only) and issues tags to a carrier; the carrier binds a tag to its vehicle's card through the platform (read
+by the phone, Web NFC) before sticking it on. With `registered_tags_only` a tag the platform did not issue is refused,
+and a tag reported lost never identifies a vehicle again. A secure tag (NTAG 424 DNA, Secure Unique NFC per NXP AN12196)
+writes a fresh signed message on every tap: its serial and a counter, encrypted with the shared meta key, and a MAC with a
+key drawn from the tag's serial and `MASSLAK_FUEL_TAG_KEY`. A copied tag cannot sign, a recorded message replays a
+counter already seen (`FUEL_TAG_REPLAY`), and a secure tag read by its serial only is refused (`FUEL_TAG_SECURE`). The
+programming bench prints the keys with `python -m app.tools.fuel_tag_keys`.
+
+**The system thinks before each fill.** Each identification opens a challenge (`ptn.fuel_challenge`) the fill must answer
+within `challenge_minutes`, once. Its risk points come from how the vehicle was identified (typed card number 40, app code
+15, plain tag 10, secure tag 0), a fill on the same card within `refill_hours` (30), open or confirmed anomalies on the
+vehicle (20), an attendant with one fill in ten flagged (20), and a station without a pump controller (10); `sample_pct`
+draws fills at random. From the points (or always, by setting) the challenge asks for the pump's QR sticker and for the
+odometer's photo with its reading.
+
+**The pump is real.** Each pump carries a signed QR sticker beside its meter ("FP1" + pump, sticker version and HMAC),
+printed from the fuel company's portal; a new sticker raises the version and the old one stops working. When the station's
+pump controller (forecourt system) reports its deliveries (`POST /api/pump/deliveries` with the station's key), each
+fill is matched with the pump's own litres and amount: a fill the pump has not reported waits (`PUMP_UNCONFIRMED`) and is
+completed by the matching delivery; one the pump delivered differently is held (`PUMP_MISMATCH`).
+
+**The photo is live.** The pump app has no file picker and no gallery: it draws a frame of the live camera and sends it as
+a JPEG with no metadata. The server refuses a picture carrying a camera app's metadata (`FUEL_PHOTO_NOT_LIVE`) and keeps a
+64-bit difference hash of each meter photo; a near match with a photo of the last `photo_dup_days` at the station or of the
+card opens `PHOTO_REUSED` and holds the fill. The owner sees the meter's and the odometer's photos and can question a fill
+(`OWNER_QUERY`), which the fuel company answers.
+
+**The allowance.** A card's budget renews by day, week, month, quarter or year (the renewal date is shown), may end on a
+date (`valid_until`), and its owner may pause it; a paused card keeps its tag and vehicle.
+
+**The service sold.** A carrier subscribes vehicles by the week, month, quarter or year (`ptn.fuel_subscription`); the
+price per vehicle comes from the platform's list (setting `fuel.subscription`) or is set when the platform records the
+advance payment, and a vehicle fills only while a paid subscription covers it (`required`). The platform's commission on
+the carrier's fills is agreed with the subscription, and on each fuel company's fills in its terms
+(`ptn.fuel_company_terms`); each fill records both as due (`ptn.fuel_commission`), a fill given back voids them, and the
+platform's page totals them by month for its invoices. Fuel money itself stays with the fuel company.
+
+**What still rests on people.** A determined attendant could photograph a printed copy of a sticker or a screen showing a
+meter; the random checks, the pump controller and the owner's review of the photos are what catch that. Reading the
+digits of the meter and the odometer from the photos (OCR) is not built: the figures are compared with the pump
+controller instead, where the station has one.
+
 ## Not built yet
 
-- Station mode in the native mobile app and the pump code screen in the mobile driver app (the web driver page exists).
+- Station mode in the native mobile app and the pump code screen in the mobile driver app (the web pages work on Android
+  Chrome, which offers Web NFC; an iPhone reads the QR code but not NFC from a web page).
+- Reading the meter's and the odometer's digits from the photos (OCR), and a trained check for photos of screens or prints.
 - Private subscribers without a fleet company.
 - Settlement statements between the platform and fuel companies (the platform holds no fuel money today).
 - Findings for fills outside the vehicle's route or working hours.
