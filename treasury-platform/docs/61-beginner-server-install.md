@@ -2307,16 +2307,16 @@ sudo docker compose -f /opt/bankfas/compose.yml logs --tail 50 api worker
 تأكد أن لوحة المشغّل تفتح عبر HTTPS:
 
 ```bash
-curl -sI https://admin.<DOMAIN>/
+curl -s -o /dev/null -w '%{http_code}\n' https://admin.<DOMAIN>/
 ```
 
-ما يجب أن تراه في أول سطر: `HTTP/2 200`.
+ما يجب أن تراه: `200`.
 
 | إن ظهر | المعنى |
 |---|---|
 | `Could not resolve host` | DNS |
 | `SSL certificate problem` | الشهادة لم تُصدر بعد. راجع سجل Caddy في 12.7 |
-| `HTTP/2 502` | حاوية `api` لا تعمل. راجع سجلها |
+| `502` | حاوية `api` لا تعمل. راجع سجلها |
 
 - **ClamAV** يحمّل تواقيعه أول مرة في 5 إلى 10 دقائق. قبل ذلك قد يفشل رفع الملفات. تابعه بـ `sudo docker compose -f /opt/bankfas/compose.yml logs --tail 20 clamav`.
 

@@ -2180,22 +2180,22 @@ sudo docker compose -f /opt/bankfas/compose.yml logs --tail 50 api worker
 تأكد من البوابة عبر HTTPS، من الخادم نفسه. الخادم لا يثق بسلطة Caddy تلقائيًا، فنعطي `curl` شهادتها:
 
 ```bash
-sudo curl -sI --cacert /var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt https://<SERVER_IP>/
+sudo curl -s -o /dev/null -w '%{http_code}\n' --cacert /var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt https://<SERVER_IP>/
 ```
 
-ما يجب أن تراه في أول سطر: `HTTP/2 200`.
+ما يجب أن تراه: `200`. (لا تستعمل `curl -I`: يطلب HEAD، والصفحة الأولى تُجاب للطلب العادي GET فقط، فيظهر 404.)
 
 وتأكد من لوحة المشغّل على الخادم نفسه:
 
 ```bash
-sudo curl -sI --cacert /var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt https://admin.localhost:8443/
+sudo curl -s -o /dev/null -w '%{http_code}\n' --cacert /var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt --resolve admin.localhost:8443:127.0.0.1 https://admin.localhost:8443/
 ```
 
-ما يجب أن تراه: `HTTP/2 200`.
+ما يجب أن تراه: `200`.
 
 | إن ظهر | المعنى |
 |---|---|
-| `HTTP/2 502` | حاوية `api` لا تعمل. راجع سجلها أعلاه |
+| `502` | حاوية `api` لا تعمل. راجع سجلها أعلاه |
 | `SSL certificate problem` | مسار `root.crt` خطأ، أو Caddy لم يُعَد تشغيله بعد التجهيز (11.6) |
 | `Connection refused` | Caddy متوقف: `systemctl status caddy` |
 | `Could not resolve host: admin.localhost` | تحقّق: نسخة curl لا تحلّ `*.localhost`. أضف `--resolve admin.localhost:8443:127.0.0.1` إلى الأمر |

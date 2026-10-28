@@ -162,7 +162,7 @@ sudo -u caddy caddy validate --config /etc/caddy/Caddyfile && sudo systemctl rel
 | R-02 | **ضبط `compose.yml`:** اسما الصورتين ورقم إصدار ClamAV في `/opt/bankfas/compose.yml`. الصورة `bankfas-api:<VERSION>` تُكتب بلا سجل إن بُنيت على الخادم نفسه | `sudoedit /opt/bankfas/compose.yml` |
 | R-02a | **فحص الجاهزية:** يجب أن يخرج بصفر قبل أول تشغيل، ويُحفظ ناتجه | `sudo tools/host/check_ready.sh` |
 | R-03 | **التشغيل** | `cd /opt/bankfas && sudo docker compose up -d && sudo docker compose ps` |
-| R-04 | **فحص التشغيل:** الحاويات الثلاث تعمل، وسجل الخادم بلا أخطاء، ولوحة المشغّل تُفتح | `sudo docker compose logs --tail 50 api worker` ثم `curl -sI https://admin.<DOMAIN>/` |
+| R-04 | **فحص التشغيل:** الحاويات الثلاث تعمل، وسجل الخادم بلا أخطاء، ولوحة المشغّل تُفتح | `sudo docker compose logs --tail 50 api worker` ثم `curl -s -o /dev/null -w '%{http_code}\n' https://admin.<DOMAIN>/` |
 | R-05 | **المشغّل الأول:** يفتح الرابط من D-10، ويضع كلمة المرور، ويربط تطبيق المصادقة | المتصفح |
 | R-06 | **أول مشترك** من لوحة المشغّل. فيُعدّه الخادم الخلفي خلال دقائق، ويُرسل دعوة مديره الأول بالبريد | لوحة المشغّل |
 | R-07 | **فحص البريد والملفات:** يصل بريد الدعوة. ويُرفع مستند تجريبي فيُفحص، ثم تُطبع وثيقة PDF | بوابة المشترك |
