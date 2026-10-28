@@ -14,7 +14,8 @@ while IFS= read -r f; do
     [ -n "$WHO" ] && ! grep -qiF "To: $WHO" "$f" && continue
     echo "------------------------------------------------------------"
     echo "file:    $(basename "$f")   ($(date -u -r "$f" '+%Y-%m-%d %H:%M UTC'))"
-    grep -m1 -i '^To:' "$f" || true
+    # The application writes the file in UTF-8 with a byte order mark, which would hide the first header (To:).
+    sed '1s/^\xEF\xBB\xBF//' "$f" | grep -m1 -i '^To:' || true
     grep -m1 -i '^Subject:' "$f" || true
     grep -oE 'https://[^ "<>]+' "$f" | sort -u | sed 's/^/link:    /' || true
     shown=$((shown + 1)); [ "$shown" -ge "$N" ] && break
