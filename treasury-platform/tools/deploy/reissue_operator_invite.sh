@@ -3,8 +3,10 @@
 # before the set-up (docs/62 section 9.8). It works only while no operator has finished the set-up: it revokes the
 # unused links of the invited administrator, adds a new 48-hour one and writes OPERATOR_INVITATION_REISSUED (HIGH) to
 # the audit log. Once an administrator is active, the next ones are invited and reset from the panel instead.
-# It runs as the personal sysadmin login of docs/62 section 8.6 (the deployment login is disabled outside the
-# deployment window). Like bootstrap_operator.sh, the token is 32 random bytes kept in a private temporary file, the
+# The work runs in a procedure created and dropped inside one transaction, as tp_auth_exec like
+# plat.usp_BootstrapOperator: the audit log's write predicate admits tp_auth, not a sysadmin (rls.fn_AuditWrite), and
+# an error rolls the procedure back with the rest. It runs as the personal sysadmin login of docs/62 section 8.9 (the
+# deployment login is disabled outside the deployment window). Like bootstrap_operator.sh, the token is 32 random bytes kept in a private temporary file, the
 # database keeps only its SHA-256, and the link is shown once on the terminal.
 #
 # Usage: tools/deploy/reissue_operator_invite.sh <your SQL login>   (it asks the password)
@@ -32,18 +34,28 @@ link_token="$(base64 -w0 < "$WORK/token.bin" | tr '+/' '-_' | tr -d '=')"
 ( umask 077; cat > "$WORK/reissue.sql" <<SQL
 SET NOCOUNT ON; SET XACT_ABORT ON;
 BEGIN TRANSACTION;
-IF EXISTS (SELECT 1 FROM plat.PlatformOperator WITH (UPDLOCK, HOLDLOCK) WHERE Status <> 'INVITED')
-    THROW 50023, 'An operator has finished the set-up: invite or reset from the panel', 1;
-DECLARE @oid INT = (SELECT MIN(PlatformOperatorId) FROM plat.PlatformOperator WHERE Role = 'OPERATOR_ADMIN' AND Status = 'INVITED');
-IF @oid IS NULL THROW 50016, 'No invited operator administrator: run tools/deploy/bootstrap_operator.sh', 1;
-UPDATE plat.OperatorToken SET RevokedAt = SYSUTCDATETIME() WHERE OperatorId = @oid AND UsedAt IS NULL AND RevokedAt IS NULL;
-INSERT plat.OperatorToken (OperatorId, Purpose, TokenHash, ExpiresAt, SentTo)
-SELECT @oid, 'INVITATION', HASHBYTES('SHA2_256', 0x$hex), DATEADD(HOUR, 48, SYSUTCDATETIME()), Email
-FROM plat.PlatformOperator WHERE PlatformOperatorId = @oid;
-EXEC aud.usp_WriteEvent @TenantId = NULL, @Action = 'OPERATOR_INVITATION_REISSUED', @Category = 'PLATFORM', @ActorType = 'SYSTEM',
-     @Severity = 'HIGH', @EntityType = 'plat.PlatformOperator', @EntityId = @oid;
+GO
+CREATE PROCEDURE plat.usp_TmpReissueOperatorInvite @Token VARBINARY(64)
+WITH EXECUTE AS N'tp_auth_exec'
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF EXISTS (SELECT 1 FROM plat.PlatformOperator WITH (UPDLOCK, HOLDLOCK) WHERE Status <> 'INVITED')
+        THROW 50023, 'An operator has finished the set-up: invite or reset from the panel', 1;
+    DECLARE @oid INT = (SELECT MIN(PlatformOperatorId) FROM plat.PlatformOperator WHERE Role = 'OPERATOR_ADMIN' AND Status = 'INVITED');
+    IF @oid IS NULL THROW 50016, 'No invited operator administrator: run tools/deploy/bootstrap_operator.sh', 1;
+    UPDATE plat.OperatorToken SET RevokedAt = SYSUTCDATETIME() WHERE OperatorId = @oid AND UsedAt IS NULL AND RevokedAt IS NULL;
+    INSERT plat.OperatorToken (OperatorId, Purpose, TokenHash, ExpiresAt, SentTo)
+    SELECT @oid, 'INVITATION', HASHBYTES('SHA2_256', @Token), DATEADD(HOUR, 48, SYSUTCDATETIME()), Email
+    FROM plat.PlatformOperator WHERE PlatformOperatorId = @oid;
+    EXEC aud.usp_WriteEvent @TenantId = NULL, @Action = 'OPERATOR_INVITATION_REISSUED', @Category = 'PLATFORM', @ActorType = 'SYSTEM',
+         @Severity = 'HIGH', @EntityType = 'plat.PlatformOperator', @EntityId = @oid;
+    SELECT Email FROM plat.PlatformOperator WHERE PlatformOperatorId = @oid;
+END;
+GO
+EXEC plat.usp_TmpReissueOperatorInvite @Token = 0x$hex;
+DROP PROCEDURE plat.usp_TmpReissueOperatorInvite;
 COMMIT TRANSACTION;
-SELECT Email FROM plat.PlatformOperator WHERE PlatformOperatorId = @oid;
 GO
 SQL
 )
