@@ -14,6 +14,6 @@
 -w /etc/caddy/ -p wa -k caddy
 -w /etc/ufw/ -p wa -k firewall
 -w /etc/fail2ban/ -p wa -k firewall
--w /var/log/caddy/ -p d -k log_delete
+-w /var/log/caddy/ -p wa -k log_delete
 -a always,exit -F arch=b64 -S execve -F euid=0 -F auid>=1000 -F auid!=unset -k root_cmd
 -a always,exit -F arch=b64 -S init_module,finit_module,delete_module -k modules
