@@ -1957,10 +1957,12 @@ https://admin.localhost:8443 {
 افحص ملف الإعداد:
 
 ```bash
-sudo caddy validate --config /etc/caddy/Caddyfile
+sudo -u caddy caddy validate --config /etc/caddy/Caddyfile
 ```
 
 ما يجب أن تراه في الآخر: `Valid configuration`.
+
+- الفحص يعمل بحساب `caddy` لا root، لأنه يفتح ملف السجل `/var/log/caddy/access.log`. فلو شُغّل بـ root لصار الملف ملك root، ولرفض Caddy العمل (`permission denied`). وإن حدث ذلك: `sudo chown -R caddy:caddy /var/log/caddy`.
 
 أعد تشغيل Caddy:
 
@@ -2134,7 +2136,7 @@ exit=0
 |---|---|
 | `the leaked-password list has N of 1048576 ranges` | التنزيل لم يكتمل (6.5). انتظر وأعد الفحص |
 | `image ... is not on this host` | 12.1 |
-| `caddy validate fails` | `sudo caddy validate --config /etc/caddy/Caddyfile` يعرض السبب |
+| `caddy validate fails` | `sudo -u caddy caddy validate --config /etc/caddy/Caddyfile` يعرض السبب |
 | `api.env does not name SERVER_IP and IP_TENANT` | أعد 11.3 بعد تصحيح `ACCESS=ip` و`SERVER_IP` و`IP_TENANT` |
 | `the trial's certificate authority is not installed` | 8.7 |
 | `no answer from db.bankfas.internal:1433` | SQL Server متوقف (`sudo systemctl start mssql-server`)، أو سطر `/etc/hosts` ناقص (8.8) |

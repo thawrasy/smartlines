@@ -149,7 +149,7 @@ sudo cp tools/host/docker-daemon.json /etc/docker/daemon.json && sudo systemctl 
 xcaddy build --with github.com/caddy-dns/<provider>     # مثل cloudflare
 # الخطوة H-05 كتبت /etc/caddy/Caddyfile ورمز DNS (/etc/caddy/dns.env)
 sudo systemctl daemon-reload
-sudo caddy validate --config /etc/caddy/Caddyfile && sudo systemctl reload caddy
+sudo -u caddy caddy validate --config /etc/caddy/Caddyfile && sudo systemctl reload caddy
 ```
 
 ---
