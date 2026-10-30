@@ -1,0 +1,217 @@
+{
+  "country": "SA",
+  "iban_length": 24,
+  "bban_format": "2!n18!c",
+  "updated": "2026-10-30",
+  "note": "IBAN bank identifiers assigned by SAMA, compiled from public sources; see README.md for sources and confidence.",
+  "banks": [
+    {
+      "code": "05",
+      "name_ar": "\u0645\u0635\u0631\u0641 \u0627\u0644\u0625\u0646\u0645\u0627\u0621",
+      "name_en": "Alinma Bank",
+      "status": "active",
+      "swift": "INMASARI",
+      "swift_confidence": "confirmed"
+    },
+    {
+      "code": "10",
+      "name_ar": "\u0627\u0644\u0628\u0646\u0643 \u0627\u0644\u0623\u0647\u0644\u064a \u0627\u0644\u0633\u0639\u0648\u062f\u064a",
+      "name_en": "Saudi National Bank (SNB)",
+      "status": "active",
+      "swift": "NCBKSAJE",
+      "swift_confidence": "confirmed"
+    },
+    {
+      "code": "15",
+      "name_ar": "\u0628\u0646\u0643 \u0627\u0644\u0628\u0644\u0627\u062f",
+      "name_en": "Bank Albilad",
+      "status": "active",
+      "swift": "ALBISARI",
+      "swift_confidence": "confirmed"
+    },
+    {
+      "code": "20",
+      "name_ar": "\u0628\u0646\u0643 \u0627\u0644\u0631\u064a\u0627\u0636",
+      "name_en": "Riyad Bank",
+      "status": "active",
+      "swift": "RIBLSARI",
+      "swift_confidence": "confirmed"
+    },
+    {
+      "code": "30",
+      "name_ar": "\u0627\u0644\u0628\u0646\u0643 \u0627\u0644\u0639\u0631\u0628\u064a \u0627\u0644\u0648\u0637\u0646\u064a",
+      "name_en": "Arab National Bank",
+      "status": "active",
+      "swift": "ARNBSARI",
+      "swift_confidence": "confirmed"
+    },
+    {
+      "code": "36",
+      "name_ar": "\u0628\u0646\u0643 \u062f\u0627\u0644 \u062b\u0644\u0627\u062b\u0645\u0627\u0626\u0629 \u0648\u0633\u062a\u0648\u0646 (D360)",
+      "name_en": "D360 Bank",
+      "status": "digital",
+      "swift": "DBAKSARI",
+      "swift_confidence": "confirmed"
+    },
+    {
+      "code": "40",
+      "name_ar": "\u0645\u062c\u0645\u0648\u0639\u0629 \u0633\u0627\u0645\u0628\u0627 \u0627\u0644\u0645\u0627\u0644\u064a\u0629",
+      "name_en": "Samba Financial Group",
+      "status": "legacy_merged",
+      "swift": "SAMBSARI",
+      "swift_confidence": "unconfirmed"
+    },
+    {
+      "code": "45",
+      "name_ar": "\u0627\u0644\u0628\u0646\u0643 \u0627\u0644\u0633\u0639\u0648\u062f\u064a \u0627\u0644\u0623\u0648\u0644 (\u0633\u0627\u0628)",
+      "name_en": "Saudi Awwal Bank (SAB, formerly SABB)",
+      "status": "active",
+      "swift": "SABBSARI",
+      "swift_confidence": "confirmed"
+    },
+    {
+      "code": "50",
+      "name_ar": "\u0627\u0644\u0628\u0646\u0643 \u0627\u0644\u0623\u0648\u0644",
+      "name_en": "Alawwal Bank",
+      "status": "legacy_merged",
+      "swift": "AAALSARI",
+      "swift_confidence": "single_source"
+    },
+    {
+      "code": "55",
+      "name_ar": "\u0627\u0644\u0628\u0646\u0643 \u0627\u0644\u0633\u0639\u0648\u062f\u064a \u0627\u0644\u0641\u0631\u0646\u0633\u064a",
+      "name_en": "Banque Saudi Fransi",
+      "status": "active",
+      "swift": "BSFRSARI",
+      "swift_confidence": "confirmed"
+    },
+    {
+      "code": "60",
+      "name_ar": "\u0628\u0646\u0643 \u0627\u0644\u062c\u0632\u064a\u0631\u0629",
+      "name_en": "Bank AlJazira",
+      "status": "active",
+      "swift": "BJAZSAJE",
+      "swift_confidence": "confirmed"
+    },
+    {
+      "code": "65",
+      "name_ar": "\u0627\u0644\u0628\u0646\u0643 \u0627\u0644\u0633\u0639\u0648\u062f\u064a \u0644\u0644\u0627\u0633\u062a\u062b\u0645\u0627\u0631",
+      "name_en": "The Saudi Investment Bank",
+      "status": "active",
+      "swift": "SIBCSARI",
+      "swift_confidence": "confirmed"
+    },
+    {
+      "code": "71",
+      "name_ar": "\u0628\u0646\u0643 \u0627\u0644\u0628\u062d\u0631\u064a\u0646 \u0627\u0644\u0648\u0637\u0646\u064a (\u0641\u0631\u0639 \u0627\u0644\u0633\u0639\u0648\u062f\u064a\u0629)",
+      "name_en": "National Bank of Bahrain",
+      "status": "foreign_branch",
+      "swift": "NBOBSARI",
+      "swift_confidence": "single_source"
+    },
+    {
+      "code": "73",
+      "name_ar": "\u0628\u0646\u0643 \u0623\u0628\u0648\u0638\u0628\u064a \u0627\u0644\u0623\u0648\u0644 (\u0641\u0631\u0639 \u0627\u0644\u0633\u0639\u0648\u062f\u064a\u0629)",
+      "name_en": "First Abu Dhabi Bank (FAB)",
+      "status": "foreign_branch",
+      "swift": "FABMSARI",
+      "swift_confidence": "single_source"
+    },
+    {
+      "code": "75",
+      "name_ar": "\u0628\u0646\u0643 \u0627\u0644\u0643\u0648\u064a\u062a \u0627\u0644\u0648\u0637\u0646\u064a (\u0641\u0631\u0639 \u0627\u0644\u0633\u0639\u0648\u062f\u064a\u0629)",
+      "name_en": "National Bank of Kuwait",
+      "status": "foreign_branch",
+      "swift": "NBOKSAJE",
+      "swift_confidence": "single_source"
+    },
+    {
+      "code": "76",
+      "name_ar": "\u0628\u0646\u0643 \u0645\u0633\u0642\u0637 (\u0641\u0631\u0639 \u0627\u0644\u0633\u0639\u0648\u062f\u064a\u0629)",
+      "name_en": "Bank Muscat",
+      "status": "foreign_branch",
+      "swift": "BMUSSARI",
+      "swift_confidence": "single_source"
+    },
+    {
+      "code": "78",
+      "name_ar": "\u0628\u0646\u0643 \u0625\u0633 \u062a\u064a \u0633\u064a (STC Bank)",
+      "name_en": "STC Bank",
+      "status": "digital",
+      "swift": "STCJSARI",
+      "swift_confidence": "confirmed"
+    },
+    {
+      "code": "80",
+      "name_ar": "\u0645\u0635\u0631\u0641 \u0627\u0644\u0631\u0627\u062c\u062d\u064a",
+      "name_en": "Al Rajhi Bank",
+      "status": "active",
+      "swift": "RJHISARI",
+      "swift_confidence": "confirmed"
+    },
+    {
+      "code": "81",
+      "name_ar": "\u062f\u0648\u064a\u062a\u0634\u0647 \u0628\u0646\u0643 (\u0641\u0631\u0639 \u0627\u0644\u0633\u0639\u0648\u062f\u064a\u0629)",
+      "name_en": "Deutsche Bank",
+      "status": "foreign_branch",
+      "swift": "DEUTSARI",
+      "swift_confidence": "single_source"
+    },
+    {
+      "code": "82",
+      "name_ar": "\u0627\u0644\u0628\u0646\u0643 \u0627\u0644\u0648\u0637\u0646\u064a \u0627\u0644\u0628\u0627\u0643\u0633\u062a\u0627\u0646\u064a (\u0641\u0631\u0639 \u0627\u0644\u0633\u0639\u0648\u062f\u064a\u0629)",
+      "name_en": "National Bank of Pakistan",
+      "status": "foreign_branch",
+      "swift": "NBPASARI",
+      "swift_confidence": "confirmed"
+    },
+    {
+      "code": "83",
+      "name_ar": "\u0628\u0646\u0643 \u0627\u0644\u062f\u0648\u0644\u0629 \u0627\u0644\u0647\u0646\u062f\u064a (\u0641\u0631\u0639 \u0627\u0644\u0633\u0639\u0648\u062f\u064a\u0629)",
+      "name_en": "State Bank of India",
+      "status": "foreign_branch",
+      "swift": "SBINSAJE",
+      "swift_confidence": "single_source"
+    },
+    {
+      "code": "84",
+      "name_ar": "\u0628\u0646\u0643 \u0632\u0631\u0627\u0639\u0627\u062a \u0627\u0644\u062a\u0631\u0643\u064a (\u0641\u0631\u0639 \u0627\u0644\u0633\u0639\u0648\u062f\u064a\u0629)",
+      "name_en": "T.C. Ziraat Bankas\u0131",
+      "status": "foreign_branch",
+      "swift": "TCZBSAJE",
+      "swift_confidence": "single_source"
+    },
+    {
+      "code": "85",
+      "name_ar": "\u0628\u064a \u0625\u0646 \u0628\u064a \u0628\u0627\u0631\u064a\u0628\u0627 (\u0641\u0631\u0639 \u0627\u0644\u0633\u0639\u0648\u062f\u064a\u0629)",
+      "name_en": "BNP Paribas",
+      "status": "foreign_branch",
+      "swift": "BNPASARI",
+      "swift_confidence": "unconfirmed"
+    },
+    {
+      "code": "86",
+      "name_ar": "\u062c\u064a \u0628\u064a \u0645\u0648\u0631\u063a\u0627\u0646 \u062a\u0634\u064a\u0633 (\u0641\u0631\u0639 \u0627\u0644\u0633\u0639\u0648\u062f\u064a\u0629)",
+      "name_en": "JPMorgan Chase Bank",
+      "status": "foreign_branch",
+      "swift": "CHASSARI",
+      "swift_confidence": "unconfirmed"
+    },
+    {
+      "code": "90",
+      "name_ar": "\u0628\u0646\u0643 \u0627\u0644\u062e\u0644\u064a\u062c \u0627\u0644\u062f\u0648\u0644\u064a",
+      "name_en": "Gulf International Bank (GIB)",
+      "status": "foreign_branch",
+      "swift": "GULFSARI",
+      "swift_confidence": "unconfirmed"
+    },
+    {
+      "code": "95",
+      "name_ar": "\u0628\u0646\u0643 \u0627\u0644\u0625\u0645\u0627\u0631\u0627\u062a \u062f\u0628\u064a \u0627\u0644\u0648\u0637\u0646\u064a (\u0641\u0631\u0639 \u0627\u0644\u0633\u0639\u0648\u062f\u064a\u0629)",
+      "name_en": "Emirates NBD",
+      "status": "foreign_branch",
+      "swift": "EBILSARI",
+      "swift_confidence": "single_source"
+    }
+  ]
+}

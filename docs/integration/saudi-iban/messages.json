@@ -1,0 +1,46 @@
+{
+  "errors": {
+    "EMPTY": {
+      "en": "No IBAN entered",
+      "ar": "\u0644\u0645 \u064a\u064f\u062f\u062e\u0644 \u0622\u064a\u0628\u0627\u0646"
+    },
+    "INVALID_CHARACTERS": {
+      "en": "Only A-Z and 0-9 are allowed",
+      "ar": "\u064a\u062d\u062a\u0648\u064a \u0631\u0645\u0648\u0632\u0627\u064b \u063a\u064a\u0631 \u0645\u0633\u0645\u0648\u062d\u0629 (\u0627\u0644\u0645\u0633\u0645\u0648\u062d A\u2013Z \u06480\u20139)"
+    },
+    "COUNTRY_NOT_SA": {
+      "en": "The country code is not SA",
+      "ar": "\u0631\u0645\u0632 \u0627\u0644\u062f\u0648\u0644\u0629 \u0644\u064a\u0633 SA"
+    },
+    "WRONG_LENGTH": {
+      "en": "A Saudi IBAN has 24 characters",
+      "ar": "\u0637\u0648\u0644 \u0627\u0644\u0622\u064a\u0628\u0627\u0646 \u0627\u0644\u0633\u0639\u0648\u062f\u064a 24 \u062e\u0627\u0646\u0629"
+    },
+    "INVALID_FORMAT": {
+      "en": "The check digits and the bank code must be digits",
+      "ar": "\u062e\u0627\u0646\u062a\u0627 \u0627\u0644\u062a\u062f\u0642\u064a\u0642 \u0648\u0631\u0645\u0632 \u0627\u0644\u0628\u0646\u0643 \u064a\u062c\u0628 \u0623\u0646 \u062a\u0643\u0648\u0646 \u0623\u0631\u0642\u0627\u0645\u0627\u064b"
+    },
+    "INVALID_CHECK_DIGITS": {
+      "en": "Check digits 00, 01 and 99 are not allowed",
+      "ar": "\u062e\u0627\u0646\u062a\u0627 \u0627\u0644\u062a\u062f\u0642\u064a\u0642 00 \u064801 \u064899 \u063a\u064a\u0631 \u0645\u0633\u0645\u0648\u062d\u0629"
+    },
+    "CHECKSUM_FAILED": {
+      "en": "The MOD-97 check failed: the IBAN is mistyped",
+      "ar": "\u0641\u0634\u0644 \u0627\u062e\u062a\u0628\u0627\u0631 MOD-97 \u2014 \u062e\u0637\u0623 \u0641\u064a \u0643\u062a\u0627\u0628\u0629 \u0627\u0644\u0622\u064a\u0628\u0627\u0646"
+    },
+    "UNKNOWN_BANK": {
+      "en": "The bank code is not registered",
+      "ar": "\u0631\u0645\u0632 \u0627\u0644\u0628\u0646\u0643 \u063a\u064a\u0631 \u0645\u0633\u062c\u0644"
+    }
+  },
+  "warnings": {
+    "LEGACY_BANK": {
+      "en": "The bank code belongs to a merged bank; the account may have moved to the acquiring bank",
+      "ar": "\u0631\u0645\u0632 \u0628\u0646\u0643 \u0645\u062f\u0645\u062c \u2014 \u0642\u062f \u064a\u0643\u0648\u0646 \u0627\u0644\u062d\u0633\u0627\u0628 \u0645\u0646\u0642\u0648\u0644\u0627\u064b \u0625\u0644\u0649 \u0627\u0644\u0628\u0646\u0643 \u0627\u0644\u062f\u0627\u0645\u062c"
+    },
+    "UNKNOWN_BANK": {
+      "en": "The bank code is not registered",
+      "ar": "\u0631\u0645\u0632 \u0627\u0644\u0628\u0646\u0643 \u063a\u064a\u0631 \u0645\u0633\u062c\u0644"
+    }
+  }
+}
