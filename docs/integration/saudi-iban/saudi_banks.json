@@ -1,0 +1,217 @@
+{
+  "country": "SA",
+  "iban_length": 24,
+  "bban_format": "2!n18!c",
+  "updated": "2026-10-30",
+  "note": "IBAN bank identifiers assigned by SAMA, compiled from public sources; see README.md for sources and confidence.",
+  "banks": [
+    {
+      "code": "05",
+      "name_ar": "مصرف الإنماء",
+      "name_en": "Alinma Bank",
+      "status": "active",
+      "swift": "INMASARI",
+      "swift_confidence": "confirmed"
+    },
+    {
+      "code": "10",
+      "name_ar": "البنك الأهلي السعودي",
+      "name_en": "Saudi National Bank (SNB)",
+      "status": "active",
+      "swift": "NCBKSAJE",
+      "swift_confidence": "confirmed"
+    },
+    {
+      "code": "15",
+      "name_ar": "بنك البلاد",
+      "name_en": "Bank Albilad",
+      "status": "active",
+      "swift": "ALBISARI",
+      "swift_confidence": "confirmed"
+    },
+    {
+      "code": "20",
+      "name_ar": "بنك الرياض",
+      "name_en": "Riyad Bank",
+      "status": "active",
+      "swift": "RIBLSARI",
+      "swift_confidence": "confirmed"
+    },
+    {
+      "code": "30",
+      "name_ar": "البنك العربي الوطني",
+      "name_en": "Arab National Bank",
+      "status": "active",
+      "swift": "ARNBSARI",
+      "swift_confidence": "confirmed"
+    },
+    {
+      "code": "36",
+      "name_ar": "بنك دال ثلاثمائة وستون (D360)",
+      "name_en": "D360 Bank",
+      "status": "digital",
+      "swift": "DBAKSARI",
+      "swift_confidence": "confirmed"
+    },
+    {
+      "code": "40",
+      "name_ar": "مجموعة سامبا المالية",
+      "name_en": "Samba Financial Group",
+      "status": "legacy_merged",
+      "swift": "SAMBSARI",
+      "swift_confidence": "unconfirmed"
+    },
+    {
+      "code": "45",
+      "name_ar": "البنك السعودي الأول (ساب)",
+      "name_en": "Saudi Awwal Bank (SAB, formerly SABB)",
+      "status": "active",
+      "swift": "SABBSARI",
+      "swift_confidence": "confirmed"
+    },
+    {
+      "code": "50",
+      "name_ar": "البنك الأول",
+      "name_en": "Alawwal Bank",
+      "status": "legacy_merged",
+      "swift": "AAALSARI",
+      "swift_confidence": "single_source"
+    },
+    {
+      "code": "55",
+      "name_ar": "البنك السعودي الفرنسي",
+      "name_en": "Banque Saudi Fransi",
+      "status": "active",
+      "swift": "BSFRSARI",
+      "swift_confidence": "confirmed"
+    },
+    {
+      "code": "60",
+      "name_ar": "بنك الجزيرة",
+      "name_en": "Bank AlJazira",
+      "status": "active",
+      "swift": "BJAZSAJE",
+      "swift_confidence": "confirmed"
+    },
+    {
+      "code": "65",
+      "name_ar": "البنك السعودي للاستثمار",
+      "name_en": "The Saudi Investment Bank",
+      "status": "active",
+      "swift": "SIBCSARI",
+      "swift_confidence": "confirmed"
+    },
+    {
+      "code": "71",
+      "name_ar": "بنك البحرين الوطني (فرع السعودية)",
+      "name_en": "National Bank of Bahrain",
+      "status": "foreign_branch",
+      "swift": "NBOBSARI",
+      "swift_confidence": "single_source"
+    },
+    {
+      "code": "73",
+      "name_ar": "بنك أبوظبي الأول (فرع السعودية)",
+      "name_en": "First Abu Dhabi Bank (FAB)",
+      "status": "foreign_branch",
+      "swift": "FABMSARI",
+      "swift_confidence": "single_source"
+    },
+    {
+      "code": "75",
+      "name_ar": "بنك الكويت الوطني (فرع السعودية)",
+      "name_en": "National Bank of Kuwait",
+      "status": "foreign_branch",
+      "swift": "NBOKSAJE",
+      "swift_confidence": "single_source"
+    },
+    {
+      "code": "76",
+      "name_ar": "بنك مسقط (فرع السعودية)",
+      "name_en": "Bank Muscat",
+      "status": "foreign_branch",
+      "swift": "BMUSSARI",
+      "swift_confidence": "single_source"
+    },
+    {
+      "code": "78",
+      "name_ar": "بنك إس تي سي (STC Bank)",
+      "name_en": "STC Bank",
+      "status": "digital",
+      "swift": "STCJSARI",
+      "swift_confidence": "confirmed"
+    },
+    {
+      "code": "80",
+      "name_ar": "مصرف الراجحي",
+      "name_en": "Al Rajhi Bank",
+      "status": "active",
+      "swift": "RJHISARI",
+      "swift_confidence": "confirmed"
+    },
+    {
+      "code": "81",
+      "name_ar": "دويتشه بنك (فرع السعودية)",
+      "name_en": "Deutsche Bank",
+      "status": "foreign_branch",
+      "swift": "DEUTSARI",
+      "swift_confidence": "single_source"
+    },
+    {
+      "code": "82",
+      "name_ar": "البنك الوطني الباكستاني (فرع السعودية)",
+      "name_en": "National Bank of Pakistan",
+      "status": "foreign_branch",
+      "swift": "NBPASARI",
+      "swift_confidence": "confirmed"
+    },
+    {
+      "code": "83",
+      "name_ar": "بنك الدولة الهندي (فرع السعودية)",
+      "name_en": "State Bank of India",
+      "status": "foreign_branch",
+      "swift": "SBINSAJE",
+      "swift_confidence": "single_source"
+    },
+    {
+      "code": "84",
+      "name_ar": "بنك زراعات التركي (فرع السعودية)",
+      "name_en": "T.C. Ziraat Bankası",
+      "status": "foreign_branch",
+      "swift": "TCZBSAJE",
+      "swift_confidence": "single_source"
+    },
+    {
+      "code": "85",
+      "name_ar": "بي إن بي باريبا (فرع السعودية)",
+      "name_en": "BNP Paribas",
+      "status": "foreign_branch",
+      "swift": "BNPASARI",
+      "swift_confidence": "unconfirmed"
+    },
+    {
+      "code": "86",
+      "name_ar": "جي بي مورغان تشيس (فرع السعودية)",
+      "name_en": "JPMorgan Chase Bank",
+      "status": "foreign_branch",
+      "swift": "CHASSARI",
+      "swift_confidence": "unconfirmed"
+    },
+    {
+      "code": "90",
+      "name_ar": "بنك الخليج الدولي",
+      "name_en": "Gulf International Bank (GIB)",
+      "status": "foreign_branch",
+      "swift": "GULFSARI",
+      "swift_confidence": "unconfirmed"
+    },
+    {
+      "code": "95",
+      "name_ar": "بنك الإمارات دبي الوطني (فرع السعودية)",
+      "name_en": "Emirates NBD",
+      "status": "foreign_branch",
+      "swift": "EBILSARI",
+      "swift_confidence": "single_source"
+    }
+  ]
+}

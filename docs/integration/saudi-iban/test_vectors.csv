@@ -1,0 +1,49 @@
+input,valid,error,bank_code,warnings,note
+SA0380000000608010167519,true,,80,,SWIFT IBAN Registry example
+sa03 8000 0000 6080 1016 7519,true,,80,,lower case with spaces
+SA03-8000-0000-6080-1016-7519,true,,80,,hyphens
+IBAN SA03 8000 0000 6080 1016 7519,true,,80,,print form with IBAN prefix
+SA٠٣ ٨٠٠٠ ٠٠٠٠ ٦٠٨٠ ١٠١٦ ٧٥١٩,true,,80,,Arabic-Indic digits
+‏SA03 8000 0000 6080 1016 7519 ,true,,80,,"RTL mark, no-break space, trailing space"
+SA0205000000608010167519,true,,05,,bank 05 with the registry account
+SA1510000000608010167519,true,,10,,bank 10 with the registry account
+SA2815000000608010167519,true,,15,,bank 15 with the registry account
+SA4120000000608010167519,true,,20,,bank 20 with the registry account
+SA6730000000608010167519,true,,30,,bank 30 with the registry account
+SA0536000000608010167519,true,,36,,bank 36 with the registry account
+SA9340000000608010167519,true,,40,LEGACY_BANK,bank 40 with the registry account
+SA0945000000608010167519,true,,45,,bank 45 with the registry account
+SA2250000000608010167519,true,,50,LEGACY_BANK,bank 50 with the registry account
+SA3555000000608010167519,true,,55,,bank 55 with the registry account
+SA4860000000608010167519,true,,60,,bank 60 with the registry account
+SA6165000000608010167519,true,,65,,bank 65 with the registry account
+SA9671000000608010167519,true,,71,,bank 71 with the registry account
+SA4373000000608010167519,true,,73,,bank 73 with the registry account
+SA8775000000608010167519,true,,75,,bank 75 with the registry account
+SA1276000000608010167519,true,,76,,bank 76 with the registry account
+SA5678000000608010167519,true,,78,,bank 78 with the registry account
+SA0380000000608010167519,true,,80,,bank 80 with the registry account
+SA2581000000608010167519,true,,81,,bank 81 with the registry account
+SA4782000000608010167519,true,,82,,bank 82 with the registry account
+SA6983000000608010167519,true,,83,,bank 83 with the registry account
+SA9184000000608010167519,true,,84,,bank 84 with the registry account
+SA1685000000608010167519,true,,85,,bank 85 with the registry account
+SA3886000000608010167519,true,,86,,bank 86 with the registry account
+SA2990000000608010167519,true,,90,,bank 90 with the registry account
+SA4295000000608010167519,true,,95,,bank 95 with the registry account
+,false,EMPTY,,,empty
+SA03 8000 0000 6080 1016 751#,false,INVALID_CHARACTERS,,,invalid character
+AE070331234567890123456,false,COUNTRY_NOT_SA,,,UAE IBAN
+GB82WEST12345698765432,false,COUNTRY_NOT_SA,,,UK IBAN
+SA038000000060801016751,false,WRONG_LENGTH,,,23 characters
+SA03800000006080101675190,false,WRONG_LENGTH,,,25 characters
+SAAB80000000608010167519,false,INVALID_FORMAT,,,letters in check digits
+SA03AB000000608010167519,false,INVALID_FORMAT,,,letters in bank code
+SA0480000000608010167519,false,CHECKSUM_FAILED,80,,one check digit wrong
+SA0380000000608010167591,false,CHECKSUM_FAILED,80,,two adjacent digits swapped
+SA0380000000608010167518,false,CHECKSUM_FAILED,80,,last digit wrong
+SA3399000000608010167519,false,UNKNOWN_BANK,99,,"passes MOD-97, bank code 99 not registered"
+SA0080000000000000000044,false,INVALID_CHECK_DIGITS,80,,check digits 00 pass MOD-97 but are outside 02..98
+SA9780000000000000000044,true,,80,,same account with its real check digits 97
+SA0110000000000000000048,false,INVALID_CHECK_DIGITS,10,,check digits 01 pass MOD-97 but are outside 02..98
+SA9810000000000000000048,true,,10,,same account with its real check digits 98
